@@ -357,7 +357,7 @@ class Configuration(object):
             self._log('Removing %s' % self.dynamo_home)
             shutil.rmtree(self.dynamo_home)
 
-        for lib in ['dlib','texc']+ENGINE_LIBS:
+        for lib in ['dlib','texc','modelc']+ENGINE_LIBS:
             builddir = join(self.defold_root, 'engine/%s/build' % lib)
             if os.path.exists(builddir):
                 self._log('Removing %s' % builddir)
@@ -987,7 +987,7 @@ class Configuration(object):
             self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
         if self.is_desktop_target():
-            libs = ['dlib', 'texc', 'particle']
+            libs = ['dlib', 'texc', 'modelc', 'particle']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
@@ -1081,7 +1081,7 @@ class Configuration(object):
         if host == 'darwin':
             host = 'x86_64-darwin'
         # Make sure we build these for the host platform for the toolchain (bob light)
-        for lib in ['dlib', 'texc']:
+        for lib in ['dlib', 'texc', 'modelc']:
             skip_tests = host != self.target_platform
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         if not self.skip_bob_light:
@@ -1094,6 +1094,7 @@ class Configuration(object):
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():
                 engine_libs.insert(1, 'texc')
+                engine_libs.insert(2, 'modelc')
         for lib in engine_libs:
             if not build_private.is_library_supported(target_platform, lib):
                 continue
@@ -1130,6 +1131,7 @@ class Configuration(object):
 
     def copy_local_bob_artefacts(self):
         texc_name = format_lib('texc_shared', self.host2)
+        modelc_name = format_lib('modelc_shared', self.host2)
         luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         missing = {}
@@ -1159,7 +1161,8 @@ class Configuration(object):
         #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
-                                 'lib/%s/%s' % (self.host2, texc_name): 'lib/%s/%s' % (self.host2, texc_name)},
+                                 'lib/%s/%s' % (self.host2, texc_name): 'lib/%s/%s' % (self.host2, texc_name),
+                                 'lib/%s/%s' % (self.host2, modelc_name): 'lib/%s/%s' % (self.host2, modelc_name),},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
                      'js-bundling': js_files,
@@ -1433,12 +1436,28 @@ class Configuration(object):
         with open(self.save_env_path, "w") as f:
             f.write(res)
 
+    def find_and_set_java_home(self):
+        cmd = ['java', '-XshowSettings:properties', '-version']
+        process = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        output = process.communicate()[1]
+
+        lines = output.replace('\r', '').split('\n')
+        for line in lines:
+            line = line.strip()
+            if 'java.home' in line:
+                tokens = line.split(' = ')
+                java_home = tokens[1].strip()
+                os.environ['JAVA_HOME'] = java_home
+
+
     def shell(self):
-        print 'Setting up shell with DYNAMO_HOME, PATH, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set'
+        print 'Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set'
         if "win32" in self.host:
             preexec_fn = None
         else:
             preexec_fn = self.check_ems
+
+        self.find_and_set_java_home()
 
         if "darwin" in self.host and "arm" in platform.processor():
             print 'Detected Apple M1 CPU - running shell with x86 architecture'
@@ -1973,6 +1992,7 @@ class Configuration(object):
                       '%s/build_tools' % self.defold,
                       '%s/ext/lib/python' % self.dynamo_home]
         env['PYTHONPATH'] = os.path.pathsep.join(pythonpaths)
+        env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
         env['DYNAMO_HOME'] = self.dynamo_home
 

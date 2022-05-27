@@ -14,22 +14,35 @@
   (:require [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource])
-  (:import [com.dynamo.bob.pipeline ModelUtil]
+  (:import [com.dynamo.bob.pipeline ColladaUtil]
+           [com.dynamo.bob.pipeline ModelUtil]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$Skeleton]
            [java.util ArrayList]))
 
 (set! *warn-on-reflection* false)
 
-(defn create-scene [resource]
-  (let [stream (io/input-stream resource)
-        options nil
-        scene (ModelUtil/loadScene stream (:ext resource) options)]
-    scene))
-
-(defn load-scene [resource]
+(defn- load-collada-scene [stream]
   (let [mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
-        scene (create-scene resource)
+        scene (ColladaUtil/loadScene stream)
+        bones (ColladaUtil/loadSkeleton scene)
+        material-ids (ColladaUtil/loadMaterialNames scene)
+        animation-ids (ArrayList.)]
+    (ColladaUtil/loadSkeleton scene skeleton-builder)
+    (ColladaUtil/loadModels scene mesh-set-builder)
+    (let [mesh-set (protobuf/pb->map (.build mesh-set-builder))
+          skeleton (protobuf/pb->map (.build skeleton-builder))]
+      {:mesh-set mesh-set
+       :skeleton skeleton
+       :bones bones
+       :animation-ids animation-ids
+       :material-ids material-ids})))
+
+(defn- load-model-scene [stream ext]
+  (let [mesh-set-builder (Rig$MeshSet/newBuilder)
+        skeleton-builder (Rig$Skeleton/newBuilder)
+        options nil
+        scene (ModelUtil/loadScene stream ext options)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ArrayList.)]
@@ -44,5 +57,12 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
+(defn load-scene [resource]
+  (prn "MAWE load-scene:" (resource/path resource))
+  (with-open [stream (io/input-stream resource)]
+    (let [ext (clojure.string/lower-case (resource/ext resource))]
+      (if (= "dae" ext)
+        (load-collada-scene stream)
+        (load-model-scene stream ext)))))
 
 (set! *warn-on-reflection* true)

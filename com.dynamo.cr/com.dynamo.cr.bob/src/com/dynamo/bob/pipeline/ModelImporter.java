@@ -11,55 +11,29 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.io.FileNotFoundException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.util.List;
 import java.util.Arrays;
 import java.lang.reflect.Method;
-
-import com.sun.jna.Native;
-import com.sun.jna.Pointer;
-import com.sun.jna.PointerType;
-import com.sun.jna.Structure;
-import com.sun.jna.ptr.IntByReference;
-
-// Type Mapping in JNA
-// https://java-native-access.github.io/jna/3.5.1/javadoc/overview-summary.html#marshalling
-
+import java.io.FileNotFoundException;
 
 public class ModelImporter {
 
-    static boolean isBob() {
-        try {
-            Class.forName("com.dynamo.bob.Bob");
-            return true;
-        } catch(Exception e) {
-            System.out.printf("Didn't find com.dynamo.bob.Bob");
-            return false;
-        }
-    }
-
-    static final String LIBRARY_NAME = "model_shared";
+    static final String LIBRARY_NAME = "modelc_shared";
 
     static {
         try {
-            // Extract and append Bob bundled texc_shared path.
-            if (isBob())
-            {
-                Class<?> bob_cls = Class.forName("com.dynamo.bob.Bob");
-                Method getSharedLib = bob_cls.getMethod("getSharedLib", String.class);
-                Method addToPaths = bob_cls.getMethod("addToPaths", String.class);
-
-                File lib = (File)getSharedLib.invoke(null, LIBRARY_NAME);
-                addToPaths.invoke(null, lib.getParent());
-            }
-            Native.register(LIBRARY_NAME);
-
-        } catch (Exception e) {
-            System.out.println("FATAL: " + e.getMessage());
+            System.loadLibrary(LIBRARY_NAME);
+        } catch (UnsatisfiedLinkError e) {
+            System.err.println("Native code library failed to load.\n" + e);
+            System.exit(1);
         }
     }
+
+    public static native Scene LoadFromBufferInternal(String path, int buffer_len, byte[] buffer);
 
     public static class ModelException extends Exception {
         public ModelException(String errorMessage) {
@@ -68,385 +42,194 @@ public class ModelImporter {
     }
 
     ////////////////////////////////////////////////////////////////////////////////
-    static public class Options extends Structure {
+
+    static public class Options {
         public int dummy;
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"dummy"});
-        }
+
         public Options() {
             this.dummy = 0;
         }
     }
 
-    static public class Vec4 extends Structure { // simd Vector3/Vector4/Quat
+    public class Vec4 { // simd Vector3/Vector4/Quat
         public float x, y, z, w;
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"x","y","z","w"});
-        }
-        public Vec4() {super();}
     }
 
-    static public class Transform extends Structure {
-        // The order is determined by dmTransform::Transform
-        public Vec4 rotation;
+    public class Transform {
         public Vec4 translation;
+        public Vec4 rotation;
         public Vec4 scale;
-
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"rotation", "translation","scale"});
-        }
-        public Transform() {super();}
     }
 
-    static public class Mesh extends Structure {
-        public static class ByReference extends Mesh implements Structure.ByReference {}
-
+    public class Mesh {
         public String      name;
         public String      material;
 
-        public Pointer     positions; // float3
-        public Pointer     normals; // float3
-        public Pointer     tangents; // float3
-        public Pointer     colors; // float4
-        public Pointer     weights; // float4
-        public Pointer     bones; // uint4
-        public int         texCoords0NumComponents; // 2 or 3
-        public Pointer     texCoords0; // float2 or float3
-        public int         texCoords1NumComponents; // 2 or 3
-        public Pointer     texCoords1; // float2 or float3
+        public float[]     positions; // float3
+        public float[]     normals; // float3
+        public float[]     tangents; // float3
+        public float[]     colors; // float4
+        public float[]     weights; // float4
+        public int[]       bones; // uint4
 
-        public Pointer     indices;
+        public int         texCoords0NumComponents; // 2 or 3
+        public float[]     texCoords0; // float2 or float3
+        public int         texCoords1NumComponents; // 2 or 3
+        public float[]     texCoords1; // float2 or float3
+
+        public int[]       indices;
 
         public int         vertexCount;
         public int         indexCount;
 
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {
-                "name","material",
-                "positions","normals","tangents","colors","weights","bones",
-                "texCoords0NumComponents","texCoords0","texCoords1NumComponents","texCoords1",
-                "indices",
-                "vertexCount","indexCount"
-            });
-        }
-        public Mesh() {}
-
-        @SuppressWarnings("unchecked")
-        public Mesh[] castToArray(int size) {
-            return (Mesh[])super.toArray(size);
-        }
-
-        private float[] getFloatArray(Pointer p, int count) {
-            if (p == null)
-                return null;
-            return p.getFloatArray(0, count);
-        }
-        public float[] getPositions() {
-            return getFloatArray(this.positions, this.vertexCount*3);
-        }
-        public float[] getNormals() {
-            return getFloatArray(this.normals, this.vertexCount*3);
-        }
-        public float[] getTangents() {
-            return getFloatArray(this.tangents, this.vertexCount*3);
-        }
-        public float[] getColors() {
-            return getFloatArray(this.tangents, this.vertexCount*4);
-        }
-        public float[] getWeights() {
-            return getFloatArray(this.weights, this.vertexCount*4);
-        }
-        public int[] getBones() {
-            if (this.bones == null)
-                return null;
-            return this.bones.getIntArray(0, this.vertexCount*4);
-        }
-        public int[] getIndices() {
-            if (this.indices == null || this.indexCount == 0)
-                return null;
-            return this.indices.getIntArray(0, this.indexCount);
-        }
-
         public float[] getTexCoords(int index) {
             assert(index < 2);
-            Pointer p = this.texCoords0;
-            int num_elements = this.texCoords0NumComponents;
             if (index == 1) {
-                p = this.texCoords1;
-                num_elements = this.texCoords1NumComponents;
+                return this.texCoords1;
             }
-            return getFloatArray(p, this.vertexCount*num_elements);
+            return this.texCoords0;
         }
     }
 
-    static public class Model extends Structure {
-        public static class ByReference extends Model implements Structure.ByReference {}
-
-        public String               name;
-        public Mesh.ByReference     meshes;
-        public int                  meshesCount;
-        public int                  index;
-
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"name","meshes","meshesCount","index"});
-        }
-        public Model() {}
-
-        @SuppressWarnings("unchecked")
-        public Model[] castToArray(int size) {
-            return (Model[])super.toArray(size);
-        }
-
-        public Mesh[] getMeshes() {
-            return this.meshes.castToArray(this.meshesCount);
-        }
+    public class Model {
+        public String   name;
+        public Mesh[]   meshes;
+        public int      index;
     }
 
-    static public class Bone extends Structure {
-        public static class ByReference extends Bone implements Structure.ByReference {}
-
-        public Transform            invBindPose;
-        public String               name;
-        public Node.ByReference     node;
-        public int                  parentIndex; // index into list of bones. -1 if no parent
-        public int                  index;      // index into list of bones
-
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"invBindPose","name","node","parentIndex","index"});
-        }
-        public Bone() {}
-
-        @SuppressWarnings("unchecked")
-        public Bone[] castToArray(int size) {
-            return (Bone[])super.toArray(size);
-        }
+    public class Bone {
+        public Transform invBindPose;
+        public String    name;
+        public int       nodeIndex;
+        public int       parentIndex; // index into list of bones. -1 if no parent
+        public int       index;      // index into list of bones
+        public Node      node;
+        public Node      parent;
     }
 
-    static public class Skin extends Structure {
-        public static class ByReference extends Skin implements Structure.ByReference {}
-
-        public String               name;
-        public Bone.ByReference     bones;
-        public int                  bonesCount;
-        public int                  index;
-
-
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"name","bones","bonesCount","index"});
-        }
-        public Skin() {}
-        public Skin(Pointer p) {
-            super(p);
-            this.read();
-            System.out.printf("Skin constructor\n");
-        }
-
-        @SuppressWarnings("unchecked")
-        public Skin[] castToArray(int size) {
-            return (Skin[])super.toArray(size);
-        }
-
-        public Bone[] getBones() {
-            return this.bones.castToArray(this.bonesCount);
-        }
+    public class Skin {
+        public String    name;
+        public Bone[]    bones;
+        public int       index;
     }
 
-    static public class Node extends Structure {
-        public static class ByReference extends Node implements Structure.ByReference {}
-
-        public Transform            transform;
-        public String               name;
-        public Model.ByReference    model;
-        public Skin.ByReference     skin;
-        public Node.ByReference     parent;
-        public Pointer              children;
-        public int                  childrenCount;
-        public int                  index;
-
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {
-                "transform", "name",
-                "model","skin","parent","children","childrenCount","index"
-            });
-        }
-        public Node() {}
-        public Node(Pointer p) {
-            super(p);
-            this.read();
-        }
-
-        @SuppressWarnings("unchecked")
-        public Node[] castToArray(int size) {
-            return (Node[])super.toArray(size);
-        }
-
-        public Node[] getChildren() {
-            Pointer[] childPointers = this.children.getPointerArray(0, this.childrenCount);
-            Node[] childNodes = new Node[this.childrenCount];
-
-            int i = 0;
-            for (Pointer p : childPointers) {
-                childNodes[i++] = new Node(p);
-            }
-            return childNodes;
-        }
+    public class Node {
+        // C loader
+        public Transform    transform;
+        public String       name;
+        public int          modelIndex;
+        public int          skinIndex;
+        public int          parentIndex;
+        public int[]        childIndices;
+        public int          index;
+        // Java fixup
+        public Node         parent;
+        public Node[]       children;
+        public Model        model;
+        public Skin         skin;
     }
 
-    static public class KeyFrame extends Structure {
-        public static class ByReference extends KeyFrame implements Structure.ByReference {}
-
-        public float                    value[] = new float[4];
-        public float                    time;
-
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"value","time"});
-        }
-        public KeyFrame() {}
-
-        @SuppressWarnings("unchecked")
-        public KeyFrame[] castToArray(int size) {
-            return (KeyFrame[])super.toArray(size);
-        }
+    public class KeyFrame {
+        public float value[] = new float[4];
+        public float time;
     }
 
-    static public class NodeAnimation extends Structure {
-        public static class ByReference extends NodeAnimation implements Structure.ByReference {}
-
-        public Node.ByReference         node;
-        public KeyFrame.ByReference     translationKeys;
-        public KeyFrame.ByReference     rotationKeys;
-        public KeyFrame.ByReference     scaleKeys;
-        public int                      translationKeysCount;
-        public int                      rotationKeysCount;
-        public int                      scaleKeysCount;
-
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"node","translationKeys","rotationKeys","scaleKeys",
-            "translationKeysCount","rotationKeysCount","scaleKeysCount"});
-        }
-        public NodeAnimation() {}
-
-        @SuppressWarnings("unchecked")
-        public NodeAnimation[] castToArray(int size) {
-            return (NodeAnimation[])super.toArray(size);
-        }
-
-        public KeyFrame[] getTranslationKeys() {
-            return this.translationKeys.castToArray(this.translationKeysCount);
-        }
-        public KeyFrame[] getRotationKeys() {
-            return this.rotationKeys.castToArray(this.rotationKeysCount);
-        }
-        public KeyFrame[] getScaleKeys() {
-            return this.scaleKeys.castToArray(this.scaleKeysCount);
-        }
+    public class NodeAnimation {
+        public int          nodeIndex;
+        public Node         node;
+        public KeyFrame[]   translationKeys;
+        public KeyFrame[]   rotationKeys;
+        public KeyFrame[]   scaleKeys;
     }
 
-    static public class Animation extends Structure {
-        public static class ByReference extends Animation implements Structure.ByReference {}
-
+    public class Animation {
         public String                       name;
-        public NodeAnimation.ByReference    nodeAnimations;
-        public int                          nodeAnimationsCount;
-
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {"name","nodeAnimations", "nodeAnimationsCount" });
-        }
-        public Animation() {}
-
-        @SuppressWarnings("unchecked")
-        public Animation[] castToArray(int size) {
-            return (Animation[])super.toArray(size);
-        }
-
-        public NodeAnimation[] getNodeAnimations() {
-            return this.nodeAnimations.castToArray(this.nodeAnimationsCount);
-        }
+        public NodeAnimation[]              nodeAnimations;
     }
 
-    static public class Scene extends Structure {
-        public Pointer opaqueSceneData;
-        public Pointer destroyFn;
+    public class Scene {
 
-        public Node.ByReference         nodes;
-        public int                      nodesCount;
+        public Node[]         nodes;
+        public Model[]        models;
+        public Skin[]         skins;
+        public int[]          rootNodeIndices;
+        public Node[]         rootNodes;
+        public Animation[]    animations;
 
-        public Model.ByReference        models;
-        public int                      modelsCount;
-
-        public Skin.ByReference         skins;
-        public int                      skinsCount;
-
-        public Pointer                  rootNodes;
-        public int                      rootNodesCount;
-
-        public Animation.ByReference    animations;
-        public int                      animationsCount;
-
-        protected List getFieldOrder() {
-            return Arrays.asList(new String[] {
-                "opaqueSceneData", "destroyFn",
-                "nodes", "nodesCount",
-                "models", "modelsCount",
-                "skins", "skinsCount",
-                "rootNodes", "rootNodesCount",
-                "animations", "animationsCount",
-            });
-        }
-
-        public Scene() {super();}
-
-        public Node[] getNodes() {
-            return this.nodes.castToArray(this.nodesCount);
-        }
-
-        public Node[] getRootNodes() {
-            Pointer[] rootPointers = this.rootNodes.getPointerArray(0, this.rootNodesCount);
-            Node[] rootNodes = new Node[this.rootNodesCount];
-
-            int i = 0;
-            for (Pointer p : rootPointers) {
-                Node node = new Node(p);
-                node.read();
-                rootNodes[i++] = node;
+        public Node getNode(int i) {
+            if (i == -1) {
+                return null;
             }
-            return rootNodes;
+            return nodes[i];
         }
-
-        public Skin[] getSkins() {
-            if (this.skins == null || this.skinsCount == 0)
-                return new Skin[0];
-            return this.skins.castToArray(this.skinsCount);
+        public Skin getSkin(int i) {
+            if (i == -1) {
+                return null;
+            }
+            return skins[i];
         }
-
-        public Model[] getModels() {
-            if (this.models == null || this.modelsCount == 0)
-                return new Model[0];
-            return this.models.castToArray(this.modelsCount);
-        }
-
-        public Animation[] getAnimations() {
-            if (this.animations == null || this.animationsCount == 0)
-                return new Animation[0];
-            return this.animations.castToArray(this.animationsCount);
+        public Model getModel(int i) {
+            if (i == -1) {
+                return null;
+            }
+            return models[i];
         }
     }
 
+    private static void FixReferences(Scene scene) {
+        for (Node node : scene.nodes)
+        {
+            node.parent = scene.getNode(node.parentIndex);
+            node.children = new Node[node.childIndices.length];
+            for (int i = 0; i < node.childIndices.length; ++i)
+            {
+                int index = node.childIndices[i];
+                node.children[i] = scene.getNode(index);
+            }
+            node.skin = scene.getSkin(node.skinIndex);
+            node.model = scene.getModel(node.modelIndex);
+        }
 
-    ////////////////////////////////////////////////////////////////////////////////
-    public static native void AssertSizes(int sz_transform,
-                                         int sz_mesh,
-                                         int sz_model,
-                                         int sz_bone,
-                                         int sz_skin,
-                                         int sz_node,
-                                         int sz_keyframe,
-                                         int sz_nodeanimation,
-                                         int sz_animation,
-                                         int sz_scene);
-    public static native Scene LoadFromBuffer(Options options, String suffix, Buffer buffer, int bufferSize);
-    public static native Scene LoadFromPath(Options options, String path);
-    public static native void DestroyScene(Scene scene);
+        scene.rootNodes = new Node[scene.rootNodeIndices.length];
+        for (int i = 0; i < scene.rootNodeIndices.length; ++i)
+        {
+            int index = scene.rootNodeIndices[i];
+            scene.rootNodes[i] = scene.getNode(index);
+        }
+
+        for (Skin skin : scene.skins)
+        {
+            for (Bone bone : skin.bones)
+            {
+                bone.node = scene.getNode(bone.nodeIndex);
+                bone.parent = scene.getNode(bone.parentIndex);
+            }
+        }
+
+        for (Animation animation : scene.animations)
+        {
+            for (NodeAnimation nodeAnim : animation.nodeAnimations)
+            {
+                nodeAnim.node = scene.getNode(nodeAnim.nodeIndex);
+            }
+        }
+    }
+
+    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes)
+    {
+        Scene scene = ModelImporter.LoadFromBufferInternal(path, bytes.length, bytes);
+        //FixReferences(scene);
+        return scene;
+    }
+
+    public static Scene LoadFromPath(Options options, String path) throws FileNotFoundException, IOException
+    {
+        InputStream inputStream = new FileInputStream(new File(path));
+        byte[] bytes = new byte[inputStream.available()];
+        inputStream.read(bytes);
+
+        return LoadFromBuffer(options, path, bytes);
+    }
 
     // ////////////////////////////////////////////////////////////////////////////////
 
@@ -472,14 +255,14 @@ public class ModelImporter {
 
     private static void DebugPrintNode(Node node, int indent) {
         PrintIndent(indent);
-        System.out.printf("Node: %s  idx: %d   mesh: %s\n", node.name, node.index, node.model!=null?node.model.name:"-");
+        System.out.printf("Node: %s  idx: %d   mesh: %d\n", node.name, node.index, node.model);
         DebugPrintTransform(node.transform, indent+1);
     }
 
     private static void DebugPrintTree(Node node, int indent) {
         DebugPrintNode(node, indent);
 
-        for (Node child : node.getChildren()) {
+        for (Node child : node.children) {
             DebugPrintTree(child, indent+1);
         }
     }
@@ -536,26 +319,26 @@ public class ModelImporter {
         int max_count = 10;
         if (max_count > mesh.vertexCount)
             max_count = mesh.vertexCount;
-        DebugPrintFloatArray(indent+1, "positions", mesh.getPositions(), max_count, 3);
-        DebugPrintFloatArray(indent+1, "normals", mesh.getNormals(), max_count, 3);
-        DebugPrintFloatArray(indent+1, "tangents", mesh.getTangents(), max_count, 3);
-        DebugPrintFloatArray(indent+1, "colors", mesh.getColors(), max_count, 4);
-        DebugPrintFloatArray(indent+1, "weights", mesh.getWeights(), max_count, 4);
-        DebugPrintIntArray(indent+1, "bones", mesh.getBones(), max_count, 4);
+        DebugPrintFloatArray(indent+1, "positions", mesh.positions, max_count, 3);
+        DebugPrintFloatArray(indent+1, "normals", mesh.normals, max_count, 3);
+        DebugPrintFloatArray(indent+1, "tangents", mesh.tangents, max_count, 3);
+        DebugPrintFloatArray(indent+1, "colors", mesh.colors, max_count, 4);
+        DebugPrintFloatArray(indent+1, "weights", mesh.weights, max_count, 4);
+        DebugPrintIntArray(indent+1, "bones", mesh.bones, max_count, 4);
 
         DebugPrintFloatArray(indent+1, "texCoords0", mesh.getTexCoords(0), max_count, mesh.texCoords0NumComponents);
         DebugPrintFloatArray(indent+1, "texCoords1", mesh.getTexCoords(1), max_count, mesh.texCoords1NumComponents);
 
         if (max_count > mesh.indexCount/3)
             max_count = mesh.indexCount/3;
-        DebugPrintIntArray(indent+1, "indices", mesh.getIndices(), max_count, 3);
+        DebugPrintIntArray(indent+1, "indices", mesh.indices, max_count, 3);
     }
 
     private static void DebugPrintModel(Model model, int indent) {
         PrintIndent(indent);
         System.out.printf("Model: %s\n", model.name);
 
-        for (Mesh mesh : model.getMeshes()) {
+        for (Mesh mesh : model.meshes) {
             DebugPrintMesh(mesh, indent+1);
         }
     }
@@ -574,57 +357,37 @@ public class ModelImporter {
     private static void DebugPrintNodeAnimation(NodeAnimation nodeAnimation, int indent) {
         PrintIndent(indent);
         System.out.printf("node: %s num keys: t: %d  r: %d  s: %d\n", nodeAnimation.node.name,
-            nodeAnimation.translationKeysCount,
-            nodeAnimation.rotationKeysCount,
-            nodeAnimation.scaleKeysCount);
+            nodeAnimation.translationKeys.length,
+            nodeAnimation.rotationKeys.length,
+            nodeAnimation.scaleKeys.length);
 
-        DebugPrintKeyFrames("translation", nodeAnimation.getTranslationKeys(), indent+1);
-        DebugPrintKeyFrames("rotation", nodeAnimation.getRotationKeys(), indent+1);
-        DebugPrintKeyFrames("scale", nodeAnimation.getScaleKeys(), indent+1);
+        DebugPrintKeyFrames("translation", nodeAnimation.translationKeys, indent+1);
+        DebugPrintKeyFrames("rotation", nodeAnimation.rotationKeys, indent+1);
+        DebugPrintKeyFrames("scale", nodeAnimation.scaleKeys, indent+1);
     }
 
     private static void DebugPrintAnimation(Animation animation, int indent) {
         PrintIndent(indent);
         System.out.printf("animation: %s\n", animation.name);
 
-        for (NodeAnimation nodeAnim : animation.getNodeAnimations()) {
+        for (NodeAnimation nodeAnim : animation.nodeAnimations) {
             DebugPrintNodeAnimation(nodeAnim, indent+1);
         }
     }
 
-    private static void DebugPrintBone(Bone bone, int indent) {
+    private static void DebugPrintBone(Bone bone, Node[] nodes, int indent) {
         PrintIndent(indent);
-        System.out.printf("Bone: %s  node: %s\n", bone.name, bone.node==null?"null":bone.node.name);
+        System.out.printf("Bone: %s  node: %s\n", bone.name, bone.nodeIndex==-1?"null":nodes[bone.nodeIndex].name);
         DebugPrintTransform(bone.invBindPose, indent+1);
     }
 
-    private static void DebugPrintSkin(Skin skin, int indent) {
+    private static void DebugPrintSkin(Skin skin, Node[] nodes, int indent) {
         PrintIndent(indent);
         System.out.printf("skin: %s\n", skin.name);
 
-        for (Bone bone : skin.getBones()) {
-            DebugPrintBone(bone, indent+1);
+        for (Bone bone : skin.bones) {
+            DebugPrintBone(bone, nodes, indent+1);
         }
-    }
-
-    private static <T extends Structure> int sizeof(Class<T> cls)
-    {
-        return Structure.newInstance(cls).size();
-    }
-
-    public static void CheckSizes()
-    {
-        AssertSizes(sizeof(Transform.class),
-                    sizeof(Mesh.class),
-                    sizeof(Model.class),
-                    sizeof(Bone.class),
-                    sizeof(Skin.class),
-                    sizeof(Node.class),
-                    sizeof(KeyFrame.class),
-                    sizeof(NodeAnimation.class),
-                    sizeof(Animation.class),
-                    sizeof(Scene.class));
-
     }
 
     // Used for testing functions
@@ -637,8 +400,24 @@ public class ModelImporter {
             return;
         }
 
-        CheckSizes();
+        String path = args[0];       // .glb
 
+        System.out.printf("Testing\n");
+
+        Scene scene = LoadFromPath(new Options(), path);
+
+        System.out.printf("Result LoadScene: %s : %s\n", path, scene!=null ? "ok":"fail");
+
+        System.out.printf("rootNodeIndices: %d\n", scene.rootNodeIndices.length);
+
+        for (int index : scene.rootNodeIndices)
+        {
+            System.out.printf("  index: %d\n", index);
+        }
+
+        System.out.printf("testing ended\n");
+
+        /*
         String path = args[0];       // .glb
 
         Options options = new Options();
@@ -682,5 +461,11 @@ public class ModelImporter {
         }
 
         System.out.printf("--------------------------------\n");
+
+        scene.finalize();
+        scene = null;
+
+        System.out.printf("--------------------------------\n");
+        */
     }
 }

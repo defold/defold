@@ -16,7 +16,7 @@ JNA_PLATFORM=$DEFOLD_DIR/com.dynamo.cr/com.dynamo.cr.bob/lib/jna-platform-5.10.0
 
 PACKAGE_PATH=com/dynamo/bob/pipeline
 BOB_SRC_PATH=$DEFOLD_DIR/com.dynamo.cr/com.dynamo.cr.bob/src
-DLIB_BUILD_DIR=$DEFOLD_DIR/engine/dlib/build/default/src/
+MODELC_BUILD_DIR=$DEFOLD_DIR/engine/modelc/build/default/src/
 
 MANIFEST=$SCRIPT_DIR/$CLASS_NAME.manifest
 PACKAGE_CLASS=com.dynamo.bob.pipeline.$CLASS_NAME
@@ -45,7 +45,7 @@ rm $MANIFEST
 echo "Running jar:" $JAR
 
 
-MODELIMPORTER_SHARED_LIB=${DLIB_BUILD_DIR}/libmodel_shared.dylib
+MODELIMPORTER_SHARED_LIB=${MODELC_BUILD_DIR}/libmodelc_shared.dylib
 set +e
 USING_ASAN=$(otool -L $MODELIMPORTER_SHARED_LIB | grep -e "clang_rt.asan")
 set -e
@@ -55,5 +55,6 @@ if [ "${USING_ASAN}" != "" ]; then
 fi
 
 #JNA_DEBUG_FLAGS="-Djna.dump_memory=true -Djna.debug_load=true -Djna.debug_load.jna=true -Djna.debug=true"
+JNI_DEBUG_FLAGS="-Xcheck:jni"
 
-java -Djava.library.path=${DLIB_BUILD_DIR} -Djna.library.path=${DLIB_BUILD_DIR} ${JNA_DEBUG_FLAGS} -jar $JAR $*
+java ${JNI_DEBUG_FLAGS} -Djava.library.path=${MODELC_BUILD_DIR} -Djna.library.path=${MODELC_BUILD_DIR} -Djna.library.path=${MODELC_BUILD_DIR} ${JNA_DEBUG_FLAGS} -jar $JAR $*

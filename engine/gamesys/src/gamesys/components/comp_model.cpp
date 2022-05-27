@@ -49,13 +49,24 @@ namespace dmGameSystem
     using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
-    struct ModelRenderItem
+    // struct ModelRenderItem
+    // {
+    //     struct ModelComponent*      m_Component;
+    //     ModelResourceMesh*          m_MeshBuffers;
+    //     //dmRigDDF::MeshEntry*        m_MeshEntry;
+    //     //dmRigDDF::MeshSlot*         m_MeshSlot;
+    //     //ModelResourceMeshEntry*     m_MeshEntries;
+    // };
+
+    struct MeshRenderItem
     {
+        dmVMath::Matrix4            m_World;
         struct ModelComponent*      m_Component;
-        ModelResourceMesh*          m_MeshBuffers;
-        dmRigDDF::MeshEntry*        m_MeshEntry;
-        dmRigDDF::MeshSlot*         m_MeshSlot;
-        //ModelResourceMeshEntry*     m_MeshEntries;
+        ModelResourceBuffers*       m_Buffers;
+        dmRigDDF::Model*            m_Model;
+        uint32_t                    m_MaterialIndex : 4; // current max 16 materials per model
+        uint32_t                    m_Enabled : 1;
+        uint32_t                    : 27;
     };
 
     struct ModelComponent
@@ -72,16 +83,15 @@ namespace dmGameSystem
         dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmRender::HMaterial         m_Material;
 
-        dmArray<ModelRenderItem>    m_RenderItems;
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
+        dmArray<MeshRenderItem>     m_RenderItems;
         uint16_t                    m_ComponentIndex;
-        /// Component enablement
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_DoRender : 1;
-        /// Added to update or not
         uint8_t                     m_AddedToUpdate : 1;
         uint8_t                     m_ReHash : 1;
+        uint8_t                     : 4;
     };
 
     struct ModelWorld
@@ -119,9 +129,8 @@ namespace dmGameSystem
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxModelCount);
 
         dmRig::NewContextParams rig_params = {0};
-        rig_params.m_Context = &world->m_RigContext;
         rig_params.m_MaxRigInstanceCount = comp_count;
-        dmRig::Result rr = dmRig::NewContext(rig_params);
+        dmRig::Result rr = dmRig::NewContext(rig_params, &world->m_RigContext);
         if (rr != dmRig::RESULT_OK)
         {
             dmLogFatal("Unable to create model rig context: %d", rr);
@@ -245,8 +254,10 @@ namespace dmGameSystem
         }
     }
 
-    static inline dmRender::HMaterial GetMaterial(const ModelComponent* component, const ModelResource* resource) {
-        return component->m_Material ? component->m_Material : resource->m_Material;
+    static inline dmRender::HMaterial GetMaterial(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
+        if (component->m_Material)
+            return component->m_Material; // TODO: Add support for setting material on different indices
+        return resource->m_Materials[index];
     }
 
     static inline dmGraphics::HTexture GetTexture(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
@@ -265,9 +276,11 @@ namespace dmGameSystem
 // TODO: Each skinned instance has its own state of the skeleton!
 //  If they _do_ have the same state, we should probably use that fact so that they can batch together,
 //  and we can later use instancing?
-// TODO: Each mesh has its own material!
-        dmRender::HMaterial material = GetMaterial(component, resource);
-        dmHashUpdateBuffer32(&state, &material, sizeof(material));
+        for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
+        {
+            dmRender::HMaterial material = GetMaterial(component, resource, i);
+            dmHashUpdateBuffer32(&state, &material, sizeof(material));
+        }
         // We have to hash individually since we don't know which textures are set as properties
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
             dmGraphics::HTexture texture = GetTexture(component, resource, i);
@@ -367,6 +380,62 @@ namespace dmGameSystem
         return true;
     }
 
+    static void SetupRenderItems(ModelComponent* component, ModelResource* resource)
+    {
+        component->m_RenderItems.SetCapacity(resource->m_Meshes.Size());
+        component->m_RenderItems.SetSize(0);
+        for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
+        {
+            MeshRenderItem item;
+            item.m_Buffers = resource->m_Meshes[i].m_Buffers;
+            item.m_Component = component;
+            item.m_Model = resource->m_Meshes[i].m_Model;
+            item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
+            item.m_Enabled = 1;
+            component->m_RenderItems.Push(item);
+        }
+    }
+
+    static dmGameObject::CreateResult SetupRigInstance(dmRig::HRigContext rig_context, ModelComponent* component, RigSceneResource* rig_resource, dmhash_t animation)
+    {
+        if (rig_resource->m_AnimationSetRes == 0 || rig_resource->m_SkeletonRes == 0)
+            return dmGameObject::CREATE_RESULT_OK;
+
+        dmRig::InstanceCreateParams create_params = {0};
+        create_params.m_Context = rig_context;
+        create_params.m_Instance = &component->m_RigInstance;
+
+        create_params.m_PoseCallback = CompModelPoseCallback;
+        create_params.m_PoseCBUserData1 = component;
+        create_params.m_PoseCBUserData2 = 0;
+        create_params.m_EventCallback = CompModelEventCallback;
+        create_params.m_EventCBUserData1 = component;
+        create_params.m_EventCBUserData2 = 0;
+
+        create_params.m_BindPose         = &rig_resource->m_BindPose;
+        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
+        create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
+        create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
+        create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
+        create_params.m_TrackIdxToPose   = &rig_resource->m_TrackIdxToPose;
+
+        dmRigDDF::MeshSet* mesh_set      = rig_resource->m_MeshSetRes->m_MeshSet;
+        // Let's choose the first model for the animation
+        dmRigDDF::Model* model           = mesh_set->m_Models.m_Count > 0 ? &mesh_set->m_Models[0] : 0;
+        create_params.m_ModelId          = model ? model->m_Id : 0;
+        create_params.m_DefaultAnimation = animation;
+
+        dmRig::Result res = dmRig::InstanceCreate(create_params);
+        if (res != dmRig::RESULT_OK) {
+            dmLogError("Failed to create a rig instance needed by model: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the model.max_count value in game.project");
+            }
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     dmGameObject::CreateResult CompModelCreate(const dmGameObject::ComponentCreateParams& params)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
@@ -403,60 +472,16 @@ namespace dmGameSystem
         }
 
         // Create rig instance
-        dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = world->m_RigContext;
-        create_params.m_Instance = &component->m_RigInstance;
+        component->m_RigInstance = 0;
 
-        create_params.m_PoseCallback = CompModelPoseCallback;
-        create_params.m_PoseCBUserData1 = component;
-        create_params.m_PoseCBUserData2 = 0;
-        create_params.m_EventCallback = CompModelEventCallback;
-        create_params.m_EventCBUserData1 = component;
-        create_params.m_EventCBUserData2 = 0;
-
-        RigSceneResource* rig_resource = resource->m_RigScene;
-        create_params.m_BindPose         = &rig_resource->m_BindPose;
-        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
-        create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
-        create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
-        create_params.m_TrackIdxToPose   = &rig_resource->m_TrackIdxToPose;
-
-        dmRigDDF::MeshEntry* entry       = rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries.m_Count > 0 ? &rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries[0] : 0;
-        create_params.m_MeshId           = entry ? entry->m_Id : 0; // not implemented for models
-        create_params.m_DefaultAnimation = dmHashString64(resource->m_Model->m_DefaultAnimation);
-
-        dmRig::Result res = dmRig::InstanceCreate(create_params);
-        if (res != dmRig::RESULT_OK) {
-            dmLogError("Failed to create a rig instance needed by model: %d.", res);
-            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
-                dmLogError("Try increasing the model.max_count value in game.project");
-            }
-            DestroyComponent(world, index);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
-
-        // At any given time, we can max show X slots
-        uint32_t num_slots = rig_resource->m_MeshSetRes->m_MeshSet->m_SlotCount;
-        component->m_RenderItems.SetCapacity(num_slots);
-        for (uint32_t i = 0; i < rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries.m_Count; ++i)
+        dmGameObject::CreateResult res = SetupRigInstance(world->m_RigContext, component, resource->m_RigScene, dmHashString64(resource->m_Model->m_DefaultAnimation));
+        if (res != dmGameObject::CREATE_RESULT_OK)
         {
-            dmRigDDF::MeshEntry* entry = &rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries[i];
-
-            for (uint32_t j = 0; j < entry->m_MeshSlots.m_Count; ++j)
-            {
-                dmRigDDF::MeshSlot* slot = &entry->m_MeshSlots[j];
-
-                ModelRenderItem item;
-                item.m_Component = component;
-                item.m_MeshEntry = entry;
-                item.m_MeshSlot = slot;
-
-                uint32_t mesh_index = slot->m_ActiveIndex;
-                item.m_MeshBuffers = resource->m_Meshes[mesh_index];
-                component->m_RenderItems.Push(item);
-            }
+            DestroyComponent(world, index);
+            return res;
         }
+
+        SetupRenderItems(component, resource);
 
         component->m_ReHash = 1;
 
@@ -471,10 +496,13 @@ namespace dmGameSystem
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         component->m_NodeInstances.SetCapacity(0);
 
-        dmRig::InstanceDestroyParams params = {0};
-        params.m_Context = world->m_RigContext;
-        params.m_Instance = component->m_RigInstance;
-        dmRig::InstanceDestroy(params);
+        if (component->m_RigInstance)
+        {
+            dmRig::InstanceDestroyParams params = {0};
+            params.m_Context = world->m_RigContext;
+            params.m_Instance = component->m_RigInstance;
+            dmRig::InstanceDestroy(params);
+        }
 
         if (component->m_RenderConstants) {
             dmGameSystem::DestroyRenderConstants(component->m_RenderConstants);
@@ -508,9 +536,10 @@ namespace dmGameSystem
 
         for (uint32_t *i=begin;i!=end;i++)
         {
-            const ModelRenderItem* render_item = (ModelRenderItem*) buf[*i].m_UserData;
-            const ModelResourceMesh* render_mesh = render_item->m_MeshBuffers;
+            const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
+            const ModelResourceBuffers* buffers = render_item->m_Buffers;
             const ModelComponent* component = render_item->m_Component;
+            uint32_t material_index = render_item->m_MaterialIndex;
 
             // We currently have no support for instancing, so we generate a separate draw call for each model
             world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
@@ -518,18 +547,16 @@ namespace dmGameSystem
 
             ro.Init();
             ro.m_VertexDeclaration = world->m_VertexDeclaration;
-            ro.m_VertexBuffer = render_mesh->m_VertexBuffer;
-            ro.m_Material = GetMaterial(component, component->m_Resource);
+            ro.m_VertexBuffer = buffers->m_VertexBuffer;
+            ro.m_Material = GetMaterial(component, component->m_Resource, material_index);
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             ro.m_VertexStart = 0;
-            ro.m_VertexCount = render_mesh->m_ElementCount;
-            ro.m_WorldTransform = component->m_World;
+            ro.m_VertexCount = buffers->m_VertexCount;
+            //ro.m_WorldTransform = component->m_World;
+            ro.m_WorldTransform = render_item->m_World;
 
-            if(render_mesh->m_IndexBuffer)
-            {
-                ro.m_IndexBuffer = render_mesh->m_IndexBuffer;
-                ro.m_IndexType = render_mesh->m_IndexBufferElementType;
-            }
+            ro.m_IndexBuffer = buffers->m_IndexBuffer;              // May be 0
+            ro.m_IndexType = buffers->m_IndexBufferElementType;
 
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {
@@ -547,11 +574,12 @@ namespace dmGameSystem
     static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Model, "RenderBatchWorld");
+        /*
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
 
-        const ModelRenderItem* render_item = (ModelRenderItem*) buf[*begin].m_UserData;
+        const MeshRenderItem* render_item = (MeshRenderItem*) buf[*begin].m_UserData;
         //const ModelResourceMesh* render_mesh = render_item->m_MeshBuffers;
         const ModelComponent* component = render_item->m_Component;
 
@@ -588,9 +616,7 @@ namespace dmGameSystem
             const ModelRenderItem* render_item = (ModelRenderItem*) buf[*i].m_UserData;
             const ModelComponent* c = render_item->m_Component;
             dmRig::HRigContext rig_context = world->m_RigContext;
-            Matrix4 normal_matrix = Vectormath::Aos::inverse(c->m_World);
-            normal_matrix = Vectormath::Aos::transpose(normal_matrix);
-            vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, normal_matrix, Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
+            vb_end = dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, Vector4(1.0), vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
@@ -617,15 +643,16 @@ namespace dmGameSystem
         }
 
         dmRender::AddToRender(render_context, &ro);
+        */
     }
 
     static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Model, "RenderBatch");
 
-        const ModelRenderItem* render_item = (ModelRenderItem*) buf[*begin].m_UserData;
+        const MeshRenderItem* render_item = (MeshRenderItem*) buf[*begin].m_UserData;
         const ModelComponent* component = render_item->m_Component;
-        dmRender::HMaterial material = component->m_Resource->m_Material;
+        dmRender::HMaterial material = GetMaterial(component, component->m_Resource, 0);
 
         switch(dmRender::GetMaterialVertexSpace(material))
         {
@@ -643,7 +670,20 @@ namespace dmGameSystem
         }
     }
 
-    void UpdateTransforms(ModelWorld* world)
+    static void UpdateMeshTransforms(ModelComponent* component)
+    {
+        dmVMath::Matrix4 world = component->m_World;
+        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            MeshRenderItem& item = component->m_RenderItems[i];
+            dmRigDDF::Model* model = item.m_Model;
+            item.m_World = world * dmTransform::ToMatrix4(model->m_Transform);
+        }
+    }
+
+    // TODO: What are the dependencies here?
+    // Why can we not call this in the COmpModelUpdate() function?
+    static void UpdateTransforms(ModelWorld* world)
     {
         DM_PROFILE(Model, "UpdateTransforms");
 
@@ -656,7 +696,7 @@ namespace dmGameSystem
             // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
-            if (dmRig::IsValid(c->m_RigInstance))
+            //if (c->m_RigInstance && dmRig::IsValid(c->m_RigInstance))
             {
                 const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
@@ -670,6 +710,8 @@ namespace dmGameSystem
                     c->m_World = dmTransform::MulNoScaleZ(go_world, local);
                 }
             }
+
+            UpdateMeshTransforms(c);
         }
     }
 
@@ -761,27 +803,27 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = (ModelWorld*)params.m_World;
 
-        UpdateTransforms(world);
+        UpdateTransforms(world); // TODO: Why can't we move this to the CompModelUpdate()?
 
         dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
 
         uint32_t num_components = components.Size();
-        uint32_t instance_count = 0;
+        uint32_t mesh_count = 0;
         for (uint32_t i = 0; i < num_components; ++i)
         {
             ModelComponent& component = *components[i];
             if (!component.m_DoRender)
                 continue;
-            instance_count += component.m_RenderItems.Size();
+            mesh_count += component.m_RenderItems.Size();
         }
 
         // Prepare list submit
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, instance_count);
+        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, mesh_count);
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         const uint32_t max_elements_vertices = world->m_MaxElementsVertices;
-        uint32_t minor_order = 0; // Will translate to vb index.
+        uint32_t minor_order = 0; // Will translate to vb index. (When we're generating vertex buffers on the fly, if material vertex space == world space)
         uint32_t vertex_count_total = 0;
         for (uint32_t i = 0; i < num_components; ++i)
         {
@@ -792,9 +834,10 @@ namespace dmGameSystem
             uint32_t item_count = component.m_RenderItems.Size();
             for (uint32_t j = 0; j < item_count; ++j)
             {
-                const ModelRenderItem& render_item = component.m_RenderItems[j];
+                MeshRenderItem& render_item = component.m_RenderItems[j];
 
-                uint32_t vertex_count = dmRig::GetVertexCount(component.m_RigInstance);
+                //uint32_t vertex_count = dmRig::GetVertexCount(component.m_RigInstance);
+                uint32_t vertex_count = render_item.m_Buffers->m_VertexCount;
                 if(vertex_count_total + vertex_count >= max_elements_vertices)
                 {
                     vertex_count_total = 0;
@@ -803,12 +846,15 @@ namespace dmGameSystem
                 vertex_count_total += vertex_count;
 
 // TODO: Create correct m_World for each item
-                const Vector4 trans = component.m_World.getCol(3);
+                const Vector4 trans = render_item.m_World.getCol(3);
                 write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
+
+                //printf("model %d: item %d:  %f, %f, %f\n", i, j, trans.getX(), trans.getY(), trans.getZ());
+
                 write_ptr->m_UserData = (uintptr_t) &render_item;
 // TODO: Currently assuming only one material for all meshes
                 write_ptr->m_BatchKey = component.m_MixedHash;
-                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource));
+                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource, render_item.m_MaterialIndex));
                 write_ptr->m_Dispatch = dispatch;
                 write_ptr->m_MinorOrder = minor_order;
                 write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
@@ -833,7 +879,7 @@ namespace dmGameSystem
         ModelComponent* component = (ModelComponent*)user_data;
         if (!component->m_RenderConstants)
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, value_index, element_index, var);
+        SetRenderConstant(component->m_RenderConstants, GetMaterial(component, component->m_Resource, 0), name_hash, value_index, element_index, var);
         component->m_ReHash = 1;
     }
 
@@ -869,7 +915,7 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetConstant* ddf = (dmGameSystemDDF::SetConstant*)params.m_Message->m_Data;
-                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(GetMaterial(component, component->m_Resource), ddf->m_NameHash,
+                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(GetMaterial(component, component->m_Resource, 0), ddf->m_NameHash,
                         dmGameObject::PropertyVar(ddf->m_Value), ddf->m_Index, CompModelSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
@@ -895,13 +941,14 @@ namespace dmGameSystem
 
     static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component, int index)
     {
-        dmRig::HRigContext rig_context = world->m_RigContext;
-
         // Destroy old rig
-        dmRig::InstanceDestroyParams destroy_params = {0};
-        destroy_params.m_Context = rig_context;
-        destroy_params.m_Instance = component->m_RigInstance;
-        dmRig::InstanceDestroy(destroy_params);
+        if (component->m_RigInstance != 0)
+        {
+            dmRig::InstanceDestroyParams destroy_params = {0};
+            destroy_params.m_Context = world->m_RigContext;
+            destroy_params.m_Instance = component->m_RigInstance;
+            dmRig::InstanceDestroy(destroy_params);
+        }
 
         // Delete old bones, recreate with new data.
         // Make sure that bone GOs are created before we start the default animation.
@@ -914,38 +961,17 @@ namespace dmGameSystem
         }
 
         // Create rig instance
-        dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = rig_context;
-        create_params.m_Instance = &component->m_RigInstance;
+        component->m_RigInstance = 0;
 
-        create_params.m_PoseCallback = CompModelPoseCallback;
-        create_params.m_PoseCBUserData1 = component;
-        create_params.m_PoseCBUserData2 = 0;
-        create_params.m_EventCallback = CompModelEventCallback;
-        create_params.m_EventCBUserData1 = component;
-        create_params.m_EventCBUserData2 = 0;
-
-        RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
-        create_params.m_BindPose         = &rig_resource->m_BindPose;
-        create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
-        create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
-        create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
-        create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
-        create_params.m_TrackIdxToPose   = &rig_resource->m_TrackIdxToPose;
-
-        dmRigDDF::MeshEntry* entry       = rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries.m_Count > 0 ? &rig_resource->m_MeshSetRes->m_MeshSet->m_MeshEntries[0] : 0;
-        create_params.m_MeshId           = entry ? entry->m_Id : 0; // not implemented for models
-        create_params.m_DefaultAnimation = dmHashString64(component->m_Resource->m_Model->m_DefaultAnimation);
-
-        dmRig::Result res = dmRig::InstanceCreate(create_params);
-        if (res != dmRig::RESULT_OK) {
-            dmLogError("Failed to create a rig instance needed by model: %d.", res);
-            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
-                dmLogError("Try increasing the model.max_count value in game.project");
-            }
+        ModelResource* resource = component->m_Resource;
+        dmGameObject::CreateResult res = SetupRigInstance(world->m_RigContext, component, resource->m_RigScene, dmHashString64(resource->m_Model->m_DefaultAnimation));
+        if (res != dmGameObject::CREATE_RESULT_OK)
+        {
             DestroyComponent(world, index);
             return false;
         }
+
+        SetupRenderItems(component, component->m_Resource);
 
         component->m_ReHash = 1;
 
@@ -968,7 +994,7 @@ namespace dmGameSystem
         ModelComponent* component = world->m_Components.Get(*params.m_UserData);
         if (params.m_PropertyId == PROP_SKIN)
         {
-            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetMesh(component->m_RigInstance));
+            out_value.m_Variant = dmGameObject::PropertyVar(dmRig::GetModel(component->m_RigInstance));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (params.m_PropertyId == PROP_ANIMATION)
@@ -988,7 +1014,7 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource, 0), out_value);
         }
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
@@ -997,7 +1023,7 @@ namespace dmGameSystem
                 return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTexture(component, component->m_Resource, i), out_value);
             }
         }
-        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompModelGetConstantCallback, component);
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource, 0), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -1009,7 +1035,7 @@ namespace dmGameSystem
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_HASH)
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
 
-            dmRig::Result res = dmRig::SetMesh(component->m_RigInstance, params.m_Value.m_Hash);
+            dmRig::Result res = dmRig::SetModel(component->m_RigInstance, params.m_Value.m_Hash);
             if (res == dmRig::RESULT_ERROR)
             {
                 dmLogError("Could not find skin '%s' on the model.", dmHashReverseSafe64(params.m_Value.m_Hash));
@@ -1058,7 +1084,7 @@ namespace dmGameSystem
                 return res;
             }
         }
-        return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompModelSetConstantCallback, component);
+        return SetMaterialConstant(GetMaterial(component, component->m_Resource, 0), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompModelSetConstantCallback, component);
     }
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)

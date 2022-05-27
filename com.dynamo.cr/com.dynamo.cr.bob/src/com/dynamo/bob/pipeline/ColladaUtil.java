@@ -18,6 +18,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -33,7 +34,6 @@ import java.util.Map.Entry;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
-import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Matrix4f;
@@ -49,6 +49,8 @@ import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
+// Sources:
+// https://github.com/spidasoftware/jagatoo/blob/master/src/main/java/org/jagatoo/loaders/models/collada
 import org.jagatoo.loaders.models.collada.stax.XMLAnimation;
 import org.jagatoo.loaders.models.collada.stax.XMLAnimationClip;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset;
@@ -68,6 +70,7 @@ import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualSceneExtra;
+import org.jagatoo.loaders.models.collada.datastructs.animation.Bone;
 
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
@@ -1202,5 +1205,82 @@ public class ColladaUtil {
         return maxBoneCount;
     }
 
+    // ************************************************************
+    // Editor API to mimic the ModelUtil importer
 
+    public static XMLCOLLADA loadScene(InputStream is) throws IOException, XMLStreamException, LoaderException {
+
+        // String text = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+
+        // System.out.printf("DAE:\n%s\n", text);
+
+        return loadDAE(is);
+    }
+
+    public static ArrayList<ModelImporter.Bone> loadSkeleton(XMLCOLLADA scene) throws IOException, XMLStreamException, LoaderException  {
+        ArrayList<String> boneIds = new ArrayList<>();
+        ArrayList<Bone> colladaBones = loadSkeleton(scene, boneIds);
+
+        if (colladaBones == null)
+            return null;
+
+        ArrayList<ModelImporter.Bone> bones = new ArrayList<>();
+        for (Bone colladaBone : colladaBones)
+        {
+
+            Vector3d translation = new Vector3d();
+            Quat4d rotation = new Quat4d();
+            Vector3d scale = new Vector3d();
+            //MathUtil.decompose(colladaBone.invBindMatrix, translation, rotation, scale);
+
+            Matrix4d mat = new Matrix4d(MathUtil.vecmath2ToVecmath1(colladaBone.invBindMatrix));
+            MathUtil.decompose(mat, translation, rotation, scale);
+
+            ModelImporter.Transform transform = new ModelImporter.Transform();
+            transform.translation.x = (float)translation.getX();
+            transform.translation.y = (float)translation.getY();
+            transform.translation.z = (float)translation.getZ();
+            transform.scale.x = (float)scale.getX();
+            transform.scale.y = (float)scale.getY();
+            transform.scale.z = (float)scale.getZ();
+            transform.rotation.x = (float)rotation.getX();
+            transform.rotation.y = (float)rotation.getY();
+            transform.rotation.z = (float)rotation.getZ();
+            transform.rotation.z = (float)rotation.getW();
+
+            ModelImporter.Bone bone = new ModelImporter.Bone();
+            bone.name           = colladaBone.getSourceId();
+            bone.parentIndex    = -1; // Do we need it in the editor?
+            bone.nodeIndex      = -1; // We don't have a ModelImporter Node to reference
+            bone.index          = bones.size();
+
+            bone.invBindPose    = transform;
+            //bone.invBindPose    = MathUtil.vecmathToDDF(translation, rotation, scale);
+
+            bones.add(bone);
+        }
+        return bones;
+    }
+
+    public static ArrayList<String> loadMaterialNames(XMLCOLLADA scene) {
+        return new ArrayList<String>();
+    }
+
+    public static void loadSkeleton(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
+        ArrayList<Bone> boneList = loadSkeleton(collada, new ArrayList<String>());
+
+        // No bones found, cannot create a skeleton with zero bones.
+        if (boneList == null) {
+            return;
+        }
+
+        // Generate DDF representation of bones.
+        ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones = new ArrayList<>();
+        toDDF(ddfBones, boneList.get(0), BONE_NO_PARENT);
+        skeletonBuilder.addAllBones(ddfBones);
+    }
+
+    public static void loadModels(XMLCOLLADA scene, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
+        loadMesh(scene, meshSetBuilder, true);
+    }
 }

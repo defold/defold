@@ -26,22 +26,49 @@
 
 namespace dmGameSystem
 {
-    struct ModelResourceMesh
+    struct ModelResourceBuffers
     {
         dmGraphics::HVertexBuffer   m_VertexBuffer;
         dmGraphics::HIndexBuffer    m_IndexBuffer;
+        uint32_t                    m_VertexCount;
+        uint32_t                    m_IndexCount;
+        uint32_t                    m_MaterialIndex; // Index into ModelResource::m_Materials
         dmGraphics::Type            m_IndexBufferElementType;
-        uint32_t                    m_ElementCount;
+    };
+    // // Each instance represent all the meshes of a model with the same material
+    // struct ModelMeshGroup
+    // {
+    //     dmRigDDF::Model*            m_Model;        // Holds the transform
+    //     dmArray<dmRigDDF::Mesh*>    m_Meshes;
+    //     uint32_t                    m_MaterialIndex; // Index into ModelResource::m_Materials
+    // };
+
+
+    // struct ModelMeshRange
+    // {
+    //     uint32_t m_Start;
+    //     uint32_t m_Count;
+    // };
+
+    struct MeshInfo
+    {
+        ModelResourceBuffers*   m_Buffers; // Currently a vertex+index buffer per mesh
+        dmRigDDF::Model*        m_Model;   // For the transform
+        dmRigDDF::Mesh*         m_Mesh;
     };
 
     struct ModelResource
     {
-        dmModelDDF::Model*          m_Model;
-        RigSceneResource*           m_RigScene;
-        dmRender::HMaterial         m_Material; // TODO: Make a list of these, and add a material index into the mesh instance
-        dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                    m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmArray<ModelResourceMesh*> m_Meshes;
+        dmModelDDF::Model*              m_Model;
+        uint32_t                        m_ModelsCount;
+        RigSceneResource*               m_RigScene;
+
+        dmArray<MeshInfo>               m_Meshes;
+
+        dmArray<dmRender::HMaterial>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
+
+        dmGraphics::HTexture            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                        m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 }
 

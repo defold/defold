@@ -13,15 +13,17 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#pragma once
+#ifndef DM_MODELIMPORTER_H
+#define DM_MODELIMPORTER_H
 
+#include <dmsdk/dlib/align.h>
 #include <dmsdk/dlib/transform.h>
 #include <dmsdk/dlib/shared_library.h>
 #include <stdint.h>
 
 namespace dmModelImporter
 {
-    #pragma pack(8) // To make it easier to match with the Java side
+    #pragma pack(push,8)
 
     struct Material
     {
@@ -55,7 +57,7 @@ namespace dmModelImporter
         uint32_t    m_Index;        // The index into the scene.models array
     };
 
-    struct Bone
+    struct DM_ALIGNED(16) Bone
     {
         dmTransform::Transform  m_InvBindPose; // inverse(world_transform)
         const char*             m_Name;
@@ -72,7 +74,7 @@ namespace dmModelImporter
         uint32_t                m_Index;        // The index into the scene.skins array
     };
 
-    struct Node
+    struct DM_ALIGNED(16) Node
     {
         dmTransform::Transform  m_Transform;    // The local transform
         const char*             m_Name;
@@ -108,11 +110,6 @@ namespace dmModelImporter
         const char*     m_Name;
         NodeAnimation*  m_NodeAnimations;
         uint32_t        m_NodeAnimationsCount;
-    };
-
-    struct TestInfo
-    {
-        const char* m_Name;
     };
 
     struct Scene
@@ -169,6 +166,10 @@ namespace dmModelImporter
 
     extern "C" DM_DLLEXPORT void DestroyScene(Scene* scene);
 
+    // Used by the editor to create a standalone data blob suitable for reading
+    // Caller owns the memory
+    extern "C" DM_DLLEXPORT void* ConvertToProtobufMessage(Scene* scene, size_t* length);
+
     void DebugScene(Scene* scene);
     void DebugStructScene(Scene* scene);
 
@@ -176,3 +177,5 @@ namespace dmModelImporter
     void* ReadFile(const char* path, uint32_t* file_size);
 }
 
+
+#endif // DM_MODELIMPORTER_H

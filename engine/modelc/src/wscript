@@ -1,0 +1,34 @@
+#! /usr/bin/env python
+
+from waf_dynamo import dmsdk_add_files
+
+def configure(conf):
+    pass
+
+def build(bld):
+    # We only need this library in the editor
+    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
+
+    if not is_host:
+        return
+
+    # really only used for the unit tests
+    model = bld.new_task_gen(features = 'cc cxx cstaticlib',
+                             includes = ['.', './model'],
+                             target = 'model')
+    model.find_sources_in_dirs('.')
+
+    model_source = model.source
+    model_source = [x for x in model_source if not 'test' in x]
+
+    model.source = [x for x in model_source if not '_jni.cpp' in x]
+
+    # Used by bob.jar
+    model_shared = bld.new_task_gen(features = 'cc cxx cshlib',
+                                    includes = model.includes,
+                                    uselib = 'DLIB DDF JDK',
+                                    target = 'modelc_shared')
+
+    model_shared.source = model_source
+
+    bld.add_subdirs('test')

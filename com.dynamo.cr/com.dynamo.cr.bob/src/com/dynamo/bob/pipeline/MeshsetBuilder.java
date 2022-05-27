@@ -136,8 +136,12 @@ public class MeshsetBuilder extends Builder<Void>  {
         // Skeleton
         {
             Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
-            if (!ModelUtil.loadSkeleton(scene, skeletonBuilder)) {
-                throw new CompileExceptionError(task.input(0), -1, "Failed to compile skeleton");
+            if (ModelUtil.getNumSkins(scene) > 0)
+            {
+                if (!ModelUtil.loadSkeleton(scene, skeletonBuilder))
+                {
+                    throw new CompileExceptionError(task.input(0), -1, "Failed to load skeleton");
+                }
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

@@ -2,7 +2,7 @@
 
 def build(bld):
     bld.new_task_gen(features = 'cxx cprogram test',
-                    includes = '../../src . ../../proto',
+                    includes = '. .. ../../proto',
                     uselib = 'TESTMAIN DLIB PLATFORM_SOCKET LUA SCRIPT',
                     uselib_local = 'rig',
                     target = 'test_rig',

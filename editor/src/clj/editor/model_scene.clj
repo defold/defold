@@ -298,7 +298,9 @@
   (resource-io/with-error-translation resource _node-id :content
     (try
       (model-loader/load-scene resource)
-      (catch Exception _
+      (catch Exception e
+        (prn "Exception" (.getMessage e))
+        (.printStackTrace e)
         (error-values/error-fatal "The scene contains invalid data, likely produced by a buggy exporter." {:type :invalid-content})))))
 
 (g/defnk produce-animation-info [resource]

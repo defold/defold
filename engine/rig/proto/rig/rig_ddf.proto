@@ -153,6 +153,7 @@ message MeshSet
     optional uint32 max_bone_count = 4;
 }
 
+// Public api
 message RigScene
 {
     optional string skeleton = 1 [(resource)=true];

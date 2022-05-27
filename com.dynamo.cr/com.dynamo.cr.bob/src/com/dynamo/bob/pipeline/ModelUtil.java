@@ -145,7 +145,6 @@ public class ModelUtil {
     }
 
     public static Scene loadScene(byte[] content, String suffix, Options options) {
-        ModelImporter.CheckSizes(); // Make sure the Java/C struct sizes are the same
         if (options == null)
             options = new Options();
         return ModelImporter.LoadFromBuffer(options, suffix, ByteBuffer.wrap(content), content.length);
@@ -157,7 +156,6 @@ public class ModelUtil {
     }
 
     public static void unloadScene(Scene scene) {
-        ModelImporter.DestroyScene(scene);
     }
 
     private static AnimationKey createKey(float t, boolean stepped, int componentSize) {
@@ -378,26 +376,26 @@ public class ModelUtil {
     public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation, ModelImporter.Bone bone, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
-        if (nodeAnimation.translationKeysCount > 0) {
+        if (nodeAnimation.translationKeys.length > 0) {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
-            copyKeys(nodeAnimation.getTranslationKeys(), 3, sparseTrack.keys);
+            copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
 
             samplePosTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
         }
 
-        if (nodeAnimation.rotationKeysCount > 0) {
+        if (nodeAnimation.rotationKeys.length > 0) {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
-            copyKeys(nodeAnimation.getRotationKeys(), 4, sparseTrack.keys);
+            copyKeys(nodeAnimation.rotationKeys, 4, sparseTrack.keys);
 
             sampleRotTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
         }
 
-        if (nodeAnimation.scaleKeysCount > 0) {
+        if (nodeAnimation.scaleKeys.length > 0) {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
-            copyKeys(nodeAnimation.getTranslationKeys(), 3, sparseTrack.keys);
+            copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
 
             sampleScaleTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
         }
@@ -482,7 +480,7 @@ public class ModelUtil {
     }
 
     public static void loadAnimations(Scene scene, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
-        for (ModelImporter.Animation animation : scene.getAnimations()) {
+        for (ModelImporter.Animation animation : scene.animations) {
 
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
 
@@ -503,24 +501,24 @@ public class ModelUtil {
             animationIds.add(animationName);
 
             // TODO: add the duration, and start time to the Animation struct!
-            for (ModelImporter.NodeAnimation nodeAnimation : animation.getNodeAnimations()) {
+            for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
 
                 int count = 0;
                 ModelImporter.KeyFrame keys[] = null;
 
-                if (nodeAnimation.translationKeysCount > 0) {
-                    keys = nodeAnimation.getTranslationKeys();
-                    count = nodeAnimation.translationKeysCount;
+                if (nodeAnimation.translationKeys.length > 0) {
+                    keys = nodeAnimation.translationKeys;
+                    count = nodeAnimation.translationKeys.length;
                 }
 
-                if (nodeAnimation.rotationKeysCount > 0) {
-                    keys = nodeAnimation.getRotationKeys();
-                    count = nodeAnimation.rotationKeysCount;
+                if (nodeAnimation.rotationKeys.length > 0) {
+                    keys = nodeAnimation.rotationKeys;
+                    count = nodeAnimation.rotationKeys.length;
                 }
 
-                if (nodeAnimation.scaleKeysCount > 0) {
-                    keys = nodeAnimation.getScaleKeys();
-                    count = nodeAnimation.scaleKeysCount;
+                if (nodeAnimation.scaleKeys.length > 0) {
+                    keys = nodeAnimation.scaleKeys;
+                    count = nodeAnimation.scaleKeys.length;
                 }
 
                 if (keys == null) {
@@ -539,7 +537,7 @@ public class ModelUtil {
 
     System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f\n", animation.name, duration, sampleRate, startTime);
 
-            for (ModelImporter.NodeAnimation nodeAnimation : animation.getNodeAnimations()) {
+            for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
 
                 Bone bone = findBone(bones, nodeAnimation.node);
                 assert(bone != null);
@@ -689,8 +687,8 @@ public class ModelUtil {
     public static ArrayList<String> loadMaterialNames(Scene scene) {
         ArrayList<String> materials = new ArrayList<>();
 
-        for (Model model : scene.getModels()) {
-            for (Mesh mesh : model.getMeshes()) {
+        for (Model model : scene.models) {
+            for (Mesh mesh : model.meshes) {
                 materials.add(mesh.material);
             }
         }
@@ -797,12 +795,12 @@ public class ModelUtil {
 
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
 
-        float[] positions = mesh.getPositions();
-        float[] normals = mesh.getNormals();
-        float[] tangents = mesh.getTangents();
-        float[] colors = mesh.getColors();
-        float[] weights = mesh.getWeights();
-        int[] bones = mesh.getBones();
+        float[] positions = mesh.positions;
+        float[] normals = mesh.normals;
+        float[] tangents = mesh.tangents;
+        float[] colors = mesh.colors;
+        float[] weights = mesh.weights;
+        int[] bones = mesh.bones;
         float[] texCoords0 = mesh.getTexCoords(0);
         float[] texCoords1 = mesh.getTexCoords(1);
 
@@ -824,7 +822,7 @@ public class ModelUtil {
             meshBuilder.setNumTexcoord0Components(mesh.texCoords1NumComponents);
         }
 
-        int[] indices = mesh.getIndices();
+        int[] indices = mesh.indices;
         int num_indices = mesh.indexCount;
 
         List<Integer> position_indices_list = new ArrayList<Integer>(num_indices);
@@ -876,7 +874,7 @@ public class ModelUtil {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
-        for (Mesh mesh : model.getMeshes()) {
+        for (Mesh mesh : model.meshes) {
             modelBuilder.addMeshes(loadMesh(mesh, skeleton, materials));
         }
 
@@ -900,7 +898,7 @@ public class ModelUtil {
             models.add(loadModel(node, node.model, skeleton, materials));
         }
 
-        for (Node child : node.getChildren()) {
+        for (Node child : node.children) {
             loadModelInstances(child, skeleton, materials, models);
         }
     }
@@ -917,7 +915,7 @@ public class ModelUtil {
         meshSetBuilder.addAllMaterials(materials);
 
         ArrayList<Rig.Model> models = new ArrayList<>();
-        for (Node root : scene.getRootNodes()) {
+        for (Node root : scene.rootNodes) {
             loadModelInstances(root, skeleton, materials, models);
 
             break; // TODO: Support more than one root node
@@ -931,17 +929,21 @@ public class ModelUtil {
         }
     }
 
+    public static int getNumSkins(Scene scene) {
+        return scene.skins.length;
+    }
+
     public static ArrayList<ModelImporter.Bone> loadSkeleton(Scene scene) {
         ArrayList<ModelImporter.Bone> skeleton = new ArrayList<>();
 
-        if (scene.skinsCount == 0)
+        if (scene.skins.length == 0)
         {
             return skeleton;
         }
 
         // get the first skeleton
-        ModelImporter.Skin skin = scene.getSkins()[0];
-        for (Bone bone : skin.getBones()) {
+        ModelImporter.Skin skin = scene.skins[0];
+        for (Bone bone : skin.bones) {
             skeleton.add(bone);
         }
 

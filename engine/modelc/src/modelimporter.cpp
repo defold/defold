@@ -84,29 +84,59 @@ static void DestroyAnimation(Animation* animation)
 
 void DestroyScene(Scene* scene)
 {
+    printf("DestroyScene: %d\n", __LINE__);
+    if (!scene->m_OpaqueSceneData)
+    {
+        printf("Already deleted!\n");
+        return;
+    }
+
     scene->m_DestroyFn(scene->m_OpaqueSceneData);
+    scene->m_OpaqueSceneData = 0;
+
+    printf("DestroyScene: %d\n", __LINE__);
 
     for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
         DestroyNode(&scene->m_Nodes[i]);
-
+    scene->m_NodesCount = 0;
     delete[] scene->m_Nodes;
+
+    printf("DestroyScene: %d\n", __LINE__);
+    scene->m_RootNodesCount = 0;
     delete[] scene->m_RootNodes;
 
+    printf("DestroyScene: %d\n", __LINE__);
     for (uint32_t i = 0; i < scene->m_ModelsCount; ++i)
         DestroyModel(&scene->m_Models[i]);
+    scene->m_ModelsCount = 0;
     delete[] scene->m_Models;
 
+    printf("DestroyScene: %d\n", __LINE__);
     for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
         DestroySkin(&scene->m_Skins[i]);
+    scene->m_SkinsCount = 0;
     delete[] scene->m_Skins;
 
+    printf("DestroyScene: %d\n", __LINE__);
     for (uint32_t i = 0; i < scene->m_AnimationsCount; ++i)
         DestroyAnimation(&scene->m_Animations[i]);
+    scene->m_AnimationsCount = 0;
     delete[] scene->m_Animations;
+
+    printf("DestroyScene: %d\n", __LINE__);
+    delete scene;
+
+    printf("DestroyScene: %d\n", __LINE__);
 }
 
 Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size)
 {
+    if (suffix == 0)
+    {
+        printf("ModelImporter: No suffix specified!\n");
+        return 0;
+    }
+
     if (dmStrCaseCmp(suffix, "gltf") == 0 || dmStrCaseCmp(suffix, "glb") == 0)
         return LoadGltfFromBuffer(options, data, file_size);
 

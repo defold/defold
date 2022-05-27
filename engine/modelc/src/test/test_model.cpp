@@ -13,7 +13,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "model/modelimporter.h"
+#include "modelimporter.h"
 #include <string.h>
 
 
@@ -37,7 +37,8 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
 
 TEST(ModelGLTF, Load)
 {
-    const char* path = "/Users/mawe/work/projects/users/mawe/ModelTestKenneyFbx/assets/models/kenney/characters2/Animations/idle_test.glb";
+    //const char* path = "/Users/mawe/work/projects/users/mawe/ModelTestKenneyFbx/assets/models/kenney/characters2/Animations/idle_test.glb";
+    const char* path = "/Users/mawe/work/projects/users/mawe/example-racing/assets/models/car_01.glb";
     uint32_t file_size = 0;
     void* mem = dmModelImporter::ReadFile(path, &file_size);
 
@@ -55,6 +56,7 @@ TEST(ModelGLTF, Load)
     free(mem);
 }
 
+
 static int TestStandalone(const char* path)
 {
     dmModelImporter::Options options;
@@ -63,6 +65,7 @@ static int TestStandalone(const char* path)
     dmModelImporter::DebugScene(scene);
 
     dmModelImporter::DestroyScene(scene);
+    return 0;
 }
 
 int main(int argc, char **argv)
