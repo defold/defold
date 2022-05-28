@@ -209,10 +209,11 @@ public class TimeProfiler {
     }
 
     public static void createReport(Boolean fromEditor) {
+        // avoid douple creation of the report by checking `fromEditor` flag
         if (rootScope == null || TimeProfiler.fromEditor != fromEditor) {
             return;
         }
-        var _rootScope = rootScope;
+        ProfilingScope _rootScope = rootScope;
         // Make sure that using of TimeProfiler is impossible from now on
         rootScope = null;
         long reportStartTime = time();
