@@ -101,11 +101,9 @@ public class ModelImporter {
     public class Bone {
         public Transform invBindPose;
         public String    name;
-        public int       nodeIndex;
-        public int       parentIndex; // index into list of bones. -1 if no parent
         public int       index;      // index into list of bones
         public Node      node;
-        public Node      parent;
+        public Bone      parent;
     }
 
     public class Skin {
@@ -329,18 +327,18 @@ public class ModelImporter {
         }
     }
 
-    private static void DebugPrintBone(Bone bone, Node[] nodes, int indent) {
+    private static void DebugPrintBone(Bone bone, int indent) {
         PrintIndent(indent);
-        System.out.printf("Bone: %s  node: %s\n", bone.name, bone.nodeIndex==-1?"null":nodes[bone.nodeIndex].name);
+        System.out.printf("Bone: %s  node: %s\n", bone.name, bone.node==null?"null":bone.node.name);
         DebugPrintTransform(bone.invBindPose, indent+1);
     }
 
-    private static void DebugPrintSkin(Skin skin, Node[] nodes, int indent) {
+    private static void DebugPrintSkin(Skin skin, int indent) {
         PrintIndent(indent);
         System.out.printf("skin: %s\n", skin.name);
 
         for (Bone bone : skin.bones) {
-            DebugPrintBone(bone, nodes, indent+1);
+            DebugPrintBone(bone, indent+1);
         }
     }
 
@@ -380,13 +378,13 @@ public class ModelImporter {
 
         System.out.printf("--------------------------------\n");
 
-        /*
-        System.out.printf("Num Skins: %d\n", scene.skinsCount);
-        for (Skin skin : scene.getSkins())
+        System.out.printf("Num Skins: %d\n", scene.skins.length);
+        for (Skin skin : scene.skins)
         {
             DebugPrintSkin(skin, 0);
         }
 
+        /*
         System.out.printf("--------------------------------\n");
 
         System.out.printf("Num Models: %d\n", scene.modelsCount);
