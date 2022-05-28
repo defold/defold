@@ -390,8 +390,8 @@ public class ModelImporter {
         }
     }
 
-    // Used for testing functions
-    // See ./com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/test_model_importer.sh
+    // Used for testing the importer. Usage:
+    //   ./src/com/dynamo/bob/pipeline/test_model_importer.sh <model path>
     public static void main(String[] args) throws IOException {
         System.setProperty("java.awt.headless", "true");
 

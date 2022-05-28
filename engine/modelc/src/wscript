@@ -26,9 +26,25 @@ def build(bld):
     # Used by bob.jar
     model_shared = bld.new_task_gen(features = 'cc cxx cshlib',
                                     includes = model.includes,
-                                    uselib = 'DLIB DDF JDK',
+                                    uselib = 'DLIB JDK',
                                     target = 'modelc_shared')
 
     model_shared.source = model_source
+
+    # classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
+    # classpath = os.pathsep.join(classpath)
+    classpath = []
+
+    bld.new_task_gen(features='javac seq',
+                     classpath=classpath,
+                     source_root='java')
+
+    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+
+    bld.new_task_gen(features='jar seq',
+                     basedir='java',
+                     destfile='modelimporter.jar')
+
+    bld.install_files('${PREFIX}/share/java', 'modelimporter.jar')
 
     bld.add_subdirs('test')

@@ -7,7 +7,7 @@ srcdir = '.'
 blddir = 'build'
 
 import sys, os
-import waf_dynamo, waf_ddf
+import waf_dynamo
 
 def init():
     pass
@@ -17,9 +17,7 @@ def set_options(opt):
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
-    conf.check_tool('waf_ddf')
-
-    waf_ddf.configure(conf)
+    conf.check_tool('java')
 
     conf.sub_config('src')
 
