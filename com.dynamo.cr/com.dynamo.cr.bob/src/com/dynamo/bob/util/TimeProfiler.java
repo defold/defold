@@ -91,6 +91,9 @@ public class TimeProfiler {
 
     private static ProfilingScope rootScope;
     private static ProfilingScope currentScope;
+    private static ReportFormat fileFormat;
+    private static File reportFile;
+    private static Boolean fromEditor;
 
     private static long time() {
         return System.currentTimeMillis();
@@ -205,56 +208,73 @@ public class TimeProfiler {
         fileHTMMLWriter.close();
     }
 
-    public static void init(String reportFolderPath, String fileName, ReportFormat fileFormat) throws IOException {
+    public static void createReport(Boolean fromEditor) {
+        if (rootScope == null || TimeProfiler.fromEditor != fromEditor) {
+            return;
+        }
+        var _rootScope = rootScope;
+        // Make sure that using of TimeProfiler is impossible from now on
+        rootScope = null;
+        long reportStartTime = time();
+
+        //Close all unclosed scopes
+        while(currentScope != _rootScope) {
+            unsafeAddData("forceFinishedScope", true);
+            unsafeAddData("color", "#FF0000");
+            unsafeStop();
+        };
+        unsafeStop();
+
+        try {
+            String jsonReport = generateJSON(_rootScope);
+            if (fileFormat == ReportFormat.JSON) {
+                saveJSON(jsonReport, reportFile);
+            } else {
+                saveHTML(jsonReport, reportFile);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        long reportEndTime = time();
+        System.out.printf("\nTime profiler report creation took %.2f seconds", (reportEndTime - reportStartTime)/1000.0f);
+    }
+
+    public static void init(File sizeReportFile, ReportFormat fileFormat, Boolean fromEditor) throws IOException {
+        if (rootScope != null) {
+            return;
+        }
+        String format = fileFormat.getFormat();
+        String name = sizeReportFile.getName().replace(format, FILENAME_POSTFIX + format);
+        TimeProfiler.reportFile = new File(sizeReportFile.getParent(), name);
+        TimeProfiler.fileFormat = fileFormat;
+        TimeProfiler.fromEditor = fromEditor;
         marks = new ArrayList();
-        RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
-        long startTime = bean.getStartTime(); //Returns the start time of the Java virtual machine in milliseconds.
+        long startTime = time();
+        if (!fromEditor) {
+            RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
+            startTime = bean.getStartTime(); //Returns the start time of the Java virtual machine in milliseconds.
+        }
         buildTime = startTime;
         rootScope = new ProfilingScope();
         rootScope.name = "Total time";
         rootScope.startTime = startTime;
         currentScope = rootScope;
 
-        ProfilingScope initScope = new ProfilingScope();
-        initScope.name = "Java VM init";
-        initScope.startTime = startTime;
-        initScope.endTime = time();
-        rootScope.children = new ArrayList<ProfilingScope>();
-        rootScope.children.add(initScope);
-        initScope.parent = rootScope;
+        if (!fromEditor) {
+            ProfilingScope initScope = new ProfilingScope();
+            initScope.name = "Java VM init";
+            initScope.startTime = startTime;
+            initScope.endTime = time();
+            rootScope.children = new ArrayList<ProfilingScope>();
+            rootScope.children.add(initScope);
+            initScope.parent = rootScope;
+        }
 
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             @Override
             public void run() {
-                var _rootScope = rootScope;
-                // Make sure that using of TimeProfiler is impossible from now on
-                rootScope = null;
-                long reportStartTime = time();
-
-                //Close all unclosed scopes
-                while(currentScope != _rootScope) {
-                    unsafeAddData("forceFinishedScope", true);
-                    unsafeAddData("color", "#FF0000");
-                    unsafeStop();
-                };
-                unsafeStop();
-
-                try {
-                    String jsonReport = generateJSON(_rootScope);
-                    String format = fileFormat.getFormat();
-                    String name = fileName.replace(format, "");
-                    File reportFile = new File(reportFolderPath, name + FILENAME_POSTFIX + format);
-                    if (fileFormat == ReportFormat.JSON) {
-                        saveJSON(jsonReport, reportFile);
-                    } else {
-                        saveHTML(jsonReport, reportFile);
-                    }
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-
-                long reportEndTime = time();
-                System.out.printf("\nTime profiler report creation took %.2f seconds", (reportEndTime - reportStartTime)/1000.0f);
+                createReport(fromEditor);
             }
         }));
     }
