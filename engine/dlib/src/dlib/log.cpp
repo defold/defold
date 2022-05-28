@@ -400,6 +400,11 @@ void Setlevel(Severity severity)
     g_LogLevel = severity;
 }
 
+Severity Getlevel()
+{
+    return g_LogLevel;
+}
+
 #ifdef ANDROID
 static android_LogPriority ToAndroidPriority(Severity severity)
 {

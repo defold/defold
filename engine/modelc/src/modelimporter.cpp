@@ -17,8 +17,38 @@
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h> // getenv
 #include <string.h>
+
+
+static void SetLogLevel()
+{
+    const char* env_debug_level = getenv("DM_MODELIMPORTER_LOG_LEVEL");
+    if (!env_debug_level)
+        return;
+
+    dmLog::Severity severity = dmLog::LOG_SEVERITY_WARNING;
+#define STRMATCH(LEVEL) if (strcmp(env_debug_level, #LEVEL) == 0) \
+        severity = dmLog::LOG_SEVERITY_ ## LEVEL;
+
+    STRMATCH(DEBUG);
+    STRMATCH(USER_DEBUG);
+    STRMATCH(INFO);
+    STRMATCH(WARNING);
+    STRMATCH(ERROR);
+    STRMATCH(FATAL);
+#undef STRMATCH
+
+    dmLog::Setlevel(severity);
+}
+
+struct ModelImporterInitializer
+{
+    ModelImporterInitializer() {
+        SetLogLevel();
+    }
+} g_ModelImporterInitializer;
+
 
 namespace dmModelImporter
 {
@@ -144,54 +174,6 @@ Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t
     return 0;
 }
 
-static void ReportSizes()
-{
-    dmLogWarning("C sizes:");
-    dmLogWarning("sizeof(Transform) == %d", (uint32_t)sizeof(dmTransform::Transform));
-    dmLogWarning("sizeof(Mesh) == %d", (uint32_t)sizeof(Mesh));
-    dmLogWarning("sizeof(Model) == %d", (uint32_t)sizeof(Model));
-    dmLogWarning("sizeof(Bone) == %d", (uint32_t)sizeof(Bone));
-    dmLogWarning("sizeof(Skin) == %d", (uint32_t)sizeof(Skin));
-    dmLogWarning("sizeof(Node) == %d", (uint32_t)sizeof(Node));
-    dmLogWarning("sizeof(KeyFrame) == %d", (uint32_t)sizeof(KeyFrame));
-    dmLogWarning("sizeof(NodeAnimation) == %d", (uint32_t)sizeof(NodeAnimation));
-    dmLogWarning("sizeof(Animation) == %d", (uint32_t)sizeof(Animation));
-    dmLogWarning("sizeof(Scene) == %d", (uint32_t)sizeof(Scene));
-}
-
-static void AssertSize(const char* name, uint32_t java_sz, uint32_t c_size)
-{
-    if (java_sz != c_size) {
-        ReportSizes();
-
-        dmLogError("Sizes for struct %s differ: java: %u  c: %u", name, java_sz, c_size);
-    }
-    assert(java_sz == c_size);
-}
-
-void AssertSizes(uint32_t sz_transform,
-                 uint32_t sz_mesh,
-                 uint32_t sz_model,
-                 uint32_t sz_bone,
-                 uint32_t sz_skin,
-                 uint32_t sz_node,
-                 uint32_t sz_keyframe,
-                 uint32_t sz_nodeanimation,
-                 uint32_t sz_animation,
-                 uint32_t sz_scene)
-{
-    AssertSize("Transform",     sz_transform,       (uint32_t)sizeof(dmTransform::Transform));
-    AssertSize("Mesh",          sz_mesh,            (uint32_t)sizeof(Mesh));
-    AssertSize("Model",         sz_model,           (uint32_t)sizeof(Model));
-    AssertSize("Bone",          sz_bone,            (uint32_t)sizeof(Bone));
-    AssertSize("Skin",          sz_skin,            (uint32_t)sizeof(Skin));
-    AssertSize("Node",          sz_node,            (uint32_t)sizeof(Node));
-    AssertSize("KeyFrame",      sz_keyframe,        (uint32_t)sizeof(KeyFrame));
-    AssertSize("NodeAnimation", sz_nodeanimation,   (uint32_t)sizeof(NodeAnimation));
-    AssertSize("Animation",     sz_animation,       (uint32_t)sizeof(Animation));
-    AssertSize("Scene",         sz_scene,           (uint32_t)sizeof(Scene));
-}
-
 Scene* LoadFromPath(Options* options, const char* path)
 {
     const char* suffix = strrchr(path, '.') + 1;
@@ -209,6 +191,11 @@ Scene* LoadFromPath(Options* options, const char* path)
     free(data);
 
     return scene;
+}
+
+void EnableDebugLogging(bool enable)
+{
+    dmLog::Setlevel( enable ? dmLog::LOG_SEVERITY_DEBUG : dmLog::LOG_SEVERITY_WARNING);
 }
 
 }

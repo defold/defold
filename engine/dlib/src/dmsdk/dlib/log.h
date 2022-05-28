@@ -267,6 +267,16 @@ void UnregisterLogListener(LogListener listener);
  */
 void Setlevel(Severity severity);
 
+/*# get log system severity level.
+ *
+ * get log system severity level.
+ *
+ * @name dmLog::Getlevel
+ * @return [type:dmLog::Severity] severity
+ */
+Severity Getlevel();
+
+
 } //namespace dmLog
 
 #endif // DMSDK_LOG_H

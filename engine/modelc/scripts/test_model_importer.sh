@@ -29,4 +29,6 @@ fi
 
 JNI_DEBUG_FLAGS="-Xcheck:jni"
 
+export DM_MODELIMPORTER_LOG_LEVEL=DEBUG
+
 java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djna.library.path=${BUILD_DIR} -Djna.library.path=${MODELC_BUILD_DIR} ${JNA_DEBUG_FLAGS} -cp ${JAR} ${CLASS_NAME} $*

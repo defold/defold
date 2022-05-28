@@ -147,17 +147,6 @@ namespace dmModelImporter
 
     #pragma pack(pop)
 
-    extern "C" DM_DLLEXPORT void AssertSizes(uint32_t sz_transform,
-                                             uint32_t sz_mesh,
-                                             uint32_t sz_model,
-                                             uint32_t sz_bone,
-                                             uint32_t sz_skin,
-                                             uint32_t sz_node,
-                                             uint32_t sz_keyframe,
-                                             uint32_t sz_nodeanimation,
-                                             uint32_t sz_animation,
-                                             uint32_t sz_scene);
-
     extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t file_size);
 
     extern "C" DM_DLLEXPORT Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size);
@@ -169,6 +158,9 @@ namespace dmModelImporter
     // Used by the editor to create a standalone data blob suitable for reading
     // Caller owns the memory
     extern "C" DM_DLLEXPORT void* ConvertToProtobufMessage(Scene* scene, size_t* length);
+
+    // Switches between warning and debug level
+    extern "C" DM_DLLEXPORT void EnableDebugLogging(bool enable);
 
     void DebugScene(Scene* scene);
     void DebugStructScene(Scene* scene);

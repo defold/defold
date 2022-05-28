@@ -33,7 +33,8 @@ public class ModelImporter {
         }
     }
 
-    public static native Scene LoadFromBufferInternal(String path, int buffer_len, byte[] buffer);
+    // The suffix of the path dictates which loader it will use
+    public static native Scene LoadFromBufferInternal(String path, byte[] buffer);
 
     public static class ModelException extends Exception {
         public ModelException(String errorMessage) {
@@ -114,15 +115,9 @@ public class ModelImporter {
     }
 
     public class Node {
-        // C loader
         public Transform    transform;
         public String       name;
-        public int          modelIndex;
-        public int          skinIndex;
-        public int          parentIndex;
-        public int[]        childIndices;
         public int          index;
-        // Java fixup
         public Node         parent;
         public Node[]       children;
         public Model        model;
@@ -143,8 +138,8 @@ public class ModelImporter {
     }
 
     public class Animation {
-        public String                       name;
-        public NodeAnimation[]              nodeAnimations;
+        public String           name;
+        public NodeAnimation[]  nodeAnimations;
     }
 
     public class Scene {
@@ -152,73 +147,32 @@ public class ModelImporter {
         public Node[]         nodes;
         public Model[]        models;
         public Skin[]         skins;
-        public int[]          rootNodeIndices;
         public Node[]         rootNodes;
         public Animation[]    animations;
 
-        public Node getNode(int i) {
-            if (i == -1) {
-                return null;
-            }
-            return nodes[i];
-        }
-        public Skin getSkin(int i) {
-            if (i == -1) {
-                return null;
-            }
-            return skins[i];
-        }
-        public Model getModel(int i) {
-            if (i == -1) {
-                return null;
-            }
-            return models[i];
-        }
-    }
-
-    private static void FixReferences(Scene scene) {
-        for (Node node : scene.nodes)
-        {
-            node.parent = scene.getNode(node.parentIndex);
-            node.children = new Node[node.childIndices.length];
-            for (int i = 0; i < node.childIndices.length; ++i)
-            {
-                int index = node.childIndices[i];
-                node.children[i] = scene.getNode(index);
-            }
-            node.skin = scene.getSkin(node.skinIndex);
-            node.model = scene.getModel(node.modelIndex);
-        }
-
-        scene.rootNodes = new Node[scene.rootNodeIndices.length];
-        for (int i = 0; i < scene.rootNodeIndices.length; ++i)
-        {
-            int index = scene.rootNodeIndices[i];
-            scene.rootNodes[i] = scene.getNode(index);
-        }
-
-        for (Skin skin : scene.skins)
-        {
-            for (Bone bone : skin.bones)
-            {
-                bone.node = scene.getNode(bone.nodeIndex);
-                bone.parent = scene.getNode(bone.parentIndex);
-            }
-        }
-
-        for (Animation animation : scene.animations)
-        {
-            for (NodeAnimation nodeAnim : animation.nodeAnimations)
-            {
-                nodeAnim.node = scene.getNode(nodeAnim.nodeIndex);
-            }
-        }
+        // public Node getNode(int i) {
+        //     if (i == -1) {
+        //         return null;
+        //     }
+        //     return nodes[i];
+        // }
+        // public Skin getSkin(int i) {
+        //     if (i == -1) {
+        //         return null;
+        //     }
+        //     return skins[i];
+        // }
+        // public Model getModel(int i) {
+        //     if (i == -1) {
+        //         return null;
+        //     }
+        //     return models[i];
+        // }
     }
 
     public static Scene LoadFromBuffer(Options options, String path, byte[] bytes)
     {
-        Scene scene = ModelImporter.LoadFromBufferInternal(path, bytes.length, bytes);
-        //FixReferences(scene);
+        Scene scene = ModelImporter.LoadFromBufferInternal(path, bytes);
         return scene;
     }
 
@@ -408,38 +362,25 @@ public class ModelImporter {
 
         System.out.printf("Result LoadScene: %s : %s\n", path, scene!=null ? "ok":"fail");
 
-        System.out.printf("rootNodeIndices: %d\n", scene.rootNodeIndices.length);
-
-        for (int index : scene.rootNodeIndices)
-        {
-            System.out.printf("  index: %d\n", index);
-        }
-
-        System.out.printf("testing ended\n");
-
-        /*
-        String path = args[0];       // .glb
-
-        Options options = new Options();
-        Scene scene = LoadFromPath(options, path);
 
         System.out.printf("--------------------------------\n");
 
-        System.out.printf("Num Nodes: %d\n", scene.nodesCount);
-        for (Node node : scene.getNodes())
+        System.out.printf("Num Nodes: %d\n", scene.nodes.length);
+        for (Node node : scene.nodes)
         {
             DebugPrintNode(node, 0);
         }
 
         System.out.printf("--------------------------------\n");
 
-        for (Node root : scene.getRootNodes()) {
+        for (Node root : scene.rootNodes) {
             System.out.printf("Root Node: %s\n", root.name);
             DebugPrintTree(root, 0);
         }
 
         System.out.printf("--------------------------------\n");
 
+        /*
         System.out.printf("Num Skins: %d\n", scene.skinsCount);
         for (Skin skin : scene.getSkins())
         {
@@ -464,8 +405,9 @@ public class ModelImporter {
 
         scene.finalize();
         scene = null;
+        */
 
         System.out.printf("--------------------------------\n");
-        */
+
     }
 }

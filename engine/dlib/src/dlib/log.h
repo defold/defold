@@ -78,12 +78,6 @@ uint16_t GetPort();
 
 
 /**
- * Set log level
- * @param severity Log severity
- */
-void Setlevel(Severity severity);
-
-/**
  * Set log file. The file will be created and truncated.
  * Subsequent invocations to this function will close previous opened file.
  * If the file can't be created a message will be logged to the "console"
