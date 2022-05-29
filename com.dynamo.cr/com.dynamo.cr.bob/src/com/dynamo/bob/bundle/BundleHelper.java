@@ -846,7 +846,7 @@ public class BundleHelper {
         String[] lines = log.split("\\r?\\n");
 
         List<ResourceInfo> allIssues = new ArrayList<ResourceInfo>();
-        if (platform.contains("macos") || platform.contains("ios") || platform.contains("web")) {
+        if (platform.contains("osx") || platform.contains("ios") || platform.contains("web")) {
             parseLogClang(lines, allIssues);
         } else if (platform.contains("android")) {
             parseJarConflicts(lines, allIssues);
