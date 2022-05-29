@@ -92,10 +92,6 @@ static jfieldID GetFieldSkin(JNIEnv* env, jclass cls, const char* field_name)
 {
     return env->GetFieldID(cls, field_name, "Lcom/dynamo/bob/pipeline/ModelImporter$Skin;");
 }
-static jfieldID GetFieldMesh(JNIEnv* env, jclass cls, const char* field_name)
-{
-    return env->GetFieldID(cls, field_name, "Lcom/dynamo/bob/pipeline/ModelImporter$Mesh;");
-}
 static jfieldID GetFieldBone(JNIEnv* env, jclass cls, const char* field_name)
 {
     return env->GetFieldID(cls, field_name, "Lcom/dynamo/bob/pipeline/ModelImporter$Bone;");
@@ -114,12 +110,6 @@ static void SetFieldString(JNIEnv* env, jclass cls, jobject obj, const char* fie
     jstring str = env->NewStringUTF(value);
     env->SetObjectField(obj, field, str);
 }
-static void SetFieldNode(JNIEnv* env, jclass cls, jobject obj, const char* field_name, jobject node)
-{
-    jfieldID field = GetFieldNode(env, cls, field_name);
-    env->SetObjectField(obj, field, node);
-}
-
 static void SetFieldObject(JNIEnv* env, jobject obj, jfieldID field, jobject value)
 {
     env->SetObjectField(obj, field, value);
@@ -127,6 +117,17 @@ static void SetFieldObject(JNIEnv* env, jobject obj, jfieldID field, jobject val
 
 
 // ******************************************************************************************************************
+
+static jobjectArray CreateObjectArray(JNIEnv* env, jclass cls, const dmArray<jobject>& values)
+{
+    uint32_t count = values.Size();
+    jobjectArray arr = env->NewObjectArray(count, cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        env->SetObjectArrayElement(arr, i, values[i]);
+    }
+    return arr;
+}
 
 static jobject CreateVec4(JNIEnv* env, const dmVMath::Vector4& value)
 {
@@ -156,6 +157,10 @@ static jobject CreateTransform(JNIEnv* env, dmTransform::Transform* transform)
     return obj;
 }
 
+
+// **************************************************
+// Nodes
+
 static jobject CreateNode(JNIEnv* env, jclass cls, dmModelImporter::Node* node)
 {
     jobject obj = env->AllocObject(cls);
@@ -163,6 +168,20 @@ static jobject CreateNode(JNIEnv* env, jclass cls, dmModelImporter::Node* node)
     SetFieldString(env, cls, obj, "name", node->m_Name);
     SetFieldObject(env, obj, GetFieldTransform(env, cls, "transform"), CreateTransform(env, &node->m_Transform));
     return obj;
+}
+
+static jfloatArray CreateFloatArray(JNIEnv* env, uint32_t count, const float* values)
+{
+    jfloatArray arr = env->NewFloatArray(count);
+    env->SetFloatArrayRegion(arr, 0, count, values);
+    return arr;
+}
+
+static jintArray CreateIntArray(JNIEnv* env, uint32_t count, const int* values)
+{
+    jintArray arr = env->NewIntArray(count);
+    env->SetIntArrayRegion(arr, 0, count, values);
+    return arr;
 }
 
 static void CreateNodes(JNIEnv* env, const dmModelImporter::Scene* scene, dmArray<jobject>& nodes)
@@ -181,8 +200,6 @@ static void CreateNodes(JNIEnv* env, const dmModelImporter::Scene* scene, dmArra
 
     jfieldID fChildren = env->GetFieldID(cls, "children", "[Lcom/dynamo/bob/pipeline/ModelImporter$Node;");
     jfieldID fParent = GetFieldNode(env, cls, "parent");
-    // jfieldID fModel = GetFieldModel(env, cls, "model");
-    // jfieldID fSkin = GetFieldSkin(env, cls, "skin");
     for (uint32_t i = 0; i < count; ++i)
     {
         Node* node = &scene->m_Nodes[i];
@@ -202,10 +219,119 @@ static void CreateNodes(JNIEnv* env, const dmModelImporter::Scene* scene, dmArra
     }
 }
 
+static void FixupNodeReferences(JNIEnv* env, const dmModelImporter::Scene* scene, const dmArray<jobject>& skins, const dmArray<jobject>& models, const dmArray<jobject>& nodes)
+{
+    jclass nodeCls = GetClass(env, "Node");
+    jfieldID fSkin = GetFieldSkin(env, nodeCls, "skin");
+    jfieldID fModel = GetFieldModel(env, nodeCls, "model");
+
+    uint32_t count = scene->m_NodesCount;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        dmModelImporter::Node* node = &scene->m_Nodes[i];
+        if (node->m_Skin)
+        {
+            jobject node_obj = nodes[node->m_Index];
+            jobject skin_obj = skins[node->m_Skin->m_Index];
+            SetFieldObject(env, node_obj, fSkin, skin_obj);
+        }
+
+        if (node->m_Model)
+        {
+            jobject node_obj = nodes[node->m_Index];
+            jobject model_obj = models[node->m_Model->m_Index];
+            SetFieldObject(env, node_obj, fModel, model_obj);
+        }
+
+    }
+}
+
+// **************************************************
+// Meshes
+
+static jobject CreateMesh(JNIEnv* env, jclass cls, const dmModelImporter::Mesh* mesh)
+{
+    jobject obj = env->AllocObject(cls);
+    SetFieldString(env, cls, obj, "name", mesh->m_Name);
+    SetFieldString(env, cls, obj, "material", mesh->m_Material);
+    SetFieldInt(env, cls, obj, "vertexCount", mesh->m_VertexCount);
+    SetFieldInt(env, cls, obj, "indexCount", mesh->m_IndexCount);
+    SetFieldInt(env, cls, obj, "texCoords0NumComponents", mesh->m_TexCoord0NumComponents);
+    SetFieldInt(env, cls, obj, "texCoords1NumComponents", mesh->m_TexCoord1NumComponents);
+
+#define SET_FARRAY(OBJ, FIELD, COUNT, VALUES) \
+    { \
+        jfieldID f ## FIELD  = env->GetFieldID(cls, # FIELD, "[F"); \
+        jfloatArray arr = CreateFloatArray(env, COUNT, VALUES); \
+        env->SetObjectField(OBJ, f ## FIELD, arr); \
+    }
+#define SET_IARRAY(OBJ, FIELD, COUNT, VALUES) \
+    { \
+        jfieldID f ## FIELD  = env->GetFieldID(cls, # FIELD, "[I"); \
+        jintArray arr = CreateIntArray(env, COUNT, (const int*)VALUES); \
+        env->SetObjectField(OBJ, f ## FIELD, arr); \
+    }
+
+    uint32_t vcount = mesh->m_VertexCount;
+    uint32_t icount = mesh->m_IndexCount;
+    SET_FARRAY(obj, positions, vcount * 3, mesh->m_Positions);
+    SET_FARRAY(obj, normals, vcount * 3, mesh->m_Normals);
+    SET_FARRAY(obj, tangents, vcount * 3, mesh->m_Tangents);
+    SET_FARRAY(obj, colors, vcount * 4, mesh->m_Color);
+    SET_FARRAY(obj, weights, vcount * 4, mesh->m_Weights);
+    SET_FARRAY(obj, texCoords0, vcount * mesh->m_TexCoord0NumComponents, mesh->m_TexCoord0);
+    SET_FARRAY(obj, texCoords1, vcount * mesh->m_TexCoord1NumComponents, mesh->m_TexCoord1);
+
+    SET_IARRAY(obj, bones, vcount * 4, mesh->m_Bones);
+    SET_IARRAY(obj, indices, icount, mesh->m_Indices);
+
+#undef SET_FARRAY
+#undef SET_UARRAY
+
+    return obj;
+}
+
+static jobjectArray CreateMeshesArray(JNIEnv* env, jclass cls, uint32_t count, const dmModelImporter::Mesh* meshes)
+{
+    jobjectArray arr = env->NewObjectArray(count, cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        env->SetObjectArrayElement(arr, i, CreateMesh(env, cls, &meshes[i]));
+    }
+    return arr;
+}
+
+static jobject CreateModel(JNIEnv* env, jclass cls, const dmModelImporter::Model* model)
+{
+    jobject obj = env->AllocObject(cls);
+    SetFieldInt(env, cls, obj, "index", model->m_Index);
+    SetFieldString(env, cls, obj, "name", model->m_Name);
+
+    jclass meshCls = GetClass(env, "Mesh");
+    jobjectArray arr = CreateMeshesArray(env, meshCls, model->m_MeshesCount, model->m_Meshes);
+
+    jfieldID fMeshes = env->GetFieldID(cls, "meshes", "[Lcom/dynamo/bob/pipeline/ModelImporter$Mesh;");
+    env->SetObjectField(obj, fMeshes, arr);
+
+    return obj;
+}
+
 static void CreateModels(JNIEnv* env, const dmModelImporter::Scene* scene, dmArray<jobject>& models)
 {
+    uint32_t count = scene->m_ModelsCount;
+    models.SetCapacity(count);
+    models.SetSize(count);
 
+    jclass cls = GetClass(env, "Model");
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        Model* model = &scene->m_Models[i];
+        models[model->m_Index] = CreateModel(env, cls, model);
+    }
 }
+
+// **************************************************
+// Bones
 
 static jobject CreateBone(JNIEnv* env, jclass cls, dmModelImporter::Bone* bone, const dmArray<jobject>& nodes)
 {
@@ -214,7 +340,6 @@ static jobject CreateBone(JNIEnv* env, jclass cls, dmModelImporter::Bone* bone, 
     SetFieldString(env, cls, obj, "name", bone->m_Name);
     SetFieldObject(env, obj, GetFieldTransform(env, cls, "invBindPose"), CreateTransform(env, &bone->m_InvBindPose));
     SetFieldObject(env, obj, GetFieldNode(env, cls, "node"), nodes[bone->m_Node->m_Index]);
-
     return obj;
 }
 
@@ -262,6 +387,9 @@ static void CreateBones(JNIEnv* env, const dmModelImporter::Scene* scene, const 
     }
 }
 
+// **************************************************
+// SKins
+
 static jobject CreateSkin(JNIEnv* env, jclass cls, dmModelImporter::Skin* skin)
 {
     jobject obj = env->AllocObject(cls);
@@ -284,24 +412,6 @@ static void CreateSkins(JNIEnv* env, const dmModelImporter::Scene* scene, dmArra
     }
 }
 
-static void FixupNodeReferences(JNIEnv* env, const dmModelImporter::Scene* scene, const dmArray<jobject>& skins, const dmArray<jobject>& nodes)
-{
-    jclass nodeCls = GetClass(env, "Node");
-    jfieldID fSkin = GetFieldSkin(env, nodeCls, "skin");
-    jfieldID fModel = GetFieldModel(env, nodeCls, "model");
-
-    uint32_t count = scene->m_NodesCount;
-    for (uint32_t i = 0; i < count; ++i)
-    {
-        dmModelImporter::Node* node = &scene->m_Nodes[i];
-        if (node->m_Skin)
-        {
-            jobject node_obj = nodes[node->m_Index];
-            jobject skin_obj = skins[node->m_Skin->m_Index];
-            SetFieldObject(env, node_obj, fSkin, skin_obj);
-        }
-    }
-}
 
 static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 {
@@ -311,25 +421,24 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     dmArray<jobject> models;
     dmArray<jobject> skins;
     dmArray<jobject> nodes;
-    //CreateModels(env, scene, models);
-    CreateNodes(env, scene, nodes);
-    CreateSkins(env, scene, skins);
 
+    // Creates all nodes, and leaves out setting skins/models
+    CreateNodes(env, scene, nodes);
+
+    CreateSkins(env, scene, skins);
+    CreateModels(env, scene, models);
     CreateBones(env, scene, skins, nodes);
 
-    FixupNodeReferences(env, scene, skins, nodes);
+    // Set the skin+model to the nodes
+    FixupNodeReferences(env, scene, skins, models, nodes);
 
     jclass nodeCls = GetClass(env, "Node");
     jclass skinCls = GetClass(env, "Skin");
+    jclass modelCls = GetClass(env, "Model");
 
     ///
     {
-        uint32_t count = nodes.Size();
-        jobjectArray arr = env->NewObjectArray(count, nodeCls, 0);
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            env->SetObjectArrayElement(arr, i, nodes[i]);
-        }
+        jobjectArray arr = CreateObjectArray(env, nodeCls, nodes);
         jfieldID field = env->GetFieldID(cls, "nodes", "[Lcom/dynamo/bob/pipeline/ModelImporter$Node;");
         env->SetObjectField(obj, field, arr);
     }
@@ -347,13 +456,14 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     }
 
     {
-        uint32_t count = scene->m_SkinsCount;
-        jobjectArray arr = env->NewObjectArray(count, skinCls, 0);
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            env->SetObjectArrayElement(arr, i, skins[i]);
-        }
+        jobjectArray arr = CreateObjectArray(env, skinCls, skins);
         jfieldID field = env->GetFieldID(cls, "skins", "[Lcom/dynamo/bob/pipeline/ModelImporter$Skin;");
+        env->SetObjectField(obj, field, arr);
+    }
+
+    {
+        jobjectArray arr = CreateObjectArray(env, modelCls, models);
+        jfieldID field = env->GetFieldID(cls, "models", "[Lcom/dynamo/bob/pipeline/ModelImporter$Model;");
         env->SetObjectField(obj, field, arr);
     }
 

@@ -207,7 +207,7 @@ public class ModelImporter {
 
     private static void DebugPrintNode(Node node, int indent) {
         PrintIndent(indent);
-        System.out.printf("Node: %s  idx: %d   mesh: %d\n", node.name, node.index, node.model);
+        System.out.printf("Node: %s  idx: %d   mesh: %s\n", node.name, node.index, node.model==null?"null":node.model.name);
         DebugPrintTransform(node.transform, indent+1);
     }
 
@@ -384,14 +384,14 @@ public class ModelImporter {
             DebugPrintSkin(skin, 0);
         }
 
-        /*
         System.out.printf("--------------------------------\n");
 
-        System.out.printf("Num Models: %d\n", scene.modelsCount);
-        for (Model model : scene.getModels()) {
+        System.out.printf("Num Models: %d\n", scene.models.length);
+        for (Model model : scene.models) {
             DebugPrintModel(model, 0);
         }
 
+        /*
         System.out.printf("--------------------------------\n");
 
         System.out.printf("Num Animations: %d\n", scene.animationsCount);
