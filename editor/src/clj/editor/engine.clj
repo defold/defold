@@ -155,12 +155,12 @@
 (def ^:private exe-suffixes (into {}
                                   (map (fn [^Platform platform]
                                          [(.getPair platform) (.getExeSuffix platform)]))
-                                  [Platform/Arm64Darwin
+                                  [Platform/Arm64Ios
                                    Platform/Arm64Android
                                    Platform/Armv7Android
                                    Platform/JsWeb
                                    Platform/X86Win32
-                                   Platform/X86_64Darwin
+                                   Platform/X86_64MacOS
                                    Platform/X86_64Linux
                                    Platform/X86_64Win32]))
 

@@ -1319,7 +1319,7 @@ Task.simple_task_type('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
 @after('cprogram')
 def extract_symbols(self):
     platform = self.env['PLATFORM']
-    if not 'darwin' in platform:
+    if not 'macos' in platform:
         return
 
     engine = self.path.find_or_declare(self.target)

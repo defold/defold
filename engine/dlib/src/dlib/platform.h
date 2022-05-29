@@ -16,7 +16,8 @@
 #define DM_PLATFORM_H
 
 #define DM_PLATFORM_LINUX   "linux"
-#define DM_PLATFORM_OSX     "osx"
+#define DM_PLATFORM_MACOS   "macos"
+#define DM_PLATFORM_OSX     DM_PLATFORM_MACOS
 #define DM_PLATFORM_WINDOWS "windows"
 #define DM_PLATFORM_WEB     "web"
 #define DM_PLATFORM_ANDROID "android"
@@ -30,7 +31,7 @@
 #elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
 #define DM_PLATFORM DM_PLATFORM_IOS
 #elif defined(__MACH__)
-#define DM_PLATFORM DM_PLATFORM_OSX
+#define DM_PLATFORM DM_PLATFORM_MACOS
 #elif defined(_WIN32)
 #define DM_PLATFORM DM_PLATFORM_WINDOWS
 #elif defined(__EMSCRIPTEN__)

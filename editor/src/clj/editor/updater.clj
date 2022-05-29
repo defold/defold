@@ -110,7 +110,7 @@
 
 (defn platform-supported? [updater]
   (contains? #{Platform/X86_64Linux
-               Platform/X86_64Darwin
+               Platform/X86_64MacOS
                Platform/X86_64Win32}
              (:platform updater)))
 

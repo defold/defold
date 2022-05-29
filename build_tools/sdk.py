@@ -443,10 +443,10 @@ def get_toolchain_root(sdkinfo, platform):
     return None
 
 def get_host_platform():
-    is64bit = machine.endswith('64')
     machine = platform.machine()
     if machine.lower() == 'amd64':
         machine = 'x86_64'
+    is64bit = machine.endswith('64')
 
     if sys.platform == 'linux2':
         return '%s-linux' % machine

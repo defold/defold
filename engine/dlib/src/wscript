@@ -91,7 +91,7 @@ def build(bld):
     # remove all null implementations
     dlib.source = [x for x in dlib.source if not x.endswith('_null.cpp')]
 
-    if 'darwin' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['osx', 'ios']:
+    if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc

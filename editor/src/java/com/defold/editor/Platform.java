@@ -16,11 +16,11 @@ package com.defold.editor;
 
 
 public enum Platform {
-    X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib"),
+    X86_64MacOS("x86_64", "macos", "", "", "lib", ".dylib"),
     X86Win32("x86", "win32", ".exe", "", "", ".dll"),
     X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll"),
     X86_64Linux("x86_64", "linux", "", "", "lib", ".so"),
-    Arm64Darwin("arm64", "darwin", "", "", "lib", ".so"),
+    Arm64Ios("arm64", "ios", "", "", "lib", ".so"),
     Armv7Android("armv7", "android", ".so", "lib", "lib", ".so"),
     Arm64Android("arm64", "android", ".so", "lib", "lib", ".so"),
     JsWeb("js", "web", ".js", "", "lib", "");
@@ -82,7 +82,7 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os.indexOf("mac") != -1) {
-            return Platform.X86_64Darwin;
+            return Platform.X86_64MacOS;
         } else if (os.indexOf("linux") != -1) {
             return Platform.X86_64Linux;
         } else {
