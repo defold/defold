@@ -19,7 +19,7 @@ import os, subprocess, exceptions;
 
 class BuildUtilityException(Exception):
     def __init__(self, msg):
-        print "MAWE: ERROR: %s" % msg
+        print "ERROR: %s" % msg
         self.msg = msg
 
 class BuildUtility:
