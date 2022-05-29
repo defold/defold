@@ -146,25 +146,6 @@ public class ModelImporter {
         public Skin[]         skins;
         public Node[]         rootNodes;
         public Animation[]    animations;
-
-        // public Node getNode(int i) {
-        //     if (i == -1) {
-        //         return null;
-        //     }
-        //     return nodes[i];
-        // }
-        // public Skin getSkin(int i) {
-        //     if (i == -1) {
-        //         return null;
-        //     }
-        //     return skins[i];
-        // }
-        // public Model getModel(int i) {
-        //     if (i == -1) {
-        //         return null;
-        //     }
-        //     return models[i];
-        // }
     }
 
     public static Scene LoadFromBuffer(Options options, String path, byte[] bytes)
