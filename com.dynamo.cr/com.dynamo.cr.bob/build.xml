@@ -115,12 +115,6 @@
                 <include name="spirv-cross"/>
             </fileset>
         </copy>
-        <copy todir="${bob.dir}/libexec/x86_64-macos" overwrite="true" flatten="true">
-            <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-macos">
-                <include name="glslc"/>
-                <include name="spirv-cross"/>
-            </fileset>
-        </copy>
         <copy todir="${bob.dir}/libexec/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-linux">
                 <include name="glslc"/>
