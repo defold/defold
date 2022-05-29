@@ -128,7 +128,6 @@ public class ModelImporter {
     }
 
     public class NodeAnimation {
-        public int          nodeIndex;
         public Node         node;
         public KeyFrame[]   translationKeys;
         public KeyFrame[]   rotationKeys;
@@ -391,21 +390,13 @@ public class ModelImporter {
             DebugPrintModel(model, 0);
         }
 
-        /*
         System.out.printf("--------------------------------\n");
 
-        System.out.printf("Num Animations: %d\n", scene.animationsCount);
-        for (Animation animation : scene.getAnimations()) {
+        System.out.printf("Num Animations: %d\n", scene.animations.length);
+        for (Animation animation : scene.animations) {
             DebugPrintAnimation(animation, 0);
         }
 
         System.out.printf("--------------------------------\n");
-
-        scene.finalize();
-        scene = null;
-        */
-
-        System.out.printf("--------------------------------\n");
-
     }
 }

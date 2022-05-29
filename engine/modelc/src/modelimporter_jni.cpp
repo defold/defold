@@ -57,13 +57,6 @@ jclass GetClass(JNIEnv* env, const char* clsname)
     return env->FindClass(buffer);
 }
 
-// jobject CreateInstance(JNIEnv* env, const char* clsname)
-// {
-//     jclass cls = GetClass(env, clsname);
-//     jobject obj = env->AllocObject( cls );
-//     return obj;
-// }
-
 static jfieldID GetFieldInt(JNIEnv* env, jclass cls, const char* field_name)
 {
     return env->GetFieldID(cls, field_name, "I");
@@ -331,6 +324,81 @@ static void CreateModels(JNIEnv* env, const dmModelImporter::Scene* scene, dmArr
 }
 
 // **************************************************
+// Animations
+
+static jobject CreateKeyFrame(JNIEnv* env, jclass cls, const dmModelImporter::KeyFrame* key_frame)
+{
+    jobject obj = env->AllocObject(cls);
+
+    jfieldID ftime = env->GetFieldID(cls, "time", "F");
+    jfieldID fvalue = env->GetFieldID(cls, "value", "[F");
+
+    jfloatArray arr = env->NewFloatArray(4);
+    env->SetFloatArrayRegion(arr, 0, 3, key_frame->m_Value);
+    env->SetObjectField(obj, fvalue, arr);
+    env->SetFloatField(obj, ftime, key_frame->m_Time);
+    return obj;
+}
+
+static jobjectArray CreateKeyFramesArray(JNIEnv* env, jclass cls, uint32_t count, const dmModelImporter::KeyFrame* key_frames)
+{
+    jobjectArray arr = env->NewObjectArray(count, cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        env->SetObjectArrayElement(arr, i, CreateKeyFrame(env, cls, &key_frames[i]));
+    }
+    return arr;
+}
+
+static jobject CreateNodeAnimation(JNIEnv* env, jclass cls, const dmModelImporter::NodeAnimation* node_anim, const dmArray<jobject>& nodes)
+{
+    jobject obj = env->AllocObject(cls);
+    SetFieldObject(env, obj, GetFieldNode(env, cls, "node"), nodes[node_anim->m_Node->m_Index]);
+
+    jfieldID ftranslationKeys = env->GetFieldID(cls, "translationKeys", "[Lcom/dynamo/bob/pipeline/ModelImporter$KeyFrame;");
+    jfieldID frotationKeys = env->GetFieldID(cls, "rotationKeys", "[Lcom/dynamo/bob/pipeline/ModelImporter$KeyFrame;");
+    jfieldID fscaleKeys = env->GetFieldID(cls, "scaleKeys", "[Lcom/dynamo/bob/pipeline/ModelImporter$KeyFrame;");
+
+    jclass keyframeCls = GetClass(env, "KeyFrame");
+    env->SetObjectField(obj, ftranslationKeys, CreateKeyFramesArray(env, keyframeCls, node_anim->m_TranslationKeysCount, node_anim->m_TranslationKeys));
+    env->SetObjectField(obj, frotationKeys, CreateKeyFramesArray(env, keyframeCls, node_anim->m_RotationKeysCount, node_anim->m_RotationKeys));
+    env->SetObjectField(obj, fscaleKeys, CreateKeyFramesArray(env, keyframeCls, node_anim->m_ScaleKeysCount, node_anim->m_ScaleKeys));
+    return obj;
+}
+
+static jobjectArray CreateNodeAnimationsArray(JNIEnv* env, jclass cls, uint32_t count, const dmModelImporter::NodeAnimation* node_anim, const dmArray<jobject>& nodes)
+{
+    jobjectArray arr = env->NewObjectArray(count, cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        env->SetObjectArrayElement(arr, i, CreateNodeAnimation(env, cls, &node_anim[i], nodes));
+    }
+    return arr;
+}
+
+static jobject CreateAnimation(JNIEnv* env, jclass cls, const dmModelImporter::Animation* animation, const dmArray<jobject>& nodes)
+{
+    jobject obj = env->AllocObject(cls);
+    SetFieldString(env, cls, obj, "name", animation->m_Name);
+
+    jclass nodeAnimCls = GetClass(env, "NodeAnimation");
+    jobjectArray arr = CreateNodeAnimationsArray(env, nodeAnimCls, animation->m_NodeAnimationsCount, animation->m_NodeAnimations, nodes);
+    jfieldID field = env->GetFieldID(cls, "nodeAnimations", "[Lcom/dynamo/bob/pipeline/ModelImporter$NodeAnimation;");
+    env->SetObjectField(obj, field, arr);
+    return obj;
+}
+
+static jobjectArray CreateAnimationsArray(JNIEnv* env, jclass cls, uint32_t count, const dmModelImporter::Animation* animations, const dmArray<jobject>& nodes)
+{
+    jobjectArray arr = env->NewObjectArray(count, cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        env->SetObjectArrayElement(arr, i, CreateAnimation(env, cls, &animations[i], nodes));
+    }
+    return arr;
+}
+
+// **************************************************
 // Bones
 
 static jobject CreateBone(JNIEnv* env, jclass cls, dmModelImporter::Bone* bone, const dmArray<jobject>& nodes)
@@ -432,20 +500,16 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     // Set the skin+model to the nodes
     FixupNodeReferences(env, scene, skins, models, nodes);
 
-    jclass nodeCls = GetClass(env, "Node");
-    jclass skinCls = GetClass(env, "Skin");
-    jclass modelCls = GetClass(env, "Model");
-
     ///
     {
-        jobjectArray arr = CreateObjectArray(env, nodeCls, nodes);
+        jobjectArray arr = CreateObjectArray(env, GetClass(env, "Node"), nodes);
         jfieldID field = env->GetFieldID(cls, "nodes", "[Lcom/dynamo/bob/pipeline/ModelImporter$Node;");
         env->SetObjectField(obj, field, arr);
     }
 
     {
         uint32_t count = scene->m_RootNodesCount;
-        jobjectArray arr = env->NewObjectArray(count, nodeCls, 0);
+        jobjectArray arr = env->NewObjectArray(count, GetClass(env, "Node"), 0);
         for (uint32_t i = 0; i < count; ++i)
         {
             dmModelImporter::Node* root = scene->m_RootNodes[i];
@@ -456,16 +520,25 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     }
 
     {
-        jobjectArray arr = CreateObjectArray(env, skinCls, skins);
+        jobjectArray arr = CreateObjectArray(env, GetClass(env, "Skin"), skins);
         jfieldID field = env->GetFieldID(cls, "skins", "[Lcom/dynamo/bob/pipeline/ModelImporter$Skin;");
         env->SetObjectField(obj, field, arr);
     }
 
     {
-        jobjectArray arr = CreateObjectArray(env, modelCls, models);
+        jobjectArray arr = CreateObjectArray(env, GetClass(env, "Model"), models);
         jfieldID field = env->GetFieldID(cls, "models", "[Lcom/dynamo/bob/pipeline/ModelImporter$Model;");
         env->SetObjectField(obj, field, arr);
     }
+
+    {
+        jobjectArray arr = CreateAnimationsArray(env, GetClass(env, "Animation"),
+                                                    scene->m_AnimationsCount, scene->m_Animations, nodes);
+        jfieldID field = env->GetFieldID(cls, "animations", "[Lcom/dynamo/bob/pipeline/ModelImporter$Animation;");
+        env->SetObjectField(obj, field, arr);
+    }
+
+
 
     ///
 
