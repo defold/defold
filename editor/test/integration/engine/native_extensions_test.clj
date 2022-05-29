@@ -50,7 +50,7 @@
                    (map (comp resource/proj-path
                               #(g/node-value % :resource)))
                    set)))]
-    (testing "x86_64-darwin"
+    (testing "x86_64-macos"
       (with-clean-system
         (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
@@ -63,8 +63,8 @@
                    "/extension1/lib/x86_64-osx/file"
                    "/extension1/lib/osx/file"
                    "/subdir/extension2/ext.manifest"}
-                 (platform-resources project "x86_64-darwin"))))))
-    (testing "arm64-darwin"
+                 (platform-resources project "x86_64-macos"))))))
+    (testing "arm64-ios"
       (with-clean-system
         (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
@@ -77,7 +77,7 @@
                    "/extension1/lib/arm64-ios/file"
                    "/extension1/lib/ios/file"
                    "/subdir/extension2/ext.manifest"}
-                 (platform-resources project "arm64-darwin"))))))))
+                 (platform-resources project "arm64-ios"))))))))
 
 (defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
 

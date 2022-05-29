@@ -138,7 +138,7 @@ def release(config, tag_name, release_sha, s3_release):
     base_url = "https://" + urlparse.urlparse(config.archive_path).hostname
 
     def is_main_file(path):
-        return os.path.basename(path) in ('bob.jar', 'Defold-x86_64-darwin.dmg', 'Defold-x86_64-linux.zip', 'Defold-x86_64-win32.zip')
+        return os.path.basename(path) in ('bob.jar', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-linux.zip', 'Defold-x86_64-win32.zip')
 
     urls = set() # not sure why some files are reported twice, but we don't want to download/upload them twice
     for file in s3_release.get("files", None):

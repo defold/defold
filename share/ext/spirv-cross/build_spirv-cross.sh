@@ -60,7 +60,7 @@ function cmi() {
     export PLATFORM=$1
 
     case $PLATFORM in
-        x86_64-darwin)
+        x86_64-macos)
             function cmi_strip() {
                 strip -S -x $PREFIX/bin/$PLATFORM/$PRODUCT
             }

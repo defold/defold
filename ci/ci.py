@@ -24,7 +24,7 @@ from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_repo_private
 
 # The platforms we deploy our editor on
-PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
+PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
 
 def call(args, failonerror = True):
     print(args)
@@ -50,7 +50,7 @@ def platform_from_host():
     if system == "Linux":
         return "x86_64-linux"
     elif system == "Darwin":
-        return "x86_64-darwin"
+        return "x86_64-macos"
     else:
         return "x86_64-win32"
 
@@ -290,7 +290,7 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
     args = 'python scripts/build.py notarize_editor2'.split()
     opts = []
 
-    opts.append('--platform=x86_64-darwin')
+    opts.append('--platform=x86_64-macos')
 
     opts.append('--notarization-username="%s"' % notarization_username)
     opts.append('--notarization-password="%s"' % notarization_password)

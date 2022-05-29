@@ -53,7 +53,7 @@ public class OSXBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
-        final Platform platform = Platform.X86_64Darwin;
+        final Platform platform = Platform.X86_64MacOS;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -142,7 +142,7 @@ public class OSXBundler implements IBundler {
         if( strip_executable )
         {
             // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
-            if (Platform.getHostPlatform() == Platform.X86_64Darwin) {
+            if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
                 Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
                 if (stripResult.ret != 0) {
                     logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));

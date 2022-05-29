@@ -14,7 +14,7 @@ env:
 
 
 jobs:
-  build-engine-darwin-64:
+  build-engine-macos-64:
     runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2 },
@@ -26,7 +26,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
-        run: 'ci/ci.sh --platform=x86_64-darwin --with-asan --with-vanilla-lua --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-macos --with-asan --with-vanilla-lua --skip-builtins --skip-docs engine'
       },
       {
          name: 'Notify if build status changed',

@@ -105,7 +105,7 @@ def notarize(app, notarization_username, notarization_password, notarization_itc
 
     _log('Getting UUID for notarization request')
 
-    # No errors uploading '/Users/runner/runners/2.163.1/work/defold/defold/editor/target/editor/Defold-x86_64-darwin.dmg'.
+    # No errors uploading '/Users/runner/runners/2.163.1/work/defold/defold/editor/target/editor/Defold-x86_64-macos.dmg'.
     # RequestUUID = a062ed44-6da0-49c4-b0e6-0d1c28e1670d
     pattern = r".*RequestUUID = (.*)"
     match = re.search(pattern, res)

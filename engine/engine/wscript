@@ -64,11 +64,11 @@ namespace dmEngineVersion
 
     sound_lib = 'sound'
 
-    if operating_sys == 'osx':
+    if operating_sys == 'macos':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
         # For Vulkan/MoltenVK
-        if Options.options.with_vulkan and architecture == 'x86_64':
+        if Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
             # Link with vulkan.dylib if the env is set (see graphics/vulkan/README.md) for more information
@@ -119,7 +119,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
-    if operating_sys != "osx":
+    if operating_sys != "macos":
         conf.env['STATICLIB_UNWIND'] = 'unwind'
 
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'

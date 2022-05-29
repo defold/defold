@@ -738,12 +738,12 @@ public class Project {
     static Map<Platform, Class<? extends IBundler>> bundlers;
     static {
         bundlers = new HashMap<>();
-        bundlers.put(Platform.X86_64Darwin, OSXBundler.class);
+        bundlers.put(Platform.X86_64MacOS, OSXBundler.class);
         bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
         bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
         bundlers.put(Platform.Armv7Android, AndroidBundler.class);
-        bundlers.put(Platform.Arm64Darwin, IOSBundler.class);
+        bundlers.put(Platform.Arm64Ios, IOSBundler.class);
         bundlers.put(Platform.X86_64Ios, IOSBundler.class);
         bundlers.put(Platform.JsWeb, HTML5Bundler.class);
     }
@@ -751,22 +751,15 @@ public class Project {
     private void bundle(IProgress monitor) throws IOException, CompileExceptionError {
         IProgress m = monitor.subProgress(1);
         m.beginTask("Bundling...", 1);
-        String pair = option("platform", null);
-        if (pair == null) {
-            throw new CompileExceptionError(null, -1, "No platform specified");
-        }
 
-        Platform platform = Platform.get(pair);
-        if (platform == null) {
-            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
-        }
+        Platform platform = getPlatform();
+        IBundler bundler;
 
         Class<? extends IBundler> bundlerClass = bundlers.get(platform);
         if (bundlerClass == null) {
-            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
+            throw new CompileExceptionError(null, -1, String.format("No bundler registered for platform %s", platform.getPair()));
         }
 
-        IBundler bundler;
         try {
             bundler = bundlerClass.newInstance();
         } catch (Exception e) {
@@ -801,6 +794,17 @@ public class Project {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
         if (pair != null) {
+            if (pair.equals("x86_64-darwin"))
+            {
+                p = Platform.X86_64MacOS;
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", p.getPair());
+            }
+            else if (pair.equals("arm64-darwin"))
+            {
+                p = Platform.Arm64Ios;
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", p.getPair());
+            }
+
             p = Platform.get(pair);
         }
 
@@ -815,7 +819,7 @@ public class Project {
         Platform p = getPlatform();
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
-        if (p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
+        if (p == Platform.Arm64Ios || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
         {
             // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
             platformStrings = platformArchs.getArchitectures();
@@ -977,8 +981,8 @@ public class Project {
         for(String platform : platforms) {
             String symbolsFilename = null;
             switch(platform) {
-                case "arm64-darwin":
-                case "x86_64-darwin":
+                case "arm64-ios":
+                case "x86_64-macos":
                     symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);
                     break;
                 case "js-web":

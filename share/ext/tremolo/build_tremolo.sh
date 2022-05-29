@@ -46,15 +46,11 @@ case $1 in
         EXTRA_FLAGS="-static"
         ;;
 
-    darwin)
+    x86_64-macos)
         EXTRA_FLAGS="-mmacosx-version-min=10.7"
         ;;
 
-    x86_64-darwin)
-        EXTRA_FLAGS="-mmacosx-version-min=10.7"
-        ;;
-
-    arm64-darwin)
+    arm64-ios)
         EXTRA_FLAGS="-miphoneos-version-min=6.0"
         ;;
 

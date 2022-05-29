@@ -8,10 +8,10 @@ dmglfw = bld.new_task_gen(features = 'cc cstaticlib',
 platform = bld.env.PLATFORM
 darwin_vulkan_mobile  = False
 
-if platform == 'darwin' or platform == 'x86_64-darwin':
+if platform in ('x86_64-macos','arm64-macos'):
     dmglfw.find_sources_in_dirs('. cocoa')
     dmglfw.includes = '. cocoa'
-elif platform in ('arm64-darwin', 'x86_64-ios'):
+elif platform in ('arm64-ios', 'x86_64-ios'):
     dmglfw.find_sources_in_dirs('. ios ios/app')
     dmglfw.includes = '. ios'
     darwin_vulkan_mobile = True

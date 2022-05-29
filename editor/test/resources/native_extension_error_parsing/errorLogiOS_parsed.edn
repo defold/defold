@@ -16,7 +16,7 @@
  {:type :warning,
   :file nil,
   :message
-  "ld: warning: directory not found for option '-L/var/extender/sdk/b2ef3a19802728e76adf84d51d02e11d636791a3/defoldsdk//lib/arm64-darwin'"}
+  "ld: warning: directory not found for option '-L/var/extender/sdk/b2ef3a19802728e76adf84d51d02e11d636791a3/defoldsdk//lib/arm64-ios'"}
  {:type :note,
   :file nil,
   :message "ld: library not found for -lengine"}

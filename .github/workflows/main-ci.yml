@@ -84,7 +84,7 @@ jobs:
     needs: [pre-check]
     strategy:
       matrix:
-        platform: [x86_64-darwin]
+        platform: [x86_64-macos]
     runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -110,7 +110,7 @@ jobs:
     needs: [pre-check]
     strategy:
       matrix:
-        platform: [arm64-darwin, x86_64-ios]
+        platform: [arm64-ios, x86_64-ios]
     runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
@@ -327,7 +327,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        platform: [x86_64-darwin]
+        platform: [x86_64-macos]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       {

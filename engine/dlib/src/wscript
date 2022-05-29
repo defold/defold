@@ -35,7 +35,7 @@ def build(bld):
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
-    elif 'darwin' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
+    elif 'macos' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
         source_dirs.append('dlib/darwin')
     elif 'win32' in bld.env.PLATFORM:
         source_dirs.append('dlib/win32')
@@ -164,7 +164,7 @@ def build(bld):
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
-    desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
+    desktop = bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos', 'x86_64-linux', 'x86_64-win32')
     if desktop:
         dlib_shared = bld.new_task_gen( features = 'cc cxx cshlib skip_asan',
                                         includes = '. ./mbedtls/include ./mbedtls/crypto/include',
@@ -197,14 +197,14 @@ def build(bld):
         new_opt_level = True
 
     extra_encoder_flags = []
-    if bld.env['PLATFORM'] == 'x86_64-darwin':
+    if bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos'):
         # SSE4.1 was added in 10.12
         remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
         extra_encoder_flags += ['-mmacosx-version-min=10.12']
 
     # For the texture compiler
     basis_flags = ['BASISD_SUPPORT_KTX2_ZSTD=0'] #+ ['BASISU_FORCE_DEVEL_MESSAGES=1']
-    if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-darwin'):
+    if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-macos'):
         basis_flags += ['BASISU_SUPPORT_SSE=1']
     basis_encoder = bld.new_task_gen(features = 'cc cxx cstaticlib skip_asan remove_flags',
                             includes = ['basis'],

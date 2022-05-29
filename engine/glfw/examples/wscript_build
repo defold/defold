@@ -13,7 +13,7 @@ if 'win32' in platform:
 
 
 samples = 'boing gears heightmap listmodes mipmaps mtbench mthello particles pong3d splitview triangle wave'
-if platform in ('arm64-darwin', 'x86_64-ios', 'armv7-android'):
+if platform in ('arm64-ios', 'x86_64-ios', 'armv7-android'):
     # Other examples are not compatible with OpenGLES
     samples = 'simple_gles2'
 elif 'web' in platform:

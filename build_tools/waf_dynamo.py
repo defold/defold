@@ -364,7 +364,7 @@ def default_flags(self):
 
     # Platform specific paths etc comes after the project specific stuff
 
-    if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
+    if build_util.get_target_os() in ('macos', 'ios'):
         self.env.append_value('LINKFLAGS', ['-weak_framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'SystemConfiguration', '-framework', 'AVFoundation'])
@@ -378,7 +378,7 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
-    elif "osx" == build_util.get_target_os():
+    elif "macos" == build_util.get_target_os():
 
         sys_root = '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_MACOSX)
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
@@ -393,8 +393,9 @@ def default_flags(self):
             self.env.append_value(f, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN)
 
             self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
-            if self.env['BUILD_PLATFORM'] in ('x86_64-linux', 'x86_64-darwin'):
-                self.env.append_value(f, ['-target', 'x86_64-apple-darwin19'])
+            if self.env['BUILD_PLATFORM'] in ('x86_64-linux', 'x86_64-macos', 'arm64-macos'):
+                arch = build_util.get_target_architecture()
+                self.env.append_value(f, ['-target', '%s-apple-darwin19' % arch])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
@@ -576,11 +577,11 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
-    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios','android'):
+    if Options.options.with_asan and build_util.get_target_os() in ('macos','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
-    if Options.options.with_ubsan and build_util.get_target_os() in ('osx','ios','android'):
+    if Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined'])
         self.env.append_value('CCFLAGS', ['-fsanitize=undefined'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
@@ -842,7 +843,7 @@ Task.task_type_from_func('app_bundle',
 
 def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
-    if platform not in ['x86_64-linux','x86_64-darwin','arm64-darwin','armv7-android','arm64-android']:
+    if platform not in ['x86_64-linux','x86_64-macos','arm64-macos','arm64-ios','armv7-android','arm64-android']:
         return 0 # return ok, path is still unstripped
 
     strip = "strip"
@@ -1385,7 +1386,7 @@ def detect(conf):
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
     sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, build_platform)
 
-    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         conf.env['TESTS_UNSUPPORTED'] = True
         print "Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), build_platform)
 
@@ -1409,7 +1410,7 @@ def detect(conf):
         if not Options.options.skip_codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
 
-    if build_util.get_target_os() in ('osx', 'ios'):
+    if build_util.get_target_os() in ('macos', 'ios'):
         path_list = None
         if 'linux' in build_platform:
             path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')]
@@ -1418,7 +1419,7 @@ def detect(conf):
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
         conf.find_program('zip', var='ZIP', mandatory = True)
 
-    if 'osx' == build_util.get_target_os():
+    if 'macos' == build_util.get_target_os():
         # Force gcc without llvm on darwin.
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'clang'
@@ -1562,7 +1563,7 @@ def detect(conf):
     conf.env.BINDIR = Utils.subst_vars('${PREFIX}/bin/%s' % build_util.get_target_platform(), conf.env)
     conf.env.LIBDIR = Utils.subst_vars('${PREFIX}/lib/%s' % build_util.get_target_platform(), conf.env)
 
-    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         conf.check_tool('waf_objectivec')
 
         # Unknown argument: -Bstatic, -Bdynamic
@@ -1572,7 +1573,7 @@ def detect(conf):
     if re.match('.*?linux', platform):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
         conf.env['LIB_DL'] = 'dl'
-    elif 'darwin' in platform:
+    elif platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif 'android' in platform:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
@@ -1596,7 +1597,7 @@ def detect(conf):
 
     conf.env['STATICLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
-    if platform in ('x86_64-darwin',):
+    if platform in ('x86_64-macos','arm64-macos'):
         conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
     elif platform in ('armv7-android', 'arm64-android'):
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
@@ -1605,10 +1606,9 @@ def detect(conf):
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENGL'] = ['GL', 'GLU']
 
-
-    if platform in ('x86_64-darwin',):
+    if platform in ('x86_64-macos','arm64-macos'):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
-    elif platform in ('arm64-darwin', 'x86_64-ios'):
+    elif platform in ('arm64-ios', 'x86_64-ios'):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
     elif platform in ('armv7-android', 'arm64-android'):
         conf.env['LIB_OPENAL'] = ['OpenSLES']
@@ -1626,7 +1626,7 @@ def detect(conf):
     if ('record' not in Options.options.disable_features):
         conf.env['STATICLIB_RECORD'] = 'record_null'
     else:
-        if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin'):
+        if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
             conf.env['STATICLIB_RECORD'] = 'record'
             conf.env['LINKFLAGS_RECORD'] = ['vpx.lib']
         else:
@@ -1640,12 +1640,12 @@ def detect(conf):
 
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
 
-    if platform in ('x86_64-darwin'):
+    if platform in ('x86_64-macos','arm64-macos'):
         vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
         conf.env['STATICLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
-    elif platform in ('arm64-darwin','x86_64-ios'):
+    elif platform in ('arm64-ios','x86_64-ios'):
         conf.env['STATICLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = 'Metal'
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
@@ -1656,7 +1656,7 @@ def detect(conf):
     elif platform in ('x86_64-win32','win32'):
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
-    if platform in ('x86_64-darwin',):
+    if platform in ('x86_64-macos','arm64-macos',):
         conf.env['FRAMEWORK_TESTAPP'] = ['AppKit', 'Cocoa', 'IOKit', 'Carbon', 'CoreVideo']
     elif platform in ('armv7-android', 'arm64-android'):
         conf.env['STATICLIB_TESTAPP'] += ['android']
@@ -1683,7 +1683,7 @@ def set_options(opt):
     opt.tool_options('compiler_cc')
     opt.tool_options('compiler_cxx')
 
-    opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-darwin')
+    opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-ios')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')

@@ -60,12 +60,12 @@ function copy_file() {
 # Resources
 # ----------------------------------------------------------------------------
 SOURCES=(
-    "x86_64-linux"  "x86_64-darwin" "win32"  "arm64-darwin"
+    "x86_64-linux"  "x86_64-macos" "win32"  "arm64-ios"
     "armv7-android" "arm64-android" "js-web" "x86_64-win32"
 )
 
 TARGETS=(
-    "x86_64-linux"  "x86_64-darwin" "x86-win32" "arm64-darwin"
+    "x86_64-linux"  "x86_64-macos" "x86-win32" "arm64-ios"
     "armv7-android" "arm64-android" "js-web"    "x86_64-win32"
 )
 

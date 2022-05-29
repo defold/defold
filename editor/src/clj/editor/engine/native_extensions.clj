@@ -288,8 +288,7 @@
 
 (defn- get-ne-platform [platform]
   (case platform
-    "arm64-darwin"  "arm64-ios"
-    "x86_64-darwin" "x86_64-osx"
+    "x86_64-macos" "x86_64-osx"
     platform))
 
 (defn- get-main-manifest-section-and-key [platform]

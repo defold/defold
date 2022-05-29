@@ -33,7 +33,7 @@ function cmi_configure() {
     popd >/dev/null
 
     case $PLATFORM in
-        x86_64-darwin)
+        x86_64-macos)
             CMAKE_GENERATOR="Unix Makefiles"
             MAKE_OPTIONS="-- -j8"
             OUTPUT_EXECUTABLE_FILE=$PRODUCT/$PRODUCT
@@ -103,7 +103,7 @@ function cmi() {
     export PLATFORM=$1
 
     case $PLATFORM in
-        x86_64-darwin)
+        x86_64-macos)
             function cmi_strip() {
                 strip -S -x $PREFIX/bin/$PLATFORM/$PRODUCT
             }

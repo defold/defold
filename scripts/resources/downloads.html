@@ -109,13 +109,13 @@
                 var platformToIcon = {}
                 platformToIcon['armv7-android'] = icon_android;
                 platformToIcon['arm64-android'] = icon_android;
-                platformToIcon['arm64-darwin']  = icon_ios;
+                platformToIcon['arm64-ios']     = icon_ios;
                 platformToIcon['x86_64-ios']    = icon_ios;
                 platformToIcon['js-web']        = icon_html5;
                 platformToIcon['wasm-web']      = icon_html5;
                 platformToIcon['win32']         = icon_windows;
                 platformToIcon['x86_64-win32']  = icon_windows;
-                platformToIcon['x86_64-darwin'] = icon_macos;
+                platformToIcon['x86_64-macos'] = icon_macos;
                 platformToIcon['x86_64-linux']  = icon_linux;
 
                 var len = releases.length;
@@ -150,7 +150,7 @@
                     var editorFiles = [];
                     var file = {};
 
-                    file["path"] = "https://d.defold.com/archive/editor-alpha/"+sha1+"/editor-alpha/editor2/Defold-x86_64-darwin.dmg";
+                    file["path"] = "https://d.defold.com/archive/editor-alpha/"+sha1+"/editor-alpha/editor2/Defold-x86_64-macos.dmg";
                     file["name"]= "macOS 10.12";
                     file["icon"]= icon_macos;
                     editorFiles.push(file);

@@ -23,12 +23,13 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 
 
 public enum Platform {
-    X86_64Darwin("x86_64", "darwin", new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
+    // arch, os, exeSuffixes, exePrefix, libSuffix, libPrefix, extenderPaths, architectures, extenderPair
+    X86_64MacOS("x86_64", "macos", new String[] {""}, "", "lib", ".dylib", new String[] {"x86_64-macos"}, PlatformArchitectures.MacOS, "x86_64-macos"),
     X86Win32("x86", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows32, "x86-win32"),
     X86_64Win32("x86_64", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows64, "x86_64-win32"),
     X86Linux("x86", "linux", new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
     X86_64Linux("x86_64", "linux", new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
-    Arm64Darwin("arm64", "darwin", new String[] {""}, "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
+    Arm64Ios("arm64", "ios", new String[] {""}, "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
     X86_64Ios("x86_64", "ios", new String[] {""}, "", "lib", ".so", new String[] {"ios", "x86_64-ios"}, PlatformArchitectures.iOS, "x86_64-ios"),
     Armv7Android("armv7", "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformArchitectures.Android, "armv7-android"),
     Arm64Android("arm64", "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "arm64-android"}, PlatformArchitectures.Android, "arm64-android"),
@@ -169,7 +170,7 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os_name.indexOf("mac") != -1) {
-            return Platform.X86_64Darwin;
+            return Platform.X86_64MacOS;
         } else if (os_name.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;
@@ -193,7 +194,7 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os_name.indexOf("mac") != -1) {
-            return Platform.X86_64Darwin;
+            return Platform.X86_64MacOS;
         } else if (os_name.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;
