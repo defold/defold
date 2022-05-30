@@ -69,15 +69,26 @@ function init(self)
 end
 
 function update(self)
+    local window_width = render.get_window_width()
+    local window_height = render.get_window_height()
+    if window_width == 0 or window_height == 0 then
+        return
+    end
+
+    -- clear screen buffers
+    --
     render.set_depth_mask(true)
     render.set_stencil_mask(0xff)
     render.clear({[render.BUFFER_COLOR_BIT] = self.clear_color, [render.BUFFER_DEPTH_BIT] = 1, [render.BUFFER_STENCIL_BIT] = 0})
 
+    -- render world (sprites, tilemaps, particles etc)
+    --
     local proj = get_projection(self)
     local frustum = proj * self.view
 
-    render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
+    render.set_viewport(0, 0, window_width, window_height)
     render.set_view(self.view)
+    render.set_projection(proj)
 
     render.set_depth_mask(false)
     render.disable_state(render.STATE_DEPTH_TEST)
@@ -86,8 +97,6 @@ function update(self)
     render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
     render.disable_state(render.STATE_CULL_FACE)
 
-    render.set_projection(proj)
-
     render.draw(self.tile_pred, {frustum = frustum})
     render.draw(self.particle_pred, {frustum = frustum})
     render.draw_debug3d()
@@ -95,7 +104,7 @@ function update(self)
     -- render GUI
     --
     local view_gui = vmath.matrix4()
-    local proj_gui = vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1)
+    local proj_gui = vmath.matrix4_orthographic(0, window_width, 0, window_height, -1, 1)
     local frustum_gui = proj_gui * view_gui
 
     render.set_view(view_gui)
