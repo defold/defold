@@ -35,7 +35,7 @@ from Queue import Queue
 from ConfigParser import ConfigParser
 
 BASE_PLATFORMS = [  'x86_64-linux',
-                    'x86_64-macos', 'arm64-macos',
+                    'x86_64-macos', #'arm64-macos',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
                     'armv7-android', 'arm64-android',
