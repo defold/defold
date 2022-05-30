@@ -27,5 +27,7 @@ cp -v -r ${REMOTERY_REPO}/vis/ ${DEFOLD_REPO}/editor/resources/engine-profiler/r
 
 echo "Applying patch"
 
+(cd ${DEFOLD_REPO} && git apply ./engine/dlib/src/remotery/defold.patch)
+
 echo "Done"
 

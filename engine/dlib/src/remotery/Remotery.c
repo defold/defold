@@ -9766,9 +9766,17 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
             }
 
             // Calculate the name hash and send it to the viewer
-            name_len = strnlen_s(property->name, 256);
-            property->nameHash = MurmurHash3_x86_32(property->name, name_len, 0);
-            QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, property->name, name_len, NULL);
+/// DEFOLD
+            const char* name = property->name;
+            if (name[0]=='r' && name[1]=='m' && name[2]=='t' && name[3]=='p' && name[4]=='_')
+            {
+                name = name + 5;
+            }
+
+            name_len = strnlen_s(name, 256);
+            property->nameHash = MurmurHash3_x86_32(name, name_len, 0);
+            QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
+/// END DEFOLD
 
             // Generate a unique ID for this property in the tree
             property->uniqueID = parent_property->uniqueID;
