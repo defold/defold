@@ -59,7 +59,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         'features': ' '.join(req_features),
         'source': name + '.cpp' + ' testutil.cpp' + platform_source,
         'uselib': ' '.join(req_libs),
-        'uselib_local': 'dlib mbedtls zip'.split() + extra_local_libs,
+        'uselib_local': 'dlib mbedtls zip profile remotery'.split() + extra_local_libs,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,

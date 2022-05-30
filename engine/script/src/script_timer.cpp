@@ -23,6 +23,9 @@
 #include "script.h"
 #include "script_private.h"
 
+DM_PROPERTY_EXTERN(rmtp_Script);
+DM_PROPERTY_U32(rmtp_TimerCount, 0, FrameReset, "# timers", &rmtp_Script);
+
 namespace dmScript
 {
     /*# Timer API documentation
@@ -199,7 +202,7 @@ namespace dmScript
         // We only scan timers for trigger if the timer *existed at entry to UpdateTimers*, any timers added
         // in a trigger callback will always be added at the end of m_Timers and not triggered in this scope.
         uint32_t size = timer_world->m_Timers.Size();
-        DM_COUNTER("timerc", size);
+        DM_PROPERTY_ADD_U32(rmtp_TimerCount, size);
 
         for (uint32_t i = 0; i < size; ++i)
         {

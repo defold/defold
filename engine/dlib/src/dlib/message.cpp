@@ -26,11 +26,11 @@
 #include <dlib/spinlock.h>
 #include <dlib/profile/profile.h>
 
+DM_PROPERTY_GROUP(rmtp_Message, "dmMessage");
+DM_PROPERTY_U32(rmtp_Messages, 0, FrameReset, "# messages/frame", &rmtp_Message);
+
 namespace dmMessage
 {
-    DM_PROPERTY_GROUP(rmtp_Message, "dmMessage");
-    DM_PROPERTY_U32(rmtp_Messages, 0, FrameReset, "# messages/frame", &rmtp_Message);
-
     // Alignment of allocations
     const uint32_t DM_MESSAGE_ALIGNMENT = 16U;
 

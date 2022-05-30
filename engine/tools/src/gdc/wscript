@@ -17,7 +17,7 @@ def build(bld):
         graphics_adapter = 'GraphicsAdapterVulkan'
 
     b = bld.new_task_gen(features = 'cc cxx cprogram',
-                        uselib = 'PLATFORM_SOCKET HID INPUT DDF DLIB PROFILE_NULL DMGLFW X CARES ' + graphics_lib,
+                        uselib = 'PLATFORM_SOCKET HID INPUT DDF DLIB PROFILE_NULL DMGLFW X ' + graphics_lib,
                         exported_symbols = [graphics_adapter],
                         source = 'main.cpp',
                         target = 'gdc')

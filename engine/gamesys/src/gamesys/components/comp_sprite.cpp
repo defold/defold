@@ -43,6 +43,11 @@
 #include <dmsdk/gameobject/script.h>
 #include <dmsdk/gamesys/render_constants.h>
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_SpriteVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_SpriteVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_SpriteIndexSize, 0, FrameReset, "size of indices in bytes", &rmtp_Components);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -914,13 +919,16 @@ namespace dmGameSystem
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
                 {
-                    uint32_t vertex_size = sizeof(SpriteVertex) * (world->m_VertexBufferWritePtr - world->m_VertexBufferData);
+                    uint32_t vertex_count = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
+                    uint32_t vertex_size = sizeof(SpriteVertex) * vertex_count;
                     if (vertex_size)
                     {
                         dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_size,
                                                         world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
-                        DM_COUNTER("SpriteVertexBuffer", vertex_size);
+                        DM_PROPERTY_ADD_U32(rmtp_SpriteVertexCount, vertex_count);
+                        DM_PROPERTY_ADD_U32(rmtp_SpriteVertexSize, vertex_size);
+
                     }
                 }
 
@@ -930,7 +938,8 @@ namespace dmGameSystem
                     if (index_size)
                     {
                         dmGraphics::SetIndexBufferData(world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-                        DM_COUNTER("SpriteIndexBuffer", index_size);
+
+                        DM_PROPERTY_ADD_U32(rmtp_SpriteIndexSize, index_size);
                     }
                 }
                 break;

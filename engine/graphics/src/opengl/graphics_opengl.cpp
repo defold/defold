@@ -171,7 +171,7 @@ PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
 #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
 
-
+DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 
 namespace dmGraphics
 {
@@ -1642,7 +1642,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         assert(index_buffer);
         DM_PROFILE(Graphics, "DrawElements");
-        DM_COUNTER("DrawCalls", 1);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR;
@@ -1655,7 +1655,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
         DM_PROFILE(Graphics, "Draw");
-        DM_COUNTER("DrawCalls", 1);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
         CHECK_GL_ERROR
     }

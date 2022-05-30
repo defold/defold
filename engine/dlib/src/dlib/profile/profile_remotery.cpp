@@ -25,7 +25,7 @@
     #define RMT_ARCH_64BIT
 #endif
 
-#include "remotery/Remotery.h"
+#include "dmsdk/external/remotery/Remotery.h"
 
 namespace dmProfile
 {

@@ -40,6 +40,16 @@
 #include "gui_private.h"
 #include "gui_script.h"
 
+DM_PROPERTY_GROUP(rmtp_Gui, "Gui library");
+DM_PROPERTY_U32(rmtp_GuiAnimations, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiActiveAnimations, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiNodes, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiActiveNodes, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiTextures, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, FrameReset, "", &rmtp_Gui);
+
 namespace dmGui
 {
     using namespace dmVMath;
@@ -1666,8 +1676,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
-        DM_COUNTER("Gui.Animations", n);
-        DM_COUNTER("Gui.ActiveAnimations", active_animations);
+        DM_PROPERTY_ADD_U32(rmtp_GuiAnimations, n);
+        DM_PROPERTY_ADD_U32(rmtp_GuiActiveAnimations, active_animations);
     }
 
     struct InputArgs
@@ -2132,12 +2142,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
-        DM_COUNTER("Gui.Nodes", total_nodes);
-        DM_COUNTER("Gui.ActiveNodes", active_nodes);
-        DM_COUNTER("Gui.StaticTextures", scene->m_Textures.Size());
-        DM_COUNTER("Gui.DynamicTextures", scene->m_DynamicTextures.Size());
-        DM_COUNTER("Gui.Textures", scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
-        DM_COUNTER("Gui.Particlefx", scene->m_AliveParticlefxs.Size());
+        DM_PROPERTY_ADD_U32(rmtp_GuiNodes, total_nodes);
+        DM_PROPERTY_ADD_U32(rmtp_GuiActiveNodes, active_nodes);
+        DM_PROPERTY_ADD_U32(rmtp_GuiStaticTextures, scene->m_Textures.Size());
+        DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTextures, scene->m_DynamicTextures.Size());
+        DM_PROPERTY_ADD_U32(rmtp_GuiTextures, scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
+        DM_PROPERTY_ADD_U32(rmtp_GuiParticlefx, scene->m_AliveParticlefxs.Size());
 
         return result;
     }

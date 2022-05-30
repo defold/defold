@@ -23,7 +23,7 @@ def build(bld):
 
     exe = bld.new_task_gen(features = ['cc', 'cxx', 'cprogram'],
                            includes = ['.'],
-                           uselib = 'DLIB PROFILE_NULL CARES',
+                           uselib = 'DLIB PROFILE_NULL',
                            source = ['launcher.cpp', 'launcher_util.cpp'],
                            target = 'launcher')
 

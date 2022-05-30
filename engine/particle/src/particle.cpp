@@ -27,10 +27,11 @@
 #include "particle.h"
 #include "particle_private.h"
 
+DM_PROPERTY_GROUP(rmtp_Particles, "Particles");
+DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, FrameReset, "# particles alive", &rmtp_Particles);
+
 namespace dmParticle
 {
-    DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, FrameReset, "#");
-
     using namespace dmParticleDDF;
     using namespace dmVMath;
 

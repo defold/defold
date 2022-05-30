@@ -27,6 +27,8 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+DM_PROPERTY_EXTERN(rmtp_DrawCalls);
+
 namespace dmGraphics
 {
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
@@ -2018,7 +2020,7 @@ bail:
     {
         assert(context->m_FrameBegun);
         DM_PROFILE(Graphics, "DrawElements");
-        DM_COUNTER("DrawCalls", 1);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
@@ -2034,7 +2036,7 @@ bail:
     {
         assert(context->m_FrameBegun);
         DM_PROFILE(Graphics, "Draw");
-        DM_COUNTER("DrawCalls", 1);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;

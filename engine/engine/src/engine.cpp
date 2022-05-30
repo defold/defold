@@ -104,13 +104,12 @@ extern "C" {
 }
 #endif
 
+DM_PROPERTY_EXTERN(rmtp_Script);
+DM_PROPERTY_U32(rmtp_LuaMem, 0, FrameReset, "kb", &rmtp_Script); // kilo bytes
+DM_PROPERTY_U32(rmtp_LuaRefs, 0, FrameReset, "# Lua references", &rmtp_Script);
+
 namespace dmEngine
 {
-    DM_PROPERTY_GROUP(rmtp_Engine, "Engine");
-    DM_PROPERTY_GROUP(rmtp_Script, "Script", &rmtp_Engine);
-    DM_PROPERTY_U32(rmtp_LuaMem, 0, FrameReset, "kb", &rmtp_Script); // kilo bytes
-    DM_PROPERTY_U32(rmtp_LuaRefs, 0, FrameReset, "# Lua references", &rmtp_Script);
-
     using namespace dmVMath;
 
 #define SYSTEM_SOCKET_NAME "@system"

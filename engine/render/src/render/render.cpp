@@ -31,6 +31,8 @@
 #include "debug_renderer.h"
 #include "font_renderer.h"
 
+DM_PROPERTY_GROUP(rmtp_Render, "Renderer");
+
 namespace dmRender
 {
     using namespace dmVMath;

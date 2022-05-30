@@ -47,6 +47,10 @@
 
 #include <dmsdk/gamesys/gui.h>
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_GROUP(rmtp_ComponentsGui, "Gui component");
+DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_ComponentsGui);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -1875,7 +1879,8 @@ namespace dmGameSystem
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
                                         dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        DM_COUNTER("Gui.VertexCount", gui_world->m_ClientVertexBuffer.Size());
+
+        DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, gui_world->m_ClientVertexBuffer.Size());
     }
 
     static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type) {

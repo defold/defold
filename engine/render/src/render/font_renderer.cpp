@@ -37,6 +37,10 @@
 #include "render/font_ddf.h"
 #include "render.h"
 
+DM_PROPERTY_EXTERN(rmtp_Render);
+DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, FrameReset, "# glyphs", &rmtp_Render);
+DM_PROPERTY_U32(rmtp_FontVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Render);
+
 namespace dmRender
 {
     using namespace dmVMath;
@@ -1079,8 +1083,8 @@ namespace dmRender
                     uint32_t num_vertices = text_context.m_VertexIndex - text_context.m_VerticesFlushed;
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
 
-                    DM_COUNTER("FontCharacterCount", num_vertices / 6); // each quad is two triangles
-                    DM_COUNTER("FontVertexBuffer", num_vertices * sizeof(GlyphVertex));
+                    DM_PROPERTY_ADD_U32(rmtp_FontCharacterCount, num_vertices / 6);
+                    DM_PROPERTY_ADD_U32(rmtp_FontVertexSize, num_vertices * sizeof(GlyphVertex));
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_BATCH:

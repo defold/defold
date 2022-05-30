@@ -20,6 +20,10 @@
 #endif
 #include <string.h>
 #include <assert.h>
+#include <dlib/profile.h>
+
+DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics");
+DM_PROPERTY_U32(rmtp_DrawCalls, 0, FrameReset, "# vertices", &rmtp_Graphics);
 
 namespace dmGraphics
 {

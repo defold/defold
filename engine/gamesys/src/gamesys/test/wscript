@@ -93,7 +93,7 @@ def build(bld):
                         'ResourceTypeGui','ResourceTypeGuiScript']
     test_task_gen = bld.new_task_gen(features = 'cxx cprogram test',
                                      includes = '../../../src ../../../proto %s' % (dir),
-                                     uselib = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB',
+                                     uselib = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET PROFILE_NULL SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB',
                                      uselib_local = 'gamesys',
                                      exported_symbols = exported_symbols,
                                      web_libs = ['library_sys.js', 'library_script.js'],

@@ -42,6 +42,10 @@
 
 #include "../resources/res_mesh.h"
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -91,9 +95,6 @@ namespace dmGameSystem
         dmGraphics::HContext               m_GraphicsContext;
         void*                              m_WorldVertexData;
         size_t                             m_WorldVertexDataSize;
-        /// Keep track of how much vertex data we have rendered so it can be
-        /// reported to the profiler at end of the render dispatching.
-        uint32_t                           m_RenderedVertexSize;
 
     };
 
@@ -217,8 +218,6 @@ namespace dmGameSystem
 
         world->m_WorldVertexData = 0x0;
         world->m_WorldVertexDataSize = 0;
-
-        world->m_RenderedVertexSize = 0;
 
         *params.m_World = world;
 
@@ -665,7 +664,8 @@ namespace dmGameSystem
             dst_data_ptr = (void*)((uint8_t*)dst_data_ptr + size);
         }
 
-        world->m_RenderedVertexSize += vert_size * element_count;
+        DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, element_count);
+        DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, vert_size * element_count);
 
         // since they are batched, they have the same settings as the first mesh
         const MeshComponent* component = (MeshComponent*) buf[*begin].m_UserData;
@@ -689,7 +689,8 @@ namespace dmGameSystem
             const MeshResource* mr = component->m_Resource;
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component, mr);
 
-            world->m_RenderedVertexSize += br->m_Stride * br->m_ElementCount;
+            DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, br->m_ElementCount);
+            DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, br->m_Stride * br->m_ElementCount);
 
             VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
             assert(info != 0);
@@ -730,7 +731,6 @@ namespace dmGameSystem
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
-                world->m_RenderedVertexSize = 0;
                 world->m_RenderObjects.SetSize(0);
 
                 if (world->m_VertexBufferPool.Capacity() < world->m_VertexBufferPool.Size()+world->m_VertexBufferWorld.Size())
@@ -746,7 +746,6 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                DM_COUNTER("MeshVertexBuffer", world->m_RenderedVertexSize);
                 break;
             }
             default:

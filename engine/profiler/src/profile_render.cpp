@@ -296,7 +296,7 @@ namespace dmProfileRender
         return Area(p, s);
     }
 
-    static Area GetPropertiesArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count)
+    static Area GetPropertiesArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count, float scale)
     {
         // int max_indent = 0;
         // for (uint32_t i = 0; i < frame->m_Properties.Size(); ++i)
@@ -310,7 +310,7 @@ namespace dmProfileRender
         {
             const int count = dmMath::Max(scopes_count, counters_count);
             Size s(COUNTERS_NAME_WIDTH + CHARACTER_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + count));
-            Position p(details_area.p.x + details_area.s.w - s.w, details_area.p.y + s.h);
+            Position p(details_area.p.x + details_area.s.w - s.w * scale, details_area.p.y + s.h * scale);
             return Area(p, s);
         }
         return Area(Position(0, 0), Size(0, 0));
@@ -438,7 +438,8 @@ namespace dmProfileRender
 
         const uint32_t counter_count  = frame->m_Properties.Size();
 
-        const Area properties_area    = GetPropertiesArea(display_mode, details_area, 0, counter_count);
+        float properties_scale        = 1.6f;
+        const Area properties_area    = GetPropertiesArea(display_mode, details_area, 0, counter_count, properties_scale);
         const Area samples_area       = GetSamplesArea(display_mode, details_area);
         const Area sample_frames_area = GetSampleFramesArea(display_mode, SAMPLE_FRAMES_NAME_WIDTH, samples_area);
 
@@ -557,7 +558,7 @@ namespace dmProfileRender
             {
                 const ProfilerProperty& property = frame->m_Properties[i];
 
-                y -= LINE_SPACING;
+                y -= LINE_SPACING * properties_scale;
 
                 if (y < (properties_area.p.y + LINE_SPACING))
                 {

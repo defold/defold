@@ -36,6 +36,11 @@
 
 #include "../proto/gameobject/gameobject_ddf.h"
 
+DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects");
+
+DM_PROPERTY_U32(rmtp_GOInstances, 0, FrameReset, "# alive go instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GODeleted, 0, FrameReset, "# deleted instances / frame", &rmtp_GameObject);
+
 namespace dmGameObject
 {
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
@@ -2454,7 +2459,7 @@ namespace dmGameObject
     static bool Update(Collection* collection, const UpdateContext* update_context)
     {
         DM_PROFILE(GameObject, "Update");
-        DM_COUNTER("Instances", collection->m_InstanceIndices.Size());
+        DM_PROPERTY_ADD_U32(rmtp_GOInstances, collection->m_InstanceIndices.Size());
 
         assert(collection != 0x0);
 
@@ -2719,7 +2724,8 @@ namespace dmGameObject
                 result = false;
             }
         }
-        DM_COUNTER("InstancesDeleted", instances_deleted);
+
+        DM_PROPERTY_ADD_U32(rmtp_GODeleted, instances_deleted);
 
         return result;
     }

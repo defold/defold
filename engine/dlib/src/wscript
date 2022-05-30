@@ -203,7 +203,7 @@ def build(bld):
     libremotery = bld.new_task_gen( features    = 'cc cxx cstaticlib',
                                     includes    = '. ./remotery',
                                     target      = 'remotery',
-                                defines     = ['VALGRIND'] + extra_defines)
+                                    defines     = ['VALGRIND'] + extra_defines)
     libremotery.find_sources_in_dirs(libremotery_dirs)
 
     if build_util.get_target_os() not in ['osx', 'ios']:
