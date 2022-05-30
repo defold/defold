@@ -109,8 +109,8 @@
 
 (defn jogl-native-dep?
   [[artifact version & {:keys [classifier]}]]
-  (and (#{'org.jogamp.gluegen/gluegen-rt
-          'org.jogamp.jogl/jogl-all} artifact)
+  (and (#{'com.metsci.ext.org.jogamp.gluegen/gluegen-rt
+          'com.metsci.ext.org.jogamp.jogl/jogl-all} artifact)
        classifier))
 
 (defn extract-jogl-native-dep

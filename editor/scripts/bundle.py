@@ -29,6 +29,7 @@ import ConfigParser
 import datetime
 import imp
 import fnmatch
+import urllib
 
 # TODO: collect common functions in a more suitable reusable module
 try:
@@ -51,17 +52,15 @@ CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-java_version = '11.0.1'
-java_version_patch = 'p1'
-
+java_version = '11.0.15+10'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
-                    'x86_64-macos': 'osx-x64',
+                    'x86_64-macos': 'macos-x64',
                     'x86_64-win32': 'windows-x64'}
 
 python_platform_to_java = {'linux2': 'linux-x64',
                            'win32': 'windows-x64',
-                           'darwin': 'osx-x64'}
+                           'darwin': 'macos-x64'}
 
 def log(msg):
     print(msg)
@@ -72,19 +71,37 @@ def mkdirs(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def extract(file, path, is_mac):
-    print('Extracting %s to %s' % (file, path))
-
+def extract_tar(file, path, is_mac):
     if is_mac:
-        # We use the system tar command for macOSX because tar (and
+        # We use the system tar command for macOS because tar (and
         # others) on macOS has special handling of ._ files that
         # contain additional HFS+ attributes. See for example:
         # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
         exec_command(['tar', '-C', path, '-xzf', file])
     else:
-        tf = tarfile.TarFile.open(file, 'r:gz')
-        tf.extractall(path)
-        tf.close()
+        with tarfile.TarFile.open(file, 'r:gz') as tf:
+            tf.extractall(path)
+
+def extract_zip(file, path, is_mac):
+    if is_mac:
+        # We use the system unzip command for macOS because zip (and
+        # others) on macOS has special handling of ._ files that
+        # contain additional HFS+ attributes. See for example:
+        # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
+        exec_command(['unzip', file, '-d', path])
+    else:
+        with zipfile.ZipFile(file, 'r') as zf:
+            zf.extractall(path)
+
+def extract(file, path, is_mac):
+    print('Extracting %s to %s' % (file, path))
+
+    if fnmatch.fnmatch(file, "*.tar.gz-*"):
+        extract_tar(file, path, is_mac)
+    elif fnmatch.fnmatch(file, "*.zip-*"):
+        extract_zip(file, path, is_mac)
+    else:
+        assert False, "Don't know how to extract " + file
 
 modules = {}
 
@@ -243,28 +260,34 @@ def launcher_path(options, platform, exe_suffix):
     else:
         return path.join(os.environ['DYNAMO_HOME'], "bin", platform, "launcher%s" % exe_suffix)
 
-
 def full_jdk_url(jdk_platform):
-    return '%s/openjdk-%s_%s_bin.tar.gz' % (CDN_PACKAGES_URL, java_version, jdk_platform)
+    version = urllib.quote(java_version)
+    platform = urllib.quote(jdk_platform)
+    extension = "zip" if jdk_platform.startswith("windows") else "tar.gz"
+    return '%s/microsoft-jdk-%s-%s.%s' % (CDN_PACKAGES_URL, version, platform, extension)
 
+def full_build_jdk_url():
+    return full_jdk_url(python_platform_to_java[sys.platform])
 
 def download_build_jdk():
     print('Downloading build jdk')
-    rmtree('build/jdk')
-    is_mac = sys.platform == 'darwin'
-    jdk_url = full_jdk_url(python_platform_to_java[sys.platform])
+    jdk_url = full_build_jdk_url()
     jdk = download(jdk_url)
     if not jdk:
         print('Failed to download build jdk %s' % jdk_url)
         sys.exit(5)
+    return jdk
+
+def extract_build_jdk(build_jdk):
+    print('Extracting build jdk')
+    rmtree('build/jdk')
     mkdirs('build/jdk')
-    extract(jdk, 'build/jdk', is_mac)
+    is_mac = sys.platform == 'darwin'
+    extract(build_jdk, 'build/jdk', is_mac)
     if is_mac:
-        return 'build/jdk/jdk-%s.jdk/Contents/Home' % java_version
+        return 'build/jdk/jdk-%s/Contents/Home' % java_version
     else:
         return 'build/jdk/jdk-%s' % java_version
-
-
 
 def check_reflections(java_cmd_env):
     reflection_prefix = 'Reflection warning, ' # final space important
@@ -287,7 +310,8 @@ def check_reflections(java_cmd_env):
 
 def build(options):
     build_jdk = download_build_jdk()
-    java_cmd_env = 'JAVA_CMD=%s/bin/java' % build_jdk
+    extracted_build_jdk = extract_build_jdk(build_jdk)
+    java_cmd_env = 'JAVA_CMD=%s/bin/java' % extracted_build_jdk
 
     print('Building editor')
 
@@ -365,6 +389,7 @@ def remove_platform_files_from_archive(platform, jar):
 def create_bundle(options):
     jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
     build_jdk = download_build_jdk()
+    extracted_build_jdk = extract_build_jdk(build_jdk)
 
     mkdirs('target/editor')
     for platform in options.target_platform:
@@ -372,10 +397,13 @@ def create_bundle(options):
         rmtree('tmp')
 
         jdk_url = full_jdk_url(platform_to_java[platform])
-        jdk = download(jdk_url)
-        if not jdk:
-            print('Failed to download %s' % jdk_url)
-            sys.exit(5)
+        if jdk_url == full_build_jdk_url():
+            jdk = build_jdk
+        else:
+            jdk = download(jdk_url)
+            if not jdk:
+                print('Failed to download %s' % jdk_url)
+                sys.exit(5)
 
         tmp_dir = "tmp"
 
@@ -437,13 +465,13 @@ def create_bundle(options):
         extract(jdk, tmp_dir, is_mac)
 
         if is_mac:
-            platform_jdk = '%s/jdk-%s.jdk/Contents/Home' % (tmp_dir, java_version)
+            platform_jdk = '%s/jdk-%s/Contents/Home' % (tmp_dir, java_version)
         else:
             platform_jdk = '%s/jdk-%s' % (tmp_dir, java_version)
 
         # use jlink to generate a custom Java runtime to bundle with the editor
-        packages_jdk = '%s/jdk%s-%s' % (packages_dir, java_version, java_version_patch)
-        exec_command(['%s/bin/jlink' % build_jdk,
+        packages_jdk = '%s/jdk-%s' % (packages_dir, java_version)
+        exec_command(['%s/bin/jlink' % extracted_build_jdk,
                       '@jlink-options',
                       '--module-path=%s/jmods' % platform_jdk,
                       '--output=%s' % packages_jdk])
@@ -485,7 +513,7 @@ def sign(options):
         if 'macos' in platform:
             # we need to sign the binaries in Resources folder manually as codesign of
             # the *.app will not process files in Resources
-            jdk_dir = "jdk%s-%s" % (java_version, java_version_patch)
+            jdk_dir = "jdk-%s" % (java_version)
             jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", jdk_dir)
             for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
                 sign_files('macos', options, exe)

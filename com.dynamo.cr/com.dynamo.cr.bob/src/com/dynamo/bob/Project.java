@@ -623,6 +623,9 @@ public class Project {
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
+            if (this.hasOption("build-report-html")) {
+                TimeProfiler.init(new File(this.option("build-report-html", "report.html")), TimeProfiler.ReportFormat.HTML, true);
+            }
             loadProjectFile();
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
@@ -635,6 +638,8 @@ public class Project {
             throw e;
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
+        } finally {
+            TimeProfiler.createReport(true);
         }
     }
 
