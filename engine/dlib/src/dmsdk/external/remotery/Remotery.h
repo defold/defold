@@ -65,6 +65,11 @@ documented just below this comment.
 #define RMT_USE_D3D11 0
 #endif
 
+// Allow D3D12 profiling
+#ifndef RMT_USE_D3D12
+#define RMT_USE_D3D12 0
+#endif
+
 // Allow OpenGL profiling
 #ifndef RMT_USE_OPENGL
 #define RMT_USE_OPENGL 0
@@ -165,6 +170,11 @@ documented just below this comment.
 #else
     #define IFDEF_RMT_USE_D3D11(t, f) f
 #endif
+#if RMT_ENABLED && RMT_USE_D3D12
+    #define IFDEF_RMT_USE_D3D12(t, f) t
+#else
+    #define IFDEF_RMT_USE_D3D12(t, f) f
+#endif
 #if RMT_ENABLED && RMT_USE_OPENGL
     #define IFDEF_RMT_USE_OPENGL(t, f) t
 #else
@@ -228,6 +238,7 @@ typedef enum rmtSampleType
     RMT_SampleType_CPU,
     RMT_SampleType_CUDA,
     RMT_SampleType_D3D11,
+    RMT_SampleType_D3D12,
     RMT_SampleType_OpenGL,
     RMT_SampleType_Metal,
     RMT_SampleType_Count,
@@ -240,6 +251,9 @@ typedef enum rmtError
     RMT_ERROR_NONE,
     RMT_ERROR_RECURSIVE_SAMPLE,                 // Not an error but an internal message to calling code
     RMT_ERROR_UNKNOWN,                          // An error with a message yet to be defined, only for internal error handling
+    RMT_ERROR_INVALID_INPUT,                    // An invalid input to a function call was provided
+    RMT_ERROR_RESOURCE_CREATE_FAIL,             // Creation of an internal resource failed
+    RMT_ERROR_RESOURCE_ACCESS_FAIL,             // Access of an internal resource failed
 
     // System errors
     RMT_ERROR_MALLOC_FAIL,                      // Malloc call within remotery failed
@@ -300,6 +314,9 @@ typedef enum rmtError
     RMT_ERROR_CUDA_UNKNOWN,
 } rmtError;
 // clang-format on
+
+// Gets the last error message issued on the calling thread
+RMT_API rmtPStr rmt_GetLastErrorMessage();
 
 
 /*--------------------------------------------------------------------------------------------------------------------------------
@@ -431,6 +448,12 @@ typedef struct rmtSettings
 #define rmt_EndCPUSample()                                                          \
     RMT_OPTIONAL(RMT_ENABLED, _rmt_EndCPUSample())
 
+// Used for both CPU and GPU profiling
+// Essential to call this every frame, ever since D3D12 support was added
+// D3D12 Requirements: Don't sample any command lists that begin before this call and end after it
+#define rmt_MarkFrame()                                                             \
+    RMT_OPTIONAL_RET(RMT_ENABLED, _rmt_MarkFrame(), RMT_ERROR_NONE)
+
 
 /*--------------------------------------------------------------------------------------------------------------------------------
    GPU Sampling
@@ -491,6 +514,36 @@ typedef struct rmtCUDABind
 
 #define rmt_EndD3D11Sample()                                                \
     RMT_OPTIONAL(RMT_USE_D3D11, _rmt_EndD3D11Sample())
+
+
+typedef struct rmtD3D12Bind
+{
+    // The main device shared by all threads
+    void* device;
+
+    // The queue command lists are executed on for profiling
+    void* queue;
+
+} rmtD3D12Bind;
+
+// Create a D3D12 binding for the given device/queue pair
+#define rmt_BindD3D12(device, queue, out_bind)                              \
+    RMT_OPTIONAL_RET(RMT_USE_D3D12, _rmt_BindD3D12(device, queue, out_bind), NULL)
+
+#define rmt_UnbindD3D12(bind)                                               \
+    RMT_OPTIONAL(RMT_USE_D3D12, _rmt_UnbindD3D12(bind))
+
+#define rmt_BeginD3D12Sample(bind, command_list, name)                      \
+    RMT_OPTIONAL(RMT_USE_D3D12, {                                           \
+        static rmtU32 rmt_sample_hash_##name = 0;                           \
+        _rmt_BeginD3D12Sample(bind, command_list, #name, &rmt_sample_hash_##name);        \
+    })
+
+#define rmt_BeginD3D12SampleDynamic(bind, command_list, namestr)            \
+    RMT_OPTIONAL(RMT_USE_D3D12, _rmt_BeginD3D12Sample(bind, command_list, namestr, NULL))
+
+#define rmt_EndD3D12Sample()                                                \
+    RMT_OPTIONAL(RMT_USE_D3D12, _rmt_EndD3D12Sample())
 
 
 #define rmt_BindOpenGL()                                                    \
@@ -595,8 +648,17 @@ typedef struct rmtProperty
 
     // Runtime description
     rmtPropertyType type;
-    rmtPropertyValue value;
     rmtPropertyFlags flags;
+
+    // Current value
+    rmtPropertyValue value;
+
+    // Last frame value to see if previous value needs to be updated
+    rmtPropertyValue lastFrameValue;
+    
+    // Previous value only if it's different from the current value, and when it changed
+    rmtPropertyValue prevValue;
+    rmtU32 prevValueFrame;
 
     // Text description
     const char* name;
@@ -679,7 +741,7 @@ typedef struct rmtProperty
 
 // Used to define properties from typed macro callers
 #define _rmt_PropertyDefine(type, name, default_value, flags, desc, ...) \
-    rmtProperty name = { RMT_FALSE, RMT_PropertyType_##type, default_value, flags, #name, desc, default_value, __VA_ARGS__ };
+    rmtProperty name = { RMT_FALSE, RMT_PropertyType_##type, flags, default_value, default_value, default_value, 0, #name, desc, default_value, __VA_ARGS__ };
 
 // C++ doesn't support designated initialisers until C++20
 // Worth checking for C++ designated initialisers to remove the function call in debug builds
@@ -839,6 +901,7 @@ struct rmt_EndCPUSampleOnScopeExit
         _rmt_EndCPUSample();
     }
 };
+
 #if RMT_USE_CUDA
 extern "C" RMT_API void _rmt_EndCUDASample(void* stream);
 struct rmt_EndCUDASampleOnScopeExit
@@ -852,6 +915,7 @@ struct rmt_EndCUDASampleOnScopeExit
     }
     void* stream;
 };
+
 #endif
 #if RMT_USE_D3D11
 extern "C" RMT_API void _rmt_EndD3D11Sample(void);
@@ -860,6 +924,17 @@ struct rmt_EndD3D11SampleOnScopeExit
     ~rmt_EndD3D11SampleOnScopeExit()
     {
         _rmt_EndD3D11Sample();
+    }
+};
+#endif
+
+#if RMT_USE_D3D12
+extern "C" RMT_API void _rmt_EndD3D12Sample();
+struct rmt_EndD3D12SampleOnScopeExit
+{
+    ~rmt_EndD3D12SampleOnScopeExit()
+    {
+        _rmt_EndD3D12Sample();
     }
 };
 #endif
@@ -899,6 +974,9 @@ struct rmt_EndMetalSampleOnScopeExit
 #define rmt_ScopedD3D11Sample(name)                                                                     \
         RMT_OPTIONAL(RMT_USE_D3D11, rmt_BeginD3D11Sample(name));                                        \
         RMT_OPTIONAL(RMT_USE_D3D11, rmt_EndD3D11SampleOnScopeExit rmt_ScopedD3D11Sample##name);
+#define rmt_ScopedD3D12Sample(bind, command_list, name)                                                 \
+        RMT_OPTIONAL(RMT_USE_D3D12, rmt_BeginD3D12Sample(bind, command_list, name));                    \
+        RMT_OPTIONAL(RMT_USE_D3D12, rmt_EndD3D12SampleOnScopeExit rmt_ScopedD3D12Sample##name());
 #define rmt_ScopedOpenGLSample(name)                                                                    \
         RMT_OPTIONAL(RMT_USE_OPENGL, rmt_BeginOpenGLSample(name));                                      \
         RMT_OPTIONAL(RMT_USE_OPENGL, rmt_EndOpenGLSampleOnScopeExit rmt_ScopedOpenGLSample##name);
@@ -929,6 +1007,7 @@ RMT_API void _rmt_SetCurrentThreadName(rmtPStr thread_name);
 RMT_API void _rmt_LogText(rmtPStr text);
 RMT_API void _rmt_BeginCPUSample(rmtPStr name, rmtU32 flags, rmtU32* hash_cache);
 RMT_API void _rmt_EndCPUSample(void);
+RMT_API rmtError _rmt_MarkFrame(void);
 
 #if RMT_USE_CUDA
 RMT_API void _rmt_BindCUDA(const rmtCUDABind* bind);
@@ -941,6 +1020,13 @@ RMT_API void _rmt_BindD3D11(void* device, void* context);
 RMT_API void _rmt_UnbindD3D11(void);
 RMT_API void _rmt_BeginD3D11Sample(rmtPStr name, rmtU32* hash_cache);
 RMT_API void _rmt_EndD3D11Sample(void);
+#endif
+
+#if RMT_USE_D3D12
+RMT_API rmtError _rmt_BindD3D12(void* device, void* queue, rmtD3D12Bind** out_bind);
+RMT_API void _rmt_UnbindD3D12(rmtD3D12Bind* bind);
+RMT_API void _rmt_BeginD3D12Sample(rmtD3D12Bind* bind, void* command_list, rmtPStr name, rmtU32* hash_cache);
+RMT_API void _rmt_EndD3D12Sample();
 #endif
 
 #if RMT_USE_OPENGL

@@ -54,28 +54,33 @@ class PropertyGridConfig
         {
             Name: "Property",
             Value: "Value",
+            PrevValue: "Prev Value",
         };
         this.titleCellClasses =
         {
             Name: "SampleTitleNameCell",
             Value: "PropertyTitleValueCell",
+            PrevValue: "PropertyTitleValueCell",
         };
 
         this.rowCellData =
         {
             Name: "",
             Value: "",
+            PrevValue: "",
         };
         this.rowCellClasses =
         {
             Name: "SampleNameCell",
             Value: "PropertyValueCell",
+            PrevValue: "PropertyValueCell",
         };
     }
 
     SetRowData(row, entry)
     {
         row.CellNodes["Value"].innerHTML = entry.value;
+        row.CellNodes["PrevValue"].innerHTML = entry.prevValue;
     }
 }
 
@@ -245,6 +250,12 @@ class GridWindow
                     const name_node = row.CellNodes["Name"];
                     row.CellData.Name = entry.name.string;
                     name_node.innerHTML = indent + entry.name.string;
+                }
+
+                if (entry.colourChanged)
+                {
+                    const name_node = row.CellNodes["Name"];
+                    DOM.Node.SetColour(name_node, entry.colour);
                 }
             }
 

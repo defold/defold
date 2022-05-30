@@ -121,7 +121,7 @@ Remotery = (function()
         this.nbGridWindows = 0;
         this.gridWindows = { };
 
-        this.AddGridWindow("__rmt__global__properties__", "Global Properties", new PropertyGridConfig());
+        this.propertyGridWindow = this.AddGridWindow("__rmt__global__properties__", "Global Properties", new PropertyGridConfig());
         
         // Clear runtime data
         this.FrameHistory = { };
@@ -285,11 +285,13 @@ Remotery = (function()
 
     Remotery.prototype.AddGridWindow = function(name, display_name, config)
     {
-        this.gridWindows[name] = new GridWindow(this.WindowManager, display_name, this.nbGridWindows, config);
+        const grid_window = new GridWindow(this.WindowManager, display_name, this.nbGridWindows, config);
+        this.gridWindows[name] = grid_window;
         this.gridWindows[name].WindowResized(this.SampleTimelineWindow.Window, this.Console.Window);
         this.nbGridWindows++;
         MoveGridWindows(this);
-}
+        return grid_window;
+    }
 
 
     function OnSamples(self, socket, data_view_reader)
@@ -455,7 +457,13 @@ Remotery = (function()
     }
 
 
-    function DecodeSnapshot(self, data_view_reader)
+    function PrepareFloatValue(value)
+    {
+        return Math.round(value * 1000) / 1000.0;
+    }
+
+
+    function DecodeSnapshot(self, frame, data_view_reader)
     {
         var snapshot = {};
 
@@ -464,30 +472,61 @@ Remotery = (function()
         switch (snapshot.type)
         {
             case 0:
-                // Groups have no value
+                snapshot.value = "";
+                snapshot.prevValue = "";
                 break;
             case 1:
                 snapshot.value = data_view_reader.GetBool();
+                snapshot.prevValue = data_view_reader.GetBool();
                 break;
             case 2:
                 snapshot.value = data_view_reader.GetInt32();
+                snapshot.prevValue = data_view_reader.GetInt32();
                 break;
             case 3:
                 snapshot.value = data_view_reader.GetUInt32();
+                snapshot.prevValue = data_view_reader.GetUInt32();
                 break;
             case 4:
-                snapshot.value = data_view_reader.GetFloat32();
+                snapshot.value = PrepareFloatValue(data_view_reader.GetFloat32());
+                snapshot.prevValue = PrepareFloatValue(data_view_reader.GetFloat32());
                 break;
             case 5:
                 snapshot.value = data_view_reader.GetInt64();
+                snapshot.prevValue = data_view_reader.GetInt64();
                 break;
             case 6:
                 snapshot.value = data_view_reader.GetUInt64();
+                snapshot.prevValue = data_view_reader.GetUInt64();
                 break;
             case 7:
-                snapshot.value = data_view_reader.GetFloat64();
-                 break;
+                snapshot.value = PrepareFloatValue(data_view_reader.GetFloat64());
+                snapshot.prevValue = PrepareFloatValue(data_view_reader.GetFloat64());
+                break;
         }
+
+        // Heat colour style falloff to quickly identify modified properties
+        snapshot.prevValueFrame = data_view_reader.GetUInt32();
+        const frame_delta = frame - snapshot.prevValueFrame;
+        if (frame_delta < 64)
+        {
+            const green = Math.min(Math.min(frame_delta, 32) * 8, 255);
+            let green_hex = green.toString(16);
+            if (green_hex.length == 1)
+                green_hex = "0" + green_hex;
+            const blue = Math.min(frame_delta * 4, 255);
+            let blue_hex = blue.toString(16);
+            if (blue_hex.length == 1)
+                blue_hex = "0" + blue_hex;
+            snapshot.colour = "#FF" + green_hex + blue_hex;
+        }
+        else
+        {
+            snapshot.colour = "#FFFFFF";
+        }
+
+        // Notify of colour changed one beyond the number of frames we're looking for so that it restores to white
+        snapshot.colourChanged = Math.max(65 - frame_delta, 0);
 
         // Get name hash and look it up in the name map
         snapshot.name_hash = data_view_reader.GetUInt32();
@@ -495,7 +534,7 @@ Remotery = (function()
         snapshot.name = name;
 
         // Assign the unique ID
-        sample.id = data_view_reader.GetUInt32();
+        snapshot.id = data_view_reader.GetUInt32();
 
         // If the name doesn't exist in the map yet, request it from the server
         if (!name_exists)
@@ -508,17 +547,17 @@ Remotery = (function()
 
         // Recurse into children
         snapshot.children = [];
-        DecodeSnapshotArray(self, data_view_reader, snapshot.children);
+        DecodeSnapshotArray(self, frame, data_view_reader, snapshot.children);
 
         return snapshot;
     }
 
-    function DecodeSnapshotArray(self, data_view_reader, snapshots)
+    function DecodeSnapshotArray(self, frame, data_view_reader, snapshots)
     {
         const nb_snapshots = data_view_reader.GetUInt32();
         for (var i = 0; i < nb_snapshots; i++)
         {
-            const snapshot = DecodeSnapshot(self, data_view_reader);
+            const snapshot = DecodeSnapshot(self, frame, data_view_reader);
             snapshots.push(snapshot)
         }
     }
@@ -530,10 +569,11 @@ Remotery = (function()
         let message = { };
         message.nbSnapshots = data_view_reader.GetUInt32();
         message.snapshotDigest = data_view_reader.GetUInt32();
+        message.propertyFrame = data_view_reader.GetUInt32();
 
         // Read snapshots
         message.snapshots = [];
-        message.snapshots.push(DecodeSnapshot(self, data_view_reader));
+        message.snapshots.push(DecodeSnapshot(self, message.propertyFrame, data_view_reader));
 
         return message;
     }
@@ -558,7 +598,7 @@ Remotery = (function()
         // Set on the window if connected as this implies a trace is being loaded, which we want to speed up
         if (self.Server.Connected())
         {
-            //self.gridWindows[name].UpdateEntries(message.nb_samples, message.sample_digest, message.samples);
+            self.propertyGridWindow.UpdateEntries(message.nbSnapshots, message.snapshotDigest, message.snapshots);
         }
     }
 

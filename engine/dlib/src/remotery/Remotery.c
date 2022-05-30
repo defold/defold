@@ -20,6 +20,7 @@
     @DEPS:          External Dependencies
     @TIMERS:        Platform-specific timers
     @TLS:           Thread-Local Storage
+    @ERROR:         Error handling
     @ATOMIC:        Atomic Operations
     @RNG:           Random Number Generator
     @LFSR:          Galois Linear-feedback Shift Register
@@ -47,6 +48,7 @@
     @REMOTERY:      Remotery
     @CUDA:          CUDA event sampling
     @D3D11:         Direct3D 11 event sampling
+    @D3D12:         Direct3D 12 event sampling
     @OPENGL:        OpenGL event sampling
     @METAL:         Metal event sampling
     @SAMPLEAPI:     Sample API for user callbacks
@@ -88,6 +90,7 @@ static rmtBool g_SettingsInitialized = RMT_FALSE;
     #include <Memory/Memory.h>
 
     #define CreateFileMapping CreateFileMappingA
+    #define RMT_ENABLE_THREAD_SAMPLER
 
 #else
 
@@ -472,6 +475,72 @@ static void* tlsGet(rmtTLS handle)
 /*
 ------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------
+   @ERROR: Error handling
+------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------
+*/
+
+// Used to store per-thread error messages
+// Static so that we can set error messages from code the Remotery object depends on
+static rmtTLS g_lastErrorMessageTlsHandle = TLS_INVALID_HANDLE;
+static const rmtU32 g_errorMessageSize = 1024;
+
+static rmtError rmtMakeError(rmtError error, rmtPStr error_message)
+{
+    char* thread_message_ptr;
+    rmtU32 error_len;
+
+    // Allocate the TLS on-demand
+    // TODO(don): Make this thread-safe
+    if (g_lastErrorMessageTlsHandle == TLS_INVALID_HANDLE)
+    {
+        rmtTry(tlsAlloc(&g_lastErrorMessageTlsHandle));
+    }
+
+    // Allocate the string storage for the error message on-demand
+    thread_message_ptr = (char*)tlsGet(g_lastErrorMessageTlsHandle);
+    if (thread_message_ptr == NULL)
+    {
+        thread_message_ptr = (char*)rmtMalloc(g_errorMessageSize);
+        if (thread_message_ptr == NULL)
+        {
+            return RMT_ERROR_MALLOC_FAIL;
+        }
+
+        tlsSet(g_lastErrorMessageTlsHandle, (void*)thread_message_ptr);
+    }
+
+    // Safe copy of the error text without going via strcpy_s down below
+    error_len = strlen(error_message);
+    error_len = error_len >= g_errorMessageSize ? g_errorMessageSize - 1 : error_len;
+    memcpy(thread_message_ptr, error_message, error_len);
+    thread_message_ptr[error_len] = 0;
+
+    return error;
+}
+
+RMT_API rmtPStr rmt_GetLastErrorMessage()
+{
+    rmtPStr thread_message_ptr;
+
+    // No message to specify if `rmtMakeError` failed or one hasn't been set yet
+    if (g_lastErrorMessageTlsHandle == TLS_INVALID_HANDLE)
+    {
+        return "No error message";
+    }
+    thread_message_ptr = (rmtPStr)tlsGet(g_lastErrorMessageTlsHandle);
+    if (thread_message_ptr == NULL)
+    {
+        return "No error message";
+    }
+
+    return thread_message_ptr;
+}
+
+
+/*
+------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------
    @MUTEX: Mutexes
 ------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------
@@ -531,13 +600,34 @@ static void mtxDelete(rmtMutex* mutex)
 ------------------------------------------------------------------------------------------------------------------------
 */
 
-static rmtBool AtomicCompareAndSwap(rmtU32 volatile* val, long old_val, long new_val)
+// TODO(don): The CAS loops possible with this API are suboptimal. For example, AtomicCompareAndSwapU32 discards the
+// return value which tells you the current (potentially mismatching) value of the location you want to modify. This
+// means the CAS loop has to explicitly re-load this location on each modify attempt. Instead, the return value should
+// be used to update the old value and an initial load only made once before the loop starts.
+
+// TODO(don): Vary these types across versions of C and C++
+typedef volatile rmtS32 rmtAtomicS32;
+typedef volatile rmtU32 rmtAtomicU32;
+typedef volatile rmtU64 rmtAtomicU64;
+
+static rmtBool AtomicCompareAndSwapU32(rmtU32 volatile* val, long old_val, long new_val)
 {
 #if defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
     return _InterlockedCompareExchange((long volatile*)val, new_val, old_val) == old_val ? RMT_TRUE : RMT_FALSE;
 #elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
     return __sync_bool_compare_and_swap(val, old_val, new_val) ? RMT_TRUE : RMT_FALSE;
 #endif
+}
+
+static rmtBool AtomicCompareAndSwapU64(rmtAtomicU64* val, rmtU64 old_value, rmtU64 new_val)
+{
+    #if defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+    return _InterlockedCompareExchange64((volatile LONG64*)val, (LONG64)new_val, (LONG64)old_value) == (LONG64)old_value
+        ? RMT_TRUE
+        : RMT_FALSE;
+    #elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
+    return __sync_bool_compare_and_swap(val, old_value, new_val) ? RMT_TRUE : RMT_FALSE;
+    #endif
 }
 
 static rmtBool AtomicCompareAndSwapPointer(long* volatile* ptr, long* old_ptr, long* new_ptr)
@@ -561,7 +651,7 @@ static rmtBool AtomicCompareAndSwapPointer(long* volatile* ptr, long* old_ptr, l
 // TODO: Make sure all platforms don't insert a memory barrier as this is only for stats
 //       Alternatively, add strong/weak memory order equivalents
 //
-static rmtS32 AtomicAdd(rmtS32 volatile* value, rmtS32 add)
+static rmtS32 AtomicAddS32(rmtAtomicS32* value, rmtS32 add)
 {
 #if defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
     return _InterlockedExchangeAdd((long volatile*)value, (long)add);
@@ -570,10 +660,19 @@ static rmtS32 AtomicAdd(rmtS32 volatile* value, rmtS32 add)
 #endif
 }
 
-static void AtomicSub(rmtS32 volatile* value, rmtS32 sub)
+static rmtU32 AtomicAddU32(rmtAtomicU32* value, rmtU32 add)
+{
+#if defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+    return (rmtU32)_InterlockedExchangeAdd((long volatile*)value, (long)add);
+#elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
+    return (rmtU32)__sync_fetch_and_add(value, add);
+#endif
+}
+
+static void AtomicSubS32(rmtAtomicS32* value, rmtS32 sub)
 {
     // Not all platforms have an implementation so just negate and add
-    AtomicAdd(value, -sub);
+    AtomicAddS32(value, -sub);
 }
 
 static void CompilerWriteFence()
@@ -598,7 +697,7 @@ static void CompilerReadFence()
 #endif
 }
 
-static rmtU32 LoadAcquire(rmtU32* volatile address)
+static rmtU32 LoadAcquire(rmtAtomicU32* address)
 {
     rmtU32 value = *address;
     CompilerReadFence();
@@ -612,7 +711,7 @@ static long* LoadAcquirePointer(long* volatile* ptr)
     return value;
 }
 
-static void StoreRelease(rmtU32* volatile address, rmtU32 value)
+static void StoreRelease(rmtAtomicU32* address, rmtU32 value)
 {
     CompilerWriteFence();
     *address = value;
@@ -634,7 +733,7 @@ static void StoreReleasePointer(long* volatile* ptr, long* value)
 
 //
 // WELL: Well Equidistributed Long-period Linear
-// These algorithms produce numbers with better equidistrib ution than MT19937 and improve upon “bit-mixing” properties. They are
+// These algorithms produce numbers with better equidistribution than MT19937 and improve upon "bit-mixing" properties. They are
 // fast, come in many sizes, and produce higher quality random numbers.
 //
 // This implementation has a period of 2^512, or 10^154.
@@ -766,6 +865,20 @@ static rmtU32 GaloisLFSRNext(rmtU32 value, rmtU32 xor_mask)
 ------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------
 */
+
+#define rmtTryMalloc(type, obj) \
+    obj = (type*)rmtMalloc(sizeof(type)); \
+    if (obj == NULL) \
+    { \
+        return RMT_ERROR_MALLOC_FAIL; \
+    }
+
+#define rmtTryMallocArray(type, obj, count) \
+    obj = (type*)rmtMalloc((count) * sizeof(type)); \
+    if (obj == NULL) \
+    { \
+        return RMT_ERROR_MALLOC_FAIL; \
+    }
 
 // Ensures the pointer is non-NULL, calls the destructor, frees memory and sets the pointer to NULL
 #define rmtDelete(type, obj)    \
@@ -1860,7 +1973,7 @@ static void rmtGetThreadNameFallback(char* out_thread_name, rmtU32 thread_name_s
     static rmtS32 countThreads = 0;
     out_thread_name[0] = 0;
     strncat_s(out_thread_name, thread_name_size, "Thread", 6);
-    itoahex_s(out_thread_name + 6, thread_name_size - 6, AtomicAdd(&countThreads, 1));
+    itoahex_s(out_thread_name + 6, thread_name_size - 6, AtomicAddS32(&countThreads, 1));
 }
 
 static void rmtGetThreadName(rmtThreadId thread_id, rmtThreadHandle thread_handle, char* out_thread_name, rmtU32 thread_name_size)
@@ -2097,13 +2210,13 @@ typedef struct
     ObjDestructor destructor;
 
     // Number of objects in the free list
-    volatile rmtS32 nb_free;
+    rmtAtomicS32 nb_free;
 
     // Number of objects used by callers
-    volatile rmtS32 nb_inuse;
+    rmtAtomicS32 nb_inuse;
 
     // Total allocation count
-    volatile rmtS32 nb_allocated;
+    rmtAtomicS32 nb_allocated;
 
     ObjectLink* first_free;
 } ObjectAllocator;
@@ -2213,14 +2326,14 @@ static rmtError ObjectAllocator_Alloc(ObjectAllocator* allocator, void** object)
             return error;
         }
 
-        AtomicAdd(&allocator->nb_allocated, 1);
+        AtomicAddS32(&allocator->nb_allocated, 1);
     }
     else
     {
-        AtomicSub(&allocator->nb_free, 1);
+        AtomicSubS32(&allocator->nb_free, 1);
     }
 
-    AtomicAdd(&allocator->nb_inuse, 1);
+    AtomicAddS32(&allocator->nb_inuse, 1);
 
     return RMT_ERROR_NONE;
 }
@@ -2230,16 +2343,16 @@ static void ObjectAllocator_Free(ObjectAllocator* allocator, void* object)
     // Add back to the free-list
     assert(allocator != NULL);
     ObjectAllocator_Push(allocator, (ObjectLink*)object, (ObjectLink*)object);
-    AtomicSub(&allocator->nb_inuse, 1);
-    AtomicAdd(&allocator->nb_free, 1);
+    AtomicSubS32(&allocator->nb_inuse, 1);
+    AtomicAddS32(&allocator->nb_free, 1);
 }
 
 static void ObjectAllocator_FreeRange(ObjectAllocator* allocator, void* start, void* end, rmtU32 count)
 {
     assert(allocator != NULL);
     ObjectAllocator_Push(allocator, (ObjectLink*)start, (ObjectLink*)end);
-    AtomicSub(&allocator->nb_inuse, count);
-    AtomicAdd(&allocator->nb_free, count);
+    AtomicSubS32(&allocator->nb_inuse, count);
+    AtomicAddS32(&allocator->nb_free, count);
 }
 
 /*
@@ -2468,11 +2581,7 @@ static rmtError rmtHashTable_Constructor(rmtHashTable* table, rmtU32 max_nb_slot
     table->nbSlots = 0;
 
     // Allocate and clear the hash slots
-    table->slots = (HashSlot*)rmtMalloc(table->maxNbSlots * sizeof(HashSlot));
-    if (table->slots == NULL)
-    {
-        return RMT_ERROR_MALLOC_FAIL;
-    }
+    rmtTryMallocArray(HashSlot, table->slots, table->maxNbSlots);
     memset(table->slots, 0, table->maxNbSlots * sizeof(HashSlot));
 
     return RMT_ERROR_NONE;
@@ -2554,11 +2663,7 @@ static rmtError rmtHashTable_Resize(rmtHashTable* table)
     }
 
     // Allocate and clear a new table
-    new_slots = (HashSlot*)rmtMalloc(new_max_nb_slots * sizeof(HashSlot));
-    if (new_slots == NULL)
-    {
-        return RMT_ERROR_MALLOC_FAIL;
-    }
+    rmtTryMallocArray(HashSlot, new_slots, new_max_nb_slots);
     memset(new_slots, 0, new_max_nb_slots * sizeof(HashSlot));
 
     // Update fields of the table after successful allocation only
@@ -3913,8 +4018,8 @@ typedef struct rmtMessageQueue
 
     // Read/write position never wrap allowing trivial overflow checks
     // with easier debugging
-    rmtU32 read_pos;
-    rmtU32 write_pos;
+    rmtAtomicU32 read_pos;
+    rmtAtomicU32 write_pos;
 
 } rmtMessageQueue;
 
@@ -3982,7 +4087,7 @@ static Message* rmtMessageQueue_AllocMessage(rmtMessageQueue* queue, rmtU32 payl
         msg = (Message*)(queue->data->ptr + (w & (s - 1)));
 
         // Increment the write position, leaving the loop if this is the thread that succeeded
-        if (AtomicCompareAndSwap(&queue->write_pos, w, w + write_size) == RMT_TRUE)
+        if (AtomicCompareAndSwapU32(&queue->write_pos, w, w + write_size) == RMT_TRUE)
         {
             // Safe to set payload size after thread claims ownership of this allocated range
             msg->payload_size = payload_size;
@@ -4463,10 +4568,10 @@ typedef struct SampleTree
     Sample* currentParent;
 
     // Last time this sample tree was completed and sent to listeners, for stall detection
-    rmtU32 msLastTreeSendTime;
+    rmtAtomicU32 msLastTreeSendTime;
 
     // Lightweight flag, changed with release/acquire semantics to inform the stall detector the state of the tree is unreliable
-    rmtU32 treeBeingModified;
+    rmtAtomicU32 treeBeingModified;
 
 } SampleTree;
 
@@ -4710,10 +4815,13 @@ typedef struct Msg_SampleTree
 
     rmtPStr threadName;
 
+    // Data specific to the sample tree that downstream users can inspect/use
+    rmtU32 userData;
+
     rmtBool partialTree;
 } Msg_SampleTree;
 
-static void QueueSampleTree(rmtMessageQueue* queue, Sample* sample, ObjectAllocator* allocator, rmtPStr thread_name,
+static void QueueSampleTree(rmtMessageQueue* queue, Sample* sample, ObjectAllocator* allocator, rmtPStr thread_name, rmtU32 user_data,
                             struct ThreadProfiler* thread_profiler, rmtBool partial_tree)
 {
     Msg_SampleTree* payload;
@@ -4732,6 +4840,7 @@ static void QueueSampleTree(rmtMessageQueue* queue, Sample* sample, ObjectAlloca
     payload->rootSample = sample;
     payload->allocator = allocator;
     payload->threadName = thread_name;
+    payload->userData = user_data;
     payload->partialTree = partial_tree;
     rmtMessageQueue_CommitMessage(message, MsgID_SampleTree);
 }
@@ -4778,6 +4887,12 @@ static rmtError D3D11_Create(D3D11** d3d11);
 static void D3D11_Destructor(D3D11* d3d11);
 #endif
 
+#if RMT_USE_D3D12
+typedef struct D3D12ThreadData D3D12ThreadData;
+static rmtError D3D12ThreadData_Create(D3D12ThreadData** d3d12);
+static void D3D12ThreadData_Destructor(D3D12ThreadData* d3d12);
+#endif
+
 typedef struct ThreadProfiler
 {
     // Storage for backing up initial register values when modifying a thread's context
@@ -4786,7 +4901,7 @@ typedef struct ThreadProfiler
     rmtU64 registerBackup2;                                                                         // 16
 
     // Used to schedule callbacks taking into account some threads may be sleeping
-    rmtS32 nbSamplesWithoutCallback;                                                                // 24
+    rmtAtomicS32 nbSamplesWithoutCallback;                                                          // 24
 
     // Index of the processor the thread was last seen running on
     rmtU32 processorIndex;                                                                          // 28
@@ -4805,6 +4920,10 @@ typedef struct ThreadProfiler
 
 #if RMT_USE_D3D11
     D3D11* d3d11;
+#endif
+
+#if RMT_USE_D3D12
+    D3D12ThreadData* d3d12ThreadData;
 #endif
 } ThreadProfiler;
 
@@ -4847,6 +4966,10 @@ static rmtError ThreadProfiler_Constructor(rmtMessageQueue* mq_to_rmt, ThreadPro
     thread_profiler->d3d11 = NULL;
 #endif
 
+#if RMT_USE_D3D12
+    thread_profiler->d3d12ThreadData = NULL;
+#endif
+
     // Pre-open the thread handle
     rmtTry(rmtOpenThreadHandle(thread_id, &thread_profiler->threadHandle));
 
@@ -4865,12 +4988,20 @@ static rmtError ThreadProfiler_Constructor(rmtMessageQueue* mq_to_rmt, ThreadPro
     rmtTry(D3D11_Create(&thread_profiler->d3d11));
 #endif
 
+#if RMT_USE_D3D12
+    rmtTry(D3D12ThreadData_Create(&thread_profiler->d3d12ThreadData));
+#endif
+
     return RMT_ERROR_NONE;
 }
 
 static void ThreadProfiler_Destructor(ThreadProfiler* thread_profiler)
 {
     rmtU32 index;
+
+#if RMT_USE_D3D12
+    rmtDelete(D3D12ThreadData, thread_profiler->d3d12ThreadData);
+#endif
 
 #if RMT_USE_D3D11
     rmtDelete(D3D11, thread_profiler->d3d11);
@@ -4893,7 +5024,7 @@ static rmtError ThreadProfiler_Push(SampleTree* tree, rmtU32 name_hash, rmtU32 f
     return error;
 }
 
-static rmtBool ThreadProfiler_Pop(ThreadProfiler* thread_profiler, rmtMessageQueue* queue, Sample* sample)
+static rmtBool ThreadProfiler_Pop(ThreadProfiler* thread_profiler, rmtMessageQueue* queue, Sample* sample, rmtU32 msg_user_data)
 {
     SampleTree* tree = thread_profiler->sampleTrees[sample->type];
     SampleTree_Pop(tree, sample);
@@ -4910,7 +5041,7 @@ static rmtBool ThreadProfiler_Pop(ThreadProfiler* thread_profiler, rmtMessageQue
         root->last_child = NULL;
         root->nb_children = 0;
         );
-        QueueSampleTree(queue, sample, tree->allocator, thread_profiler->threadName, thread_profiler, RMT_FALSE);
+        QueueSampleTree(queue, sample, tree->allocator, thread_profiler->threadName, msg_user_data, thread_profiler, RMT_FALSE);
 
         // Update the last send time for this tree, for stall detection
         StoreRelease(&tree->msLastTreeSendTime, (rmtU32)(sample->us_end / 1000));
@@ -4974,7 +5105,7 @@ typedef struct ThreadProfilers
     // The ThreadProfiler count is only incremented once a new ThreadProfiler is fully defined and ready to be used.
     // Do not use this list to verify if a ThreadProfiler exists for a given thread. Use the mutex-guarded Get functions instead.
     ThreadProfiler threadProfilers[256];
-    rmtU32 nbThreadProfilers;
+    rmtAtomicU32 nbThreadProfilers;
     rmtU32 maxNbThreadProfilers;
 
     // Guards creation and existence-testing of the ThreadProfiler list
@@ -5503,7 +5634,7 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
     }
 
     // An array entry for each processor
-    processors = (Processor*)rmtMalloc(nb_processors * sizeof(Processor));
+    rmtTryMallocArray(Processor, processors, nb_processors);
     for (processor_index = 0; processor_index < nb_processors; processor_index++)
     {
         processors[processor_index].threadProfiler = NULL;
@@ -5578,7 +5709,7 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
             // scheduling quantum, this doesn't happen too often. However in such cases, whoever marks the processor last is
             // the one that gets recorded.
             sample_time_us = usTimer_Get(thread_profilers->timer);
-            sample_count = AtomicAdd(&thread_profiler->nbSamplesWithoutCallback, 1);
+            sample_count = AtomicAddS32(&thread_profiler->nbSamplesWithoutCallback, 1);
             processor_index = thread_profiler->processorIndex;
             if (processor_index != (rmtU32)-1)
             {
@@ -5621,7 +5752,7 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
                 }
                 else
                 {
-                    AtomicAdd(&thread_profiler->nbSamplesWithoutCallback, -1);
+                    AtomicAddS32(&thread_profiler->nbSamplesWithoutCallback, -1);
                 }
             }
 
@@ -5646,7 +5777,7 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
                 // Mark this as partial so that the listeners know it will be overwritten.
                 Sample* sample = stalling_sample_tree.root->first_child;
                 assert(sample != NULL);
-                QueueSampleTree(thread_profilers->mqToRmtThread, sample, stalling_sample_tree.allocator, thread_profiler->threadName, thread_profiler, RMT_TRUE);
+                QueueSampleTree(thread_profilers->mqToRmtThread, sample, stalling_sample_tree.allocator, thread_profiler->threadName, 0, thread_profiler, RMT_TRUE);
 
                 // The stalling_sample_tree.root->first_child has been sent to the main Remotery thread. This will get released later
                 // when the Remotery thread has processed it. This leaves the stalling_sample_tree.root here that must be freed.
@@ -5733,6 +5864,8 @@ typedef struct PropertySnapshot
     // Data copied from the property at the time of the snapshot
     rmtPropertyType type;
     rmtPropertyValue value;
+    rmtPropertyValue prevValue;
+    rmtU32 prevValueFrame;
     rmtU32 nameHash;
     rmtU32 uniqueID;
 
@@ -5746,6 +5879,7 @@ typedef struct Msg_PropertySnapshot
     PropertySnapshot* rootSnapshot;
     rmtU32 nbSnapshots;
     rmtU32 snapshotDigest;
+    rmtU32 propertyFrame;
 } Msg_PropertySnapshot;
 
 static rmtError PropertySnapshot_Constructor(PropertySnapshot* snapshot)
@@ -5804,6 +5938,12 @@ struct Remotery
     Metal* metal;
 #endif
 
+#if RMT_USE_D3D12
+    // Linked list of all D3D12 queue samplers
+    rmtMutex d3d12BindsMutex;
+    struct D3D12BindImpl* d3d12Binds;
+#endif
+
     ThreadProfilers* threadProfilers;
 
     // Root of all registered properties, guarded by mutex as property register can come from any thread
@@ -5812,6 +5952,9 @@ struct Remotery
 
     // Allocator for property values that get sent to the viewer
     ObjectAllocator* propertyAllocator;
+
+    // Frame used to determine age of property changes
+    rmtU32 propertyFrame;
 };
 
 //
@@ -5953,6 +6096,10 @@ static rmtError bin_SampleTree(Buffer* buffer, Msg_SampleTree* msg)
     if (root_sample->type == RMT_SampleType_D3D11)
     {
         strncat_s(thread_name, sizeof(thread_name), " (D3D11)", 8);
+    }
+    if (root_sample->type == RMT_SampleType_D3D12)
+    {
+        strncat_s(thread_name, sizeof(thread_name), " (D3D12)", 8);
     }
     if (root_sample->type == RMT_SampleType_OpenGL)
     {
@@ -6146,15 +6293,14 @@ static void FreePropertySnapshots(PropertySnapshot* snapshot)
     ObjectAllocator_Free(g_Remotery->propertyAllocator, snapshot);
 }
 
-static rmtError Remotery_SerialisePropertySnapshots(Remotery* rmt, Buffer* bin_buf, Msg_PropertySnapshot* msg_snapshot)
+static rmtError Remotery_SerialisePropertySnapshots(Buffer* bin_buf, Msg_PropertySnapshot* msg_snapshot)
 {
     PropertySnapshot* snapshot;
-
-    rmtError error = RMT_ERROR_NONE;
 
     rmtTry(Buffer_Write(bin_buf, (void*)"PSNP", 4));
     rmtTry(Buffer_WriteU32(bin_buf, msg_snapshot->nbSnapshots));
     rmtTry(Buffer_WriteU32(bin_buf, msg_snapshot->snapshotDigest));
+    rmtTry(Buffer_WriteU32(bin_buf, msg_snapshot->propertyFrame));
     for (snapshot = msg_snapshot->rootSnapshot; snapshot != NULL; snapshot = snapshot->nextSnapshot)
     {
         rmtTry(Buffer_WriteU32(bin_buf, snapshot->type));
@@ -6164,20 +6310,25 @@ static rmtError Remotery_SerialisePropertySnapshots(Remotery* rmt, Buffer* bin_b
                 break;
             case RMT_PropertyType_rmtBool:
                 rmtTry(Buffer_WriteBool(bin_buf, snapshot->value.Bool));
+                rmtTry(Buffer_WriteBool(bin_buf, snapshot->prevValue.Bool));
                 break;
             case RMT_PropertyType_rmtS32:
             case RMT_PropertyType_rmtU32:
             case RMT_PropertyType_rmtF32:   // assume IEEE-754 LE, for now
                 rmtTry(Buffer_WriteU32(bin_buf, snapshot->value.U32));
+                rmtTry(Buffer_WriteU32(bin_buf, snapshot->prevValue.U32));
                 break;
             case RMT_PropertyType_rmtS64:
             case RMT_PropertyType_rmtU64:
                 rmtTry(Buffer_WriteU64(bin_buf, snapshot->value.U64));
+                rmtTry(Buffer_WriteU64(bin_buf, snapshot->prevValue.U64));
                 break;
             case RMT_PropertyType_rmtF64:
                 rmtTry(Buffer_WriteF64(bin_buf, snapshot->value.F64));
+                rmtTry(Buffer_WriteF64(bin_buf, snapshot->prevValue.F64));
                 break;
         }
+        rmtTry(Buffer_WriteU32(bin_buf, snapshot->prevValueFrame));
         rmtTry(Buffer_WriteU32(bin_buf, snapshot->nameHash));
         rmtTry(Buffer_WriteU32(bin_buf, snapshot->uniqueID));
         rmtTry(Buffer_WriteU32(bin_buf, snapshot->nbChildren));
@@ -6199,7 +6350,7 @@ static rmtError Remotery_SendPropertySnapshot(Remotery* rmt, Message* message)
     WebSocket_PrepareBuffer(bin_buf);
 
     // Serialise the message and send
-    error = Remotery_SerialisePropertySnapshots(rmt, bin_buf, msg_snapshot);
+    error = Remotery_SerialisePropertySnapshots(bin_buf, msg_snapshot);
     if (error == RMT_ERROR_NONE)
     {
         error = Remotery_SendToViewerAndLog(rmt, bin_buf, 50);
@@ -6458,6 +6609,7 @@ static rmtError Remotery_Constructor(Remotery* rmt)
     rmt->map_message_queue_data = NULL;
     rmt->threadProfilers = NULL;
     rmt->propertyAllocator = NULL;
+    rmt->propertyFrame = 0;
 
     // Set default state on the root property
     rmtProperty* root_property = &rmt->rootProperty;
@@ -6490,6 +6642,11 @@ static rmtError Remotery_Constructor(Remotery* rmt)
 
 #if RMT_USE_METAL
     rmt->metal = NULL;
+#endif
+
+#if RMT_USE_D3D12
+    mtxInit(&rmt->d3d12BindsMutex);
+    rmt->d3d12Binds = NULL;
 #endif
 
     // Kick-off the timer
@@ -6593,6 +6750,14 @@ static void Remotery_Destructor(Remotery* rmt)
 
     rmtDelete(ThreadProfilers, rmt->threadProfilers);
 
+#if RMT_USE_D3D12
+    while (rmt->d3d12Binds != NULL)
+    {
+        _rmt_UnbindD3D12((rmtD3D12Bind*)rmt->d3d12Binds);
+    }
+    mtxDelete(&rmt->d3d12BindsMutex);
+#endif
+
 #if RMT_USE_OPENGL
     rmtDelete(OpenGL, rmt->opengl);
 #endif
@@ -6607,6 +6772,14 @@ static void Remotery_Destructor(Remotery* rmt)
     rmtDelete(rmtMessageQueue, rmt->mq_to_rmt_thread);
 
     rmtDelete(Server, rmt->server);
+    
+    // Free the error message TLS
+    // TODO(don): The allocated messages will need to be freed as well
+    if (g_lastErrorMessageTlsHandle != TLS_INVALID_HANDLE)
+    {
+        tlsFree(g_lastErrorMessageTlsHandle);
+        g_lastErrorMessageTlsHandle = TLS_INVALID_HANDLE;
+    }
 }
 
 static void* CRTMalloc(void* mm_context, rmtU32 size)
@@ -6638,7 +6811,7 @@ RMT_API rmtSettings* _rmt_Settings(void)
         g_Settings.enableThreadSampler = RMT_TRUE;
         g_Settings.msSleepBetweenServerUpdates = 4;
         g_Settings.messageQueueSizeInBytes = 1024 * 1024;
-        g_Settings.maxNbMessagesPerUpdate = 50;
+        g_Settings.maxNbMessagesPerUpdate = 1000;
         g_Settings.malloc = CRTMalloc;
         g_Settings.free = CRTFree;
         g_Settings.realloc = CRTRealloc;
@@ -6954,12 +7127,31 @@ RMT_API void _rmt_EndCPUSample(void)
         {
             rmtU64 us_end = usTimer_Get(&g_Remotery->timer);
             Sample_Close(sample, us_end);
-            ThreadProfiler_Pop(thread_profiler, g_Remotery->mq_to_rmt_thread, sample);
+            ThreadProfiler_Pop(thread_profiler, g_Remotery->mq_to_rmt_thread, sample, 0);
         }
     }
 }
 
-#if RMT_USE_OPENGL || RMT_USE_D3D11
+#if RMT_USE_D3D12
+static rmtError D3D12MarkFrame(struct D3D12BindImpl* bind);
+#endif
+
+RMT_API rmtError _rmt_MarkFrame(void)
+{
+    if (g_Remotery == NULL)
+    {
+        return RMT_ERROR_REMOTERY_NOT_CREATED;
+    }
+
+    #if RMT_USE_D3D12
+        // This will kick off mark frames on the complete chain of binds
+        rmtTry(D3D12MarkFrame(g_Remotery->d3d12Binds));
+    #endif
+
+    return RMT_ERROR_NONE;
+}
+
+#if RMT_USE_OPENGL || RMT_USE_D3D11 || RMT_USE_D3D12
 static void Remotery_DeleteSampleTree(Remotery* rmt, enum rmtSampleType sample_type)
 {
     ThreadProfiler* thread_profiler;
@@ -7323,7 +7515,7 @@ RMT_API void _rmt_EndCUDASample(void* stream)
         else
         {
             CUDAEventRecord(sample->event_end, stream);
-            ThreadProfiler_Pop(thread_profiler, g_Remotery->mq_to_rmt_thread, (Sample*)sample);
+            ThreadProfiler_Pop(thread_profiler, g_Remotery->mq_to_rmt_thread, (Sample*)sample, 0);
         }
     }
 }
@@ -7389,9 +7581,7 @@ static rmtError D3D11_Create(D3D11** d3d11)
     assert(d3d11 != NULL);
 
     // Allocate space for the D3D11 data
-    *d3d11 = (D3D11*)rmtMalloc(sizeof(D3D11));
-    if (*d3d11 == NULL)
-        return RMT_ERROR_MALLOC_FAIL;
+    rmtTryMalloc(D3D11, *d3d11);
 
     // Set defaults
     (*d3d11)->device = NULL;
@@ -7910,7 +8100,7 @@ static void UpdateD3D11Frame(ThreadProfiler* thread_profiler)
             break;
 
         // Pass samples onto the remotery thread for sending to the viewer
-        QueueSampleTree(g_Remotery->mq_to_rmt_thread, sample, sample_tree->allocator, sample_tree->threadName,
+        QueueSampleTree(g_Remotery->mq_to_rmt_thread, sample, sample_tree->allocator, sample_tree->threadName, 0,
                              message->threadProfiler, RMT_FALSE);
         rmtMessageQueue_ConsumeNextMessage(d3d11->mq_to_d3d11_main, message);
     }
@@ -7948,7 +8138,7 @@ RMT_API void _rmt_EndD3D11Sample(void)
                 D3D11Timestamp_End(d3d_sample->timestamp, d3d11->context);
 
             // Send to the update loop for ready-polling
-            if (ThreadProfiler_Pop(thread_profiler, d3d11->mq_to_d3d11_main, (Sample*)d3d_sample))
+            if (ThreadProfiler_Pop(thread_profiler, d3d11->mq_to_d3d11_main, (Sample*)d3d_sample, 0))
                 // Perform ready-polling on popping of the root sample
                 UpdateD3D11Frame(thread_profiler);
         }
@@ -7956,6 +8146,573 @@ RMT_API void _rmt_EndD3D11Sample(void)
 }
 
 #endif // RMT_USE_D3D11
+
+/*
+------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------
+   @D3D12: Direct3D 12 event sampling
+------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------
+*/
+
+#if RMT_USE_D3D12
+
+// As clReflect has no way of disabling C++ compile mode, this forces C interfaces everywhere...
+#define CINTERFACE
+
+#include <d3d12.h>
+
+typedef struct D3D12ThreadData
+{
+    rmtU32 lastAllocatedQueryIndex;
+
+    // Sample trees in transit in the message queue for release on shutdown
+    Buffer* flushSamples;
+} D3D12ThreadData;
+
+static rmtError D3D12ThreadData_Create(D3D12ThreadData** d3d12_thread_data)
+{
+    assert(d3d12_thread_data != NULL);
+
+    // Allocate space for the D3D12 data
+    rmtTryMalloc(D3D12ThreadData, *d3d12_thread_data);
+
+    // Set defaults
+    (*d3d12_thread_data)->lastAllocatedQueryIndex = 0;
+    (*d3d12_thread_data)->flushSamples = NULL;
+
+    rmtTryNew(Buffer, (*d3d12_thread_data)->flushSamples, 8 * 1024);
+
+    return RMT_ERROR_NONE;
+}
+
+static void D3D12ThreadData_Destructor(D3D12ThreadData* d3d12_thread_data)
+{
+    assert(d3d12_thread_data != NULL);
+    rmtDelete(Buffer, d3d12_thread_data->flushSamples);
+}
+
+typedef struct D3D12Sample
+{
+    // IS-A inheritance relationship
+    Sample base;
+
+    // Cached bind and command list used to create the sample so that the user doesn't have to pass it
+    struct D3D12BindImpl* bind;
+    ID3D12GraphicsCommandList* commandList;
+
+    // Begin/End timestamp indices in the query heap
+    rmtU32 queryIndex;
+
+} D3D12Sample;
+
+static rmtError D3D12Sample_Constructor(D3D12Sample* sample)
+{
+    assert(sample != NULL);
+
+    // Chain to sample constructor
+    Sample_Constructor((Sample*)sample);
+    sample->base.type = RMT_SampleType_D3D12;
+    sample->bind = NULL;
+    sample->commandList = NULL;
+    sample->queryIndex = 0;
+
+    return RMT_ERROR_NONE;
+}
+
+static void D3D12Sample_Destructor(D3D12Sample* sample)
+{
+    Sample_Destructor((Sample*)sample);
+}
+
+typedef struct D3D12BindImpl
+{
+    rmtD3D12Bind base;
+
+    // Ring buffer of GPU timestamp destinations for all queries
+    rmtU32 maxNbQueries;
+    ID3D12QueryHeap* gpuTimestampRingBuffer;
+
+    // CPU-accessible copy destination for all timestamps
+    ID3D12Resource* cpuTimestampRingBuffer;
+
+    // Pointers to samples that expect the result of timestamps
+    D3D12Sample** sampleRingBuffer;
+
+    // Read/write positions of the ring buffer allocator, synchronising access to all the ring buffers at once
+    // TODO(don): Separate by cache line?
+    rmtAtomicU32 ringBufferRead;
+    rmtAtomicU32 ringBufferWrite;
+
+    ID3D12Fence* gpuQueryFence;
+
+
+
+    // Queue to the D3D 12 main update thread
+    rmtMessageQueue* mqToD3D12Update;
+
+    struct D3D12BindImpl* next;
+
+} D3D12BindImpl;
+
+#ifdef IID_PPV_ARGS
+#define C_IID_PPV_ARGS(iid, addr) IID_PPV_ARGS(addr)
+#else
+#define C_IID_PPV_ARGS(iid, addr) &iid, (void**)addr
+#endif
+
+#include <sdkddkver.h>
+
+static rmtError CreateQueryHeap(D3D12BindImpl* bind, ID3D12Device* d3d_device, ID3D12CommandQueue* d3d_queue, rmtU32 nb_queries)
+{
+    HRESULT hr;
+    D3D12_QUERY_HEAP_TYPE query_heap_type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+    D3D12_COMMAND_QUEUE_DESC queue_desc;
+    D3D12_QUERY_HEAP_DESC query_heap_desc;
+
+    // Select the correct query heap type for the copy queue
+    #if WDK_NTDDI_VERSION >= NTDDI_WIN10_CO
+    //d3d_queue->lpVtbl->GetDesc(d3d_queue, &queue_desc);
+    /*if (queue_desc.Type == D3D12_COMMAND_LIST_TYPE_COPY)
+    {
+        D3D12_FEATURE_DATA_D3D12_OPTIONS3 feature_data;
+        hr = d3d_device->lpVtbl->CheckFeatureSupport(d3d_device, D3D12_FEATURE_D3D12_OPTIONS3, &feature_data, sizeof(feature_data));
+        if (hr != S_OK || feature_data.CopyQueueTimestampQueriesSupported == FALSE)
+        {
+            return rmtMakeError(RMT_ERROR_INVALID_INPUT, "Copy queues on this device do not support timestamps");
+        }
+        
+        query_heap_type = D3D12_QUERY_HEAP_TYPE_COPY_QUEUE_TIMESTAMP;
+    }*/
+    #else
+    if (queue_desc.Type == D3D12_COMMAND_LIST_TYPE_COPY)
+    {
+        // On old versions of Windows SDK the D3D C headers incorrectly returned structures
+        // The ABI is different and C++ expects return structures to be silently passed as parameters
+        // The newer headers add an extra out parameter to make this explicit
+        return rmtMakeError(RMT_ERROR_INVALID_INPUT, "Your Win10 SDK version is too old to determine if this device supports timestamps on copy queues");
+    }
+    #endif
+
+    // Create the heap for all the queries
+    ZeroMemory(&query_heap_desc, sizeof(query_heap_desc));
+    query_heap_desc.Type = query_heap_type;
+    query_heap_desc.Count = nb_queries;
+    hr = d3d_device->lpVtbl->CreateQueryHeap(d3d_device, &query_heap_desc, C_IID_PPV_ARGS(IID_ID3D12QueryHeap, &bind->gpuTimestampRingBuffer));
+    if (hr != S_OK)
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_CREATE_FAIL, "Failed to create D3D12 Query Heap");
+    }
+
+    return RMT_ERROR_NONE;
+}
+
+static rmtError CreateCpuQueries(D3D12BindImpl* bind, ID3D12Device* d3d_device)
+{
+    D3D12_HEAP_PROPERTIES results_heap_props;
+    HRESULT hr;
+
+    // We want a readback resource that the GPU can copy to and the CPU can read from
+    ZeroMemory(&results_heap_props, sizeof(results_heap_props));
+    results_heap_props.Type = D3D12_HEAP_TYPE_READBACK;
+
+    // Describe resource dimensions, enough to store a timestamp for each query
+    D3D12_RESOURCE_DESC results_desc;
+    ZeroMemory(&results_desc, sizeof(results_desc));
+    results_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    results_desc.Width = bind->maxNbQueries * sizeof(rmtU64);
+    results_desc.Height = 1;
+    results_desc.DepthOrArraySize = 1;
+    results_desc.MipLevels = 1;
+    results_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    results_desc.SampleDesc.Count = 1;
+
+    hr = d3d_device->lpVtbl->CreateCommittedResource(d3d_device, &results_heap_props, D3D12_HEAP_FLAG_NONE,
+                                                     &results_desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL,
+                                                     C_IID_PPV_ARGS(IID_ID3D12Resource, &bind->cpuTimestampRingBuffer));
+    if (hr != S_OK)
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_CREATE_FAIL, "Failed to create D3D12 Query Results Buffer");
+    }
+
+    return RMT_ERROR_NONE;
+}
+
+static rmtError CreateQueryFence(D3D12BindImpl* bind, ID3D12Device* d3d_device)
+{
+    HRESULT hr = d3d_device->lpVtbl->CreateFence(d3d_device, 0, D3D12_FENCE_FLAG_NONE, C_IID_PPV_ARGS(IID_ID3D12Fence, &bind->gpuQueryFence));
+    if (hr != S_OK)
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_CREATE_FAIL, "Failed to create D3D12 Query Fence");
+    }
+
+    return RMT_ERROR_NONE;
+}
+
+static rmtError CopyTimestamps(D3D12BindImpl* bind, rmtU32 ring_pos_a, rmtU32 ring_pos_b, double gpu_ticks_to_us, rmtS64 gpu_to_cpu_timestamp_us)
+{
+    rmtU32 query_index;
+    D3D12_RANGE map;
+    rmtU64* cpu_timestamps;
+
+    ID3D12Resource* cpu_timestamp_buffer = (ID3D12Resource*)bind->cpuTimestampRingBuffer;
+    D3D12Sample** cpu_sample_buffer = bind->sampleRingBuffer;
+
+    // Map the range we're interesting in reading
+    map.Begin = ring_pos_a * sizeof(rmtU64);
+    map.End = ring_pos_b * sizeof(rmtU64);
+    if (cpu_timestamp_buffer->lpVtbl->Map(cpu_timestamp_buffer, 0, &map, (void**)&cpu_timestamps) != S_OK)
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_ACCESS_FAIL, "Failed to Map D3D12 CPU Timestamp Ring Buffer");
+    }
+
+    // Copy all timestamps to their expectant samples
+    for (query_index = ring_pos_a; query_index < ring_pos_b; query_index += 2)
+    {
+        D3D12Sample* sample = cpu_sample_buffer[query_index >> 1];
+        sample->base.us_start = (rmtU64)(cpu_timestamps[query_index] * gpu_ticks_to_us + gpu_to_cpu_timestamp_us);
+        sample->base.us_end = (rmtU64)(cpu_timestamps[query_index + 1] * gpu_ticks_to_us + gpu_to_cpu_timestamp_us);
+        sample->base.us_length = sample->base.us_end - sample->base.us_start;
+
+        // Sum length on the parent to track un-sampled time in the parent
+        if (sample->base.parent != NULL)
+        {
+            sample->base.parent->us_sampled_length += sample->base.us_length;
+        }
+    }
+
+    cpu_timestamp_buffer->lpVtbl->Unmap(cpu_timestamp_buffer, 0, NULL);
+
+    return RMT_ERROR_NONE;
+}
+
+static rmtError D3D12MarkFrame(D3D12BindImpl* bind)
+{
+    rmtU32 index_mask = bind->maxNbQueries - 1;
+    rmtU32 current_read_cpu = LoadAcquire(&bind->ringBufferRead);
+    rmtU32 current_write_cpu = LoadAcquire(&bind->ringBufferWrite);
+
+    // Tell the GPU where the CPU write position is
+    ID3D12CommandQueue* d3d_queue = (ID3D12CommandQueue*)bind->base.queue;
+    d3d_queue->lpVtbl->Signal(d3d_queue, bind->gpuQueryFence, current_write_cpu);
+
+    // Has the GPU processed any writes?
+    rmtU32 current_write_gpu = (rmtU32)bind->gpuQueryFence->lpVtbl->GetCompletedValue(bind->gpuQueryFence);
+    if (current_write_gpu > current_read_cpu)
+    {
+        rmtU64 gpu_tick_frequency;
+        double gpu_ticks_to_us;
+        rmtU64 gpu_timestamp_us;
+        rmtU64 cpu_timestamp_us;
+        rmtS64 gpu_to_cpu_timestamp_us;
+
+        // Physical ring buffer positions
+        rmtU32 ring_pos_a = current_read_cpu & index_mask;
+        rmtU32 ring_pos_b = current_write_gpu & index_mask;
+
+        // Get current ticks of both CPU and GPU for synchronisation
+        rmtU64 gpu_timestamp_ticks;
+        rmtU64 cpu_timestamp_ticks;
+        if (d3d_queue->lpVtbl->GetClockCalibration(d3d_queue, &gpu_timestamp_ticks, &cpu_timestamp_ticks) != S_OK)
+        {
+            return rmtMakeError(RMT_ERROR_RESOURCE_ACCESS_FAIL, "Failed to D3D12 CPU/GPU Clock Calibration");
+        }
+
+        // Convert GPU ticks to microseconds
+        d3d_queue->lpVtbl->GetTimestampFrequency(d3d_queue, &gpu_tick_frequency);
+        gpu_ticks_to_us = 1000000.0 / gpu_tick_frequency;
+        gpu_timestamp_us = (rmtU64)(gpu_timestamp_ticks * gpu_ticks_to_us);
+
+        // Convert CPU ticks to microseconds, offset from the global timer start
+        cpu_timestamp_us = (rmtU64)((cpu_timestamp_ticks - g_Remotery->timer.counter_start.QuadPart) * g_Remotery->timer.counter_scale);
+
+        // And we now have the offset from GPU microseconds to CPU microseconds
+        gpu_to_cpu_timestamp_us = cpu_timestamp_us - gpu_timestamp_us;
+
+        // Copy resulting timestamps to their samples
+        // Will have to split the copies into two passes if they cross the ring buffer wrap around
+        if (ring_pos_b < ring_pos_a)
+        {
+            rmtTry(CopyTimestamps(bind, ring_pos_a, bind->maxNbQueries, gpu_ticks_to_us, gpu_to_cpu_timestamp_us));
+            rmtTry(CopyTimestamps(bind, 0, ring_pos_b, gpu_ticks_to_us, gpu_to_cpu_timestamp_us));
+        }
+        else
+        {
+            rmtTry(CopyTimestamps(bind, ring_pos_a, ring_pos_b, gpu_ticks_to_us, gpu_to_cpu_timestamp_us));
+        }
+
+        // Release the ring buffer entries just processed
+        StoreRelease(&bind->ringBufferRead, current_write_gpu);
+    }
+
+    // Attempt to empty the queue of complete message trees
+    Message* message;
+    while ((message = rmtMessageQueue_PeekNextMessage(bind->mqToD3D12Update)))
+    {
+        Msg_SampleTree* msg_sample_tree;
+        Sample* root_sample;
+
+        // Ensure only D3D12 sample tree messages come through here
+        assert(message->id == MsgID_SampleTree);
+        msg_sample_tree = (Msg_SampleTree*)message->payload;
+        root_sample = msg_sample_tree->rootSample;
+        assert(root_sample->type == RMT_SampleType_D3D12);
+
+        // If the last-allocated query in this tree has been GPU-processed it's safe to now send the tree to Remotery thread
+        if (current_write_gpu > msg_sample_tree->userData)
+        {
+            QueueSampleTree(g_Remotery->mq_to_rmt_thread, root_sample, msg_sample_tree->allocator, msg_sample_tree->threadName,
+                                0, message->threadProfiler, RMT_FALSE);
+            rmtMessageQueue_ConsumeNextMessage(bind->mqToD3D12Update, message);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    // Chain to the next bind here so that root calling code doesn't need to know the definition of D3D12BindImpl
+    if (bind->next != NULL)
+    {
+        rmtTry(D3D12MarkFrame(bind->next));
+    }
+    
+    return RMT_ERROR_NONE;
+}
+
+static rmtError SampleD3D12GPUThreadLoop(rmtThread* rmt_thread)
+{
+    D3D12BindImpl* bind = (D3D12BindImpl*)rmt_thread->param;
+
+    while (rmt_thread->request_exit == RMT_FALSE)
+    {
+        msSleep(15);
+    }
+
+    return RMT_ERROR_NONE;
+}
+
+RMT_API rmtError _rmt_BindD3D12(void* device, void* queue, rmtD3D12Bind** out_bind)
+{
+    D3D12BindImpl* bind;
+    ID3D12Device* d3d_device = (ID3D12Device*)device;
+    ID3D12CommandQueue* d3d_queue = (ID3D12CommandQueue*)queue;
+
+    if (g_Remotery == NULL)
+    {
+        return RMT_ERROR_REMOTERY_NOT_CREATED;
+    }
+
+    assert(device != NULL);
+    assert(queue != NULL);
+    assert(out_bind != NULL);
+
+    // Allocate the bind container
+    rmtTryMalloc(D3D12BindImpl, bind);
+
+    // Set default state
+    bind->base.device = device;
+    bind->base.queue = queue;
+    bind->maxNbQueries = 32 * 1024;
+    bind->gpuTimestampRingBuffer = NULL;
+    bind->cpuTimestampRingBuffer = NULL;
+    bind->sampleRingBuffer = NULL;
+    bind->ringBufferRead = 0;
+    bind->ringBufferWrite = 0;
+    bind->gpuQueryFence = NULL;
+    bind->mqToD3D12Update = NULL;
+    bind->next = NULL;
+
+    // Create the independent ring buffer storage items
+    // TODO(don): Leave space beetween start and end to stop invalidating cache lines?
+    // NOTE(don): ABA impossible due to non-wrapping ring buffer indices
+    rmtTry(CreateQueryHeap(bind, d3d_device, d3d_queue, bind->maxNbQueries));
+    rmtTry(CreateCpuQueries(bind, d3d_device));
+    rmtTryMallocArray(D3D12Sample*, bind->sampleRingBuffer, bind->maxNbQueries / 2);
+    rmtTry(CreateQueryFence(bind, d3d_device));
+
+    rmtTryNew(rmtMessageQueue, bind->mqToD3D12Update, g_Settings.messageQueueSizeInBytes);
+
+    // Add to the global linked list of binds
+    {
+        mtxLock(&g_Remotery->d3d12BindsMutex);
+        bind->next = g_Remotery->d3d12Binds;
+        g_Remotery->d3d12Binds = bind;
+        mtxUnlock(&g_Remotery->d3d12BindsMutex);
+    }
+
+    *out_bind = &bind->base;
+
+    return RMT_ERROR_NONE;
+}
+
+RMT_API void _rmt_UnbindD3D12(rmtD3D12Bind* bind)
+{
+    D3D12BindImpl* d3d_bind = (D3D12BindImpl*)bind;
+
+    assert(bind != NULL);
+
+    // Remove from the linked list
+    {
+        mtxLock(&g_Remotery->d3d12BindsMutex);
+        D3D12BindImpl* cur = g_Remotery->d3d12Binds;
+        D3D12BindImpl* prev = NULL;
+        for ( ; cur != NULL; cur = cur->next)
+        {
+            if (cur == d3d_bind)
+            {
+                if (prev != NULL)
+                {
+                    prev->next = cur->next;
+                }
+                else
+                {
+                    g_Remotery->d3d12Binds = cur->next;
+                }
+
+                break;
+            }
+        }
+        mtxUnlock(&g_Remotery->d3d12BindsMutex);
+    }
+
+    if (d3d_bind->gpuQueryFence != NULL)
+    {
+        d3d_bind->gpuQueryFence->lpVtbl->Release(d3d_bind->gpuQueryFence);
+    }
+
+    rmtFree(d3d_bind->sampleRingBuffer);
+
+    if (d3d_bind->cpuTimestampRingBuffer != NULL)
+    {
+        d3d_bind->cpuTimestampRingBuffer->lpVtbl->Release(d3d_bind->cpuTimestampRingBuffer);
+    }
+
+    if (d3d_bind->gpuTimestampRingBuffer != NULL)
+    {
+        d3d_bind->gpuTimestampRingBuffer->lpVtbl->Release(d3d_bind->gpuTimestampRingBuffer);
+    }
+}
+
+static rmtError AllocateD3D12SampleTree(SampleTree** d3d_tree)
+{
+    rmtTryNew(SampleTree, *d3d_tree, sizeof(D3D12Sample), (ObjConstructor)D3D12Sample_Constructor,
+            (ObjDestructor)D3D12Sample_Destructor);
+    return RMT_ERROR_NONE;
+}
+
+static rmtError AllocQueryPair(D3D12BindImpl* d3d_bind, rmtAtomicU32* out_allocation_index)
+{
+    // Check for overflow against a tail which is only ever written by one thread
+    rmtU32 read = LoadAcquire(&d3d_bind->ringBufferRead);
+    rmtU32 write = LoadAcquire(&d3d_bind->ringBufferWrite);
+    rmtU32 nb_queries = (write - read);
+    rmtU32 queries_left = d3d_bind->maxNbQueries - nb_queries;
+    if (queries_left < 2)
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_CREATE_FAIL, "D3D12 query ring buffer overflow");
+    }
+
+    *out_allocation_index = AtomicAddU32(&d3d_bind->ringBufferWrite, 2);
+    return RMT_ERROR_NONE;
+}
+
+RMT_API void _rmt_BeginD3D12Sample(rmtD3D12Bind* bind, void* command_list, rmtPStr name, rmtU32* hash_cache)
+{
+    ThreadProfiler* thread_profiler;
+
+    if (g_Remotery == NULL)
+        return;
+
+    if (ThreadProfilers_GetCurrentThreadProfiler(g_Remotery->threadProfilers, &thread_profiler) == RMT_ERROR_NONE)
+    {
+        Sample* sample;
+        rmtU32 name_hash;
+        SampleTree** d3d_tree;
+
+        name_hash = ThreadProfiler_GetNameHash(thread_profiler, g_Remotery->mq_to_rmt_thread, name, hash_cache);
+
+        // Create the D3D12 tree on-demand as the tree needs an up-front-created root.
+        // This is not possible to create on initialisation as a D3D12 binding is not yet available.
+        d3d_tree = &thread_profiler->sampleTrees[RMT_SampleType_D3D12];
+        if (*d3d_tree == NULL)
+        {
+            AllocateD3D12SampleTree(d3d_tree);
+        }
+
+        // Push the sample and activate the timestamp
+        if (ThreadProfiler_Push(*d3d_tree, name_hash, 0, &sample) == RMT_ERROR_NONE)
+        {
+            rmtError error;
+
+            D3D12BindImpl* d3d_bind = (D3D12BindImpl*)bind;
+            ID3D12GraphicsCommandList* d3d_command_list = (ID3D12GraphicsCommandList*)command_list;
+
+            D3D12Sample* d3d_sample = (D3D12Sample*)sample;
+            d3d_sample->bind = d3d_bind;
+            d3d_sample->commandList = d3d_command_list;
+
+            error = AllocQueryPair(d3d_bind, &d3d_sample->queryIndex);
+            if (error == RMT_ERROR_NONE)
+            {
+                rmtU32 physical_query_index = d3d_sample->queryIndex & (d3d_bind->maxNbQueries - 1);
+                d3d_command_list->lpVtbl->EndQuery(d3d_command_list, d3d_bind->gpuTimestampRingBuffer, D3D12_QUERY_TYPE_TIMESTAMP, physical_query_index);
+
+                // Track which D3D sample expects the timestamp results
+                d3d_bind->sampleRingBuffer[physical_query_index / 2] = d3d_sample;
+
+                // Keep track of the last allocated query so we can check when the GPU has finished with them all
+                thread_profiler->d3d12ThreadData->lastAllocatedQueryIndex = d3d_sample->queryIndex;
+            }
+            else
+            {
+                // SET QUERY INDEX TO INVALID so that pop doesn't release it
+            }
+        }
+    }
+}
+
+RMT_API void _rmt_EndD3D12Sample()
+{
+    ThreadProfiler* thread_profiler;
+
+    if (g_Remotery == NULL)
+        return;
+
+    if (ThreadProfilers_GetCurrentThreadProfiler(g_Remotery->threadProfilers, &thread_profiler) == RMT_ERROR_NONE)
+    {
+        D3D12ThreadData* d3d_thread_data = thread_profiler->d3d12ThreadData;
+        D3D12Sample* d3d_sample;
+
+        // Close the timestamp
+        d3d_sample = (D3D12Sample*)thread_profiler->sampleTrees[RMT_SampleType_D3D12]->currentParent;
+        if (d3d_sample->base.recurse_depth > 0)
+        {
+            d3d_sample->base.recurse_depth--;
+        }
+        else
+        {
+            // Issue the timestamp query for the end of the sample
+            D3D12BindImpl* d3d_bind = d3d_sample->bind;
+            ID3D12GraphicsCommandList* d3d_command_list = d3d_sample->commandList;
+            rmtU32 query_index = d3d_sample->queryIndex & (d3d_bind->maxNbQueries - 1);
+            d3d_command_list->lpVtbl->EndQuery(d3d_command_list, d3d_bind->gpuTimestampRingBuffer, D3D12_QUERY_TYPE_TIMESTAMP,
+                                               query_index + 1);
+
+            // Immediately schedule resolve of the timestamps to CPU-visible memory
+            d3d_command_list->lpVtbl->ResolveQueryData(d3d_command_list, d3d_bind->gpuTimestampRingBuffer,
+                                                       D3D12_QUERY_TYPE_TIMESTAMP, query_index, 2,
+                                                       d3d_bind->cpuTimestampRingBuffer, query_index * sizeof(rmtU64));
+
+            if (ThreadProfiler_Pop(thread_profiler, d3d_bind->mqToD3D12Update, (Sample*)d3d_sample,
+                                   d3d_thread_data->lastAllocatedQueryIndex))
+            {
+            }
+        }
+    }
+}
+
+#endif // RMT_USE_D3D12
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
@@ -8118,9 +8875,7 @@ static rmtError OpenGL_Create(OpenGL** opengl)
 {
     assert(opengl != NULL);
 
-    *opengl = (OpenGL*)rmtMalloc(sizeof(OpenGL));
-    if (*opengl == NULL)
-        return RMT_ERROR_MALLOC_FAIL;
+    rmtTryMalloc(OpenGL, *opengl);
 
     (*opengl)->dll_handle = NULL;
 
@@ -8484,7 +9239,7 @@ static void UpdateOpenGLFrame(void)
             break;
 
         // Pass samples onto the remotery thread for sending to the viewer
-        QueueSampleTree(g_Remotery->mq_to_rmt_thread, sample, sample_tree->allocator, sample_tree->threadName,
+        QueueSampleTree(g_Remotery->mq_to_rmt_thread, sample, sample_tree->allocator, sample_tree->threadName, 0,
                              message->threadProfiler, RMT_FALSE);
         rmtMessageQueue_ConsumeNextMessage(opengl->mq_to_opengl_main, message);
     }
@@ -8513,7 +9268,7 @@ RMT_API void _rmt_EndOpenGLSample(void)
                 OpenGLTimestamp_End(ogl_sample->timestamp);
 
             // Send to the update loop for ready-polling
-            if (ThreadProfiler_Pop(thread_profiler, g_Remotery->opengl->mq_to_opengl_main, (Sample*)ogl_sample))
+            if (ThreadProfiler_Pop(thread_profiler, g_Remotery->opengl->mq_to_opengl_main, (Sample*)ogl_sample, 0))
                 // Perform ready-polling on popping of the root sample
                 UpdateOpenGLFrame();
         }
@@ -8544,9 +9299,7 @@ static rmtError Metal_Create(Metal** metal)
 {
     assert(metal != NULL);
 
-    *metal = (Metal*)rmtMalloc(sizeof(Metal));
-    if (*metal == NULL)
-        return RMT_ERROR_MALLOC_FAIL;
+    rmtTryMallocArray(Metal, *metal);
 
     (*metal)->mq_to_metal_main = NULL;
 
@@ -8770,7 +9523,7 @@ static void UpdateMetalFrame(void)
             break;
 
         // Pass samples onto the remotery thread for sending to the viewer
-        QueueSampleTree(g_Remotery->mq_to_rmt_thread, sample, sample_tree->allocator, sample_tree->threadName,
+        QueueSampleTree(g_Remotery->mq_to_rmt_thread, sample, sample_tree->allocator, sample_tree->threadName, 0,
                              message->threadProfiler, RMT_FALSE);
         rmtMessageQueue_ConsumeNextMessage(metal->mq_to_metal_main, message);
     }
@@ -8799,7 +9552,7 @@ RMT_API void _rmt_EndMetalSample(void)
                 MetalTimestamp_End(metal_sample->timestamp);
 
             // Send to the update loop for ready-polling
-            if (ThreadProfiler_Pop(thread_profiler, g_Remotery->metal->mq_to_metal_main, (Sample*)metal_sample))
+            if (ThreadProfiler_Pop(thread_profiler, g_Remotery->metal->mq_to_metal_main, (Sample*)metal_sample, 0))
                 // Perform ready-polling on popping of the root sample
                 UpdateMetalFrame();
         }
@@ -9013,17 +9766,9 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
             }
 
             // Calculate the name hash and send it to the viewer
-/// DEFOLD
-            const char* name = property->name;
-            if (name[0]=='r' && name[1]=='m' && name[2]=='t' && name[3]=='p' && name[4]=='_')
-            {
-                name = name + 5;
-            }
-
-            name_len = strnlen_s(name, 256);
-            property->nameHash = MurmurHash3_x86_32(name, name_len, 0);
-            QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
-/// END DEFOLD
+            name_len = strnlen_s(property->name, 256);
+            property->nameHash = MurmurHash3_x86_32(property->name, name_len, 0);
+            QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, property->name, name_len, NULL);
 
             // Generate a unique ID for this property in the tree
             property->uniqueID = parent_property->uniqueID;
@@ -9089,11 +9834,13 @@ static rmtError TakePropertySnapshot(rmtProperty* property, PropertySnapshot* pa
     // Snapshot the property
     snapshot->type = property->type;
     snapshot->value = property->value;
+    snapshot->prevValue = property->prevValue;
+    snapshot->prevValueFrame = property->prevValueFrame;
     snapshot->nameHash = property->nameHash;
     snapshot->uniqueID = property->uniqueID;
     snapshot->nbChildren = 0;
     snapshot->nextSnapshot = NULL;
-
+    
     // Keep a running hash of all snapshots being sent
     *snapshot_digest = HashCombine(*snapshot_digest, snapshot->nameHash);
 
@@ -9148,8 +9895,8 @@ RMT_API rmtError _rmt_PropertySnapshotAll()
     }
 
     // Mark current allocation count so we can quickly calculate the number of snapshots being sent
-    nb_snapshot_allocs = g_Remotery->propertyAllocator->nb_allocated;
-
+    nb_snapshot_allocs = g_Remotery->propertyAllocator->nb_inuse;
+    
     // Snapshot from the root into a linear list
     first_snapshot = NULL;
     prev_snapshot = NULL;
@@ -9180,24 +9927,53 @@ RMT_API rmtError _rmt_PropertySnapshotAll()
     // Populate and commit
     payload = (Msg_PropertySnapshot*)message->payload;
     payload->rootSnapshot = first_snapshot;
-    payload->nbSnapshots = g_Remotery->propertyAllocator->nb_allocated - nb_snapshot_allocs;
+    payload->nbSnapshots = g_Remotery->propertyAllocator->nb_inuse - nb_snapshot_allocs;
     payload->snapshotDigest = snapshot_digest;
+    payload->propertyFrame = g_Remotery->propertyFrame;
     rmtMessageQueue_CommitMessage(message, MsgID_PropertySnapshot);
 
     return RMT_ERROR_NONE;
 }
 
-static void PropertyFrameReset(rmtProperty* first_property)
+static void PropertyFrameReset(Remotery* rmt, rmtProperty* first_property)
 {
     rmtProperty* property;
     for (property = first_property; property != NULL; property = property->nextSibling)
     {
-        if (property->type == RMT_PropertyType_rmtGroup)
+        // TODO(don): It might actually be quicker to sign-extend assignments but this gives me a nice debug hook for now
+        rmtBool changed = RMT_FALSE;
+        switch (property->type)
         {
-            PropertyFrameReset(property->firstChild);
+            case RMT_PropertyType_rmtGroup:
+                PropertyFrameReset(rmt, property->firstChild);
+                break;
+
+            case RMT_PropertyType_rmtBool:
+                changed = property->lastFrameValue.Bool != property->value.Bool;
+                break;
+
+            case RMT_PropertyType_rmtS32:
+            case RMT_PropertyType_rmtU32:
+            case RMT_PropertyType_rmtF32:
+                changed = property->lastFrameValue.U32 != property->value.U32;
+                break;
+
+            case RMT_PropertyType_rmtS64:
+            case RMT_PropertyType_rmtU64:
+            case RMT_PropertyType_rmtF64:
+                changed = property->lastFrameValue.U64 != property->value.U64;
+                break;
         }
 
-        else if ((property->flags & RMT_PropertyFlags_FrameReset) != 0)
+        if (changed)
+        {
+            property->prevValue = property->lastFrameValue;
+            property->prevValueFrame = rmt->propertyFrame;
+        }
+
+        property->lastFrameValue = property->value;
+
+        if ((property->flags & RMT_PropertyFlags_FrameReset) != 0)
         {
             property->value = property->defaultValue;
         }
@@ -9212,8 +9988,10 @@ RMT_API void _rmt_PropertyFrameResetAll()
     }
 
     mtxLock(&g_Remotery->propertyMutex);
-    PropertyFrameReset(g_Remotery->rootProperty.firstChild);
+    PropertyFrameReset(g_Remotery, g_Remotery->rootProperty.firstChild);
     mtxUnlock(&g_Remotery->propertyMutex);
+
+    g_Remotery->propertyFrame++;
 }
 
 #endif // RMT_ENABLED

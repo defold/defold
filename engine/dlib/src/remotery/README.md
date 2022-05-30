@@ -1,6 +1,8 @@
 
 ## Update the library
 
+See [](./update.sh) for an copying the files
+
 Copy the C file to engine:
 
     cp -v ~/notwork/Remotery/lib/*.c engine/dlib/src/remotery/
