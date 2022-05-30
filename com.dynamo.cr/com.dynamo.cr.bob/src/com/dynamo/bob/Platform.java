@@ -24,7 +24,8 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 
 public enum Platform {
     // arch, os, exeSuffixes, exePrefix, libSuffix, libPrefix, extenderPaths, architectures, extenderPair
-    X86_64MacOS("x86_64", "macos", new String[] {""}, "", "lib", ".dylib", new String[] {"x86_64-macos"}, PlatformArchitectures.MacOS, "x86_64-macos"),
+    //    extenderPaths: The extenderPaths are the searh directories that we use when looking for platform resources for a remote build
+    X86_64MacOS("x86_64", "macos", new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.MacOS, "x86_64-osx"),
     X86Win32("x86", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows32, "x86-win32"),
     X86_64Win32("x86_64", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows64, "x86_64-win32"),
     X86Linux("x86", "linux", new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
@@ -41,9 +42,9 @@ public enum Platform {
     static {
         platformPatterns.put(PlatformProfile.OS.OS_ID_GENERIC, "^$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WINDOWS, "^x86(_64)?-win32$");
-        platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^x86(_64)?-darwin$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^x86(_64)?-macos$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_LINUX,   "^x86(_64)?-linux$");
-        platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^(arm64-darwin)|(x86_64-ios)$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^((arm64)|(x86_64))-ios$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^arm((v7)|(64))-android$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^((js)|(wasm))-web$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_SWITCH,  "^(arm64-nx64)$");
