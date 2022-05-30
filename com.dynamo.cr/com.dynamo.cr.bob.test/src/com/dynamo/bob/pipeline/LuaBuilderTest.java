@@ -58,7 +58,8 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("go.property(\"material\", resource.material(\"/material.material\"))\n");
         src.append("\n");
         src.append("    go.property(  \"space_number\"  ,  1   )\n");
-        src.append("go.property(\"semi_colon\", 1); \n");
+        // we need something in-front of the go.property to "catch" the stray semi-colon when it has been removed
+        src.append("foo='bar' go.property(\"semi_colon\", 1);\n");
         LuaModule luaModule = (LuaModule)build("/test.script", src.toString()).get(0);
         PropertyDeclarations properties = luaModule.getProperties();
         assertEquals(3, properties.getNumberEntriesCount());
