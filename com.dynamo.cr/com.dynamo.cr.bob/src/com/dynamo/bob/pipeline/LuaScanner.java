@@ -166,6 +166,14 @@ public class LuaScanner extends LuaParserBaseListener {
     }
 
     /**
+     * Get the parsed Lua code
+     * @return The parsed Lua code
+     */
+    public String getParsedLua() {
+        return parsedBuffer.toString();
+    }
+
+    /**
      * Get a list of all Lua modules found by a call to parse().
      * @return List of Lua modules
      */
@@ -211,12 +219,14 @@ public class LuaScanner extends LuaParserBaseListener {
      */
     @Override
     public void enterChunk(LuaParser.ChunkContext ctx) {
+        TimeProfiler.start("Lua Chunk Parser");
         List<Token> tokens = getTokens(ctx);
         for(Token token : tokens) {
             if (token.getChannel() == LuaLexer.COMMENT) {
                 removeToken(token);
             }
         }
+        TimeProfiler.stop();
     }
 
     /**
@@ -225,6 +235,7 @@ public class LuaScanner extends LuaParserBaseListener {
      */
     @Override
     public void enterFunctioncall(LuaParser.FunctioncallContext ctx) {
+        TimeProfiler.start("Lua Function Parser");
         String text = ctx.getText();
         // require() call?
         final boolean startsWithRequire = text.startsWith("require");
@@ -298,6 +309,7 @@ public class LuaScanner extends LuaParserBaseListener {
             }
             TimeProfiler.stop();
         }
+        TimeProfiler.stop();
     }
 
 
