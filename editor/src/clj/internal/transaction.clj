@@ -376,28 +376,40 @@
 (declare ctx-add-node)
 
 (defn- ctx-make-override-nodes [ctx override-id node-ids]
-  (reduce (fn [ctx node-id]
-            (let [basis (:basis ctx)]
-              (if (some #(= override-id (node-id->override-id basis %)) (ig/get-overrides basis node-id))
+  (let [basis (:basis ctx)]
+    (reduce (fn [ctx node-id]
+              (if (some #(= override-id (node-id->override-id basis %))
+                        (ig/get-overrides basis node-id))
                 ctx
                 (let [graph-id (gt/node-id->graph-id node-id)
                       new-override-node-id (next-node-id ctx graph-id)
                       new-override-node (in/make-override-node override-id new-override-node-id node-id {})]
                   (-> ctx
                       (ctx-add-node new-override-node)
-                      (ctx-override-node node-id new-override-node-id))))))
-          ctx node-ids))
+                      (ctx-override-node node-id new-override-node-id)))))
+            ctx
+            node-ids)))
 
 (defn- populate-overrides [ctx node-id]
   (let [basis (:basis ctx)
         override-node-ids (ig/get-overrides basis node-id)
-        ctx (reduce (fn [ctx override-node-id]
-                      (let [override-id (node-id->override-id basis override-node-id)
-                            traverse-fn (:traverse-fn (ig/override-by-id basis override-id))
-                            node-ids (subvec (ig/pre-traverse basis [node-id] traverse-fn) 1)]
-                        (ctx-make-override-nodes ctx override-id node-ids)))
-                    ctx
-                    override-node-ids)]
+        override-node-count (count override-node-ids)
+        ctx (loop [override-node-index 0
+                   ctx ctx
+                   prev-traverse-fn nil
+                   prev-traverse-result nil]
+              (if (>= override-node-index override-node-count)
+                ctx
+                (let [^long override-node-id (override-node-ids override-node-index)
+                      override-id (node-id->override-id basis override-node-id)
+                      traverse-fn (:traverse-fn (ig/override-by-id basis override-id))
+                      node-ids (if (identical? prev-traverse-fn traverse-fn)
+                                 prev-traverse-result
+                                 (subvec (ig/pre-traverse basis [node-id] traverse-fn) 1))]
+                  (recur (inc override-node-index)
+                         (ctx-make-override-nodes ctx override-id node-ids)
+                         traverse-fn
+                         node-ids))))]
     (reduce populate-overrides
             ctx
             override-node-ids)))
@@ -478,7 +490,9 @@
                       ctx
                       override-node-ids))
         (as-> ctx
-              (reduce populate-overrides ctx (vals from-id->to-id))))))
+              (reduce populate-overrides
+                      ctx
+                      (vals from-id->to-id))))))
 
 (defmethod metrics-key :transfer-overrides
   [{:keys [from-id->to-id]}]
@@ -614,12 +628,20 @@
     (disconnect-inputs ctx target-id target-label)
     ctx))
 
-(defn- ctx-add-overrides-from-connection [ctx source-id source-label target target-label]
+(defn- flag-override-nodes-affected [ctx target target-label]
   (let [basis (:basis ctx)
-        target-id (gt/node-id target)]
-    (if ((in/cascade-deletes (gt/node-type target basis)) target-label)
-      (populate-overrides ctx target-id)
-      ctx)))
+        target-id (gt/node-id target)
+        override-nodes-affected-seen (:override-nodes-affected-seen ctx)]
+    (if (contains? override-nodes-affected-seen target-id)
+      ctx
+      (let [target-node-type (gt/node-type target basis)
+            target-cascade-deletes (in/cascade-deletes target-node-type)]
+        (if-not (contains? target-cascade-deletes target-label)
+          ctx
+          (let [override-nodes-affected-ordered (:override-nodes-affected-ordered ctx)]
+            (assoc ctx
+              :override-nodes-affected-seen (conj override-nodes-affected-seen target-id)
+              :override-nodes-affected-ordered (conj override-nodes-affected-ordered target-id))))))))
 
 (defn- assert-type-compatible
   [basis source-id source-node source-label target-id target-node target-label]
@@ -649,12 +671,12 @@
       (do
         (assert-type-compatible (:basis ctx) source-id source source-label target-id target target-label)
         (-> ctx
-                                        ; If the input has :one cardinality, disconnect existing connections first
+            ;; If the input has :one cardinality, disconnect existing connections first
             (ctx-disconnect-single target target-id target-label)
             (mark-input-activated target-id target-label)
             (update :basis gt/connect source-id source-label target-id target-label)
             (flag-successors-changed [[source-id source-label]])
-            (ctx-add-overrides-from-connection source-id source-label target target-label)))
+            (flag-override-nodes-affected target target-label)))
       ctx)
     ctx))
 
@@ -791,6 +813,8 @@
    :nodes-deleted {}
    :outputs-modified #{}
    :graphs-modified #{}
+   :override-nodes-affected-seen #{}
+   :override-nodes-affected-ordered []
    :successors-changed {}
    :node-id-generators node-id-generators
    :override-id-generator override-id-generator
@@ -799,6 +823,13 @@
    :tx-data-context (atom {})
    :deferred-setters []
    :metrics metrics-collector})
+
+(defn- update-overrides
+  [{:keys [override-nodes-affected-ordered] :as ctx}]
+  (du/measuring (:metrics ctx) :update-overrides
+    (reduce populate-overrides
+            ctx
+            override-nodes-affected-ordered)))
 
 (defn- update-successors
   [{:keys [successors-changed] :as ctx}]
@@ -824,6 +855,7 @@
     (println (txerrstr ctx "actions" (seq actions))))
   (-> ctx
       (apply-tx actions)
+      update-overrides
       mark-nodes-modified
       update-successors
       trace-dependencies
