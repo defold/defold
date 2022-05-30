@@ -472,7 +472,6 @@ def main(argv):
         engine_channel = "dev"
         editor_channel = "dev"
         make_release = False
-        skip_editor_tests = True
         engine_artifacts = args.engine_artifacts or "archived"
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))

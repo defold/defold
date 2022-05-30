@@ -78,10 +78,6 @@ public class LinuxBundler implements IBundler {
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
 
-        // In order to make a transition period, while phasing out 32 bit Darwin/Linux support completely, we will only support 64 bit for extensions
-        final List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
-        final boolean hasExtensions = !extensionFolders.isEmpty();
-
         BundleHelper.throwIfCanceled(canceled);
 
         bundleApplicationForPlatform(platform, project, appDir, exeName);

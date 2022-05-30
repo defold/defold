@@ -34,6 +34,7 @@ import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.bob.pipeline.antlr.LuaParser;
 import com.dynamo.bob.pipeline.antlr.LuaLexer;
@@ -136,6 +137,7 @@ public class LuaScanner extends LuaParserBaseListener {
      * @return Parsed string
      */
     public String parse(String str) {
+        TimeProfiler.start("Parse");
         modules.clear();
         properties.clear();
 
@@ -155,12 +157,21 @@ public class LuaScanner extends LuaParserBaseListener {
         // set up the lexer and parser
         // walk the generated parse tree from the
         // first Lua chunk
+
+        TimeProfiler.start("Create LuaLexer");
         LuaLexer lexer = new LuaLexer(CharStreams.fromString(str));
+        TimeProfiler.stop();
+        TimeProfiler.start("Create CommonTokenStream");
         tokenStream = new CommonTokenStream(lexer);
+        TimeProfiler.stop();
+        TimeProfiler.start("Create LuaParser");
         LuaParser parser = new LuaParser(tokenStream);
+        TimeProfiler.stop();
+        TimeProfiler.start("ParseTreeWalker");
         ParseTreeWalker walker = new ParseTreeWalker();
         walker.walk(this, parser.chunk());
-
+        TimeProfiler.stop();
+        TimeProfiler.stop();
         // return the parsed string
         return parsedBuffer.toString();
     }
@@ -299,6 +310,7 @@ public class LuaScanner extends LuaParserBaseListener {
 
 
     private static Property parseProperty(String propString, int line) {
+        TimeProfiler.start("parseProperty");
         Matcher propDeclMatcher = propertyDeclPattern.matcher(propString);
         if (!propDeclMatcher.matches()) {
             return null;
@@ -316,12 +328,13 @@ public class LuaScanner extends LuaParserBaseListener {
                 property.status = Status.INVALID_VALUE;
             }
         }
-
+        TimeProfiler.stop();
         return property;
     }
 
 
     private static boolean parsePropertyValue(String rawValue, Property property) {
+        TimeProfiler.start("parsePropertyValue");
         boolean result = false;
         for (Pattern pattern : patterns) {
             Matcher matcher = pattern.matcher(property.rawValue);
@@ -395,6 +408,7 @@ public class LuaScanner extends LuaParserBaseListener {
                 break;
             }
         }
+        TimeProfiler.stop();
         return result;
     }
 
