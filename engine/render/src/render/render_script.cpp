@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -640,6 +640,11 @@ namespace dmRender
      * `u_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
      * `v_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
      *
+     * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters, but
+     * they will always be created with the same width and height as the first attachment. Attachments must be added in sequence, meaning you cannot
+     * create a render target at slot 0 and 3. Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by render.BUFFER_COLORX_BIT where
+     * 'X' is the attachment you want to create).
+     *
      * @name render.render_target
      * @param name [type:string] render target name
      * @param parameters [type:table] table of buffer parameters, see the description for available keys and values
@@ -664,6 +669,44 @@ namespace dmRender
      *                            u_wrap = render.WRAP_CLAMP_TO_EDGE,
      *                            v_wrap = render.WRAP_CLAMP_TO_EDGE }
      *     self.my_render_target = render.render_target({[render.BUFFER_COLOR_BIT] = color_params, [render.BUFFER_DEPTH_BIT] = depth_params })
+     * end
+     *
+     * function update(self, dt)
+     *     -- enable target so all drawing is done to it
+     *     render.enable_render_target(self.my_render_target)
+     *
+     *     -- draw a predicate to the render target
+     *     render.draw(self.my_pred)
+     * end
+     * ```
+     *
+     * How to create a render target with multiple outputs:
+     *
+     * ```lua
+     * function init(self)
+     *     -- render target buffer parameters
+     *     local color_params_rgba = { format = render.FORMAT_RGBA,
+     *                                 width = render.get_window_width(),
+     *                                 height = render.get_window_height(),
+     *                                 min_filter = render.FILTER_LINEAR,
+     *                                 mag_filter = render.FILTER_LINEAR,
+     *                                 u_wrap = render.WRAP_CLAMP_TO_EDGE,
+     *                                 v_wrap = render.WRAP_CLAMP_TO_EDGE }
+     *     local color_params_float = { format = render.FORMAT_RG32F,
+     *                            width = render.get_window_width(),
+     *                            height = render.get_window_height(),
+     *                            min_filter = render.FILTER_LINEAR,
+     *                            mag_filter = render.FILTER_LINEAR,
+     *                            u_wrap = render.WRAP_CLAMP_TO_EDGE,
+     *                            v_wrap = render.WRAP_CLAMP_TO_EDGE }
+     *
+     *
+     *     -- Create a render target with three color attachments
+     *     -- Note: No depth buffer is attached here
+     *     self.my_render_target = render.render_target({
+     *            [render.BUFFER_COLOR0_BIT] = color_params_rgba,
+     *            [render.BUFFER_COLOR1_BIT] = color_params_rgba,
+     *            [render.BUFFER_COLOR2_BIT] = color_params_float, })
      * end
      *
      * function update(self, dt)
@@ -1073,6 +1116,14 @@ namespace dmRender
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
+     * If the render target has been created with multiple color attachments, these buffer types can be used
+     * to enable those textures as well. Currently only 4 color attachments are supported.
+     *
+     * - `render.BUFFER_COLOR0_BIT`
+     * - `render.BUFFER_COLOR1_BIT`
+     * - `render.BUFFER_COLOR2_BIT`
+     * - `render.BUFFER_COLOR3_BIT`
+     *
      * @examples
      *
      * ```lua
@@ -1256,6 +1307,26 @@ namespace dmRender
      */
 
     /*#
+     * @name render.BUFFER_COLOR0_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_COLOR1_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_COLOR2_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_COLOR3_BIT
+     * @variable
+     */
+
+    /*#
      * @name render.BUFFER_DEPTH_BIT
      * @variable
      */
@@ -1266,7 +1337,8 @@ namespace dmRender
      */
 
     /*# clears the active render target
-     * Clear buffers in the currently enabled render target with specified value.
+     * Clear buffers in the currently enabled render target with specified value. If the render target has been created with multiple
+     * color attachments, all buffers will be cleared with the same value.
      *
      * @name render.clear
      * @param buffers [type:table] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
