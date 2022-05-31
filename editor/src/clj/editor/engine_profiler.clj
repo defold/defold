@@ -21,8 +21,9 @@
   (:import (org.apache.commons.io FilenameUtils)))
 
 (def ^:const url-prefix "/engine-profiler")
-(def ^:private index-path "engine-profiler/index.html")
+(def ^:private index-path "engine-profiler/remotery/vis/index.html")
 (def ^:private html (atom nil))
+(def ^:private port 17815)
 
 (defn- update-profiler-html! [target-address]
   (reset! html (-> (slurp (io/resource index-path))
@@ -34,7 +35,8 @@
   (enabled? [] true)
   (run [web-server prefs]
        (update-profiler-html! (:address (targets/selected-target prefs)))
-       (ui/open-url (format "%s/engine-profiler" (http-server/local-url web-server)))))
+       (ui/open-url (format "%s/engine-profiler?addr=%s:%d" (http-server/local-url web-server) (:address (targets/selected-target prefs)) port))
+       ))
 
 (defn- get-mime-type [path]
   (let [name (.getName (io/file path))
@@ -51,16 +53,23 @@
 (defn- read-resource [req]
   (let [path (str "." (:url req)) ; Make it a relative path as it starts with a "/"
         mime-type (get-mime-type path)
-        data (slurp (io/resource path))
+        resource (io/resource path)
+        data (if (= resource nil)
+               nil
+               (slurp resource))
         code (if (= data nil) 404 200)]
     {:code code
      :headers {"Content-Type" mime-type}
      :body data}))
 
 (defn handler [req]
-  (if (= (:url req) "/engine-profiler")
+  (if (or (= (:url req) "/engine-profiler")
+          (= (:url req) "/engine-profiler/")
+          (.contains (:url req) "/engine-profiler?"))
     {:code 200
-    :headers {"Content-Type" "text/html"}
+    :headers {"Content-Type" "text/html"
+              "Content-Length" (str (count @html))
+              "Server" "Defold Editor"}
     :body (or @html "")
     }
     (read-resource req)))

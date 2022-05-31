@@ -21,13 +21,14 @@ echo "Found DYNAMO_HOME=${DYNAMO_HOME}"
 DEFOLD_REPO=${DYNAMO_HOME}/../..
 
 
-cp -v ${REMOTERY_REPO}/lib/*.c ${DEFOLD_REPO}/engine/dlib/src/remotery/
+cp -v ${REMOTERY_REPO}/lib/*.c ${DEFOLD_REPO}/engine/dlib/src/remotery/lib/
 cp -v ${REMOTERY_REPO}/lib/*.h ${DEFOLD_REPO}/engine/dlib/src/dmsdk/external/remotery/Remotery.h
 cp -v -r ${REMOTERY_REPO}/vis/ ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis
 
 echo "Applying patch"
 
 (cd ${DEFOLD_REPO} && git apply ./engine/dlib/src/remotery/defold.patch)
+(cd ${DEFOLD_REPO} && git apply ./engine/dlib/src/remotery/defoldvis.patch)
 
 echo "Done"
 

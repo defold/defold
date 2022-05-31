@@ -703,7 +703,7 @@ typedef struct rmtProperty
 //
 // If you don't want to include Remotery.h in your shared header you can forward declare the `rmtProperty` type and then forward
 // declare the property name yourself.
-#define rmt_PropertyExtern(type, name) extern rmtProperty name;
+#define rmt_PropertyExtern(name) extern rmtProperty name;
 
 // Set properties to the given value
 #define rmt_PropertySet_Bool(name, set_value) _rmt_PropertySet(Bool, name, set_value)
