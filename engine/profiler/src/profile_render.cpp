@@ -118,7 +118,6 @@ namespace dmProfileRender
     // stats used to sort/purge sample items
     struct RenderProfile
     {
-        static RenderProfile* New(float fps, uint32_t ticks_per_second, uint32_t lifetime_in_milliseconds);
         static void Delete(RenderProfile* render_profile);
 
         float m_FPS;
@@ -147,9 +146,8 @@ namespace dmProfileRender
         uint32_t c = render_profile->m_RecordBuffer.Size();
         for (uint32_t i = 0; i < c; ++i)
         {
-            ProfilerFrame* frame = render_profile->m_RecordBuffer[c];
+            ProfilerFrame* frame = render_profile->m_RecordBuffer[i];
             DeleteProfilerFrame(frame);
-            delete frame;
         }
         if (render_profile->m_RecordBuffer.Capacity() < capacity)
             render_profile->m_RecordBuffer.SetCapacity(capacity);
@@ -598,6 +596,11 @@ namespace dmProfileRender
         , m_LifeTime((uint32_t)((lifetime_in_milliseconds * ticks_per_second) / 1000))
         , m_CurrentFrame(0)
         , m_ActiveFrame(0)
+        , m_Mode(PROFILER_MODE_RUN)
+        , m_ViewMode(PROFILER_VIEW_MODE_FULL)
+        , m_MaxFrameTime(0)
+        , m_PlaybackFrame(0)
+        , m_IncludeFrameWait(0)
     {
     }
 
@@ -697,6 +700,7 @@ namespace dmProfileRender
         {
             render_profile->m_PlaybackFrame = (int32_t)render_profile->m_RecordBuffer.Size();
         }
+        assert(mode >= 0 && mode <= 4);
         render_profile->m_Mode = mode;
     }
 
