@@ -49,7 +49,7 @@ namespace dmProfileRender
  * built on demand as a new frame is built from a frame sample on the go or when
  * picking up and displaying a frame from the recording buffer.
  *
- * The RenderProfile is created with a pre-defined number of sample/scopes/counters
+ * The RenderProfile is created with a pre-defined number of sample/counters
  * available and no memory allocation is done when processing a frame.
  *
  * When recording profile frames only one malloc() call is done per recorded frame
@@ -62,7 +62,6 @@ namespace dmProfileRender
  * profiler display area (which is directly derived from the window/screen size).
  *
  * Some terms:
-            *  -   Scope           High level scope such as "Engine" and "Script", the first parameter to DM_PROFILE(Physics, <all samples>)
  *  -   Counter         A counter - ie DM_COUNTER("DrawCalls", 1)
  *  -   Sample          A single sample of a ProfilerScope, ie DM_PROFILE(Physics, "UpdateKinematic")
             *  -   SampleAggregate The aggregation of all the samples for a ProfilerScope, ie DM_PROFILE(Physics, "UpdateKinematic")
@@ -87,7 +86,7 @@ namespace dmProfileRender
     static const int SAMPLE_FRAMES_TIME_WIDTH  = 6 * CHARACTER_WIDTH;
     static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHARACTER_WIDTH;
 
-    static const int COUNTERS_NAME_WIDTH  = 24 * CHARACTER_WIDTH;
+    static const int COUNTERS_NAME_WIDTH  = 32 * CHARACTER_WIDTH;
     static const int COUNTERS_COUNT_WIDTH = 8 * CHARACTER_WIDTH;
 
     enum DisplayMode
@@ -296,21 +295,20 @@ namespace dmProfileRender
         return Area(p, s);
     }
 
-    static Area GetPropertiesArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count, float scale)
+    static Area GetPropertiesArea(DisplayMode display_mode, const Area& profiler_area, int counters_count, float scale)
     {
-        // int max_indent = 0;
-        // for (uint32_t i = 0; i < frame->m_Properties.Size(); ++i)
-        // {
-        //     const ProfilerProperty& property = frame->m_Properties[i];
-        //     if (property.m_Indent > max_indent)
-        //         max_indent = property.m_Indent;
-        // }
+        Size s(COUNTERS_NAME_WIDTH + CHARACTER_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + counters_count));
+        s.w *= scale;
+        s.h *= scale;
 
-        if (display_mode == DISPLAYMODE_LANDSCAPE || display_mode == DISPLAYMODE_PORTRAIT)
+        if (display_mode == DISPLAYMODE_LANDSCAPE)
         {
-            const int count = dmMath::Max(scopes_count, counters_count);
-            Size s(COUNTERS_NAME_WIDTH + CHARACTER_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + count));
-            Position p(details_area.p.x + details_area.s.w - s.w * scale, details_area.p.y + s.h * scale);
+            Position p(profiler_area.p.x + profiler_area.s.w - s.w, profiler_area.p.y + profiler_area.s.h * 0.5f - s.h * 0.5f);
+            return Area(p, s);
+        }
+        else if (display_mode == DISPLAYMODE_PORTRAIT)
+        {
+            Position p(profiler_area.p.x + profiler_area.s.w - s.w, profiler_area.p.y);
             return Area(p, s);
         }
         return Area(Position(0, 0), Size(0, 0));
@@ -318,23 +316,7 @@ namespace dmProfileRender
 
     static Area GetSamplesArea(DisplayMode display_mode, const Area& details_area)
     {
-        if (display_mode == DISPLAYMODE_LANDSCAPE)
-        {
-            // Size s(details_area.s.w, details_area.s.h);
-            // Position p(scopes_area.p.x + scopes_area.s.w + CHARACTER_WIDTH, details_area.p.y + details_area.s.h - s.h);
-            // return Area(p, s);
-            return details_area;
-        }
-        else if (display_mode == DISPLAYMODE_PORTRAIT)
-        {
-            // int lower_clip = dmMath::Max(scopes_area.p.y + scopes_area.s.h, properties_area.p.y + properties_area.s.h);
-            // int max_height = details_area.p.y + details_area.s.h - lower_clip;
-            // Size s(details_area.s.w, max_height);
-            // Position p(details_area.p.x, details_area.p.y + details_area.s.h - s.h);
-            // return Area(p, s);
-            return details_area;
-        }
-        return Area(Position(0, 0), Size(0, 0));
+        return details_area;
     }
 
     static Area GetSampleFramesArea(DisplayMode display_mode, int sample_frames_name_width, const Area& samples_area)
@@ -436,10 +418,10 @@ namespace dmProfileRender
             return;
         }
 
-        const uint32_t counter_count  = frame->m_Properties.Size();
+        const uint32_t properties_count  = frame->m_Properties.Size();
 
         float properties_scale        = 1.6f;
-        const Area properties_area    = GetPropertiesArea(display_mode, details_area, 0, counter_count, properties_scale);
+        const Area properties_area    = GetPropertiesArea(display_mode, profiler_area, properties_count, properties_scale);
         const Area samples_area       = GetSamplesArea(display_mode, details_area);
         const Area sample_frames_area = GetSampleFramesArea(display_mode, SAMPLE_FRAMES_NAME_WIDTH, samples_area);
 
