@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.util.Collection;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.ArrayList;
@@ -69,6 +71,27 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     private static LuaBuilderPlugin luaBuilderPlugin = null;
 
+    private Map<String, LuaScanner> luaScanners = new HashMap();
+
+    /**
+     * Get a LuaScanner instance for a resource
+     * This will cache the LuaScanner instance per resource to avoid parsing the
+     * resource more than once
+     * @param resource The resource to get a LuaScanner for
+     * @return A LuaScanner instance
+     */
+    private LuaScanner getLuaScanner(IResource resource) throws IOException {
+        final String path = resource.getAbsPath();
+        LuaScanner scanner = luaScanners.get(path);
+        if (scanner == null) {
+            final byte[] scriptBytes = resource.getContent();
+            final String script = new String(scriptBytes, "UTF-8");
+            scanner = new LuaScanner();
+            scanner.parse(script);
+            luaScanners.put(path, scanner);
+        }
+        return scanner;
+    }
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -77,9 +100,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
 
-        String script = new String((input.getContent()));
-        LuaScanner scanner = new LuaScanner();
-        scanner.parse(script);
+        LuaScanner scanner = getLuaScanner(input);
 
         List<LuaScanner.Property> properties = scanner.getProperties();
         for (LuaScanner.Property property : properties) {
@@ -198,12 +219,10 @@ public abstract class LuaBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
         LuaModule.Builder builder = LuaModule.newBuilder();
-        final byte[] originalScriptBytes = task.input(0).getContent();
-        final String originalScript = new String(originalScriptBytes, "UTF-8");
 
-        // run the Lua scanner to get and remove require and properties
-        LuaScanner scanner = new LuaScanner();
-        String script = scanner.parse(originalScript);
+        // get and remove require and properties from LuaScanner
+        LuaScanner scanner = getLuaScanner(task.input(0));
+        String script = scanner.getParsedLua();
         List<String> modules = scanner.getModules();
         List<LuaScanner.Property> properties = scanner.getProperties();
 
