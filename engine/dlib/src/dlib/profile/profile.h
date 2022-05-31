@@ -40,11 +40,11 @@
 #undef DM_PROFILE_DYN
 
 #if defined(NDEBUG) || defined(DM_PROFILE_NULL)
-    #define _DM_PROFILE_SCOPE(scope_instance_name, name)
-    #define DM_PROFILE_TEXT(text)
+    #define DM_PROFILE_TEXT_LENGTH 1024
+    #define DM_PROFILE_TEXT(format, ...)
     #define DM_PROFILE(scope_name, name)
     #define DM_PROFILE_DYN(scope_name, name)
-    #define DM_COUNTER(name, amount)
+
     #define DM_COUNTER_DYN(counter_index, amount)
 
     #define DM_PROPERTY_EXTERN(name)                extern rmtProperty name;
@@ -82,12 +82,13 @@
     #define DM_PROFILE_DYN(scope_name, name) \
         _DM_PROFILE_SCOPE(name, 0)
 
-    #define DM_COUNTER(name, amount)
+    #define DM_PROFILE_TEXT_LENGTH 1024
+    #define DM_PROFILE_TEXT(format, ...)              dmProfile::LogText(format, __VA_ARGS__)
+
     #define DM_COUNTER_DYN(counter_index, amount)
 
-    // The new api
-        // Should really use rmt_PropertyExtern, but it's currently flawed
-    #define DM_PROPERTY_EXTERN(name)                extern rmtProperty name;
+    // The profiler property api
+    #define DM_PROPERTY_EXTERN(name)                                rmt_PropertyExtern(name)
     #define DM_PROPERTY_GROUP(name, desc, ...)                      rmt_PropertyDefine_Group(name, desc, __VA_ARGS__)
     #define DM_PROPERTY_BOOL(name, default_value, flag, desc, ...)  rmt_PropertyDefine_Bool(name, default_value, flag, desc, __VA_ARGS__)
     #define DM_PROPERTY_S32(name, default_value, flag, desc, ...)   rmt_PropertyDefine_S32(name, default_value, flag, desc, __VA_ARGS__)
@@ -115,8 +116,6 @@
     #define DM_PROPERTY_ADD_F64(name, add_value)    rmt_PropertyAdd_F64(name, add_value)
 
     #define DM_PROPERTY_RESET(name)                 rmt_PropertyReset(name)
-
-    #define DM_PROFILE_TEXT(text, ...)              dmProfile::LogText(text, __VA_ARGS__)
 
 #endif
 

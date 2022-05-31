@@ -14,7 +14,8 @@
 
 #include "profile.h"
 
-#include <stdio.h> // debug
+#include <stdio.h> // vsnprintf
+#include <stdarg.h> // va_start et al
 
 #include "dlib/dlib.h"
 #include "dlib/log.h"
@@ -154,9 +155,17 @@ namespace dmProfile
         return 1000000;
     }
 
-    void LogText(const char* text, ...)
+    void LogText(const char* format, ...)
     {
-        rmt_LogText(text);
+        char buffer[DM_PROFILE_TEXT_LENGTH];
+
+        va_list lst;
+        va_start(lst, format);
+        int n = vsnprintf(buffer, DM_PROFILE_TEXT_LENGTH, format, lst);
+        buffer[n < DM_PROFILE_TEXT_LENGTH ? n : (DM_PROFILE_TEXT_LENGTH-1)] = 0;
+        va_end(lst);
+
+        rmt_LogText(buffer);
     }
 
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)

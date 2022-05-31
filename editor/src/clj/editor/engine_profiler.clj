@@ -21,7 +21,7 @@
   (:import (org.apache.commons.io FilenameUtils)))
 
 (def ^:const url-prefix "/engine-profiler")
-(def ^:private index-path "engine-profiler/remotery/vis/index.html")
+(def ^:private index-path "engine-profiler/remotery/vis/patched.index.html")
 (def ^:private html (atom nil))
 (def ^:private port 17815)
 
@@ -35,8 +35,9 @@
   (enabled? [] true)
   (run [web-server prefs]
        (update-profiler-html! (:address (targets/selected-target prefs)))
-       (ui/open-url (format "%s/engine-profiler?addr=%s:%d" (http-server/local-url web-server) (:address (targets/selected-target prefs)) port))
-       ))
+       (if (nil? (:address (targets/selected-target prefs)))
+         (ui/open-url (format "%s/engine-profiler" (http-server/local-url web-server)))
+         (ui/open-url (format "%s/engine-profiler?addr=%s:%d" (http-server/local-url web-server) (:address (targets/selected-target prefs)) port)))))
 
 (defn- get-mime-type [path]
   (let [name (.getName (io/file path))

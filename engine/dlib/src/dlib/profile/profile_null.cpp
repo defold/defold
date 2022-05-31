@@ -58,7 +58,7 @@ namespace dmProfile
 
     }
 
-    void LogText(const char* text)
+    void LogText(const char* text, ...)
     {
     }
 
