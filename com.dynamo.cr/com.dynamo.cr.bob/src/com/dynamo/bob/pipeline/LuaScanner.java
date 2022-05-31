@@ -192,6 +192,9 @@ public class LuaScanner extends LuaParserBaseListener {
     // get all tokens spanning a context and belonging to a specific channel
     private List<Token> getTokens(ParserRuleContext ctx, int channel) {
         List<Token> tokens = getTokens(ctx);
+        if (tokens == null) {
+            return new ArrayList<Token>();
+        }
         return tokens.stream().filter(t -> t.getChannel() == channel).collect(Collectors.toList());
     }
 
@@ -419,7 +422,7 @@ public class LuaScanner extends LuaParserBaseListener {
 
     /**
      * Callback from ANTLR when a statement is entered. We use this to remove
-     * any stabd-alone semicolon statementr. The semicolon may cause problems
+     * any stand-alone semicolon statements. The semicolon may cause problems
      * if it is at the end of a go.property call as it will be removed after it
      * has been parsed.
      * Note that semicolons used as field or return separators are not affected.
