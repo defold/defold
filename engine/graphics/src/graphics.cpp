@@ -23,8 +23,8 @@
 
 namespace dmGraphics
 {
-    static bool                         g_adapter_selected = false;
     static GraphicsAdapter*             g_adapter_list = 0;
+    static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority)
@@ -38,7 +38,7 @@ namespace dmGraphics
 
     static bool SelectGraphicsAdapterByPriorityOrType(bool by_priority, AdapterType by_type)
     {
-        if (g_adapter_selected)
+        if (g_adapter)
         {
             return true;
         }
@@ -57,6 +57,16 @@ namespace dmGraphics
 
                 next = next->m_Next;
             }
+
+            if (!selected)
+            {
+                return false;
+            }
+
+            g_functions = selected->m_RegisterCb();
+            g_adapter   = selected;
+
+            return true;
         }
         else
         {
@@ -64,35 +74,16 @@ namespace dmGraphics
             {
                 if (next->m_AdapterType == by_type && next->m_IsSupportedCb())
                 {
-                    break;
+                    g_functions = next->m_RegisterCb();
+                    g_adapter   = next;
+                    return true;
                 }
                 next = next->m_Next;
             }
         }
 
-        if (!selected)
-        {
-            return false;
-        }
-
-        g_functions = selected->m_RegisterCb();
-        g_adapter_selected = true;
-        return true;
+        return false;
     }
-
-    /*
-    static bool SelectGraphicsAdapterByType(GraphicsAdapter adapter_type)
-    {
-        return SelectGraphicsAdapter(false, adapter_type);
-    }
-
-    static bool SelectGraphicsAdapterByPriority()
-    {
-        bool adapter_selected = SelectGraphicsAdapter(true, GraphicsAdapter::NULL);
-        assert(adapter_selected);
-        return adapter_selected;
-    }
-    */
 
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
@@ -341,6 +332,11 @@ namespace dmGraphics
     {
         // Select by specific adapter
         return SelectGraphicsAdapterByPriorityOrType(false, adapter_type) && g_functions.m_Initialize();
+    }
+
+    AdapterType GetAdapterType(HContext context)
+    {
+        return g_adapter->m_AdapterType;
     }
 
     void Finalize()

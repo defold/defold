@@ -2049,12 +2049,15 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 {
     dmGraphics::AdapterType adapter_type_from_args;
     bool graphics_initialized = false;
+    bool graphics_adapter_requested_by_args = false;
 
     // If user has passed in the arugment --graphics-adapter=x, we try to
     // initialize the graphics with that adapter. If that doesn't work,
     // e.g if the adapter 'x' isn't available, we fallback to the regular
     // priority based selection of graphics adapter
-    if (GetGraphicsAdapterTypeFromArgs(argc, argv, &adapter_type_from_args))
+    graphics_adapter_requested_by_args = GetGraphicsAdapterTypeFromArgs(argc, argv, &adapter_type_from_args);
+
+    if (graphics_adapter_requested_by_args)
     {
         graphics_initialized = dmGraphics::InitializeByAdapterType(adapter_type_from_args);
     }
@@ -2079,6 +2082,16 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
         Delete(engine);
         return 0;
     }
+
+
+    dmGraphics::AdapterType adapter_type_engine = dmGraphics::GetAdapterType(engine->m_GraphicsContext);
+    if (graphics_adapter_requested_by_args && adapter_type_from_args != adapter_type_engine)
+    {
+        dmLogWarning("Requested graphics adapater '%s' is not supported, currently selected: '%s'",
+            dmGraphics::GraphicsAdapterTypeToStr(adapter_type_from_args),
+            dmGraphics::GraphicsAdapterTypeToStr(adapter_type_engine));
+    }
+
     return engine;
 }
 

@@ -360,6 +360,13 @@ namespace dmGraphics
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
 
     /**
+     * Get the currently selected adapter type. Must be called after graphics has initialized.
+     * @params context Graphics context handle
+     * @return AdapterType from the selcted adapter
+     */
+    AdapterType GetAdapterType(HContext context);
+
+    /**
      * Get the window refresh rate
      * @params context Graphics context handle
      * @return The window refresh rate, 0 if refresh rate could not be read.
@@ -655,6 +662,21 @@ namespace dmGraphics
         else
             return ~0u;
     }
+
+    #define DM_GRAPHICS_ADAPTER_TYPE_TO_STR(x) case x: return #x
+    static inline const char* GraphicsAdapterTypeToStr(AdapterType adapter_type)
+    {
+        switch(adapter_type)
+        {
+            DM_GRAPHICS_ADAPTER_TYPE_TO_STR(ADAPTER_TYPE_NULL);
+            DM_GRAPHICS_ADAPTER_TYPE_TO_STR(ADAPTER_TYPE_OPENGL);
+            DM_GRAPHICS_ADAPTER_TYPE_TO_STR(ADAPTER_TYPE_VULKAN);
+            default: break;
+        }
+
+        return "UNKNOWN_ADAPTER_TYPE";
+    }
+    #undef DM_VK_RESULT_TO_STRING_CASE
 }
 
 #endif // DM_GRAPHICS_H
