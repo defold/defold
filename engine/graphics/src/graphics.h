@@ -64,6 +64,13 @@ namespace dmGraphics
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
+    enum AdapterType
+    {
+        ADAPTER_TYPE_NULL,
+        ADAPTER_TYPE_OPENGL,
+        ADAPTER_TYPE_VULKAN,
+    };
+
 
     // buffer clear types, each value is guaranteed to be separate bits
     enum BufferType
@@ -336,6 +343,11 @@ namespace dmGraphics
      * Initialize graphics system
      */
     bool Initialize();
+
+    /**
+     * Initialize graphics system by a specific adapter type
+     */
+    bool InitializeByAdapterType(AdapterType adapter_type);
 
     /**
      * Finalize graphics system

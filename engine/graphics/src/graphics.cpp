@@ -36,7 +36,7 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
-    static bool SelectGraphicsAdapter()
+    static bool SelectGraphicsAdapterByPriorityOrType(bool by_priority, AdapterType by_type)
     {
         if (g_adapter_selected)
         {
@@ -45,21 +45,54 @@ namespace dmGraphics
 
         GraphicsAdapter* next     = g_adapter_list;
         GraphicsAdapter* selected = next;
-        while(next)
-        {
-            if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
-            {
-                selected = next;
-            }
 
-            next = next->m_Next;
+        if (by_priority)
+        {
+            while(next)
+            {
+                if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
+                {
+                    selected = next;
+                }
+
+                next = next->m_Next;
+            }
+        }
+        else
+        {
+            while(next)
+            {
+                if (next->m_AdapterType == by_type && next->m_IsSupportedCb())
+                {
+                    break;
+                }
+                next = next->m_Next;
+            }
         }
 
-        assert(selected);
+        if (!selected)
+        {
+            return false;
+        }
+
         g_functions = selected->m_RegisterCb();
         g_adapter_selected = true;
         return true;
     }
+
+    /*
+    static bool SelectGraphicsAdapterByType(GraphicsAdapter adapter_type)
+    {
+        return SelectGraphicsAdapter(false, adapter_type);
+    }
+
+    static bool SelectGraphicsAdapterByPriority()
+    {
+        bool adapter_selected = SelectGraphicsAdapter(true, GraphicsAdapter::NULL);
+        assert(adapter_selected);
+        return adapter_selected;
+    }
+    */
 
     WindowParams::WindowParams()
     : m_ResizeCallback(0x0)
@@ -300,8 +333,16 @@ namespace dmGraphics
     }
     bool Initialize()
     {
-        return SelectGraphicsAdapter() && g_functions.m_Initialize();
+        // Select by priority
+        return SelectGraphicsAdapterByPriorityOrType(true, ADAPTER_TYPE_NULL) && g_functions.m_Initialize();
     }
+
+    bool InitializeByAdapterType(AdapterType adapter_type)
+    {
+        // Select by specific adapter
+        return SelectGraphicsAdapterByPriorityOrType(false, adapter_type) && g_functions.m_Initialize();
+    }
+
     void Finalize()
     {
         g_functions.m_Finalize();
