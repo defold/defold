@@ -1624,9 +1624,9 @@ def detect(conf):
     conf.env['STATICLIB_DDF'] = 'ddf'
 
     conf.env['STATICLIB_PROFILE'] = ['profile', 'remotery']
-    conf.env['STATICLIB_PROFILE_NULL'] = ['profile_null']
+    conf.env['STATICLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
     conf.env['CXXDEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STATICLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
+    conf.env['STATICLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null']
 
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_CRASH_NULL'] = 'crashext_null'

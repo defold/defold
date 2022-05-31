@@ -199,9 +199,9 @@ def build(bld):
 
     # ******************************************************************
 
-    libremotery_dirs = ['remotery']
+    libremotery_dirs = ['remotery/lib']
     libremotery = bld.new_task_gen( features    = 'cc cxx cstaticlib',
-                                    includes    = '. ./remotery',
+                                    includes    = '. ./remotery/lib',
                                     target      = 'remotery',
                                     defines     = ['VALGRIND'] + extra_defines)
     libremotery.find_sources_in_dirs(libremotery_dirs)
@@ -215,6 +215,12 @@ def build(bld):
                                       target    = 'remotery_noasan')
     libremotery_noasan.source = [x for x in libremotery.source]
     libremotery_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+
+    libremotery_null = bld.new_task_gen(features    = 'cc cxx cstaticlib',
+                                        includes    = '. ./remotery/lib',
+                                        target      = 'remotery_null',
+                                        defines     = ['VALGRIND'] + extra_defines)
+    libremotery_null.find_sources_in_dirs(['remotery'])
 
     # ******************************************************************
 

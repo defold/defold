@@ -133,9 +133,3 @@ namespace dmProfile
 
 } // namespace dmProfile
 
-
-// Null implementations of the Remotery api
-RMT_API void _rmt_PropertySetValue(rmtProperty* property) {}
-RMT_API void _rmt_PropertyAddValue(rmtProperty* property, rmtPropertyValue add_value) {}
-RMT_API rmtError _rmt_PropertySnapshotAll() {}
-RMT_API void _rmt_PropertyFrameResetAll() {}
