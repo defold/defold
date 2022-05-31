@@ -22,10 +22,6 @@
 
 #include "dlib/hash.h"
 
-#if defined(DM_PLATFORM_64BIT) && !defined(RMT_ARCH_64BIT)
-    #define RMT_ARCH_64BIT
-#endif
-
 #include "dmsdk/external/remotery/Remotery.h"
 
 namespace dmProfile

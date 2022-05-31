@@ -199,11 +199,16 @@ def build(bld):
 
     # ******************************************************************
 
+    if '64' in build_util.get_target_architecture():
+        remotery_defines = ['RMT_ARCH_64BIT']
+    else:
+        remotery_defines = []
+
     libremotery_dirs = ['remotery/lib']
     libremotery = bld.new_task_gen( features    = 'cc cxx cstaticlib',
                                     includes    = '. ./remotery/lib',
                                     target      = 'remotery',
-                                    defines     = ['VALGRIND'] + extra_defines)
+                                    defines     = ['VALGRIND'] + extra_defines + remotery_defines)
     libremotery.find_sources_in_dirs(libremotery_dirs)
 
     if build_util.get_target_os() not in ['osx', 'ios']:
@@ -219,7 +224,7 @@ def build(bld):
     libremotery_null = bld.new_task_gen(features    = 'cc cxx cstaticlib',
                                         includes    = '. ./remotery/lib',
                                         target      = 'remotery_null',
-                                        defines     = ['VALGRIND'] + extra_defines)
+                                        defines     = ['VALGRIND'] + extra_defines + remotery_defines)
     libremotery_null.find_sources_in_dirs(['remotery'])
 
     # ******************************************************************
