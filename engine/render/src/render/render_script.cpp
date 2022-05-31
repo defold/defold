@@ -640,10 +640,9 @@ namespace dmRender
      * `u_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
      * `v_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
      *
-     * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters, but
-     * they will always be created with the same width and height as the first attachment. Attachments must be added in sequence, meaning you cannot
-     * create a render target at slot 0 and 3. Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by render.BUFFER_COLORX_BIT where
-     * 'X' is the attachment you want to create).
+     * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters, 
+     * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
+     * Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by render.BUFFER_COLORX_BIT where 'X' is the attachment you want to create).
      *
      * @name render.render_target
      * @param name [type:string] render target name
