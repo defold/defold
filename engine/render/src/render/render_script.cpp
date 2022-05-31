@@ -699,11 +699,12 @@ namespace dmRender
         lua_pushnil(L);
         while (lua_next(L, table_index))
         {
-            bool required_found[] = { false, false, false };
-            uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -2);
-            buffer_type_flags |= buffer_type;
-            uint32_t index = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
-            dmGraphics::TextureParams* p = &params[index];
+            bool required_found[]  = { false, false, false };
+            uint32_t buffer_type   = (uint32_t)luaL_checknumber(L, -2);
+            buffer_type_flags     |= buffer_type;
+
+            uint32_t index                        = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
+            dmGraphics::TextureParams* p          = &params[index];
             dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
@@ -2645,6 +2646,10 @@ namespace dmRender
         lua_setfield(L, -2, "BUFFER_"#name);
 
         REGISTER_BUFFER_CONSTANT(COLOR_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR0_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR1_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR2_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR3_BIT);
         REGISTER_BUFFER_CONSTANT(DEPTH_BIT);
         REGISTER_BUFFER_CONSTANT(STENCIL_BIT);
 

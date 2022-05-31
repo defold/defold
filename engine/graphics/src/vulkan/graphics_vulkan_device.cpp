@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/math.h>
+#include <stdio.h>
 
 #include "graphics_vulkan_defines.h"
 #include "../graphics.h"
@@ -37,8 +38,7 @@ namespace dmGraphics
     }
 
     RenderTarget::RenderTarget(const uint32_t rtId)
-        : m_TextureColor(0)
-        , m_TextureDepthStencil(0)
+        : m_TextureDepthStencil(0)
         , m_RenderPass(VK_NULL_HANDLE)
         , m_Framebuffer(VK_NULL_HANDLE)
         , m_Id(rtId)
@@ -46,6 +46,7 @@ namespace dmGraphics
     {
         m_Extent.width  = 0;
         m_Extent.height = 0;
+        memset(m_TextureColor, 0, sizeof(m_TextureColor));
     }
 
     Program::Program()
@@ -146,9 +147,6 @@ namespace dmGraphics
         vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, vk_device_list);
         assert(vk_device_count == deviceListSize);
 
-        const uint8_t vk_max_extension_count = 128;
-        VkExtensionProperties vk_device_extensions[vk_max_extension_count];
-
         for (uint32_t i=0; i < vk_device_count; ++i)
         {
             VkPhysicalDevice vk_device = vk_device_list[i];
@@ -164,18 +162,15 @@ namespace dmGraphics
 
             vkEnumerateDeviceExtensionProperties(vk_device, 0, &vk_device_extension_count, 0);
 
-            // Note: If this is triggered, we need a higher limit for the max extension count
-            //       or simply allocate the exact memory dynamically to hold the extensions data..
-            assert(vk_device_extension_count < vk_max_extension_count);
+            VkExtensionProperties* vk_device_extensions = new VkExtensionProperties[vk_device_extension_count];
 
             if (vkEnumerateDeviceExtensionProperties(vk_device, 0, &vk_device_extension_count, vk_device_extensions) == VK_SUCCESS)
             {
-                device_list[i].m_DeviceExtensions = new VkExtensionProperties[vk_device_extension_count];
-
-                for (uint8_t j = 0; j < vk_device_extension_count; ++j)
-                {
-                    device_list[i].m_DeviceExtensions[j] = vk_device_extensions[j];
-                }
+                device_list[i].m_DeviceExtensions = vk_device_extensions;
+            }
+            else if (vk_device_extensions != 0x0)
+            {
+                delete[] vk_device_extensions;
             }
 
             device_list[i].m_Device               = vk_device;
@@ -250,7 +245,7 @@ namespace dmGraphics
             vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferStencilSampleCounts);
         }
 
-        const uint8_t sample_count_index_requested = (uint8_t) sampleCount == 0 ? 0 : log2f((float) sampleCount);
+        const uint8_t sample_count_index_requested = (uint8_t) sampleCount == 0 ? 0 : (uint8_t) log2f((float) sampleCount);
         const uint8_t sample_count_index_max       = (uint8_t) log2f((float) vk_sample_count);
         const VkSampleCountFlagBits vk_count_bits[] = {
             VK_SAMPLE_COUNT_1_BIT,
@@ -377,7 +372,7 @@ namespace dmGraphics
     {
         assert(buffer);
 
-        VkResult res = buffer->MapMemory(vk_device, offset, size);
+        VkResult res = buffer->MapMemory(vk_device, (uint32_t) offset, (uint32_t) size);
 
         if (res != VK_SUCCESS)
         {
@@ -905,7 +900,7 @@ bail:
 
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
-        HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut)
+        HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -983,8 +978,8 @@ bail:
         vk_multisampling.alphaToCoverageEnable = VK_FALSE;
         vk_multisampling.alphaToOneEnable      = VK_FALSE;
 
-        VkPipelineColorBlendAttachmentState vk_color_blend_attachment;
-        memset(&vk_color_blend_attachment, 0, sizeof(vk_color_blend_attachment));
+        VkPipelineColorBlendAttachmentState vk_color_blend_attachments[MAX_BUFFER_COLOR_ATTACHMENTS];
+        memset(&vk_color_blend_attachments, 0, sizeof(vk_color_blend_attachments));
 
         uint8_t state_write_mask    = pipelineState.m_WriteColorMask;
         uint8_t vk_color_write_mask = 0;
@@ -993,14 +988,18 @@ bail:
         vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
         vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
-        vk_color_blend_attachment.colorWriteMask      = vk_color_write_mask;
-        vk_color_blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
-        vk_color_blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-        vk_color_blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-        vk_color_blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-        vk_color_blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-        vk_color_blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-        vk_color_blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+        for (int i = 0; i < render_target->m_ColorAttachmentCount; ++i)
+        {
+            VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i]; 
+            blend_attachment.colorWriteMask      = vk_color_write_mask;
+            blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
+            blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
+            blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
+            blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
+            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
+            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
+            blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+        }
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;
         memset(&vk_color_blending, 0, sizeof(vk_color_blending));
@@ -1008,12 +1007,14 @@ bail:
         vk_color_blending.sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         vk_color_blending.logicOpEnable     = VK_FALSE;
         vk_color_blending.logicOp           = VK_LOGIC_OP_COPY;
-        vk_color_blending.attachmentCount   = 1;
-        vk_color_blending.pAttachments      = &vk_color_blend_attachment;
+        vk_color_blending.attachmentCount   = render_target->m_ColorAttachmentCount;
+        vk_color_blending.pAttachments      = vk_color_blend_attachments;
         vk_color_blending.blendConstants[0] = 0.0f;
         vk_color_blending.blendConstants[1] = 0.0f;
         vk_color_blending.blendConstants[2] = 0.0f;
         vk_color_blending.blendConstants[3] = 0.0f;
+
+        printf("Attachments %d", render_target->m_ColorAttachmentCount);
 
         VkStencilOpState vk_stencil_op_state;
         memset(&vk_stencil_op_state, 0, sizeof(vk_stencil_op_state));
@@ -1064,7 +1065,7 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
-        vk_pipeline_info.renderPass          = vk_render_pass;
+        vk_pipeline_info.renderPass          = render_target->m_RenderPass;
         vk_pipeline_info.subpass             = 0;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;

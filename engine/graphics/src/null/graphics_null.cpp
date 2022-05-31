@@ -875,9 +875,17 @@ namespace dmGraphics
         RenderTarget* rt = new RenderTarget();
         memset(rt, 0, sizeof(RenderTarget));
 
-        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
-        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
-        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
+        void** buffers[MAX_BUFFER_TYPE_COUNT]          = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
+        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT]  = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
+        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {
+            BUFFER_TYPE_COLOR_BIT,
+            BUFFER_TYPE_DEPTH_BIT,
+            BUFFER_TYPE_STENCIL_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             assert(GetBufferTypeIndex(buffer_types[i]) == i);

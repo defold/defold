@@ -89,6 +89,7 @@ typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
 typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
 typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
 typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -145,6 +146,7 @@ PFNGLUNIFORM1IPROC glUniform1i = NULL;
 PFNGLGETSTRINGIPROC glGetStringi = NULL;
 PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
 PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
+PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
 #endif
 
 #elif defined(__EMSCRIPTEN__)
@@ -843,6 +845,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
         GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
         GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
+        GET_PROC_ADDRESS(glDrawBuffers, "glDrawBuffers", PFNGLDRAWBUFFERSPROC);
 #endif
 
 #undef GET_PROC_ADDRESS
@@ -2042,15 +2045,37 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             rt->m_BufferTextureParams[i].m_Data = 0x0;
             rt->m_BufferTextureParams[i].m_DataSize = 0;
         }
+
+    #ifdef GL_ES_VERSION_2_0
         if(buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
         {
             uint32_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
-            rt->m_ColorBufferTexture = NewTexture(context, creation_params[color_buffer_index]);
-            SetTexture(rt->m_ColorBufferTexture, params[color_buffer_index]);
+            rt->m_ColorBufferTexture[0] = NewTexture(context, creation_params[color_buffer_index]);
+            SetTexture(rt->m_ColorBufferTexture[0], params[color_buffer_index]);
             // attach the texture to FBO color attachment point
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture->m_Texture, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture[0]->m_Texture, 0);
             CHECK_GL_ERROR;
         }
+    #else
+        BufferType color_buffer_flags[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (buffer_type_flags & color_buffer_flags[i])
+            {
+                uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
+                rt->m_ColorBufferTexture[i] = NewTexture(context, creation_params[color_buffer_index]);
+                SetTexture(rt->m_ColorBufferTexture[i], params[color_buffer_index]);
+                // attach the texture to FBO color attachment point
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rt->m_ColorBufferTexture[i]->m_Texture, 0);
+                CHECK_GL_ERROR;
+            }
+        }
+    #endif
 
         if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
         {
@@ -2103,8 +2128,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLDeleteRenderTarget(HRenderTarget render_target)
     {
         glDeleteFramebuffers(1, &render_target->m_Id);
-        if (render_target->m_ColorBufferTexture)
-            DeleteTexture(render_target->m_ColorBufferTexture);
+
+        for (uint8_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
+        {
+            if (render_target->m_ColorBufferTexture[i])
+            {
+                DeleteTexture(render_target->m_ColorBufferTexture[i]);
+            }
+        }
+
         if (render_target->m_DepthStencilBuffer)
             glDeleteRenderbuffers(1, &render_target->m_DepthStencilBuffer);
         if (render_target->m_DepthBuffer)
@@ -2152,14 +2184,46 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR;
+
+#ifndef GL_ES_VERSION_2_0
+        if (render_target != NULL)
+        {
+            uint8_t num_buffers = 0;
+
+            GLenum buffers[MAX_BUFFER_COLOR_ATTACHMENTS];
+
+            for (uint8_t i=0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
+            {
+                if (render_target->m_ColorBufferTexture[i])
+                {
+                    buffers[i] = GL_COLOR_ATTACHMENT0 + i;
+                    num_buffers++;
+                }
+            }
+
+            if (num_buffers > 1)
+            {
+                glDrawBuffers(num_buffers, buffers);
+            }
+        }
+#endif
+
         CHECK_GL_FRAMEBUFFER_ERROR;
     }
 
     static HTexture OpenGLGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-        if(buffer_type != BUFFER_TYPE_COLOR_BIT)
+        if(!(buffer_type == BUFFER_TYPE_COLOR_BIT  ||
+           buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+           buffer_type == BUFFER_TYPE_COLOR1_BIT ||
+           buffer_type == BUFFER_TYPE_COLOR2_BIT ||
+           buffer_type == BUFFER_TYPE_COLOR3_BIT))
+        {
             return 0;
-        return render_target->m_ColorBufferTexture;
+        }
+
+        uint8_t index = GetBufferColorAttachmentIndex(buffer_type); 
+        return render_target->m_ColorBufferTexture[index];
     }
 
     static void OpenGLGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
@@ -2178,10 +2242,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             render_target->m_BufferTextureParams[i].m_Width = width;
             render_target->m_BufferTextureParams[i].m_Height = height;
-            if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT))
+
+            uint32_t color_attachment_index = GetBufferColorAttachmentIndex((BufferType) i);
+
+            if (color_attachment_index < MAX_BUFFER_COLOR_ATTACHMENTS && render_target->m_ColorBufferTexture[color_attachment_index])
             {
-                if(render_target->m_ColorBufferTexture)
-                    SetTexture(render_target->m_ColorBufferTexture, render_target->m_BufferTextureParams[i]);
+                SetTexture(render_target->m_ColorBufferTexture[color_attachment_index], render_target->m_BufferTextureParams[i]);
             }
         }
         OpenGLSetDepthStencilRenderBuffer(render_target, true);

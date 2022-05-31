@@ -68,11 +68,17 @@ namespace dmGraphics
     // buffer clear types, each value is guaranteed to be separate bits
     enum BufferType
     {
-        BUFFER_TYPE_COLOR_BIT   = 0x1,
-        BUFFER_TYPE_DEPTH_BIT   = 0x2,
-        BUFFER_TYPE_STENCIL_BIT = 0x4,
+        BUFFER_TYPE_COLOR_BIT   = 0x01,
+        BUFFER_TYPE_DEPTH_BIT   = 0x02,
+        BUFFER_TYPE_STENCIL_BIT = 0x04,
+        BUFFER_TYPE_COLOR0_BIT  = 0x01, // Equal to BUFFER_TYPE_COLOR_BIT
+        BUFFER_TYPE_COLOR1_BIT  = 0x08,
+        BUFFER_TYPE_COLOR2_BIT  = 0x20,
+        BUFFER_TYPE_COLOR3_BIT  = 0x40,
     };
-    static const uint8_t MAX_BUFFER_TYPE_COUNT = 3;
+
+    static const uint8_t MAX_BUFFER_COLOR_ATTACHMENTS = 4;
+    static const uint8_t MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
 
     // render states
     enum State
@@ -549,6 +555,7 @@ namespace dmGraphics
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
+    inline uint32_t GetBufferColorAttachmentIndex(BufferType buffer_type);
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
 
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
@@ -634,14 +641,38 @@ namespace dmGraphics
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {
-        if (buffer_type == BUFFER_TYPE_COLOR_BIT)
-            return 0;
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-            return 1;
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-            return 2;
-        else
-            return ~0u;
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR_BIT:
+                return 0;
+            case BUFFER_TYPE_DEPTH_BIT:
+                return 1;
+            case BUFFER_TYPE_STENCIL_BIT:
+                return 2;
+            case BUFFER_TYPE_COLOR1_BIT:
+                return 3;
+            case BUFFER_TYPE_COLOR2_BIT:
+                return 4;
+            case BUFFER_TYPE_COLOR3_BIT:
+                return 5;
+        }
+        return ~0u;
+    }
+
+    uint32_t GetBufferColorAttachmentIndex(BufferType buffer_type)
+    {
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR_BIT:
+                return 0;
+            case BUFFER_TYPE_COLOR1_BIT:
+                return 1;
+            case BUFFER_TYPE_COLOR2_BIT:
+                return 2;
+            case BUFFER_TYPE_COLOR3_BIT:
+                return 3;
+        }
+        return ~0u;
     }
 }
 

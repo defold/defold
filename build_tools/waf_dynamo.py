@@ -66,7 +66,7 @@ if 'waf_dynamo_private' not in sys.modules:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'win32', 'x86_64-win32', 'x86_64-linux']
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'win32', 'x86_64-linux']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):

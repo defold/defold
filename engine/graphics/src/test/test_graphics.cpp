@@ -534,7 +534,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
         params[i].m_Width = WIDTH;
         params[i].m_Height = HEIGHT;
     }
-    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 3);
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 6);
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
@@ -588,7 +588,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
         params[i].m_Width = WIDTH;
         params[i].m_Height = HEIGHT;
     }
-    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 3);
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 6);
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
