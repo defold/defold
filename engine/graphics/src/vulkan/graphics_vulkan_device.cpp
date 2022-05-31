@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/math.h>
-#include <stdio.h>
 
 #include "graphics_vulkan_defines.h"
 #include "../graphics.h"
@@ -1013,8 +1012,6 @@ bail:
         vk_color_blending.blendConstants[1] = 0.0f;
         vk_color_blending.blendConstants[2] = 0.0f;
         vk_color_blending.blendConstants[3] = 0.0f;
-
-        printf("Attachments %d", render_target->m_ColorAttachmentCount);
 
         VkStencilOpState vk_stencil_op_state;
         memset(&vk_stencil_op_state, 0, sizeof(vk_stencil_op_state));

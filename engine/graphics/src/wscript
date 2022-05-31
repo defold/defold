@@ -34,9 +34,6 @@ def build(bld):
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
 
-        print("YES PLATFORM SUPPORTS VULKAN")
-
-
         obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                                includes = ['. vulkan', '../proto'],
                                proto_gen_py = True,

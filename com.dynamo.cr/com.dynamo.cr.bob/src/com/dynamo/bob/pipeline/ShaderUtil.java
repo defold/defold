@@ -247,7 +247,6 @@ public class ShaderUtil {
                 input = input.replaceAll("\\b" + keywordRep[0] + "\\b", keywordRep[1]);
             }
 
-
             // Get data output array size
             Matcher fragDataArrayMatcher = regexFragDataArrayPattern.matcher(input);
             int maxColorOutputs = 1;
@@ -255,8 +254,6 @@ public class ShaderUtil {
                 String fragDataArrayIndex = fragDataArrayMatcher.group("index");
                 maxColorOutputs = Math.max(maxColorOutputs, Integer.parseInt(fragDataArrayIndex) + 1);
             }
-
-            input = input.replaceAll("\\b" + glFragDataKeyword + "\\[(\\d+)\\]", glFragColorRep + "_$1");
 
             // Replace fragment output variables 
             boolean output_glFragColor = input.contains(glFragColorKeyword);
@@ -267,13 +264,10 @@ public class ShaderUtil {
                 input = input.replaceAll("\\b" + glFragColorKeyword + "\\b", glFragColorRep + "_0");
             }
 
-            /*
             if (output_glFragData)
             {
-                input = input.replaceAll("\\b" + glFragDataKeyword + "\\b", glFragColorRep);
+                input = input.replaceAll("\\b" + glFragDataKeyword + "\\[(\\d+)\\]", glFragColorRep + "_$1");
             }
-            */
-
 
             // Split into slices separated by semicolon, curly bracket scopes and preprocessor definition lines: ";", "{", "}" and "#..<\n>"
             // This to reduce parsing complexity
@@ -355,17 +349,6 @@ public class ShaderUtil {
                     if(floatPrecisionIndex < 0 && targetProfile.equals("es")) {
                         output.add(patchLineIndex++, floatPrecisionAttrRep);
                     }
-
-                    /*
-                    String colorOutArrayPostFix = "";
-
-                    // If this shader requires multiple outputs, append the array size
-                    if (maxColorOutputs > 0)
-                    {
-                        colorOutArrayPostFix = "[" + maxColorOutputs + "]";
-                    }
-                    */
-
                     for (int i = 0; i < maxColorOutputs; i++) {
                          // insert fragcolor out attr
                         output.add(patchLineIndex++, String.format(glFragColorAttrRep, "_" + i));   

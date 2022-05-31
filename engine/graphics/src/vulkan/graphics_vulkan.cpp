@@ -1252,32 +1252,15 @@ bail:
         float b = ((float)blue)/255.0f;
         float a = ((float)alpha)/255.0f;
 
-        // Clear backbuffer
-        if (context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        for (int i = 0; i < context->m_CurrentRenderTarget->m_ColorAttachmentCount; ++i)
         {
-            if (flags & BUFFER_TYPE_COLOR_BIT)
-            {
-                VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
-                vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
-                vk_color_attachment.clearValue.color.float32[0] = r;
-                vk_color_attachment.clearValue.color.float32[1] = g;
-                vk_color_attachment.clearValue.color.float32[2] = b;
-                vk_color_attachment.clearValue.color.float32[3] = a;
-            }
-        }
-        // Clear render target attachments
-        else
-        {
-            for (int i = 0; i < context->m_CurrentRenderTarget->m_ColorAttachmentCount; ++i)
-            {
-                VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
-                vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
-                vk_color_attachment.colorAttachment             = i;
-                vk_color_attachment.clearValue.color.float32[0] = r;
-                vk_color_attachment.clearValue.color.float32[1] = g;
-                vk_color_attachment.clearValue.color.float32[2] = b;
-                vk_color_attachment.clearValue.color.float32[3] = a;
-            }
+            VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
+            vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_color_attachment.colorAttachment             = i;
+            vk_color_attachment.clearValue.color.float32[0] = r;
+            vk_color_attachment.clearValue.color.float32[1] = g;
+            vk_color_attachment.clearValue.color.float32[2] = b;
+            vk_color_attachment.clearValue.color.float32[3] = a;
         }
 
         // Clear depth / stencil
@@ -2937,39 +2920,6 @@ bail:
             }
         }
 
-        /*
-        if(has_color)
-        {
-            uint8_t color_buffer_index         = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
-            TextureParams& color_buffer_params = rt->m_BufferTextureParams[color_buffer_index];
-            fb_width                           = color_buffer_params.m_Width;
-            fb_height                          = color_buffer_params.m_Height;
-
-            VkFormat vk_color_format;
-
-            // Promote format to RGBA if RGB, since it's not supported
-            if (color_buffer_params.m_Format == TEXTURE_FORMAT_RGB)
-            {
-                vk_color_format              = VK_FORMAT_R8G8B8A8_UNORM;
-                color_buffer_params.m_Format = TEXTURE_FORMAT_RGBA;
-            }
-            else
-            {
-                vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
-            }
-
-            texture_color = NewTexture(context, creation_params[color_buffer_index]);
-            VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount,
-                VK_SAMPLE_COUNT_1_BIT, vk_color_format,
-                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
-            CHECK_VK_ERROR(res);
-
-            SetTextureParams(texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap);
-        }
-        */
-
         if(has_depth || has_stencil)
         {
             VkFormat vk_depth_stencil_format = VK_FORMAT_UNDEFINED;
@@ -3079,18 +3029,6 @@ bail:
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
                 CHECK_VK_ERROR(res);
             }
-
-            /*
-            if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT) && texture_color)
-            {
-                DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
-                VkResult res = CreateTexture2D(g_VulkanContext->m_PhysicalDevice.m_Device, g_VulkanContext->m_LogicalDevice.m_Device,
-                    width, height, texture_color->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
-                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
-                CHECK_VK_ERROR(res);
-            }
-            */
         }
 
         if (render_target->m_TextureDepthStencil)
