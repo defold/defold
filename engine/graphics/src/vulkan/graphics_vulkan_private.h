@@ -375,7 +375,6 @@ namespace dmGraphics
     struct Context
     {
         Context(const ContextParams& params, const VkInstance vk_instance);
-        ~Context();
 
         Texture*                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         PipelineCache                   m_PipelineCache;
