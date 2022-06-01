@@ -157,7 +157,7 @@
   [ctx node-id input-label]
   (if-let [nodes-affected (get-in ctx [:nodes-affected node-id] #{})]
     (let [basis (:basis ctx)
-          dirty-deps (-> (gt/node-by-id-at basis node-id) (gt/node-type basis) in/input-dependencies (get input-label))]
+          dirty-deps (-> (gt/node-by-id-at basis node-id) gt/node-type in/input-dependencies (get input-label))]
       (update ctx :nodes-affected assoc node-id (reduce conj nodes-affected dirty-deps)))
     ctx))
 
@@ -177,7 +177,7 @@
   [ctx node-id]
   (let [basis (:basis ctx)
         all-labels (-> (gt/node-by-id-at basis node-id)
-                       (gt/node-type basis)
+                       gt/node-type
                        in/output-labels)]
     (update ctx :nodes-affected assoc node-id (set all-labels))))
 
@@ -219,10 +219,9 @@
   (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-source (:basis ctx) source-id source-label)))
 
 (defn- disconnect-stale [ctx node-id old-node new-node labels-fn disconnect-fn]
-  (let [basis (:basis ctx)
-        stale-labels (set/difference
-                       (-> old-node (gt/node-type basis) labels-fn)
-                       (-> new-node (gt/node-type basis) labels-fn))]
+  (let [stale-labels (set/difference
+                       (-> old-node gt/node-type labels-fn)
+                       (-> new-node gt/node-type labels-fn))]
     (loop [ctx ctx
            labels stale-labels]
       (if-let [label (first labels)]
@@ -306,7 +305,13 @@
         graph-id (gt/node-id->graph-id root-id)
         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
         override-id (next-override-id ctx graph-id)
-        override-nodes (mapv #(in/make-override-node override-id (next-node-id ctx graph-id) % (properties-by-node-id %)) node-ids)
+        override-nodes (mapv #(in/make-override-node
+                                override-id
+                                (next-node-id ctx graph-id)
+                                (gt/node-type (gt/node-by-id-at basis %))
+                                %
+                                (properties-by-node-id %))
+                             node-ids)
         override-node-ids (map gt/node-id override-nodes)
         original-node-id->override-node-id (zipmap node-ids override-node-ids)
         new-override-nodes-tx-data (map new-node override-nodes)
@@ -337,7 +342,12 @@
                 ctx
                 (let [graph-id (gt/node-id->graph-id node-id)
                       new-override-node-id (next-node-id ctx graph-id)
-                      new-override-node (in/make-override-node override-id new-override-node-id node-id {})]
+                      new-override-node (in/make-override-node
+                                          override-id
+                                          new-override-node-id
+                                          (gt/node-type (gt/node-by-id-at basis node-id))
+                                          node-id
+                                          {})]
                   (-> ctx
                       (ctx-add-node new-override-node)
                       (ctx-override-node node-id new-override-node-id))))))
@@ -427,8 +437,7 @@
 
 (defn- invoke-setter
   [ctx node-id node property old-value new-value override-node? dynamic?]
-  (let [basis (:basis ctx)
-        node-type (gt/node-type node basis)
+  (let [node-type (gt/node-type node)
         value-type (some-> (in/property-type node-type property) deref in/schema s/maybe)]
     (if-let [validation-error (and in/*check-schemas* value-type (s/check value-type new-value))]
       (do
@@ -456,7 +465,7 @@
   (let [node-id (gt/node-id node)
         override-node? (some? (gt/original node))]
     (loop [ctx ctx
-           props (seq (in/declared-property-labels (gt/node-type node (:basis ctx))))]
+           props (seq (in/declared-property-labels (gt/node-type node)))]
       (if-let [prop (first props)]
         (let [ctx (if-let [v (get node prop)]
                     (invoke-setter ctx node-id node prop nil v override-node? false)
@@ -487,14 +496,14 @@
             old-value (in/node-property-value* node property (in/custom-evaluation-context {:basis basis}))
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
-            dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
+            dynamic? (not (contains? (some-> (gt/node-type node) in/all-properties) property))]
         (invoke-setter ctx node-id node property old-value new-value override-node? dynamic?))
       ctx)))
 
 (defn- ctx-set-property-to-nil [ctx node-id node property]
   (let [basis (:basis ctx)
         old-value (gt/get-property node basis property)
-        node-type (gt/node-type node basis)]
+        node-type (gt/node-type node)]
     (if-let [setter-fn (in/property-setter node-type property)]
       (apply-tx ctx (call-setter-fn ctx property setter-fn basis node-id old-value nil))
       ctx)))
@@ -502,7 +511,7 @@
 (defmethod perform :clear-property [ctx {:keys [node-id property]}]
   (let [basis (:basis ctx)]
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
-      (let [dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]
+      (let [dynamic? (not (contains? (some-> (gt/node-type node) in/all-properties) property))]
         (-> ctx
             (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
                                               (and (gt/original node) (gt/property-overridden? node property)) (conj :_overridden-properties)))
@@ -515,22 +524,21 @@
   ctx)
 
 (defn- ctx-disconnect-single [ctx target target-id target-label]
-  (if (= :one (in/input-cardinality (gt/node-type target (:basis ctx)) target-label))
+  (if (= :one (in/input-cardinality (gt/node-type target) target-label))
     (disconnect-inputs ctx target-id target-label)
     ctx))
 
 (defn- ctx-add-overrides [ctx source-id source source-label target target-label]
-  (let [basis (:basis ctx)
-        target-id (gt/node-id target)]
-    (if ((in/cascade-deletes (gt/node-type target basis)) target-label)
+  (let [target-id (gt/node-id target)]
+    (if ((in/cascade-deletes (gt/node-type target)) target-label)
       (populate-overrides ctx target-id)
       ctx)))
 
 (defn- assert-type-compatible
-  [basis source-id source-node source-label target-id target-node target-label]
-  (let [output-nodetype (gt/node-type source-node basis)
+  [source-id source-node source-label target-id target-node target-label]
+  (let [output-nodetype (gt/node-type source-node)
         output-valtype (in/output-type output-nodetype source-label)
-        input-nodetype (gt/node-type target-node basis)
+        input-nodetype (gt/node-type target-node)
         input-valtype (in/input-type input-nodetype target-label)]
     (assert output-valtype
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
@@ -552,7 +560,7 @@
   (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction
     (if-let [target (gt/node-by-id-at (:basis ctx) target-id)] ; nil if target node was deleted in this transaction
       (do
-        (assert-type-compatible (:basis ctx) source-id source source-label target-id target target-label)
+        (assert-type-compatible source-id source source-label target-id target target-label)
         (-> ctx
                                         ; If the input has :one cardinality, disconnect existing connections first
             (ctx-disconnect-single target target-id target-label)
@@ -570,7 +578,7 @@
 (defn- ctx-remove-overrides [ctx source-id source-label target-id target-label]
   (let [basis (:basis ctx)
         target (gt/node-by-id-at basis target-id)]
-    (if (contains? (in/cascade-deletes (gt/node-type target basis)) target-label)
+    (if (contains? (in/cascade-deletes (gt/node-type target)) target-label)
       (let [source-override-nodes (map (partial gt/node-by-id-at basis) (ig/get-overrides basis source-id))]
         (loop [target-override-node-ids (ig/get-overrides basis target-id)
                ctx ctx]

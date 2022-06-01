@@ -262,6 +262,10 @@
                                            :view-type (ui/user-data active-tab ::view-type)})))
 
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
+  (output active-resource-node+type g/Any :cached
+          (g/fnk [active-view open-views]
+            (when-let [{:keys [resource-node resource-node-type]} (get open-views active-view)]
+              [resource-node resource-node-type])))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]

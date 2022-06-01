@@ -626,9 +626,7 @@
   [basis node-id]
   (when-some [node (gt/node-by-id-at basis node-id)]
     (let [override-id (gt/override-id node)]
-      (loop [inputs (some-> node
-                            (gt/node-type basis)
-                            in/cascade-deletes)
+      (loop [inputs (some-> node gt/node-type in/cascade-deletes)
              result (vec (get-overrides basis node-id))]
         (if-some [input (first inputs)]
           (let [explicit (map first (explicit-sources basis node-id input))
@@ -973,7 +971,7 @@
           target-graph-id (gt/node-id->graph-id target-id)
           target-graph (get graphs target-graph-id)
           target-node (node-id->node target-graph target-id)
-          target-node-type (gt/node-type target-node this)]
+          target-node-type (gt/node-type target-node)]
       (assert (<= (:_volatility source-graph 0) (:_volatility target-graph 0)))
       (assert (in/has-input? target-node-type target-label) (str "No label " target-label " exists on node " target-node))
       (if (= source-graph-id target-graph-id)
@@ -1109,9 +1107,7 @@
      :outputs-to-refresh outputs-to-refresh}))
 
 (defn- input-deps [basis node-id]
-  (some-> (gt/node-by-id-at basis node-id)
-          (gt/node-type basis)
-          in/input-dependencies))
+  (some-> (gt/node-by-id-at basis node-id) gt/node-type in/input-dependencies))
 
 (defn- update-graph-successors
   "The purpose of this fn is to build a data structure that reflects which set of node-id + outputs that can be reached from the incoming changes (map of node-id + outputs)
@@ -1137,7 +1133,7 @@
                                                        ([] [{} []])
                                                        ([[new-acc remove-acc] [node-id labels old-node-successors]]
                                                         (let [new-node-successors (if-some [node (gt/node-by-id-at basis node-id)]
-                                                                                    (let [node-type (gt/node-type node basis)
+                                                                                    (let [node-type (gt/node-type node)
                                                                                           deps-by-label (or (in/input-dependencies node-type) {})
                                                                                           node-and-overrides (tree-seq (constantly true) node-id->overrides node-id)
                                                                                           override-filter-fn (complement (into #{} override-id-xf node-and-overrides))

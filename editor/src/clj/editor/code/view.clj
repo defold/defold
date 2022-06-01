@@ -765,8 +765,8 @@
           (map (partial cursor-range-draw-info :range (color-lookup color-scheme "editor.selection.occurrence.outline") nil)
                (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout nil)))))))
 
-(g/defnk produce-execution-markers [lines debugger-execution-locations node-id+resource]
-  (when-some [path (some-> node-id+resource second resource/proj-path)]
+(g/defnk produce-execution-markers [lines debugger-execution-locations node-id+type+resource]
+  (when-some [path (some-> node-id+type+resource (get 2) resource/proj-path)]
     (into []
           (comp (filter #(= path (:file %)))
                 (map (fn [{:keys [^long line type]}]

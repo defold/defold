@@ -214,15 +214,15 @@
   (when (= resource/Resource (:type edit-type))
     (resource-assignment-error node-id prop-kw prop-name value (:ext edit-type))))
 
-(g/defnk produce-script-property-entries [_basis _node-id deleted? name resource-kind type value]
+(g/defnk produce-script-property-entries [_this _node-id deleted? name resource-kind type value]
   (when-not deleted?
     (let [prop-kw (properties/user-name->key name)
           prop-type (script-property-type->property-type type)
           edit-type (script-property-edit-type prop-type resource-kind)
           error (validate-value-against-edit-type _node-id :value name value edit-type)
           go-prop-type (script-property-type->go-prop-type type)
-          overridden? (g/property-overridden? _basis _node-id :value)
-          read-only? (nil? (g/override-original _basis _node-id))
+          overridden? (g/node-property-overridden? _this :value)
+          read-only? (not (g/node-override? _this))
           visible? (not deleted?)]
       ;; NOTE: :assoc-original-value? here tells the node internals that it
       ;; needs to assoc in the :original-value from the overridden node when
