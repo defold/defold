@@ -341,13 +341,10 @@ namespace dmGraphics
 
     /**
      * Initialize graphics system
+     * @params adapter_type_str String identifier for which adapter to use (vulkan/opengl/null)
+     * @return True if a graphics backend could be created, false otherwise.
      */
-    bool Initialize();
-
-    /**
-     * Initialize graphics system by a specific adapter type
-     */
-    bool InitializeByAdapterType(AdapterType adapter_type);
+    bool Initialize(const char* adapter_type_str = 0);
 
     /**
      * Get the currently selected adapter type. Must be called after graphics has initialized.
@@ -641,29 +638,28 @@ namespace dmGraphics
 
     const char* GetBufferTypeLiteral(BufferType buffer_type)
     {
-        if (buffer_type == BUFFER_TYPE_COLOR_BIT)
-            return "BUFFER_TYPE_COLOR_BIT";
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-            return "BUFFER_TYPE_DEPTH_BIT";
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-            return "BUFFER_TYPE_STENCIL_BIT";
-        else
-            return "<unknown buffer type>";
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR_BIT:   return "BUFFER_TYPE_COLOR_BIT"; 
+            case BUFFER_TYPE_DEPTH_BIT:   return "BUFFER_TYPE_DEPTH_BIT"; 
+            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
+            default:break;
+        }
+        return "<unknown buffer type>";
     }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {
-        if (buffer_type == BUFFER_TYPE_COLOR_BIT)
-            return 0;
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-            return 1;
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-            return 2;
-        else
-            return ~0u;
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR_BIT:   return 0; 
+            case BUFFER_TYPE_DEPTH_BIT:   return 1;
+            case BUFFER_TYPE_STENCIL_BIT: return 2;
+        }
+        return ~0u;
     }
 
-    static inline const char* GraphicsAdapterTypeToStr(AdapterType adapter_type)
+    static inline const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
     {
         switch(adapter_type)
         {
@@ -672,8 +668,7 @@ namespace dmGraphics
             case ADAPTER_TYPE_VULKAN: return "vulkan";
             default: break;
         }
-
-        return "UNKNOWN_ADAPTER_TYPE";
+        return "<unknown adapter type>";
     }
 }
 

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,8 @@
 #endif
 #include <string.h>
 #include <assert.h>
+
+#include <dlib/dstrings.h>
 
 namespace dmGraphics
 {
@@ -36,39 +38,61 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
-    static bool SelectGraphicsAdapterByPriorityOrType(bool by_priority, AdapterType by_type)
+    static bool GetAdapterFromString(const char* adapter_type_str, AdapterType* adapter_type_out)
     {
-        if (g_adapter)
+        if (adapter_type_str)
         {
-            return true;
+            if (dmStrCaseCmp(adapter_type_str, "null") == 0)
+            {
+                *adapter_type_out = ADAPTER_TYPE_NULL;
+                return true;
+            }
+            else if (dmStrCaseCmp(adapter_type_str, "opengl") == 0)
+            {
+                *adapter_type_out = ADAPTER_TYPE_OPENGL;
+                return true;
+            }
+            else if (dmStrCaseCmp(adapter_type_str, "vulkan") == 0)
+            {
+                *adapter_type_out = ADAPTER_TYPE_VULKAN;
+                return true;
+            }
         }
+        return false;
+    }
 
+    static bool SelectAdapterByType(AdapterType adapter_type)
+    {
         GraphicsAdapter* next     = g_adapter_list;
         GraphicsAdapter* selected = next;
 
-        if (by_priority)
+        while(next)
         {
-            while(next)
+            if (next->m_AdapterType == adapter_type && next->m_IsSupportedCb())
             {
-                if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
-                {
-                    selected = next;
-                }
-
-                next = next->m_Next;
+                g_functions = next->m_RegisterCb();
+                g_adapter   = next;
+                return true;
             }
+            next = next->m_Next;
         }
-        else
+
+        return false;
+    }
+
+    static bool SelectAdapterByPriority()
+    {
+        GraphicsAdapter* next     = g_adapter_list;
+        GraphicsAdapter* selected = next;
+
+        while(next)
         {
-            while(next)
+            if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
             {
-                if (next->m_AdapterType == by_type && next->m_IsSupportedCb())
-                {
-                    selected = next;
-                    break;
-                }
-                next = next->m_Next;
+                selected = next;
             }
+
+            next = next->m_Next;
         }
 
         if (!selected)
@@ -78,7 +102,6 @@ namespace dmGraphics
 
         g_functions = selected->m_RegisterCb();
         g_adapter   = selected;
-
         return true;
     }
 
@@ -319,16 +342,33 @@ namespace dmGraphics
     {
         g_functions.m_DeleteContext(context);
     }
-    bool Initialize()
-    {
-        // Select by priority
-        return SelectGraphicsAdapterByPriorityOrType(true, ADAPTER_TYPE_NULL) && g_functions.m_Initialize();
-    }
 
-    bool InitializeByAdapterType(AdapterType adapter_type)
+    bool Initialize(const char* adapter_name_str)
     {
-        // Select by specific adapter
-        return SelectGraphicsAdapterByPriorityOrType(false, adapter_type) && g_functions.m_Initialize();
+        if (g_adapter)
+        {
+            return true;
+        }
+
+        AdapterType adapter_type;
+        bool result = GetAdapterFromString(adapter_name_str, &adapter_type);
+
+        if (result)
+        {
+            result = SelectAdapterByType(adapter_type);
+        }
+
+        if (!result)
+        {
+            result = SelectAdapterByPriority();
+        }
+
+        if (result)
+        {
+            return g_functions.m_Initialize();
+        }
+
+        return false;
     }
 
     AdapterType GetAdapterType()
