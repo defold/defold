@@ -24,8 +24,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log])
-  (:import [java.net URL]
-           [org.apache.commons.io IOUtils]))
+  (:import [org.apache.commons.io IOUtils]))
 
 (def ^:dynamic *project-path* "test/resources/lib_resource_project")
 

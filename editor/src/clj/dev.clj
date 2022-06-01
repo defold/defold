@@ -24,17 +24,14 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
-            [internal.util :as util])
-  (:import [clojure.lang MapEntry]
-           [internal.graph.types Arc]
+            [internal.util :as util]
+            [util.coll :refer [pair]])
+  (:import [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [javafx.stage Window]))
 
 (set! *warn-on-reflection* true)
-
-(defn- pair [a b]
-  (MapEntry/create a b))
 
 (defn workspace []
   0)

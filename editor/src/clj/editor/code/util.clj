@@ -11,9 +11,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.util
-  (:require [clojure.string :as string])
-  (:import [clojure.lang MapEntry]
-           [java.util ArrayList Collections Comparator List]
+  (:import [java.util ArrayList Collections Comparator List]
            [java.util.regex Matcher Pattern]))
 
 (set! *warn-on-reflection* true)
@@ -83,11 +81,6 @@
       (if (pred (nth coll index))
         index
         (recur (dec index))))))
-
-(defn pair
-  "Returns a two-element collection that implements IPersistentVector."
-  [a b]
-  (MapEntry/create a b))
 
 (defn re-matcher-from
   "Returns an instance of java.util.regex.Matcher that starts at an offset."

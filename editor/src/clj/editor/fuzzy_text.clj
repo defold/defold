@@ -11,8 +11,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.fuzzy-text
-  (:require [clojure.string :as string])
-  (:import (clojure.lang MapEntry)))
+  (:require [clojure.string :as string]
+            [util.coll :refer [pair]]))
 
 ;; Sublime Text-style fuzzy text matching.
 ;;
@@ -58,9 +58,6 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(defn- pair [a b]
-  (MapEntry. a b))
 
 (defn- case-insensitive-character-indices
   "Returns a vector of indices where the specified code point exists in the

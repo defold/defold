@@ -10,15 +10,17 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns internal.graph.types
-  (:require [internal.util :as util]
-            [schema.core :as s]))
+(ns internal.graph.types)
 
 (set! *warn-on-reflection* true)
 
 (defrecord Arc [source-id source-label target-id target-label])
 
+(defn source-id [^Arc arc] (.source-id arc))
+(defn source-label [^Arc arc] (.source-label arc))
 (defn source [^Arc arc] [(.source-id arc) (.source-label arc)])
+(defn target-id [^Arc arc] (.target-id arc))
+(defn target-label [^Arc arc] (.target-label arc))
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
 
 (defn node-id? [v] (integer? v))

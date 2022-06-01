@@ -16,17 +16,15 @@
             [editor.math :as math]
             [editor.resource :as resource]
             [editor.workspace]
+            [util.coll :refer [pair]]
             [util.digest :as digest])
-  (:import [clojure.lang MapEntry Named]
+  (:import [clojure.lang Named]
            [java.io OutputStreamWriter Writer]))
 
 (set! *warn-on-reflection* true)
 
 (defprotocol Digestable
   (digest! [value writer]))
-
-(defn- pair [a b]
-  (MapEntry/create a b))
 
 (defn- named? [value]
   (or (instance? Named value)

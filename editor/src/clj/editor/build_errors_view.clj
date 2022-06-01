@@ -19,8 +19,9 @@
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
-  (:import [clojure.lang MapEntry PersistentQueue]
+            [editor.workspace :as workspace]
+            [util.coll :refer [pair]])
+  (:import [clojure.lang PersistentQueue]
            [java.util Collection]
            [javafx.collections ObservableList]
            [javafx.scene.control TreeItem TreeView]
@@ -29,9 +30,6 @@
            [javafx.scene.text Text]))
 
 (set! *warn-on-reflection* true)
-
-(defn- pair [a b]
-  (MapEntry. a b))
 
 (defn- queue [item]
   (conj PersistentQueue/EMPTY item))

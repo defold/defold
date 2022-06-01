@@ -18,7 +18,7 @@
 (def ^:dynamic *cache-debug* nil)
 
 ;; ----------------------------------------
-;; Null cache for testing
+;; Null cache for testing / uncached queries
 ;; ----------------------------------------
 (cc/defcache NullCache [cache]
   cc/CacheProtocol
@@ -30,7 +30,7 @@
   (evict [this key] this)
   (seed [this base] base))
 
-(defn- null-cache [] (NullCache. {}))
+(def null-cache (NullCache. {}))
 
 ;; ----------------------------------------
 ;; Mutators
@@ -66,7 +66,7 @@
     (make-cache default-cache-limit))
   ([limit]
     (if (zero? limit)
-      (null-cache)
+      null-cache
       (cc/lru-cache-factory {} :threshold limit))))
 
 (defn cache-hit
