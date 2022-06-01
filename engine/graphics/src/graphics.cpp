@@ -57,16 +57,6 @@ namespace dmGraphics
 
                 next = next->m_Next;
             }
-
-            if (!selected)
-            {
-                return false;
-            }
-
-            g_functions = selected->m_RegisterCb();
-            g_adapter   = selected;
-
-            return true;
         }
         else
         {
@@ -74,15 +64,22 @@ namespace dmGraphics
             {
                 if (next->m_AdapterType == by_type && next->m_IsSupportedCb())
                 {
-                    g_functions = next->m_RegisterCb();
-                    g_adapter   = next;
-                    return true;
+                    selected = next;
+                    break;
                 }
                 next = next->m_Next;
             }
         }
 
-        return false;
+        if (!selected)
+        {
+            return false;
+        }
+
+        g_functions = selected->m_RegisterCb();
+        g_adapter   = selected;
+
+        return true;
     }
 
     WindowParams::WindowParams()

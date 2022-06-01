@@ -663,20 +663,18 @@ namespace dmGraphics
             return ~0u;
     }
 
-    #define DM_GRAPHICS_ADAPTER_TYPE_TO_STR(x) case x: return #x
     static inline const char* GraphicsAdapterTypeToStr(AdapterType adapter_type)
     {
         switch(adapter_type)
         {
-            DM_GRAPHICS_ADAPTER_TYPE_TO_STR(ADAPTER_TYPE_NULL);
-            DM_GRAPHICS_ADAPTER_TYPE_TO_STR(ADAPTER_TYPE_OPENGL);
-            DM_GRAPHICS_ADAPTER_TYPE_TO_STR(ADAPTER_TYPE_VULKAN);
+            case ADAPTER_TYPE_NULL:   return "NULL";
+            case ADAPTER_TYPE_OPENGL: return "OpenGL";
+            case ADAPTER_TYPE_VULKAN: return "Vulkan";
             default: break;
         }
 
         return "UNKNOWN_ADAPTER_TYPE";
     }
-    #undef DM_VK_RESULT_TO_STRING_CASE
 }
 
 #endif // DM_GRAPHICS_H
