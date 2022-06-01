@@ -21,6 +21,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <dlib/log.h>
 #include <dlib/dstrings.h>
 
 namespace dmGraphics
@@ -103,6 +104,18 @@ namespace dmGraphics
         g_functions = selected->m_RegisterCb();
         g_adapter   = selected;
         return true;
+    }
+
+    static const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
+    {
+        switch(adapter_type)
+        {
+            case ADAPTER_TYPE_NULL:   return "null";
+            case ADAPTER_TYPE_OPENGL: return "opengl";
+            case ADAPTER_TYPE_VULKAN: return "vulkan";
+            default: break;
+        }
+        return "<unknown adapter type>";
     }
 
     WindowParams::WindowParams()
@@ -365,9 +378,16 @@ namespace dmGraphics
 
         if (result)
         {
-            return g_functions.m_Initialize();
+            result = g_functions.m_Initialize();
         }
 
+        if (result)
+        {
+            dmLogInfo("Initialised graphics device '%s'", GetGraphicsAdapterTypeLiteral(g_adapter->m_AdapterType));
+            return true;
+        }
+
+        dmLogError("Could not initialize graphics. No graphics adapter was found.");
         return false;
     }
 

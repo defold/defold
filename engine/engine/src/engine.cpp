@@ -2042,11 +2042,8 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 
     if (!dmGraphics::Initialize(arg_adapter_type))
     {
-        dmLogError("Could not initialize graphics. No graphics adapter was found.");
         return 0;
     }
-
-    dmLogInfo("Initialised graphics device '%s'", dmGraphics::GetGraphicsAdapterTypeLiteral(dmGraphics::GetAdapterType()));
 
     dmEngine::HEngine engine = dmEngine::New(dmEngine::g_EngineService);
     bool initialized = dmEngine::Init(engine, argc, argv);

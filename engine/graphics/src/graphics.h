@@ -347,13 +347,6 @@ namespace dmGraphics
     bool Initialize(const char* adapter_type_str = 0);
 
     /**
-     * Get the currently selected adapter type. Must be called after graphics has initialized.
-     * @params context Graphics context handle
-     * @return AdapterType from the selcted adapter
-     */
-    AdapterType GetAdapterType();
-
-    /**
      * Finalize graphics system
      */
     void Finalize();
@@ -657,18 +650,6 @@ namespace dmGraphics
             case BUFFER_TYPE_STENCIL_BIT: return 2;
         }
         return ~0u;
-    }
-
-    static inline const char* GetGraphicsAdapterTypeLiteral(AdapterType adapter_type)
-    {
-        switch(adapter_type)
-        {
-            case ADAPTER_TYPE_NULL:   return "null";
-            case ADAPTER_TYPE_OPENGL: return "opengl";
-            case ADAPTER_TYPE_VULKAN: return "vulkan";
-            default: break;
-        }
-        return "<unknown adapter type>";
     }
 }
 
