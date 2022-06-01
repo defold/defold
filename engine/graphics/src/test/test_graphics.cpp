@@ -175,7 +175,7 @@ TEST_F(dmGraphicsTest, Clear)
     uint32_t data_size = sizeof(uint32_t) * width * height;
     uint32_t* data = new uint32_t[width * height];
     memset(data, 1, data_size);
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
     width *= 2;
     height *= 2;
@@ -184,7 +184,7 @@ TEST_F(dmGraphicsTest, Clear)
     memset(data, 1, data_size);
     dmGraphics::SetWindowSize(m_Context, width, height);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
 }
 
@@ -549,7 +549,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     uint32_t data_size = sizeof(uint32_t) * width * height;
     char* data = new char[data_size];
     memset(data, 1, data_size);
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
     width *= 2;
     height *= 2;
@@ -570,8 +570,50 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     ASSERT_EQ(height, target_height);
 
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
+
+    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::DeleteRenderTarget(target);
+
+    // Test multiple color attachments
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR1_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR2_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
+
+    flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT |
+            dmGraphics::BUFFER_TYPE_COLOR1_BIT |
+            dmGraphics::BUFFER_TYPE_COLOR2_BIT;
+
+    target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 1, 1, 1, 1, 1.0f, 1);
+    dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR1_BIT, 2, 2, 2, 2, 1.0f, 1);
+    dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR2_BIT, 3, 3, 3, 3, 1.0f, 1);
+
+    width = WIDTH;
+    height = HEIGHT;
+
+    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR_BIT, target_width, target_height);
+    ASSERT_EQ(width, target_width);
+    ASSERT_EQ(height, target_height);
+
+    data_size              = sizeof(uint32_t) * width * height;
+    uint32_t data_size_rgb = sizeof(uint32_t) * width * height * 3;
+
+    data = new char[data_size];
+    char* data_color1 = new char[data_size];
+    char* data_color2 = new char[data_size_rgb];
+    memset(data, 1, data_size);
+    memset(data_color1, 2, data_size);
+    memset(data_color2, 3, data_size_rgb);
+
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
+    ASSERT_EQ(0, memcmp(data_color1, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[1], data_size));
+    ASSERT_EQ(0, memcmp(data_color2, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[2], data_size_rgb));
+
+    delete [] data;
+    delete [] data_color1;
+    delete [] data_color2;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
     dmGraphics::DeleteRenderTarget(target);
