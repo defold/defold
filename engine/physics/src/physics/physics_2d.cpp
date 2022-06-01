@@ -414,7 +414,7 @@ namespace dmPhysics
         // Update transforms of kinematic bodies
         if (world->m_GetWorldTransformCallback)
         {
-            DM_PROFILE(Physics, "UpdateKinematic");
+            DM_PROFILE("UpdateKinematic");
             for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
             {
                 bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body->GetType() != b2_staticBody;
@@ -455,7 +455,7 @@ namespace dmPhysics
             }
         }
         {
-            DM_PROFILE(Physics, "StepSimulation");
+            DM_PROFILE("StepSimulation");
             world->m_ContactListener.SetStepWorldContext(&step_context);
             world->m_World.Step(dt, 10, 10);
             float inv_scale = world->m_Context->m_InvScale;
@@ -478,7 +478,7 @@ namespace dmPhysics
         uint32_t size = world->m_RayCastRequests.Size();
         if (size > 0)
         {
-            DM_PROFILE(Physics, "RayCasts");
+            DM_PROFILE("RayCasts");
             ProcessRayCastResultCallback2D callback;
             callback.m_Context = world->m_Context;
             for (uint32_t i = 0; i < size; ++i)
@@ -499,7 +499,7 @@ namespace dmPhysics
         // Report sensor collisions
         if (step_context.m_CollisionCallback)
         {
-            DM_PROFILE(Physics, "CollisionCallbacks");
+            DM_PROFILE("CollisionCallbacks");
             for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
             {
                 b2Fixture* fixture_a = contact->GetFixtureA();
@@ -523,7 +523,7 @@ namespace dmPhysics
 
     void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context)
     {
-        DM_PROFILE(Physics, "TriggerCallbacks");
+        DM_PROFILE("TriggerCallbacks");
         OverlapCacheReset(cache);
         OverlapCacheAddData add_data;
         add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
@@ -1091,7 +1091,7 @@ namespace dmPhysics
 
     void SetEnabled2D(HWorld2D world, HCollisionObject2D collision_object, bool enabled)
     {
-        DM_PROFILE(Physics, "SetEnabled");
+        DM_PROFILE("SetEnabled2D");
         bool prev_enabled = IsEnabled2D(collision_object);
         // Avoid multiple adds/removes
         if (prev_enabled == enabled)
@@ -1261,7 +1261,7 @@ namespace dmPhysics
 
     void RayCast2D(HWorld2D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
-        DM_PROFILE(Physics, "RayCasts");
+        DM_PROFILE("RayCast2D");
 
         const Point3 from2d = Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
         const Point3 to2d = Point3(request.m_To.getX(), request.m_To.getY(), 0.0);

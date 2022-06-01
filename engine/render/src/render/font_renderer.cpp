@@ -500,7 +500,7 @@ namespace dmRender
 
     void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, uint64_t batch_key, const DrawTextParams& params)
     {
-        DM_PROFILE(Render, "DrawText");
+        DM_PROFILE("DrawText");
 
         TextContext* text_context = &render_context->m_TextContext;
 
@@ -986,7 +986,7 @@ namespace dmRender
 
     static void CreateFontRenderBatch(HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Render, "CreateFontRenderBatch");
+        DM_PROFILE("FontRenderBatch");
         TextContext& text_context = render_context->m_TextContext;
 
         const TextEntry& first_te = *(TextEntry*) buf[*begin].m_UserData;
@@ -1098,7 +1098,7 @@ namespace dmRender
 
     void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final)
     {
-        DM_PROFILE(Render, "FlushTexts");
+        DM_PROFILE("FlushTexts");
 
         (void)final;
         TextContext& text_context = render_context->m_TextContext;

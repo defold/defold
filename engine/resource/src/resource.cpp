@@ -897,7 +897,7 @@ static Result LoadFromManifest(const Manifest* manifest, const char* path, uint3
 // Assumes m_LoadMutex is already held
 static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
-    DM_PROFILE(Resource, "LoadResource");
+    DM_PROFILE(__FUNCTION__);
     if (factory->m_BuiltinsManifest)
     {
         if (LoadFromManifest(factory->m_BuiltinsManifest, original_name, resource_size, buffer) == RESULT_OK)
@@ -1042,7 +1042,7 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
     assert(name);
     assert(resource);
 
-    DM_PROFILE(Resource, "Get");
+    DM_PROFILE(__FUNCTION__);
 
     *resource = 0;
 
@@ -1262,7 +1262,7 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
 
 Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size)
 {
-    DM_PROFILE(Resource, "GetRaw");
+    DM_PROFILE(__FUNCTION__);
 
     assert(name);
     assert(resource);
@@ -1404,7 +1404,7 @@ Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** 
 
 Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t datasize)
 {
-    DM_PROFILE(Resource, "Set");
+    DM_PROFILE(__FUNCTION__);
 
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
 
@@ -1459,7 +1459,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
 
 Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
 {
-    DM_PROFILE(Resource, "SetResource");
+    DM_PROFILE(__FUNCTION__);
 
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
 
@@ -1636,7 +1636,7 @@ uint32_t GetRefCount(HFactory factory, dmhash_t identifier)
 
 void Release(HFactory factory, void* resource)
 {
-    DM_PROFILE(Resource, "Release");
+    DM_PROFILE(__FUNCTION__);
 
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     assert(resource_hash);
@@ -1650,7 +1650,7 @@ void Release(HFactory factory, void* resource)
     {
         SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
 
-        DM_PROFILE_DYN(ResourceRelease, resource_type->m_Extension);
+        DM_PROFILE_DYN(resource_type->m_Extension, 0);
 
         ResourceDestroyParams params;
         params.m_Factory = factory;

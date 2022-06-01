@@ -789,7 +789,7 @@ namespace dmEngine
         const char* update_order = dmConfigFile::GetString(engine->m_Config, "gameobject.update_order", 0);
 
         // This scope is mainly here to make sure the "Main" scope is created first
-        DM_PROFILE(Engine, "Init");
+        DM_PROFILE("Init");
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
@@ -1473,10 +1473,10 @@ bail:
 
         dmProfile::HProfile profile = dmProfile::BeginFrame();
         {
-            DM_PROFILE(Engine, "Frame");
+            DM_PROFILE("Frame");
 
             {
-                DM_PROFILE(Engine, "Sim");
+                DM_PROFILE("Sim");
 
                 dmLiveUpdate::Update();
                 dmResource::UpdateFactory(engine->m_Factory);
@@ -1713,6 +1713,7 @@ bail:
 
     void Step(HEngine engine)
     {
+        DM_PROFILE("Step");
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
         engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;

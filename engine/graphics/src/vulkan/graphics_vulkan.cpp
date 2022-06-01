@@ -1173,7 +1173,7 @@ bail:
 
     static void VulkanFlip(HContext context)
     {
-        DM_PROFILE(VSync, "Wait");
+        DM_PROFILE(__FUNCTION__);
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
         FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
 
@@ -1229,8 +1229,8 @@ bail:
 
     static void VulkanClear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
+        DM_PROFILE(__FUNCTION__);
         assert(context->m_CurrentRenderTarget);
-        DM_PROFILE(Graphics, "Clear");
 
         uint32_t attachment_count = 0;
         VkClearAttachment vk_clear_attachments[2];
@@ -1435,7 +1435,7 @@ bail:
 
     static void VulkanSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DM_PROFILE(Graphics, "SetVertexBufferData");
+        DM_PROFILE(__FUNCTION__);
 
         if (size == 0)
         {
@@ -1454,7 +1454,7 @@ bail:
 
     static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        DM_PROFILE(Graphics, "SetVertexBufferSubData");
+        DM_PROFILE(__FUNCTION__);
         assert(size > 0);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size <= buffer_ptr->m_MemorySize);
@@ -1488,7 +1488,7 @@ bail:
 
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DM_PROFILE(Graphics, "SetIndexBufferData");
+        DM_PROFILE(__FUNCTION__);
 
         if (size == 0)
         {
@@ -1509,7 +1509,7 @@ bail:
 
     static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        DM_PROFILE(Graphics, "SetIndexBufferSubData");
+        DM_PROFILE(__FUNCTION__);
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size < buffer_ptr->m_MemorySize);
@@ -2018,9 +2018,9 @@ bail:
 
     static void VulkanDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
-        assert(context->m_FrameBegun);
-        DM_PROFILE(Graphics, "DrawElements");
+        DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+        assert(context->m_FrameBegun);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
@@ -2034,9 +2034,9 @@ bail:
 
     static void VulkanDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
-        assert(context->m_FrameBegun);
-        DM_PROFILE(Graphics, "Draw");
+        DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+        assert(context->m_FrameBegun);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;

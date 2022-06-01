@@ -294,7 +294,7 @@ namespace dmMessage
 
     Result GetSocket(const char *name, HSocket* out_socket)
     {
-        DM_PROFILE(Message, "GetSocket")
+        DM_PROFILE("GetSocket");
 
         if (name == 0x0 || *name == 0 || strchr(name, '#') != 0x0 || strchr(name, ':') != 0x0)
         {
@@ -402,7 +402,7 @@ namespace dmMessage
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
                     uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
-        DM_PROFILE(Message, "Post")
+        DM_PROFILE("Post");
         DM_PROPERTY_ADD_U32(rmtp_Messages, 1);
 
         if (receiver == 0x0)
@@ -522,11 +522,7 @@ namespace dmMessage
 
         char buffer[128];
         const char* profiler_string = GetProfilerString(s->m_Name, buffer, sizeof(buffer));
-        DM_PROFILE_DYN(Message, profiler_string);
-
-        // uint32_t profiler_hash = 0;
-        // const char* profiler_string = GetProfilerString(s->m_Name, &profiler_hash);
-        // DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
+        DM_PROFILE_DYN(profiler_string, 0);
 
         uint32_t dispatch_count = 0;
 

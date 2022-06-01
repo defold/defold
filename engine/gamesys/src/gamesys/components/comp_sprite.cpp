@@ -420,7 +420,7 @@ namespace dmGameSystem
 
     static void CreateVertexData(SpriteWorld* sprite_world, SpriteVertex** vb_where, uint8_t** ib_where, TextureSetResource* texture_set, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Sprite, "CreateVertexData");
+        DM_PROFILE("CreateVertexData");
 
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         dmGameSystemDDF::TextureSetAnimation* animations = texture_set_ddf->m_Animations.m_Data;
@@ -585,7 +585,7 @@ namespace dmGameSystem
 
     static void RenderBatch(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Sprite, "RenderBatch");
+        DM_PROFILE("SpriteRenderBatch");
 
         uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
         const SpriteComponent* first = (const SpriteComponent*) &sprite_world->m_Components.m_Objects[component_index];
@@ -677,7 +677,7 @@ namespace dmGameSystem
 
     static void UpdateTransforms(SpriteWorld* sprite_world, bool sub_pixels)
     {
-        DM_PROFILE(Sprite, "UpdateTransforms");
+        DM_PROFILE("UpdateTransforms");
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -743,7 +743,7 @@ namespace dmGameSystem
 
     static void PostMessages(SpriteWorld* sprite_world)
     {
-        DM_PROFILE(Sprite, "PostMessages");
+        DM_PROFILE("PostMessages");
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -800,7 +800,7 @@ namespace dmGameSystem
 
     static void Animate(SpriteWorld* sprite_world, float dt)
     {
-        DM_PROFILE(Sprite, "Animate");
+        DM_PROFILE("Animate");
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -845,7 +845,7 @@ namespace dmGameSystem
 
     static void CalcBoundingVolumes(SpriteWorld* sprite_world)
     {
-        DM_PROFILE(Sprite, "CalcBoundingVolumes");
+        DM_PROFILE("CalcBoundingVolumes");
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -887,7 +887,7 @@ namespace dmGameSystem
 
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
-        DM_PROFILE(Sprite, "FrustumCulling");
+        DM_PROFILE("FrustumCulling");
 
         const SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
         const float* radiuses = sprite_world->m_BoundingVolumes.Begin();

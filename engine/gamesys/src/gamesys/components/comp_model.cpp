@@ -467,7 +467,7 @@ namespace dmGameSystem
 
     static inline void RenderBatchLocalVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Model, "RenderBatchLocal");
+        DM_PROFILE("RenderBatchLocal");
 
         for (uint32_t *i=begin;i!=end;i++)
         {
@@ -508,7 +508,7 @@ namespace dmGameSystem
 
     static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Model, "RenderBatchWorld");
+        DM_PROFILE("RenderBatchWorld");
 
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
@@ -575,7 +575,7 @@ namespace dmGameSystem
 
     static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Model, "RenderBatch");
+        DM_PROFILE("ModelRenderBatch");
 
         const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
         dmRender::HMaterial material = first->m_Resource->m_Material;
@@ -595,9 +595,9 @@ namespace dmGameSystem
         }
     }
 
-    void UpdateTransforms(ModelWorld* world)
+    static void UpdateTransforms(ModelWorld* world)
     {
-        DM_PROFILE(Model, "UpdateTransforms");
+        DM_PROFILE(__FUNCTION__);
 
         dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
         uint32_t n = components.Size();

@@ -249,6 +249,7 @@ namespace dmGameSystem
 
     static void RenderBatch(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
+        DM_PROFILE("ParticleRenderBatch");
         const dmParticle::EmitterRenderData* first = (dmParticle::EmitterRenderData*) buf[*begin].m_UserData;
         ParticleFXContext* pfx_context = pfx_world->m_Context;
         dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;

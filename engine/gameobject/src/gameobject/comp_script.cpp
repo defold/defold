@@ -98,7 +98,7 @@ namespace dmGameObject
 
     ScriptResult RunScript(lua_State* L, HScript script, ScriptFunction script_function, HScriptInstance script_instance, const RunScriptParams& params)
     {
-        DM_PROFILE(Script, "RunScript");
+        DM_PROFILE("RunScript");
 
         ScriptResult result = SCRIPT_RESULT_OK;
 
@@ -130,7 +130,7 @@ namespace dmGameObject
             {
                 char buffer[128];
                 const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[script_function], 0, buffer, sizeof(buffer));
-                DM_PROFILE_DYN(Script, profiler_string);
+                DM_PROFILE_DYN(profiler_string, 0);
 
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
@@ -325,7 +325,7 @@ namespace dmGameObject
         {
             char buffer[128];
             const char* profiler_string = dmScript::GetProfilerString(L, is_callback ? -5 : 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONMESSAGE], message_name, buffer, sizeof(buffer));
-            DM_PROFILE_DYN(Script, profiler_string);
+            DM_PROFILE_DYN(profiler_string, 0);
 
             if (dmScript::PCall(L, 4, 0) != 0)
             {
@@ -342,7 +342,7 @@ namespace dmGameObject
 
     UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params)
     {
-        DM_PROFILE(Script, "RunScript");
+        DM_PROFILE("RunScript");
         UpdateResult result = UPDATE_RESULT_OK;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
@@ -438,7 +438,7 @@ namespace dmGameObject
 
     InputResult CompScriptOnInput(const ComponentOnInputParams& params)
     {
-        DM_PROFILE(Script, "RunScript");
+        DM_PROFILE("RunScript");
         InputResult result = INPUT_RESULT_IGNORED;
 
         ScriptInstance* script_instance = (ScriptInstance*)*params.m_UserData;
@@ -677,7 +677,7 @@ namespace dmGameObject
             {
                 char buffer[128];
                 const char* profiler_string = dmScript::GetProfilerString(L, 0, script_instance->m_Script->m_LuaModule->m_Source.m_Filename, SCRIPT_FUNCTION_NAMES[SCRIPT_FUNCTION_ONINPUT], 0, buffer, sizeof(buffer));
-                DM_PROFILE_DYN(Script, profiler_string);
+                DM_PROFILE_DYN(profiler_string, 0);
 
                 ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
             }

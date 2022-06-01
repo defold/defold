@@ -2868,7 +2868,7 @@ bail:
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
-        DM_PROFILE(Script, "RenderScript");
+        DM_PROFILE("RenderScript");
 
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
@@ -2929,7 +2929,7 @@ bail:
             {
                 char buffer[128];
                 const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_SourceFileName, RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name, buffer, sizeof(buffer));
-                DM_PROFILE_DYN(Script, profiler_string);
+                DM_PROFILE_DYN(profiler_string, 0);
 
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
@@ -3012,7 +3012,7 @@ bail:
 
     RenderScriptResult DispatchRenderScriptInstance(HRenderScriptInstance instance)
     {
-        DM_PROFILE(RenderScript, "DispatchRSI");
+        DM_PROFILE("DispatchRSI");
         DispatchContext context;
         context.m_Instance = instance;
         context.m_Result = RENDER_SCRIPT_RESULT_OK;
@@ -3022,7 +3022,7 @@ bail:
 
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance, float dt)
     {
-        DM_PROFILE(RenderScript, "UpdateRSI");
+        DM_PROFILE("UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);

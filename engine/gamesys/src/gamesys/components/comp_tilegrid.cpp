@@ -523,7 +523,7 @@ namespace dmGameSystem
 
     TileGridVertex* CreateVertexData(TileGridWorld* world, TileGridVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(TileGrid, "CreateVertexData");
+        DM_PROFILE("CreateVertexData");
         /*
          *   0----3
          *   | \  |
@@ -621,7 +621,7 @@ namespace dmGameSystem
 
     static void RenderBatch(TileGridWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(TileGrid, "RenderBatch");
+        DM_PROFILE("TileGridRenderBatch");
 
         uint32_t index, layer, region_x, region_y;
         DecodeGridAndLayer(buf[*begin].m_UserData, index, layer, region_x, region_y);

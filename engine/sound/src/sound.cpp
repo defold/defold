@@ -1083,7 +1083,7 @@ namespace dmSound
 
     static void Mix(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info)
     {
-        DM_PROFILE(Sound, "Mix")
+        DM_PROFILE(__FUNCTION__);
 
         SoundSystem* sound = g_SoundSystem;
         uint64_t delta = (uint32_t) ((((uint64_t) info->m_Rate) << RESAMPLE_FRACTION_BITS) / sound->m_MixRate);
@@ -1232,8 +1232,9 @@ namespace dmSound
         }
     }
 
-    static void MixInstances(const MixContext* mix_context) {
-        DM_PROFILE(Sound, "MixInstances")
+    static void MixInstances(const MixContext* mix_context)
+    {
+        DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
@@ -1282,8 +1283,9 @@ namespace dmSound
         }
     }
 
-    static void Master(const MixContext* mix_context) {
-        DM_PROFILE(Sound, "Master")
+    static void Master(const MixContext* mix_context)
+    {
+        DM_PROFILE(__FUNCTION__);
 
         SoundSystem* sound = g_SoundSystem;
         uint32_t n = sound->m_FrameCount;
@@ -1366,7 +1368,7 @@ namespace dmSound
 
     static Result UpdateInternal(SoundSystem* sound)
     {
-        DM_PROFILE(Sound, "Update")
+        DM_PROFILE(__FUNCTION__);
         if (!sound->m_Device)
         {
             return RESULT_OK;

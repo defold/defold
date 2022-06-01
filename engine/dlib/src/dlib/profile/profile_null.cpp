@@ -66,7 +66,7 @@ namespace dmProfile
     {
     }
 
-    void ProfileScope::StartScope(const char* name, uint32_t* name_hash)
+    void ProfileScope::StartScope(const char* name, uint64_t* name_hash)
     {
     }
 

@@ -316,12 +316,12 @@ namespace dmGameObject
 
     void DeallocCollection(Collection* collection)
     {
-        DM_PROFILE(GameObject, "DeallocCollection");
+        DM_PROFILE("DeallocCollection");
 
         HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
-            DM_PROFILE_DYN(GameObjectDeleteWorld, regist->m_ComponentTypes[i].m_Name);
+            DM_PROFILE_DYN(regist->m_ComponentTypes[i].m_Name, 0);
 
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
@@ -461,7 +461,7 @@ namespace dmGameObject
 
     void DeleteCollection(Collection* collection)
     {
-        DM_PROFILE(GameObject, "DeleteCollection");
+        DM_PROFILE("DeleteCollection");
 
         // We mark the collection as beeing deleted here to avoid component
         // triggered recursive deletes to add gameobjects to the delayed delete list.
@@ -739,7 +739,7 @@ namespace dmGameObject
     }
 
     bool CreateComponents(Collection* collection, HInstance instance) {
-        DM_PROFILE(GameObject, "CreateComponents");
+        DM_PROFILE("CreateComponents");
 
         Prototype* proto = instance->m_Prototype;
         uint32_t components_created = 0;
@@ -755,7 +755,7 @@ namespace dmGameObject
             ComponentType* component_type = component->m_Type;
             assert(component_type);
 
-            DM_PROFILE_DYN(GameObjectCreateComponents, component_type->m_Name);
+            DM_PROFILE_DYN(component_type->m_Name, 0);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -822,7 +822,7 @@ namespace dmGameObject
     }
 
     static void DestroyComponents(Collection* collection, HInstance instance) {
-        DM_PROFILE(GameObject, "DestroyComponents");
+        DM_PROFILE("DestroyComponents");
 
         HPrototype prototype = instance->m_Prototype;
         uint32_t next_component_instance_data = 0;
@@ -831,7 +831,7 @@ namespace dmGameObject
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = component->m_Type;
 
-            DM_PROFILE_DYN(GameObjectDestroyComponents, component_type->m_Name);
+            DM_PROFILE_DYN(component_type->m_Name, 0);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -1659,7 +1659,7 @@ namespace dmGameObject
 
     static bool InitCollection(Collection* collection)
     {
-        DM_PROFILE(GameObject, "Init");
+        DM_PROFILE("Init");
         assert(collection->m_InUpdate == 0 && "Initializing instances during Update(.) is not permitted");
 
         // Update transform cache
@@ -1746,7 +1746,7 @@ namespace dmGameObject
 
     static bool FinalCollection(Collection* collection)
     {
-        DM_PROFILE(GameObject, "Final");
+        DM_PROFILE("Final");
         assert(collection->m_InUpdate == 0 && "Finalizing instances during Update(.) is not permitted");
 
         bool result = true;
@@ -1838,7 +1838,7 @@ namespace dmGameObject
 
     static void DoDeleteInstance(Collection* collection, HInstance instance)
     {
-        DM_PROFILE(GameObject, "DoDeleteInstance");
+        DM_PROFILE("DoDeleteInstance");
         HCollection hcollection = collection->m_HCollection;
         CancelAnimations(hcollection, instance);
         if (instance->m_ToBeAdded) {
@@ -2271,7 +2271,7 @@ namespace dmGameObject
                     component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                 }
                 {
-                    DM_PROFILE(GameObject, "OnMessageFunction");
+                    DM_PROFILE("OnMessageFunction");
                     ComponentOnMessageParams params;
                     params.m_Instance = instance;
                     params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
@@ -2306,7 +2306,7 @@ namespace dmGameObject
                         component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
                     }
                     {
-                        DM_PROFILE(GameObject, "OnMessageFunction");
+                        DM_PROFILE("OnMessageFunction");
                         ComponentOnMessageParams params;
                         params.m_Instance = instance;
                         params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
@@ -2331,7 +2331,7 @@ namespace dmGameObject
 
     static bool DispatchMessages(Collection* collection, dmMessage::HSocket* sockets, uint32_t socket_count)
     {
-        DM_PROFILE(GameObject, "DispatchMessages");
+        DM_PROFILE("DispatchMessages");
 
         DispatchMessagesContext ctx;
         ctx.m_Collection = collection;
@@ -2389,7 +2389,7 @@ namespace dmGameObject
 
     void UpdateTransforms(Collection* collection)
     {
-        DM_PROFILE(GameObject, "UpdateTransforms");
+        DM_PROFILE("UpdateTransforms");
 
         // Calculate world transforms
         // First root-level instances
@@ -2458,7 +2458,7 @@ namespace dmGameObject
 
     static bool Update(Collection* collection, const UpdateContext* update_context)
     {
-        DM_PROFILE(GameObject, "Update");
+        DM_PROFILE("Update");
         DM_PROPERTY_ADD_U32(rmtp_GOInstances, collection->m_InstanceIndices.Size());
 
         assert(collection != 0x0);
@@ -2499,7 +2499,7 @@ namespace dmGameObject
 
             if (component_type->m_UpdateFunction)
             {
-                DM_PROFILE_DYN(GameObject, component_type->m_Name);
+                DM_PROFILE_DYN(component_type->m_Name, 0);
                 ComponentsUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_UpdateContext = &dynamic_update_context;
@@ -2561,7 +2561,7 @@ namespace dmGameObject
 
                         if (component_type->m_FixedUpdateFunction)
                         {
-                            DM_PROFILE_DYN(GameObject, component_type->m_Name);
+                            DM_PROFILE_DYN(component_type->m_Name, 0);
                             ComponentsUpdateParams params;
                             params.m_Collection = collection->m_HCollection;
                             params.m_UpdateContext = &fixed_update_context;
@@ -2604,7 +2604,7 @@ namespace dmGameObject
 
     bool Render(HCollection hcollection)
     {
-        DM_PROFILE(GameObject, "Render");
+        DM_PROFILE("Render");
 
         Collection* collection = hcollection->m_Collection;
         assert(collection != 0x0);
@@ -2617,7 +2617,7 @@ namespace dmGameObject
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
             if (component_type->m_RenderFunction)
             {
-                DM_PROFILE_DYN(GameObject, component_type->m_Name);
+                DM_PROFILE_DYN(component_type->m_Name, 0);
                 ComponentsRenderParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -2646,7 +2646,7 @@ namespace dmGameObject
 
     static bool PostUpdate(Collection* collection)
     {
-        DM_PROFILE(GameObject, "PostUpdate");
+        DM_PROFILE("PostUpdate");
         assert(collection != 0x0);
         HRegister reg = collection->m_Register;
         assert(reg);
@@ -2661,7 +2661,7 @@ namespace dmGameObject
 
             if (component_type->m_PostUpdateFunction)
             {
-                DM_PROFILE_DYN(GameObject, component_type->m_Name);
+                DM_PROFILE_DYN(component_type->m_Name, 0);
                 ComponentsPostUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -2737,7 +2737,7 @@ namespace dmGameObject
 
     bool PostUpdate(HRegister reg)
     {
-        DM_PROFILE(GameObject, "PostUpdateRegister");
+        DM_PROFILE("PostUpdateRegister");
 
         assert(reg != 0x0);
 
@@ -2764,7 +2764,7 @@ namespace dmGameObject
 
     UpdateResult DispatchInput(Collection* collection, InputAction* input_actions, uint32_t input_action_count)
     {
-        DM_PROFILE(GameObject, "DispatchInput");
+        DM_PROFILE("DispatchInput");
 
         // iterate stacks from top to bottom
         for (uint32_t i = 0; i < input_action_count; ++i)

@@ -94,7 +94,7 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
     {
         DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
-        DM_PROFILE(Profile, "Draw");
+        DM_PROFILE("RenderProfiler");
 
         // Make sure the main thread is at the front so it's picked by default
         std::sort(g_ProfilerCurrentFrame->m_Threads.Begin(), g_ProfilerCurrentFrame->m_Threads.End(), ThreadSortPred(&g_ProfilerThreadSortOrder));

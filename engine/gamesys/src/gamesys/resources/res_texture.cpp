@@ -86,6 +86,8 @@ namespace dmGameSystem
 
     dmResource::Result AcquireResources(const char* path, dmResource::SResourceDescriptor* resource_desc, dmGraphics::HContext context, ImageDesc* image_desc, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
+        DM_PROFILE_DYN(path, 0);
+
         dmResource::Result result = dmResource::RESULT_FORMAT_ERROR;
         for (uint32_t i = 0; i < image_desc->m_DDFImage->m_Alternatives.m_Count; ++i)
         {
@@ -230,6 +232,7 @@ namespace dmGameSystem
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params)
     {
+        DM_PROFILE(__FUNCTION__);
         dmGraphics::TextureImage* texture_image;
         dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
         if ( e != dmDDF::RESULT_OK )

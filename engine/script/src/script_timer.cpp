@@ -195,7 +195,7 @@ namespace dmScript
     void UpdateTimers(HTimerWorld timer_world, float dt)
     {
         assert(timer_world != 0x0);
-        DM_PROFILE(TimerWorld, "Update");
+        DM_PROFILE("Update");
 
         timer_world->m_InUpdate = 1;
 

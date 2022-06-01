@@ -114,33 +114,33 @@ TEST(dmProfile, Profile)
         {
             dmProfile::HProfile profile = dmProfile::BeginFrame();
             {
-                DM_PROFILE(A, "a")
+                DM_PROFILE("a")
                 dmTime::BusyWait(100000);
                 {
                     {
-                        DM_PROFILE(B, "a_b1")
+                        DM_PROFILE("a_b1")
                         dmTime::BusyWait(50000);
                         {
-                            DM_PROFILE(C, "a_b1_c")
+                            DM_PROFILE("a_b1_c")
                             dmTime::BusyWait(40000);
                         }
                     }
                     {
-                        DM_PROFILE(B, "b2")
+                        DM_PROFILE("b2")
                         dmTime::BusyWait(50000);
                         {
-                            DM_PROFILE(C, "a_b2_c1")
+                            DM_PROFILE("a_b2_c1")
                             dmTime::BusyWait(40000);
                         }
                         {
-                            DM_PROFILE(C, "a_b2_c2")
+                            DM_PROFILE("a_b2_c2")
                             dmTime::BusyWait(60000);
                         }
                     }
                 }
             }
             {
-                DM_PROFILE(D, "a_d")
+                DM_PROFILE("a_d")
                 dmTime::BusyWait(80000);
             }
             dmProfile::EndFrame(profile);
@@ -263,7 +263,7 @@ void ProfileThread(void* arg)
 {
     for (int i = 0; i < 20000; ++i)
     {
-        DM_PROFILE(X, "a")
+        DM_PROFILE("a")
     }
 }
 

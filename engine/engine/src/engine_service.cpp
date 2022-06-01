@@ -532,7 +532,7 @@ namespace dmEngineService
 
     void Update(HEngineService engine_service, dmProfile::HProfile profile)
     {
-        DM_PROFILE(Engine, "Service");
+        DM_PROFILE("Service");
         engine_service->m_Profile = profile;
         dmWebServer::Update(engine_service->m_WebServer);
         if (engine_service->m_WebServerRedirect)

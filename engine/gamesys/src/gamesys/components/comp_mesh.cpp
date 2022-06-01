@@ -382,7 +382,7 @@ namespace dmGameSystem
 
     static void UpdateTransforms(MeshWorld* world)
     {
-        DM_PROFILE(Mesh, "UpdateTransforms");
+        DM_PROFILE("UpdateTransforms");
 
         dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -417,6 +417,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompMeshUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
+        DM_PROFILE("Update");
+
         MeshWorld* world = (MeshWorld*)params.m_World;
 
         dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
@@ -587,7 +589,7 @@ namespace dmGameSystem
 
     static inline void RenderBatchWorldVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Mesh, "RenderBatchWorld");
+        DM_PROFILE("RenderBatchWorld");
 
         dmGraphics::HVertexBuffer vert_buffer = AllocVertexBuffer(world, world->m_GraphicsContext);
         assert(vert_buffer);
@@ -681,7 +683,7 @@ namespace dmGameSystem
 
     static inline void RenderBatchLocalVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Mesh, "RenderBatchLocal");
+        DM_PROFILE("RenderBatchLocal");
 
         for (uint32_t *i=begin;i!=end;i++)
         {
@@ -706,7 +708,7 @@ namespace dmGameSystem
 
     static void RenderBatch(MeshWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Mesh, "RenderBatch");
+        DM_PROFILE("MeshRenderBatch");
 
         const MeshComponent* first = (MeshComponent*) buf[*begin].m_UserData;
         dmRender::HMaterial material = GetMaterial(first, first->m_Resource);
@@ -759,6 +761,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompMeshRender(const dmGameObject::ComponentsRenderParams& params)
     {
+        DM_PROFILE("Render");
+
         MeshContext* context = (MeshContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         MeshWorld* world = (MeshWorld*)params.m_World;

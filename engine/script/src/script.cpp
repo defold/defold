@@ -1772,7 +1772,7 @@ namespace dmScript
         {
             char buffer[128];
             const char* profiler_string = GetProfilerString(L, -(number_of_arguments + 1), "?", "on_timer", 0, buffer, sizeof(buffer)); // TODO: Why "on_timer" ???
-            DM_PROFILE_DYN(Script, profiler_string);
+            DM_PROFILE_DYN(profiler_string, 0);
 
             ret = PCall(L, number_of_arguments, 0);
         }
