@@ -546,6 +546,7 @@
 
 (g/defnode SceneRenderer
   (property info-label Label (dynamic visible (g/constantly false)))
+  (property render-mode g/Keyword (default :normal))
 
   (input active-view g/NodeID)
   (input scene g/Any :substitute substitute-scene)
@@ -783,7 +784,6 @@
   (property viewport Region (default (g/constantly (types/->Region 0 0 0 0))))
   (property active-updatable-ids g/Any)
   (property play-mode g/Keyword)
-  (property render-mode g/Keyword)
   (property drawable GLAutoDrawable)
   (property picking-drawable GLAutoDrawable)
   (property async-copy-state g/Any)
@@ -1313,9 +1313,7 @@
     scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]
-  (let [view-id (g/make-node! scene-graph SceneView
-                              :updatable-states {}
-                              :render-mode :normal)
+  (let [view-id (g/make-node! scene-graph SceneView :updatable-states {})
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
     (ui/with-controls scene-view-pane [scene-view-info-label]
