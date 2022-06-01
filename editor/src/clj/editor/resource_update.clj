@@ -168,8 +168,6 @@
   ;; ZipResource to another - e.g. if you replace a library dependency with another
   ;; one that has the same file - thus, we must update the :resource field of the
   ;; node. Just like a redirect.
-  ;;
-  ;; TODO: Don't we also need to invalidate outputs when we redirect? Not done currently.
   (let [non-moved-changed (remove (comp (some-fn move-source-paths move-target-paths) resource/proj-path) changed)
         {loadable-changed true stateless-changed false} (group-by stateful? non-moved-changed)
         {stateless-swapped true stateless-changed false} (group-by resource-swapped? stateless-changed)]

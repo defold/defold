@@ -948,7 +948,7 @@
   "Returns true if the node is a member of any of the given types, including
    their supertypes."
   [node types]
-  (let [node-type-key (some-> (gt/node-type node) deref :key)]
+  (let [node-type-key (-> node gt/node-type deref :key)]
     (some? (and node-type-key
                 (some (fn [type]
                         (let [type-key (:key @type)]
@@ -1002,12 +1002,12 @@
 
 (defn- every-arc-pred [& preds]
   (fn [basis ^Arc arc]
-    (loop [preds preds]
-      (if-some [pred (first preds)]
-        (if (pred basis arc)
-          (recur (next preds))
-          false)
-        true))))
+    (reduce (fn [_ pred]
+              (if (pred basis arc)
+                true
+                (reduced false)))
+            true
+            preds)))
 
 (defn- predecessors [pred basis node-id]
   (into []

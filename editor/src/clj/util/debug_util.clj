@@ -18,16 +18,10 @@
   ^double [^long counter]
   (/ (double counter) 6.0E10))
 
-(defn- system-property-set?
-  [system-property-name]
-  (if-some [string-value (System/getProperty system-property-name)]
-    (Boolean/parseBoolean string-value)
-    false))
-
 (defn metrics-enabled?
   "Returns true if we're running with the defold.metrics system property set."
   []
-  (system-property-set? "defold.metrics"))
+  (Boolean/getBoolean "defold.metrics"))
 
 (defmacro if-metrics
   "Evaluate metrics-expr if we're running with the defold.metrics system property set.

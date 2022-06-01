@@ -1045,12 +1045,6 @@
   (let [graph-id (gt/override-id->graph-id override-id)]
     (get-in basis [:graphs graph-id :overrides override-id :traverse-fn])))
 
-(defn- arc-source-id [^Arc arc]
-  (.source-id arc))
-
-(defn- arc-source-label [^Arc arc]
-  (.source-label arc))
-
 (defn hydrate-after-undo [basis graph-state]
   ;; NOTE: This was originally written in a simpler way. This longer-form
   ;; implementation is optimized in order to solve performance issues in graphs
@@ -1059,15 +1053,15 @@
         graphs (:graphs basis)
         other-graphs (dissoc graphs graph-id)
         old-sarcs (get graph-state :sarcs)
-        arc-from-graph? #(= graph-id (gt/node-id->graph-id (arc-source-id %)))
+        arc-from-graph? #(= graph-id (gt/node-id->graph-id (.source-id ^Arc %)))
         arc-to-graph? #(= graph-id (gt/node-id->graph-id (.target-id ^Arc %)))
 
         ;; Create a sarcs-like map structure containing just the Arcs that
         ;; connect nodes in our graph to nodes in other graphs. Use the tarcs
         ;; from the other graphs as the source of truth.
         external-sarcs (into {}
-                             (map (juxt key (comp (partial group-by arc-source-label) val)))
-                             (group-by arc-source-id
+                             (map (juxt key (comp (partial group-by gt/source-label) val)))
+                             (group-by gt/source-id
                                        (into #{}
                                              (comp (mapcat :tarcs)
                                                    (mapcat val)

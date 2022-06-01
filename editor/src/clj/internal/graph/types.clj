@@ -15,14 +15,13 @@
 (ns internal.graph.types)
 
 (set! *warn-on-reflection* true)
-(set! *unchecked-math* :warn-on-boxed)
 
-(defrecord Arc [^long source-id source-label ^long target-id target-label])
+(defrecord Arc [source-id source-label target-id target-label])
 
-(defn source-id ^long [^Arc arc] (.source-id arc))
+(defn source-id [^Arc arc] (.source-id arc))
 (defn source-label [^Arc arc] (.source-label arc))
 (defn source [^Arc arc] [(.source-id arc) (.source-label arc)])
-(defn target-id ^long [^Arc arc] (.target-id arc))
+(defn target-id [^Arc arc] (.target-id arc))
 (defn target-label [^Arc arc] (.target-label arc))
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
 

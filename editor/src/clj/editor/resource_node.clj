@@ -102,6 +102,10 @@
                                  ;; Careful! This might throw if resource has been removed
                                  ;; outside the editor. Use from editor.engine.native-extensions seems
                                  ;; to catch any exceptions.
+                                 ;; Also, be aware that resource-update/keep-existing-node?
+                                 ;; assumes this output will produce a sha256 hex hash string
+                                 ;; from the bytes we'll be writing to disk, so be careful
+                                 ;; if you decide to overload it.
                                  (let [content (get undecorated-save-data :content ::no-content)]
                                    (if (= ::no-content content)
                                      (with-open [s (io/input-stream resource)]
