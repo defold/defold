@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -350,6 +350,13 @@ namespace dmGraphics
     bool InitializeByAdapterType(AdapterType adapter_type);
 
     /**
+     * Get the currently selected adapter type. Must be called after graphics has initialized.
+     * @params context Graphics context handle
+     * @return AdapterType from the selcted adapter
+     */
+    AdapterType GetAdapterType();
+
+    /**
      * Finalize graphics system
      */
     void Finalize();
@@ -358,13 +365,6 @@ namespace dmGraphics
      * Starts the app that needs to control the update loop (iOS only)
      */
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
-
-    /**
-     * Get the currently selected adapter type. Must be called after graphics has initialized.
-     * @params context Graphics context handle
-     * @return AdapterType from the selcted adapter
-     */
-    AdapterType GetAdapterType(HContext context);
 
     /**
      * Get the window refresh rate
@@ -667,9 +667,9 @@ namespace dmGraphics
     {
         switch(adapter_type)
         {
-            case ADAPTER_TYPE_NULL:   return "NULL";
-            case ADAPTER_TYPE_OPENGL: return "OpenGL";
-            case ADAPTER_TYPE_VULKAN: return "Vulkan";
+            case ADAPTER_TYPE_NULL:   return "null";
+            case ADAPTER_TYPE_OPENGL: return "opengl";
+            case ADAPTER_TYPE_VULKAN: return "vulkan";
             default: break;
         }
 

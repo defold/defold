@@ -2073,6 +2073,14 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
         return 0;
     }
 
+    dmGraphics::AdapterType adapter_type_engine = dmGraphics::GetAdapterType();
+    if (graphics_adapter_requested_by_args && adapter_type_from_args != adapter_type_engine)
+    {
+        dmLogWarning("Requested graphics adapater '%s' is not supported, currently selected: '%s'",
+            dmGraphics::GraphicsAdapterTypeToStr(adapter_type_from_args),
+            dmGraphics::GraphicsAdapterTypeToStr(adapter_type_engine));
+    }
+
     dmEngine::HEngine engine = dmEngine::New(dmEngine::g_EngineService);
     bool initialized = dmEngine::Init(engine, argc, argv);
 
@@ -2081,15 +2089,6 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
         // Leave cleaning up of engine service to the finalize call
         Delete(engine);
         return 0;
-    }
-
-
-    dmGraphics::AdapterType adapter_type_engine = dmGraphics::GetAdapterType(engine->m_GraphicsContext);
-    if (graphics_adapter_requested_by_args && adapter_type_from_args != adapter_type_engine)
-    {
-        dmLogWarning("Requested graphics adapater '%s' is not supported, currently selected: '%s'",
-            dmGraphics::GraphicsAdapterTypeToStr(adapter_type_from_args),
-            dmGraphics::GraphicsAdapterTypeToStr(adapter_type_engine));
     }
 
     return engine;

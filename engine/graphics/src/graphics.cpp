@@ -331,7 +331,7 @@ namespace dmGraphics
         return SelectGraphicsAdapterByPriorityOrType(false, adapter_type) && g_functions.m_Initialize();
     }
 
-    AdapterType GetAdapterType(HContext context)
+    AdapterType GetAdapterType()
     {
         return g_adapter->m_AdapterType;
     }
