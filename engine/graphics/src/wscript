@@ -48,7 +48,7 @@ def build(bld):
         if bld.env.PLATFORM == 'arm64-nx64':
           obj.source.remove(os.path.join('.','graphics_glfw_wrappers.cpp'))
 
-        obj.source = [x for x in obj.source if not x.name.endswith(os.path.join('vulkan','graphics_native.cpp'))]
+        obj.source = [x for x in obj.source if not x.abspath().endswith(os.path.join('vulkan','graphics_native.cpp'))]
         obj.source.append(_get_native_source(build_util.get_target_os(), 'vulkan'))
 
         if bld.env.PLATFORM == 'x86_64-darwin':
