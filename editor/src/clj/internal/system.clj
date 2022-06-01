@@ -296,22 +296,20 @@
   ;; We can only later on update the cache if we have invalidate-counters from
   ;; when the evaluation context was created, and those are only merged if
   ;; we're using the system basis & cache.
-  [system options]
-  (assert (not (and (some? (:cache options)) (nil? (:basis options)))))
-  (let [system-options {:basis (basis system)
-                        :cache (system-cache system)
-                        :initial-invalidate-counters (:invalidate-counters system)}
-        options (merge
-                  options
-                  (cond
-                    (and (nil? (:cache options)) (nil? (:basis options)))
-                    system-options
-
-                    (and (nil? (:cache options))
-                         (some? (:basis options))
-                         (basis-graphs-identical? (:basis options) (:basis system-options)))
-                    system-options))]
-    (in/custom-evaluation-context options)))
+  [system {options-basis :basis options-cache :cache :as options}]
+  (in/custom-evaluation-context
+    (if (some? options-cache)
+      (do
+        (assert (some? options-basis))
+        options)
+      (let [system-basis (basis system)]
+        (if (or (nil? options-basis)
+                (basis-graphs-identical? options-basis system-basis))
+          (assoc options
+            :basis system-basis
+            :cache (system-cache system)
+            :initial-invalidate-counters (:invalidate-counters system))
+          options)))))
 
 (defn update-cache-from-evaluation-context
   [system evaluation-context]

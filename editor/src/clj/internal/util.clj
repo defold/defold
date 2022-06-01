@@ -75,7 +75,10 @@
   "Like core.group-by, but you can specify the associative container to group
   into, as well as the empty collection to use for the groups. If the optional
   value-fn is supplied, it will be used to transform each element before adding
-  them to the groups."
+  them to the groups. It can also be a drop-in replacement for group-by that is
+  slightly more efficient since it will make use of transient vectors."
+  ([key-fn coll]
+   (group-into {} [] key-fn nil coll))
   ([groups-container empty-group key-fn coll]
    (group-into groups-container empty-group key-fn nil coll))
   ([groups-container empty-group key-fn value-fn coll]
