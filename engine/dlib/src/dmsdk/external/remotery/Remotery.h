@@ -254,6 +254,7 @@ typedef enum rmtError
     RMT_ERROR_INVALID_INPUT,                    // An invalid input to a function call was provided
     RMT_ERROR_RESOURCE_CREATE_FAIL,             // Creation of an internal resource failed
     RMT_ERROR_RESOURCE_ACCESS_FAIL,             // Access of an internal resource failed
+    RMT_ERROR_TIMEOUT,                          // Internal system timeout
 
     // System errors
     RMT_ERROR_MALLOC_FAIL,                      // Malloc call within remotery failed
@@ -263,16 +264,9 @@ typedef enum rmtError
     RMT_ERROR_OPEN_THREAD_HANDLE_FAIL,          // Failed to open a thread handle, given a thread id
 
     // Network TCP/IP socket errors
-    RMT_ERROR_SOCKET_INIT_NETWORK_FAIL,         // Network initialisation failure (e.g. on Win32, WSAStartup fails)
-    RMT_ERROR_SOCKET_CREATE_FAIL,               // Can't create a socket for connection to the remote viewer
-    RMT_ERROR_SOCKET_BIND_FAIL,                 // Can't bind a socket for the server
-    RMT_ERROR_SOCKET_LISTEN_FAIL,               // Created server socket failed to enter a listen state
-    RMT_ERROR_SOCKET_SET_NON_BLOCKING_FAIL,     // Created server socket failed to switch to a non-blocking state
     RMT_ERROR_SOCKET_INVALID_POLL,              // Poll attempt on an invalid socket
     RMT_ERROR_SOCKET_SELECT_FAIL,               // Server failed to call select on socket
     RMT_ERROR_SOCKET_POLL_ERRORS,               // Poll notified that the socket has errors
-    RMT_ERROR_SOCKET_ACCEPT_FAIL,               // Server failed to accept connection from client
-    RMT_ERROR_SOCKET_SEND_TIMEOUT,              // Timed out trying to send data
     RMT_ERROR_SOCKET_SEND_FAIL,                 // Unrecoverable error occured while client/server tried to send data
     RMT_ERROR_SOCKET_RECV_NO_DATA,              // No data available when attempting a receive
     RMT_ERROR_SOCKET_RECV_TIMEOUT,              // Timed out trying to receive data

@@ -136,7 +136,7 @@ TimelineRow = (function()
     }
 
 
-    TimelineRow.prototype.DrawSampleHighlight = function(sample, depth, colour, y_scroll_offset)
+    TimelineRow.prototype.DrawSampleHighlight = function(sample, depth, selected, y_scroll_offset)
     {
         if (depth <= this.Depth)
         {
@@ -152,8 +152,30 @@ TimelineRow = (function()
             // Normal rendering
             var ctx = this.timeline.drawContext;
             ctx.lineWidth = 2;
-            ctx.strokeStyle = colour;
+            ctx.strokeStyle = selected ? "#FF0000" : "#FFFFFF";
             ctx.strokeRect(offset_x + 2.5, offset_y - 0.5, size_x - 3, size_y + 1);
+
+            // Render CPU issue time if this is a GPU sample
+            if (sample.usGpuIssueOnCpu > 0)
+            {
+                // Determine line range from start of sample to its CPU equivalent
+                var x0 = this.VisibleTimeRange.PixelOffset(sample.us_start);
+                var x1 = this.VisibleTimeRange.PixelOffset(sample.usGpuIssueOnCpu);
+
+                // Draw in the gutter
+                var offset_y = this.LabelContainerNode.offsetTop + (depth - 1) * SAMPLE_Y_SPACING + y_scroll_offset;
+                
+                // Dashed line render
+                var ctx = this.timeline.drawContext;
+                ctx.lineWidth = selected ? 2 : 1;
+                ctx.strokeStyle = "#FFFFFF";
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(x0, offset_y);
+                ctx.lineTo(x1, offset_y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
         }
     }
 
@@ -182,7 +204,7 @@ TimelineRow = (function()
         {
             const sample = this.SelectSampleInfo[1];
             const depth = this.SelectSampleInfo[2];
-            this.DrawSampleHighlight(sample, depth, "#FF0000", y_scroll_offset);
+            this.DrawSampleHighlight(sample, depth, true, y_scroll_offset);
         }
 
         // Draw the current hover sample if it's over this row
@@ -191,7 +213,7 @@ TimelineRow = (function()
             const sample = hover_sample_info[1];
             const depth = hover_sample_info[2];
             const thread_row = hover_sample_info[3];
-            this.DrawSampleHighlight(sample, depth, "#FFFFFF", y_scroll_offset);
+            this.DrawSampleHighlight(sample, depth, false, y_scroll_offset);
         }
     }
 

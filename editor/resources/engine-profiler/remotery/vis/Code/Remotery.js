@@ -232,6 +232,7 @@ Remotery = (function()
         sample.us_start = data_view_reader.GetUInt64();
         sample.us_length = data_view_reader.GetUInt64();
         sample.us_self = data_view_reader.GetUInt64();
+        sample.usGpuIssueOnCpu = data_view_reader.GetUInt64();
         sample.call_count = data_view_reader.GetUInt32();
         sample.recurse_depth = data_view_reader.GetUInt32();
 

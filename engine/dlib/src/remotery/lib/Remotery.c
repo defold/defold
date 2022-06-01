@@ -2809,9 +2809,13 @@ static rmtError InitialiseNetwork()
 
     WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data))
-        return RMT_ERROR_SOCKET_INIT_NETWORK_FAIL;
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_CREATE_FAIL, "WSAStartup failed");
+    }
     if (LOBYTE(wsa_data.wVersion) != 2 || HIBYTE(wsa_data.wVersion) != 2)
-        return RMT_ERROR_SOCKET_INIT_NETWORK_FAIL;
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_CREATE_FAIL, "WSAStartup returned incorrect version number");
+    }
 
     return RMT_ERROR_NONE;
 
@@ -2858,7 +2862,9 @@ static rmtError TCPSocket_RunServer(TCPSocket* tcp_socket, rmtU16 port, rmtBool 
     // Try to create the socket
     s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (s == SOCKET_ERROR)
-        return RMT_ERROR_SOCKET_CREATE_FAIL;
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_CREATE_FAIL, "Can't create a socket for connection to the remote viewer");
+    }
 
     if (reuse_open_port)
     {
@@ -2884,22 +2890,30 @@ static rmtError TCPSocket_RunServer(TCPSocket* tcp_socket, rmtU16 port, rmtBool 
     sin.sin_addr.s_addr = htonl(limit_connections_to_localhost ? INADDR_LOOPBACK : INADDR_ANY);
     sin.sin_port = htons(port);
     if (bind(s, (struct sockaddr*)&sin, sizeof(sin)) == SOCKET_ERROR)
-        return RMT_ERROR_SOCKET_BIND_FAIL;
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_ACCESS_FAIL, "Can't bind a socket for the server");
+    }
 
     // Connection is valid, remaining code is socket state modification
     tcp_socket->socket = s;
 
     // Enter a listening state with a backlog of 1 connection
     if (listen(s, 1) == SOCKET_ERROR)
-        return RMT_ERROR_SOCKET_LISTEN_FAIL;
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_ACCESS_FAIL, "Created server socket failed to enter a listen state");
+    }
 
 // Set as non-blocking
 #ifdef RMT_PLATFORM_WINDOWS
     if (ioctlsocket(tcp_socket->socket, FIONBIO, &nonblock) == SOCKET_ERROR)
-        return RMT_ERROR_SOCKET_SET_NON_BLOCKING_FAIL;
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_ACCESS_FAIL, "Created server socket failed to switch to a non-blocking state");
+    }
 #else
     if (fcntl(tcp_socket->socket, F_SETFL, O_NONBLOCK) == SOCKET_ERROR)
-        return RMT_ERROR_SOCKET_SET_NON_BLOCKING_FAIL;
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_ACCESS_FAIL, "Created server socket failed to switch to a non-blocking state");
+    }
 #endif
 
     return RMT_ERROR_NONE;
@@ -2992,7 +3006,9 @@ static rmtError TCPSocket_AcceptConnection(TCPSocket* tcp_socket, TCPSocket** cl
     // Accept the connection
     s = accept(tcp_socket->socket, 0, 0);
     if (s == SOCKET_ERROR)
-        return RMT_ERROR_SOCKET_ACCEPT_FAIL;
+    {
+        return rmtMakeError(RMT_ERROR_RESOURCE_CREATE_FAIL, "Server failed to accept connection from client");
+    }
 
 #ifdef SO_NOSIGPIPE
     // On POSIX systems, send() may send a SIGPIPE signal when writing to an
@@ -3050,7 +3066,9 @@ static rmtError TCPSocket_Send(TCPSocket* tcp_socket, const void* data, rmtU32 l
 
         cur_ms = msTimer_Get();
         if (cur_ms - start_ms > timeout_ms)
-            return RMT_ERROR_SOCKET_SEND_TIMEOUT;
+        {
+            return rmtMakeError(RMT_ERROR_TIMEOUT, "Timed out trying to send data");
+        }
     }
 
     cur_data = (char*)data;
@@ -3095,7 +3113,7 @@ static rmtError TCPSocket_Send(TCPSocket* tcp_socket, const void* data, rmtU32 l
             //
             if (cur_ms - start_ms > timeout_ms)
             {
-                return RMT_ERROR_SOCKET_SEND_TIMEOUT;
+                return rmtMakeError(RMT_ERROR_TIMEOUT, "Timed out trying to send data");
             }
         }
         else
@@ -4413,6 +4431,9 @@ typedef struct Sample
     // Total sampled length of all children
     rmtU64 us_sampled_length;
 
+    // If this is a GPU sample, when the sample was issued on the GPU
+    rmtU64 usGpuIssueOnCpu;
+
     // Number of times this sample was used in a call in aggregate mode, 1 otherwise
     rmtU32 call_count;
 
@@ -4443,6 +4464,7 @@ static rmtError Sample_Constructor(Sample* sample)
     sample->us_end = 0;
     sample->us_length = 0;
     sample->us_sampled_length = 0;
+    sample->usGpuIssueOnCpu = 0;
     sample->call_count = 0;
     sample->recurse_depth = 0;
     sample->max_recurse_depth = 0;
@@ -4468,6 +4490,7 @@ static void Sample_Prepare(Sample* sample, rmtU32 name_hash, Sample* parent)
     sample->us_end = 0;
     sample->us_length = 0;
     sample->us_sampled_length = 0;
+    sample->usGpuIssueOnCpu = 0;
     sample->call_count = 1;
     sample->recurse_depth = 0;
     sample->max_recurse_depth = 0;
@@ -4507,6 +4530,7 @@ static void Sample_CopyState(Sample* dst_sample, const Sample* src_sample)
     dst_sample->us_end = src_sample->us_end;
     dst_sample->us_length = src_sample->us_length;
     dst_sample->us_sampled_length = src_sample->us_sampled_length;
+    dst_sample->usGpuIssueOnCpu = src_sample->usGpuIssueOnCpu;
     dst_sample->call_count = src_sample->call_count;
     dst_sample->recurse_depth = src_sample->recurse_depth;
     dst_sample->max_recurse_depth = src_sample->max_recurse_depth;
@@ -4530,6 +4554,7 @@ static rmtError bin_Sample(Buffer* buffer, Sample* sample)
     rmtTry(Buffer_WriteU64(buffer, sample->us_start));
     rmtTry(Buffer_WriteU64(buffer, sample->us_length));
     rmtTry(Buffer_WriteU64(buffer, maxS64(sample->us_length - sample->us_sampled_length, 0)));
+    rmtTry(Buffer_WriteU64(buffer, sample->usGpuIssueOnCpu));
     rmtTry(Buffer_WriteU32(buffer, sample->call_count));
     rmtTry(Buffer_WriteU32(buffer, sample->max_recurse_depth));
     rmtTry(bin_SampleArray(buffer, sample));
@@ -7493,6 +7518,7 @@ RMT_API void _rmt_BeginCUDASample(rmtPStr name, rmtU32* hash_cache, void* stream
         if (ThreadProfiler_Push(*cuda_tree, name_hash, 0, &sample) == RMT_ERROR_NONE)
         {
             CUDASample* cuda_sample = (CUDASample*)sample;
+            cuda_sample->base.usGpuIssueOnCpu = usTimer_Get(&g_Remotery->timer);
             CUDAEventRecord(cuda_sample->event_start, stream);
         }
     }
@@ -7999,6 +8025,7 @@ RMT_API void _rmt_BeginD3D11Sample(rmtPStr name, rmtU32* hash_cache)
         if (ThreadProfiler_Push(*d3d_tree, name_hash, 0, &sample) == RMT_ERROR_NONE)
         {
             D3D11Sample* d3d_sample = (D3D11Sample*)sample;
+            d3d_sample->base.usGpuIssueOnCpu = usTimer_Get(&g_Remotery->timer);
             D3D11Timestamp_Begin(d3d_sample->timestamp, d3d11->context);
         }
     }
@@ -8369,16 +8396,13 @@ static rmtError CopyTimestamps(D3D12BindImpl* bind, rmtU32 ring_pos_a, rmtU32 ri
     // Copy all timestamps to their expectant samples
     for (query_index = ring_pos_a; query_index < ring_pos_b; query_index += 2)
     {
-        D3D12Sample* sample = cpu_sample_buffer[query_index >> 1];
-        sample->base.us_start = (rmtU64)(cpu_timestamps[query_index] * gpu_ticks_to_us + gpu_to_cpu_timestamp_us);
-        sample->base.us_end = (rmtU64)(cpu_timestamps[query_index + 1] * gpu_ticks_to_us + gpu_to_cpu_timestamp_us);
-        sample->base.us_length = sample->base.us_end - sample->base.us_start;
+        rmtU64 us_start = (rmtU64)(cpu_timestamps[query_index] * gpu_ticks_to_us + gpu_to_cpu_timestamp_us);
+        rmtU64 us_end = (rmtU64)(cpu_timestamps[query_index + 1] * gpu_ticks_to_us + gpu_to_cpu_timestamp_us);
 
-        // Sum length on the parent to track un-sampled time in the parent
-        if (sample->base.parent != NULL)
-        {
-            sample->base.parent->us_sampled_length += sample->base.us_length;
-        }
+        D3D12Sample* sample = cpu_sample_buffer[query_index >> 1];
+        sample->base.us_start = us_start;
+        Sample_Close(&sample->base, us_end);
+        sample->base.us_end = us_end;
     }
 
     cpu_timestamp_buffer->lpVtbl->Unmap(cpu_timestamp_buffer, 0, NULL);
@@ -8651,6 +8675,7 @@ RMT_API void _rmt_BeginD3D12Sample(rmtD3D12Bind* bind, void* command_list, rmtPS
             D3D12Sample* d3d_sample = (D3D12Sample*)sample;
             d3d_sample->bind = d3d_bind;
             d3d_sample->commandList = d3d_command_list;
+            d3d_sample->base.usGpuIssueOnCpu = usTimer_Get(&g_Remotery->timer);
 
             error = AllocQueryPair(d3d_bind, &d3d_sample->queryIndex);
             if (error == RMT_ERROR_NONE)
@@ -9163,6 +9188,7 @@ RMT_API void _rmt_BeginOpenGLSample(rmtPStr name, rmtU32* hash_cache)
         if (ThreadProfiler_Push(*ogl_tree, name_hash, 0, &sample) == RMT_ERROR_NONE)
         {
             OpenGLSample* ogl_sample = (OpenGLSample*)sample;
+            ogl_sample->base.usGpuIssueOnCpu = usTimer_Get(&g_Remotery->timer);
             OpenGLTimestamp_Begin(ogl_sample->timestamp);
         }
     }
@@ -9459,6 +9485,7 @@ RMT_API void _rmt_BeginMetalSample(rmtPStr name, rmtU32* hash_cache)
         if (ThreadProfiler_Push(*metal_tree, name_hash, 0, &sample) == RMT_ERROR_NONE)
         {
             MetalSample* metal_sample = (MetalSample*)sample;
+            metal_sample->base.usGpuIssueOnCpu = usTimer_Get(&g_Remotery->timer);
             MetalTimestamp_Begin(metal_sample->timestamp);
         }
     }

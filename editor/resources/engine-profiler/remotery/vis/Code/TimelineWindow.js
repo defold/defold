@@ -145,11 +145,26 @@ TimelineWindow = (function()
 			}
 		}
 
-		// If this thread has not been seen before, add a new row to the list and re-sort
+		// If this thread has not been seen before, add a new row to the list
 		if (thread_index == -1)
 		{
 			var row = new TimelineRow(this.gl, thread_name, this, frame_history, this.CheckHandler);
 			this.ThreadRows.push(row);
+
+			// Sort thread rows in the collection by name
+			this.ThreadRows.sort((a, b) => a.Name.localeCompare(b.Name));
+
+			// Resort the view by removing timeline row nodes from their DOM parents and re-adding
+			const thread_rows = new Array();
+			for (let thread_row of this.ThreadRows)
+			{
+				this.TimelineLabels.Node.removeChild(thread_row.LabelContainerNode);
+				thread_rows.push(thread_row);
+			}
+			for (let thread_row of thread_rows)
+			{
+				this.TimelineLabels.Node.appendChild(thread_row.LabelContainerNode);
+			}
 		}
 	}
 
