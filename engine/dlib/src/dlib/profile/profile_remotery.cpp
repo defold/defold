@@ -194,6 +194,22 @@ namespace dmProfile
         }
     }
 
+    void ScopeBegin(const char* name, uint64_t* name_hash)
+    {
+        if (g_Remotery == NULL) {
+            return;
+        }
+        _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)name_hash);
+    }
+
+    void ScopeEnd()
+    {
+        if (g_Remotery == NULL) {
+            return;
+        }
+        rmt_EndCPUSample();
+    }
+
     // *******************************************************************
 
     SampleIterator::SampleIterator()

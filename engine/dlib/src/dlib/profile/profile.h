@@ -89,10 +89,8 @@ namespace dmProfile
 
     bool IsInitialized();
 
-    /**
-     * Logs a text to the profiler
-     */
-    void LogText(const char* text, ...);
+    void ScopeBegin(const char* name, uint64_t* name_hash);
+    void ScopeEnd();
 
     // *******************************************************************
 

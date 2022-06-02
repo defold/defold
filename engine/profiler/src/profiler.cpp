@@ -423,31 +423,20 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
     return 0;
 }
 
-/*# displays a previously recorded frame in the on-screen profiler ui
- * Pauses and displays a frame from the recording buffer in the on-screen profiler ui
+/*# send a text to the profiler
+ * Send a text to the profiler
  *
- * The frame to show can either be an absolute frame or a relative frame to the current frame.
- *
- * @name profiler.view_recorded_frame
- * @param frame_index [type:table] a table where you specify one of the following parameters:
- *
- * - `distance` The offset from the currently displayed frame (this is truncated between zero and the number of recorded frames)
- * - `frame` The frame index in the recording buffer (1 is first recorded frame)
+ * @name profiler.log_text
+ * @param text [type:string] the string to send to the profiler
  *
  * @examples
  * ```lua
- * -- Go back one frame
- * profiler.view_recorded_frame({distance = -1})
+ * profiler.log_text("Event: " .. name)
  * ```
  */
 static int ProfilerLogText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0)
-
-    if (!gRenderProfile)
-    {
-        return 0;
-    }
 
     const char* text = luaL_checkstring(L, 1);
     if (!text)
@@ -459,6 +448,51 @@ static int ProfilerLogText(lua_State* L)
 
     return 0;
 }
+
+
+/*# start a profile scope
+ *
+ * Starts a profile scope.
+ * @note Must be correctly matched with a corresponding call to `profiler.scope_end()`
+ *
+ * @name profiler.scope_begin
+ * @param name [type:string] The name of the scope
+ *
+ * @examples
+ * ```lua
+ * -- Go back one frame
+ * profiler.scope_begin("test_function")
+ *   test_function()
+ * profiler.scope_end()
+ * ```
+ */
+static int ProfilerScopeBegin(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0)
+
+    const char* name = luaL_checkstring(L, 1);
+    if (!name)
+    {
+        return DM_LUA_ERROR("Expected string as second argument");
+    }
+
+    dmProfile::ScopeBegin(name, 0);
+    return 0;
+}
+
+/*# end the current profile scope
+ *
+ * End the current profile scope.
+ * @name profiler.scope_end
+ *
+ */
+static int ProfilerScopeEnd(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0)
+    dmProfile::ScopeEnd();
+    return 0;
+}
+
 
 /*# continously show latest frame
 *
@@ -615,6 +649,10 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
         {"recorded_frame_count",        ProfilerUIRecordedFrameCount},
         {"view_recorded_frame",         ProfilerUIViewRecordedFrame},
         {"log_text",                    ProfilerLogText},
+
+        {"scope_begin",                 ProfilerScopeBegin},
+        {"scope_end",                   ProfilerScopeEnd},
+
         {0, 0}
     };
 

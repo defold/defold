@@ -74,6 +74,13 @@ namespace dmProfile
     {
     }
 
+    void ScopeBegin(const char* name, uint64_t* name_hash)
+    {
+    }
+
+    void ScopeEnd()
+    {
+    }
 
     // *******************************************************************
 
