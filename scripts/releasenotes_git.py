@@ -104,8 +104,8 @@ def match_merge(line):
         desc  = git_merge_desc(sha1)
 
         if 'Revert' in line:
-            print "MAWE", line, ":"
-            print "MAWE", sha1, pr, issue, desc
+            print("MAWE", line, ":")
+            print("MAWE", sha1, pr, issue, desc)
 
         # get rid of PR number at the end of the commit
         m = re.search("^(?:Issue|issue)(?:[\-\s]?)?#?(\d+)[:.\-\s]+(.+)", desc)
@@ -114,7 +114,7 @@ def match_merge(line):
             if not issue:
                 issue = m.group(1)
         if 'Revert' in line:
-            print "MAWE", sha1, pr, issue, desc
+            print("MAWE", sha1, pr, issue, desc)
         return (sha1, issue, desc)
     return (None, None, None)
 
@@ -143,13 +143,13 @@ def get_engine_issues(lines):
             issues.append("[`Issue-%s`](https://github.com/defold/defold/issues/%s) - **Fixed**: %s" % (issue, issue, desc))
 
             if '1' == issue:
-                print "MAWE fail:", line, ":"
-                print "MAWE fail:", sha1, issue, desc, issues[-1]
+                print("MAWE fail:", line, ":")
+                print("MAWE fail:", sha1, issue, desc, issues[-1])
 
 
             if 'Revert' in line:
-                print "MAWE result:", line, ":"
-                print "MAWE result:", sha1, issue, desc, issues[-1]
+                print("MAWE result:", line, ":")
+                print("MAWE result:", sha1, issue, desc, issues[-1])
 
 
             print(git_log(sha1))
@@ -181,37 +181,37 @@ def get_all_changes(version, sha1):
     lines = out.split('\n')
 
     print out
-    print "#" + "*" * 64
+    print("#" + "*" * 64)
 
     engine_issues = get_engine_issues(lines)
     editor_issues = get_editor_issues(lines)
 
-    print ""
-    print "#" + "*" * 64
-    print ""
-    print BETA_INTRO % version
-    print "# Engine"
+    print("")
+    print("#" + "*" * 64)
+    print("")
+    print(BETA_INTRO % version)
+    print("# Engine")
 
     for issue in sorted(list(set(engine_issues))):
         print("  * " + issue)
 
-    print "# Editor"
+    print("# Editor")
 
     for issue in sorted(list(set(editor_issues))):
         print("  * " + issue)
 
 
 def get_contributors(tag):
-    print ""
-    print ""
-    print "# Contributors"
-    print ""
-    print "We'd also like to take the opportunity to thank our community for contributing to the source code."
-    print "This is the number of contributions since the last release."
-    print ""
+    print("")
+    print("")
+    print("# Contributors")
+    print("")
+    print("We'd also like to take the opportunity to thank our community for contributing to the source code.")
+    print("This is the number of contributions since the last release.")
+    print("")
 
     r = run("scripts/list_contributors.sh %s" % tag)
-    print r
+    print(r)
 
 
 if __name__ == '__main__':
@@ -226,7 +226,7 @@ if __name__ == '__main__':
         print >>sys.stderr, "Failed to rad tag '%s'" % tag
         sys.exit(1)
 
-    print "Found previous version", tag, sha1
+    print("Found previous version", tag, sha1)
 
     version = "%d.%d.%d" % (current_version[0], current_version[1], current_version[2])
     get_all_changes(version, sha1)

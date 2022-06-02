@@ -18,7 +18,7 @@
 import os, sys, shutil, re, subprocess, time
 
 def _log(msg):
-    print msg
+    print(msg)
     sys.stdout.flush()
     sys.stderr.flush()
 

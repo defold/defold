@@ -171,7 +171,7 @@ def git_sha1_from_version_file(options):
     process = subprocess.Popen(['git', 'rev-list', '-n', '1', tag_name], stdout = subprocess.PIPE)
     out, err = process.communicate()
     if process.returncode != 0:
-        print "Unable to find git sha from tag=%s" % tag_name
+        print("Unable to find git sha from tag=%s" % tag_name)
         return None
     return out.strip()
 
@@ -676,7 +676,7 @@ Commands:
     elif options.engine_artifacts == 'archived-stable':
         options.engine_sha1 = git_sha1_from_version_file(options)
         if not options.engine_sha1:
-            print "Unable to find git sha from VERSION file"
+            print("Unable to find git sha from VERSION file")
             sys.exit(1)
     else:
         options.engine_sha1 = options.engine_artifacts
