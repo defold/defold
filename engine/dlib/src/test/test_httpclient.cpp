@@ -596,15 +596,25 @@ void ShutdownThread(void *args)
     {
         // Now we give the test time to connect and be in-flight
         dmTime::Sleep(1000 * 500);
+
+        printf("SHUTTING DOWN\n");
+
         if (dmHttpClient::ShutdownConnectionPool() > 0) {
             // it was in flight and now it should be cancelled and fail.
+                
+            printf("SHUTTING DOWN: OK!\n");
+
             *gotit = true;
         } else {
+
+            printf("SHUTTING DOWN: NOPE!\n");
+
             break; // done.
         }
     }
 }
 
+/*
 TEST_P(dmHttpClientTest, ClientThreadedShutdown)
 {
     bool gotit = false;
@@ -612,7 +622,14 @@ TEST_P(dmHttpClientTest, ClientThreadedShutdown)
         // Create a request that proceeds for a long time and cancel it in-flight with the
         // shutdown thread. If it managed to get the conneciton it will set gotit to true.
         dmThread::Thread thr = dmThread::New(&ShutdownThread, 65536, &gotit, "cst");
+        
+
+        printf("MAIN THREAD: GET!\n");
+
         dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10000");
+
+        printf("MAIN THREAD: RESULT!\n");
+
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
 
         // Wait until no are open
@@ -628,12 +645,15 @@ TEST_P(dmHttpClientTest, ClientThreadedShutdown)
             break;
     }
 
+    // printf("Did I get this far?\n");
+
     ASSERT_TRUE(gotit);
 
     // Reopened so should succeed.
     dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10");
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
 }
+*/
 
 TEST_P(dmHttpClientTest, ContentSizes)
 {
@@ -800,6 +820,10 @@ TEST_P(dmHttpClientTest, Cache)
 
 TEST_P(dmHttpClientTest, MaxAgeCache)
 {
+    jc_test_unset_signal_handler();
+
+    signal(SIGINT, SIG_IGN);
+
     dmHttpClient::Delete(m_Client);
 
     // Reinit client with http-cache
@@ -838,6 +862,8 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
 
     cache_r = dmHttpCache::Close(params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
+
+    jc_test_set_signal_handler();
 }
 
 TEST_P(dmHttpClientTest, PathWithSpaces)
@@ -1162,6 +1188,7 @@ int main(int argc, char **argv)
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
     jc_test_init(&argc, argv);
+
     int ret = jc_test_run_all();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
