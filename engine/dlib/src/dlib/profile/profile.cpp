@@ -28,6 +28,8 @@ static void PrintIndent(int indent)
 
 void PrintProperty(dmProfile::HProperty property, int indent)
 {
+#if !(defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(TARGET_OS_IPHONE))
+
     const char* name = dmProfile::PropertyGetName(property); // Do not store this pointer!
     dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
     dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
@@ -46,6 +48,8 @@ void PrintProperty(dmProfile::HProperty property, int indent)
     case dmProfile::PROPERTY_TYPE_GROUP: printf("\n"); break;
     default: break;
     }
+
+#endif
 }
 // end unit test
 

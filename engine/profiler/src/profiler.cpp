@@ -146,7 +146,7 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
  */
 static int MemoryUsage(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 1)
+    DM_LUA_STACK_CHECK(L, 1);
     lua_pushnumber(L, dmProfilerExt::GetMemoryUsage());
     return 1;
 }
@@ -166,7 +166,7 @@ static int MemoryUsage(lua_State* L)
  */
 static int CPUUsage(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 1)
+    DM_LUA_STACK_CHECK(L, 1);
     lua_pushnumber(L, dmProfilerExt::GetCpuUsage());
     return 1;
 }
@@ -189,7 +189,7 @@ static int CPUUsage(lua_State* L)
  */
 static int EnableProfilerUI(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!lua_isboolean(L, 1))
     {
@@ -241,7 +241,7 @@ static int EnableProfilerUI(lua_State* L)
  */
 static int SetProfileUIMode(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!gRenderProfile)
     {
@@ -273,7 +273,7 @@ static int SetProfileUIMode(lua_State* L)
  */
 static int SetProfilerUIViewMode(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!gRenderProfile)
     {
@@ -314,7 +314,7 @@ static int SetProfilerUIViewMode(lua_State* L)
  */
 static int SetProfileUIVSyncWaitVisible(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!gRenderProfile)
     {
@@ -348,7 +348,7 @@ static int SetProfileUIVSyncWaitVisible(lua_State* L)
  */
 static int ProfilerUIRecordedFrameCount(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 1)
+    DM_LUA_STACK_CHECK(L, 1);
 
     if (!gRenderProfile)
     {
@@ -382,7 +382,7 @@ static int ProfilerUIRecordedFrameCount(lua_State* L)
  */
 static int ProfilerUIViewRecordedFrame(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!gRenderProfile)
     {
@@ -436,7 +436,7 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
  */
 static int ProfilerLogText(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     const char* text = luaL_checkstring(L, 1);
     if (!text)
@@ -468,7 +468,7 @@ static int ProfilerLogText(lua_State* L)
  */
 static int ProfilerScopeBegin(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     const char* name = luaL_checkstring(L, 1);
     if (!name)
@@ -488,7 +488,7 @@ static int ProfilerScopeBegin(lua_State* L)
  */
 static int ProfilerScopeEnd(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
     dmProfile::ScopeEnd();
     return 0;
 }
