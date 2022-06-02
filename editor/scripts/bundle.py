@@ -25,18 +25,19 @@ import shutil
 import subprocess
 import tarfile
 import zipfile
-import ConfigParser
+import configparser
 import datetime
 import imp
 import fnmatch
 import urllib
+import urllib.parse
 
 # TODO: collect common functions in a more suitable reusable module
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
     sys.dont_write_bytecode = True
     import build_private
-except (Exception, e):
+except Exception as e:
     class build_private(object):
         @classmethod
         def get_tag_suffix(self):
@@ -106,7 +107,7 @@ def extract(file, path, is_mac):
 modules = {}
 
 def download(url):
-    if not modules.has_key('http_cache'):
+    if not modules.__contains__('http_cache'):
         modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
     log('Downloading %s' % (url))
     path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
@@ -120,7 +121,7 @@ def exec_command(args):
 
     output = ''
     while True:
-        line = process.stdout.readline()
+        line = process.stdout.readline().decode()
         if line != '':
             output += line
             print(line.rstrip())
@@ -261,8 +262,8 @@ def launcher_path(options, platform, exe_suffix):
         return path.join(os.environ['DYNAMO_HOME'], "bin", platform, "launcher%s" % exe_suffix)
 
 def full_jdk_url(jdk_platform):
-    version = urllib.quote(java_version)
-    platform = urllib.quote(jdk_platform)
+    version = urllib.parse.quote(java_version)
+    platform = urllib.parse.quote(jdk_platform)
     extension = "zip" if jdk_platform.startswith("windows") else "tar.gz"
     return '%s/microsoft-jdk-%s-%s.%s' % (CDN_PACKAGES_URL, version, platform, extension)
 
