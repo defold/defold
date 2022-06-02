@@ -87,7 +87,6 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
         return;
 
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
-    ctx->samples.clear();
 
     printf("Thread: %s\n", thread_name);
     TraverseSampleTree(ctx, 1, root);
@@ -112,13 +111,20 @@ TEST(dmProfile, Profile)
     for (int i = 0; i < 2; ++i)
     {
         {
+            // Due to the nature of the sample callback (once per root node)
+            // we clear it here in order to collect all objects for each game frame
+            DM_MUTEX_SCOPED_LOCK(ctx.m_Mutex);
+            ctx.samples.clear();
+        }
+
+        {
             dmProfile::HProfile profile = dmProfile::BeginFrame();
             {
-                DM_PROFILE("a")
+                DM_PROFILE("a");
                 dmTime::BusyWait(100000);
                 {
                     {
-                        DM_PROFILE("a_b1")
+                        DM_PROFILE("a_b1");
                         dmTime::BusyWait(50000);
                         {
                             DM_PROFILE("a_b1_c")
@@ -126,21 +132,21 @@ TEST(dmProfile, Profile)
                         }
                     }
                     {
-                        DM_PROFILE("b2")
+                        DM_PROFILE("b2");
                         dmTime::BusyWait(50000);
                         {
-                            DM_PROFILE("a_b2_c1")
+                            DM_PROFILE("a_b2_c1");
                             dmTime::BusyWait(40000);
                         }
                         {
-                            DM_PROFILE("a_b2_c2")
+                            DM_PROFILE("a_b2_c2");
                             dmTime::BusyWait(60000);
                         }
                     }
                 }
             }
             {
-                DM_PROFILE("a_d")
+                DM_PROFILE("a_d");
                 dmTime::BusyWait(80000);
             }
             dmProfile::EndFrame(profile);
@@ -152,10 +158,9 @@ TEST(dmProfile, Profile)
 
             double ticks_per_sec = (double)dmProfile::GetTicksPerSecond();
 
-            ASSERT_EQ(8U, (uint32_t)ctx.samples.size());
+            ASSERT_EQ(7U, (uint32_t)ctx.samples.size());
 
             int index = 0;
-            ASSERT_STREQ("FrameBegin", ctx.samples[index++].m_Name);
             ASSERT_STREQ("a", ctx.samples[index++].m_Name);
             ASSERT_STREQ("a_b1", ctx.samples[index++].m_Name);
             ASSERT_STREQ("a_b1_c", ctx.samples[index++].m_Name);
@@ -164,7 +169,7 @@ TEST(dmProfile, Profile)
             ASSERT_STREQ("a_b2_c2", ctx.samples[index++].m_Name);
             ASSERT_STREQ("a_d", ctx.samples[index++].m_Name);
 
-            index = 1;
+            index = 0;
             ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
             ASSERT_NEAR((50000 + 40000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
             ASSERT_NEAR((40000) / 1000000.0, ctx.samples[index++].m_Elapsed / ticks_per_sec, TOL);
