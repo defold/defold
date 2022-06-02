@@ -821,14 +821,9 @@ TEST_P(dmHttpClientTest, Cache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
-void handle_sigint(int sig)
-{
-    printf("Caught signal %d\n", sig);
-}
-
 TEST_P(dmHttpClientTest, MaxAgeCache)
 {
-    signal(SIGPIPE, handle_sigint);
+    signal(SIGPIPE, SIG_IGN);
 
     dmHttpClient::Delete(m_Client);
 
