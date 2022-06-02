@@ -30,7 +30,10 @@
 #include "testutil.h"
 
 #define JC_TEST_IMPLEMENTATION
+#define JC_TEST_NO_DEATH_TEST
 #include <jc_test/jc_test.h>
+
+#include <signal.h>
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmHttpClient::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmHttpClient::ResultToString(r));
@@ -818,11 +821,14 @@ TEST_P(dmHttpClientTest, Cache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+void handle_sigint(int sig)
+{
+    printf("Caught signal %d\n", sig);
+}
+
 TEST_P(dmHttpClientTest, MaxAgeCache)
 {
-    jc_test_unset_signal_handler();
-
-    signal(SIGINT, SIG_IGN);
+    signal(SIGPIPE, handle_sigint);
 
     dmHttpClient::Delete(m_Client);
 
@@ -862,8 +868,6 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
 
     cache_r = dmHttpCache::Close(params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
-
-    jc_test_set_signal_handler();
 }
 
 TEST_P(dmHttpClientTest, PathWithSpaces)
