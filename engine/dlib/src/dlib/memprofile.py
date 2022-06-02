@@ -70,9 +70,9 @@ def load_symbol_table(addresses, executable):
     str = ''
     for s in addresses:
         str += "0x%x\n" % s
-    stdout, stderr = p.communicate(str)
+    stdout, stderr = p.communicate(str.encode())
 
-    text_symbols = stdout.split('\n')
+    text_symbols = stdout.decode().split('\n')
     symbol_table = {}
     for i,s in enumerate(addresses):
         symbol_table[s] = text_symbols[i]
@@ -83,7 +83,9 @@ def load(trace, executable):
     mem_profile = MemProfile()
     traces = []
     active_allocations = {}
-    for line in open(trace, 'rb'):
+    trace_file = open(trace, 'r')
+    for line in trace_file:
+
         type, ptr, size, trace = line.split(' ', 3)
         ptr, size = int(ptr, 16), int(size, 16)
 
@@ -93,7 +95,7 @@ def load(trace, executable):
             mem_profile.symbol_table[x] = None
             lst.append(int(s, 16))
 
-        h = hashlib.md5(trace).digest()
+        h = hashlib.md5(trace.encode()).digest()
         trace = Trace(type, ptr, size, lst, h)
         traces.append(trace)
 
@@ -102,6 +104,8 @@ def load(trace, executable):
         elif type == 'F':
             if ptr in active_allocations:
                 del(active_allocations[ptr])
+
+    trace_file.close()
 
     mem_profile.symbol_table = load_symbol_table(mem_profile.symbol_table.keys(), executable)
 
@@ -116,11 +120,11 @@ def load(trace, executable):
         lst.append(t)
         mem_profile.traces[t.back_trace_hash] = lst
 
-    for k, lst in mem_profile.traces.iteritems():
+    for k, lst in mem_profile.traces.items():
         assert not k in mem_profile.summary
         mem_profile.summary[k] = TraceSummary(lst)
 
-    for ptr, t in active_allocations.iteritems():
+    for ptr, t in active_allocations.items():
         mem_profile.summary[t.back_trace_hash].active_total += t.size
 
 
