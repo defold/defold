@@ -169,7 +169,7 @@ def build(bld):
     libprofile_dirs = ['dlib/profile']
     libprofile = bld.new_task_gen( features     = 'cc cxx cstaticlib',
                                     includes    = '. ./dlib/profile ./remotery',
-                                    source      = './dlib/profile/profile_remotery.cpp',
+                                    source      = './dlib/profile/profile.cpp ./dlib/profile/profile_remotery.cpp',
                                     target      = 'profile',
                                     defines     = ['VALGRIND'] + extra_defines)
     libprofile.env.append_unique('CCFLAGS', FLAG_ST % 's')
@@ -186,7 +186,7 @@ def build(bld):
     libprofile_null = bld.new_task_gen( features    = libprofile.features,
                                         includes    = libprofile.includes,
                                         defines     = libprofile.defines,
-                                        source      = './dlib/profile/profile_null.cpp',
+                                        source      = './dlib/profile/profile.cpp ./dlib/profile/profile_null.cpp',
                                         target      = 'profile_null')
     libprofile_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 

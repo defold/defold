@@ -492,13 +492,6 @@ static int ProfilerLogText(lua_State* L)
 */
 
 
-// static void PrintIndent(int indent)
-// {
-//     for (int i = 0; i < indent; ++i) {
-//         printf("  ");
-//     }
-// }
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
@@ -561,27 +554,6 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-// static void PrintProperty(dmProfile::HProperty property, int indent)
-// {
-//     const char* name = dmProfile::PropertyGetName(property); // Do not store this pointer!
-//     dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
-
-//     PrintIndent(indent); printf("%s: ", name);
-
-//     switch(type)
-//     {
-//     case dmProfile::PROPERTY_TYPE_BOOL:  printf("%s\n", value.m_Bool?"true":"false"); break;
-//     case dmProfile::PROPERTY_TYPE_S32:   printf("%d\n", value.m_S32); break;
-//     case dmProfile::PROPERTY_TYPE_U32:   printf("%u\n", value.m_U32); break;
-//     case dmProfile::PROPERTY_TYPE_F32:   printf("%f\n", value.m_F32); break;
-//     case dmProfile::PROPERTY_TYPE_S64:   printf("%lld\n", value.m_S64); break;
-//     case dmProfile::PROPERTY_TYPE_U64:   printf("%llx\n", value.m_U64); break;
-//     case dmProfile::PROPERTY_TYPE_F64:   printf("%g\n", value.m_F64); break;
-//     case dmProfile::PROPERTY_TYPE_GROUP: printf("\n"); break;
-//     default: break;
-//     }
-// }
 
 static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
 {
