@@ -82,6 +82,8 @@
  *
  * Send text to the profiler
  *
+ * @note The max length of the text is DM_PROFILE_TEXT_LENGTH (1024)
+ *
  * @macro
  * @name DM_PROFILE_TEXT
  * @param a [type:const char*] The format string
@@ -97,6 +99,408 @@
  */
 #define DM_PROFILE_TEXT(format, ...)
 #undef DM_PROFILE_TEXT
+
+/*#
+ * Declare an extern property
+ *
+ * @macro
+ * @name DM_PROPERTY_EXTERN
+ * @param name [type:symbol] The symbol name
+ *
+ * @examples
+ *
+ * Use a property declared elsewhere in the same library
+ *
+ * ```cpp
+ * DM_PROPERTY_EXTERN(rmtp_GameObject);
+ * DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, FrameReset, "#", &rmtp_GameObject);
+ * ```
+ */
+#define DM_PROPERTY_EXTERN(name)
+#undef DM_PROPERTY_EXTERN
+
+/*#
+ * Declare a property group
+ *
+ * @macro
+ * @name DM_PROPERTY_GROUP
+ * @param name [type:symbol] The group name
+ * @param desc [type:const char*] The description
+ *
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_GROUP(rmtp_GameObject, "My Group");
+ * ```
+ */
+#define DM_PROPERTY_GROUP(name, desc)
+#undef DM_PROPERTY_GROUP
+
+/*# bool property
+ * Declare a property of type `bool`
+ *
+ * @macro
+ * @name DM_PROPERTY_BOOL
+ * @param name [type:symbol] The property symbol/name
+ * @param default [type:bool] The default value
+ * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param desc [type:const char*] The description
+ * @param group [type:property*] [optional] The parent group
+ *
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_BOOL(rmtp_MyBool, 0, FrameReset, "true or false", &rmtp_MyGroup);
+ * ```
+ */
+#define DM_PROPERTY_BOOL(name, default_value, flag, desc, ...)
+#undef DM_PROPERTY_BOOL
+
+/*# int32_t property
+ * Declare a property of type `int32_t`
+ *
+ * @macro
+ * @name DM_PROPERTY_S32
+ * @param name [type:symbol] The property symbol/name
+ * @param default [type:int32_t] The default value
+ * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param desc [type:const char*] The description
+ * @param group [type:property*] [optional] The parent group
+ *
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_S32(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * ```
+ */
+#define DM_PROPERTY_S32(name, default_value, flag, desc, ...)
+#undef DM_PROPERTY_S32
+
+/*# uint32_t property
+ * Declare a property of type `uint32_t`
+ *
+ * @macro
+ * @name DM_PROPERTY_U32
+ * @param name [type:symbol] The property symbol/name
+ * @param default [type:uint32_t] The default value
+ * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param desc [type:const char*] The description
+ * @param group [type:property*] [optional] The parent group
+ *
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_U32(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * ```
+ */
+#define DM_PROPERTY_U32(name, default_value, flag, desc, ...)
+#undef DM_PROPERTY_U32
+
+/*# float property
+ * Declare a property of type `float`
+ *
+ * @macro
+ * @name DM_PROPERTY_F32
+ * @param name [type:symbol] The property symbol/name
+ * @param default [type:float] The default value
+ * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param desc [type:const char*] The description
+ * @param group [type:property*] [optional] The parent group
+ *
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_F32(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * ```
+ */
+#define DM_PROPERTY_F32(name, default_value, flag, desc, ...)
+#undef DM_PROPERTY_F32
+
+/*# int64_t property
+ * Declare a property of type `int64_t`
+ *
+ * @macro
+ * @name DM_PROPERTY_S64
+ * @param name [type:symbol] The property symbol/name
+ * @param default [type:int64_t] The default value
+ * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param desc [type:const char*] The description
+ * @param group [type:property*] [optional] The parent group
+ *
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_S64(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * ```
+ */
+#define DM_PROPERTY_S64(name, default_value, flag, desc, ...)
+#undef DM_PROPERTY_S64
+
+
+/*# uint64_t property
+ * Declare a property of type `uint64_t`
+ *
+ * @macro
+ * @name DM_PROPERTY_U64
+ * @param name [type:symbol] The property symbol/name
+ * @param default [type:uint64_t] The default value
+ * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param desc [type:const char*] The description
+ * @param group [type:property*] [optional] The parent group
+ *
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_U64(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * ```
+ */
+#define DM_PROPERTY_U64(name, default_value, flag, desc, ...)
+#undef DM_PROPERTY_U64
+
+/*# double property
+ * Declare a property of type `double`
+ *
+ * @macro
+ * @name DM_PROPERTY_F64
+ * @param name [type:symbol] The property symbol/name
+ * @param default [type:double] The default value
+ * @param flags [type:uint32_t] The flags. Either `NoFlags` or `FrameReset`. `FrameReset` makes the value reset each frame.
+ * @param desc [type:const char*] The description
+ * @param group [type:property*] [optional] The parent group
+ *
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_F64(rmtp_MyValue, 0, FrameReset, "a value", &rmtp_MyGroup);
+ * ```
+ */
+#define DM_PROPERTY_F64(name, default_value, flag, desc, ...)
+#undef DM_PROPERTY_F64
+
+
+/*# set bool property
+ * Set the value of a bool property
+ *
+ * @macro
+ * @name DM_PROPERTY_SET_BOOL
+ * @param name [type:symbol] The property
+ * @param value [type:bool] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_SET_BOOL(rmtp_MyBool, false);
+ * ```
+ */
+#define DM_PROPERTY_SET_BOOL(name, value)
+#undef DM_PROPERTY_SET_BOOL
+
+/*# set int32_t property
+ * Set the value of a int32_t property
+ *
+ * @macro
+ * @name DM_PROPERTY_SET_S32
+ * @param name [type:symbol] The property
+ * @param value [type:int32_t] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_SET_S32(rmtp_MyValue, -1);
+ * ```
+ */
+#define DM_PROPERTY_SET_S32(name, value)
+#undef DM_PROPERTY_SET_S32
+
+/*# set uint32_t property
+ * Set the value of a uint32_t property
+ *
+ * @macro
+ * @name DM_PROPERTY_SET_U32
+ * @param name [type:symbol] The property
+ * @param value [type:uint32_t] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_SET_U32(rmtp_MyValue, 1);
+ * ```
+ */
+#define DM_PROPERTY_SET_U32(name, value)
+#undef DM_PROPERTY_SET_U32
+
+/*# set float property
+ * Set the value of a float property
+ *
+ * @macro
+ * @name DM_PROPERTY_SET_F32
+ * @param name [type:symbol] The property
+ * @param value [type:float] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_SET_F32(rmtp_MyValue, 1.5);
+ * ```
+ */
+#define DM_PROPERTY_SET_F32(name, value)
+#undef DM_PROPERTY_SET_F32
+
+/*# set int64_t property
+ * Set the value of a int64_t property
+ *
+ * @macro
+ * @name DM_PROPERTY_SET_S64
+ * @param name [type:symbol] The property
+ * @param value [type:int64_t] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_SET_S64(rmtp_MyValue, -1);
+ * ```
+ */
+#define DM_PROPERTY_SET_S64(name, value)
+#undef DM_PROPERTY_SET_S64
+
+/*# set uint64_t property
+ * Set the value of a uint64_t property
+ *
+ * @macro
+ * @name DM_PROPERTY_SET_U64
+ * @param name [type:symbol] The property
+ * @param value [type:uint64_t] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_SET_U64(rmtp_MyValue, 1);
+ * ```
+ */
+#define DM_PROPERTY_SET_U64(name, value)
+#undef DM_PROPERTY_SET_U64
+
+/*# set double property
+ * Set the value of a double property
+ *
+ * @macro
+ * @name DM_PROPERTY_SET_F64
+ * @param name [type:symbol] The property
+ * @param value [type:double] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_SET_F64(rmtp_MyValue, 1.5);
+ * ```
+ */
+#define DM_PROPERTY_SET_F64(name, value)
+#undef DM_PROPERTY_SET_F64
+
+/*# add to int32_t property
+ * Add a value to int32_t property
+ *
+ * @macro
+ * @name DM_PROPERTY_ADD_S32
+ * @param name [type:symbol] The property
+ * @param value [type:int32_t] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_ADD_S32(rmtp_MyValue, -1);
+ * ```
+ */
+#define DM_PROPERTY_ADD_S32(name, value)
+#undef DM_PROPERTY_ADD_S32
+
+/*# add to uint32_t property
+ * Add a value to uint32_t property
+ *
+ * @macro
+ * @name DM_PROPERTY_ADD_U32
+ * @param name [type:symbol] The property
+ * @param value [type:uint32_t] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_ADD_U32(rmtp_MyValue, 1);
+ * ```
+ */
+#define DM_PROPERTY_ADD_U32(name, value)
+#undef DM_PROPERTY_ADD_U32
+
+/*# add to float property
+ * Add a value to float property
+ *
+ * @macro
+ * @name DM_PROPERTY_ADD_F32
+ * @param name [type:symbol] The property
+ * @param value [type:float] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_ADD_F32(rmtp_MyValue, 1.5);
+ * ```
+ */
+#define DM_PROPERTY_ADD_F32(name, value)
+#undef DM_PROPERTY_ADD_F32
+
+/*# add to int64_t property
+ * Add a value to int64_t property
+ *
+ * @macro
+ * @name DM_PROPERTY_ADD_S64
+ * @param name [type:symbol] The property
+ * @param value [type:int64_t] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_ADD_S64(rmtp_MyValue, -1);
+ * ```
+ */
+#define DM_PROPERTY_ADD_S64(name, value)
+#undef DM_PROPERTY_ADD_S64
+
+/*# add to uint64_t property
+ * Add a value to uint64_t property
+ *
+ * @macro
+ * @name DM_PROPERTY_ADD_U64
+ * @param name [type:symbol] The property
+ * @param value [type:uint64_t] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_ADD_U64(rmtp_MyValue, 1);
+ * ```
+ */
+#define DM_PROPERTY_ADD_U64(name, value)
+#undef DM_PROPERTY_ADD_U64
+
+/*# add to double property
+ * Add a value to double property
+ *
+ * @macro
+ * @name DM_PROPERTY_ADD_F64
+ * @param name [type:symbol] The property
+ * @param value [type:double] The value
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_ADD_F64(rmtp_MyValue, 1.5);
+ * ```
+ */
+#define DM_PROPERTY_ADD_F64(name, value)
+#undef DM_PROPERTY_ADD_F64
+
+/*# reset property
+ * Reset a property to its default value
+ *
+ * @macro
+ * @name DM_PROPERTY_RESET
+ * @param name [type:symbol] The property
+ * @examples
+ *
+ * ```cpp
+ * DM_PROPERTY_RESET(rmtp_MyValue);
+ * ```
+ */
+#define DM_PROPERTY_RESET(name)
+#undef DM_PROPERTY_RESET
+
 
 #if defined(NDEBUG) || defined(DM_PROFILE_NULL)
     #define DM_PROFILE_TEXT_LENGTH 1024
@@ -199,6 +603,7 @@ namespace dmProfile
     };
 
     void LogText(const char* text, ...);
+
 
 } // namespace dmProfile
 
