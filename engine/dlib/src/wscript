@@ -166,36 +166,40 @@ def build(bld):
 
     # ******************************************************************
 
-    libprofile_dirs = ['dlib/profile']
-    libprofile = bld.new_task_gen( features     = 'cc cxx cstaticlib',
-                                    includes    = '. ./dlib/profile ./remotery',
-                                    source      = './dlib/profile/profile.cpp ./dlib/profile/profile_remotery.cpp',
-                                    target      = 'profile',
-                                    defines     = ['VALGRIND'] + extra_defines)
-    libprofile.env.append_unique('CCFLAGS', FLAG_ST % 's')
+    libprofile_features = 'cc cxx cstaticlib'
+    libprofile_includes = '. ./dlib/profile ./remotery'
+    libprofile_defines = ['VALGRIND'] + extra_defines
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
+        libprofile_dirs = ['dlib/profile']
+        libprofile = bld.new_task_gen(  features    = libprofile_features,
+                                        includes    = libprofile_includes,
+                                        defines     = libprofile_defines,
+                                        source      = './dlib/profile/profile.cpp ./dlib/profile/profile_remotery.cpp',
+                                        target      = 'profile')
+        #libprofile.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
-    libprofile_noasan = bld.new_task_gen(features  = libprofile.features + ' skip_asan',
-                                         includes  = libprofile.includes,
-                                         defines   = libprofile.defines,
-                                         target    = 'profile_noasan')
-    libprofile_noasan.source = libprofile.source
-    libprofile_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+        libprofile_noasan = bld.new_task_gen(features  = libprofile.features + ' skip_asan',
+                                             includes  = libprofile.includes,
+                                             defines   = libprofile.defines,
+                                             target    = 'profile_noasan')
+        libprofile_noasan.source = libprofile.source
+        #libprofile_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     # null version
     libprofile_null_dirs = ['dlib/profile']
-    libprofile_null = bld.new_task_gen( features    = libprofile.features,
-                                        includes    = libprofile.includes,
-                                        defines     = libprofile.defines,
+    libprofile_null = bld.new_task_gen( features    = libprofile_features,
+                                        includes    = libprofile_includes,
+                                        defines     = libprofile_defines,
                                         source      = './dlib/profile/profile.cpp ./dlib/profile/profile_null.cpp',
                                         target      = 'profile_null')
-    libprofile_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+    #libprofile_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     libprofile_null_noasan = bld.new_task_gen( features  = libprofile_null.features + ' skip_asan',
                                       includes  = libprofile_null.includes,
                                       defines   = libprofile_null.defines,
                                       target    = 'profile_null_noasan')
     libprofile_null_noasan.source = libprofile_null.source
-    libprofile_null_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+    #libprofile_null_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     # ******************************************************************
 
@@ -204,22 +208,25 @@ def build(bld):
     else:
         remotery_defines = []
 
-    libremotery_dirs = ['remotery/lib']
-    libremotery = bld.new_task_gen( features    = 'cc cxx cstaticlib',
-                                    includes    = '. ./remotery/lib',
-                                    target      = 'remotery',
-                                    defines     = ['VALGRIND'] + extra_defines + remotery_defines)
-    libremotery.find_sources_in_dirs(libremotery_dirs)
+    print "MAWE PLATFORM", bld.env['PLATFORM']
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
+        libremotery = bld.new_task_gen( features    = 'cc cxx cstaticlib',
+                                        includes    = '. ./remotery/lib',
+                                        target      = 'remotery',
+                                        defines     = ['VALGRIND'] + extra_defines + remotery_defines)
+        libremotery.find_sources_in_dirs(['remotery/lib'])
 
-    if build_util.get_target_os() not in ['osx', 'ios']:
-        libremotery.source = [x for x in libremotery.source if not x.endswith('.mm')]
+        if build_util.get_target_os() not in ['osx', 'ios']:
+            libremotery.source = [x for x in libremotery.source if not x.endswith('.mm')]
 
-    libremotery_noasan = bld.new_task_gen( features  = libremotery.features + ' skip_asan',
-                                      includes  = libremotery.includes,
-                                      defines   = libremotery.defines,
-                                      target    = 'remotery_noasan')
-    libremotery_noasan.source = [x for x in libremotery.source]
-    libremotery_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
+        libremotery_noasan = bld.new_task_gen(  features  = 'cc cxx cstaticlib skip_asan',
+                                                includes  = '. ./remotery/lib',
+                                                defines   = ['VALGRIND'] + extra_defines + remotery_defines,
+                                                target    = 'remotery_noasan')
+        libremotery_noasan.find_sources_in_dirs(['remotery/lib'])
+        if build_util.get_target_os() not in ['osx', 'ios']:
+            libremotery_noasan.source = [x for x in libremotery_noasan.source if not x.endswith('.mm')]
+        #libremotery_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
     libremotery_null = bld.new_task_gen(features    = 'cc cxx cstaticlib',
                                         includes    = '. ./remotery/lib',
