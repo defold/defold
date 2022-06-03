@@ -208,7 +208,6 @@ def build(bld):
     else:
         remotery_defines = []
 
-    print "MAWE PLATFORM", bld.env['PLATFORM']
     if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
         libremotery = bld.new_task_gen( features    = 'cc cxx cstaticlib',
                                         includes    = '. ./remotery/lib',

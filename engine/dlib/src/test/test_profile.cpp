@@ -172,9 +172,8 @@ TEST(dmProfile, Profile)
     SampleCtx ctx;
     ctx.m_Mutex = dmMutex::New();
 
-    dmProfile::Initialize(0);
-
     dmProfile::SetSampleTreeCallback(&ctx, SampleTreeCallback);
+    dmProfile::Initialize(0);
 
     for (int i = 0; i < 2; ++i)
     {
@@ -280,8 +279,8 @@ TEST(dmProfile, PropertyIterator)
     PropertyCtx ctx;
     ctx.m_Mutex = dmMutex::New();
 
-    dmProfile::Initialize(0);
     dmProfile::SetPropertyTreeCallback(&ctx, PropertyTreeCallback);
+    dmProfile::Initialize(0);
     {
         for (int i = 0; i < 2; ++i)
         {

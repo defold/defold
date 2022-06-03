@@ -14,6 +14,7 @@
 
 #include "profile.h"
 
+#include <assert.h>
 #include <stdio.h> // vsnprintf
 #include <stdarg.h> // va_start et al
 
@@ -64,7 +65,7 @@ namespace dmProfile
     {
         if (g_PropertyTreeCallback)
         {
-            g_PropertyTreeCallback(g_SampleTreeCallbackCtx, PropertyToHandle(root));
+            g_PropertyTreeCallback(g_PropertyTreeCallbackCtx, PropertyToHandle(root));
         }
     }
 
@@ -166,12 +167,14 @@ namespace dmProfile
 
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
     {
+        assert(g_Remotery == 0); // Needs to be set before Remotery is initialized
         g_SampleTreeCallback = callback;
         g_SampleTreeCallbackCtx = ctx;
     }
 
     void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
     {
+        assert(g_Remotery == 0); // Needs to be set before Remotery is initialized
         g_PropertyTreeCallback = callback;
         g_PropertyTreeCallbackCtx = ctx;
     }

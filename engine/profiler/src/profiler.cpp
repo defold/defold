@@ -706,20 +706,23 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 {
     g_ProfilerPort = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.port", 0);
 
+    g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
+    dmProfile::SetSampleTreeCallback(g_ProfilerCurrentFrame, SampleTreeCallback);
+    dmProfile::SetPropertyTreeCallback(g_ProfilerCurrentFrame, PropertyTreeCallback);
+
     dmProfile::Options options;
     options.m_Port = g_ProfilerPort;
     dmProfile::Initialize(&options);
 
     if (!dmProfile::IsInitialized()) // We might use the null implementation
     {
+        delete g_ProfilerCurrentFrame;
+        g_ProfilerCurrentFrame = 0;
         return dmExtension::RESULT_OK;
     }
 
     // Note that the callback might come from a different thread!
-    g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
     g_ProfilerMutex = dmMutex::New();
-    dmProfile::SetSampleTreeCallback(g_ProfilerCurrentFrame, SampleTreeCallback);
-    dmProfile::SetPropertyTreeCallback(g_ProfilerCurrentFrame, PropertyTreeCallback);
 
     g_ProfilerThreadSortOrder.SetCapacity(7, 8);
     g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);
