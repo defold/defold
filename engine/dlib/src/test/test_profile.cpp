@@ -85,7 +85,7 @@ static void ProcessSample(SampleCtx* ctx, dmProfile::HSample sample)
 
     ctx->samples.push_back(out);
 
-    printf("%s %u  time: %llu\n", name, out.m_Count, out.m_Elapsed);
+    printf("%s %u  time: %u\n", name, out.m_Count, (uint32_t)out.m_Elapsed);
 }
 
 static void TraverseSampleTree(SampleCtx* ctx, int indent, dmProfile::HSample sample)
