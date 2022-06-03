@@ -436,7 +436,7 @@ def create_bundle(options):
             shutil.copy('bundle-resources/%s' % icon, resources_dir)
 
         # creating editor config file
-        config = ConfigParser.ConfigParser()
+        config = configparser.ConfigParser()
         config.read('bundle-resources/config')
         config.set('build', 'editor_sha1', options.editor_sha1)
         config.set('build', 'engine_sha1', options.engine_sha1)
