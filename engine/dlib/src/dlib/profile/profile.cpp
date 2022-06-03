@@ -26,10 +26,17 @@ static void PrintIndent(int indent)
     }
 }
 
+#if defined(__ANDROID__)
+    #define PROFILE_FMT_U64 "%llu"
+    #define PROFILE_FMT_I64 "%lld"
+#else
+    #include <inttypes.h>
+    #define PROFILE_FMT_U64 "%" PRIu64
+    #define PROFILE_FMT_I64 "%" PRId64
+#endif
+
 void PrintProperty(dmProfile::HProperty property, int indent)
 {
-#if !(defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(TARGET_OS_IPHONE))
-
     const char* name = dmProfile::PropertyGetName(property); // Do not store this pointer!
     dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
     dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
@@ -42,15 +49,17 @@ void PrintProperty(dmProfile::HProperty property, int indent)
     case dmProfile::PROPERTY_TYPE_S32:   printf("%d\n", value.m_S32); break;
     case dmProfile::PROPERTY_TYPE_U32:   printf("%u\n", value.m_U32); break;
     case dmProfile::PROPERTY_TYPE_F32:   printf("%f\n", value.m_F32); break;
-    case dmProfile::PROPERTY_TYPE_S64:   printf("%lld\n", value.m_S64); break;
-    case dmProfile::PROPERTY_TYPE_U64:   printf("%llu\n", value.m_U64); break;
+    case dmProfile::PROPERTY_TYPE_S64:   printf(PROFILE_FMT_I64 "\n", value.m_S64); break;
+    case dmProfile::PROPERTY_TYPE_U64:   printf(PROFILE_FMT_U64 "\n", value.m_U64); break;
     case dmProfile::PROPERTY_TYPE_F64:   printf("%g\n", value.m_F64); break;
     case dmProfile::PROPERTY_TYPE_GROUP: printf("\n"); break;
     default: break;
     }
-
-#endif
 }
+
+#undef PROFILE_FMT_I64
+#undef PROFILE_FMT_U64
+
 // end unit test
 
 } // namespace
