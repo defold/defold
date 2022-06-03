@@ -168,8 +168,6 @@ namespace dmThread
             free(buf);
         }
     #endif
-
-        // dmProfile::SetThreadName(name); // TODO: Make sure to set it _on_ the thread
     }
 
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)

@@ -108,6 +108,8 @@ TEST_F(EngineTest, ProjectFail)
 {
     const char* argv[] = {"test_engine", CONTENT_ROOT "/notexist.projectc"};
     ASSERT_NE(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+
+    dmProfile::Finalize(); // Making sure it is cleaned up
 }
 
 static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)

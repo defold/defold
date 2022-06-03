@@ -28,9 +28,6 @@
 
 #include <dmsdk/external/remotery/Remotery.h> // Private, don't use this api directly!
 
-#define DM_PROFILE_PASTE(x, y) x ## y
-#define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
-
 /*# add profile scope
  *
  * Adds a profiling scope. Excluded by default in release builds.
@@ -535,12 +532,15 @@
     #define DM_PROPERTY_RESET(name)
 
 #else
+    #define _DM_PROFILE_PASTE(x, y) x ## y
+    #define _DM_PROFILE_PASTE2(x, y) _DM_PROFILE_PASTE(x, y)
+
     #define _DM_PROFILE_SCOPE(name, name_hash_ptr) \
-        dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(name, name_hash_ptr);
+        dmProfile::ProfileScope _DM_PROFILE_PASTE2(profile_scope, __LINE__)(name, name_hash_ptr);
 
     #define DM_PROFILE(name) \
-        static uint64_t DM_PROFILE_PASTE2(hash, __LINE__)        = 0; \
-        _DM_PROFILE_SCOPE(name, & DM_PROFILE_PASTE2(hash, __LINE__))
+        static uint64_t _DM_PROFILE_PASTE2(hash, __LINE__)        = 0; \
+        _DM_PROFILE_SCOPE(name, & _DM_PROFILE_PASTE2(hash, __LINE__))
 
     #define DM_PROFILE_DYN(name, hash_cache) \
         _DM_PROFILE_SCOPE(name, hash_cache)

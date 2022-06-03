@@ -38,9 +38,7 @@ namespace dmProfile
 
     /**
      * Initialize profiler
-     * @param max_scopes Maximum scopes
-     * @param max_samples Maximum samples
-     * @param max_counters Maximum counters
+     * @param options [type:dmProfile::Options] The profiler options
      */
     void Initialize(const Options* options);
 
