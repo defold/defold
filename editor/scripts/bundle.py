@@ -181,7 +181,7 @@ def git_sha1(ref = 'HEAD'):
     out, err = process.communicate()
     if process.returncode != 0:
         sys.exit("Unable to find git sha from ref: %s" % (ref))
-    return out.strip()
+    return out.strip().decode()
 
 def remove_readonly_retry(function, path, excinfo):
     try:
@@ -447,7 +447,7 @@ def create_bundle(options):
         if options.channel:
             config.set('build', 'channel', options.channel)
 
-        with open('%s/config' % resources_dir, 'wb') as f:
+        with open('%s/config' % resources_dir, 'w') as f:
             config.write(f)
 
         defold_jar = '%s/defold-%s.jar' % (packages_dir, options.editor_sha1)
