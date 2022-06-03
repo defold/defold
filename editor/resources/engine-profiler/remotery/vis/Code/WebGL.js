@@ -45,6 +45,13 @@ function glCreateProgram(gl, vshader, fshader)
     return program;
 }
 
+function glCreateProgramFromSource(gl, vshader_name, vshader_source, fshader_name, fshader_source)
+{
+    const vshader = glCompileShader(gl, gl.VERTEX_SHADER, vshader_name, vshader_source);
+    const fshader = glCompileShader(gl, gl.FRAGMENT_SHADER, fshader_name, fshader_source);
+    return glCreateProgram(gl, vshader, fshader);
+}
+
 function glSetUniform(gl, program, name, value, index)
 {
     // Get location
@@ -136,8 +143,14 @@ class glDynamicBuffer
                 break;
 
             case glDynamicBufferType.Texture:
+                // Single element formats for now
+                assert(this.elementType == gl.BYTE || this.elementType == gl.FLOAT);
+                assert(this.nbElements == 1);
                 gl.bindTexture(gl.TEXTURE_2D, this.texture);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.ALPHA, this.nbEntries, 1, 0, gl.ALPHA, gl.UNSIGNED_BYTE, this.cpuArray);
+                const internal_format = this.elementType == gl.BYTE ? gl.ALPHA : gl.R32F;
+                const format = this.elementType == gl.BYTE ? gl.ALPHA : gl.RED;
+                const type = this.elementType == gl.BYTE ? gl.UNSIGNED_BYTE : gl.FLOAT;
+                gl.texImage2D(gl.TEXTURE_2D, 0, internal_format, this.nbEntries, 1, 0, format, type, this.cpuArray);
                 break;
         }
     }
@@ -222,17 +235,13 @@ class glDynamicBuffer
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-                // Fixed-format for now
-                assert(this.elementType == gl.BYTE);
-                assert(this.nbElements == 1);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.ALPHA, this.nbEntries, 1, 0, gl.ALPHA, gl.UNSIGNED_BYTE, this.cpuArray);
-            
                 break;
 
             default:
                 assert(false, "Unsupported dynamic buffer type");
         }
+
+        this.UploadData();
     }
 };
 

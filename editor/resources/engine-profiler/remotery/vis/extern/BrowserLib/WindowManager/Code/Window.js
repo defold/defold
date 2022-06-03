@@ -301,6 +301,9 @@ WM.Window = (function()
 		h = Math.max(15, h);
 		this.Size = [ w, h ];
 		DOM.Node.SetSize(this.Node, this.Size);
+		
+		if (this.OnResize)
+			this.OnResize(this, this.Size);
 	}
 
 

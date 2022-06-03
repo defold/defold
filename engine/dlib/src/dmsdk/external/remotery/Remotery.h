@@ -794,6 +794,13 @@ typedef enum rmtSampleFlags
     // Set this flag on any of your root samples so that Remotery will assert if it ends up *not* being the root sample.
     // This will quickly allow you to detect Begin/End mismatches causing a sample tree imbalance.
     RMTSF_Root = 4,
+
+    // Mainly for platforms other than Windows that don't support the thread sampler and can't detect stalling samples.
+    // Where you have a non-root sample that stays open indefinitely and never sends its contents to log/viewer.
+    // Send this sample to log/viewer when it closes.
+    // You can not have more than one sample open with this flag on the same thread at a time.
+    // This flag will be removed in a future version when all platforms support stalling samples.
+    RMTSF_SendOnClose = 8,
 } rmtSampleFlags;
 
 // Struct to hold iterator info
