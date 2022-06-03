@@ -15,6 +15,8 @@
 #include "Remotery.h"
 
 // Null implementations of the Remotery api
+RMT_API void _rmt_BeginCPUSample(rmtPStr name, rmtU32 flags, rmtU32* hash_cache) {}
+RMT_API void _rmt_EndCPUSample(void) {}
 RMT_API void _rmt_PropertySetValue(rmtProperty* property) {}
 RMT_API void _rmt_PropertyAddValue(rmtProperty* property, rmtPropertyValue add_value) {}
 RMT_API rmtError _rmt_PropertySnapshotAll() { return RMT_ERROR_NONE; }

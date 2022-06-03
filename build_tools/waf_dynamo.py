@@ -1620,7 +1620,7 @@ def detect(conf):
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip', 'remotery']
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STATICLIB_DDF'] = 'ddf'
 
     conf.env['STATICLIB_PROFILE'] = ['profile', 'remotery']
