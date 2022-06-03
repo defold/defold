@@ -300,6 +300,8 @@ TEST(dmProfile, PropertyIterator)
 
             dmProfile::EndFrame(profile);
 
+            DM_MUTEX_SCOPED_LOCK(ctx.m_Mutex);
+
 #define TEST_CHECK(NAME, TYPE, VALUE) \
     { \
         TestProperty* property = GetProperty(&ctx, NAME); \
