@@ -17,6 +17,8 @@
 set -e
 platform=`uname -s`
 
+export DMMEMPROFILE_TRACE=1
+
 if [ "Darwin" == $platform ]; then
     # NOTE: We used to link with -flat_namespace but go spurious link errors
     export DYLD_FORCE_FLAT_NAMESPACE=yes
@@ -24,13 +26,16 @@ if [ "Darwin" == $platform ]; then
 fi
 
 if [ "Linux" == $platform ]; then
+    # Currently, there is something that hangs the exiting the remotery thread upon exit
+    # we skip this for now
+    unset DMMEMPROFILE_TRACE
+
     export LD_PRELOAD=./build/default/src/libdlib_memprofile.so
 fi
 
 
 echo "# Test config " > memprofile.cfg
 
-export DMMEMPROFILE_TRACE=1
 ./build/default/src/test/test_memprofile memprofile.cfg dummy $@
 
 
