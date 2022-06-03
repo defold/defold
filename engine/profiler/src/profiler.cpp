@@ -710,6 +710,11 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
     options.m_Port = g_ProfilerPort;
     dmProfile::Initialize(&options);
 
+    if (!dmProfile::IsInitialized()) // We might use the null implementation
+    {
+        return dmExtension::RESULT_OK;
+    }
+
     // Note that the callback might come from a different thread!
     g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
     g_ProfilerMutex = dmMutex::New();
@@ -726,6 +731,11 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
 static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 {
+    if (!dmProfile::IsInitialized()) // We might use the null implementation
+    {
+        return dmExtension::RESULT_OK;
+    }
+
     dmProfile::SetSampleTreeCallback(0, 0);
     dmProfile::Finalize();
 

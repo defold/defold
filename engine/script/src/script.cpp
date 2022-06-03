@@ -1837,7 +1837,6 @@ namespace dmScript
     */
     const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, char* buffer, uint32_t buffer_size)
     {
-        const char* profiler_string = 0;
         if (!dmProfile::IsInitialized())
             return 0;
 
