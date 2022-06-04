@@ -740,6 +740,7 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
     }
 
     dmProfile::SetSampleTreeCallback(0, 0);
+    dmProfile::SetPropertyTreeCallback(0, 0);
     dmProfile::Finalize();
 
     if (g_ProfilerCurrentFrame)

@@ -278,22 +278,22 @@ TEST_F(EngineTest, BufferResources)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
-#if !defined(__NX__) // until we've added support for it
-TEST_F(EngineTest, MemCpuProfiler)
-{
-    #ifndef SANITIZE_ADDRESS
-        // DEF-3677
-        // DE 20181217
-        // When ASAN is enabled the amount of memory used (resident_size) actually increases after
-        // the test collection is loaded. This is likley caused by the OS shuffling memory around
-        // when ASAN is enabled since it add some overhead. Workaround is to disable this test.
-        // Tried adding a big OGG file to the test data set but still the same result. The difference
-        // between amount of allocated memory is over 20Mb less than before loading when ASAN is enabled.
-        const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/profiler/profiler.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
-        ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
-    #endif
-}
-#endif
+// #if !defined(__NX__) // until we've added support for it
+// TEST_F(EngineTest, MemCpuProfiler)
+// {
+//     #ifndef SANITIZE_ADDRESS
+//         // DEF-3677
+//         // DE 20181217
+//         // When ASAN is enabled the amount of memory used (resident_size) actually increases after
+//         // the test collection is loaded. This is likley caused by the OS shuffling memory around
+//         // when ASAN is enabled since it add some overhead. Workaround is to disable this test.
+//         // Tried adding a big OGG file to the test data set but still the same result. The difference
+//         // between amount of allocated memory is over 20Mb less than before loading when ASAN is enabled.
+//         const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/profiler/profiler.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+//         ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+//     #endif
+// }
+// #endif
 
 // Verify that project.dependencies config entry is stripped during build.
 TEST_F(EngineTest, ProjectDependency)
