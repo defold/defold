@@ -14,12 +14,6 @@
 
 #include "profile.h"
 
-#include <stdio.h> // debug
-
-#include "dlib/dlib.h"
-#include "dlib/log.h"
-#include "dlib/hash.h"
-
 namespace dmProfile
 {
     void Initialize(const Options* options)
@@ -66,6 +60,10 @@ namespace dmProfile
     {
     }
 
+    void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
+    {
+    }
+
     void ProfileScope::StartScope(const char* name, uint64_t* name_hash)
     {
     }
@@ -94,13 +92,12 @@ namespace dmProfile
     {
     }
 
-    SampleIterator IterateChildren(HSample sample)
+    SampleIterator* SampleIterateChildren(HSample sample, SampleIterator* iter)
     {
-        SampleIterator iter;
         return iter;
     }
 
-    bool IterateNext(SampleIterator* iter)
+    bool SampleIterateNext(SampleIterator* iter)
     {
         return false;
     }
@@ -133,6 +130,57 @@ namespace dmProfile
     uint32_t SampleGetColor(HSample sample)
     {
         return 0;
+    }
+
+
+    // *******************************************************************
+
+    PropertyIterator::PropertyIterator()
+    : m_Property(0)
+    , m_IteratorImpl(0)
+    {
+    }
+
+    PropertyIterator::~PropertyIterator()
+    {
+    }
+
+    PropertyIterator* PropertyIterateChildren(HProperty property, PropertyIterator* iter)
+    {
+        return iter;
+    }
+
+    bool PropertyIterateNext(PropertyIterator* iter)
+    {
+        return false;
+    }
+
+    // Property accessors
+
+    const char* PropertyGetName(HProperty hproperty)
+    {
+        return 0;
+    }
+
+    const char* PropertyGetDesc(HProperty hproperty)
+    {
+        return 0;
+    }
+
+    uint64_t PropertyGetNameHash(HProperty hproperty)
+    {
+        return 0;
+    }
+
+    PropertyType PropertyGetType(HProperty hproperty)
+    {
+        return PROPERTY_TYPE_GROUP;
+    }
+
+    PropertyValue PropertyGetValue(HProperty hproperty)
+    {
+        PropertyValue out = {};
+        return out;
     }
 
     // *******************************************************************

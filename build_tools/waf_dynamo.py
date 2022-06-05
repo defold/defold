@@ -1537,6 +1537,10 @@ def detect(conf):
         conf.env['STATICLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
+    if platform in ('x86_64-linux',): # Currently the only platform exhibiting the behavior
+        conf.env['STATICLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
+        conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
+
     if Options.options.static_analyze:
         conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])
         output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
