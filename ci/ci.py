@@ -91,7 +91,7 @@ def setup_keychain(args):
     cert_path = os.path.join("ci", "cert.p12")
     cert_pass = args.keychain_cert_pass
     with open(cert_path, "wb") as file:
-        file.write(base64.decodebytes(args.keychain_cert))
+        file.write(base64.decodebytes(args.keychain_cert.encode()))
     print("Importing certificate")
     # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
     call("security import {} -k {} -P {} -A".format(cert_path, keychain_name, cert_pass))
