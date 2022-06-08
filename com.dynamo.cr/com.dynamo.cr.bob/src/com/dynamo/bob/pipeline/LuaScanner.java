@@ -141,18 +141,7 @@ public class LuaScanner extends LuaParserBaseListener {
         modules.clear();
         properties.clear();
 
-        // build empty buffer with only spaces and newlines
-        // matching the structure of the string
-        parsedBuffer = new StringBuffer();
-        for(int i=0; i<str.length(); i++) {
-            char c = str.charAt(i);
-            if (c == '\n') {
-                parsedBuffer.append("\n");
-            }
-            else {
-                parsedBuffer.append(" ");
-            }
-        }
+        parsedBuffer = new StringBuffer(str);
 
         // set up the lexer and parser
         // walk the generated parse tree from the
@@ -177,6 +166,14 @@ public class LuaScanner extends LuaParserBaseListener {
     }
 
     /**
+     * Get the parsed Lua code
+     * @return The parsed Lua code
+     */
+    public String getParsedLua() {
+        return parsedBuffer.toString();
+    }
+
+    /**
      * Get a list of all Lua modules found by a call to parse().
      * @return List of Lua modules
      */
@@ -195,6 +192,9 @@ public class LuaScanner extends LuaParserBaseListener {
     // get all tokens spanning a context and belonging to a specific channel
     private List<Token> getTokens(ParserRuleContext ctx, int channel) {
         List<Token> tokens = getTokens(ctx);
+        if (tokens == null) {
+            return new ArrayList<Token>();
+        }
         return tokens.stream().filter(t -> t.getChannel() == channel).collect(Collectors.toList());
     }
 
@@ -205,25 +205,31 @@ public class LuaScanner extends LuaParserBaseListener {
         return tokenStream.getTokens(startToken.getTokenIndex(), stopToken.getTokenIndex());
     }
 
+    // replace the token with an empty string
+    private void removeToken(Token token) {
+        int from = token.getStartIndex();
+        int to = from + token.getText().length() - 1;
+        for(int i = from; i <= to; i++) {
+            parsedBuffer.replace(i, i + 1, " ");
+        }
+    }
+
     /**
      * Callback from ANTLR when a Lua chunk is encountered. We start from the
      * main chunk when we call parse() above. This means that the ChunkContext
      * will span the entire file and encompass all ANTLR tokens.
-     * We write all tokens to the string buffer, optionally ignoring
-     * things such as code comments and the EOF marker
+     * We use this callback to remove all comments.
      */
     @Override
     public void enterChunk(LuaParser.ChunkContext ctx) {
+        TimeProfiler.start("Lua Chunk Parser");
         List<Token> tokens = getTokens(ctx);
         for(Token token : tokens) {
-            // only include tokens from the default channel (as defined in Lua.g4)
-            // ignore EOF token
-            if (token.getChannel() == Token.DEFAULT_CHANNEL && token.getType() != Token.EOF) {
-                String text = token.getText();
-                int start = token.getStartIndex();
-                parsedBuffer.replace(start, start+text.length(), text);
+            if (token.getChannel() == LuaLexer.COMMENT) {
+                removeToken(token);
             }
         }
+        TimeProfiler.stop();
     }
 
     /**
@@ -232,11 +238,13 @@ public class LuaScanner extends LuaParserBaseListener {
      */
     @Override
     public void enterFunctioncall(LuaParser.FunctioncallContext ctx) {
+        TimeProfiler.start("Lua Function Parser");
         String text = ctx.getText();
         // require() call?
         final boolean startsWithRequire = text.startsWith("require");
         final boolean startsWithGlobalRequire = text.startsWith("_G.require");
         if (startsWithRequire || startsWithGlobalRequire) {
+            TimeProfiler.start("Lua Function Require Parser");
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
             // in case of _G.require:
             // - token 0 is _G
@@ -288,9 +296,11 @@ public class LuaScanner extends LuaParserBaseListener {
                     modules.add(module);
                 }
             }
+            TimeProfiler.stop();
         }
         // go.property() call?
         else if (text.startsWith("go.property")) {
+            TimeProfiler.start("Lua Function Property Parser");
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
             Property property = parseProperty(text, tokens.get(0).getLine() - 1);
             if (property != null) {
@@ -298,13 +308,11 @@ public class LuaScanner extends LuaParserBaseListener {
             }
             // strip property from code
             for (Token token : tokens) {
-                int from = token.getStartIndex();
-                int to = from + token.getText().length();
-                for(int i = from; i <= to; i++) {
-                    parsedBuffer.replace(i, i + 1, " ");
-                }
+                removeToken(token);
             }
+            TimeProfiler.stop();
         }
+        TimeProfiler.stop();
     }
 
 
@@ -410,6 +418,23 @@ public class LuaScanner extends LuaParserBaseListener {
         }
         TimeProfiler.stop();
         return result;
+    }
+
+    /**
+     * Callback from ANTLR when a statement is entered. We use this to remove
+     * any stand-alone semicolon statements. The semicolon may cause problems
+     * if it is at the end of a go.property call as it will be removed after it
+     * has been parsed.
+     * Note that semicolons used as field or return separators are not affected.
+     */
+    @Override public void enterStat(LuaParser.StatContext ctx) {
+        List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
+        if (tokens.size() == 1) {
+            Token token = tokens.get(0);
+            if (token.getText().equals(";")) {
+                removeToken(token);
+            }
+        }
     }
 
 }

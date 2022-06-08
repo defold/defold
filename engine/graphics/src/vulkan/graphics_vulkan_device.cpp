@@ -146,9 +146,6 @@ namespace dmGraphics
         vkEnumeratePhysicalDevices(vkInstance, &vk_device_count, vk_device_list);
         assert(vk_device_count == deviceListSize);
 
-        const uint8_t vk_max_extension_count = 128;
-        VkExtensionProperties vk_device_extensions[vk_max_extension_count];
-
         for (uint32_t i=0; i < vk_device_count; ++i)
         {
             VkPhysicalDevice vk_device = vk_device_list[i];
@@ -164,18 +161,15 @@ namespace dmGraphics
 
             vkEnumerateDeviceExtensionProperties(vk_device, 0, &vk_device_extension_count, 0);
 
-            // Note: If this is triggered, we need a higher limit for the max extension count
-            //       or simply allocate the exact memory dynamically to hold the extensions data..
-            assert(vk_device_extension_count < vk_max_extension_count);
+            VkExtensionProperties* vk_device_extensions = new VkExtensionProperties[vk_device_extension_count];
 
             if (vkEnumerateDeviceExtensionProperties(vk_device, 0, &vk_device_extension_count, vk_device_extensions) == VK_SUCCESS)
             {
-                device_list[i].m_DeviceExtensions = new VkExtensionProperties[vk_device_extension_count];
-
-                for (uint8_t j = 0; j < vk_device_extension_count; ++j)
-                {
-                    device_list[i].m_DeviceExtensions[j] = vk_device_extensions[j];
-                }
+                device_list[i].m_DeviceExtensions = vk_device_extensions;
+            }
+            else if (vk_device_extensions != 0x0)
+            {
+                delete[] vk_device_extensions;
             }
 
             device_list[i].m_Device               = vk_device;

@@ -802,6 +802,11 @@ public class Project {
         return false;
     }
 
+    public List<Platform> getArchitectures() throws CompileExceptionError {
+        Platform p = getPlatform();
+        return Platform.getArchitecturesFromString(option("architectures", ""), p);
+    }
+
     public Platform getPlatform() throws CompileExceptionError {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
