@@ -24,7 +24,7 @@ def _log(msg):
 
 def _exec_command(arg_list, **kwargs):
     arg_str = arg_list
-    if not isinstance(arg_str, basestring):
+    if not isinstance(arg_str, str):
         arg_str = ' '.join(arg_list)
     _log('[exec] %s' % arg_str)
 
