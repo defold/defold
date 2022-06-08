@@ -114,7 +114,7 @@ def setup_windows_cert(args):
     print("Setting up certificate")
     cert_path = os.path.abspath(os.path.join("ci", "windows_cert.pfx"))
     with open(cert_path, "wb") as file:
-        file.write(base64.decodebytes(args.windows_cert_b64))
+        file.write(base64.decodebytes(args.windows_cert_b64.encode()))
     print("Wrote cert to", cert_path)
     cert_pass_path = os.path.abspath(os.path.join("ci", "windows_cert.pass"))
     with open(cert_pass_path, "wb") as file:
