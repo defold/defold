@@ -91,7 +91,7 @@ def setup_keychain(args):
     cert_path = os.path.join("ci", "cert.p12")
     cert_pass = args.keychain_cert_pass
     with open(cert_path, "wb") as file:
-        file.write(base64.decodestring(args.keychain_cert))
+        file.write(base64.decodebytes(args.keychain_cert.encode()))
     print("Importing certificate")
     # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
     call("security import {} -k {} -P {} -A".format(cert_path, keychain_name, cert_pass))
@@ -114,7 +114,7 @@ def setup_windows_cert(args):
     print("Setting up certificate")
     cert_path = os.path.abspath(os.path.join("ci", "windows_cert.pfx"))
     with open(cert_path, "wb") as file:
-        file.write(base64.decodestring(args.windows_cert_b64))
+        file.write(base64.decodebytes(args.windows_cert_b64))
     print("Wrote cert to", cert_path)
     cert_pass_path = os.path.abspath(os.path.join("ci", "windows_cert.pass"))
     with open(cert_pass_path, "wb") as file:
@@ -472,7 +472,6 @@ def main(argv):
         engine_channel = "dev"
         editor_channel = "dev"
         make_release = False
-        skip_editor_tests = True
         engine_artifacts = args.engine_artifacts or "archived"
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))

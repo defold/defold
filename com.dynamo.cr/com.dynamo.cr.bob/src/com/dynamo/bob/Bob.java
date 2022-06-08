@@ -604,7 +604,7 @@ public class Bob {
                 format = TimeProfiler.ReportFormat.HTML;
             }
             File report = new File(path);
-            TimeProfiler.init(report.getParent(), report.getName(), format);
+            TimeProfiler.init(report, format, false);
         }
 
         if (cmd.hasOption("version")) {

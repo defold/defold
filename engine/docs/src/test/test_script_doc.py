@@ -243,7 +243,7 @@ foobar
         self.assertEqual(script_doc_ddf_pb2.MESSAGE, elements[0].type)
         self.assertEqual(u'MY_DESC', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
-        self.assertEqual(u'example:\n<div class="codehilite"><pre><span></span>MY_EXAMPLE\n</pre></div>', elements[0].examples)
+        self.assertEqual(u'example:\n<div class="codehilite"><pre><span></span><code>MY_EXAMPLE\n</code></pre></div>', elements[0].examples)
         p1 = elements[0].parameters[0]
         self.assertEqual('param_x', p1.name)
         self.assertEqual(u'DOC X', p1.doc)

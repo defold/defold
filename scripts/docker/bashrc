@@ -12,4 +12,6 @@ function _jdk11 {
 
 _jdk11
 
+pyenv versions
+
 echo "DEFOLD DOCKER"

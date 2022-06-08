@@ -33,7 +33,7 @@
                       :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
                      [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
-                     [com.google.protobuf/protobuf-java           "2.3.0"]
+                     [com.google.protobuf/protobuf-java           "3.20.1"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
                      [org.slf4j/jul-to-slf4j                      "1.7.22"]
                      [joda-time/joda-time                         "2.9.2"]
@@ -109,16 +109,16 @@
                      [org.openjfx/javafx-swing "18" :classifier "mac"]
                      [org.openjfx/javafx-swing "18" :classifier "win"]
 
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2"]
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-linux-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-macosx-universal"]
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-windows-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt               "2.3.2" :classifier "natives-windows-i586"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-linux-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-macosx-universal"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-amd64"]
-                     [org.jogamp.jogl/jogl-all                    "2.3.2" :classifier "natives-windows-i586"]
+                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202"]
+                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-linux-amd64"]
+                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-macosx-universal"]
+                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-windows-amd64"]
+                     [com.metsci.ext.org.jogamp.gluegen/gluegen-rt "2.4.0-rc-20200202" :classifier "natives-windows-i586"]
+                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202"]
+                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-linux-amd64"]
+                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-macosx-universal"]
+                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-windows-amd64"]
+                     [com.metsci.ext.org.jogamp.jogl/jogl-all      "2.4.0-rc-20200202" :classifier "natives-windows-i586"]
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]]
 
@@ -182,7 +182,12 @@
 
   :uberjar-exclusions [#"^natives/"]
 
-  :profiles          {:test    {:injections [(defonce force-toolkit-init (javafx.application.Platform/startup (fn [])))]
+  :profiles          {:test    {:injections [(defonce initialize-test-prerequisites
+                                               (do
+                                                 (com.defold.libs.ResourceUnpacker/unpackResources)
+                                                 (javafx.application.Platform/startup
+                                                   (fn []
+                                                     (com.jogamp.opengl.GLProfile/initSingleton)))))]
                                 :resource-paths ["test/resources"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
                                                  [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}

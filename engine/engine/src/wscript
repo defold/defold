@@ -71,12 +71,17 @@ def build(bld):
         additional_libs.append('TREMOLO')
 
     graphics_lib = 'GRAPHICS DMGLFW'
-    graphics_lib_symbols = 'GraphicsAdapterOpenGL'
-    if bld.env['PLATFORM'] in ('arm64-nx64',) or waflib.Options.options.with_vulkan:
-        graphics_lib = 'GRAPHICS_VULKAN DMGLFW VULKAN'
-        graphics_lib_symbols = 'GraphicsAdapterVulkan'
+    graphics_lib_symbols = ['GraphicsAdapterOpenGL']
 
-    exported_symbols.append(graphics_lib_symbols)
+    if waflib.Options.options.with_vulkan:
+        graphics_lib += ' GRAPHICS_VULKAN VULKAN'
+        graphics_lib_symbols.append('GraphicsAdapterVulkan')
+
+    if bld.env['PLATFORM'] in ('arm64-nx64',):
+        graphics_lib = 'GRAPHICS_VULKAN DMGLFW VULKAN'
+        graphics_lib_symbols = ['GraphicsAdapterVulkan']
+
+    exported_symbols += graphics_lib_symbols
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
     if bld.env['PLATFORM'] in ('arm64-darwin', 'x86_64-ios'):

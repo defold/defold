@@ -99,8 +99,8 @@
   ;; this the first time the method is called. It is safe to call from any
   ;; thead, but will block until the unpacking thread has completed.
   ;;
-  ;; Having this call here mainly benefits the tests and repl-interactions, as
-  ;; the editor will also explicitly call unpackResources at startup.
+  ;; Having this call here mainly benefits repl-interactions, as the editor and
+  ;; tests will explicitly call unpackResources at startup.
   (ResourceUnpacker/unpackResources)
   (System/getProperty "defold.unpack.path"))
 

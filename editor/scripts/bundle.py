@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,17 +25,19 @@ import shutil
 import subprocess
 import tarfile
 import zipfile
-import ConfigParser
+import configparser
 import datetime
 import imp
 import fnmatch
+import urllib
+import urllib.parse
 
 # TODO: collect common functions in a more suitable reusable module
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
     sys.dont_write_bytecode = True
     import build_private
-except Exception, e:
+except Exception as e:
     class build_private(object):
         @classmethod
         def get_tag_suffix(self):
@@ -51,17 +53,15 @@ CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-java_version = '11.0.1'
-java_version_patch = 'p1'
-
+java_version = '11.0.15+10'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
-                    'x86_64-darwin': 'osx-x64',
+                    'x86_64-darwin': 'macos-x64',
                     'x86_64-win32': 'windows-x64'}
 
 python_platform_to_java = {'linux': 'linux-x64',
                            'win32': 'windows-x64',
-                           'darwin': 'osx-x64'}
+                           'darwin': 'macos-x64'}
 
 def log(msg):
     print(msg)
@@ -72,24 +72,42 @@ def mkdirs(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def extract(file, path, is_mac):
-    print('Extracting %s to %s' % (file, path))
-
+def extract_tar(file, path, is_mac):
     if is_mac:
-        # We use the system tar command for macOSX because tar (and
+        # We use the system tar command for macOS because tar (and
         # others) on macOS has special handling of ._ files that
         # contain additional HFS+ attributes. See for example:
         # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
         exec_command(['tar', '-C', path, '-xzf', file])
     else:
-        tf = tarfile.TarFile.open(file, 'r:gz')
-        tf.extractall(path)
-        tf.close()
+        with tarfile.TarFile.open(file, 'r:gz') as tf:
+            tf.extractall(path)
+
+def extract_zip(file, path, is_mac):
+    if is_mac:
+        # We use the system unzip command for macOS because zip (and
+        # others) on macOS has special handling of ._ files that
+        # contain additional HFS+ attributes. See for example:
+        # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
+        exec_command(['unzip', file, '-d', path])
+    else:
+        with zipfile.ZipFile(file, 'r') as zf:
+            zf.extractall(path)
+
+def extract(file, path, is_mac):
+    print('Extracting %s to %s' % (file, path))
+
+    if fnmatch.fnmatch(file, "*.tar.gz-*"):
+        extract_tar(file, path, is_mac)
+    elif fnmatch.fnmatch(file, "*.zip-*"):
+        extract_zip(file, path, is_mac)
+    else:
+        assert False, "Don't know how to extract " + file
 
 modules = {}
 
 def download(url):
-    if not modules.has_key('http_cache'):
+    if not modules.__contains__('http_cache'):
         modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
     log('Downloading %s' % (url))
     path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
@@ -103,7 +121,7 @@ def exec_command(args):
 
     output = ''
     while True:
-        line = process.stdout.readline()
+        line = process.stdout.readline().decode()
         if line != '':
             output += line
             print(line.rstrip())
@@ -154,7 +172,7 @@ def git_sha1_from_version_file(options):
     process = subprocess.Popen(['git', 'rev-list', '-n', '1', tag_name], stdout = subprocess.PIPE)
     out, err = process.communicate()
     if process.returncode != 0:
-        print "Unable to find git sha from tag=%s" % tag_name
+        print("Unable to find git sha from tag=%s" % tag_name)
         return None
     return out.strip()
 
@@ -163,7 +181,7 @@ def git_sha1(ref = 'HEAD'):
     out, err = process.communicate()
     if process.returncode != 0:
         sys.exit("Unable to find git sha from ref: %s" % (ref))
-    return out.strip()
+    return out.strip().decode()
 
 def remove_readonly_retry(function, path, excinfo):
     try:
@@ -243,28 +261,34 @@ def launcher_path(options, platform, exe_suffix):
     else:
         return path.join(os.environ['DYNAMO_HOME'], "bin", platform, "launcher%s" % exe_suffix)
 
-
 def full_jdk_url(jdk_platform):
-    return '%s/openjdk-%s_%s_bin.tar.gz' % (CDN_PACKAGES_URL, java_version, jdk_platform)
+    version = urllib.parse.quote(java_version)
+    platform = urllib.parse.quote(jdk_platform)
+    extension = "zip" if jdk_platform.startswith("windows") else "tar.gz"
+    return '%s/microsoft-jdk-%s-%s.%s' % (CDN_PACKAGES_URL, version, platform, extension)
 
+def full_build_jdk_url():
+    return full_jdk_url(python_platform_to_java[sys.platform])
 
 def download_build_jdk():
     print('Downloading build jdk')
-    rmtree('build/jdk')
-    is_mac = sys.platform == 'darwin'
-    jdk_url = full_jdk_url(python_platform_to_java[sys.platform])
+    jdk_url = full_build_jdk_url()
     jdk = download(jdk_url)
     if not jdk:
         print('Failed to download build jdk %s' % jdk_url)
         sys.exit(5)
+    return jdk
+
+def extract_build_jdk(build_jdk):
+    print('Extracting build jdk')
+    rmtree('build/jdk')
     mkdirs('build/jdk')
-    extract(jdk, 'build/jdk', is_mac)
+    is_mac = sys.platform == 'darwin'
+    extract(build_jdk, 'build/jdk', is_mac)
     if is_mac:
-        return 'build/jdk/jdk-%s.jdk/Contents/Home' % java_version
+        return 'build/jdk/jdk-%s/Contents/Home' % java_version
     else:
         return 'build/jdk/jdk-%s' % java_version
-
-
 
 def check_reflections(java_cmd_env):
     reflection_prefix = 'Reflection warning, ' # final space important
@@ -287,7 +311,8 @@ def check_reflections(java_cmd_env):
 
 def build(options):
     build_jdk = download_build_jdk()
-    java_cmd_env = 'JAVA_CMD=%s/bin/java' % build_jdk
+    extracted_build_jdk = extract_build_jdk(build_jdk)
+    java_cmd_env = 'JAVA_CMD=%s/bin/java' % extracted_build_jdk
 
     print('Building editor')
 
@@ -365,6 +390,7 @@ def remove_platform_files_from_archive(platform, jar):
 def create_bundle(options):
     jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
     build_jdk = download_build_jdk()
+    extracted_build_jdk = extract_build_jdk(build_jdk)
 
     mkdirs('target/editor')
     for platform in options.target_platform:
@@ -372,10 +398,13 @@ def create_bundle(options):
         rmtree('tmp')
 
         jdk_url = full_jdk_url(platform_to_java[platform])
-        jdk = download(jdk_url)
-        if not jdk:
-            print('Failed to download %s' % jdk_url)
-            sys.exit(5)
+        if jdk_url == full_build_jdk_url():
+            jdk = build_jdk
+        else:
+            jdk = download(jdk_url)
+            if not jdk:
+                print('Failed to download %s' % jdk_url)
+                sys.exit(5)
 
         tmp_dir = "tmp"
 
@@ -407,7 +436,7 @@ def create_bundle(options):
             shutil.copy('bundle-resources/%s' % icon, resources_dir)
 
         # creating editor config file
-        config = ConfigParser.ConfigParser()
+        config = configparser.ConfigParser()
         config.read('bundle-resources/config')
         config.set('build', 'editor_sha1', options.editor_sha1)
         config.set('build', 'engine_sha1', options.engine_sha1)
@@ -418,7 +447,7 @@ def create_bundle(options):
         if options.channel:
             config.set('build', 'channel', options.channel)
 
-        with open('%s/config' % resources_dir, 'wb') as f:
+        with open('%s/config' % resources_dir, 'w') as f:
             config.write(f)
 
         defold_jar = '%s/defold-%s.jar' % (packages_dir, options.editor_sha1)
@@ -437,13 +466,13 @@ def create_bundle(options):
         extract(jdk, tmp_dir, is_mac)
 
         if is_mac:
-            platform_jdk = '%s/jdk-%s.jdk/Contents/Home' % (tmp_dir, java_version)
+            platform_jdk = '%s/jdk-%s/Contents/Home' % (tmp_dir, java_version)
         else:
             platform_jdk = '%s/jdk-%s' % (tmp_dir, java_version)
 
         # use jlink to generate a custom Java runtime to bundle with the editor
-        packages_jdk = '%s/jdk%s-%s' % (packages_dir, java_version, java_version_patch)
-        exec_command(['%s/bin/jlink' % build_jdk,
+        packages_jdk = '%s/jdk-%s' % (packages_dir, java_version)
+        exec_command(['%s/bin/jlink' % extracted_build_jdk,
                       '@jlink-options',
                       '--module-path=%s/jmods' % platform_jdk,
                       '--output=%s' % packages_jdk])
@@ -485,7 +514,7 @@ def sign(options):
         if 'darwin' in platform:
             # we need to sign the binaries in Resources folder manually as codesign of
             # the *.app will not process files in Resources
-            jdk_dir = "jdk%s-%s" % (java_version, java_version_patch)
+            jdk_dir = "jdk-%s" % (java_version)
             jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", jdk_dir)
             for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
                 sign_files('darwin', options, exe)
@@ -648,7 +677,7 @@ Commands:
     elif options.engine_artifacts == 'archived-stable':
         options.engine_sha1 = git_sha1_from_version_file(options)
         if not options.engine_sha1:
-            print "Unable to find git sha from VERSION file"
+            print("Unable to find git sha from VERSION file")
             sys.exit(1)
     else:
         options.engine_sha1 = options.engine_artifacts
