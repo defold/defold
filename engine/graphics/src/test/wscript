@@ -12,7 +12,6 @@ def build(bld):
                          uselib_local = 'graphics_null graphics_transcoder_null',
                          target = name)
 
-    print "MAWE", platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}), bld.env.PLATFORM
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and not bld.env.PLATFORM in ('x86_64-linux','x86_64-ios'):
 
         extra_libs = []

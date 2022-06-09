@@ -974,7 +974,7 @@ namespace dmGraphics
         }
 
         context->m_LogicalDevice    = logical_device;
-        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
 
         // Create swap chain
         InitializeVulkanTexture(resolveTexture);
@@ -1241,7 +1241,6 @@ bail:
         vk_clear_rect.baseArrayLayer     = 0;
         vk_clear_rect.layerCount         = 1;
 
-        bool has_color_texture         = context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || context->m_CurrentRenderTarget->m_TextureColor;
         bool has_depth_stencil_texture = context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || context->m_CurrentRenderTarget->m_TextureDepthStencil;
 
         float r = ((float)red)/255.0f;
@@ -2855,7 +2854,6 @@ bail:
         Texture* texture_color[MAX_BUFFER_COLOR_ATTACHMENTS];
         Texture* texture_depth_stencil = 0; 
 
-        uint8_t has_color   = buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR_BIT;
         uint8_t has_depth   = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
         uint8_t has_stencil = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
         uint8_t color_index = 0;
@@ -2985,8 +2983,7 @@ bail:
 
     static HTexture VulkanGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-         if(!(buffer_type == BUFFER_TYPE_COLOR_BIT  ||
-           buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+         if(!(buffer_type == BUFFER_TYPE_COLOR0_BIT ||
            buffer_type == BUFFER_TYPE_COLOR1_BIT ||
            buffer_type == BUFFER_TYPE_COLOR2_BIT ||
            buffer_type == BUFFER_TYPE_COLOR3_BIT))
@@ -2994,8 +2991,7 @@ bail:
             return 0;
         }
 
-        uint8_t index = GetBufferColorAttachmentIndex(buffer_type); 
-        return (HTexture) render_target->m_TextureColor[index];
+        return (HTexture) render_target->m_TextureColor[GetBufferTypeIndex(buffer_type)];
     }
 
     static void VulkanGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
@@ -3013,11 +3009,9 @@ bail:
             render_target->m_BufferTextureParams[i].m_Width = width;
             render_target->m_BufferTextureParams[i].m_Height = height;
 
-            uint32_t color_attachment_index = GetBufferColorAttachmentIndex((BufferType) i);
-
-            if (color_attachment_index < MAX_BUFFER_COLOR_ATTACHMENTS && render_target->m_TextureColor[color_attachment_index])
+            if (i < MAX_BUFFER_COLOR_ATTACHMENTS && render_target->m_TextureColor[i])
             {
-                Texture* texture_color = render_target->m_TextureColor[color_attachment_index];
+                Texture* texture_color = render_target->m_TextureColor[i];
 
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
                 VkResult res = CreateTexture2D(g_VulkanContext->m_PhysicalDevice.m_Device, g_VulkanContext->m_LogicalDevice.m_Device,

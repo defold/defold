@@ -891,33 +891,33 @@ namespace dmGraphics
 
         void** buffers[MAX_BUFFER_TYPE_COUNT] = {
             &rt->m_FrameBuffer.m_ColorBuffer[0],
-            &rt->m_FrameBuffer.m_DepthBuffer,
-            &rt->m_FrameBuffer.m_StencilBuffer,
             &rt->m_FrameBuffer.m_ColorBuffer[1],
             &rt->m_FrameBuffer.m_ColorBuffer[2],
             &rt->m_FrameBuffer.m_ColorBuffer[3],
+            &rt->m_FrameBuffer.m_DepthBuffer,
+            &rt->m_FrameBuffer.m_StencilBuffer,
         };
         uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {
             &rt->m_FrameBuffer.m_ColorBufferSize[0],
-            &rt->m_FrameBuffer.m_DepthBufferSize,
-            &rt->m_FrameBuffer.m_StencilBufferSize,
             &rt->m_FrameBuffer.m_ColorBufferSize[1],
             &rt->m_FrameBuffer.m_ColorBufferSize[2],
             &rt->m_FrameBuffer.m_ColorBufferSize[3],
+            &rt->m_FrameBuffer.m_DepthBufferSize,
+            &rt->m_FrameBuffer.m_StencilBufferSize,
         };
 
         BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {
-            BUFFER_TYPE_COLOR_BIT,
-            BUFFER_TYPE_DEPTH_BIT,
-            BUFFER_TYPE_STENCIL_BIT,
+            BUFFER_TYPE_COLOR0_BIT,
             BUFFER_TYPE_COLOR1_BIT,
             BUFFER_TYPE_COLOR2_BIT,
             BUFFER_TYPE_COLOR3_BIT,
+            BUFFER_TYPE_DEPTH_BIT,
+            BUFFER_TYPE_STENCIL_BIT,
         };
 
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
-            assert(i == GetBufferTypeIndex(buffer_types[i]));
+            assert(GetBufferTypeIndex(buffer_types[i]) == i);
 
             if (buffer_type_flags & buffer_types[i])
             {
@@ -928,17 +928,15 @@ namespace dmGraphics
                 rt->m_BufferTextureParams[i].m_Data     = 0x0;
                 rt->m_BufferTextureParams[i].m_DataSize = 0;
 
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)  ||
+                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)  ||
                    i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR1_BIT) ||
                    i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR2_BIT) ||
                    i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR3_BIT))
                 {
-                    int color_index = dmGraphics::GetBufferColorAttachmentIndex(buffer_types[i]);
-
                     rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                    rt->m_ColorBufferTexture[color_index]   = NewTexture(context, creation_params[i]);
-                    SetTexture(rt->m_ColorBufferTexture[color_index], rt->m_BufferTextureParams[i]);
-                    *(buffers[i]) = rt->m_ColorBufferTexture[color_index]->m_Data;
+                    rt->m_ColorBufferTexture[i]   = NewTexture(context, creation_params[i]);
+                    SetTexture(rt->m_ColorBufferTexture[i], rt->m_BufferTextureParams[i]);
+                    *(buffers[i]) = rt->m_ColorBufferTexture[i]->m_Data;
                 } else {
                     *(buffers[i]) = new char[buffer_size];
                 }
@@ -971,17 +969,14 @@ namespace dmGraphics
 
     static HTexture NullGetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
     {
-        if(!(buffer_type == BUFFER_TYPE_COLOR_BIT  ||
-           buffer_type == BUFFER_TYPE_COLOR0_BIT ||
-           buffer_type == BUFFER_TYPE_COLOR1_BIT ||
-           buffer_type == BUFFER_TYPE_COLOR2_BIT ||
-           buffer_type == BUFFER_TYPE_COLOR3_BIT))
+        if(!(buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+             buffer_type == BUFFER_TYPE_COLOR1_BIT ||
+             buffer_type == BUFFER_TYPE_COLOR2_BIT ||
+             buffer_type == BUFFER_TYPE_COLOR3_BIT))
         {
             return 0;
         }
-
-        uint8_t index = GetBufferColorAttachmentIndex(buffer_type);
-        return rendertarget->m_ColorBufferTexture[index];
+        return rendertarget->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
     }
 
     static void NullGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
@@ -998,28 +993,19 @@ namespace dmGraphics
         uint32_t buffer_size = sizeof(uint32_t) * width * height;
         void** buffers[MAX_BUFFER_TYPE_COUNT] = {
             &rt->m_FrameBuffer.m_ColorBuffer[0],
-            &rt->m_FrameBuffer.m_DepthBuffer,
-            &rt->m_FrameBuffer.m_StencilBuffer,
             &rt->m_FrameBuffer.m_ColorBuffer[1],
             &rt->m_FrameBuffer.m_ColorBuffer[2],
             &rt->m_FrameBuffer.m_ColorBuffer[3],
+            &rt->m_FrameBuffer.m_DepthBuffer,
+            &rt->m_FrameBuffer.m_StencilBuffer,
         };
         uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {
             &rt->m_FrameBuffer.m_ColorBufferSize[0],
-            &rt->m_FrameBuffer.m_DepthBufferSize,
-            &rt->m_FrameBuffer.m_StencilBufferSize,
             &rt->m_FrameBuffer.m_ColorBufferSize[1],
             &rt->m_FrameBuffer.m_ColorBufferSize[2],
             &rt->m_FrameBuffer.m_ColorBufferSize[3],
-        };
-
-        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {
-            BUFFER_TYPE_COLOR_BIT,
-            BUFFER_TYPE_COLOR1_BIT,
-            BUFFER_TYPE_COLOR2_BIT,
-            BUFFER_TYPE_COLOR3_BIT,
-            BUFFER_TYPE_DEPTH_BIT,
-            BUFFER_TYPE_STENCIL_BIT,
+            &rt->m_FrameBuffer.m_DepthBufferSize,
+            &rt->m_FrameBuffer.m_StencilBufferSize,
         };
 
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
@@ -1029,17 +1015,16 @@ namespace dmGraphics
                 *(buffer_sizes[i]) = buffer_size;
                 rt->m_BufferTextureParams[i].m_Width = width;
                 rt->m_BufferTextureParams[i].m_Height = height;
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)  ||
+                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)  ||
                    i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR1_BIT) ||
                    i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR2_BIT) ||
                    i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR3_BIT))
                 {
-                    int color_index = dmGraphics::GetBufferColorAttachmentIndex(buffer_types[i]);
-                    if (rt->m_ColorBufferTexture[color_index])
+                    if (rt->m_ColorBufferTexture[i])
                     {
                         rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                        SetTexture(rt->m_ColorBufferTexture[color_index], rt->m_BufferTextureParams[i]);
-                        *(buffers[i]) = rt->m_ColorBufferTexture[color_index]->m_Data;
+                        SetTexture(rt->m_ColorBufferTexture[i], rt->m_BufferTextureParams[i]);
+                        *(buffers[i]) = rt->m_ColorBufferTexture[i]->m_Data;
                     }
                 } else {
                     delete [] (char*)*(buffers[i]);

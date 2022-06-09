@@ -1305,7 +1305,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glClearStencil(stencil);
         CHECK_GL_ERROR;
 
-        GLbitfield gl_flags = (flags & BUFFER_TYPE_COLOR_BIT)   ? GL_COLOR_BUFFER_BIT : 0;
+        GLbitfield gl_flags = (flags & BUFFER_TYPE_COLOR0_BIT)  ? GL_COLOR_BUFFER_BIT : 0;
         gl_flags           |= (flags & BUFFER_TYPE_DEPTH_BIT)   ? GL_DEPTH_BUFFER_BIT : 0;
         gl_flags           |= (flags & BUFFER_TYPE_STENCIL_BIT) ? GL_STENCIL_BUFFER_BIT : 0;
 
@@ -2047,9 +2047,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
     #ifdef GL_ES_VERSION_2_0
-        if(buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
+        if(buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR0_BIT)
         {
-            uint32_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
+            uint32_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR0_BIT);
             rt->m_ColorBufferTexture[0] = NewTexture(context, creation_params[color_buffer_index]);
             SetTexture(rt->m_ColorBufferTexture[0], params[color_buffer_index]);
             // attach the texture to FBO color attachment point
@@ -2104,7 +2104,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         // Disable color buffer
-        if ((buffer_type_flags & BUFFER_TYPE_COLOR_BIT) == 0)
+        if ((buffer_type_flags & BUFFER_TYPE_COLOR0_BIT) == 0)
         {
 #if !defined(GL_ES_VERSION_2_0)
             // TODO: Not available in OpenGL ES.
@@ -2161,7 +2161,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 }
                 GLenum types[MAX_BUFFER_TYPE_COUNT];
                 uint32_t types_count = 0;
-                if(invalidate_bits & BUFFER_TYPE_COLOR_BIT)
+                if(invalidate_bits & BUFFER_TYPE_COLOR0_BIT)
                 {
                     types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_COLOR_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_COLOR;
                 }
@@ -2213,7 +2213,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static HTexture OpenGLGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-        if(!(buffer_type == BUFFER_TYPE_COLOR_BIT  ||
+        if(!(buffer_type == BUFFER_TYPE_COLOR0_BIT  ||
            buffer_type == BUFFER_TYPE_COLOR0_BIT ||
            buffer_type == BUFFER_TYPE_COLOR1_BIT ||
            buffer_type == BUFFER_TYPE_COLOR2_BIT ||
@@ -2221,9 +2221,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             return 0;
         }
-
-        uint8_t index = GetBufferColorAttachmentIndex(buffer_type);
-        return render_target->m_ColorBufferTexture[index];
+        return render_target->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
     }
 
     static void OpenGLGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
@@ -2243,11 +2241,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             render_target->m_BufferTextureParams[i].m_Width = width;
             render_target->m_BufferTextureParams[i].m_Height = height;
 
-            uint32_t color_attachment_index = GetBufferColorAttachmentIndex((BufferType) i);
-
-            if (color_attachment_index < MAX_BUFFER_COLOR_ATTACHMENTS && render_target->m_ColorBufferTexture[color_attachment_index])
+            if (i < MAX_BUFFER_COLOR_ATTACHMENTS && render_target->m_ColorBufferTexture[i])
             {
-                SetTexture(render_target->m_ColorBufferTexture[color_attachment_index], render_target->m_BufferTextureParams[i]);
+                SetTexture(render_target->m_ColorBufferTexture[i], render_target->m_BufferTextureParams[i]);
             }
         }
         OpenGLSetDepthStencilRenderBuffer(render_target, true);
@@ -3029,7 +3025,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
-    BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
+    BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR0_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
 
     GLenum TEXTURE_UNIT_NAMES[32] =
     {

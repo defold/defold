@@ -1236,7 +1236,7 @@ namespace dmRender
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT &&
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
@@ -1287,7 +1287,7 @@ namespace dmRender
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT &&
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
@@ -1374,7 +1374,7 @@ namespace dmRender
             uint32_t buffer_type = luaL_checknumber(L, -2);
             flags |= buffer_type;
 
-            if (buffer_type == dmGraphics::BUFFER_TYPE_COLOR_BIT)
+            if (buffer_type == dmGraphics::BUFFER_TYPE_COLOR0_BIT)
             {
                 color = *dmScript::CheckVector4(L, -1);
             }
@@ -2712,17 +2712,17 @@ namespace dmRender
 
 #undef REGISTER_FACE_CONSTANT
 
-#define REGISTER_BUFFER_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::BUFFER_TYPE_##name); \
+#define REGISTER_BUFFER_CONSTANT(enum_type, name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::BUFFER_TYPE_##enum_type); \
         lua_setfield(L, -2, "BUFFER_"#name);
 
-        REGISTER_BUFFER_CONSTANT(COLOR_BIT);
-        REGISTER_BUFFER_CONSTANT(COLOR0_BIT);
-        REGISTER_BUFFER_CONSTANT(COLOR1_BIT);
-        REGISTER_BUFFER_CONSTANT(COLOR2_BIT);
-        REGISTER_BUFFER_CONSTANT(COLOR3_BIT);
-        REGISTER_BUFFER_CONSTANT(DEPTH_BIT);
-        REGISTER_BUFFER_CONSTANT(STENCIL_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR_BIT); // For backwards compatability
+        REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR0_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR1_BIT,  COLOR1_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR2_BIT,  COLOR2_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR3_BIT,  COLOR3_BIT);
+        REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
+        REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
 
 #undef REGISTER_BUFFER_CONSTANT
 

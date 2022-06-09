@@ -229,7 +229,7 @@ namespace dmGraphics
     {
         VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;
 
-        if (bufferFlagBits & BUFFER_TYPE_COLOR_BIT)
+        if (bufferFlagBits & BUFFER_TYPE_COLOR0_BIT)
         {
             vk_sample_count = physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
         }
