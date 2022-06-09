@@ -974,7 +974,7 @@ def android_package(task):
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
     dex_dir = os.path.dirname(task.classes_dex.abspath())
-    root = os.path.normpath(dex_dir) #os.path.join(dex_dir, '..'))
+    root = os.path.normpath(dex_dir)
     libs = os.path.join(root, 'libs')
     bin = os.path.join(root, 'bin')
     bin_cls = os.path.join(bin, 'classes')
@@ -1112,28 +1112,12 @@ def create_copy_glue(self):
         return
 
     stub = self.path.get_bld().find_or_declare('android_stub.c')
-    #self.source.append(stub.abspath())
-
     task = self.create_task('copy_stub')
     task.set_outputs([stub])
 
-def get_file_contents(path):
-    """data = None
-    try:
-        handle = open(path, 'r')
-        data = handle.read()
-    except UnicodeDecodeError:
-        handle = open(path, 'rb')
-        data = handle.read()
-    return data
-    """
-    handle = open(path, 'rb')
-    return handle.read()
-
-
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')
-    in_file = get_file_contents(task.inputs[0].abspath()) #open(task.inputs[0].abspath(), 'rt')
+    in_file = open(task.inputs[0].abspath(), 'rb').read()
     cpp_out_file = open(task.outputs[0].abspath(), 'w')
     h_out_file = open(task.outputs[1].abspath(), 'w')
 
@@ -1173,7 +1157,6 @@ unsigned char DM_ALIGNED(16) %s[] =
     else:
         m.update(data.encode('utf-8'))
 
-    #task.generator.bld.node_sigs[task.inputs[0].variant()][task.inputs[0].id] = m.digest()
     task.generator.bld.node_sigs[task.inputs[0]] = m.digest()
 
     return 0

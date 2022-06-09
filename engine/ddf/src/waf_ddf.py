@@ -107,22 +107,11 @@ def scan(self):
 def configure(conf):
     conf.find_program('ddfc_cxx', var='DDFC_CXX', mandatory = True)
 
-
-def src_dir(self):
-    return self.parent.srcpath()
-def src_dir_abs(self):
-    return self.parent.abspath()
-def src_dir_abs_test(self):
-    return self.parent.abspath()
-
-waflib.Node.Node.src_dir=src_dir
-waflib.Node.Node.src_dir_abs=src_dir_abs
-
 # The "protoc-gen-ddf" adds a new plugin with name "ddf", and protoc automatically checks for the "--ddf_out"
 bproto = waflib.Task.task_factory('bproto', 'protoc \
 --plugin=protoc-gen-ddf=${DDFC_CXX} \
---ddf_out=${TGT[0].src_dir_abs()} \
--I ../${SRC[0].src_dir()} -I ${SRC[0].parent.src_dir_abs()} ${PROTOC_FLAGS} ${SRC}',
+--ddf_out=${TGT[0].parent.abspath()} \
+-I ../${SRC[0].parent.srcpath()} -I ${SRC[0].parent.parent.abspath()} ${PROTOC_FLAGS} ${SRC}',
                       color='PINK',
                       before='c cxx',
                       after='proto_b',
@@ -142,7 +131,7 @@ def bproto_file(self, node):
     if hasattr(self, "ddf_namespace"):
         protoc.env['ddf_options'] = '--ns %s' % self.ddf_namespace
 
-proto_b = waflib.Task.task_factory('proto_b', 'protoc -o${TGT} -I ../${SRC[0].src_dir()} -I ${SRC[0].parent.src_dir_abs()} ${PROTOC_FLAGS} ${SRC}',
+proto_b = waflib.Task.task_factory('proto_b', 'protoc -o${TGT} -I ../${SRC[0].parent.srcpath()} -I ${SRC[0].parent.parent.abspath()} ${PROTOC_FLAGS} ${SRC}',
                                  color='PINK',
                                  before='c cxx',
                                  shell=True)

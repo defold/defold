@@ -1442,7 +1442,7 @@ class Configuration(object):
 
         if "darwin" in self.host and "arm" in platform.processor():
             print ('Detected Apple M1 CPU - running shell with x86 architecture')
-            args = ['arch', '-arch', 'x86_64', SHELL, '-l']
+            args = 'arch -arch x86_64 %s -l' % SHELL
         else:
             args = [SHELL, '-l']
 
