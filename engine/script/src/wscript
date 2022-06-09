@@ -60,7 +60,7 @@ def build(bld):
 
     # for #imports to work for other projects
     # ..first for python
-    ddf_ext = bld.__call__(
+    ddf_ext = bld(
          rule   = 'echo "" > ${TGT}',
          source = 'script/lua_source_ddf.proto script/ddf_script.proto',
          target = '__init__.py',

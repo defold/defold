@@ -207,7 +207,7 @@ def apidoc_extract_task(bld, src):
         for ns in elements.keys():
             if ns is not None:
                 target.append(ns + '.apidoc')
-        return bld.__call__(rule=write_docs, name='apidoc_extract', source = src, target = target)
+        return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
 
 
 # Add single dmsdk file.
@@ -1272,7 +1272,7 @@ def run_tests(ctx, valgrind = False, configfile = None):
         Logs.info('Not running tests. node.js not found')
         return
 
-    for t in ctx.all_task_gen:
+    for t in ctx.get_all_task_gen():
         if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
             if getattr(t, 'skip_test', False):
                 continue

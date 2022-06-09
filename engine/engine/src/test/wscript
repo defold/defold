@@ -23,7 +23,7 @@ def build(bld):
     exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
 
     bld.add_group()
-    obj = bld.__call__(
+    obj = bld(
         features = 'c cxx cprogram test',
         use = 'TESTMAIN RECORD CRASH VPX PROFILEREXT GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB CARES engine engine_service'.split() + additional_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
@@ -51,6 +51,6 @@ def build(bld):
 
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
-    bld.__call__(rule = 'java -jar content/bob-engine.jar -root ../src/test -k distclean build %s' % ' '.join(bob_flags),
-                     source = 'wscript',
-                     always = True)
+    bld(rule = 'java -jar content/bob-engine.jar -root ../src/test -k distclean build %s' % ' '.join(bob_flags),
+        source = 'wscript',
+        always = True)

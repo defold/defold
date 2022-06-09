@@ -44,9 +44,9 @@ def _exec_command(arg_list, **kwargs):
 
         output = ''
         while True:
-            line = process.stdout.readline()
-            if line != b'':
-                output += str(line)
+            line = process.stdout.readline().decode()
+            if line != '':
+                output += line
                 log(line.rstrip())
             else:
                 break
