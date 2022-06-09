@@ -81,7 +81,6 @@ class IconExtension(Extension):
         tp.md = md
         tp.ext = self
         # Add inline pattern before "reference" pattern
-        #md.inlinePatterns.register("icon", tp, "<reference")
         md.inlinePatterns.register(tp, "icon", REF_PATTERN_PRIORITY_VALUE)
 
 class IconPattern(Pattern):
@@ -106,7 +105,6 @@ class TypeExtension(Extension):
         tp.md = md
         tp.ext = self
         # Add inline pattern before "reference" pattern
-        #md.inlinePatterns.register("type", tp, "<reference")
         md.inlinePatterns.register(tp, "type", REF_PATTERN_PRIORITY_VALUE)
 
 class TypePattern(Pattern):
@@ -137,8 +135,6 @@ class ClassExtension(Extension):
         cp.md = md
         cp.ext = self
         # Add inline pattern before "reference" pattern
-        #md.inlinePatterns.register("class", cp, "<reference")
-
         md.inlinePatterns.register(cp, "class", REF_PATTERN_PRIORITY_VALUE)
 
 class ClassPattern(Pattern):

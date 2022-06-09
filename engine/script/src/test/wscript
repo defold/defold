@@ -28,9 +28,6 @@ def build(bld):
                                        target = 'test_script_http',
                                        source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
 
-    return
-
-
     test_script_ddf = bld.program(features = flist,
                                   includes = '..',
                                   use = libs,

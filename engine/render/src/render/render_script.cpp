@@ -126,15 +126,8 @@ namespace dmRender
         const char* name = luaL_checkstring(L, 2);
         dmhash_t name_hash = dmHashString64(name);
 
-        if (lua_istable(L, 3))
-        {
-            dmLogInfo("Congrats It's a table!");
-        }
-        else
-        {
-            dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-            SetNamedConstant(*cb, name_hash, value, 1);
-        }
+        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
+        SetNamedConstant(*cb, name_hash, value, 1);
         assert(top == lua_gettop(L));
         return 0;
     }

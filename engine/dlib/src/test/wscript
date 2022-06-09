@@ -6,7 +6,7 @@ from waf_dynamo import is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None, extra_defines = None, skip_run = False, extra_source = None):
+                extra_includes = None, extra_defines = None, skip_run = False):
 
     # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
@@ -48,13 +48,9 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if extra_includes != None:
         req_includes.extend(extra_includes)
 
-    extra_source_str = ''
-    if extra_source != None:
-        extra_source_str = ' ' + extra_source
-
     task_args = {
         'features': ' '.join(req_features),
-        'source': name + '.cpp' + ' testutil.cpp' + platform_source + extra_source_str,
+        'source': name + '.cpp' + ' testutil.cpp' + platform_source,
         'use': 'dlib mbedtls zip ' + ' '.join(req_libs),
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,

@@ -195,7 +195,7 @@ def build(bld):
         obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
         src_dir = "%s/ext/lib/%s" % (bld.env.PREFIX, bld.env.PLATFORM)
-        install_path = os.path.join(bld.env["PREFIX"], 'bin', bld.env['PLATFORM']) # bld.get_install_path("${PREFIX}/bin/${PLATFORM}")
+        install_path = os.path.join(bld.env["PREFIX"], 'bin', bld.env['PLATFORM'])
         task = copy_file_task(bld, "%s/OpenAL32.dll" % src_dir)
         task.install_path = install_path
         task = copy_file_task(bld, "%s/wrap_oal.dll" % src_dir)

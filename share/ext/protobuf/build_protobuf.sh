@@ -74,8 +74,6 @@ echo **********************
 echo CREATING HOST TOOLS
 echo **********************
 
-echo "$PWD"
-
 set -e
 ./autogen.sh
 ./configure

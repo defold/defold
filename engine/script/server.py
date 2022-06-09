@@ -93,7 +93,6 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 class Server(Thread):
     def __init__(self, disable_error_logging = True):
-        print("NEW SERVER")
         self.server = ThreadedHTTPServer(("localhost", 9001), Handler)
         if disable_error_logging:
             # Disable broken pipe messages etc from python server

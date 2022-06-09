@@ -22,9 +22,6 @@ function test_http()
     headers['X-A'] = 'Defold'
     headers['X-B'] = '!'
 
-    print("PORT?")
-    print(PORT)
-
     http.request("http://127.0.0.1:" .. PORT, "GET",
         function(response)
             assert(response.status == 200)
@@ -37,7 +34,6 @@ function test_http()
     local post_data = "Some data to post..."
     http.request("http://127.0.0.1:" .. PORT, "POST",
         function(response)
-            pprint(response)
             assert(response.status == 200)
             assert(response.response == "PONGSome data to post...")
             assert(response.headers.server == "Dynamo 1.0")
