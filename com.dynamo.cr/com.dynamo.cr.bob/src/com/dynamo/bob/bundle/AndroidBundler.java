@@ -571,10 +571,11 @@ public class AndroidBundler implements IBundler {
                     // - x86_64
                     // - include
                     // we only copy files from the two architectures we support
-                    for (String architecture : platformToLibMap.values()) {
-                        File architectureDir = new File(jniDir, architecture);
+                    for (Platform platformArchitecture : getArchitectures(project)) {
+                        String architectureLibName = platformToLibMap.get(platformArchitecture);
+                        File architectureDir = new File(jniDir, architectureLibName);
                         if (architectureDir.exists()) {
-                            File dest = new File(libDir, architecture);
+                            File dest = new File(libDir, architectureLibName);
                             log("Copying shared library dir " + architectureDir + " to " + dest);
                             FileUtils.copyDirectory(architectureDir, dest);
                         }
