@@ -1479,9 +1479,16 @@ bail:
                 DM_PROFILE("Sim");
 
                 dmLiveUpdate::Update();
-                dmResource::UpdateFactory(engine->m_Factory);
 
-                dmHID::Update(engine->m_HidContext);
+                {
+                    DM_PROFILE("Resource");
+                    dmResource::UpdateFactory(engine->m_Factory);
+                }
+
+                {
+                    DM_PROFILE("Hid");
+                    dmHID::Update(engine->m_HidContext);
+                }
                 if (!engine->m_RunWhileIconified) {
                     if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
                     {
@@ -1492,18 +1499,22 @@ bail:
                         return;
                     }
                 }
-                // Script context updates
-                if (engine->m_SharedScriptContext) {
-                    dmScript::Update(engine->m_SharedScriptContext);
-                } else {
-                    if (engine->m_GOScriptContext) {
-                        dmScript::Update(engine->m_GOScriptContext);
-                    }
-                    if (engine->m_RenderScriptContext) {
-                        dmScript::Update(engine->m_RenderScriptContext);
-                    }
-                    if (engine->m_GuiScriptContext) {
-                        dmScript::Update(engine->m_GuiScriptContext);
+                {
+                    DM_PROFILE("Script");
+                    
+                    // Script context updates
+                    if (engine->m_SharedScriptContext) {
+                        dmScript::Update(engine->m_SharedScriptContext);
+                    } else {
+                        if (engine->m_GOScriptContext) {
+                            dmScript::Update(engine->m_GOScriptContext);
+                        }
+                        if (engine->m_RenderScriptContext) {
+                            dmScript::Update(engine->m_RenderScriptContext);
+                        }
+                        if (engine->m_GuiScriptContext) {
+                            dmScript::Update(engine->m_GuiScriptContext);
+                        }
                     }
                 }
 

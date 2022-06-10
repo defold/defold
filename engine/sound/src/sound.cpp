@@ -23,6 +23,7 @@
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/profile.h>
 
 #include "sound.h"
 #include "sound_codec.h"
@@ -1476,6 +1477,7 @@ namespace dmSound
 
     Result Update()
     {
+        DM_PROFILE("Sound");
         SoundSystem* sound = g_SoundSystem;
         if (!sound)
             return RESULT_OK;

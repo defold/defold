@@ -745,6 +745,7 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
 
 void UpdateFactory(HFactory factory)
 {
+    DM_PROFILE(__FUNCTION__);
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
 }
 
