@@ -46,21 +46,21 @@
 (defrecord Mesh [vertices]
   types/GeomCloud
   (types/geom-aabbs [this ids] (->> (iv/iv-filter-ids vertices ids)
-                                (iv/iv-mapv (fn [[id v]] [id [v v]]))
-                                (into {})))
+                                    (iv/iv-mapv (fn [[id v]] [id [v v]]))
+                                    (into {})))
   (types/geom-insert [this positions] (update this :vertices iv/iv-into positions))
   (types/geom-delete [this ids] (update this :vertices iv/iv-remove-ids ids))
   (types/geom-update [this ids f] (let [ids (set ids)]
-                             (assoc this :vertices (iv/iv-mapv (fn [entry]
-                                                                 (let [[id v] entry]
-                                                                   (if (ids id) [id (f v)] entry))) vertices))))
+                                    (assoc this :vertices (iv/iv-mapv (fn [entry]
+                                                                        (let [[id v] entry]
+                                                                          (if (ids id) [id (f v)] entry))) vertices))))
   (types/geom-transform [this ids transform]
     (let [p (Point3d.)]
       (types/geom-update this ids (fn [v]
-                             (let [[x y] v]
-                               (.set p x y 0.0)
-                               (.transform transform p)
-                               [(.getX p) (.getY p) 0.0]))))))
+                                    (let [[x y] v]
+                                      (.set p x y 0.0)
+                                      (.transform transform p)
+                                      [(.getX p) (.getY p) 0.0]))))))
 
 (defn ->mesh [vertices]
   (Mesh. (iv/iv-vec vertices)))
@@ -131,8 +131,8 @@
 
 (g/defnode MoveManip
   (input selection g/Any)
-  (output position g/Any (g/fnk [selection _basis]
-                                (let [evaluation-context (g/make-evaluation-context {:basis _basis})
+  (output position g/Any (g/fnk [selection]
+                                (let [evaluation-context (g/make-evaluation-context)
                                       positions (->> (for [[nid props] selection
                                                            [k ids] props]
                                                        (map (fn [[id aabb]] [id (centroid aabb)]) (-> (g/node-value nid k evaluation-context)

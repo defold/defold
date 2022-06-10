@@ -78,7 +78,7 @@
   (output dirty? g/Bool (g/fnk [cleaned-save-value source-value editable?]
                           (and editable? (some? cleaned-save-value) (not= cleaned-save-value source-value))))
   (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
-  (output valid-node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource])) ; Jammed when defective.
+  (output valid-node-id+type+resource g/Any (g/fnk [_node-id _this resource] [_node-id (g/node-type _this) resource])) ; Jammed when defective.
   (output own-build-errors g/Any (g/constantly nil))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
@@ -96,18 +96,22 @@
               :outline-error? (g/error-fatal? own-build-errors)
               :outline-overridden? (not (empty? _overridden-properties))})))
 
-  (output sha256 g/Str :cached (g/fnk [resource save-data]
+  (output sha256 g/Str :cached (g/fnk [resource undecorated-save-data]
                                  ;; Careful! This might throw if resource has been removed
                                  ;; outside the editor. Use from editor.engine.native-extensions seems
                                  ;; to catch any exceptions.
-                                 (let [content (get save-data :content ::no-content)]
+                                 ;; Also, be aware that resource-update/keep-existing-node?
+                                 ;; assumes this output will produce a sha256 hex hash string
+                                 ;; from the bytes we'll be writing to disk, so be careful
+                                 ;; if you decide to overload it.
+                                 (let [content (get undecorated-save-data :content ::no-content)]
                                    (if (= ::no-content content)
                                      (with-open [s (io/input-stream resource)]
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
 
 (defn defective? [resource-node]
-  (let [value (g/node-value resource-node :valid-node-id+resource)]
+  (let [value (g/node-value resource-node :valid-node-id+type+resource)]
     (and (g/error? value)
          (g/error-fatal? value))))
 
@@ -120,7 +124,8 @@
           ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
 
 (defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
-  (let [read-fn (comp (or sanitize-fn identity) (partial protobuf/read-text ddf-type))
+  (let [read-fn (cond->> (partial protobuf/read-text ddf-type)
+                         (some? sanitize-fn) (comp sanitize-fn))
         args (assoc args
                :textual? true
                :load-fn (fn [project self resource]

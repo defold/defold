@@ -115,15 +115,16 @@
   (property visibility-filters-enabled? g/Bool (default true))
   (property filtered-renderable-tags types/RenderableTags (default #{:dev-visibility-bounds}))
 
-  (input active-resource-node g/NodeID)
+  (input active-resource-node+type g/Any)
   (input active-scene g/Any :substitute nil)
   (input outline-selection g/Any :substitute nil)
   (input scene-hide-history-datas SceneHideHistoryData :array)
 
-  (output active-scene-resource-node g/NodeID (g/fnk [_basis active-resource-node]
-                                                (when (some? active-resource-node)
-                                                  (when (g/has-output? (g/node-type* _basis active-resource-node) :scene)
-                                                    active-resource-node))))
+  (output active-scene-resource-node g/NodeID (g/fnk [active-resource-node+type]
+                                                (when (some? active-resource-node+type)
+                                                  (let [[node type] active-resource-node+type]
+                                                    (when (g/has-output? type :scene)
+                                                      node)))))
 
   (output hidden-outline-name-paths-by-scene-resource-node OutlineNamePathsByNodeID :cached (g/fnk [scene-hide-history-datas]
                                                                                               (into {}

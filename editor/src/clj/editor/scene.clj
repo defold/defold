@@ -246,7 +246,6 @@
                               :aabbs :picking-color
                               :picking-color :picking-rect
                               :picking-rect :normal})
-(def render-mode-atom (atom :normal))
 (def last-picking-rect (atom nil))
 (def render-mode-passes {:normal pass/render-passes
                          :aabbs pass/render-passes
@@ -267,9 +266,8 @@
           (map #(assoc % :render-fn render-aabb)))
         renderables))
 
-(defn render! [^GLContext context renderables updatable-states viewport pass->render-args]
+(defn render! [^GLContext context render-mode renderables updatable-states viewport pass->render-args]
   (let [^GL2 gl (.getGL context)
-        render-mode @render-mode-atom
         batch-key (render-mode-batch-key render-mode)]
     (gl/gl-clear gl 0.0 0.0 0.0 1)
     (.glColor4f gl 1.0 1.0 1.0 1.0)
@@ -548,6 +546,7 @@
 
 (g/defnode SceneRenderer
   (property info-label Label (dynamic visible (g/constantly false)))
+  (property render-mode g/Keyword (default :normal))
 
   (input active-view g/NodeID)
   (input scene g/Any :substitute substitute-scene)
@@ -1127,6 +1126,7 @@
 (defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom evaluation-context]
   (when-let [view-id (ui/user-data image-view ::view-id)]
     (let [action-queue (g/node-value view-id :input-action-queue evaluation-context)
+          render-mode (g/node-value view-id :render-mode evaluation-context)
           tool-user-data (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
           play-mode (g/node-value view-id :play-mode evaluation-context)
           active-updatables (g/node-value view-id :active-updatables evaluation-context)
@@ -1134,12 +1134,12 @@
           new-updatable-states (if (seq active-updatables)
                                  (profiler/profile "updatables" -1 (update-updatables updatable-states play-mode active-updatables))
                                  updatable-states)
-          renderables-invalidate-counter (g/invalidate-counter view-id :all-renderables evaluation-context)
-          last-renderables-invalidate-counter (ui/user-data image-view ::last-renderables-invalidate-counter)
+          renderables (g/node-value view-id :all-renderables evaluation-context)
+          last-renderables (ui/user-data image-view ::last-renderables)
           last-frame-version (ui/user-data image-view ::last-frame-version)
           frame-version (cond-> (or last-frame-version 0)
-                          (or (nil? last-renderables-invalidate-counter)
-                              (not= last-renderables-invalidate-counter renderables-invalidate-counter)
+                          (or (nil? last-renderables)
+                              (not (identical? last-renderables renderables))
                               (and (= :playing play-mode) (seq active-updatables)))
                           inc)]
       (when (seq action-queue)
@@ -1156,11 +1156,10 @@
         (gl/with-drawable-as-current drawable
           (if (= last-frame-version frame-version)
             (reset! async-copy-state-atom (scene-async/finish-image! @async-copy-state-atom gl))
-            (let [renderables (g/node-value view-id :all-renderables evaluation-context)
-                  viewport (g/node-value view-id :viewport evaluation-context)
+            (let [viewport (g/node-value view-id :viewport evaluation-context)
                   pass->render-args (g/node-value view-id :pass->render-args evaluation-context)]
-              (render! gl-context renderables new-updatable-states viewport pass->render-args)
-              (ui/user-data! image-view ::last-renderables-invalidate-counter renderables-invalidate-counter)
+              (render! gl-context render-mode renderables new-updatable-states viewport pass->render-args)
+              (ui/user-data! image-view ::last-renderables renderables)
               (ui/user-data! image-view ::last-frame-version frame-version)
               (scene-cache/prune-context! gl)
               (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
@@ -1310,8 +1309,7 @@
                                           (let [key-event ^KeyEvent event]
                                             (when (and (.isShortcutDown key-event)
                                                        (= "t" (.getText key-event)))
-                                              (swap! render-mode-atom render-mode-transitions)
-                                              (g/invalidate-outputs! [[view-id :all-renderables]]))))))
+                                              (g/update-property! view-id :render-mode render-mode-transitions))))))
     scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]
@@ -1325,7 +1323,7 @@
 (g/defnk produce-frame [all-renderables ^Region viewport pass->render-args ^GLAutoDrawable drawable]
   (when drawable
     (gl/with-drawable-as-current drawable
-      (render! gl-context all-renderables nil viewport pass->render-args)
+      (render! gl-context :normal all-renderables nil viewport pass->render-args)
       (let [[w h] (vp-dims viewport)
             buf-image (read-to-buffered-image w h)]
         (scene-cache/prune-context! gl)
@@ -1364,7 +1362,7 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
   (output frame BufferedImage produce-frame)
-  (output all-renderables pass/RenderData (g/fnk [scene-render-data] (:renderables (merge-render-datas {} {} scene-render-data))))
+  (output all-renderables pass/RenderData :cached (g/fnk [scene-render-data] (:renderables (merge-render-datas {} {} scene-render-data))))
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil)))))
 
 (defn make-preview-view [graph width height]

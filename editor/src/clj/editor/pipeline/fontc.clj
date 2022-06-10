@@ -12,7 +12,8 @@
 
 (ns editor.pipeline.fontc
   (:require [clojure.java.io :as io]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator]
            [com.google.protobuf ByteString]
            [javax.imageio ImageIO]
@@ -123,9 +124,6 @@
 (defn- int->boolean [n]
   (assert (some? n))
   (not= n 0))
-
-(defn- pair [a b]
-  (clojure.lang.MapEntry. a b))
 
 (defn- fnt-semi-glyphs [^BMFont bm-font]
   (let [semi-glyphs (for [index (range (.. bm-font charArray size))]

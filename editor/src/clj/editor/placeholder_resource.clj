@@ -17,8 +17,8 @@
             [util.text-util :as text-util]
             [editor.workspace :as workspace]))
 
-(g/defnk produce-save-data [_node-id dirty? resource save-value]
-  (cond-> {:dirty? dirty? :node-id _node-id :resource resource :value save-value}
+(g/defnk produce-undecorated-save-data [_node-id resource save-value]
+  (cond-> {:node-id _node-id :resource resource :value save-value}
           (some? save-value) (assoc :content (r/write-fn save-value))))
 
 (g/defnk produce-build-targets [_node-id resource]
@@ -27,7 +27,7 @@
 (g/defnode PlaceholderResourceNode
   (inherits r/CodeEditorResourceNode)
   (output build-targets g/Any produce-build-targets)
-  (output save-data g/Any produce-save-data))
+  (output undecorated-save-data g/Any produce-undecorated-save-data))
 
 (defn load-node [project node-id resource]
   (if (text-util/binary? resource)

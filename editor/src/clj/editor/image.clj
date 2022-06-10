@@ -79,6 +79,7 @@
   (input texture-profiles g/Any)
 
   ;; we never modify ImageNode, save-data and source-value can be trivial and not cached
+  (output undecorated-save-data g/Any (g/constantly nil))
   (output save-data g/Any (g/constantly nil))
   (output source-value g/Any (g/constantly nil))
 

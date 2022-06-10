@@ -16,7 +16,8 @@
             [clojure.test :refer :all]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
-            [support.test-support :as ts]))
+            [support.test-support :as ts])
+  (:import [internal.graph.types Arc]))
 
 (defn arc-node-references
   [fragment]
@@ -195,8 +196,8 @@
   (input  discards-value g/Str)
   (output produces-value g/Str (g/fnk [a-property] a-property)))
 
-(defn- stop-at-stoppers [basis [src src-label tgt tgt-label]]
-  (not (g/node-instance? StopperNode tgt)))
+(defn- stop-at-stoppers [basis ^Arc arc]
+  (not (g/node-instance? basis StopperNode (.target-id arc))))
 
 (defrecord Standin [original-id])
 
@@ -213,10 +214,10 @@
         (g/connect node3 :produces-value node2 :consumes-value)
         (g/connect node4 :produces-value node3 :discards-value)])
       [node3 (g/copy [node1] {:traverse? (comp stop-at-stoppers)
-                              :serializer (fn [basis node]
+                              :serializer (fn [node]
                                             (if (g/node-instance? StopperNode (g/node-id node))
                                               (serialize-stopper node)
-                                              (g/default-node-serializer basis node)))})]))
+                                              (g/default-node-serializer node)))})]))
 
 (deftest serialization-uses-predicates
   (ts/with-clean-system
@@ -309,9 +310,9 @@
   (output component-id g/Any (g/fnk [_node-id id] [id _node-id]))
   (output node-outline g/Any (g/fnk [] {})))
 
-(defn- copy-traverse [_basis [_src-node _src-label _tgt-node tgt-label]]
+(defn- copy-traverse [_basis ^Arc arc]
   ;; This is a simplification of the traversal rules from outline/default-copy-traverse.
-  (= :child-outlines tgt-label))
+  (= :child-outlines (.target-label arc)))
 
 (deftest copy-flattens-override-hierarchy
   (ts/with-clean-system

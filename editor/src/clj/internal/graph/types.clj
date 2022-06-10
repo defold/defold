@@ -10,15 +10,17 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns internal.graph.types
-  (:require [internal.util :as util]
-            [schema.core :as s]))
+(ns internal.graph.types)
 
 (set! *warn-on-reflection* true)
 
 (defrecord Arc [source-id source-label target-id target-label])
 
+(defn source-id [^Arc arc] (.source-id arc))
+(defn source-label [^Arc arc] (.source-label arc))
 (defn source [^Arc arc] [(.source-id arc) (.source-label arc)])
+(defn target-id [^Arc arc] (.target-id arc))
+(defn target-label [^Arc arc] (.target-label arc))
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
 
 (defn node-id? [v] (integer? v))
@@ -28,10 +30,10 @@
 
 (defprotocol Node
   (node-id               [this]                          "Return an ID that can be used to get this node (or a future value of it).")
-  (node-type             [this basis]                    "Return the node type that created this node.")
+  (node-type             [this]                          "Return the node type that created this node.")
   (get-property          [this basis property]           "Return the value of the named property")
   (set-property          [this basis property value]     "Set the named property")
-  (overridden-properties [this basis]                    "Return a map of property name to override value")
+  (overridden-properties [this]                          "Return a map of property name to override value")
   (property-overridden?  [this property]))
 
 (defprotocol OverrideNode

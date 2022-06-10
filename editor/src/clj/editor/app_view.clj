@@ -227,6 +227,7 @@
   (property scene Scene)
   (property editor-tabs-split SplitPane)
   (property active-tab-pane TabPane)
+  (property active-tab Tab)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
@@ -248,7 +249,6 @@
 
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
-  (output active-tab Tab (g/fnk [^TabPane active-tab-pane] (some-> active-tab-pane ui/selected-tab)))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
   (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
   (output active-outline g/Any (gu/passthrough active-outline))
@@ -262,6 +262,10 @@
                                            :view-type (ui/user-data active-tab ::view-type)})))
 
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
+  (output active-resource-node+type g/Any :cached
+          (g/fnk [active-view open-views]
+            (when-let [{:keys [resource-node resource-node-type]} (get open-views active-view)]
+              [resource-node resource-node-type])))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
@@ -322,14 +326,14 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed! [app-view app-scene resource-node view-type]
+(defn- on-selected-tab-changed! [app-view app-scene tab resource-node view-type]
   (g/transact
     (concat
       (replace-connection resource-node :node-outline app-view :active-outline)
       (if (= :scene view-type)
         (replace-connection resource-node :scene app-view :active-scene)
-        (disconnect-sources app-view :active-scene))))
-  (g/invalidate-outputs! [[app-view :active-tab]])
+        (disconnect-sources app-view :active-scene))
+      (g/set-property app-view :active-tab tab)))
   (ui/user-data! app-scene ::ui/refresh-requested? true))
 
 (handler/defhandler :move-tool :workbench
@@ -1531,7 +1535,7 @@ If you do not specifically require different script states, consider changing th
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (on-selected-tab-changed! app-view app-scene (tab->resource-node new-val) (tab->view-type new-val))))))
+            (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val))))))
   (-> tab-pane
       (.getTabs)
       (.addListener
@@ -1558,7 +1562,7 @@ If you do not specifically require different script states, consider changing th
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (on-selected-tab-changed! app-view app-scene resource-node view-type)))))
+        (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
 (defn open-custom-keymap
   [path]
