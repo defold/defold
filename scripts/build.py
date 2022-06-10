@@ -1442,6 +1442,8 @@ class Configuration(object):
 
         if "darwin" in self.host and "arm" in platform.processor():
             print ('Detected Apple M1 CPU - running shell with x86 architecture')
+            # Submit as string because on POSIX subsequent tokens are passed to the shell - not the arch command.
+            # See: https://docs.python.org/3.10/library/subprocess.html#popen-constructor
             args = 'arch -arch x86_64 %s -l' % SHELL
         else:
             args = [SHELL, '-l']
