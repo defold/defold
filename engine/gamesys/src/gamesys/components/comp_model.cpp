@@ -541,7 +541,7 @@ namespace dmGameSystem
             const ModelComponent* component = render_item->m_Component;
             uint32_t material_index = render_item->m_MaterialIndex;
 
-            // We currently have no support for instancing, so we generate a separate draw call for each model
+            // We currently have no support for instancing, so we generate a separate draw call for each render item
             world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
             dmRender::RenderObject& ro = world->m_RenderObjects.Back();
 
@@ -692,6 +692,7 @@ namespace dmGameSystem
 
         dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
         uint32_t n = components.Size();
+        uint32_t num_render_items = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
             ModelComponent* c = components[i];
@@ -715,7 +716,12 @@ namespace dmGameSystem
             }
 
             UpdateMeshTransforms(c);
+
+            num_render_items += c->m_RenderItems.Size();
         }
+
+        if (world->m_RenderObjects.Capacity() < num_render_items)
+            world->m_RenderObjects.SetCapacity(num_render_items);
     }
 
     dmGameObject::CreateResult CompModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
