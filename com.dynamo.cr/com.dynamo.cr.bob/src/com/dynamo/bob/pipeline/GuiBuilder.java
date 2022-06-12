@@ -282,9 +282,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private static String replaceTextureName(String str) {
         String out = str;
         if(str.endsWith(".atlas")) {
-            out = BuilderUtil.replaceExt(out, ".atlas", ".texturesetc");
+            out = BuilderUtil.replaceExt(out, ".atlas", ".a.texturesetc");
         } else if(str.endsWith(".tilesource")) {
-            out = BuilderUtil.replaceExt(out, ".tilesource", ".texturesetc");
+            out = BuilderUtil.replaceExt(out, ".tilesource", ".t.texturesetc");
         } else {
             out = ProtoBuilders.replaceTextureName(str);
         }

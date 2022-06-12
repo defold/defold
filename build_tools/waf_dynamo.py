@@ -66,7 +66,7 @@ if 'waf_dynamo_private' not in sys.modules:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'win32', 'x86_64-win32', 'x86_64-linux']
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -1589,10 +1589,6 @@ def detect(conf):
         conf.env['STATICLIB_LUA'] = 'lua'
     else:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
-        if '64' in build_util.get_target_platform():
-            conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_64']
-        else:
-            conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_32']
 
     conf.env['STATICLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 

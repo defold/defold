@@ -226,7 +226,7 @@
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [user-data (get-in renderables [0 :user-data])
         clipping-state (:clipping-state user-data)
-        gpu-texture (or (get user-data :gpu-texture) texture/white-pixel)
+        gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         material-shader (get user-data :material-shader)
         blend-mode (get user-data :blend-mode)
         vb (gen-vb gl renderables)
@@ -2672,7 +2672,7 @@
       (g/make-nodes graph-id [textures-node TexturesNode
                               no-texture [InternalTextureNode
                                           :name ""
-                                          :gpu-texture texture/white-pixel]]
+                                          :gpu-texture @texture/white-pixel]]
                     (g/connect textures-node :_node-id self :textures-node) ; for the tests :/
                     (g/connect textures-node :_node-id self :nodes)
                     (g/connect textures-node :build-errors self :build-errors)

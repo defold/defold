@@ -189,6 +189,36 @@ public class ProjectBuildTest {
         checkProjectSettingArray(outputProps, "custom", "list2", new String[]{"a", "b", "c"});
     }
 
+    @Test
+    public void testStringArray() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+       /* This test helps to make sure that any array of strings that uses # for indices may be parsed,
+        * build into a comma separated string and then be parsed again in the same order.
+        */
+        projectName = "String Array";
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +
+            "\ncustom_string_list#0 = http://test.com/test.zip\ncustom_string_list#2 = http://test.com/test2.zip\ncustom_string_list#1 = http://test.com/test1.zip\n");
+        build();
+        BobProjectProperties outputProps = new BobProjectProperties();
+        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+
+        checkProjectSettingArray(outputProps, "project", "custom_string_list", new String[]{"http://test.com/test.zip", "http://test.com/test1.zip", "http://test.com/test2.zip"});
+    }
+
+    @Test
+    public void testGameProjectMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        projectName = "String Array";
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +
+            "\ncustom_property = just content");
+        createFile(contentRoot, BobProjectProperties.PROPERTIES_PROJECT_FILE, "[project]\ncustom_property.private = 1\n");
+        build();
+        BobProjectProperties outputProps = new BobProjectProperties();
+        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+
+        checkProjectSetting(outputProps, "project", "custom_property", null);
+    }
+
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
         file.deleteOnExit();
