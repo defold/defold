@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Vector;
 import java.util.Map.Entry;
 
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -144,15 +143,15 @@ public class ModelUtil {
         return assetSpace;
     }
 
-    public static Scene loadScene(byte[] content, String suffix, Options options) {
+    public static Scene loadScene(byte[] content, String path, Options options) {
         if (options == null)
             options = new Options();
-        return ModelImporter.LoadFromBuffer(options, suffix, ByteBuffer.wrap(content), content.length);
+        return ModelImporter.LoadFromBuffer(options, path, content);
     }
 
-    public static Scene loadScene(InputStream stream, String suffix, Options options) throws IOException {
+    public static Scene loadScene(InputStream stream, String path, Options options) throws IOException {
         byte[] bytes = IOUtils.toByteArray(stream);
-        return loadScene(bytes, suffix, options);
+        return loadScene(bytes, path, options);
     }
 
     public static void unloadScene(Scene scene) {
@@ -960,7 +959,7 @@ public class ModelUtil {
     private static void boneToDDF(ModelImporter.Bone bone, ArrayList<Rig.Bone> ddfBones) {
         Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
-        b.setParent(bone.parentIndex);
+        b.setParent((bone.parent != null) ? bone.parent.index : -1);
         b.setId(MurmurHash.hash64(bone.name));
         b.setName(bone.name);
 
@@ -1035,11 +1034,15 @@ public class ModelUtil {
 
         Scene scene;
         try {
-            String suffix = FilenameUtils.getExtension(file.getName());
             InputStream is = new FileInputStream(file);
-            scene = loadScene(is, suffix, new ModelImporter.Options());
+            scene = loadScene(is, file.getPath(), new ModelImporter.Options());
         } catch (Exception e) {
-            System.out.printf("Failed reading'%s':\n%s\n", file, e.getMessage());
+            System.out.printf("Failed reading '%s':\n%s\n", file, e.getMessage());
+            return;
+        }
+
+        if (scene == null){
+            System.out.printf("Failed to load '%s'\n", file);
             return;
         }
 
@@ -1050,13 +1053,13 @@ public class ModelUtil {
 
         System.out.printf("--------------------------------------------\n");
 
-        // System.out.printf("Bones:\n");
+        System.out.printf("Bones:\n");
 
-        // ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
-        // for (Bone bone : bones) {
-        //     System.out.printf("  Bone: %s  index: %d  parent: %d\n", bone.name, bone.index, bone.parentIndex);
-        // }
-        // System.out.printf("--------------------------------------------\n");
+        ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
+        for (Bone bone : bones) {
+            System.out.printf("  Bone: %s  index: %d  parent: %s\n", bone.name, bone.index, bone.parent != null ? bone.parent.name : "");
+        }
+        System.out.printf("--------------------------------------------\n");
 
         System.out.printf("Materials:\n");
         ArrayList<String> materials = loadMaterialNames(scene);

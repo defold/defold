@@ -117,7 +117,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
             ByteArrayInputStream animFileIS = new ByteArrayInputStream(animFile.getContent());
             AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
             ArrayList<String> animationIds = new ArrayList<String>();
-            ModelUtil.loadAnimations(animFile.getContent(), BuilderUtil.getSuffix(animFile.getPath()), new ModelImporter.Options(), bones, animBuilder, animId, animationIds);
+            ModelUtil.loadAnimations(animFile.getContent(), animFile.getPath(), new ModelImporter.Options(), bones, animBuilder, animId, animationIds);
 
             animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
         }
@@ -159,9 +159,8 @@ public class AnimationSetBuilder extends Builder<Void>  {
             String parentId = parentIds.get(i);
 
             String baseName = FilenameUtils.getBaseName(path);
-            String suffix = FilenameUtils.getExtension(path);
 
-            ModelImporter.Scene scene = ModelUtil.loadScene(stream, suffix, new ModelImporter.Options());
+            ModelImporter.Scene scene = ModelUtil.loadScene(stream, path, new ModelImporter.Options());
 
             ArrayList<String> localAnimationIds = new ArrayList<String>();
             AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
@@ -193,7 +192,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
         TextFormat.merge(animSetDescISR, animSetDescBuilder);
 
         IResource skeletonFile = BuilderUtil.checkResource(this.project, task.input(0), "skeleton", animSetDescBuilder.getSkeleton());
-        ModelImporter.Scene skeletonScene = ModelUtil.loadScene(skeletonFile.getContent(), BuilderUtil.getSuffix(skeletonFile.getPath()), new ModelImporter.Options());
+        ModelImporter.Scene skeletonScene = ModelUtil.loadScene(skeletonFile.getContent(), skeletonFile.getPath(), new ModelImporter.Options());
         ArrayList<ModelImporter.Bone> bones = ModelUtil.loadSkeleton(skeletonScene);
 
         if (bones.size() == 0) {

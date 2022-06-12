@@ -117,7 +117,7 @@ public class MeshsetBuilder extends Builder<Void>  {
         }
 
         ModelImporter.Options options = new ModelImporter.Options();
-        ModelImporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), suffix, options);
+        ModelImporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options);
         if (scene == null) {
             throw new CompileExceptionError(task.input(0), -1, "Error loading model");
         }

@@ -305,6 +305,7 @@ static void SetFieldString(JNIEnv* env, jclass cls, jobject obj, const char* fie
     jfieldID field = GetFieldString(env, cls, field_name);
     jstring str = env->NewStringUTF(value);
     env->SetObjectField(obj, field, str);
+    env->DeleteLocalRef(str);
 }
 
 static void SetFieldInt(JNIEnv* env, jobject obj, jfieldID field, int value)
@@ -315,6 +316,7 @@ static void SetFieldString(JNIEnv* env, jobject obj, jfieldID field, const char*
 {
     jstring str = env->NewStringUTF(value);
     env->SetObjectField(obj, field, str);
+    env->DeleteLocalRef(str);
 }
 static void SetFieldObject(JNIEnv* env, jobject obj, jfieldID field, jobject value)
 {
@@ -408,6 +410,7 @@ static void CreateNodes(JNIEnv* env, const dmModelImporter::Scene* scene, dmArra
             env->SetObjectArrayElement(childrenArray, i, nodes[child->m_Index]);
         }
         env->SetObjectField(nodes[i], g_NodeJNI.children, childrenArray);
+        env->DeleteLocalRef(childrenArray);
     }
 }
 
@@ -449,13 +452,19 @@ static jobject CreateMesh(JNIEnv* env, const dmModelImporter::Mesh* mesh)
 
 #define SET_FARRAY(OBJ, FIELD, COUNT, VALUES) \
     { \
-        jfloatArray arr = CreateFloatArray(env, COUNT, VALUES); \
-        env->SetObjectField(OBJ, g_MeshJNI. FIELD, arr); \
+        if (VALUES) { \
+            jfloatArray arr = CreateFloatArray(env, COUNT, VALUES); \
+            env->SetObjectField(OBJ, g_MeshJNI. FIELD, arr); \
+            env->DeleteLocalRef(arr); \
+        } \
     }
 #define SET_IARRAY(OBJ, FIELD, COUNT, VALUES) \
     { \
-        jintArray arr = CreateIntArray(env, COUNT, (const int*)VALUES); \
-        env->SetObjectField(OBJ, g_MeshJNI. FIELD, arr); \
+        if (VALUES) { \
+            jintArray arr = CreateIntArray(env, COUNT, (const int*)VALUES); \
+            env->SetObjectField(OBJ, g_MeshJNI. FIELD, arr); \
+            env->DeleteLocalRef(arr); \
+        } \
     }
 
     uint32_t vcount = mesh->m_VertexCount;
@@ -495,6 +504,7 @@ static jobject CreateModel(JNIEnv* env, const dmModelImporter::Model* model)
 
     jobjectArray arr = CreateMeshesArray(env, model->m_MeshesCount, model->m_Meshes);
     env->SetObjectField(obj, g_ModelJNI.meshes, arr);
+    env->DeleteLocalRef(arr);
     return obj;
 }
 
@@ -521,6 +531,7 @@ static jobject CreateKeyFrame(JNIEnv* env, const dmModelImporter::KeyFrame* key_
     env->SetFloatArrayRegion(arr, 0, 3, key_frame->m_Value);
     env->SetObjectField(obj, g_KeyFrameJNI.value, arr);
     env->SetFloatField(obj, g_KeyFrameJNI.time, key_frame->m_Time);
+    env->DeleteLocalRef(arr);
     return obj;
 }
 
@@ -539,9 +550,17 @@ static jobject CreateNodeAnimation(JNIEnv* env, const dmModelImporter::NodeAnima
     jobject obj = env->AllocObject(g_NodeAnimationJNI.cls);
     SetFieldObject(env, obj, g_NodeAnimationJNI.node, nodes[node_anim->m_Node->m_Index]);
 
-    env->SetObjectField(obj, g_NodeAnimationJNI.translationKeys, CreateKeyFramesArray(env, node_anim->m_TranslationKeysCount, node_anim->m_TranslationKeys));
-    env->SetObjectField(obj, g_NodeAnimationJNI.rotationKeys, CreateKeyFramesArray(env, node_anim->m_RotationKeysCount, node_anim->m_RotationKeys));
-    env->SetObjectField(obj, g_NodeAnimationJNI.scaleKeys, CreateKeyFramesArray(env, node_anim->m_ScaleKeysCount, node_anim->m_ScaleKeys));
+    jobjectArray arr = CreateKeyFramesArray(env, node_anim->m_TranslationKeysCount, node_anim->m_TranslationKeys);
+    env->SetObjectField(obj, g_NodeAnimationJNI.translationKeys, arr);
+    env->DeleteLocalRef(arr);
+
+    arr = CreateKeyFramesArray(env, node_anim->m_RotationKeysCount, node_anim->m_RotationKeys);
+    env->SetObjectField(obj, g_NodeAnimationJNI.rotationKeys, arr);
+    env->DeleteLocalRef(arr);
+
+    arr = CreateKeyFramesArray(env, node_anim->m_ScaleKeysCount, node_anim->m_ScaleKeys);
+    env->SetObjectField(obj, g_NodeAnimationJNI.scaleKeys, arr);
+    env->DeleteLocalRef(arr);
     return obj;
 }
 
@@ -562,6 +581,7 @@ static jobject CreateAnimation(JNIEnv* env, const dmModelImporter::Animation* an
 
     jobjectArray arr = CreateNodeAnimationsArray(env, animation->m_NodeAnimationsCount, animation->m_NodeAnimations, nodes);
     env->SetObjectField(obj, g_AnimationJNI.nodeAnimations, arr);
+    env->DeleteLocalRef(arr);
     return obj;
 }
 
@@ -621,8 +641,9 @@ static void CreateBones(JNIEnv* env, const dmModelImporter::Scene* scene, const 
         Skin* skin = &scene->m_Skins[i];
         jobject skin_obj = skins[skin->m_Index];
 
-        jobjectArray bonesArray = CreateBonesArray(env, skin->m_BonesCount, skin->m_Bones, nodes);
-        SetFieldObject(env, skin_obj, g_SkinJNI.bones, bonesArray);
+        jobjectArray arr = CreateBonesArray(env, skin->m_BonesCount, skin->m_Bones, nodes);
+        SetFieldObject(env, skin_obj, g_SkinJNI.bones, arr);
+        env->DeleteLocalRef(arr);
     }
 }
 
@@ -675,6 +696,7 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     {
         jobjectArray arr = CreateObjectArray(env, g_NodeJNI.cls, nodes);
         env->SetObjectField(obj, g_SceneJNI.nodes, arr);
+        env->DeleteLocalRef(arr);
     }
 
     {
@@ -686,21 +708,39 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
             env->SetObjectArrayElement(arr, i, nodes[root->m_Index]);
         }
         env->SetObjectField(obj, g_SceneJNI.rootNodes, arr);
+        env->DeleteLocalRef(arr);
     }
 
     {
         jobjectArray arr = CreateObjectArray(env, g_SkinJNI.cls, skins);
         env->SetObjectField(obj, g_SceneJNI.skins, arr);
+        env->DeleteLocalRef(arr);
     }
 
     {
         jobjectArray arr = CreateObjectArray(env, g_ModelJNI.cls, models);
         env->SetObjectField(obj, g_SceneJNI.models, arr);
+        env->DeleteLocalRef(arr);
     }
 
     {
         jobjectArray arr = CreateAnimationsArray(env, scene->m_AnimationsCount, scene->m_Animations, nodes);
         env->SetObjectField(obj, g_SceneJNI.animations, arr);
+        env->DeleteLocalRef(arr);
+    }
+
+
+    for (uint32_t i = 0; i < nodes.Size(); ++i)
+    {
+        env->DeleteLocalRef(nodes[i]);
+    }
+    for (uint32_t i = 0; i < skins.Size(); ++i)
+    {
+        env->DeleteLocalRef(skins[i]);
+    }
+    for (uint32_t i = 0; i < models.Size(); ++i)
+    {
+        env->DeleteLocalRef(models[i]);
     }
 
     return obj;
@@ -715,9 +755,8 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
 
     const char* suffix = strrchr(path, '.');
     if (!suffix) {
-        dmLogWarning("No suffix found in path: %s", path);
-        dmLogWarning("Assuming glb format!");
-        suffix = "glb";
+        dmLogError("No suffix found in path: %s", path);
+        return 0;
     } else {
         suffix++; // skip the '.'
     }
@@ -749,7 +788,7 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
 
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
-    printf("JNI_OnLoad ->\n");
+    dmLogDebug("JNI_OnLoad ->\n");
 
     JNIEnv* env;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
@@ -759,7 +798,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     // Find your class. JNI_OnLoad is called from the correct class loader context for this to work.
     jclass c = env->FindClass("com/dynamo/bob/pipeline/ModelImporter");
-    printf("JNI_OnLoad: c = %p\n", c);
+    dmLogDebug("JNI_OnLoad: c = %p\n", c);
     if (c == 0)
       return JNI_ERR;
 
@@ -770,7 +809,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
     if (rc != JNI_OK) return rc;
 
-    printf("JNI_OnLoad return.\n");
+    dmLogDebug("JNI_OnLoad return.\n");
     return JNI_VERSION_1_6;
 }
 

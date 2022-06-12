@@ -26,8 +26,19 @@ public class ModelImporter {
 
     static {
         try {
-            System.loadLibrary(LIBRARY_NAME);
-        } catch (UnsatisfiedLinkError e) {
+            ClassLoader clsloader = ClassLoader.getSystemClassLoader();
+            Class<?> clsbob = clsloader.loadClass("com.dynamo.bob.Bob");
+            if (clsbob != null)
+            {
+                Method getSharedLib = clsbob.getMethod("getSharedLib", String.class);
+                Method addToPaths = clsbob.getMethod("addToPaths", String.class);
+                File lib = (File)getSharedLib.invoke(null, LIBRARY_NAME);
+                System.load(lib.getAbsolutePath());
+            }
+            else {
+                System.loadLibrary(LIBRARY_NAME); // Requires the java.library.path to be set
+            }
+        } catch (Exception e) {
             System.err.println("Native code library failed to load.\n" + e);
             System.exit(1);
         }
@@ -52,17 +63,17 @@ public class ModelImporter {
         }
     }
 
-    public class Vec4 { // simd Vector3/Vector4/Quat
+    public static class Vec4 { // simd Vector3/Vector4/Quat
         public float x, y, z, w;
     }
 
-    public class Transform {
+    public static class Transform {
         public Vec4 translation;
         public Vec4 rotation;
         public Vec4 scale;
     }
 
-    public class Mesh {
+    public static class Mesh {
         public String      name;
         public String      material;
 
@@ -92,13 +103,13 @@ public class ModelImporter {
         }
     }
 
-    public class Model {
+    public static class Model {
         public String   name;
         public Mesh[]   meshes;
         public int      index;
     }
 
-    public class Bone {
+    public static class Bone {
         public Transform invBindPose;
         public String    name;
         public int       index;      // index into list of bones
@@ -106,13 +117,13 @@ public class ModelImporter {
         public Bone      parent;
     }
 
-    public class Skin {
+    public static class Skin {
         public String    name;
         public Bone[]    bones;
         public int       index;
     }
 
-    public class Node {
+    public static class Node {
         public Transform    transform;
         public String       name;
         public int          index;
@@ -122,24 +133,24 @@ public class ModelImporter {
         public Skin         skin;
     }
 
-    public class KeyFrame {
+    public static class KeyFrame {
         public float value[] = new float[4];
         public float time;
     }
 
-    public class NodeAnimation {
+    public static class NodeAnimation {
         public Node         node;
         public KeyFrame[]   translationKeys;
         public KeyFrame[]   rotationKeys;
         public KeyFrame[]   scaleKeys;
     }
 
-    public class Animation {
+    public static class Animation {
         public String           name;
         public NodeAnimation[]  nodeAnimations;
     }
 
-    public class Scene {
+    public static class Scene {
 
         public Node[]         nodes;
         public Model[]        models;

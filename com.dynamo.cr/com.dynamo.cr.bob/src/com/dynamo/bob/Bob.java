@@ -451,6 +451,7 @@ public class Bob {
     }
 
     static public void addToPaths(String dir) {
+        addToPath("jni.library.path", dir);
         addToPath("jna.library.path", dir);
         addToPath("java.library.path", dir);
     }

@@ -1250,8 +1250,8 @@ public class ColladaUtil {
 
             ModelImporter.Bone bone = new ModelImporter.Bone();
             bone.name           = colladaBone.getSourceId();
-            bone.parentIndex    = -1; // Do we need it in the editor?
-            bone.nodeIndex      = -1; // We don't have a ModelImporter Node to reference
+            bone.parent         = null; // Do we need it in the editor?
+            bone.node           = null;
             bone.index          = bones.size();
 
             bone.invBindPose    = transform;
