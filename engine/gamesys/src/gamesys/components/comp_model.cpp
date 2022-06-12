@@ -550,8 +550,11 @@ namespace dmGameSystem
             ro.m_VertexBuffer = buffers->m_VertexBuffer;
             ro.m_Material = GetMaterial(component, component->m_Resource, material_index);
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+
+            // These should be named "element" or "index" (as opposed to vertex)
             ro.m_VertexStart = 0;
-            ro.m_VertexCount = buffers->m_VertexCount;
+            ro.m_VertexCount = buffers->m_IndexCount;
+
             //ro.m_WorldTransform = component->m_World;
             ro.m_WorldTransform = render_item->m_World;
 
