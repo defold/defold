@@ -378,4 +378,3 @@ def build(bld):
     new_test('props')
     new_test('reload', exts = ['.go_pb', '.script', '.cpp', '.proto', '.rt_pb'])
     new_test('script')
-    new_test('lua')

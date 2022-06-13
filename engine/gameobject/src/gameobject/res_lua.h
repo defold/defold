@@ -17,30 +17,4 @@
 
 #include <dmsdk/gameobject/res_lua.h>
 
-namespace dmGameObject
-{
-    /**
-     * Apply a delta/diff with changes to a sequence of bytes. The delta is in
-     * the following format:
-     * 
-     * * index - The index where to apply the next change. 1-4 bytes, depending on size of bytes
-     *           If the bytes are fewer than 256 then the index is represented by a single byte
-     *           If the bytes are fewer than 65536 then the index is represented by two bytes
-     * * count - The number of consecutive bytes to alter. 1 byte (ie max 255 changes)
-     * * bytes - The new byte values to set
-     * 
-     * @param bytes The bytes to apply delta to
-     * @param bytes_size The size of the bytes
-     * @param delta The delta to apply
-     * @param delta_size The size of the delta
-     */
-    void PatchBytes(uint8_t* bytes, uint32_t bytes_size, const uint8_t* delta, uint32_t delta_size);
-
-    /**
-     * Patch Lua 64-bit bytecode with the changes required to transform the
-     * bytecode to a 32-bit equivalent.
-     */
-    void PatchLuaBytecode(dmLuaDDF::LuaSource *source);
-}
-
 #endif // DM_GAMEOBJECT_RES_LUA_H
