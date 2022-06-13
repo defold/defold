@@ -54,7 +54,7 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable();
     static bool                         NullIsSupported();
     static const int8_t    g_null_adapter_priority = 2;
-    static GraphicsAdapter g_null_adapter(ADAPTER_TYPE_NULL);
+    static GraphicsAdapter g_null_adapter;
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, g_null_adapter_priority);
 

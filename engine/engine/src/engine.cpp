@@ -2030,31 +2030,11 @@ void dmEngineFinalize()
     dmSocket::Finalize();
 }
 
-const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])
-{
-    for (int i = 0; i < argc; ++i)
-    {
-        const char* arg = argv[i];
-        if (strncmp(arg_str, arg, sizeof(arg_str)-1) == 0)
-        {
-            const char* res = strchr(arg, '=');
-            if (res)
-            {
-                return res + 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-
 dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 {
-    const char* arg_adapter_type = ParseArgOneOperand("--graphics-adapter", argc, argv);
-
-    if (!dmGraphics::Initialize(arg_adapter_type))
+    if (!dmGraphics::Initialize())
     {
+        dmLogError("Could not initialize graphics.");
         return 0;
     }
 
@@ -2067,7 +2047,6 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
         Delete(engine);
         return 0;
     }
-
     return engine;
 }
 

@@ -329,7 +329,7 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static int8_t          g_null_adapter_priority = 1;
-    static GraphicsAdapter g_opengl_adapter(ADAPTER_TYPE_OPENGL);
+    static GraphicsAdapter g_opengl_adapter;
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, g_null_adapter_priority);
 
@@ -472,6 +472,11 @@ static void LogFrameBufferError(GLenum status)
         return GL_FALSE;
     }
 
+    static bool OpenGLIsSupported()
+    {
+        return Initialize();
+    }
+
     static HContext OpenGLNewContext(const ContextParams& params)
     {
         if (g_Context == 0x0)
@@ -505,11 +510,6 @@ static void LogFrameBufferError(GLenum status)
     {
         // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
         return (glfwInit() == GL_TRUE);
-    }
-
-    static bool OpenGLIsSupported()
-    {
-        return OpenGLInitialize();
     }
 
     static void OpenGLFinalize()
