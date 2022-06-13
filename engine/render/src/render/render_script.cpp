@@ -1152,8 +1152,13 @@ namespace dmRender
         if (lua_islightuserdata(L, 2))
         {
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
-            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 3);
+            int buffer_type_value = (int)luaL_checknumber(L, 3);
+            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) buffer_type_value;
+
             dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
+
+            printf("Buffer type %d - %s, P: %p\n", buffer_type_value, dmGraphics::GetBufferTypeLiteral(buffer_type), (void*) texture);
+
             if(texture != 0)
             {
                 if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t)texture)))
