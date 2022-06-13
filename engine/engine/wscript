@@ -177,11 +177,11 @@ def build(bld):
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
 
-    if build_util.get_target_os() == 'web':
+    if build_util.get_target_os() in ['web', 'osx', 'ios']:
         srcPath = os.path.join('build', 'src')
         builds = ['','_release', '_headless']
         for build in builds:
-            for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map'):
+            for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map', '.dSYM.zip'):
                 filePath = os.path.join(srcPath, 'dmengine' + build + suffix)
                 if (os.path.exists(filePath)):
                     bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
