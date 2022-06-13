@@ -44,6 +44,10 @@
 #include <gamesys/model_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_ModelVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ModelVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -463,7 +467,7 @@ namespace dmGameSystem
 
     static inline void RenderBatchLocalVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Model, "RenderBatchLocal");
+        DM_PROFILE("RenderBatchLocal");
 
         for (uint32_t *i=begin;i!=end;i++)
         {
@@ -504,7 +508,7 @@ namespace dmGameSystem
 
     static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Model, "RenderBatchWorld");
+        DM_PROFILE("RenderBatchWorld");
 
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
@@ -571,7 +575,7 @@ namespace dmGameSystem
 
     static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Model, "RenderBatch");
+        DM_PROFILE("ModelRenderBatch");
 
         const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
         dmRender::HMaterial material = first->m_Resource->m_Material;
@@ -591,9 +595,9 @@ namespace dmGameSystem
         }
     }
 
-    void UpdateTransforms(ModelWorld* world)
+    static void UpdateTransforms(ModelWorld* world)
     {
-        DM_PROFILE(Model, "UpdateTransforms");
+        DM_PROFILE(__FUNCTION__);
 
         dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -681,7 +685,7 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                uint32_t total_size = 0;
+                uint32_t total_count = 0;
                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
                 {
                     dmArray<dmRig::RigModelVertex>& vertex_buffer_data = world->m_VertexBufferData[batch_index];
@@ -692,9 +696,12 @@ namespace dmGameSystem
                     uint32_t vb_size = sizeof(dmRig::RigModelVertex) * vertex_buffer_data.Size();
                     dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
                     dmGraphics::SetVertexBufferData(gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-                    total_size += vb_size;
+                    total_count += vertex_buffer_data.Size();
                 }
-                DM_COUNTER("ModelVertexBuffer", total_size);
+
+                DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, total_count);
+                DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, total_count * sizeof(dmRig::RigModelVertex));
+
                 break;
             }
             default:

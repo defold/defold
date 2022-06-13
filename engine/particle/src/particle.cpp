@@ -27,6 +27,9 @@
 #include "particle.h"
 #include "particle_private.h"
 
+DM_PROPERTY_GROUP(rmtp_Particles, "Particles");
+DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, FrameReset, "# particles alive", &rmtp_Particles);
+
 namespace dmParticle
 {
     using namespace dmParticleDDF;
@@ -625,7 +628,7 @@ namespace dmParticle
 
     void GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size, ParticleVertexFormat vertex_format)
     {
-        DM_PROFILE(Particle, "GenerateVertexData");
+        DM_PROFILE(__FUNCTION__);
         if (instance == INVALID_INSTANCE)
             return;
 
@@ -661,7 +664,7 @@ namespace dmParticle
 
     void Update(HParticleContext context, float dt, FetchAnimationCallback fetch_animation_callback)
     {
-        DM_PROFILE(Particle, "Update");
+        DM_PROFILE(__FUNCTION__);
 
         uint32_t size = context->m_Instances.Size();
         uint32_t TotalAliveParticles = 0;
@@ -706,12 +709,12 @@ namespace dmParticle
             }
         }
 
-        DM_COUNTER("Particles alive", TotalAliveParticles);
+        DM_PROPERTY_SET_U32(rmtp_ParticlesAlive, TotalAliveParticles);
     }
 
     static void FetchAnimation(Emitter* emitter, EmitterPrototype* prototype, FetchAnimationCallback fetch_animation_callback)
     {
-        DM_PROFILE(Particle, "FetchAnimation");
+        DM_PROFILE(__FUNCTION__);
 
         // Needed to avoid autoread of AnimationData when calling java through JNA
         memset(&emitter->m_AnimationData, 0, sizeof(AnimationData));
@@ -734,7 +737,7 @@ namespace dmParticle
 
     static void UpdateParticles(Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* emitter_ddf, float dt)
     {
-        DM_PROFILE(Particle, "UpdateParticles");
+        DM_PROFILE(__FUNCTION__);
 
         // Step particle life, prune dead particles
         uint32_t particle_count = emitter->m_Particles.Size();
@@ -758,7 +761,7 @@ namespace dmParticle
 
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt)
     {
-        DM_PROFILE(Particle, "UpdateEmitterState");
+        DM_PROFILE(__FUNCTION__);
 
         if (emitter->m_State == EMITTER_STATE_PRESPAWN)
         {
@@ -835,7 +838,7 @@ namespace dmParticle
 
     static void SpawnParticle(dmArray<Particle>& particles, uint32_t* seed, dmParticleDDF::Emitter* ddf, const dmTransform::TransformS1& emitter_transform, Vector3 emitter_velocity, float emitter_properties[EMITTER_KEY_COUNT], float dt)
     {
-        DM_PROFILE(Particle, "Spawn");
+        DM_PROFILE(__FUNCTION__);
 
         uint32_t particle_count = particles.Size();
         particles.SetSize(particle_count + 1);
@@ -1012,7 +1015,7 @@ namespace dmParticle
 
     static uint32_t UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const Vector4& color, uint32_t vertex_index, void* vertex_buffer, uint32_t vertex_buffer_size, float dt, ParticleVertexFormat format)
     {
-        DM_PROFILE(Particle, "UpdateRenderData");
+        DM_PROFILE(__FUNCTION__);
         static int tex_coord_order[] = {
             0,1,2,2,3,0,
             3,2,1,1,0,3,	//h
@@ -1274,7 +1277,7 @@ namespace dmParticle
 
     void SortParticles(Emitter* emitter)
     {
-        DM_PROFILE(Particle, "Sort");
+        DM_PROFILE(__FUNCTION__);
 
         std::sort(emitter->m_Particles.Begin(), emitter->m_Particles.End(), SortPred());
     }
@@ -1502,7 +1505,7 @@ namespace dmParticle
 
     void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt)
     {
-        DM_PROFILE(Particle, "Simulate");
+        DM_PROFILE(__FUNCTION__);
 
         dmArray<Particle>& particles = emitter->m_Particles;
         EvaluateParticleProperties(emitter, prototype->m_ParticleProperties, ddf, dt);

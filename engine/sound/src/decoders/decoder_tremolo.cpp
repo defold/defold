@@ -116,7 +116,7 @@ namespace dmSoundCodec
 
     static Result TremoloDecode(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
-        DM_PROFILE(SoundCodec, "Tremolo")
+        DM_PROFILE(__FUNCTION__);
 
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         uint32_t got_bytes = 0;

@@ -543,7 +543,7 @@ namespace dmInput
 
     void UpdateBinding(HBinding binding, float dt)
     {
-        DM_PROFILE(Input, "UpdateBinding");
+        DM_PROFILE(__FUNCTION__);
         binding->m_Actions.Iterate<void>(ClearAction, 0x0);
 
         dmHID::HContext hid_context = binding->m_Context->m_HidContext;

@@ -18,6 +18,7 @@
 #include <new>
 #include <algorithm>
 
+#include <dlib/dlib.h>
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/index_pool.h>
@@ -38,6 +39,16 @@
 
 #include "gui_private.h"
 #include "gui_script.h"
+
+DM_PROPERTY_GROUP(rmtp_Gui, "Gui library");
+DM_PROPERTY_U32(rmtp_GuiAnimations, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiActiveAnimations, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiNodes, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiActiveNodes, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiStaticTextures, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiDynamicTextures, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiTextures, 0, FrameReset, "", &rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiParticlefx, 0, FrameReset, "", &rmtp_Gui);
 
 namespace dmGui
 {
@@ -1665,8 +1676,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
-        DM_COUNTER("Gui.Animations", n);
-        DM_COUNTER("Gui.ActiveAnimations", active_animations);
+        DM_PROPERTY_ADD_U32(rmtp_GuiAnimations, n);
+        DM_PROPERTY_ADD_U32(rmtp_GuiActiveAnimations, active_animations);
     }
 
     struct InputArgs
@@ -1677,7 +1688,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     Result RunScript(HScene scene, ScriptFunction script_function, int custom_ref, void* args)
     {
-        DM_PROFILE(Script, "GuiScript");
+        DM_PROFILE(__FUNCTION__);
 
         if (scene->m_Script == 0x0)
             return RESULT_OK;
@@ -1743,7 +1754,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                     else
                     {
-                        if (dmProfile::g_IsInitialized)
+                        if (dmProfile::IsInitialized())
                         {
                             // Try to find the message name via id and reverse hash
                             message_name = (const char*)dmHashReverse64(message->m_Id, 0);
@@ -1946,9 +1957,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             Result result = RESULT_OK;
 
             {
-                uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, custom_ref != LUA_NOREF ? -5 : 0, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[script_function], message_name, &profiler_hash);
-                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+                char buffer[128];
+                const char* profiler_string = dmScript::GetProfilerString(L, custom_ref != LUA_NOREF ? -5 : 0, scene->m_Script->m_SourceFileName, SCRIPT_FUNCTION_NAMES[script_function], message_name, buffer, sizeof(buffer));
+                DM_PROFILE_DYN(profiler_string, 0);
+
                 if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
                 {
                     assert(top == lua_gettop(L));
@@ -2130,12 +2142,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
-        DM_COUNTER("Gui.Nodes", total_nodes);
-        DM_COUNTER("Gui.ActiveNodes", active_nodes);
-        DM_COUNTER("Gui.StaticTextures", scene->m_Textures.Size());
-        DM_COUNTER("Gui.DynamicTextures", scene->m_DynamicTextures.Size());
-        DM_COUNTER("Gui.Textures", scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
-        DM_COUNTER("Gui.Particlefx", scene->m_AliveParticlefxs.Size());
+        DM_PROPERTY_ADD_U32(rmtp_GuiNodes, total_nodes);
+        DM_PROPERTY_ADD_U32(rmtp_GuiActiveNodes, active_nodes);
+        DM_PROPERTY_ADD_U32(rmtp_GuiStaticTextures, scene->m_Textures.Size());
+        DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTextures, scene->m_DynamicTextures.Size());
+        DM_PROPERTY_ADD_U32(rmtp_GuiTextures, scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
+        DM_PROPERTY_ADD_U32(rmtp_GuiParticlefx, scene->m_AliveParticlefxs.Size());
 
         return result;
     }
@@ -4176,6 +4188,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
         dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
+        free((void*)script->m_SourceFileName);
         script->~Script();
         ResetScript(script);
     }
@@ -4234,9 +4247,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             lua_pushnil(L);
             lua_setglobal(L, SCRIPT_FUNCTION_NAMES[i]);
         }
-        // m_SourceFileName will be null if profiling is not enabled, this is fine
-        // as m_SourceFileName will only be used if profiling is enabled
-        script->m_SourceFileName = DM_INTERNALIZE(source->m_Filename);
+        script->m_SourceFileName = strdup(source->m_Filename);
 bail:
         assert(top == lua_gettop(L));
         return res;

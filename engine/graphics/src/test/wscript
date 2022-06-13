@@ -8,7 +8,7 @@ def build(bld):
                          includes = ['../../src', '../../proto'],
                          exported_symbols = ['GraphicsAdapterNull'],
                          source = name + '.cpp',
-                         uselib = 'TESTMAIN DDF DLIB',
+                         uselib = 'TESTMAIN DDF DLIB PROFILE_NULL',
                          uselib_local = 'graphics_null graphics_transcoder_null',
                          target = name)
 
@@ -22,6 +22,6 @@ def build(bld):
                          includes = ['../../src', '../../proto'],
                          exported_symbols = ['GraphicsAdapterVulkan'],
                          source = 'test_app_vulkan.cpp',
-                         uselib = 'TESTMAIN PLATFORM DDF DLIB DMGLFW GRAPHICS_VULKAN VULKAN'.split() + extra_libs,
+                         uselib = 'TESTMAIN PLATFORM DDF DLIB PROFILE DMGLFW GRAPHICS_VULKAN VULKAN'.split() + extra_libs,
                          uselib_local = 'graphics_vulkan graphics_transcoder_basisu',
                          target = 'test_app_vulkan')

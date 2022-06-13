@@ -177,7 +177,7 @@ PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
 #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
 
-
+DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 
 namespace dmGraphics
 {
@@ -1296,7 +1296,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLClear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);
-        DM_PROFILE(Graphics, "Clear");
+        DM_PROFILE(__FUNCTION__);
 
         float r = ((float)red)/255.0f;
         float g = ((float)green)/255.0f;
@@ -1328,7 +1328,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLFlip(HContext context)
     {
-        DM_PROFILE(VSync, "Wait");
+        DM_PROFILE(__FUNCTION__);
         PostDeleteTextures(false);
         glfwSwapBuffers();
         CHECK_GL_ERROR;
@@ -1376,7 +1376,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DM_PROFILE(Graphics, "SetVertexBufferData");
+        DM_PROFILE(__FUNCTION__);
         // NOTE: Android doesn't seem to like zero-sized vertex buffers
         if (size == 0) {
             return;
@@ -1391,7 +1391,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        DM_PROFILE(Graphics, "SetVertexBufferSubData");
+        DM_PROFILE(__FUNCTION__);
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
@@ -1407,7 +1407,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DM_PROFILE(Graphics, "SetIndexBufferData");
+        DM_PROFILE(__FUNCTION__);
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
@@ -1436,7 +1436,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        DM_PROFILE(Graphics, "SetIndexBufferSubData");
+        DM_PROFILE(__FUNCTION__);
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
@@ -1648,11 +1648,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
         assert(index_buffer);
-        DM_PROFILE(Graphics, "DrawElements");
-        DM_COUNTER("DrawCalls", 1);
-
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR;
 
@@ -1662,9 +1661,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
-        DM_PROFILE(Graphics, "Draw");
-        DM_COUNTER("DrawCalls", 1);
         glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
         CHECK_GL_ERROR
     }
@@ -2336,7 +2335,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void PostDeleteTextures(bool force_delete)
     {
-        DM_PROFILE(Graphics, "PostDeleteTextures");
+        DM_PROFILE("OpenGLPostDeleteTextures");
 
         if (force_delete)
         {
@@ -2492,7 +2491,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
     {
-        DM_PROFILE(Graphics, "SetTexture");
+        DM_PROFILE(__FUNCTION__);
 
         // validate write accessibility for format. Some format are not garuanteed to be writeable
         switch (params.m_Format)

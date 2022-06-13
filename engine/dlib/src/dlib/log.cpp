@@ -20,6 +20,7 @@
 #include "array.h"
 #include "dstrings.h"
 #include "log.h"
+#include "profile/profile.h"
 #include "socket.h"
 #include "message.h"
 #include "thread.h"
@@ -544,6 +545,8 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
     {
         return;
     }
+
+    DM_PROFILE_TEXT("%s", str_buf);
 
     if (g_CustomLogCallback != 0x0)
     {

@@ -42,6 +42,10 @@
 
 #include "../resources/res_mesh.h"
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -91,9 +95,6 @@ namespace dmGameSystem
         dmGraphics::HContext               m_GraphicsContext;
         void*                              m_WorldVertexData;
         size_t                             m_WorldVertexDataSize;
-        /// Keep track of how much vertex data we have rendered so it can be
-        /// reported to the profiler at end of the render dispatching.
-        uint32_t                           m_RenderedVertexSize;
 
     };
 
@@ -217,8 +218,6 @@ namespace dmGameSystem
 
         world->m_WorldVertexData = 0x0;
         world->m_WorldVertexDataSize = 0;
-
-        world->m_RenderedVertexSize = 0;
 
         *params.m_World = world;
 
@@ -383,7 +382,7 @@ namespace dmGameSystem
 
     static void UpdateTransforms(MeshWorld* world)
     {
-        DM_PROFILE(Mesh, "UpdateTransforms");
+        DM_PROFILE("UpdateTransforms");
 
         dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -418,6 +417,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompMeshUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
+        DM_PROFILE("Update");
+
         MeshWorld* world = (MeshWorld*)params.m_World;
 
         dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
@@ -588,7 +589,7 @@ namespace dmGameSystem
 
     static inline void RenderBatchWorldVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Mesh, "RenderBatchWorld");
+        DM_PROFILE("RenderBatchWorld");
 
         dmGraphics::HVertexBuffer vert_buffer = AllocVertexBuffer(world, world->m_GraphicsContext);
         assert(vert_buffer);
@@ -668,7 +669,8 @@ namespace dmGameSystem
             dst_data_ptr = (void*)((uint8_t*)dst_data_ptr + size);
         }
 
-        world->m_RenderedVertexSize += vert_size * element_count;
+        DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, element_count);
+        DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, vert_size * element_count);
 
         // since they are batched, they have the same settings as the first mesh
         const MeshComponent* component = (MeshComponent*) buf[*begin].m_UserData;
@@ -681,7 +683,7 @@ namespace dmGameSystem
 
     static inline void RenderBatchLocalVS(MeshWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Mesh, "RenderBatchLocal");
+        DM_PROFILE("RenderBatchLocal");
 
         for (uint32_t *i=begin;i!=end;i++)
         {
@@ -692,7 +694,8 @@ namespace dmGameSystem
             const MeshResource* mr = component->m_Resource;
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component, mr);
 
-            world->m_RenderedVertexSize += br->m_Stride * br->m_ElementCount;
+            DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, br->m_ElementCount);
+            DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, br->m_Stride * br->m_ElementCount);
 
             VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
             assert(info != 0);
@@ -705,7 +708,7 @@ namespace dmGameSystem
 
     static void RenderBatch(MeshWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Mesh, "RenderBatch");
+        DM_PROFILE("MeshRenderBatch");
 
         const MeshComponent* first = (MeshComponent*) buf[*begin].m_UserData;
         dmRender::HMaterial material = GetMaterial(first, first->m_Resource);
@@ -733,7 +736,6 @@ namespace dmGameSystem
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
-                world->m_RenderedVertexSize = 0;
                 world->m_RenderObjects.SetSize(0);
 
                 if (world->m_VertexBufferPool.Capacity() < world->m_VertexBufferPool.Size()+world->m_VertexBufferWorld.Size())
@@ -749,7 +751,6 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                DM_COUNTER("MeshVertexBuffer", world->m_RenderedVertexSize);
                 break;
             }
             default:
@@ -760,6 +761,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompMeshRender(const dmGameObject::ComponentsRenderParams& params)
     {
+        DM_PROFILE("Render");
+
         MeshContext* context = (MeshContext*)params.m_Context;
         dmRender::HRenderContext render_context = context->m_RenderContext;
         MeshWorld* world = (MeshWorld*)params.m_World;

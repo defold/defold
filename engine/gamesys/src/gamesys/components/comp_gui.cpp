@@ -14,6 +14,7 @@
 
 #include <string.h>
 
+#include <dlib/dlib.h>
 #include <dlib/array.h>
 #include <dlib/buffer.h>
 #include <dlib/hash.h>
@@ -45,6 +46,10 @@
 #include <gui/gui_script.h>
 
 #include <dmsdk/gamesys/gui.h>
+
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_GROUP(rmtp_ComponentsGui, "Gui component");
+DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_ComponentsGui);
 
 namespace dmGameSystem
 {
@@ -1747,7 +1752,7 @@ namespace dmGameSystem
                     uint32_t node_count,
                     void* context)
     {
-        DM_PROFILE(Gui, "RenderNodes");
+        DM_PROFILE("RenderNodes");
 
         if (node_count == 0)
             return;
@@ -1874,7 +1879,8 @@ namespace dmGameSystem
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
                                         dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        DM_COUNTER("Gui.VertexCount", gui_world->m_ClientVertexBuffer.Size());
+
+        DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, gui_world->m_ClientVertexBuffer.Size());
     }
 
     static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type) {
@@ -2050,7 +2056,7 @@ namespace dmGameSystem
 
     static dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
-        DM_PROFILE(Gui, "Update");
+        DM_PROFILE("Update");
 
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
