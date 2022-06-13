@@ -89,7 +89,9 @@ typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
 typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
 typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
 typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
-typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
+typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei, const GLenum*);
+typedef GLint (APIENTRY * PFNGLGETFRAGDATALOCATIONPROC) (GLuint, const char*);
+typedef void (APIENTRY * PFNGLBINDFRAGDATALOCATIONPROC) (GLuint, GLuint, const char*);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -147,6 +149,8 @@ PFNGLGETSTRINGIPROC glGetStringi = NULL;
 PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
 PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
 PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
+PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = NULL;
+PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
 #endif
 
 #elif defined(__EMSCRIPTEN__)
@@ -846,6 +850,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
         GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
         GET_PROC_ADDRESS(glDrawBuffers, "glDrawBuffers", PFNGLDRAWBUFFERSPROC);
+        GET_PROC_ADDRESS(glGetFragDataLocation, "glGetFragDataLocation", PFNGLGETFRAGDATALOCATIONPROC);
+        GET_PROC_ADDRESS(glBindFragDataLocation, "glBindFragDataLocation", PFNGLBINDFRAGDATALOCATIONPROC);
 #endif
 
 #undef GET_PROC_ADDRESS
