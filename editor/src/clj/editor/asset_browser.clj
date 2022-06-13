@@ -559,7 +559,7 @@
                    items)))
 
 (defn- sync-selection!
-  [^TreeView tree-view selected-paths]
+  [^TreeView tree-view selected-paths old-tree-view-paths]
   (let [root (.getRoot tree-view)
         selection-model (.getSelectionModel tree-view)]
     (.clearSelection selection-model)
@@ -570,20 +570,21 @@
               selected-indices (filter #(selected-paths (item->path (.getTreeItem tree-view %))) (range count))]
           (when (not (empty? selected-indices))
             (ui/select-indices! tree-view selected-indices))
-          (when-some [first-item (first (.getSelectedItems selection-model))]
-            (ui/scroll-to-item! tree-view first-item)))))))
+          (when-not (= old-tree-view-paths selected-paths)
+            (when-some [first-item (first (.getSelectedItems selection-model))]
+              (ui/scroll-to-item! tree-view first-item))))))))
 
 (defn- update-tree-view-selection!
-  [^TreeView tree-view selected-paths]
-  (sync-selection! tree-view selected-paths)
+  [^TreeView tree-view selected-paths old-tree-view-paths]
+  (sync-selection! tree-view selected-paths old-tree-view-paths)
   tree-view)
 
 (defn- update-tree-view-root!
-  [^TreeView tree-view ^TreeItem root selected-paths]
+  [^TreeView tree-view ^TreeItem root selected-paths old-tree-view-paths]
   (when root
     (.setExpanded root true)
     (.setRoot tree-view root))
-  (sync-selection! tree-view selected-paths)
+  (sync-selection! tree-view selected-paths old-tree-view-paths)
   tree-view)
 
 (defn track-active-tab? [prefs]
@@ -591,7 +592,10 @@
 
 (g/defnk produce-tree-view
   [^TreeView raw-tree-view ^TreeItem root active-resource prefs]
-  (let [selected-paths (or (ui/user-data raw-tree-view ::pending-selection)
+  (let [old-tree-view-paths (into #{}
+                                  (map item->path)
+                                  (.getSelectedItems (.getSelectionModel raw-tree-view)))
+        selected-paths (or (ui/user-data raw-tree-view ::pending-selection)
                            (when (and (track-active-tab? prefs) active-resource)
                              [(resource/proj-path active-resource)])
                            (mapv resource/proj-path (ui/selection raw-tree-view)))]
@@ -599,11 +603,11 @@
     (cond
       ;; different roots?
       (not (identical? (.getRoot raw-tree-view) root))
-      (update-tree-view-root! raw-tree-view root selected-paths)
+      (update-tree-view-root! raw-tree-view root selected-paths old-tree-view-paths)
 
       ;; same root, different selection?
       (not (= (set selected-paths) (set (map resource/proj-path (ui/selection raw-tree-view)))))
-      (update-tree-view-selection! raw-tree-view selected-paths)
+      (update-tree-view-selection! raw-tree-view selected-paths old-tree-view-paths)
 
       :else
       raw-tree-view)))
