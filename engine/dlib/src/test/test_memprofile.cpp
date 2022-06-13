@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <string.h> // memset
 #include <stdlib.h> // posix_memalign
 #ifdef __linux__
 #include <malloc.h>
@@ -23,7 +24,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "../dlib/memprofile.h"
-#include "../dlib/profile.h"
+#include "../dlib/profile/profile.h"
 
 bool g_MemprofileActive = false;
 
@@ -335,7 +336,7 @@ int main(int argc, char **argv)
     g_MemprofileActive = argc >= 3;
 
     dmMemProfile::Initialize();
-    dmProfile::Initialize(128, 1024 * 1024, 16);
+    dmProfile::Initialize(0);
 
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();

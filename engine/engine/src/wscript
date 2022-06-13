@@ -109,9 +109,13 @@ def build(bld):
 
     main_cpp = 'common/main.cpp'
 
+    profile_lib = ['PROFILE', 'PROFILEREXT']
+    if bld.env['PLATFORM'] in ('js-web', 'wasm-web'):
+        profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH CARES CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
+        uselib = 'WEBVIEWEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH CRASH X'.split() + graphics_lib + sound_lib + profile_lib + additional_libs,
         uselib_local = 'engine engine_service',
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
@@ -138,7 +142,7 @@ def build(bld):
         
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'WEBVIEWEXT PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CARES CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
+        uselib = 'WEBVIEWEXT PROFILE_NULL PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH X'.split() + graphics_lib + sound_lib + additional_libs,
         uselib_local = 'engine_release engine_service_null',
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
@@ -165,7 +169,7 @@ def build(bld):
 
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web extract_symbols',
-        uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL CARES CRASH'.split() + graphics_lib.split() + additional_libs,
+        uselib = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL CRASH'.split() + graphics_lib.split() + profile_lib + additional_libs,
         exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
         uselib_local = 'engine engine_service',
         web_libs = web_libs,

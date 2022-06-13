@@ -25,6 +25,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
+#include <dmsdk/dlib/profile.h>
 
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
@@ -467,6 +468,7 @@ namespace dmLiveUpdate
 
     void Update()
     {
+        DM_PROFILE("LiveUpdate");
         AsyncUpdate();
     }
 
