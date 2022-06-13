@@ -103,7 +103,12 @@
 
 (defn- bump-invalidate-counters
   [invalidate-map entries]
-  (reduce (fn [m entry] (update m entry (fnil unchecked-inc 0))) invalidate-map entries))
+  (persistent!
+    (reduce
+      (fn [m entry]
+        (assoc! m entry (unchecked-inc (m entry 0))))
+      (transient invalidate-map)
+      entries)))
 
 (defn invalidate-outputs
   "Invalidate the given outputs and _everything_ that could be
@@ -112,14 +117,7 @@
   [system outputs]
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
   (let [basis (basis system)
-        cache-entries (->> outputs
-                           ;; vec -> map, [[node-id label]] -> {node-id #{labels}}
-                           (reduce (fn [m [node-id label]]
-                                     (update m node-id (fn [label-set label] (if label-set (conj label-set label) #{label})) label))
-                                   {})
-                           (gt/dependencies basis)
-                           ;; map -> vec
-                           (into [] (mapcat (fn [[node-id labels]] (mapv #(vector node-id %) labels)))))]
+        cache-entries (gt/dependencies basis outputs)]
     (-> system
         (update :cache c/cache-invalidate cache-entries)
         (update :invalidate-counters bump-invalidate-counters cache-entries))))

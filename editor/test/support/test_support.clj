@@ -74,9 +74,4 @@
   ([tgts]
    (graph-dependencies (g/now) tgts))
   ([basis tgts]
-   (->> tgts
-        (reduce (fn [m [nid l]]
-                  (update m nid (fn [s l] (if s (conj s l) #{l})) l))
-                {})
-        (g/dependencies basis)
-        (into #{} (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))))
+   (g/dependencies basis tgts)))
