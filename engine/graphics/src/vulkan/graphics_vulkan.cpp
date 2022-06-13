@@ -34,7 +34,7 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
     static const int8_t    g_vulkan_adapter_priority = 0;
-    static GraphicsAdapter g_vulkan_adapter;
+    static GraphicsAdapter g_vulkan_adapter(ADAPTER_TYPE_VULKAN);
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, g_vulkan_adapter_priority);
 
@@ -95,7 +95,7 @@ namespace dmGraphics
 
         return "UNKNOWN_ERROR";
     }
-    #undef DM_VK_RESULT_TO_STRING_CASE
+    #undef DM_VK_RESULT_TO_STR_CASE
 
     #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
     static const char* TextureFormatToString(TextureFormat format)
@@ -149,15 +149,6 @@ namespace dmGraphics
         m_RenderDocSupport        = params.m_RenderDocSupport;
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
-    }
-
-    Context::~Context()
-    {
-        if (m_Instance != VK_NULL_HANDLE)
-        {
-            vkDestroyInstance(m_Instance, 0);
-            m_Instance = VK_NULL_HANDLE;
-        }
     }
 
     static inline uint32_t GetNextRenderTargetId()
@@ -1084,6 +1075,12 @@ bail:
     {
         if (context != 0x0)
         {
+            if (context->m_Instance != VK_NULL_HANDLE)
+            {
+                vkDestroyInstance(context->m_Instance, 0);
+                context->m_Instance = VK_NULL_HANDLE;
+            }
+
             delete context;
             g_VulkanContext = 0x0;
         }
