@@ -244,7 +244,8 @@ namespace dmScript
             float wrapped_count = ((-timer->m_Remaining) / timer->m_Delay) + 1.f;
             float offset_to_next_trigger  = floor(wrapped_count) * timer->m_Delay;
             timer->m_Remaining += offset_to_next_trigger;
-            assert(timer->m_Remaining >= 0.f);
+            if (timer->m_Remaining < 0) // If the delay is very small, the floating point precision might produce issues
+                timer->m_Remaining = timer->m_Delay; // reset the timer
         }
 
         timer_world->m_InUpdate = 0;

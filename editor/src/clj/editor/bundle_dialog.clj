@@ -381,6 +381,7 @@
   (let [make-file-field (partial make-file-field refresh! owner-window)
         keystore-file-field (make-file-field "keystore-text-field" "Choose Keystore" [["Keystore (*.keystore, *.jks)" "*.keystore" "*.jks"]])
         keystore-pass-file-field (make-file-field "keystore-pass-text-field" "Choose Keystore password" [["Keystore password" "*.txt"]])
+        key-pass-file-field (make-file-field "key-pass-text-field" "Choose Key password" [["Key password" "*.txt"]])
         architecture-controls (doto (VBox.)
                                     (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
                                                    (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)]))]
@@ -389,42 +390,49 @@
       (ui/add-style! "android")
       (ui/children! [(labeled! "Keystore" keystore-file-field)
                      (labeled! "Keystore Password" keystore-pass-file-field)
+                     (labeled! "Key Password" key-pass-file-field)
                      (labeled! "Architectures" architecture-controls)
                      (labeled! "Bundle Format" (doto (make-choice-box refresh! [["APK" "apk"] ["AAB" "aab"] ["APK+AAB", "apk,aab"]])
                                                 (.setId "bundle-format-choice-box")))]))))
 
 (defn- load-android-prefs! [prefs view]
-  (ui/with-controls view [keystore-text-field keystore-pass-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
+  (ui/with-controls view [keystore-text-field keystore-pass-text-field key-pass-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
     (ui/value! keystore-text-field (get-string-pref prefs "bundle-android-keystore"))
     (ui/value! keystore-pass-text-field (get-string-pref prefs "bundle-android-keystore-pass"))
+    (ui/value! key-pass-text-field (get-string-pref prefs "bundle-android-key-pass"))
     (ui/value! architecture-32bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-32bit?" true))
     (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-64bit?" false))
     (ui/value! bundle-format-choice-box (prefs/get-prefs prefs "bundle-android-bundle-format" "apk"))))
 
 (defn- save-android-prefs! [prefs view]
-  (ui/with-controls view [keystore-text-field keystore-pass-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
+  (ui/with-controls view [keystore-text-field keystore-pass-text-field key-pass-text-field architecture-32bit-check-box architecture-64bit-check-box bundle-format-choice-box]
     (set-string-pref! prefs "bundle-android-keystore" (ui/value keystore-text-field))
     (set-string-pref! prefs "bundle-android-keystore-pass" (ui/value keystore-pass-text-field))
+    (set-string-pref! prefs "bundle-android-key-pass" (ui/value key-pass-text-field))
     (prefs/set-prefs prefs "bundle-android-architecture-32bit?" (ui/value architecture-32bit-check-box))
     (prefs/set-prefs prefs "bundle-android-architecture-64bit?" (ui/value architecture-64bit-check-box))
     (set-string-pref! prefs "bundle-android-bundle-format" (ui/value bundle-format-choice-box))))
 
 (defn- get-android-options [view]
-  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box keystore-text-field keystore-pass-text-field bundle-format-choice-box]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box keystore-text-field keystore-pass-text-field key-pass-text-field bundle-format-choice-box]
     {:architecture-32bit? (ui/value architecture-32bit-check-box)
      :architecture-64bit? (ui/value architecture-64bit-check-box)
      :keystore (get-file keystore-text-field)
      :keystore-pass (get-file keystore-pass-text-field)
+     :key-pass (get-file key-pass-text-field)
      :bundle-format (ui/value bundle-format-choice-box)}))
 
-(defn- set-android-options! [view {:keys [architecture-32bit? architecture-64bit? keystore keystore-pass bundle-format] :as _options} issues]
-  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box keystore-text-field keystore-pass-text-field bundle-format-choice-box ok-button]
+(defn- set-android-options! [view {:keys [architecture-32bit? architecture-64bit? keystore keystore-pass key-pass bundle-format] :as _options} issues]
+  (ui/with-controls view [architecture-32bit-check-box architecture-64bit-check-box keystore-text-field keystore-pass-text-field key-pass-text-field bundle-format-choice-box ok-button]
     (doto keystore-text-field
       (set-file! keystore)
       (set-field-status! (:keystore issues)))
     (doto keystore-pass-text-field
       (set-file! keystore-pass)
       (set-field-status! (:keystore-pass issues)))
+    (doto key-pass-text-field
+      (set-file! key-pass)
+      (set-field-status! (:key-pass issues)))
     (doto architecture-32bit-check-box
       (ui/value! architecture-32bit?)
       (set-field-status! (:architecture issues)))
@@ -436,12 +444,13 @@
       (set-field-status! (:bundle-format issues)))
     (ui/enable! ok-button (and (nil? (:architecture issues))
                                (or (and (nil? keystore)
-                                        (nil? keystore-pass))
+                                        (nil? keystore-pass)
+                                        (nil? key-pass))
                                    (and (or (existing-file-of-type? "keystore" keystore)
                                             (existing-file-of-type? "jks" keystore))
                                         (fs/existing-file? keystore-pass)))))))
 
-(defn- get-android-issues [{:keys [keystore keystore-pass architecture-32bit? architecture-64bit? bundle-format] :as _options}]
+(defn- get-android-issues [{:keys [keystore keystore-pass key-pass architecture-32bit? architecture-64bit? bundle-format] :as _options}]
   {:general (when (and (nil? keystore))
               [:info "Set keystore, or leave blank to sign with an auto-generated debug certificate."])
    :keystore (cond
@@ -462,6 +471,15 @@
 
                   (and (some? keystore) (nil? keystore-pass))
                   [:fatal "Keystore password must be set if keystore is specified."])
+   :key-pass      (cond
+                  (and (some? key-pass) (not (fs/existing-file? key-pass)))
+                  [:fatal "Key password file not found."]
+
+                  (and (some? key-pass) (not (existing-file-of-type? "txt" key-pass)))
+                  [:fatal "Invalid key password file."]
+
+                  (and (some? key-pass) (nil? keystore))
+                  [:fatal "Keystore must be set if key password is specified."])
    :architecture (when-not (or architecture-32bit? architecture-64bit?)
                    [:fatal "At least one architecture must be selected."])
    :bundle-format (when-not bundle-format
@@ -488,7 +506,7 @@
     (let [issues (get-android-issues options)]
       (set-generic-options! view options workspace)
       (set-android-options! view options issues)
-      (set-generic-headers! view issues [:architecture :keystore :keystore-pass :bundle-format]))))
+      (set-generic-headers! view issues [:architecture :keystore :keystore-pass :key-pass :bundle-format]))))
 
 ;; -----------------------------------------------------------------------------
 ;; iOS

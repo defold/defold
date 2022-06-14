@@ -107,6 +107,8 @@ namespace dmHttpClient
         OPTION_REQUEST_TIMEOUT,
         /// Don't use the http cache
         OPTION_REQUEST_IGNORE_CACHE,
+        /// Use chunked transfer encoding for POST/PUT if request data is larger than 16k
+        OPTION_REQUEST_CHUNKED_TRANSFER,
     };
 
     /**

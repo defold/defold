@@ -111,11 +111,15 @@ public class Task<T> {
 
     @Override
     public String toString() {
-        return String.format("task(%s) %s -> %s", name, inputs.toString(), outputs.toString());
+        return String.format("task(%s) %s -> %s", name, getInputsString(), getOutputsString());
     }
 
     public List<IResource> getInputs() {
         return Collections.unmodifiableList(inputs);
+    }
+
+    public String getInputsString() {
+        return inputs.toString();
     }
 
     public IResource input(int i) {
@@ -124,6 +128,10 @@ public class Task<T> {
 
     public List<IResource> getOutputs() {
         return Collections.unmodifiableList(outputs);
+    }
+
+    public String getOutputsString() {
+        return outputs.toString();
     }
 
     public IResource output(int i) {

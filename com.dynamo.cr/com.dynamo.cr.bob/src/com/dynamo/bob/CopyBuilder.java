@@ -27,7 +27,7 @@ import com.dynamo.bob.fs.IResource;
 public abstract class CopyBuilder extends Builder<Void> {
 
     @Override
-    public Task<Void> create(IResource input) {
+    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task<Void> task = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .disableCache()
