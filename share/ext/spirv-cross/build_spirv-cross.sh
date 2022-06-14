@@ -34,10 +34,6 @@ if [ -z "$SOURCE_DIR" ]; then
     git clone https://github.com/KhronosGroup/SPIRV-Cross.git $SOURCE_DIR
 fi
 
-pushd $SOURCE_DIR
-
-popd
-
 # Build
 
 mkdir -p ${BUILD_DIR}

@@ -13,21 +13,34 @@ if [ -z "$PLATFORM" ]; then
     exit 1
 fi
 
+CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_TESTS=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_EXAMPLES=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_COPYRIGHT_CHECK=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_INSTALL=ON ${CMAKE_FLAGS}"
+# static link on MSVC
+CMAKE_FLAGS="-DSHADERC_ENABLE_SHARED_CRT=OFF ${CMAKE_FLAGS}"
+# Size opt
+CMAKE_FLAGS="-DSPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS=ON ${CMAKE_FLAGS}"
+
 case $PLATFORM in
     arm64-macos)
-        CMAKE_OSX_ARCHITECTURES=arm64
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
         ;;
     x86_64-macos)
-        CMAKE_OSX_ARCHITECTURES=x86_64
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
         ;;
 esac
 
 # Follow the build instructions on https://github.com/google/shaderc
 
-git clone https://github.com/google/shaderc $SOURCE_DIR
-pushd $SOURCE_DIR
-./utils/git-sync-deps
-popd
+if [ -z "$SOURCE_DIR" ]; then
+    git clone https://github.com/google/shaderc $SOURCE_DIR
+
+    pushd $SOURCE_DIR
+    ./utils/git-sync-deps
+    popd
+fi
 
 # Build
 
@@ -35,11 +48,12 @@ mkdir -p ${BUILD_DIR}
 
 pushd $BUILD_DIR
 
-cmake  -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} $SOURCE_DIR
+cmake ${CMAKE_FLAGS} $SOURCE_DIR
 make -j8
 
 mkdir -p ./bin/$PLATFORM
 cp -v ./glslc/glslc ./bin/$PLATFORM
+strip ./bin/$PLATFORM/glslc
 
 popd
 
