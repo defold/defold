@@ -908,6 +908,11 @@ namespace dmGameSystem
                 continue;
             }
 
+            float opacity = node_opacities[i];
+            if (opacity == 0) {
+                continue;
+            }
+
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             const Vector4& outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
             const Vector4& shadow = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SHADOW);
@@ -916,7 +921,6 @@ namespace dmGameSystem
             assert(node_type == dmGui::NODE_TYPE_TEXT);
 
             dmRender::DrawTextParams params;
-            float opacity = node_opacities[i];
             params.m_FaceColor = Vector4(color.getXYZ(), opacity);
             params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
             params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
@@ -1041,8 +1045,13 @@ namespace dmGameSystem
             if (dmGui::GetNodeIsBone(scene, node)) {
                 continue;
             }
-            const Vector4& nodecolor = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
+
             float opacity = node_opacities[i];
+            if (opacity == 0) {
+                continue;
+            }
+
+            const Vector4& nodecolor = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             Vector4 color = Vector4(nodecolor.getXYZ(), opacity);
 
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
@@ -1149,6 +1158,11 @@ namespace dmGameSystem
                 continue;
             }
 
+            float opacity = node_opacities[i];
+            if (opacity == 0) {
+                continue;
+            }
+
             void* custom_node_data = dmGui::GetNodeCustomData(scene, node);
 
             CustomNodeCtx nodectx;
@@ -1167,7 +1181,6 @@ namespace dmGameSystem
 
             // Transform the vertices and modify the colors
             const Matrix4& transform = node_transforms[i];
-            float opacity = node_opacities[i];
             Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             color = Vector4(color.getXYZ(), opacity);
 
@@ -1284,9 +1297,14 @@ namespace dmGameSystem
                 continue;
             }
 
+            float opacity = node_opacities[i];
+            if (opacity == 0) {
+                continue;
+            }
+
             // pre-multiplied alpha
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
-            Vector4 pm_color(color.getXYZ(), node_opacities[i]);
+            Vector4 pm_color(color.getXYZ(), opacity);
 
             // default not uv_rotated texture coords
             const float default_tc[6] = {0, 0, 0, 1, 1, 1};
@@ -1586,10 +1604,15 @@ namespace dmGameSystem
             if (dmGui::GetNodeIsBone(scene, node) || dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
+            float opacity = node_opacities[i];
+            if (opacity == 0) {
+                continue;
+            }
+
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
 
             // Pre-multiplied alpha
-            Vector4 pm_color(color.getXYZ(), node_opacities[i]);
+            Vector4 pm_color(color.getXYZ(), opacity);
 
             const uint32_t perimeterVertices = dmMath::Max<uint32_t>(4, dmGui::GetNodePerimeterVertices(scene, node));
             const float innerMultiplier = dmGui::GetNodeInnerRadius(scene, node) / size.getX();
@@ -1785,6 +1808,12 @@ namespace dmGameSystem
         while (i < node_count) {
             dmGui::HNode node = entries[i].m_Node;
             if (dmGui::GetNodeIsBone(scene, node)) {
+                ++i;
+                continue;
+            }
+
+            float opacity = node_opacities[i];
+            if (opacity == 0) {
                 ++i;
                 continue;
             }
