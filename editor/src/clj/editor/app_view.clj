@@ -1572,13 +1572,13 @@ If you do not specifically require different script states, consider changing th
             (some-> path
                     slurp
                     edn/read-string))
-       (catch IOException e
+       (catch Exception e
          (dialogs/make-info-dialog
           {:title "Couldn't load custom keymap config"
            :icon :icon/triangle-error
            :header {:fx/type :v-box
                     :children [{:fx/type fxui/label
-                                :text (str "The keymap path " path " couldn't be opened.")}]}
+                                :text (str "The keymap from " path " couldn't be opened.")}]}
            :content (.getMessage e)})
          (log/error :exception e)
          nil)))

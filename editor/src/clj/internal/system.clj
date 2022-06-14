@@ -105,7 +105,12 @@
 
 (defn- bump-invalidate-counters
   [invalidate-map entries]
-  (reduce (fn [m entry] (update m entry (fnil unchecked-inc 0))) invalidate-map entries))
+  (persistent!
+    (reduce
+      (fn [m entry]
+        (assoc! m entry (unchecked-inc (m entry 0))))
+      (transient invalidate-map)
+      entries)))
 
 (defn invalidate-outputs
   "Invalidate the given outputs and _everything_ that could be
@@ -114,14 +119,7 @@
   [system outputs]
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
   (let [basis (basis system)
-        cache-entries (->> outputs
-                           ;; vec -> map, [[node-id label]] -> {node-id #{labels}}
-                           (reduce (fn [m [node-id label]]
-                                     (update m node-id (fn [label-set label] (if label-set (conj label-set label) #{label})) label))
-                                   {})
-                           (gt/dependencies basis)
-                           ;; map -> vec
-                           (into [] (mapcat (fn [[node-id labels]] (mapv #(vector node-id %) labels)))))]
+        cache-entries (gt/dependencies basis outputs)]
     (-> system
         (update :cache c/cache-invalidate cache-entries)
         (update :invalidate-counters bump-invalidate-counters cache-entries))))
@@ -296,22 +294,20 @@
   ;; We can only later on update the cache if we have invalidate-counters from
   ;; when the evaluation context was created, and those are only merged if
   ;; we're using the system basis & cache.
-  [system options]
-  (assert (not (and (some? (:cache options)) (nil? (:basis options)))))
-  (let [system-options {:basis (basis system)
-                        :cache (system-cache system)
-                        :initial-invalidate-counters (:invalidate-counters system)}
-        options (merge
-                  options
-                  (cond
-                    (and (nil? (:cache options)) (nil? (:basis options)))
-                    system-options
-
-                    (and (nil? (:cache options))
-                         (some? (:basis options))
-                         (basis-graphs-identical? (:basis options) (:basis system-options)))
-                    system-options))]
-    (in/custom-evaluation-context options)))
+  [system {options-basis :basis options-cache :cache :as options}]
+  (in/custom-evaluation-context
+    (if (some? options-cache)
+      (do
+        (assert (some? options-basis))
+        options)
+      (let [system-basis (basis system)]
+        (if (or (nil? options-basis)
+                (basis-graphs-identical? options-basis system-basis))
+          (assoc options
+            :basis system-basis
+            :cache (system-cache system)
+            :initial-invalidate-counters (:invalidate-counters system))
+          options)))))
 
 (defn update-cache-from-evaluation-context
   [system evaluation-context]

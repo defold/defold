@@ -98,11 +98,15 @@
     (-> git (.commit) (.setMessage "init repo") (.call))
     git))
 
-(defn- edit-and-save! [workspace atlas margin]
-  (g/set-property! atlas :margin margin)
-  (let [save-data (g/node-value atlas :save-data)]
-    (spit-until-new-mtime (:resource save-data) (:content save-data))
-    (workspace/resource-sync! workspace [])))
+(defn- external-edit-and-save! [workspace atlas margin]
+  ;; Fake an external edit of the atlas file by overwriting it with save-data
+  ;; that differ from the editor state.
+  (let [previous-margin (g/node-value atlas :margin)]
+    (g/set-property! atlas :margin margin)
+    (let [save-data (g/node-value atlas :save-data)]
+      (g/set-property! atlas :margin previous-margin)
+      (spit-until-new-mtime (:resource save-data) (:content save-data))
+      (workspace/resource-sync! workspace []))))
 
 (defn- revert-all! [workspace git]
   (let [status (git/unified-status git)
@@ -131,7 +135,7 @@
       (revert-all! workspace git)
       (is (= atlas-res (g/node-value app-view :active-resource)))
       (app-view/select! app-view [(:node-id (atlas-outline [0]))])
-      (edit-and-save! workspace atlas 1)
+      (external-edit-and-save! workspace atlas 1)
       ;; Ensure reload has happened
       (is (not= atlas (g/node-value app-view :active-resource-node)))
       (is (= atlas-res (g/node-value app-view :active-resource)))

@@ -444,7 +444,10 @@
 
         (is (= 2 (count (ts/undo-stack project-graph))))        
 
-        (is (= {p-source #{:_declared-properties :source-label :_properties}} (successors p-source :source-label)))
+        (is (= #{[p-source :_declared-properties]
+                 [p-source :source-label]
+                 [p-source :_properties]}
+               (set (successors p-source :source-label))))
         (is (= nil (sarcs p-source :source-label)))
         (is (= nil (tarcs v-sink :target-label)))
 
@@ -454,7 +457,11 @@
 
         (is (= 3 (count (ts/undo-stack project-graph))))
 
-        (is (= {p-source #{:_declared-properties :source-label :_properties} v-sink #{:loud}} (successors p-source :source-label)))
+        (is (= #{[p-source :_declared-properties]
+                 [p-source :source-label]
+                 [p-source :_properties]
+                 [v-sink :loud]}
+               (set (successors p-source :source-label))))
         (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (sarcs p-source :source-label))))
         (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (tarcs v-sink :target-label))))
 
@@ -465,7 +472,11 @@
         (is (= 2 (count (ts/undo-stack project-graph))))
 
         ;; check hydrated after undo, v-sink :loud used to be missing from successors
-        (is (= {p-source #{:_declared-properties :source-label :_properties} v-sink #{:loud}} (successors p-source :source-label)))
+        (is (= #{[p-source :_declared-properties]
+                 [p-source :source-label]
+                 [p-source :_properties]
+                 [v-sink :loud]}
+               (set (successors p-source :source-label))))
         (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (sarcs p-source :source-label))))
         (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (tarcs v-sink :target-label))))
 
