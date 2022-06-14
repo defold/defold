@@ -38,6 +38,11 @@
 #include "../resources/res_tilegrid.h"
 #include <dmsdk/gamesys/render_constants.h>
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_TilemapTileCount, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_TilemapVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_TilemapVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+
 namespace dmGameSystem
 {
     const uint32_t TILEGRID_REGION_SIZE = 32;
@@ -518,7 +523,7 @@ namespace dmGameSystem
 
     TileGridVertex* CreateVertexData(TileGridWorld* world, TileGridVertex* where, TextureSetResource* texture_set, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(TileGrid, "CreateVertexData");
+        DM_PROFILE("CreateVertexData");
         /*
          *   0----3
          *   | \  |
@@ -616,7 +621,7 @@ namespace dmGameSystem
 
     static void RenderBatch(TileGridWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(TileGrid, "RenderBatch");
+        DM_PROFILE("TileGridRenderBatch");
 
         uint32_t index, layer, region_x, region_y;
         DecodeGridAndLayer(buf[*begin].m_UserData, index, layer, region_x, region_y);
@@ -693,11 +698,16 @@ namespace dmGameSystem
             break;
 
         case dmRender::RENDER_LIST_OPERATION_END:
-            dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-            dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(TileGridVertex) * (world->m_VertexBufferWritePtr - world->m_VertexBufferData),
-                                            world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-            DM_COUNTER("TileGridVertexBuffer", (world->m_VertexBufferWritePtr - world->m_VertexBufferData) * sizeof(TileGridVertex));
-            DM_COUNTER("TileGridTileCount", (world->m_VertexBufferWritePtr - world->m_VertexBufferData));
+            {
+                uint32_t vertex_count = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(TileGridVertex) * vertex_count,
+                                                world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+                DM_PROPERTY_ADD_U32(rmtp_TilemapTileCount, vertex_count/6);
+                DM_PROPERTY_ADD_U32(rmtp_TilemapVertexCount, vertex_count);
+                DM_PROPERTY_ADD_U32(rmtp_TilemapVertexSize, vertex_count * sizeof(TileGridVertex));
+            }
             break;
 
         case dmRender::RENDER_LIST_OPERATION_BATCH:

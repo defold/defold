@@ -16,8 +16,10 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-#include "profile.h"
+#include <dlib/profile/profile.h>
+
 #include "memprofile.h"
+#include "dlib.h"
 
 #if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__))
 
@@ -29,8 +31,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include "dlib.h"
-#include "profile.h"
 #include "shared_library.h"
 
 #ifdef __MACH__
@@ -299,8 +299,11 @@ DM_DLLEXPORT void *malloc(size_t size)
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_TotalActive, (uint32_t) usable_size);
             dmAtomicAdd32(&dmMemProfile::g_ExtStats->m_AllocationCount, 1U);
 
-            dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
-            dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            if (dmMemProfile::g_AddCounter)
+            {
+                dmMemProfile::g_AddCounter("Memory.Allocations", 1U);
+                dmMemProfile::g_AddCounter("Memory.Amount", usable_size);
+            }
         }
     }
     else

@@ -20,6 +20,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/profile.h>
 
 #include <physics/physics.h>
 
@@ -918,10 +919,12 @@ namespace dmGameSystem
 
         if (physics_context->m_3D)
         {
+            DM_PROFILE("StepWorld3D");
             dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
         }
         else
         {
+            DM_PROFILE("StepWorld2D");
             dmPhysics::StepWorld2D(world->m_World2D, *step_ctx);
         }
 

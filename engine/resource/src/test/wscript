@@ -52,7 +52,7 @@ def build(bld):
 
     test_resource = bld.program(features     = 'cxx embed test',
                                 includes     = '.. ../../proto',
-                                use          = 'TESTMAIN DDF DLIB PLATFORM_SOCKET THREAD LUA CARES resource',
+                                use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA CARES resource',
                                 web_libs     = ['library_sys.js'],
                                 proto_gen_py = True,
                                 target       = 'test_resource',
@@ -63,7 +63,7 @@ def build(bld):
 
     test_resource_archive = bld.program(features     = 'cxx embed test',
                                         includes     = '.. ../../proto',
-                                        use          = 'TESTMAIN DDF DLIB PLATFORM_SOCKET THREAD LUA CARES resource',
+                                        use          = 'TESTMAIN DDF DLIB PROFILE_NULL PLATFORM_SOCKET THREAD LUA CARES resource',
                                         proto_gen_py = True,
                                         target       = 'test_resource_archive',
                                         source       = 'test_resource_archive.cpp',

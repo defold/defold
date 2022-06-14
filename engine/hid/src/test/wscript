@@ -17,7 +17,7 @@ def build(bld):
 
     obj = bld.program(features = 'cxx test',
                       includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-                      use      = 'TESTMAIN DLIB DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT hid_null',
+                      use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT hid_null',
                       target   = 'test_hid',
                       source   = 'test_hid.cpp')
 
@@ -39,9 +39,10 @@ def build(bld):
     exported_symbols = [graphics_lib_symbols]
 
     web_libs = ['library_glfw.js', 'library_sys.js']
+
     bld.program(features = 'cxx cprogram test skip_test',
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-        use = 'TESTMAIN TESTAPP DLIB PLATFORM PLATFORM_SOCKET LUA SCRIPT hid'.split() + graphics_lib,
+        use = 'TESTMAIN TESTAPP DLIB PROFILE_NULL PLATFORM PLATFORM_SOCKET LUA SCRIPT hid'.split() + graphics_lib,
         web_libs = web_libs,
         exported_symbols = exported_symbols,
         target = 'test_app_hid',

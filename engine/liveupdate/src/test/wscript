@@ -10,7 +10,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    uselib = ['TESTMAIN', 'RESOURCE', 'DLIB', 'DDF', 'THREAD', 'LUA']
+    uselib = ['TESTMAIN', 'RESOURCE', 'DLIB', 'PROFILE_NULL', 'DDF', 'THREAD', 'LUA']
 
     for impl in ('', 'null'):
         local_lib = 'liveupdate'

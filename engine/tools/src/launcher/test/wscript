@@ -3,7 +3,7 @@ import os
 
 def build(bld):
     test = bld.program(features='cxx test',
-                       use='DLIB launcherutil',
+                       use='DLIB PROFILE_NULL launcherutil',
                        includes = ['.'],
                        target='test_launcher',
                        source='test_launcher.cpp')

@@ -47,6 +47,7 @@ def configure(conf):
 
     conf.env['STLIB_DLIB'] = 'dlib'
     conf.env['STLIB_PROTOBUF'] = 'protobuf'
+
     if conf.env.PLATFORM == 'linux':
         conf.env['LIB_PTHREAD'] = 'pthread'
 

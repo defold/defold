@@ -16,7 +16,7 @@ def build(bld):
     test_record = bld.program(features='cxx test',
                               includes='../../../src .',
                               defines=extra_defines,
-                              use='TESTMAIN DLIB %s %s' % (vpx, record),
+                              use='TESTMAIN DLIB PROFILE_NULL %s %s' % (vpx, record),
                               proto_gen_py=True,
                               target='test_record',
                               source='test_record.cpp')

@@ -6,7 +6,7 @@ from waf_dynamo import is_platform_private, platform_supports_feature
 from BuildUtility import create_build_utility
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None, extra_defines = None, skip_run = False):
+                extra_includes = None, extra_defines = None, skip_run = False, extra_local_libs = None, exclude_libs = None, target_name = None):
 
     # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
@@ -15,7 +15,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     build_util = create_build_utility(bld.env)
 
-    req_libs = ['CARES']
+    req_libs = ['PROFILE']
     req_defines = []
 
     if 'DM_IPV6_UNSUPPORTED' in os.environ:
@@ -40,8 +40,16 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         req_features.extend(extra_features)
     if extra_libs != None:
         req_libs.extend(extra_libs)
+    if extra_local_libs == None:
+        extra_local_libs = []
     if extra_defines != None:
         req_defines.extend(extra_defines)
+
+    local_libs = 'dlib mbedtls zip profile remotery'.split()
+    if exclude_libs != None:
+        req_libs = [x for x in req_libs if not x in exclude_libs]
+        extra_local_libs = [x for x in extra_local_libs if not x in exclude_libs]
+        local_libs = [x for x in local_libs if x not in exclude_libs]
 
     if embed_source != None:
         req_embed = embed_source
@@ -51,11 +59,11 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     task_args = {
         'features': ' '.join(req_features),
         'source': name + '.cpp' + ' testutil.cpp' + platform_source,
-        'use': 'dlib mbedtls zip ' + ' '.join(req_libs),
+        'use': 'dlib mbedtls zip ' + ' '.join(req_libs) + ' '.join(local_libs) + ' '.join(extra_local_libs),
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,
-        'target': name
+        'target': target_name or name
     }
 
     if req_embed != None:
@@ -110,7 +118,14 @@ def build(bld):
     create_test(bld, 'test_time')
     create_test(bld, 'test_thread', extra_libs = ['THREAD'])
     create_test(bld, 'test_mutex', extra_libs =['THREAD'])
+
     create_test(bld, 'test_profile', extra_libs = ['THREAD'])
+    create_test(bld, 'test_profile',    extra_libs = ['THREAD'],
+                                        extra_local_libs = ['profile_null', 'remotery_null'],
+                                        exclude_libs = ['PROFILE', 'profile', 'remotery'],
+                                        skip_run = True,
+                                        target_name = 'test_profile_null')
+
     create_test(bld, 'test_poolallocator', extra_libs = ['THREAD'])
     create_test(bld, 'test_memprofile', extra_libs = ['DL', 'PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])

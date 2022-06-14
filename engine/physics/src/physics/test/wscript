@@ -4,13 +4,13 @@ from waf_dynamo import platform_supports_feature
 def build(bld):
     bld.program(features = 'cxx test',
                 source = 'test_physics.cpp',
-                use = 'TESTMAIN DLIB PLATFORM_THREAD BULLET physics Box2D',
+                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD BULLET physics Box2D',
                 includes = ['../../../src', '../../../src/box2d'],
                 target = 'test_physics')
 
     bld.program(features = 'cxx test',
                     source = 'test_physics_2d.cpp',
-                    use = 'TESTMAIN DLIB PLATFORM_THREAD BULLET physics_2d Box2D',
+                    use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD BULLET physics_2d Box2D',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics_2d')
 
@@ -19,12 +19,12 @@ def build(bld):
     # We do this by removing the 'test' feature which excludes it from the test run
     bld.program(features = 'cxx test skip_test',
                     source = 'test_physics.cpp',
-                    use = 'TESTMAIN DLIB GTEST PLATFORM_THREAD BULLET physics_null',
+                    use = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD BULLET physics_null',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics_null')
 
     bld.program(features = 'cxx test skip_test',
                     source = 'test_physics_2d.cpp',
-                    use = 'TESTMAIN DLIB GTEST PLATFORM_THREAD BULLET physics_null',
+                    use = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD BULLET physics_null',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics_2d_null')

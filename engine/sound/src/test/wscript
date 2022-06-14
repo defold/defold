@@ -146,7 +146,7 @@ def build(bld):
     if 'TREMOLO' in soundlibs:
         bld.program(features = 'cxx cprogram embed test',
                     includes = '../../src .',
-                    use = 'TESTMAIN DLIB PLATFORM_SOCKET CARES sound embedded_wavs embedded_oggs'.split() + soundlibs,
+                    use = 'TESTMAIN DLIB PLATFORM_SOCKET PROFILE_NULL CARES sound embedded_wavs embedded_oggs'.split() + soundlibs,
                     web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
                     target = 'test_sound_perf',
@@ -154,7 +154,7 @@ def build(bld):
 
     bld.program(features = 'cxx cprogram embed test',
                 includes = '../../src .',
-                use = 'TESTMAIN DLIB PLATFORM_SOCKET CARES sound embedded_wavs embedded_oggs'.split() + soundlibs,
+                use = 'TESTMAIN DLIB PLATFORM_SOCKET PROFILE_NULL CARES sound embedded_wavs embedded_oggs'.split() + soundlibs,
                 web_libs = ['library_sound.js'],
                 exported_symbols = exported_symbols,
                 target = 'test_sound',
@@ -164,7 +164,7 @@ def build(bld):
     exported_symbols = 'NullSoundDevice TestNullDevice'
     bld.program(features = 'cxx cprogram embed test',
                     includes = '../../src .',
-                    use = 'TESTMAIN DLIB PLATFORM_SOCKET CARES sound_null embedded_wavs embedded_oggs',
+                    use = 'TESTMAIN DLIB PLATFORM_SOCKET PROFILE_NULL CARES sound_null embedded_wavs embedded_oggs',
                     web_libs = ['library_sound.js'],
                     exported_symbols = exported_symbols,
                     target = 'test_sound_null',

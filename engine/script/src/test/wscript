@@ -15,8 +15,7 @@ def build(bld):
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
     web_libs = ['library_sys.js', 'library_script.js']
-    libs = 'TESTMAIN PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB LUA CARES script'
-
+    libs = 'TESTMAIN PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA CARES script'
 
     if not 'web' in bld.env['PLATFORM']:
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):

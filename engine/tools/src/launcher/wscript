@@ -23,7 +23,7 @@ def build(bld):
 
     exe = bld.program(features  = 'c cxx',
                        includes = ['.'],
-                       use      = 'DLIB CARES',
+                       use      = 'DLIB PROFILE_NULL',
                        source   = ['launcher.cpp', 'launcher_util.cpp'],
                        target   = 'launcher')
 

@@ -335,9 +335,9 @@ def default_flags(self):
 
     for f in ['CFLAGS', 'CXXFLAGS']:
         if '64' in build_util.get_target_architecture():
-            self.env.append_value(f, ['-DDM_PLATFORM_64BIT'])
+            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_64BIT')
         else:
-            self.env.append_value(f, ['-DDM_PLATFORM_32BIT'])
+            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_32BIT')
 
     if not hasattr(self, 'sdkinfo'):
         self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
@@ -1583,6 +1583,10 @@ def detect(conf):
         conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
+    if platform in ('x86_64-linux',): # Currently the only platform exhibiting the behavior
+        conf.env['STATICLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
+        conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
+
     if Options.options.static_analyze:
         conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])
         output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
@@ -1642,6 +1646,9 @@ def detect(conf):
 
     conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
+    if platform not in ('x86_64-darwin',):
+        conf.env['STATICLIB_UNWIND'] = 'unwind'
+
     if platform in ('x86_64-darwin',):
         conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
     elif platform in ('armv7-android', 'arm64-android'):
@@ -1665,9 +1672,12 @@ def detect(conf):
 
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'
-
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
+    conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
+    conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
+    conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
+    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null']
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'

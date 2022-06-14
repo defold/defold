@@ -62,7 +62,7 @@ def build(bld):
 
     test_task_gen = bld.program(features = 'cxx cprogram test',
                                 includes = '../../../src ../../../proto',
-                                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB CARES gamesys',
+                                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_NULL PLATFORM_SOCKET PROFILE_NULL SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB CARES gamesys',
                                 exported_symbols = exported_symbols,
                                 web_libs = ['library_sys.js', 'library_script.js'],
                                 proto_gen_py = True,

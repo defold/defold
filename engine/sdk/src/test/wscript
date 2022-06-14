@@ -22,7 +22,7 @@ def build(bld):
 
     bld.program(features         = 'c cxx cprogram embed test',
                 includes         = '.',
-                use              = 'TESTMAIN EXTENSION DLIB LUA test_sdk_lib',
+                use              = 'TESTMAIN EXTENSION DLIB LUA PROFILE_NULL test_sdk_lib',
                 exported_symbols = ['TestSdk'],
                 target           = 'test_sdk',
                 source           = 'test_sdk.cpp',
