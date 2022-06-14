@@ -17,8 +17,8 @@
             [internal.util :as util]
             [util.coll :refer [pair]])
   (:import [clojure.lang IPersistentSet]
-           [java.util ArrayDeque HashSet]
-           [internal.graph.types Arc]))
+           [internal.graph.types Arc]
+           [java.util ArrayDeque HashSet]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -1150,17 +1150,16 @@
                                                                                                       ;; The internal dependent outputs
                                                                                                       deps (cond-> (transient [])
                                                                                                                    (and dep-labels (pos? (count dep-labels)))
-                                                                                                                   (as-> $ (reduce #(conj! %1 [node-id %2]) $ dep-labels)))
+                                                                                                                   (as-> $ (reduce #(conj! %1 (pair node-id %2)) $ dep-labels)))
                                                                                                       ;; The closest overrides
                                                                                                       deps (transduce (map #(pair % label)) conj! deps overrides)
                                                                                                       ;; The connected nodes and their outputs
-                                                                                                      deps (transduce (comp
-                                                                                                                        (keep (fn [^Arc arc]
-                                                                                                                                (let [target-id (.target-id arc)
-                                                                                                                                      target-label (.target-label arc)]
-                                                                                                                                  (when-let [dep-labels (get (input-deps basis target-id) target-label)]
-                                                                                                                                    (mapv #(vector target-id %) dep-labels)))))
-                                                                                                                        cat)
+                                                                                                      deps (transduce (mapcat
+                                                                                                                        (fn [^Arc arc]
+                                                                                                                          (let [target-id (.target-id arc)
+                                                                                                                                target-label (.target-label arc)]
+                                                                                                                            (when-let [dep-labels (get (input-deps basis target-id) target-label)]
+                                                                                                                              (mapv #(pair target-id %) dep-labels)))))
                                                                                                                       conj!
                                                                                                                       deps
                                                                                                                       (arcs-by-source basis node-id label))]
