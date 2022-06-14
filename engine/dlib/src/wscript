@@ -223,7 +223,7 @@ def build(bld):
         #libremotery.find_sources_in_dirs(['remotery/lib'])
 
         if build_util.get_target_os() not in ['osx', 'ios']:
-            libremotery.source = [x for x in libremotery.source if not x.endswith('.mm')]
+            libremotery.source = [x for x in libremotery.source if not x.abspath().endswith('.mm')]
 
         libremotery_noasan = bld.stlib(features  = 'cc cxx skip_asan',
                                        includes  = '. ./remotery/lib',
@@ -233,7 +233,7 @@ def build(bld):
                                        target    = 'remotery_noasan')
         #libremotery_noasan.find_sources_in_dirs(['remotery/lib'])
         if build_util.get_target_os() not in ['osx', 'ios']:
-            libremotery_noasan.source = [x for x in libremotery_noasan.source if not x.endswith('.mm')]
+            libremotery_noasan.source = [x for x in libremotery_noasan.source if not x.abspath().endswith('.mm')]
 
     libremotery_null = bld.stlib(features    = 'cc cxx',
                                  includes    = '. ./remotery/lib',
