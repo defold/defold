@@ -30,7 +30,10 @@ esac
 
 # Follow the build instructions on https://github.com/KhronosGroup/SPIRV-Cross.git
 
-git clone https://github.com/KhronosGroup/SPIRV-Cross.git $SOURCE_DIR
+if [ -z "$SOURCE_DIR" ]; then
+    git clone https://github.com/KhronosGroup/SPIRV-Cross.git $SOURCE_DIR
+fi
+
 pushd $SOURCE_DIR
 
 popd
@@ -47,6 +50,7 @@ make -j8
 
 mkdir -p ./bin/$PLATFORM
 cp -v ./spirv-cross ./bin/$PLATFORM
+strip ./bin/$PLATFORM/spirv-cross
 
 popd
 
