@@ -166,10 +166,9 @@
         nodes-affected (:nodes-affected ctx)]
     (assoc ctx
       :nodes-affected
-      (assoc nodes-affected
-        node-id
-        (into (nodes-affected node-id #{})
-              dirty-deps)))))
+      (into nodes-affected
+            (map #(pair node-id %))
+            dirty-deps))))
 
 (defn- mark-output-activated
   [ctx node-id output-label]
@@ -177,11 +176,7 @@
   (let [nodes-affected (:nodes-affected ctx)]
     (assoc ctx
       :nodes-affected
-      (assoc nodes-affected
-        node-id
-        (if-some [existing-affected (nodes-affected node-id)]
-          (conj existing-affected output-label)
-          #{output-label})))))
+      (conj nodes-affected (pair node-id output-label)))))
 
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
@@ -189,10 +184,9 @@
   (let [nodes-affected (:nodes-affected ctx)]
     (assoc ctx
       :nodes-affected
-      (assoc nodes-affected
-        node-id
-        (into (nodes-affected node-id #{})
-              output-labels)))))
+      (into nodes-affected
+            (map #(pair node-id %))
+            output-labels))))
 
 (defn- mark-all-outputs-activated
   [ctx node-id]
@@ -204,9 +198,9 @@
         nodes-affected (:nodes-affected ctx)]
     (assoc ctx
       :nodes-affected
-      (assoc nodes-affected
-        node-id
-        output-labels))))
+      (into nodes-affected
+            (map #(pair node-id %))
+            output-labels))))
 
 (defn- next-node-id [ctx graph-id]
   (is/next-node-id* (:node-id-generators ctx) graph-id))
@@ -791,7 +785,7 @@
 
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
-  (assoc ctx :nodes-modified (set (keys nodes-affected))))
+  (assoc ctx :nodes-modified (into #{} (map key) nodes-affected)))
 
 (defn- map-vals-bargs
   [m f]
@@ -818,7 +812,7 @@
 (defn new-transaction-context
   [basis node-id-generators override-id-generator metrics-collector]
   {:basis basis
-   :nodes-affected {}
+   :nodes-affected #{}
    :nodes-added []
    :nodes-modified #{}
    :nodes-deleted {}
@@ -853,11 +847,7 @@
   ;; afterwards, it will have the transitive closure of all [node-id output] pairs
   ;; reachable from the original collection.
   (du/measuring (:metrics ctx) :trace-dependencies
-    (let [outputs-modified (->> (:nodes-affected ctx)
-                                (gt/dependencies (:basis ctx))
-                                (into []
-                                      (mapcat (fn [[nid ls]]
-                                                (mapv #(vector nid %) ls)))))]
+    (let [outputs-modified (gt/dependencies (:basis ctx) (:nodes-affected ctx))]
       (assoc ctx :outputs-modified outputs-modified))))
 
 (defn transact*
