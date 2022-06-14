@@ -18,6 +18,11 @@ PWD=$(pwd)
 SOURCE_DIR=${PWD}/source
 BUILD_DIR=${PWD}/build/${PLATFORM}
 
+if [ -z "$PLATFORM" ]; then
+    echo "No platform specified!"
+    exit 1
+fi
+
 case $PLATFORM in
     arm64-macos)
         CMAKE_OSX_ARCHITECTURES=arm64
