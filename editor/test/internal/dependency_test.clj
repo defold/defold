@@ -22,7 +22,7 @@
 
 (defn- dependencies
   [& pairs]
-  (ts/graph-dependencies (g/now) (partition 2 pairs)))
+  (ts/graph-dependencies (g/now) (map vec (partition 2 pairs))))
 
 (g/defnode SingleOutput
   (output out-from-inline g/Str (g/fnk [] "out-from-inline")))

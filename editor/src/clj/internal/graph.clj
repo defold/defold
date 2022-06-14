@@ -14,13 +14,13 @@
 
 (ns internal.graph
   (:require [clojure.core.reducers :as r]
-            [clojure.set :as set]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.util :as util]
             [util.coll :refer [pair]])
   (:import [clojure.lang IPersistentSet]
-           [internal.graph.types Arc]))
+           [internal.graph.types Arc]
+           [java.util ArrayDeque HashSet]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -813,50 +813,40 @@
                result')
         (persistent! result')))))
 
-(defn- set-or-union [s1 s2]
-  (if s1
-    (into s1 s2)
-    s2))
-
-(def ^:private merge-with-union (let [red-f (fn [m [k v]] (update m k set-or-union v))]
-                                  (completing (fn [m1 m2] (reduce red-f m1 m2)))))
-
-(defn- basis-dependencies [basis outputs-by-node-ids]
-  (let [graph-id->node-successor-map (into {} (map (fn [[graph-id graph]] [graph-id (:successors graph)])) (:graphs basis))
-        node-id->successor-map (fn [node-id]
-                                 (some-> node-id
-                                         gt/node-id->graph-id
-                                         graph-id->node-successor-map
-                                         (get node-id)))]
-    (loop [;; 'todo' is the running stack (actually a map) of entries to traverse
-           ;; it's expensive to iterate a map, so start by turning it into a seq
-           todo (seq outputs-by-node-ids)
-           ;; collect next batch of entries in a map, to coalesce common node ids
-           next-todo {}
-           ;; final transitive closure of entries found, as a map
-           result {}]
-      (if-let [[node-id outputs] (first todo)]
-        (let [seen? (get result node-id)]
-          ;; termination condition is when we have seen *every* output already
-          (if (and seen? (every? seen? outputs))
-            ;; completely remove the node-id from todo as we have seen *every* output
-            (recur (next todo) next-todo result)
-            ;; does the node-id have any successors at all?
-            (if-let [label->succ (node-id->successor-map node-id)]
-              ;; ignore the outputs we have already seen
-              (let [outputs (if seen? (set/difference outputs seen?) outputs)
-                    ;; Add every successor to the stack for later processing
-                    next-todo (transduce (map label->succ) merge-with-union next-todo outputs)
-                    ;; And include the unseen output labels to the result
-                    result (update result node-id set-or-union outputs)]
-                (recur (next todo) next-todo result))
-              ;; There were no successors, recur without that node-id
-              (recur (next todo) next-todo result))))
-        ;; check if there is a next batch of entries to process
-        (if-let [todo (seq next-todo)]
-          (recur todo {} result)
-          result)))))
-
+(defn- basis-dependencies [basis node-id+outputs]
+  (let [graph-id->node-successor-map
+        (persistent!
+          (reduce-kv
+            (fn [acc graph-id graph]
+              (assoc! acc graph-id (:successors graph)))
+            (transient {})
+            (:graphs basis)))
+        node-id+output->successors (fn [node-id+output]
+                                     (let [node-id (node-id+output 0)
+                                           output (node-id+output 1)]
+                                       (-> node-id
+                                           gt/node-id->graph-id
+                                           graph-id->node-successor-map
+                                           (get node-id)
+                                           (get output))))
+        deque (ArrayDeque.)
+        result (HashSet.)]
+    (reduce (fn [_ node-id+output]
+              (.push deque node-id+output))
+            nil
+            node-id+outputs)
+    (loop []
+      (when-some [node-id+output (.pollLast deque)]
+        (when-not (.contains result node-id+output)
+          (when-some [successors (node-id+output->successors node-id+output)]
+            (reduce
+              (fn [_ successor-node-id+output]
+                (.push deque successor-node-id+output))
+              nil
+              successors)
+            (.add result node-id+output)))
+        (recur)))
+    result))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
@@ -1158,20 +1148,20 @@
                                                                                                            (fn [basis node-id label]
                                                                                                              (gt/arcs-by-source basis node-id label)))]
                                                                                       (reduce (fn [new-node-successors label]
-                                                                                                (let [single-label #{label}
-                                                                                                      dep-labels (get deps-by-label label)
+                                                                                                (let [dep-labels (get deps-by-label label)
                                                                                                       ;; The internal dependent outputs
-                                                                                                      deps (cond-> (transient {})
-                                                                                                                   (and dep-labels (> (count dep-labels) 0))
-                                                                                                                   (assoc! node-id dep-labels))
+                                                                                                      deps (cond-> (transient [])
+                                                                                                                   (and dep-labels (pos? (count dep-labels)))
+                                                                                                                   (as-> $ (reduce #(conj! %1 (pair node-id %2)) $ dep-labels)))
                                                                                                       ;; The closest overrides
-                                                                                                      deps (transduce (map #(pair % single-label)) conj! deps overrides)
+                                                                                                      deps (transduce (map #(pair % label)) conj! deps overrides)
                                                                                                       ;; The connected nodes and their outputs
-                                                                                                      deps (transduce (keep (fn [^Arc arc]
-                                                                                                                              (let [target-id (.target-id arc)
-                                                                                                                                    target-label (.target-label arc)]
-                                                                                                                                (when-let [dep-labels (get (input-deps basis target-id) target-label)]
-                                                                                                                                  [target-id dep-labels]))))
+                                                                                                      deps (transduce (mapcat
+                                                                                                                        (fn [^Arc arc]
+                                                                                                                          (let [target-id (.target-id arc)
+                                                                                                                                target-label (.target-label arc)]
+                                                                                                                            (when-let [dep-labels (get (input-deps basis target-id) target-label)]
+                                                                                                                              (mapv #(pair target-id %) dep-labels)))))
                                                                                                                       conj!
                                                                                                                       deps
                                                                                                                       (arcs-by-source basis node-id label))]
