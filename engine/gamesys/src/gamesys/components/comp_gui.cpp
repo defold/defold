@@ -314,7 +314,7 @@ namespace dmGameSystem
                     // Even though we cancel animation we still need flipbook hash:
                     // https://github.com/defold/defold/issues/6551
                     // We can't move this logic into dmGui::PlayNodeFlipbookAnim()
-                    // because if we do so we will never play all the one-frame animations which is a breaking 
+                    // because if we do so we will never play all the one-frame animations which is a breaking
                     // change. In this case, we cancel one-frame animation ONLY when we initially setup node.
                     if (dmGui::GetNodeAnimationFrameCount(scene, n) == 1)
                     {
@@ -390,6 +390,30 @@ namespace dmGameSystem
             case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:
                 dmLogError("Template nodes are not supported in run-time '%s', result: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::RESULT_INVAL_ERROR);
                 result = false;
+            break;
+
+
+            case dmGui::NODE_TYPE_CUSTOM:
+            {
+                GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+                uint32_t custom_type = dmGui::GetNodeCustomType(scene, n);
+                void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
+                const CompGuiNodeType* node_type = GetCompGuiCustomType(component->m_World->m_CompGuiContext, custom_type);
+
+                if (node_type->m_SetNodeDesc)
+                {
+                    CompGuiNodeContext ctx;
+
+                    CustomNodeCtx nodectx;
+                    nodectx.m_Scene = scene;
+                    nodectx.m_Node = n;
+                    nodectx.m_TypeContext = node_type->m_Context;
+                    nodectx.m_NodeData = custom_node_data;
+                    nodectx.m_Type = custom_type;
+
+                    node_type->m_SetNodeDesc(&ctx, &nodectx, node_desc);
+                }
+            }
             break;
 
             default:
@@ -578,26 +602,6 @@ namespace dmGameSystem
             else
             {
                 result = false;
-            }
-
-            if (type == dmGui::NODE_TYPE_CUSTOM)
-            {
-                void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
-                const CompGuiNodeType* node_type = GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type);
-
-                if (node_type->m_SetNodeDesc)
-                {
-                    CompGuiNodeContext ctx;
-
-                    CustomNodeCtx nodectx;
-                    nodectx.m_Scene = scene;
-                    nodectx.m_Node = n;
-                    nodectx.m_TypeContext = node_type->m_Context;
-                    nodectx.m_NodeData = custom_node_data;
-                    nodectx.m_Type = custom_type;
-
-                    node_type->m_SetNodeDesc(&ctx, &nodectx, node_desc);
-                }
             }
         }
         if (result)
