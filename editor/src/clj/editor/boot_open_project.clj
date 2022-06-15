@@ -106,7 +106,8 @@
 
 (defn- handle-application-focused! [workspace changes-view]
   (app-view/clear-build-launch-progress!)
-  (when (and (not (sync/sync-dialog-open?))
+  (when (and (not (app-view/build-in-progress?))
+             (not (sync/sync-dialog-open?))
              (disk-availability/available?))
     (async-reload! workspace changes-view)))
 
