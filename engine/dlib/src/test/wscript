@@ -56,10 +56,11 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if extra_includes != None:
         req_includes.extend(extra_includes)
 
+    use_lib_list = 'dlib mbedtls zip %s %s %s' % (' '.join(req_libs), ' '.join(local_libs), ' '.join(extra_local_libs))
     task_args = {
         'features': ' '.join(req_features),
         'source': name + '.cpp' + ' testutil.cpp' + platform_source,
-        'use': 'dlib mbedtls zip ' + ' '.join(req_libs) + ' '.join(local_libs) + ' '.join(extra_local_libs),
+        'use': use_lib_list,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,
