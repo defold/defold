@@ -4,8 +4,10 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [vlaaad.reveal :as r]
+            [internal.graph.types :as gt]
             [internal.system :as is])
-  (:import [clojure.lang IRef]))
+  (:import [clojure.lang IRef]
+           [internal.graph.types Endpoint]))
 
 (defn- node-value-or-err [ec node-id label]
   (try
@@ -110,3 +112,11 @@
 (r/defaction ::defold:watch [_ {::keys [node-id+label]}]
   (when node-id+label
     #(apply watch-all node-id+label)))
+
+(r/defstream Endpoint [endpoint]
+  (r/horizontal
+    (r/raw-string "#g/endpoint [" {:fill :object})
+    (r/stream (gt/endpoint-node-id endpoint))
+    r/separator
+    (r/stream (gt/endpoint-label endpoint))
+    (r/raw-string "]" {:fill :object})))

@@ -99,6 +99,9 @@
   []
   (is/system-cache @*the-system*))
 
+(defn endpoint [node-id label]
+  (gt/endpoint node-id label))
+
 (defn clear-system-cache!
   "Clears a cache (default *the-system* cache), useful when debugging"
   ([] (clear-system-cache! *the-system*))
@@ -107,7 +110,7 @@
    nil)
   ([sys-atom node-id]
    (let [outputs (cached-outputs (node-type* node-id))
-         entries (map (partial vector node-id) outputs)]
+         entries (map (partial endpoint node-id) outputs)]
      (swap! sys-atom update :cache c/cache-invalidate entries)
      nil)))
 
@@ -176,13 +179,6 @@
   [transaction]
   (:nodes-added transaction))
 
-(defn is-modified?
-  "Returns a boolean if a node, or node and output, was modified as a result of a transaction given a tx-result."
-  ([transaction node-id]
-   (boolean (contains? (:outputs-modified transaction) node-id)))
-  ([transaction node-id output]
-   (boolean (get-in transaction [:outputs-modified node-id output]))))
-
 (defn is-added?
   "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
   [transaction node-id]
@@ -192,11 +188,6 @@
   "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
   [transaction node-id]
   (contains? (:nodes-deleted transaction) node-id))
-
-(defn outputs-modified
-  "Returns the pairs of node-id and label of the outputs that were modified for a node as the result of a transaction given a tx-result and node"
-  [transaction node-id]
-  (get-in transaction [:outputs-modified node-id]))
 
 (defn transaction-basis
   "Returns the final basis from the result of a transaction given a tx-result"
