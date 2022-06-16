@@ -811,7 +811,8 @@
                result')
         (persistent! result')))))
 
-(defn- basis-dependencies [basis node-id+outputs]
+(defn- basis-dependencies [basis endpoints]
+  (assert (every? gt/endpoint? endpoints))
   (let [graph-id->node-successor-map
         (persistent!
           (reduce-kv
@@ -819,30 +820,30 @@
               (assoc! acc graph-id (:successors graph)))
             (transient {})
             (:graphs basis)))
-        node-id+output->successors (fn [node-id+output]
-                                     (let [node-id (node-id+output 0)
-                                           output (node-id+output 1)]
-                                       (-> node-id
-                                           gt/node-id->graph-id
-                                           graph-id->node-successor-map
-                                           (get node-id)
-                                           (get output))))
+        endpoint->successors (fn [endpoint]
+                               (let [node-id (gt/endpoint-node-id endpoint)
+                                     output (gt/endpoint-label endpoint)]
+                                 (-> node-id
+                                     gt/node-id->graph-id
+                                     graph-id->node-successor-map
+                                     (get node-id)
+                                     (get output))))
         deque (ArrayDeque.)
         result (HashSet.)]
-    (reduce (fn [_ node-id+output]
-              (.push deque node-id+output))
+    (reduce (fn [_ endpoint]
+              (.push deque endpoint))
             nil
-            node-id+outputs)
+            endpoints)
     (loop []
-      (when-some [node-id+output (.pollLast deque)]
-        (when-not (.contains result node-id+output)
-          (when-some [successors (node-id+output->successors node-id+output)]
+      (when-some [endpoint (.pollLast deque)]
+        (when-not (.contains result endpoint)
+          (when-some [successors (endpoint->successors endpoint)]
             (reduce
-              (fn [_ successor-node-id+output]
-                (.push deque successor-node-id+output))
+              (fn [_ successor-endpoint]
+                (.push deque successor-endpoint))
               nil
               successors)
-            (.add result node-id+output)))
+            (.add result endpoint)))
         (recur)))
     result))
 
@@ -1014,8 +1015,8 @@
       (some #{[target-id target-label]} targets)))
 
   (dependencies
-    [this outputs-by-node-ids]
-    (basis-dependencies this outputs-by-node-ids))
+    [this endpoints]
+    (basis-dependencies this endpoints))
 
   (original-node [this node-id]
     (when-let [node (gt/node-by-id-at this node-id)]
@@ -1100,9 +1101,9 @@
                                                      (let [old-arcs (old-arcs-by-source-label source-label)
                                                            old-arc? #(some (partial = %) old-arcs)]
                                                        (when (not-every? old-arc? external-arcs)
-                                                         [source-id source-label])))
+                                                         (gt/endpoint source-id source-label))))
                                                    external-arcs-by-source-label)
-                                             (map (partial vector source-id)
+                                             (map (partial gt/endpoint source-id)
                                                   (keys external-arcs-by-source-label)))))
                                  external-sarcs)]
 
@@ -1113,7 +1114,7 @@
   (some-> (gt/node-by-id-at basis node-id) gt/node-type in/input-dependencies))
 
 (defn- update-graph-successors
-  "The purpose of this fn is to build a data structure that reflects which set of node-id + outputs that can be reached from the incoming changes (map of node-id + outputs)
+  "The purpose of this fn is to build a data structure that reflects which set of endpoints that can be reached from the incoming changes (map of node-id + outputs)
    For a specific node-id-a + output-x, add:
      the internal input-dependencies, i.e. outputs consuming the given output
      the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
@@ -1150,16 +1151,16 @@
                                                                                                       ;; The internal dependent outputs
                                                                                                       deps (cond-> (transient [])
                                                                                                                    (and dep-labels (pos? (count dep-labels)))
-                                                                                                                   (as-> $ (reduce #(conj! %1 (pair node-id %2)) $ dep-labels)))
+                                                                                                                   (as-> $ (reduce #(conj! %1 (gt/endpoint node-id %2)) $ dep-labels)))
                                                                                                       ;; The closest overrides
-                                                                                                      deps (transduce (map #(pair % label)) conj! deps overrides)
+                                                                                                      deps (transduce (map #(gt/endpoint % label)) conj! deps overrides)
                                                                                                       ;; The connected nodes and their outputs
                                                                                                       deps (transduce (mapcat
                                                                                                                         (fn [^Arc arc]
                                                                                                                           (let [target-id (.target-id arc)
                                                                                                                                 target-label (.target-label arc)]
                                                                                                                             (when-let [dep-labels (get (input-deps basis target-id) target-label)]
-                                                                                                                              (mapv #(pair target-id %) dep-labels)))))
+                                                                                                                              (mapv #(gt/endpoint target-id %) dep-labels)))))
                                                                                                                       conj!
                                                                                                                       deps
                                                                                                                       (arcs-by-source basis node-id label))]

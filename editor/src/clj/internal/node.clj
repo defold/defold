@@ -386,12 +386,17 @@
   (let [unfiltered-hits @(:hits evaluation-context)
         unfiltered-local @(:local evaluation-context)
         filtered-hits (into []
-                            (filter (fn [[node-id label]]
-                                      (cache-entry-pred node-id label evaluation-context)))
+                            (filter (fn [endpoint]
+                                      (cache-entry-pred (gt/endpoint-node-id endpoint)
+                                                        (gt/endpoint-label endpoint)
+                                                        evaluation-context)))
                             unfiltered-hits)
         filtered-local (into {}
-                             (filter (fn [[[node-id label]]]
-                                       (cache-entry-pred node-id label evaluation-context)))
+                             (filter (fn [e]
+                                       (let [endpoint (key e)]
+                                         (cache-entry-pred (gt/endpoint-node-id endpoint)
+                                                           (gt/endpoint-label endpoint)
+                                                           evaluation-context))))
                              unfiltered-local)]
     (assoc evaluation-context
       :hits (atom filtered-hits)
@@ -1313,11 +1318,11 @@
     (type-name (gt/node-type node))))
 
 (defn mark-in-production [node-id label evaluation-context]
-  (assert (not (contains? (:in-production evaluation-context) [node-id label]))
+  (assert (not (contains? (:in-production evaluation-context) (gt/endpoint node-id label)))
           (format "Cycle detected on node type %s and output %s"
                   (node-type-name node-id evaluation-context)
                   label))
-  (update evaluation-context :in-production conj [node-id label]))
+  (update evaluation-context :in-production conj (gt/endpoint node-id label)))
 
 (defn- mark-in-production-form [node-id-sym label-sym evaluation-context-sym forms]
   `(let [~evaluation-context-sym (mark-in-production ~node-id-sym ~label-sym ~evaluation-context-sym)]
@@ -1332,7 +1337,7 @@
 (defn check-caches! [node-id label evaluation-context]
   (let [local @(:local evaluation-context)
         global (:cache evaluation-context)
-        cache-key [node-id label]]
+        cache-key (gt/endpoint node-id label)]
     (cond
       (contains? local cache-key)
       (trace-expr node-id label evaluation-context :cache (fn [] (nil->cached-nil (get local cache-key))))
@@ -1346,7 +1351,7 @@
 
 (defn check-local-temp-cache [node-id label evaluation-context]
   (let [local-temp (some-> (:local-temp evaluation-context) deref)
-        weak-cached-value ^WeakReference (get local-temp [node-id label])]
+        weak-cached-value ^WeakReference (get local-temp (gt/endpoint node-id label))]
     (and weak-cached-value (.get weak-cached-value))))
 
 (defn- check-caches-form [description label node-id-sym label-sym evaluation-context-sym forms]
@@ -1384,11 +1389,11 @@
        ~forms)))
 
 (defn update-local-cache! [node-id label evaluation-context value]
-  (swap! (:local evaluation-context) assoc [node-id label] value))
+  (swap! (:local evaluation-context) assoc (gt/endpoint node-id label) value))
 
 (defn update-local-temp-cache! [node-id label evaluation-context value]
   (when-let [local-temp (:local-temp evaluation-context)]
-    (swap! local-temp assoc [node-id label] (WeakReference. (nil->cached-nil value)))))
+    (swap! local-temp assoc (gt/endpoint node-id label) (WeakReference. (nil->cached-nil value)))))
 
 (defn- cache-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if (contains? (get-in description [:output label :flags]) :cached)

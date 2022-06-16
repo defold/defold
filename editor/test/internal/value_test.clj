@@ -17,7 +17,8 @@
             [internal.node :as in]
             [internal.transaction :as it]
             [support.test-support :as ts]
-            [internal.graph.error-values :as ie])
+            [internal.graph.error-values :as ie]
+            [internal.graph.types :as gt])
   (:import [internal.graph.error_values ErrorValue]))
 
 (def ^:dynamic *calls*)
@@ -39,7 +40,7 @@
      (is (= calls-before# (get-tally ~node ~fn-symbol)))))
 
 (defn- cached? [cache node-id label]
-  (contains? cache [node-id label]))
+  (contains? cache (gt/endpoint node-id label)))
 
 (g/defnode CacheTestNode
   (input first-name g/Str)

@@ -11,4 +11,5 @@
 ;; specific language governing permissions and limitations under the License.
 
 {code/range editor.code.data/read-cursor-range
- code/cursor editor.code.data/read-cursor}
+ code/cursor editor.code.data/read-cursor
+ g/endpoint internal.graph.types/read-endpoint}

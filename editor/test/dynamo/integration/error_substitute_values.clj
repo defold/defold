@@ -13,6 +13,7 @@
 (ns dynamo.integration.error-substitute-values
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
             [support.test-support :refer [with-clean-system tx-nodes]]))
@@ -114,7 +115,7 @@
          (= reason (:reason error)))))
 
 (defn- cached? [cache node-id label]
-  (contains? cache [node-id label]))
+  (contains? cache (gt/endpoint node-id label)))
 
 (deftest test-producing-vals-with-errors
   (testing "values with errors"

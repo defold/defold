@@ -833,7 +833,7 @@
 
 (defn- outs [nodes output]
   (for [n nodes]
-    [n output]))
+    (gt/endpoint n output)))
 
 (defn- conn? [[src src-label tgt tgt-label]]
   (let [basis (g/now)]
@@ -863,9 +863,9 @@
           mains (mapv first all)
           subs (mapv second all)]
       (testing "value fnk"
-        (is (every? (set (deps [[main-0 :a-property]])) (outs mains :virt-property))))
+        (is (every? (set (deps [(gt/endpoint main-0 :a-property)])) (outs mains :virt-property))))
       (testing "output"
-        (is (every? (set (deps [[main-0 :a-property]])) (outs mains :cached-output))))
+        (is (every? (set (deps [(gt/endpoint main-0 :a-property)])) (outs mains :cached-output))))
       (testing "connections"
         (is (every? conn? (for [[m s] all]
                             [s :_node-id m :sub-nodes])))
@@ -881,9 +881,9 @@
                                          (g/connect src :a-property tgt :in-value)
                                          (g/override src)))]
       (testing "regular dep"
-        (is (every? (set (deps [[src :a-property]])) [[tgt :out-value]])))
+        (is (every? (set (deps [(gt/endpoint src :a-property)])) [(gt/endpoint tgt :out-value)])))
       (testing "no override deps"
-        (is (not-any? (set (deps [[src-1 :a-property]])) [[tgt :out-value]])))
+        (is (not-any? (set (deps [(gt/endpoint src-1 :a-property)])) [(gt/endpoint tgt :out-value)])))
       (testing "connections"
         (is (conn? [src :a-property tgt :in-value]))
         (is (no-conn? [src-1 :a-property tgt :in-value])))))
@@ -893,7 +893,9 @@
                                          (g/connect src :a-property tgt :in-value)
                                          (g/override tgt)))]
       (testing "regular dep"
-        (is (every? (set (deps [[src :a-property]])) [[tgt :out-value] [tgt-1 :out-value]])))
+        (is (every? (set (deps [(gt/endpoint src :a-property)]))
+                    [(gt/endpoint tgt :out-value)
+                     (gt/endpoint tgt-1 :out-value)])))
       (testing "connections"
         (is (conn? [src :a-property tgt :in-value]))
         (is (conn? [src :a-property tgt-1 :in-value])))))

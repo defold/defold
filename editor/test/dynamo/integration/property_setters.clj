@@ -57,7 +57,7 @@
       #_(is (= provider (get-in (g/node-value user :_properties) [:properties :reference :value])))
       #_(is (= provider (g/node-value user :upstream))))))
 
-(defn- modified? [tx-report node property] (some #{[node property]} (:outputs-modified tx-report)))
+(defn- modified? [tx-report node property] (some #{(g/endpoint node property)} (:outputs-modified tx-report)))
 
 (deftest dependencies-through-properties
   (testing "an output uses a property with a getter, changing the upstream node affects the output"

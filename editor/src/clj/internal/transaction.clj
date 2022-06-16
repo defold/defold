@@ -167,7 +167,7 @@
     (assoc ctx
       :nodes-affected
       (into nodes-affected
-            (map #(pair node-id %))
+            (map #(gt/endpoint node-id %))
             dirty-deps))))
 
 (defn- mark-output-activated
@@ -176,7 +176,7 @@
   (let [nodes-affected (:nodes-affected ctx)]
     (assoc ctx
       :nodes-affected
-      (conj nodes-affected (pair node-id output-label)))))
+      (conj nodes-affected (gt/endpoint node-id output-label)))))
 
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
@@ -185,7 +185,7 @@
     (assoc ctx
       :nodes-affected
       (into nodes-affected
-            (map #(pair node-id %))
+            (map #(gt/endpoint node-id %))
             output-labels))))
 
 (defn- mark-all-outputs-activated
@@ -199,7 +199,7 @@
     (assoc ctx
       :nodes-affected
       (into nodes-affected
-            (map #(pair node-id %))
+            (map #(gt/endpoint node-id %))
             output-labels))))
 
 (defn- next-node-id [ctx graph-id]
@@ -785,7 +785,7 @@
 
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
-  (assoc ctx :nodes-modified (into #{} (map key) nodes-affected)))
+  (assoc ctx :nodes-modified (into #{} (map gt/endpoint-node-id) nodes-affected)))
 
 (defn- map-vals-bargs
   [m f]

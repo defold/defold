@@ -330,7 +330,7 @@
         (fn [{:keys [resource]}] (and resource (str "Writing " (resource/resource->proj-path resource))))))))
 
 (defn invalidate-save-data-source-values! [save-data]
-  (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))
+  (g/invalidate-outputs! (mapv (fn [sd] (g/endpoint (:node-id sd) :source-value)) save-data)))
 
 (defn workspace
   ([project]
@@ -572,12 +572,12 @@
             (doseq [node-id (:invalidate-outputs plan)]
               (du/measuring resource-metrics (resource/proj-path (g/node-value node-id :resource uncached-evaluation-context)) :invalidate-outputs
                 (g/invalidate-outputs! (mapv (fn [[_ src-label]]
-                                               [node-id src-label])
+                                               (g/endpoint node-id src-label))
                                              (g/explicit-outputs basis node-id)))))
             (g/invalidate-outputs! (into []
                                          (mapcat (fn [node-id]
                                                    (map (fn [[_ src-label]]
-                                                          [node-id src-label])
+                                                          (g/endpoint node-id src-label))
                                                         (g/explicit-outputs basis node-id))))
                                          (:invalidate-outputs plan))))))
 

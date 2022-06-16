@@ -13,6 +13,7 @@
 (ns internal.transaction-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph.types :as gt]
             [internal.transaction :as it]
             [support.test-support :as ts]))
 
@@ -153,7 +154,7 @@
 (defn pairwise [m]
   (for [[k vs] m
         v vs]
-    [k v]))
+    (gt/endpoint k v)))
 
 (deftest precise-invalidation
   (ts/with-clean-system
@@ -175,7 +176,7 @@
           tx-result        (g/transact (g/invalidate person))
           outputs-modified (:outputs-modified tx-result)]
       (doseq [output [:_node-id :_properties :friendly-name :full-name :date-of-birth :age]]
-        (is (some #{[person output]} outputs-modified))))))
+        (is (some #{(g/endpoint person output)} outputs-modified))))))
 
 
 (g/defnode CachedOutputInvalidation
@@ -189,20 +190,22 @@
     (let [tx-result        (g/transact (g/make-node world CachedOutputInvalidation))
           real-id          (first (g/tx-nodes-added tx-result))
           outputs-modified (:outputs-modified tx-result)]
-      (is (some #{real-id} (map first outputs-modified)))
-      (is (= #{:_declared-properties :_properties :_overridden-properties :_node-id :_output-jammers :self-dependent :a-property :ordinary} (into #{} (map second outputs-modified))))
+      (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
+      (is (= #{:_declared-properties :_properties :_overridden-properties :_node-id :_output-jammers :self-dependent :a-property :ordinary}
+             (into #{} (map gt/endpoint-label) outputs-modified)))
       (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [])]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
-        (is (some #{real-id} (map first outputs-modified)))
-        (is (= #{:_declared-properties :_properties :a-property :ordinary :self-dependent} (into #{} (map second outputs-modified))))))))
+        (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
+        (is (= #{:_declared-properties :_properties :a-property :ordinary :self-dependent}
+               (into #{} (map gt/endpoint-label) outputs-modified)))))))
 
 (g/defnode CachedValueNode
   (output cached-output g/Str :cached (g/fnk [] "an-output-value")))
 
 (defn cache-peek
   [node-id output]
-  (get (g/cache) [node-id output]))
+  (get (g/cache) (gt/endpoint node-id output)))
 
 ;; TODO - move this to an integration test group
 (deftest values-of-a-deleted-node-are-removed-from-cache

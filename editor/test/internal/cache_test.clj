@@ -26,34 +26,45 @@
   (testing "things put into cache appear in snapshot"
     (with-clean-system {:cache-size 1000}
       (let [snapshot (-> cache
-                       (cache-encache [[:a 1] [:b 2] [:c 3]]))]
+                       (cache-encache {(gt/endpoint 1 :a) 1
+                                       (gt/endpoint 1 :b) 2
+                                       (gt/endpoint 1 :c) 3}))]
         (are [k v] (= v (get snapshot k))
-          :a 1
-          :b 2
-          :c 3))))
+          (gt/endpoint 1 :a) 1
+          (gt/endpoint 1 :b) 2
+          (gt/endpoint 1 :c) 3))))
 
   (testing "one item can be decached"
     (with-clean-system
-      (is (= {:a 1 :c 3} (-> cache
-                           (cache-encache [[:a 1] [:b 2] [:c 3]])
-                           (cache-invalidate [:b])
-                           (as-map))))))
+      (is (= {(gt/endpoint 1 :a) 1
+              (gt/endpoint 1 :c) 3}
+             (-> cache
+               (cache-encache {(gt/endpoint 1 :a) 1
+                               (gt/endpoint 1 :b) 2
+                               (gt/endpoint 1 :c) 3})
+               (cache-invalidate [(gt/endpoint 1 :b)])
+               (as-map))))))
 
   (testing "multiple items can be decached"
     (with-clean-system
       (is (empty? (-> cache
-                    (cache-encache [[:a 1] [:b 2] [:c 3]])
-                    (cache-invalidate [:b :c])
-                    (cache-invalidate [:a])
+                    (cache-encache {(gt/endpoint 1 :a) 1
+                                    (gt/endpoint 1 :b) 2
+                                    (gt/endpoint 1 :c) 3})
+                    (cache-invalidate [(gt/endpoint 1 :b) (gt/endpoint 1 :c)])
+                    (cache-invalidate [(gt/endpoint 1 :a)])
                     (as-map)))))))
 
 (deftest limits
   (with-clean-system {:cache-size 3}
      (let [snapshot (-> cache
-                      (cache-encache [[[:a :a] 1] [[:b :b] 2] [[:c :c] 3]])
-                      (cache-hit [[:a :a] [:c :c]])
-                      (cache-encache [[[:d :d] 4]]))]
+                      (cache-encache {(gt/endpoint 1 :a) 1
+                                      (gt/endpoint 1 :b) 2
+                                      (gt/endpoint 1 :c) 3})
+                      (cache-hit [(gt/endpoint 1 :a)
+                                  (gt/endpoint 1 :c)])
+                      (cache-encache {(gt/endpoint 1 :d) 4}))]
        (are [k v] (= v (get snapshot k))
-            [:a :a] 1
-            [:c :c] 3
-            [:d :d] 4))))
+            (gt/endpoint 1 :a) 1
+            (gt/endpoint 1 :c) 3
+            (gt/endpoint 1 :d) 4))))

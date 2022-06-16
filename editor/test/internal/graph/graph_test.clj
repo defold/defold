@@ -168,22 +168,22 @@
       (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
         (is (= "original" (g/node-value n :val)))
 
-        (is (= ::miss (cc/lookup (g/cache) [n :val-val] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
         (is (= "originaloriginal" (g/node-value n :val-val)))
-        (is (= "originaloriginal" (cc/lookup (g/cache) [n :val-val] ::miss)))
+        (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
 
         (let [clone (g/clone-system)]
           (g/with-system clone
-            (is (= "originaloriginal" (cc/lookup (g/cache) [n :val-val] ::miss)))
+            (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
 
             (g/transact (g/set-property n :val "cloned"))
             (is (= "cloned" (g/node-value n :val)))
 
-            (is (= ::miss (cc/lookup (g/cache) [n :val-val] ::miss)))
+            (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
             (is (= "clonedcloned" (g/node-value n :val-val)))
-            (is (= "clonedcloned" (cc/lookup (g/cache) [n :val-val] ::miss)))))
+            (is (= "clonedcloned" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))))
 
-        (is (= "originaloriginal" (cc/lookup (g/cache) [n :val-val] :miss)))))))
+        (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) :miss)))))))
 
 (deftest evaluation-context
   (testing "node-value sees state of graphs as given in evaluation-context"
@@ -207,11 +207,11 @@
                                                   n2 PassthroughNode]
                                            (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
         (g/node-value n2 :str-out init-ec)
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
         (g/update-cache-from-evaluation-context! init-ec)
-        (is (= "initial" (cc/lookup (g/cache) [n2 :str-out]))))))
+        (is (= "initial" (cc/lookup (g/cache) (gt/endpoint n2 :str-out)))))))
 
   (testing "Updating cache does not change entries for invalidated outputs"
     (with-clean-system
@@ -220,13 +220,13 @@
                                            (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
         (g/node-value n2 :str-out init-ec)
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
 
         (g/transact (g/set-property n :val "change that invalidates n2 :str-out"))
 
         (g/update-cache-from-evaluation-context! init-ec)
 
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss))))))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss))))))
 
   (testing "Update cache does not add entries for deleted nodes"
     (with-clean-system
@@ -235,13 +235,13 @@
                                            (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
         (g/node-value n2 :str-out init-ec)
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
 
         (g/transact (g/delete-node n2))
 
         (g/update-cache-from-evaluation-context! init-ec)
 
-        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))))))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))))))
 
 (deftest tracer
   (with-clean-system

@@ -10,7 +10,9 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns internal.graph.types)
+(ns internal.graph.types
+  (:import [clojure.lang IHashEq Keyword]
+           [java.io Writer]))
 
 (set! *warn-on-reflection* true)
 
@@ -22,6 +24,49 @@
 (defn target-id [^Arc arc] (.target-id arc))
 (defn target-label [^Arc arc] (.target-label arc))
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
+
+(deftype Endpoint [^Long node-id ^Keyword label]
+  IHashEq
+  (hasheq [_]
+    (unchecked-add-int
+      (unchecked-multiply-int 31 (.hashCode node-id))
+      (.hasheq label)))
+  Object
+  (toString [_]
+    (str "#g/endpoint [" node-id " " label "]"))
+  (hashCode [_]
+    (unchecked-add-int
+      (unchecked-multiply-int 31 (.hashCode node-id))
+      (.hasheq label)))
+  (equals [this that]
+    (or (identical? this that)
+        (and (instance? Endpoint that)
+             (let [^Endpoint that that]
+               (and
+                 (.equals (.-node-id that) node-id)
+                 (.equals (.-label that) label)))))))
+
+(defmethod print-method Endpoint [^Endpoint ep ^Writer writer]
+  (.write writer "#g/endpoint [")
+  (.write writer (str (.-node-id ep)))
+  (.write writer " ")
+  (.write writer (str (.-label ep)))
+  (.write writer "]"))
+
+(defn- read-endpoint [[node-id-expr label-expr]]
+  `(->Endpoint ~node-id-expr ~label-expr))
+
+(definline endpoint [node-id label]
+  `(->Endpoint ~node-id ~label))
+
+(definline endpoint-node-id [endpoint]
+  `(.-node-id ~(with-meta endpoint {:tag `Endpoint})))
+
+(definline endpoint-label [endpoint]
+  `(.-label ~(with-meta endpoint {:tag `Endpoint})))
+
+(defn endpoint? [x]
+  (instance? Endpoint x))
 
 (defn node-id? [v] (integer? v))
 
@@ -60,13 +105,13 @@
   (connect          [this source-id source-label target-id target-label])
   (disconnect       [this source-id source-label target-id target-label])
   (connected?       [this source-id source-label target-id target-label])
-  (dependencies     [this outputs-by-node-ids]
+  (dependencies     [this endpoints]
     "Follow arcs through the graphs, from outputs to the inputs
      connected to them, and from those inputs to the downstream
      outputs that use them, and so on. Continue following links until
      all reachable outputs are found.
 
-     Takes and returns a map of the form {node-id #{label ...} ...}")
+     Takes a coll of endpoints and returns a set of endpoints")
   (original-node    [this node-id]))
 
 (defn basis? [value]

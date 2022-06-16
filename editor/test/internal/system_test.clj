@@ -274,7 +274,7 @@
 
           (is (= (undo-redo-states pgraph-id) [[nil] [3 1]]))))))
 
-(testing "Canceling a sequence that is not the current sequence does nothing"
+  (testing "Canceling a sequence that is not the current sequence does nothing"
     (ts/with-clean-system
       (let [pgraph-id (g/make-graph! :history true)]
 
@@ -314,9 +314,9 @@
           (touch node-p 1 :a)
 
           (g/transact [(g/set-property node-p :touched 2)
-                        (g/set-property node-a :touched 2)
-                        (g/operation-label 2)
-                        (g/operation-sequence :a)])
+                       (g/set-property node-a :touched 2)
+                       (g/operation-label 2)
+                       (g/operation-sequence :a)])
 
           (touch node-p 3 :c)
 
@@ -363,19 +363,19 @@
           (g/connect pipe-p1   :soft         sink-a1 :target-label)
           (g/connect source-a1 :source-label sink-a2 :target-label)])
 
-        (is (= (ts/graph-dependencies [[source-a1 :source-label]])
-               #{[sink-a2   :loud]
-                 [source-a1 :source-label]
-                 [source-a1 :_declared-properties]
-                 [source-a1 :_properties]}))
+        (is (= (ts/graph-dependencies [(gt/endpoint source-a1 :source-label)])
+               #{(gt/endpoint sink-a2   :loud)
+                 (gt/endpoint source-a1 :source-label)
+                 (gt/endpoint source-a1 :_declared-properties)
+                 (gt/endpoint source-a1 :_properties)}))
 
-        (is (= (ts/graph-dependencies [[source-p1 :source-label]])
-               #{[sink-p1   :loud]
-                 [pipe-p1   :soft]
-                 [sink-a1   :loud]
-                 [source-p1 :source-label]
-                 [source-p1 :_declared-properties]
-                 [source-p1 :_properties]}))))))
+        (is (= (ts/graph-dependencies [(gt/endpoint source-p1 :source-label)])
+               #{(gt/endpoint sink-p1   :loud)
+                 (gt/endpoint pipe-p1   :soft)
+                 (gt/endpoint sink-a1   :loud)
+                 (gt/endpoint source-p1 :source-label)
+                 (gt/endpoint source-p1 :_declared-properties)
+                 (gt/endpoint source-p1 :_properties)}))))))
 
 (g/defnode ChainedLink
   (input source-label g/Str)
@@ -442,9 +442,9 @@
 
         (is (= 2 (count (ts/undo-stack project-graph))))        
 
-        (is (= #{[p-source :_declared-properties]
-                 [p-source :source-label]
-                 [p-source :_properties]}
+        (is (= #{(gt/endpoint p-source :_declared-properties)
+                 (gt/endpoint p-source :source-label)
+                 (gt/endpoint p-source :_properties)}
                (set (successors p-source :source-label))))
         (is (= nil (sarcs p-source :source-label)))
         (is (= nil (tarcs v-sink :target-label)))
@@ -455,10 +455,10 @@
 
         (is (= 3 (count (ts/undo-stack project-graph))))
 
-        (is (= #{[p-source :_declared-properties]
-                 [p-source :source-label]
-                 [p-source :_properties]
-                 [v-sink :loud]}
+        (is (= #{(gt/endpoint p-source :_declared-properties)
+                 (gt/endpoint p-source :source-label)
+                 (gt/endpoint p-source :_properties)
+                 (gt/endpoint v-sink :loud)}
                (set (successors p-source :source-label))))
         (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (sarcs p-source :source-label))))
         (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (tarcs v-sink :target-label))))
@@ -470,10 +470,10 @@
         (is (= 2 (count (ts/undo-stack project-graph))))
 
         ;; check hydrated after undo, v-sink :loud used to be missing from successors
-        (is (= #{[p-source :_declared-properties]
-                 [p-source :source-label]
-                 [p-source :_properties]
-                 [v-sink :loud]}
+        (is (= #{(gt/endpoint p-source :_declared-properties)
+                 (gt/endpoint p-source :source-label)
+                 (gt/endpoint p-source :_properties)
+                 (gt/endpoint v-sink :loud)}
                (set (successors p-source :source-label))))
         (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (sarcs p-source :source-label))))
         (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (tarcs v-sink :target-label))))
@@ -516,12 +516,12 @@
 
           (is (= (undo-redo-states pgraph-id) [[nil nil] []]))
 
-          (is (= (ts/graph-dependencies [[source-p1 :source-label]])
-                 #{[sink-p1   :loud]
-                   [pipe-p1   :soft]
-                   [source-p1 :source-label]
-                   [source-p1 :_declared-properties]
-                   [source-p1 :_properties]}))))))
+          (is (= (ts/graph-dependencies [(gt/endpoint source-p1 :source-label)])
+                 #{(gt/endpoint sink-p1   :loud)
+                   (gt/endpoint pipe-p1   :soft)
+                   (gt/endpoint source-p1 :source-label)
+                   (gt/endpoint source-p1 :_declared-properties)
+                   (gt/endpoint source-p1 :_properties)}))))))
 
   (testing "Nodes in a deleted graph are deleted"
     (ts/with-clean-system
@@ -561,11 +561,11 @@
 
           (is (nil? (is/graph @g/*the-system* project-graph-id)))
 
-          (is (= (ts/graph-dependencies [[source-a1 :source-label]])
-                 #{[sink-a2   :loud]
-                   [source-a1 :source-label]
-                   [source-a1 :_declared-properties]
-                   [source-a1 :_properties]})))))))
+          (is (= (ts/graph-dependencies [(gt/endpoint source-a1 :source-label)])
+                 #{(gt/endpoint sink-a2   :loud)
+                   (gt/endpoint source-a1 :source-label)
+                   (gt/endpoint source-a1 :_declared-properties)
+                   (gt/endpoint source-a1 :_properties)})))))))
 
 (deftest graph-values
   (testing "Values can be attached to graphs"

@@ -23,7 +23,8 @@
             [editor.workspace :as workspace]
             [editor.types :as types]
             [editor.properties :as properties]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [editor.types Region]
            [java.awt.image BufferedImage]
            [java.io File]
@@ -68,10 +69,10 @@
           go-id (test-util/resource-node project "/logic/atlas_sprite.go")
           go-scene (g/node-value go-id :scene)
           sprite (get-in go-scene [:children 0 :node-id])]
-      (is (reachable? [sprite :scene] [go-id :scene]))
-      (is (reachable? [sprite :scene] [(get-in scene [:children 0 :node-id]) :scene]))
-      (is (reachable? [go-id :scene] [(get-in scene [:children 0 :node-id]) :scene]))
-      (is (reachable? [(get-in scene [:children 0 :node-id]) :scene] [node-id :scene])))))
+      (is (reachable? (gt/endpoint sprite :scene) (gt/endpoint go-id :scene)))
+      (is (reachable? (gt/endpoint sprite :scene) (gt/endpoint (get-in scene [:children 0 :node-id]) :scene)))
+      (is (reachable? (gt/endpoint go-id :scene) (gt/endpoint (get-in scene [:children 0 :node-id]) :scene)))
+      (is (reachable? (gt/endpoint (get-in scene [:children 0 :node-id]) :scene) (gt/endpoint node-id :scene))))))
 
 (deftest add-embedded-instance
   (testing "Hierarchical scene"

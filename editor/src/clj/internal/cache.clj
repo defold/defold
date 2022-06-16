@@ -11,7 +11,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.cache
-  (:require [clojure.core.cache :as cc]))
+  (:require [clojure.core.cache :as cc]
+            [internal.graph.types :as gt]))
 
 (set! *warn-on-reflection* true)
 
@@ -38,19 +39,22 @@
 (defn- encache
   [cache kvs]
   (if-let [kv (first kvs)]
-    (recur (cc/miss cache (first kv) (second kv)) (next kvs))
+    (do (assert (gt/endpoint? (first kv)))
+        (recur (cc/miss cache (first kv) (second kv)) (next kvs)))
     cache))
 
 (defn- hits
   [cache ks]
   (if-let [k (first ks)]
-    (recur (cc/hit cache k) (next ks))
+    (do (assert (gt/endpoint? k))
+        (recur (cc/hit cache k) (next ks)))
     cache))
 
 (defn- evict
   [cache ks]
   (if-let [k (first ks)]
-    (recur (cc/evict cache k) (next ks))
+    (do (assert (gt/endpoint? k))
+        (recur (cc/evict cache k) (next ks)))
     cache))
 
 ;; ----------------------------------------
@@ -63,11 +67,11 @@
 
 (defn make-cache
   ([]
-    (make-cache default-cache-limit))
+   (make-cache default-cache-limit))
   ([limit]
-    (if (zero? limit)
-      null-cache
-      (cc/lru-cache-factory {} :threshold limit))))
+   (if (zero? limit)
+     null-cache
+     (cc/lru-cache-factory {} :threshold limit))))
 
 (defn cache-hit
   [cache ks]

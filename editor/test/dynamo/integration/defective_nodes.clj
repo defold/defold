@@ -13,10 +13,11 @@
 (ns dynamo.integration.defective-nodes
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [support.test-support :refer [with-clean-system tx-nodes]]
+            [internal.graph.types :as gt]))
 
 (defn- cache-peek [cache node-id label]
-  (get cache [node-id label]))
+  (get cache (gt/endpoint node-id label)))
 
 (defn- cached? [cache node-id label]
   (not (nil? (cache-peek cache node-id label))))
