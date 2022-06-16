@@ -799,6 +799,8 @@ namespace dmProfileRender
 
     void DeleteProfilerFrame(ProfilerFrame* frame)
     {
+        if (!frame)
+            return;
         for (uint32_t i = 0; i < frame->m_Threads.Size(); ++i)
         {
             DeleteProfilerThread(frame->m_Threads[i]);
