@@ -3450,6 +3450,8 @@ static void Base64_Encode(const rmtU8* in_bytes, rmtU32 length, rmtU8* out_bytes
 // domain. The author hereby disclaims copyright to this source code.
 //-----------------------------------------------------------------------------
 
+#if RMT_USE_INTERNAL_HASH_FUNCTION
+
 static rmtU32 rotl32(rmtU32 x, rmtS8 r)
 {
     return (x << r) | (x >> (32 - r));
@@ -3534,6 +3536,19 @@ static rmtU32 MurmurHash3_x86_32(const void* key, int len, rmtU32 seed)
 
     return h1;
 }
+
+rmtU32 rmt_HashString32(const char* s, int len, rmtU32 seed)
+{
+    return MurmurHash3_x86_32(s, len, seed);
+}
+
+#else
+    #if defined(__cplusplus)
+    extern "C"
+    #endif
+    rmtU32 rmt_HashString32(const char* s, int len, rmtU32 seed);
+
+#endif // RMT_USE_INTERNAL_HASH_FUNCTION
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
@@ -4987,7 +5002,7 @@ static rmtError QueueThreadName(rmtMessageQueue* queue, const char* name, Thread
     }
 
     // Copy and commit
-    U32ToByteArray(message->payload, MurmurHash3_x86_32(name, name_length, 0));
+    U32ToByteArray(message->payload, rmt_HashString32(name, name_length, 0));
     U32ToByteArray(message->payload + sizeof(rmtU32), name_length);
     memcpy(message->payload + sizeof(rmtU32) * 2, name, name_length);
     rmtMessageQueue_CommitMessage(message, MsgID_ThreadName);
@@ -5021,7 +5036,7 @@ static rmtError ThreadProfiler_Constructor(rmtMessageQueue* mq_to_rmt, ThreadPro
     // Users can override this at a later point with the Remotery thread name API
     rmtGetThreadName(thread_id, thread_profiler->threadHandle, thread_profiler->threadName, sizeof(thread_profiler->threadName));
     name_length = strnlen_s(thread_profiler->threadName, 64);
-    thread_profiler->threadNameHash = MurmurHash3_x86_32(thread_profiler->threadName, name_length, 0);
+    thread_profiler->threadNameHash = rmt_HashString32(thread_profiler->threadName, name_length, 0);
     QueueThreadName(mq_to_rmt, thread_profiler->threadName, thread_profiler);
 
     // Create the CPU sample tree only. The rest are created on-demand as they need extra context to function correctly.
@@ -5162,7 +5177,7 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
         {
             assert(name != NULL);
             name_len = strnlen_s(name, 256);
-            name_hash = MurmurHash3_x86_32(name, name_len, 0);
+            name_hash = rmt_HashString32(name, name_len, 0);
 
             // Queue the string for the string table and only cache the hash if it succeeds
             if (QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler) == RMT_TRUE)
@@ -5176,7 +5191,7 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
 
     // Have to recalculate and speculatively insert the name every time when no cache storage exists
     name_len = strnlen_s(name, 256);
-    name_hash = MurmurHash3_x86_32(name, name_len, 0);
+    name_hash = rmt_HashString32(name, name_len, 0);
     QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler);
     return name_hash;
 }
@@ -7053,7 +7068,7 @@ RMT_API void _rmt_SetCurrentThreadName(rmtPStr thread_name)
 
     // Copy name and apply to the debugger
     strcpy_s(thread_profiler->threadName, sizeof(thread_profiler->threadName), thread_name);
-    thread_profiler->threadNameHash = MurmurHash3_x86_32(thread_name, strnlen_s(thread_name, 64), 0);
+    thread_profiler->threadNameHash = rmt_HashString32(thread_name, strnlen_s(thread_name, 64), 0);
     SetDebuggerThreadName(thread_name);
 
     // Send the thread name for lookup
@@ -9854,7 +9869,7 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
             }
 
             name_len = strnlen_s(name, 256);
-            property->nameHash = MurmurHash3_x86_32(name, name_len, 0);
+            property->nameHash = rmt_HashString32(name, name_len, 0);
             QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
 /// END DEFOLD
 

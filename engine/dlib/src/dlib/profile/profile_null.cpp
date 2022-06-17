@@ -102,6 +102,11 @@ namespace dmProfile
         return false;
     }
 
+    uint32_t SampleGetNameHash(HSample sample)
+    {
+        return 0;
+    }
+
     const char* SampleGetName(HSample sample)
     {
         return 0;
@@ -157,17 +162,17 @@ namespace dmProfile
 
     // Property accessors
 
+    uint32_t PropertyGetNameHash(HProperty hproperty)
+    {
+        return 0;
+    }
+
     const char* PropertyGetName(HProperty hproperty)
     {
         return 0;
     }
 
     const char* PropertyGetDesc(HProperty hproperty)
-    {
-        return 0;
-    }
-
-    uint64_t PropertyGetNameHash(HProperty hproperty)
     {
         return 0;
     }

@@ -101,11 +101,6 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
 
-        for (uint32_t i = 0; i < g_ProfilerCurrentFrame->m_Properties.Size(); ++i)
-        {
-            dmProfileRender::ProfilerProperty& property = g_ProfilerCurrentFrame->m_Properties[i];
-            free((void*)property.m_Name);
-        }
         g_ProfilerCurrentFrame->m_Properties.SetSize(0);
 
         dmRender::RenderListBegin(render_context);
@@ -538,9 +533,7 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     out.m_Count = dmProfile::SampleGetCallCount(sample);
     out.m_Color = dmProfile::SampleGetColor(sample);
     out.m_Indent = (uint8_t)indent;
-
-    const char* name = dmProfile::SampleGetName(sample); // Do not store this pointer!
-    out.m_Name = strdup(name);
+    out.m_NameHash = dmProfile::SampleGetNameHash(sample);
 
     if (thread->m_Samples.Full())
         thread->m_Samples.OffsetCapacity(32);
@@ -575,7 +568,8 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     // Prune old profiler threads
     dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 150000);
 
-    dmProfileRender::ProfilerThread* thread = dmProfileRender::FindOrCreateProfilerThread(frame, thread_name);
+    uint32_t name_hash = dmHashString32(thread_name);
+    dmProfileRender::ProfilerThread* thread = dmProfileRender::FindOrCreateProfilerThread(frame, name_hash);
     dmProfileRender::ClearProfilerThreadSamples(thread);
 
     thread->m_Time = frame->m_Time;
@@ -591,12 +585,11 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
 
 static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
 {
-    const char* name = dmProfile::PropertyGetName(property); // Do not store this pointer!
-    dmhash_t name_hash = dmProfile::PropertyGetNameHash(property);
+    uint32_t name_hash = dmProfile::PropertyGetNameHash(property);
     dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
     dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
 
-    dmProfileRender::AddProperty(frame, name, name_hash, type, value, indent);
+    dmProfileRender::AddProperty(frame, name_hash, type, value, indent);
 }
 
 static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)

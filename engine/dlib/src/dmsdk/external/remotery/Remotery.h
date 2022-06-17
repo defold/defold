@@ -109,6 +109,11 @@ documented just below this comment.
 #define RMT_D3D11_RESYNC_ON_DISJOINT 1
 #endif
 
+// If RMT_USE_INTERNAL_HASH_FUNCTION is defined, the internal function is used implemented.
+// If set to 0, it adds an extern reference to this rmt_HashString32(const char* s, int len, rmtU32 seed)
+#ifndef RMT_USE_INTERNAL_HASH_FUNCTION
+#define RMT_USE_INTERNAL_HASH_FUNCTION 1
+#endif
 
 /*--------------------------------------------------------------------------------------------------------------------------------
    Compiler/Platform Detection and Preprocessor Utilities
@@ -729,6 +734,15 @@ typedef struct rmtProperty
 // Reset all RMT_PropertyFlags_FrameReset properties to their default value
 #define rmt_PropertyFrameResetAll() _rmt_PropertyFrameResetAll()
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+rmtU32 rmt_HashString32(const char* s, int len, rmtU32 seed);
+
+#ifdef __cplusplus
+}
+#endif
 
 /* --- Private Details ---------------------------------------------------------------------------------------------------------*/
 

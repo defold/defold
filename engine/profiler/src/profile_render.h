@@ -49,7 +49,7 @@ namespace dmProfileRender
 
     struct ProfilerSample
     {
-        const char* m_Name;
+        uint32_t m_NameHash;
         uint64_t m_StartTime;
         uint64_t m_Time;
         uint64_t m_SelfTime;
@@ -60,8 +60,7 @@ namespace dmProfileRender
 
     struct ProfilerProperty
     {
-        const char*                 m_Name;
-        dmhash_t                    m_NameHash;
+        uint32_t                    m_NameHash;
         dmProfile::PropertyValue    m_Value;
         dmProfile::PropertyType     m_Type;
         uint8_t                     m_Indent; // The stack depth
@@ -70,8 +69,7 @@ namespace dmProfileRender
     struct ProfilerThread
     {
         dmArray<ProfilerSample>     m_Samples;
-        dmhash_t                    m_NameHash;
-        const char*                 m_Name;
+        uint32_t                    m_NameHash;
         uint64_t                    m_Time;             // The time of the last update for this thread
         uint64_t                    m_SamplesTotalTime; // The elapsed time of the samples in the thread
 
@@ -101,12 +99,11 @@ namespace dmProfileRender
 
     //
     void ClearProfilerThreadSamples(ProfilerThread* thread);
-    ProfilerThread* FindOrCreateProfilerThread(ProfilerFrame* ctx, const char* name);
+    ProfilerThread* FindOrCreateProfilerThread(ProfilerFrame* ctx, uint32_t name_hash);
     void DeleteProfilerFrame(ProfilerFrame* frame);
-    //void ClearProfilerFrame(ProfilerFrame* frame);
     void PruneProfilerThreads(ProfilerFrame* ctx, uint64_t time);
 
-    void AddProperty(ProfilerFrame* frame, const char* name, dmhash_t name_hash, dmProfile::PropertyType type, dmProfile::PropertyValue value, int indent);
+    void AddProperty(ProfilerFrame* frame, uint32_t name_hash, dmProfile::PropertyType type, dmProfile::PropertyValue value, int indent);
 }
 
 #endif
