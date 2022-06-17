@@ -796,8 +796,6 @@ namespace dmProfileRender
         {
             DeleteProfilerThread(frame->m_Threads[i]);
         }
-        frame->m_Threads.SetSize(0);
-        frame->m_Properties.SetSize(0);
         delete frame;
     }
 

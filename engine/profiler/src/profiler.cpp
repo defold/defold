@@ -101,8 +101,6 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
 
-        g_ProfilerCurrentFrame->m_Properties.SetSize(0);
-
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
@@ -110,6 +108,11 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         dmRender::SetProjectionMatrix(render_context, dmVMath::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
         dmRender::DrawRenderList(render_context, 0, 0, 0);
         dmRender::ClearRenderObjects(render_context);
+    }
+
+    if (g_ProfilerCurrentFrame)
+    {
+        g_ProfilerCurrentFrame->m_Properties.SetSize(0);
     }
 }
 
