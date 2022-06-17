@@ -63,10 +63,9 @@
 
 (defn- read-resource [req] 
   (let [mime-type (get-mime-type (:url req))
-        resource (try-package-path req)
-        resource (if (nil? resource) (try-local-path req) resource)
-        data (if (nil? resource) nil (slurp resource))
-        code (if (nil? data) 404 200)]
+        resource (or (try-package-path req) (try-local-path req))
+        data (some-> resource slurp)
+        code (if data 200 404)]
     {:code code
      :headers {"Content-Type" mime-type}
      :body data}))
