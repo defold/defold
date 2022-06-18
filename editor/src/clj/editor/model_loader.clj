@@ -38,11 +38,11 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn- load-model-scene [stream ext]
+(defn- load-model-scene [stream path]
   (let [mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         options nil
-        scene (ModelUtil/loadScene stream ext options)
+        scene (ModelUtil/loadScene stream path options)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ArrayList.)]
@@ -63,6 +63,6 @@
     (let [ext (clojure.string/lower-case (resource/ext resource))]
       (if (= "dae" ext)
         (load-collada-scene stream)
-        (load-model-scene stream ext)))))
+        (load-model-scene stream (resource/path resource))))))
 
 (set! *warn-on-reflection* true)
