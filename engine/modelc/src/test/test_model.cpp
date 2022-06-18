@@ -37,8 +37,7 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
 
 TEST(ModelGLTF, Load)
 {
-    //const char* path = "/Users/mawe/work/projects/users/mawe/ModelTestKenneyFbx/assets/models/kenney/characters2/Animations/idle_test.glb";
-    const char* path = "/Users/mawe/work/projects/users/mawe/example-racing/assets/models/car_01.glb";
+    const char* path = "./src/test/assets/car01.glb";
     uint32_t file_size = 0;
     void* mem = dmModelImporter::ReadFile(path, &file_size);
 
