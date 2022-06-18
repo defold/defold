@@ -105,10 +105,10 @@ def shutdown():
 
     # The test should work on OSX, but the CI (Catalina) just crashed with no callstack (even in lldb)
     # Postponing a fix until I've updated to Catalina on my machine as well
-    if not sys.platform in ('win32', 'darwin'):
-        import subprocess
-        proc = subprocess.Popen('./scripts/run_test_memprofile.sh', shell = True)
-        ret = proc.wait()
-        if ret != 0:
-            print("test failed test_memprofile")
-            sys.exit(ret)
+    # if not sys.platform in ('win32', 'darwin'):
+    #     import subprocess
+    #     proc = subprocess.Popen('./scripts/run_test_memprofile.sh', shell = True)
+    #     ret = proc.wait()
+    #     if ret != 0:
+    #         print("test failed test_memprofile")
+    #         sys.exit(ret)

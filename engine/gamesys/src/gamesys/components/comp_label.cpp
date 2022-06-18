@@ -282,7 +282,7 @@ namespace dmGameSystem
 
     static void UpdateTransforms(LabelWorld* world, bool sub_pixels)
     {
-        DM_PROFILE(Label, "UpdateTransforms");
+        DM_PROFILE("UpdateTransforms");
 
         dmArray<LabelComponent>& components = world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -425,6 +425,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompLabelRender(const dmGameObject::ComponentsRenderParams& params)
     {
+        DM_PROFILE("Render");
         LabelContext* label_context = (LabelContext*)params.m_Context;
         LabelWorld* world = (LabelWorld*)params.m_World;
         dmRender::HRenderContext render_context = label_context->m_RenderContext;

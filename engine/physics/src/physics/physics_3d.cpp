@@ -369,7 +369,7 @@ namespace dmPhysics
         // Update all trigger transforms before physics world step
         if (world->m_GetWorldTransform != 0x0)
         {
-            DM_PROFILE(Physics, "UpdateTriggers");
+            DM_PROFILE("UpdateTriggers");
             int collision_object_count = world->m_DynamicsWorld->getNumCollisionObjects();
             btCollisionObjectArray& collision_objects = world->m_DynamicsWorld->getCollisionObjectArray();
             for (int i = 0; i < collision_object_count; ++i)
@@ -421,7 +421,7 @@ namespace dmPhysics
         }
 
         {
-            DM_PROFILE(Physics, "StepSimulation");
+            DM_PROFILE("StepSimulation");
 
             // Default behavior for Bullet3D is to use fixed timesteps with max_steps=1 and fixed_timestep=1.0f/60.0f
             float dt = step_context.m_DT;
@@ -435,7 +435,7 @@ namespace dmPhysics
         uint32_t size = world->m_RayCastRequests.Size();
         if (size > 0)
         {
-            DM_PROFILE(Physics, "RayCasts");
+            DM_PROFILE("RayCasts");
             for (uint32_t i = 0; i < size; ++i)
             {
                 const RayCastRequest& request = world->m_RayCastRequests[i];
@@ -477,7 +477,7 @@ namespace dmPhysics
         float contact_impulse_limit = world->m_Context->m_ContactImpulseLimit;
         if (collision_callback != 0x0 || contact_point_callback != 0x0)
         {
-            DM_PROFILE(Physics, "CollisionCallbacks");
+            DM_PROFILE("CollisionCallbacks");
             int num_manifolds = dispatcher->getNumManifolds();
             for (int i = 0; i < num_manifolds && (requests_collision_callbacks || requests_contact_callbacks); ++i)
             {
@@ -556,7 +556,7 @@ namespace dmPhysics
 
     void UpdateOverlapCache(OverlapCache* cache, HContext3D context, btDispatcher* dispatcher, const StepWorldContext& step_context)
     {
-        DM_PROFILE(Physics, "TriggerCallbacks");
+        DM_PROFILE("TriggerCallbacks");
         OverlapCacheReset(cache);
         OverlapCacheAddData add_data;
         add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
@@ -959,7 +959,7 @@ namespace dmPhysics
 
     void SetEnabled3D(HWorld3D world, HCollisionObject3D collision_object, bool enabled)
     {
-        DM_PROFILE(Physics, "SetEnabled");
+        DM_PROFILE("SetEnabled3D");
         bool prev_enabled = IsEnabled3D(collision_object);
         // avoid multiple adds/removes
         if (prev_enabled == enabled)
@@ -1180,7 +1180,7 @@ namespace dmPhysics
 
     void RayCast3D(HWorld3D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
     {
-        DM_PROFILE(Physics, "RayCasts");
+        DM_PROFILE("RayCast3D");
 
         if (lengthSqr(request.m_To - request.m_From) <= 0.0f)
         {

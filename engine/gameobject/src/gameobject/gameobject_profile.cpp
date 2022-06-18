@@ -214,7 +214,7 @@ bool TraverseGetRoot(HRegister regist, SceneNode* node)
 
 SceneNodeIterator TraverseIterateChildren(SceneNode* node)
 {
-    DM_PROFILE(Inspect, "TraverseIterateChildren");
+    DM_PROFILE("TraverseIterateChildren");
 
     FIteratorChildren fn = 0;
     switch(node->m_Type)
@@ -236,7 +236,7 @@ SceneNodeIterator TraverseIterateChildren(SceneNode* node)
 
 bool TraverseIterateNext(SceneNodeIterator* it)
 {
-    DM_PROFILE(Inspect, "TraverseIterateNext");
+    DM_PROFILE("TraverseIterateNext");
     return it->m_FnIterateNext(it);
 }
 
@@ -496,7 +496,7 @@ static void IterateSubComponentProperties(SceneNodePropertyIterator* pit, SceneN
 
 SceneNodePropertyIterator TraverseIterateProperties(SceneNode* node)
 {
-    DM_PROFILE(Inspect, "TraverseIterateProperties");
+    DM_PROFILE("TraverseIterateProperties");
 
     static bool first = true;
     if (first) {
@@ -526,7 +526,7 @@ SceneNodePropertyIterator TraverseIterateProperties(SceneNode* node)
 
 bool TraverseIteratePropertiesNext(SceneNodePropertyIterator* pit)
 {
-    DM_PROFILE(Inspect, "TraverseIterateNext");
+    DM_PROFILE("TraverseIterateNext");
     if (pit->m_Node == 0)
         return false;
     return pit->m_FnIterateNext(pit);

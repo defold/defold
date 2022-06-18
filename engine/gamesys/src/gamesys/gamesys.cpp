@@ -18,6 +18,7 @@
 
 #include <dmsdk/dlib/log.h>
 #include <dlib/static_assert.h>
+#include <dlib/profile.h>
 #include <gameobject/gameobject.h>
 #include <graphics/graphics.h>
 #include <input/input.h>
@@ -73,6 +74,9 @@
 #include "components/comp_sprite.h"
 #include "components/comp_tilegrid.h"
 #include "components/comp_label.h"
+
+DM_PROPERTY_GROUP(rmtp_GameSys, "Gameobjects");
+DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components", &rmtp_GameSys);
 
 namespace dmGameSystem
 {

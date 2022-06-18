@@ -532,7 +532,7 @@ namespace dmRig
 
     static void Animate(HRigContext context, float dt)
     {
-        DM_PROFILE(Rig, "Animate");
+        DM_PROFILE("RigAnimate");
 
         const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         uint32_t n = instances.Size();
@@ -633,7 +633,7 @@ namespace dmRig
             }
 
             if (skeleton->m_Iks.m_Count > 0) {
-                DM_PROFILE(Rig, "IK");
+                DM_PROFILE("RigIK");
                 const uint32_t count = skeleton->m_Iks.m_Count;
                 dmArray<IKTarget>& ik_targets = instance->m_IKTargets;
 
@@ -720,7 +720,7 @@ namespace dmRig
 
     Result Update(HRigContext context, float dt)
     {
-        DM_PROFILE(Rig, "Update");
+        DM_PROFILE("RigUpdate");
 
         Animate(context, dt);
 

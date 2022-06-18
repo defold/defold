@@ -14,6 +14,7 @@
 
 #include <string.h>
 
+#include <dlib/dlib.h>
 #include <dlib/array.h>
 #include <dlib/buffer.h>
 #include <dlib/hash.h>
@@ -45,6 +46,10 @@
 #include <gui/gui_script.h>
 
 #include <dmsdk/gamesys/gui.h>
+
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_GROUP(rmtp_ComponentsGui, "Gui component");
+DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_ComponentsGui);
 
 namespace dmGameSystem
 {
@@ -309,7 +314,7 @@ namespace dmGameSystem
                     // Even though we cancel animation we still need flipbook hash:
                     // https://github.com/defold/defold/issues/6551
                     // We can't move this logic into dmGui::PlayNodeFlipbookAnim()
-                    // because if we do so we will never play all the one-frame animations which is a breaking 
+                    // because if we do so we will never play all the one-frame animations which is a breaking
                     // change. In this case, we cancel one-frame animation ONLY when we initially setup node.
                     if (dmGui::GetNodeAnimationFrameCount(scene, n) == 1)
                     {
@@ -385,6 +390,30 @@ namespace dmGameSystem
             case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:
                 dmLogError("Template nodes are not supported in run-time '%s', result: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::RESULT_INVAL_ERROR);
                 result = false;
+            break;
+
+
+            case dmGui::NODE_TYPE_CUSTOM:
+            {
+                GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+                uint32_t custom_type = dmGui::GetNodeCustomType(scene, n);
+                void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
+                const CompGuiNodeType* node_type = GetCompGuiCustomType(component->m_World->m_CompGuiContext, custom_type);
+
+                if (node_type->m_SetNodeDesc)
+                {
+                    CompGuiNodeContext ctx;
+
+                    CustomNodeCtx nodectx;
+                    nodectx.m_Scene = scene;
+                    nodectx.m_Node = n;
+                    nodectx.m_TypeContext = node_type->m_Context;
+                    nodectx.m_NodeData = custom_node_data;
+                    nodectx.m_Type = custom_type;
+
+                    node_type->m_SetNodeDesc(&ctx, &nodectx, node_desc);
+                }
+            }
             break;
 
             default:
@@ -573,26 +602,6 @@ namespace dmGameSystem
             else
             {
                 result = false;
-            }
-
-            if (type == dmGui::NODE_TYPE_CUSTOM)
-            {
-                void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
-                const CompGuiNodeType* node_type = GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type);
-
-                if (node_type->m_SetNodeDesc)
-                {
-                    CompGuiNodeContext ctx;
-
-                    CustomNodeCtx nodectx;
-                    nodectx.m_Scene = scene;
-                    nodectx.m_Node = n;
-                    nodectx.m_TypeContext = node_type->m_Context;
-                    nodectx.m_NodeData = custom_node_data;
-                    nodectx.m_Type = custom_type;
-
-                    node_type->m_SetNodeDesc(&ctx, &nodectx, node_desc);
-                }
             }
         }
         if (result)
@@ -899,10 +908,6 @@ namespace dmGameSystem
         {
             dmGui::HNode node = entries[i].m_Node;
 
-            if (dmGui::GetNodeIsBone(scene, node)) {
-                continue;
-            }
-
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             const Vector4& outline = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_OUTLINE);
             const Vector4& shadow = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SHADOW);
@@ -1007,9 +1012,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
-            if (dmGui::GetNodeIsBone(scene, node)) {
-                continue;
-            }
+
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
             vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
@@ -1033,9 +1036,6 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
-            if (dmGui::GetNodeIsBone(scene, node)) {
-                continue;
-            }
             const Vector4& nodecolor = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             float opacity = node_opacities[i];
             Vector4 color = Vector4(nodecolor.getXYZ(), opacity);
@@ -1140,9 +1140,6 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
-            if (dmGui::GetNodeIsBone(scene, node)) {
-                continue;
-            }
 
             void* custom_node_data = dmGui::GetNodeCustomData(scene, node);
 
@@ -1274,10 +1271,6 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < node_count; ++i)
         {
             const dmGui::HNode node = entries[i].m_Node;
-
-            if (dmGui::GetNodeIsBone(scene, node)) {
-                continue;
-            }
 
             // pre-multiplied alpha
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
@@ -1578,7 +1571,7 @@ namespace dmGameSystem
             const dmGui::HNode node = entries[i].m_Node;
             const Point3 size = dmGui::GetNodeSize(scene, node);
 
-            if (dmGui::GetNodeIsBone(scene, node) || dmMath::Abs(size.getX()) < 0.001f)
+            if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
@@ -1747,7 +1740,7 @@ namespace dmGameSystem
                     uint32_t node_count,
                     void* context)
     {
-        DM_PROFILE(Gui, "RenderNodes");
+        DM_PROFILE("RenderNodes");
 
         if (node_count == 0)
             return;
@@ -1779,10 +1772,6 @@ namespace dmGameSystem
 
         while (i < node_count) {
             dmGui::HNode node = entries[i].m_Node;
-            if (dmGui::GetNodeIsBone(scene, node)) {
-                ++i;
-                continue;
-            }
 
             dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, node);
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
@@ -1874,7 +1863,8 @@ namespace dmGameSystem
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
                                         dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        DM_COUNTER("Gui.VertexCount", gui_world->m_ClientVertexBuffer.Size());
+
+        DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, gui_world->m_ClientVertexBuffer.Size());
     }
 
     static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type) {
@@ -2050,7 +2040,7 @@ namespace dmGameSystem
 
     static dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
-        DM_PROFILE(Gui, "Update");
+        DM_PROFILE("Update");
 
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 

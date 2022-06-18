@@ -23,13 +23,15 @@ def build(bld):
 
     model.source = [x for x in model_source if not '_jni.cpp' in x]
 
-    # Used by bob.jar
-    model_shared = bld.new_task_gen(features = 'cc cxx cshlib',
-                                    includes = model.includes,
-                                    uselib = 'DLIB JDK',
-                                    target = 'modelc_shared')
+    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
+    if is_host:
+        # Used by bob.jar + editor
+        model_shared = bld.new_task_gen(features = 'cc cxx cshlib',
+                                        includes = model.includes,
+                                        uselib = 'DLIB PROFILE_NULL JDK',
+                                        target = 'modelc_shared')
 
-    model_shared.source = model_source
+        model_shared.source = model_source
 
     # classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
     # classpath = os.pathsep.join(classpath)

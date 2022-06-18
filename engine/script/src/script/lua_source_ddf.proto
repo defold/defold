@@ -16,5 +16,4 @@ message LuaSource
 
     optional bytes bytecode                             = 3;
     optional bytes bytecode_64                          = 4;
-    optional bytes delta                                = 5;
 }
