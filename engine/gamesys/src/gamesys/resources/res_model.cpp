@@ -469,14 +469,20 @@ namespace dmGameSystem
         }
     }
 
+    static bool AreAllMaterialsWorldSpace(const ModelResource* resource)
+    {
+        for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
+        {
+            dmRender::HMaterial material = resource->m_Materials[i];
+            if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
+                return false;
+        }
+        return true; // All materials are currently world space
+    }
+
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource, const char* filename)
     {
         dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_RigScene, (void**) &resource->m_RigScene);
-        if (result != dmResource::RESULT_OK)
-            return result;
-
-        dmRender::HMaterial material;
-        result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &material);
         if (result != dmResource::RESULT_OK)
             return result;
 
@@ -557,9 +563,9 @@ dmLogWarning("Loading model %s", filename);
         }
         memcpy(resource->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
-        if(dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
+        if(resource->m_RigScene->m_AnimationSetRes || resource->m_RigScene->m_SkeletonRes)
         {
-            if(resource->m_RigScene->m_AnimationSetRes || resource->m_RigScene->m_SkeletonRes)
+            if (!AreAllMaterialsWorldSpace(resource))
             {
                 dmLogError("Failed to create Model component. Material vertex space option VERTEX_SPACE_LOCAL does not support skinning.");
                 return dmResource::RESULT_NOT_SUPPORTED;
