@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -313,7 +314,7 @@ public class ColladaUtil {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
 
-            System.out.printf("sampleScaleTrack: st: %f  dur: %f  sr: %f  spf: %f\n", (float)startTime, (float)duration, (float)sampleRate, (float)spf);
+            //System.out.printf("sampleScaleTrack: st: %f  dur: %f  sr: %f  spf: %f\n", (float)startTime, (float)duration, (float)sampleRate, (float)spf);
 
             RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
             RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true);
@@ -459,7 +460,8 @@ public class ColladaUtil {
         loadAnimations(collada, animationSetBuilder, parentAnimationId, animationIds);
     }
 
-    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+    public static void loadAnimations(XMLCOLLADA collada, Rig.AnimationSet.Builder animationSetBuilder, String animationId, ArrayList<String> animationIds) throws IOException, XMLStreamException, LoaderException {
+
         if (collada.libraryAnimations.size() != 1) {
             return;
         }
@@ -488,31 +490,33 @@ public class ColladaUtil {
             throw new LoaderException("Anmation clips are currently not supported.");
 
         } else {
+
             float totalAnimationLength = 0.0f;
             HashMap<String, ArrayList<XMLAnimation>> boneToAnimations = new HashMap<String, ArrayList<XMLAnimation>>();
 
             // Loop through all animations and build a bone-to-animations LUT
             Iterator<Entry<String, XMLAnimation>> it = libraryAnimation.animations.entrySet().iterator();
-            // while (it.hasNext()) {
-            //     XMLAnimation animation = (XMLAnimation)it.next().getValue();
-            //     String boneTarget = animation.getTargetBone();
-            //     if (!boneToAnimations.containsKey(animation.getTargetBone())) {
-            //         boneToAnimations.put(boneTarget, new ArrayList<XMLAnimation>());
-            //     }
-            //     boneToAnimations.get(boneTarget).add(animation);
+            while (it.hasNext()) {
+                XMLAnimation animation = (XMLAnimation)it.next().getValue();
+                String boneTarget = animation.getTargetBone();
+                if (!boneToAnimations.containsKey(animation.getTargetBone())) {
+                    boneToAnimations.put(boneTarget, new ArrayList<XMLAnimation>());
+                }
+                boneToAnimations.get(boneTarget).add(animation);
 
-            //     // Figure out the total duration of the animation.
-            //     HashMap<String, XMLSource> samplersLUT = getSamplersLUT(animation);
-            //     XMLSource inputSampler = samplersLUT.get("INPUT");
-            //     float animLength = inputSampler.floatArray.floats[inputSampler.floatArray.count-1];
-            //     totalAnimationLength = Math.max(totalAnimationLength, animLength);
-            // }
+                // Figure out the total duration of the animation.
+                HashMap<String, XMLSource> samplersLUT = getSamplersLUT(animation);
+                XMLSource inputSampler = samplersLUT.get("INPUT");
+                float animLength = inputSampler.floatArray.floats[inputSampler.floatArray.count-1];
+                totalAnimationLength = Math.max(totalAnimationLength, animLength);
+            }
 
             // If no clips are provided, add a "Default" clip that is the whole animation as one clip
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
             boneAnimToDDF(collada, animBuilder, boneList, boneRefMap, boneToAnimations, totalAnimationLength);
-            animBuilder.setId(MurmurHash.hash64(parentAnimationId));
-            animationIds.add(parentAnimationId);
+            animBuilder.setId(MurmurHash.hash64(animationId));
+
+            animationIds.add(animationId);
             animationSetBuilder.addAnimations(animBuilder.build());
         }
     }
@@ -798,7 +802,7 @@ public class ColladaUtil {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
         modelBuilder.addMeshes(meshBuilder);
-        modelBuilder.setId(MurmurHash.hash64(sceneNode.name));
+        modelBuilder.setId(0);
 
         Matrix4d transformd = new Matrix4d();
         transformd.setIdentity();
@@ -1103,6 +1107,7 @@ public class ColladaUtil {
     private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones, Bone bone, int parentIndex) {
         com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
+        b.setName(bone.getName());
         b.setParent(parentIndex);
         b.setId(MurmurHash.hash64(bone.getSourceId()));
 
@@ -1209,11 +1214,6 @@ public class ColladaUtil {
     // Editor API to mimic the ModelUtil importer
 
     public static XMLCOLLADA loadScene(InputStream is) throws IOException, XMLStreamException, LoaderException {
-
-        // String text = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-
-        // System.out.printf("DAE:\n%s\n", text);
-
         return loadDAE(is);
     }
 
@@ -1237,12 +1237,15 @@ public class ColladaUtil {
             MathUtil.decompose(mat, translation, rotation, scale);
 
             ModelImporter.Transform transform = new ModelImporter.Transform();
+            transform.translation = new ModelImporter.Vec4();
             transform.translation.x = (float)translation.getX();
             transform.translation.y = (float)translation.getY();
             transform.translation.z = (float)translation.getZ();
+            transform.scale = new ModelImporter.Vec4();
             transform.scale.x = (float)scale.getX();
             transform.scale.y = (float)scale.getY();
             transform.scale.z = (float)scale.getZ();
+            transform.rotation = new ModelImporter.Vec4();
             transform.rotation.x = (float)rotation.getX();
             transform.rotation.y = (float)rotation.getY();
             transform.rotation.z = (float)rotation.getZ();
@@ -1262,12 +1265,28 @@ public class ColladaUtil {
         return bones;
     }
 
+    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content) throws IOException, IOException {
+        try {
+            XMLCOLLADA collada = loadDAE(new ByteArrayInputStream(content));
+            return loadSkeleton(collada);
+        }
+        catch (XMLStreamException|LoaderException e) {
+            throw new IOException("Failed to load skeleton", e);
+        }
+    }
+
     public static ArrayList<String> loadMaterialNames(XMLCOLLADA scene) {
         return new ArrayList<String>();
     }
 
-    public static void loadSkeleton(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
-        ArrayList<Bone> boneList = loadSkeleton(collada, new ArrayList<String>());
+    public static void loadSkeleton(XMLCOLLADA collada, com.dynamo.rig.proto.Rig.Skeleton.Builder skeletonBuilder) throws IOException {
+        ArrayList<Bone> boneList = null;
+        try {
+            boneList = loadSkeleton(collada, new ArrayList<String>());
+        }
+        catch (XMLStreamException|LoaderException e) {
+            throw new IOException("Failed to load skeleton", e);
+        }
 
         // No bones found, cannot create a skeleton with zero bones.
         if (boneList == null) {

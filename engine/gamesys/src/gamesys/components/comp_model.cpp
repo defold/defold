@@ -581,24 +581,20 @@ namespace dmGameSystem
     static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("RenderBatchWorld");
-        /*
+
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
 
-        const MeshRenderItem* render_item = (MeshRenderItem*) buf[*begin].m_UserData;
-        //const ModelResourceMesh* render_mesh = render_item->m_MeshBuffers;
-        const ModelComponent* component = render_item->m_Component;
-
-        // const ModelComponent* component = (ModelComponent*) buf[*begin].m_UserData;
-        // const ModelResource* resource = component->m_Resource;
-
         for (uint32_t *i=begin;i!=end;i++)
         {
             //const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            const ModelRenderItem* render_item = (ModelRenderItem*) buf[*i].m_UserData;
-            const ModelComponent* c = render_item->m_Component;
-            uint32_t count = dmRig::GetVertexCount(c->m_RigInstance);
+            const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
+
+            uint32_t count = render_item->m_Buffers->m_VertexCount;
+            // const ModelComponent* c = render_item->m_Component;
+            // uint32_t count = dmRig::GetVertexCount(c->m_RigInstance);
+
             vertex_count += count;
             max_component_vertices = dmMath::Max(max_component_vertices, count);
         }
@@ -620,7 +616,7 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             //const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            const ModelRenderItem* render_item = (ModelRenderItem*) buf[*i].m_UserData;
+            const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
             const ModelComponent* c = render_item->m_Component;
             dmRig::HRigContext rig_context = world->m_RigContext;
             vb_end = dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, Vector4(1.0), vb_end);
@@ -631,13 +627,17 @@ namespace dmGameSystem
         dmRender::RenderObject& ro = *world->m_RenderObjects.End();
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
+        const MeshRenderItem* render_item = (MeshRenderItem*) buf[*begin].m_UserData;
+        const ModelComponent* component = render_item->m_Component;
+        uint32_t material_index = render_item->m_MaterialIndex;
+
         ro.Init();
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
         ro.m_VertexBuffer = gfx_vertex_buffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
-        ro.m_Material = GetMaterial(component, component->m_Resource);
+        ro.m_Material = GetMaterial(component, component->m_Resource, material_index);
         ro.m_WorldTransform = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
         for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
@@ -650,7 +650,6 @@ namespace dmGameSystem
         }
 
         dmRender::AddToRender(render_context, &ro);
-        */
     }
 
     static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
@@ -919,10 +918,21 @@ namespace dmGameSystem
             if (params.m_Message->m_Id == dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash)
             {
                 dmModelDDF::ModelPlayAnimation* ddf = (dmModelDDF::ModelPlayAnimation*)params.m_Message->m_Data;
-                if (dmRig::RESULT_OK == dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate))
+
+dmLogWarning("PLAY ANIMATION: %llu %s", ddf->m_AnimationId, dmHashReverseSafe64(ddf->m_AnimationId));
+
+                dmRig::Result rig_result = dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate);
+                if (dmRig::RESULT_OK == rig_result)
                 {
                     component->m_Listener = params.m_Message->m_Sender;
                     component->m_FunctionRef = params.m_Message->m_UserData2;
+                } else if (dmRig::RESULT_ANIM_NOT_FOUND == rig_result) {
+                    dmMessage::URL& receiver = params.m_Message->m_Receiver;
+                    dmLogError("'%s:%s#%s' has no animation named '%s'",
+                            dmMessage::GetSocketName(receiver.m_Socket),
+                            dmHashReverseSafe64(receiver.m_Path),
+                            dmHashReverseSafe64(receiver.m_Fragment),
+                            dmHashReverseSafe64(ddf->m_AnimationId));
                 }
             }
             else if (params.m_Message->m_Id == dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash)
