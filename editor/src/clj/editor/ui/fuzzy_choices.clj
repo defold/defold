@@ -12,7 +12,8 @@
 
 (ns editor.ui.fuzzy-choices
   (:require [clojure.core.reducers :as r]
-            [editor.fuzzy-text :as fuzzy-text])
+            [editor.fuzzy-text :as fuzzy-text]
+            [editor.util :as util])
   (:import (javafx.scene.text Text TextFlow)))
 
 (set! *warn-on-reflection* true)
@@ -39,7 +40,7 @@
           matched-substring-length-comparison
           (let [^String a-text (option->text a)
                 ^String b-text (option->text b)
-                text-comparison (.compareToIgnoreCase a-text b-text)]
+                text-comparison (.compare util/natural-order a-text b-text)]
             (if-not (zero? text-comparison)
               text-comparison
               (try

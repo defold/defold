@@ -20,6 +20,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as t]
+            [editor.util :as util]
             [editor.workspace :as workspace]
             [schema.core :as s]
             [util.id-vec :as iv]
@@ -533,7 +534,7 @@
 
 (defn ->choicebox [vals]
   {:type :choicebox
-   :options (map (juxt identity identity) vals)})
+   :options (mapv (juxt identity identity) (sort util/natural-order vals))})
 
 (defn ->pb-choicebox [cls]
   (let [values (protobuf/enum-values cls)]

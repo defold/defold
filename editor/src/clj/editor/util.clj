@@ -12,8 +12,8 @@
 
 (ns editor.util
   (:require [clojure.string :as string])
-  (:import [java.util Locale]
-           [com.defold.editor Platform]))
+  (:import [com.defold.editor Platform]
+           [java.util Locale Comparator]))
 
 (set! *warn-on-reflection* true)
 
@@ -57,47 +57,54 @@
 (defn- alphanum-chunks
   "Returns a vector of groups of consecutive digit or non-digit substrings in
   string. The strings are converted to lowercase."
-  [s]
-  (letfn [(make-sb [c]
-            (doto (StringBuilder.) (.append c)))
-          (digit? [^Character c]
-            (when c (Character/isDigit c)))
-          (complete-chunk [state ^StringBuilder sb]
-            (case state
-              :digit (bigint (.toString sb))
-              :other (string/lower-case (.toString sb))))]
-    (loop [[c & cs]          (seq s)
-           state             (if (digit? c) :digit :other)
-           ^StringBuilder sb (StringBuilder.)
-           ret []]
-      (if c
-        (case state
-          :digit (if (digit? c)
-                   (recur cs :digit (.append sb c) ret)
-                   (recur cs :other (make-sb c) (conj ret (complete-chunk state sb))))
-          :other (if-not (digit? c)
-                   (recur cs :other (.append sb c) ret)
-                   (recur cs :digit (make-sb c) (conj ret (complete-chunk state sb)))))
-        (cond-> ret (pos? (.length sb)) (conj (complete-chunk state sb)))))))
+  [^String s]
+  (letfn [(complete-chunk [digit ^StringBuilder sb]
+            (if digit
+              (BigInteger. (.toString sb))
+              (string/lower-case (.toString sb))))]
+    (let [n (.length s)]
+      (loop [i 0
+             digit false
+             sb (StringBuilder.)
+             ret (transient [])]
+        (if (== n i)
+          (-> ret
+              (cond-> (pos? (.length sb))
+                      (conj! (complete-chunk digit sb)))
+              persistent!)
+          (let [ch (.charAt s i)]
+            (if digit
+              (if (Character/isDigit ch)
+                (recur (unchecked-inc-int i) true (.append sb ch) ret)
+                (recur (unchecked-inc-int i)
+                       false
+                       (doto (StringBuilder.) (.append ch))
+                       (conj! ret (complete-chunk digit sb))))
+              (if-not (Character/isDigit ch)
+                (recur (unchecked-inc-int i) false (.append sb ch) ret)
+                (recur (unchecked-inc-int i)
+                       true
+                       (doto (StringBuilder.) (.append ch))
+                       (conj! ret (complete-chunk digit sb)))))))))))
 
-(defn- start-with-string [v]
-  (let [v0 (first v)]
-    (if (not (string? v0))
-      (assoc v 0 (str v0))
-      v)))
+(defn pad-nil [vec len]
+  (loop [i (count vec)
+         acc (transient vec)]
+    (if (< i len)
+      (recur (unchecked-inc i) (conj! acc nil))
+      (persistent! acc))))
 
-(defn- pad-nil [v l]
-  (let [pad (- l (count v))]
-    (into v (repeat pad nil))))
-
-(def natural-order (reify java.util.Comparator
-                     (compare [_ a b]
-                       (if (and a b)
-                         (let [ancs (map (comp start-with-string alphanum-chunks) [a b])
-                               l (reduce max (map count ancs))
-                               [a' b'] (map #(pad-nil % l) ancs)]
-                           (compare a' b'))
-                         (compare a b)))))
+(def ^Comparator natural-order
+  (reify Comparator
+    (compare [_ a b]
+      (if (and a b)
+        (let [a-chunk (alphanum-chunks a)
+              b-chunk (alphanum-chunks b)
+              l (max (count a-chunk) (count b-chunk))
+              a' (pad-nil a-chunk l)
+              b' (pad-nil b-chunk l)]
+          (compare a' b'))
+        (compare a b)))))
 
 (def natural-order-key alphanum-chunks)
 

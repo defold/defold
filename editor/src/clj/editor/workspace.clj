@@ -25,6 +25,7 @@ ordinary paths."
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.url :as url]
+            [editor.util :as util]
             [service.log :as log])
   (:import [java.io File PushbackReader]
            [java.net URI]
@@ -97,8 +98,7 @@ ordinary paths."
   (let [sorted-children (sort-by (fn [r]
                                    [(resource/file-resource? r)
                                     ({:folder 0 :file 1} (resource/source-type r))
-                                    (when-let [node-name (resource/resource-name r)]
-                                      (string/lower-case node-name))])
+                                    (some-> (resource/resource-name r) util/natural-order-key)])
                                  (map sort-resource-tree children))]
     (assoc tree :children (vec sorted-children))))
 
@@ -107,7 +107,7 @@ ordinary paths."
     (resource/make-file-resource _node-id root (io/as-file root) (:resources resource-snapshot))))
 
 (g/defnk produce-resource-list [resource-tree]
-  (resource/resource-seq resource-tree))
+  (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree))))
 
 (g/defnk produce-resource-map [resource-list]
   (into {} (map #(do [(resource/proj-path %) %]) resource-list)))
