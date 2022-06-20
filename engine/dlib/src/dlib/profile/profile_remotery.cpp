@@ -24,6 +24,12 @@
 
 #include "dmsdk/external/remotery/Remotery.h"
 
+
+rmtU32 rmt_HashString32(const char* s, int len, rmtU32 seed)
+{
+    return dmHashBuffer32(s, len);
+}
+
 namespace dmProfile
 {
     static Remotery* g_Remotery = 0;
@@ -242,6 +248,11 @@ namespace dmProfile
         return result;
     }
 
+    uint32_t SampleGetNameHash(HSample sample)
+    {
+        return (uint32_t)rmt_SampleGetNameHash(SampleFromHandle(sample));
+    }
+
     const char* SampleGetName(HSample sample)
     {
         return rmt_SampleGetName(SampleFromHandle(sample));
@@ -309,6 +320,12 @@ namespace dmProfile
 
     // Property accessors
 
+    uint32_t PropertyGetNameHash(HProperty hproperty)
+    {
+        rmtProperty* property = PropertyFromHandle(hproperty);
+        return (uint32_t)property->nameHash;
+    }
+
     const char* PropertyGetName(HProperty hproperty)
     {
         rmtProperty* property = PropertyFromHandle(hproperty);
@@ -319,12 +336,6 @@ namespace dmProfile
     {
         rmtProperty* property = PropertyFromHandle(hproperty);
         return property->description;
-    }
-
-    uint64_t PropertyGetNameHash(HProperty hproperty)
-    {
-        rmtProperty* property = PropertyFromHandle(hproperty);
-        return property->nameHash | ((uint64_t)(~property->nameHash) << 32);
     }
 
     PropertyType PropertyGetType(HProperty hproperty)
