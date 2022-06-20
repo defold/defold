@@ -3,7 +3,11 @@
             [dynamo.graph :as g]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [vlaaad.reveal :as r]))
+            [vlaaad.reveal :as r]
+            [internal.graph.types :as gt]
+            [internal.system :as is])
+  (:import [clojure.lang IRef]
+           [internal.graph.types Endpoint]))
 
 (defn- node-value-or-err [ec node-id label]
   (try
@@ -46,6 +50,7 @@
         targets (g/targets-of basis node-id label)]
     (cond->
       {:value (or e v)
+       :annotation {::node-id+label [node-id label]}
        :render (r/horizontal
                  (r/stream label)
                  r/separator
@@ -81,6 +86,37 @@
            :branch? :children
            :render #(:render % (:value %))
            :valuate :value
+           :annotate :annotation
            :children #((:children %))
            :root (root-tree-node ec x)})))))
 
+(defn- de-duplicating-observable [ref f]
+  (reify IRef
+    (deref [_] (f @ref))
+    (addWatch [this key callback]
+      (add-watch ref [this key] (fn [_ _ old new]
+                                  (let [old (f old)
+                                        new (f new)]
+                                    (when-not (= old new)
+                                      (callback key this old new))))))
+    (removeWatch [this key]
+      (remove-watch ref [this key]))))
+
+(defn watch-all [node-id label]
+  {:fx/type r/ref-watch-all-view
+   :ref (de-duplicating-observable
+          g/*the-system*
+          (fn [sys]
+            (g/node-value node-id label (is/default-evaluation-context sys))))})
+
+(r/defaction ::defold:watch [_ {::keys [node-id+label]}]
+  (when node-id+label
+    #(apply watch-all node-id+label)))
+
+(r/defstream Endpoint [endpoint]
+  (r/horizontal
+    (r/raw-string "#g/endpoint [" {:fill :object})
+    (r/stream (gt/endpoint-node-id endpoint))
+    r/separator
+    (r/stream (gt/endpoint-label endpoint))
+    (r/raw-string "]" {:fill :object})))

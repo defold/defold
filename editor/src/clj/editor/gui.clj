@@ -41,18 +41,19 @@
             [editor.resource-node :as resource-node]
             [editor.properties :as properties]
             [editor.handler :as handler]
-            [editor.ui :as ui]
             [editor.font :as font]
             [editor.dialogs :as dialogs]
             [editor.outline :as outline]
             [editor.material :as material]
             [editor.particlefx :as particlefx]
-            [editor.validation :as validation])
+            [editor.validation :as validation]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
+           [internal.graph.types Arc]
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d Vector3d]))
 
@@ -1305,8 +1306,12 @@
             (dynamic error (g/fnk [_node-id template-resource]
                              (prop-resource-error _node-id :template template-resource "Template")))
             (value (g/fnk [_node-id id template-resource template-overrides]
-                     (let [overrides (into {} (map (fn [[k v]] [(subs k (inc (count id))) v]) template-overrides))]
-                       {:resource template-resource :overrides overrides})))
+                     {:resource template-resource
+                      :overrides (into {}
+                                       (map (fn [[k v]]
+                                              (pair (subs k (inc (count id)))
+                                                    v)))
+                                       template-overrides)}))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
                          project (project/get-project basis self)
@@ -1322,14 +1327,17 @@
                              (let [properties-by-node-id (comp (or (:overrides new-value) {})
                                                                (into {} (map (fn [[k v]] [v k]))
                                                                      (g/node-value scene-node :node-ids evaluation-context)))]
-                               (g/override scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
-                                                                    (if (not= src current-scene)
-                                                                      (or (g/node-instance? basis GuiNode src)
-                                                                          (g/node-instance? basis NodeTree src)
-                                                                          (g/node-instance? basis GuiSceneNode src)
-                                                                          (g/node-instance? basis LayoutsNode src)
-                                                                          (g/node-instance? basis LayoutNode src))
-                                                                      false))
+                               ;; TODO: Check if we can filter based on connection label instead of source-node-id to be able to share :traverse-fn with other overrides.
+                               (g/override scene-node {:traverse-fn (g/make-override-traverse-fn
+                                                                      (fn [basis ^Arc arc]
+                                                                        (let [source-node-id (.source-id arc)]
+                                                                          (and (not= source-node-id current-scene)
+                                                                               (g/node-instance-of-any? basis source-node-id
+                                                                                                        [GuiNode
+                                                                                                         NodeTree
+                                                                                                         GuiSceneNode
+                                                                                                         LayoutsNode
+                                                                                                         LayoutNode])))))
                                                        :properties-by-node-id properties-by-node-id}
                                            (fn [evaluation-context id-mapping]
                                              (let [or-scene (get id-mapping scene-node)]
@@ -1766,6 +1774,14 @@
       (not-empty node-msgs)
       (assoc :nodes node-msgs))))
 
+(def ^:private layout-node-traverse-fn
+  (g/make-override-traverse-fn
+    (fn layout-node-traverse-fn [basis ^Arc arc]
+      (g/node-instance-of-any? basis (.source-id arc)
+                               [GuiNode
+                                NodeTree
+                                GuiSceneNode]))))
+
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
   (property name g/Str
@@ -1779,10 +1795,7 @@
                          scene (ffirst (g/targets-of basis self :_node-id))
                          node-tree (g/node-value scene :node-tree evaluation-context)
                          or-data new-value]
-                     (g/override node-tree {:traverse? (fn [basis [src src-label tgt tgt-label]]
-                                                         (or (g/node-instance? basis GuiNode src)
-                                                             (g/node-instance? basis NodeTree src)
-                                                             (g/node-instance? basis GuiSceneNode src)))}
+                     (g/override node-tree {:traverse-fn layout-node-traverse-fn}
                                  (fn [evaluation-context id-mapping]
                                    (let [or-node-tree (get id-mapping node-tree)
                                          node-mapping (comp id-mapping (g/node-value node-tree :node-ids evaluation-context))]
@@ -2906,8 +2919,10 @@
   (active? [selection] (or (selection->gui-node selection)
                            (selection->layer-node selection)))
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
-                              node-child-index (g/node-value selected-node-id :child-index)]
-                          (pos? node-child-index)))
+                              parent (core/scope selected-node-id)
+                              node-child-index (g/node-value selected-node-id :child-index)
+                              first-index (transduce (map second) min Long/MAX_VALUE (g/node-value parent :child-indices))]
+                          (< first-index node-child-index)))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected -1))))
 
@@ -2917,8 +2932,8 @@
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
                               parent (core/scope selected-node-id)
                               node-child-index (g/node-value selected-node-id :child-index)
-                              child-indices (g/node-value parent :child-indices)]
-                          (< node-child-index (dec (count child-indices)))))
+                              last-index (transduce (map second) max 0 (g/node-value parent :child-indices))]
+                          (< node-child-index last-index)))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected 1))))
 

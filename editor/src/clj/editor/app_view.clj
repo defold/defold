@@ -19,7 +19,6 @@
             [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
-            [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
             [editor.code.data :refer [CursorRange->line-number]]
@@ -62,7 +61,6 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.url :as url]
-            [editor.util :as util]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :refer [first-where]]
@@ -229,6 +227,7 @@
   (property scene Scene)
   (property editor-tabs-split SplitPane)
   (property active-tab-pane TabPane)
+  (property active-tab Tab)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
@@ -250,7 +249,6 @@
 
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
-  (output active-tab Tab (g/fnk [^TabPane active-tab-pane] (some-> active-tab-pane ui/selected-tab)))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
   (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
   (output active-outline g/Any (gu/passthrough active-outline))
@@ -328,14 +326,14 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed! [app-view app-scene resource-node view-type]
+(defn- on-selected-tab-changed! [app-view app-scene tab resource-node view-type]
   (g/transact
     (concat
       (replace-connection resource-node :node-outline app-view :active-outline)
       (if (= :scene view-type)
         (replace-connection resource-node :scene app-view :active-scene)
-        (disconnect-sources app-view :active-scene))))
-  (g/invalidate-outputs! [[app-view :active-tab]])
+        (disconnect-sources app-view :active-scene))
+      (g/set-property app-view :active-tab tab)))
   (ui/user-data! app-scene ::ui/refresh-requested? true))
 
 (handler/defhandler :move-tool :workbench
@@ -681,7 +679,10 @@
       (report-build-launch-progress! "Reboot failed")
       (throw e))))
 
-(def ^:private build-in-progress? (atom false))
+(def ^:private build-in-progress-atom (atom false))
+
+(defn build-in-progress? []
+  @build-in-progress-atom)
 
 (defn- on-launched-hook! [project process url]
   (let [hook-options {:exception-policy :ignore :opts {:url url}}]
@@ -812,12 +813,12 @@
                   (try
                     (ui-thread-fn return-value)
                     (catch Throwable error
-                      (reset! build-in-progress? false)
+                      (reset! build-in-progress-atom false)
                       (render-build-progress! progress/done)
                       (cancel-engine-build!)
                       (throw error)))))
               (catch Throwable error
-                (reset! build-in-progress? false)
+                (reset! build-in-progress-atom false)
                 (render-build-progress! progress/done)
                 (cancel-engine-build!)
                 (error-reporting/report-exception! error))))
@@ -825,7 +826,7 @@
 
         finish-with-result!
         (fn finish-with-result! [project-build-results engine build-engine-exception]
-          (reset! build-in-progress? false)
+          (reset! build-in-progress-atom false)
           (render-build-progress! progress/done)
           (cancel-engine-build!)
           (when (some? result-fn)
@@ -925,8 +926,8 @@
     ;; thread, then process the results on the ui thread, and potentially
     ;; trigger subsequent phases which will again get off the ui thread as
     ;; soon as they can.
-    (assert (not @build-in-progress?))
-    (reset! build-in-progress? true)
+    (assert (not @build-in-progress-atom))
+    (reset! build-in-progress-atom true)
     (phase-1-run-pre-build-hook!)))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
@@ -959,7 +960,7 @@
                           (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
 
 (handler/defhandler :build :global
-  (enabled? [] (not @build-in-progress?))
+  (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
     (debug-view/detach! debug-view)
     (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
@@ -1009,7 +1010,7 @@ If you do not specifically require different script states, consider changing th
   ;; there is a single menu item whose label changes in various states.
   (active? [debug-view evaluation-context]
            (not (debug-view/debugging? debug-view evaluation-context)))
-  (enabled? [] (not @build-in-progress?))
+  (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane]
     (when (debugging-supported? project)
       (let [main-scene (.getScene ^Stage main-stage)
@@ -1020,7 +1021,7 @@ If you do not specifically require different script states, consider changing th
           (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))))))
 
 (handler/defhandler :rebuild :global
-  (enabled? [] (not @build-in-progress?))
+  (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
     (debug-view/detach! debug-view)
     (workspace/clear-build-cache! workspace)
@@ -1069,7 +1070,7 @@ If you do not specifically require different script states, consider changing th
   (when-some [target (targets/selected-target prefs)]
     (and (targets/controllable-target? target)
          (not (debug-view/suspended? debug-view evaluation-context))
-         (not @build-in-progress?))))
+         (not (build-in-progress?)))))
 
 (defn- hot-reload! [project prefs build-errors-view main-stage tool-tab-pane]
   (let [main-scene (.getScene ^Stage main-stage)
@@ -1537,7 +1538,7 @@ If you do not specifically require different script states, consider changing th
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (on-selected-tab-changed! app-view app-scene (tab->resource-node new-val) (tab->view-type new-val))))))
+            (on-selected-tab-changed! app-view app-scene new-val (tab->resource-node new-val) (tab->view-type new-val))))))
   (-> tab-pane
       (.getTabs)
       (.addListener
@@ -1564,7 +1565,7 @@ If you do not specifically require different script states, consider changing th
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (on-selected-tab-changed! app-view app-scene resource-node view-type)))))
+        (on-selected-tab-changed! app-view app-scene selected-tab resource-node view-type)))))
 
 (defn open-custom-keymap
   [path]
@@ -1572,13 +1573,13 @@ If you do not specifically require different script states, consider changing th
             (some-> path
                     slurp
                     edn/read-string))
-       (catch IOException e
+       (catch Exception e
          (dialogs/make-info-dialog
           {:title "Couldn't load custom keymap config"
            :icon :icon/triangle-error
            :header {:fx/type :v-box
                     :children [{:fx/type fxui/label
-                                :text (str "The keymap path " path " couldn't be opened.")}]}
+                                :text (str "The keymap from " path " couldn't be opened.")}]}
            :content (.getMessage e)})
          (log/error :exception e)
          nil)))
