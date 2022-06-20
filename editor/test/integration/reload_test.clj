@@ -34,6 +34,7 @@
             [service.log :as log]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system do-until-new-mtime]])
   (:import [java.awt.image BufferedImage]
+           [java.io File]
            [javax.imageio ImageIO]
            [org.apache.commons.io FilenameUtils]))
 

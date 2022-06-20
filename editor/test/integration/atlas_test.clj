@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.atlas :as atlas]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.workspace :as workspace]
@@ -48,25 +49,37 @@
 
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/small_project")
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
           project (test-util/setup-project! workspace)
-          atlas (project/get-resource-node project "/main/logo.atlas")
+          atlas (project/get-resource-node project "/main/main.atlas")
           atlas-image (:node-id (test-util/outline atlas [0]))
           image-file (io/as-file (g/node-value atlas-image :image))
-          image-bytes (fs/read-bytes image-file)]
+          image-bytes (fs/read-bytes image-file)
+          layout-data-generator (g/node-value atlas :layout-data-generator)
+          packed-image-generator (g/node-value atlas :packed-image-generator)
+          call-generator #'atlas/call-generator]
 
-      ;; Enable sprite trimming for our AtlasImage.
-      (g/set-property! atlas-image :sprite-trim-mode :sprite-trim-mode-6)
-      (is (not (g/error? (g/node-value atlas :scene))))
+      (testing "Initial project state"
+        (is (not= :sprite-trim-mode-off (g/node-value atlas-image :sprite-trim-mode)))
+        (testing "Generators"
+          (is (not (g/error? (call-generator layout-data-generator))))
+          (is (not (g/error? (call-generator packed-image-generator)))))
+        (testing "Graph"
+          (is (not (g/error? (g/node-value atlas :scene))))
+          (is (not (g/error? (g/node-value atlas :build-targets))))
+          (is (not (g/error? (g/node-value atlas :save-data))))))
 
       (testing "Corrupting referenced image file"
         (test-support/spit-until-new-mtime image-file "This is no longer an image file.")
-        (testing "Before resource-sync"
-          (g/clear-system-cache!)
+        (g/clear-system-cache!)
+        (testing "Stale generators"
+          (is (g/error? (call-generator layout-data-generator)))
+          (is (g/error? (call-generator packed-image-generator))))
+        (testing "Graph before resource-sync"
           (is (g/error? (g/node-value atlas :scene)))
           (is (g/error? (g/node-value atlas :build-targets)))
           (is (not (g/error? (g/node-value atlas :save-data)))))
-        (testing "After resource-sync"
+        (testing "Graph after resource-sync"
           (workspace/resource-sync! workspace)
           (is (g/error? (g/node-value atlas :scene)))
           (is (g/error? (g/node-value atlas :build-targets)))
@@ -74,12 +87,15 @@
 
       (testing "Restoring referenced image file"
         (test-support/write-until-new-mtime image-file image-bytes)
-        (testing "Before resource-sync"
-          (g/clear-system-cache!)
+        (g/clear-system-cache!)
+        (testing "Stale generators"
+          (is (not (g/error? (call-generator layout-data-generator))))
+          (is (not (g/error? (call-generator packed-image-generator)))))
+        (testing "Graph before resource-sync"
           (is (not (g/error? (g/node-value atlas :scene))))
           (is (not (g/error? (g/node-value atlas :build-targets))))
           (is (not (g/error? (g/node-value atlas :save-data)))))
-        (testing "After resource-sync"
+        (testing "Graph after resource-sync"
           (workspace/resource-sync! workspace)
           (is (not (g/error? (g/node-value atlas :scene))))
           (is (not (g/error? (g/node-value atlas :build-targets))))
@@ -87,12 +103,15 @@
 
       (testing "Deleting referenced image file"
         (fs/delete! image-file)
-        (testing "Before resource-sync"
-          (g/clear-system-cache!)
+        (g/clear-system-cache!)
+        (testing "Stale generators"
+          (is (g/error? (call-generator layout-data-generator)))
+          (is (g/error? (call-generator packed-image-generator))))
+        (testing "Graph before resource-sync"
           (is (g/error? (g/node-value atlas :scene)))
           (is (g/error? (g/node-value atlas :build-targets)))
           (is (not (g/error? (g/node-value atlas :save-data)))))
-        (testing "After resource-sync"
+        (testing "Graph after resource-sync"
           (workspace/resource-sync! workspace)
           (is (g/error? (g/node-value atlas :scene)))
           (is (g/error? (g/node-value atlas :build-targets)))
