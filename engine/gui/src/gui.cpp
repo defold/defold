@@ -63,6 +63,8 @@ namespace dmGui
 
     const uint16_t INVALID_INDEX = 0xffff;
 
+    const uint64_t INVALID_RENDER_KEY = 0xffffffffffffffff;
+
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
     const uint64_t LAYER_RANGE = 4; // 16 layers
@@ -1472,7 +1474,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (opacity == 0.0f || n->m_Node.m_IsBone)
             {
                 entry.m_Node = INVALID_HANDLE;
-                entry.m_RenderKey = 0xFFFFFFFF;
+                entry.m_RenderKey = INVALID_RENDER_KEY;
                 ++num_pruned;
                 continue;
             }
