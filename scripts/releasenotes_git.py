@@ -103,18 +103,12 @@ def match_merge(line):
         issue = merge_match.group(3)
         desc  = git_merge_desc(sha1)
 
-        if 'Revert' in line:
-            print("MAWE", line, ":")
-            print("MAWE", sha1, pr, issue, desc)
-
         # get rid of PR number at the end of the commit
         m = re.search("^(?:Issue|issue)(?:[\-\s]?)?#?(\d+)[:.\-\s]+(.+)", desc)
         if m:
             desc = m.group(2)
             if not issue:
                 issue = m.group(1)
-        if 'Revert' in line:
-            print("MAWE", sha1, pr, issue, desc)
         return (sha1, issue, desc)
     return (None, None, None)
 
@@ -141,16 +135,6 @@ def get_engine_issues(lines):
         (sha1, issue, desc) = match_merge(line)
         if issue:
             issues.append("[`Issue-%s`](https://github.com/defold/defold/issues/%s) - **Fixed**: %s" % (issue, issue, desc))
-
-            if '1' == issue:
-                print("MAWE fail:", line, ":")
-                print("MAWE fail:", sha1, issue, desc, issues[-1])
-
-
-            if 'Revert' in line:
-                print("MAWE result:", line, ":")
-                print("MAWE result:", sha1, issue, desc, issues[-1])
-
 
             print(git_log(sha1))
             continue
