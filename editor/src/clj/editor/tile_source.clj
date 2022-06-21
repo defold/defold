@@ -539,8 +539,12 @@
       (keep (fn [[prop-kw f]]
               (validation/prop-error :fatal node-id prop-kw f (get anim prop-kw) (properties/keyword->name prop-kw)))))))
 
-(defn- generate-texture-set-data [{:keys [tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
-  (texture-set-gen/tile-source->texture-set-data tile-source-attributes image-resource convex-hulls collision-groups animation-ddfs))
+(defn- generate-texture-set-data [{:keys [_node-id tile-source-attributes image-resource animation-ddfs collision-groups convex-hulls]}]
+  (let [buffered-image (resource-io/with-error-translation image-resource _node-id :image
+                         (image-util/read-image image-resource))]
+    (if (g/error? buffered-image)
+      buffered-image
+      (texture-set-gen/tile-source->texture-set-data tile-source-attributes buffered-image convex-hulls collision-groups animation-ddfs))))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
@@ -629,16 +633,14 @@
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
 
-  (output texture-set-data-generator g/Any (g/fnk [image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
+  (output texture-set-data-generator g/Any (g/fnk [_node-id image-resource tile-source-attributes animation-data collision-groups convex-hulls tile-count :as args]
                                              (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
                                                    (g/error-aggregate errors))
                                                  (let [animation-ddfs (mapv :ddf-message animation-data)]
                                                    {:f generate-texture-set-data
                                                     :args (-> args
                                                               (dissoc :animation-data)
-                                                              (assoc
-                                                                :animation-ddfs animation-ddfs
-                                                                :image-resource image-resource))}))))
+                                                              (assoc :animation-ddfs animation-ddfs))}))))
 
   (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
   (output layout-size g/Any (g/fnk [texture-set-data] (:size texture-set-data)))

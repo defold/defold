@@ -223,7 +223,7 @@
             (run! #(.addCollisionHullPoints builder %) points))
           convex-hulls)))
 
-(defn tile-source->texture-set-data [tile-source-attributes image-resource convex-hulls collision-groups animations]
+(defn tile-source->texture-set-data [tile-source-attributes ^BufferedImage buffered-image convex-hulls collision-groups animations]
   (let [image-rects (split-rects tile-source-attributes)
         anims-atom (atom animations)
         anim-indices-atom (atom [])
@@ -243,7 +243,6 @@
                           (reset! anims-atom animations)
                           (reset! anim-indices-atom [])))
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
-        buffered-image (image-util/read-image image-resource)
         hull-vertex-count (sprite-trim-mode->hull-vertex-count (:sprite-trim-mode tile-source-attributes))
         sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
                                  (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]

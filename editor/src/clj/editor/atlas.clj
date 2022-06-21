@@ -489,7 +489,7 @@
                                     :passes [pass/outline]}}]
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [_node-id animations all-atlas-images margin inner-padding extrude-borders]}]
+(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders]}]
   (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders))
 
 (defn- call-generator [generator]
