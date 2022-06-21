@@ -560,7 +560,8 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
         return;
 
-    if (strcmp(thread_name, "Remotery") == 0)
+    // TODO: Make a better selection scheme, letting the user step through the threads one by one
+    if (strcmp(thread_name, "Main") != 0)
         return;
 
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
