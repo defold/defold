@@ -11,7 +11,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.app-view
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.fx.hyperlink :as fx.hyperlink]
+            [cljfx.fx.text :as fx.text]
+            [cljfx.fx.text-flow :as fx.text-flow]
+            [cljfx.fx.v-box :as fx.v-box]
+            [clojure.java.io :as io]
             [clojure.edn :as edn]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -737,7 +741,7 @@
         (dialogs/make-info-dialog
           {:title "Launch Failed"
            :icon :icon/triangle-error
-           :header {:fx/type :v-box
+           :header {:fx/type fx.v-box/lifecycle
                     :children [{:fx/type fxui/label
                                 :variant :header
                                 :text (format "Launching %s failed"
@@ -1575,7 +1579,7 @@ If you do not specifically require different script states, consider changing th
          (dialogs/make-info-dialog
           {:title "Couldn't load custom keymap config"
            :icon :icon/triangle-error
-           :header {:fx/type :v-box
+           :header {:fx/type fx.v-box/lifecycle
                     :children [{:fx/type fxui/label
                                 :text (str "The keymap path " path " couldn't be opened.")}]}
            :content (.getMessage e)})
@@ -1797,9 +1801,9 @@ If you do not specifically require different script states, consider changing th
               :size :default
               :icon :icon/git
               :header "This project does not use Version Control"
-              :content {:fx/type :text-flow
+              :content {:fx/type fx.text-flow/lifecycle
                         :style-class "dialog-content-padding"
-                        :children [{:fx/type :text
+                        :children [{:fx/type fx.text/lifecycle
                                     :text (str "A project under Version Control "
                                                "keeps a history of changes and "
                                                "enables you to collaborate with "
@@ -1807,11 +1811,11 @@ If you do not specifically require different script states, consider changing th
                                                "server.\n\nYou can read about "
                                                "how to configure Version Control "
                                                "in the ")}
-                                   {:fx/type :hyperlink
+                                   {:fx/type fx.hyperlink/lifecycle
                                     :text "Defold Manual"
                                     :on-action (fn [_]
                                                  (ui/open-url "https://www.defold.com/manuals/version-control/"))}
-                                   {:fx/type :text
+                                   {:fx/type fx.text/lifecycle
                                     :text "."}]}})))))
 
 (handler/defhandler :save-all :global

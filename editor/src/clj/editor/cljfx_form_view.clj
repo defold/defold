@@ -15,6 +15,27 @@
             [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.ext.table-view :as fx.ext.table-view]
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
+            [cljfx.fx.button :as fx.button]
+            [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.combo-box :as fx.combo-box]
+            [cljfx.fx.context-menu :as fx.context-menu]
+            [cljfx.fx.grid-pane :as fx.grid-pane]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.image-view :as fx.image-view]
+            [cljfx.fx.label :as fx.label]
+            [cljfx.fx.list-view :as fx.list-view]
+            [cljfx.fx.menu-button :as fx.menu-button]
+            [cljfx.fx.menu-item :as fx.menu-item]
+            [cljfx.fx.scroll-pane :as fx.scroll-pane]
+            [cljfx.fx.separator :as fx.separator]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
+            [cljfx.fx.table-column :as fx.table-column]
+            [cljfx.fx.table-view :as fx.table-view]
+            [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.fx.text-formatter :as fx.text-formatter]
+            [cljfx.fx.tooltip :as fx.tooltip]
+            [cljfx.fx.v-box :as fx.v-box]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -119,7 +140,7 @@
             :else (recur (inc i))))))))
 
 (defn- text-field [props]
-  (assoc props :fx/type :text-field
+  (assoc props :fx/type fx.text-field/lifecycle
                :style-class ["text-field" "cljfx-form-text-field"]))
 
 (defn- add-image-fit-size [{:keys [fit-size] :as props}]
@@ -130,14 +151,14 @@
 (defn- add-image [props]
   (cond-> (-> props
               (dissoc :image)
-              (assoc :graphic {:fx/type :image-view
+              (assoc :graphic {:fx/type fx.image-view/lifecycle
                                :image (icons/get-image (:image props))}))
 
           (contains? props :fit-size)
           add-image-fit-size))
 
 (defn- icon-button [props]
-  (cond-> (assoc props :fx/type :button
+  (cond-> (assoc props :fx/type fx.button/lifecycle
                        :style-class ["button" "cljfx-form-icon-button"])
 
           (contains? props :image)
@@ -155,7 +176,7 @@
   :type)
 
 (defmethod form-input-view :default [{:keys [value type] :as field}]
-  {:fx/type :label
+  {:fx/type fx.label/lifecycle
    :wrap-text true
    :text (str type " " (if (nil? value) "***NIL***" value) " " field)})
 
@@ -204,7 +225,7 @@
 
 (defmethod form-input-view :string [{:keys [value on-value-changed]}]
   {:fx/type text-field
-   :text-formatter {:fx/type :text-formatter
+   :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter :default
                     :value value
                     :on-value-changed on-value-changed}})
@@ -217,7 +238,7 @@
 ;; region boolean input
 
 (defmethod form-input-view :boolean [{:keys [value on-value-changed]}]
-  {:fx/type :check-box
+  {:fx/type fx.check-box/lifecycle
    :style-class ["check-box" "cljfx-form-check-box"]
    :selected value
    :on-selected-changed on-value-changed})
@@ -230,7 +251,7 @@
   {:fx/type text-field
    :alignment :center-right
    :max-width 80
-   :text-formatter {:fx/type :text-formatter
+   :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter int-converter
                     :value (int value)
                     :on-value-changed on-value-changed}})
@@ -246,7 +267,7 @@
   {:fx/type text-field
    :alignment :center-right
    :max-width 80
-   :text-formatter {:fx/type :text-formatter
+   :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter number-converter
                     :value value
                     :on-value-changed on-value-changed}})
@@ -264,7 +285,7 @@
 
 (defmethod form-input-view :url [{:keys [value on-value-changed]}]
   {:fx/type text-field
-   :text-formatter {:fx/type :text-formatter
+   :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter uri-string-converter
                     :value value
                     :on-value-changed {:event-type :skip-malformed-urls
@@ -282,16 +303,16 @@
 
 (defmethod form-input-view :vec4 [{:keys [value on-value-changed]}]
   (let [labels ["X" "Y" "Z" "W"]]
-    {:fx/type :h-box
+    {:fx/type fx.h-box/lifecycle
      :padding {:left 5}
      :spacing 5
      :children (into []
                      (map-indexed
                        (fn [i n]
-                         {:fx/type :h-box
+                         {:fx/type fx.h-box/lifecycle
                           :alignment :center
                           :spacing 5
-                          :children [{:fx/type :label
+                          :children [{:fx/type fx.label/lifecycle
                                       :min-width :use-pref-size
                                       :text (get labels i)}
                                      {:fx/type form-input-view
@@ -351,7 +372,7 @@
                                         :or {to-string str}}]
   (let [value->label (into {} options)
         label->value (set/map-invert value->label)]
-    {:fx/type :combo-box
+    {:fx/type fx.combo-box/lifecycle
      :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
      :value value
      :on-value-changed on-value-changed
@@ -509,7 +530,7 @@
         remove-event {:event-type :remove-list-selection
                       :on-removed on-removed
                       :state-path state-path}]
-    {:fx/type :v-box
+    {:fx/type fx.v-box/lifecycle
      :spacing 4
      :children [{:fx/type fx/ext-let-refs
                  :refs (when edit
@@ -530,7 +551,7 @@
                                   :on-selected-indices-changed {:event-type :list-select
                                                                 :state-path state-path}}
                           :desc
-                          {:fx/type :list-view
+                          {:fx/type fx.list-view/lifecycle
                            :style-class ["list-view" "cljfx-form-list-view"]
                            :items (into [] (map-indexed vector) value)
                            :editable true
@@ -544,16 +565,16 @@
                                            (* cell-height
                                               (max (count value) 1)))
                            :fixed-cell-size cell-height
-                           :context-menu {:fx/type :context-menu
-                                          :items [{:fx/type :menu-item
+                           :context-menu {:fx/type fx.context-menu/lifecycle
+                                          :items [{:fx/type fx.menu-item/lifecycle
                                                    :text "Add"
                                                    :disable disable-add
                                                    :on-action add-event}
-                                                  {:fx/type :menu-item
+                                                  {:fx/type fx.menu-item/lifecycle
                                                    :text "Remove"
                                                    :disable disable-remove
                                                    :on-action remove-event}]}}}}}}
-                {:fx/type :h-box
+                {:fx/type fx.h-box/lifecycle
                  :spacing 4
                  :children [{:fx/type icon-button
                              :disable disable-add
@@ -618,11 +639,11 @@
                                               on-value-changed
                                               filter
                                               resource-string-converter]}]
-  {:fx/type :h-box
+  {:fx/type fx.h-box/lifecycle
    :spacing 4
    :children [{:fx/type text-field
                :h-box/hgrow :always
-               :text-formatter {:fx/type :text-formatter
+               :text-formatter {:fx/type fx.text-formatter/lifecycle
                                 :value-converter resource-string-converter
                                 :value value
                                 :on-value-changed on-value-changed}}
@@ -657,11 +678,11 @@
     {:dispatch (assoc on-value-changed :fx/event (.getAbsolutePath file))}))
 
 (defmethod form-input-view :file [{:keys [on-value-changed value filter title]}]
-  {:fx/type :h-box
+  {:fx/type fx.h-box/lifecycle
    :spacing 4
    :children [{:fx/type text-field
                :h-box/hgrow :always
-               :text-formatter {:fx/type :text-formatter
+               :text-formatter {:fx/type fx.text-formatter/lifecycle
                                 :value-converter :default
                                 :value value
                                 :on-value-changed on-value-changed}}
@@ -681,11 +702,11 @@
     {:dispatch (assoc on-value-changed :fx/event file)}))
 
 (defmethod form-input-view :directory [{:keys [on-value-changed value title]}]
-  {:fx/type :h-box
+  {:fx/type fx.h-box/lifecycle
    :spacing 4
    :children [{:fx/type text-field
                :h-box/hgrow :always
-               :text-formatter {:fx/type :text-formatter
+               :text-formatter {:fx/type fx.text-formatter/lifecycle
                                 :value-converter :default
                                 :value value
                                 :on-value-changed on-value-changed}}
@@ -829,7 +850,7 @@
                      {:keys [state state-path value on-value-changed]
                       :or {value []}}]
   (let [{:keys [edit]} state]
-    {:fx/type :table-column
+    {:fx/type fx.table-column/lifecycle
      :reorderable false
      :sortable false
      :min-width (cond
@@ -884,9 +905,9 @@
                    edited-value (or (:value edit)
                                     (get-in value (into [i] path)))]
                {[::edit i path] (edited-table-cell-view edited-column field edited-value)}))
-     :desc {:fx/type :v-box
+     :desc {:fx/type fx.v-box/lifecycle
             :spacing 4
-            :children [{:fx/type :stack-pane
+            :children [{:fx/type fx.stack-pane/lifecycle
                         :style-class "cljfx-table-view-wrapper"
                         :children
                         [{:fx/type fxui/ext-with-advance-events
@@ -895,7 +916,7 @@
                                          :selected-indices (vec selected-indices)
                                          :on-selected-indices-changed {:event-type :table-select
                                                                        :state-path state-path}}
-                                 :desc {:fx/type :table-view
+                                 :desc {:fx/type fx.table-view/lifecycle
                                         :style-class ["table-view" "cljfx-table-view"]
                                         :editable true
                                         :fixed-cell-size line-height
@@ -907,16 +928,16 @@
                                         :columns (mapv #(table-column % field)
                                                        columns)
                                         :items (into [] (map-indexed vector) value)
-                                        :context-menu {:fx/type :context-menu
-                                                       :items [{:fx/type :menu-item
+                                        :context-menu {:fx/type fx.context-menu/lifecycle
+                                                       :items [{:fx/type fx.menu-item/lifecycle
                                                                 :text "Add"
                                                                 :disable disable-add
                                                                 :on-action on-added}
-                                                               {:fx/type :menu-item
+                                                               {:fx/type fx.menu-item/lifecycle
                                                                 :text "Remove"
                                                                 :disable disable-remove
                                                                 :on-action on-removed}]}}}}]}
-                       {:fx/type :h-box
+                       {:fx/type fx.h-box/lifecycle
                         :spacing 4
                         :children [{:fx/type icon-button
                                     :disable disable-add
@@ -995,7 +1016,7 @@
         key-path (:path panel-key)
         selected-index (-> state :key :selected-indices peek)
         fn-setter (:set field)]
-    {:fx/type :v-box
+    {:fx/type fx.v-box/lifecycle
      :spacing 4
      :children
      [(cond-> {:fx/type list-input
@@ -1021,7 +1042,7 @@
 
               (contains? state :key)
               (assoc :state (:key state)))
-      {:fx/type :v-box
+      {:fx/type fx.v-box/lifecycle
        :spacing 6
        :children
        (if (some? selected-index)
@@ -1034,13 +1055,13 @@
                            field-value (get-in value field-path ::no-value)
                            field-state-path (conj state-path :val selected-index (:path field))
                            field-state (get-in state [:val selected-index (:path field)] ::no-value)]
-                       {:fx/type :v-box
+                       {:fx/type fx.v-box/lifecycle
                         :spacing 4
                         :children
-                        [{:fx/type :h-box
+                        [{:fx/type fx.h-box/lifecycle
                           :spacing 4
                           :pref-height line-height
-                          :children (cond-> [{:fx/type :label
+                          :children (cond-> [{:fx/type fx.label/lifecycle
                                               :h-box/margin {:top 5}
                                               :text (:label field)}]
                                             (and (form/optional-field? field)
@@ -1085,7 +1106,7 @@
     (cond-> []
             :always
             (conj (cond->
-                    {:fx/type :label
+                    {:fx/type fx.label/lifecycle
                      :grid-pane/row row
                      :grid-pane/column 0
                      :grid-pane/valignment :top
@@ -1095,7 +1116,7 @@
                      :alignment :top-left
                      :text label}
                     (not-empty help)
-                    (assoc :tooltip {:fx/type :tooltip
+                    (assoc :tooltip {:fx/type fx.tooltip/lifecycle
                                      :text help})))
 
             (and (form/optional-field? field)
@@ -1112,7 +1133,7 @@
                                :path path}})
 
             :always
-            (conj {:fx/type :v-box
+            (conj {:fx/type fx.v-box/lifecycle
                    :style-class (case (:severity error)
                                   :fatal ["cljfx-form-error"]
                                   :warning ["cljfx-form-warning"]
@@ -1141,31 +1162,31 @@
   (string/replace title " " "-"))
 
 (defn- section-view [{:keys [title help fields values ui-state resource-string-converter visible]}]
-  {:fx/type :v-box
+  {:fx/type fx.v-box/lifecycle
    :id (section-id title)
    :visible visible
    :managed visible
    :children (cond-> []
 
                      :always
-                     (conj {:fx/type :label
+                     (conj {:fx/type fx.label/lifecycle
                             :style-class ["label" "cljfx-form-title"]
                             :text title})
 
                      help
-                     (conj {:fx/type :label
+                     (conj {:fx/type fx.label/lifecycle
                             :text help})
 
                      :always
-                     (conj {:fx/type :grid-pane
+                     (conj {:fx/type fx.grid-pane/lifecycle
                             :style-class "cljfx-form-fields"
-                            :column-constraints [{:fx/type :column-constraints
+                            :column-constraints [{:fx/type fx.column-constraints/lifecycle
                                                   :min-width 150
                                                   :max-width 150}
-                                                 {:fx/type :column-constraints
+                                                 {:fx/type fx.column-constraints/lifecycle
                                                   :min-width line-height
                                                   :max-width line-height}
-                                                 {:fx/type :column-constraints
+                                                 {:fx/type fx.column-constraints/lifecycle
                                                   :hgrow :always
                                                   :min-width 200
                                                   :max-width 400}]
@@ -1241,7 +1262,7 @@
     {:set-ui-state (assoc ui-state :filter-term "")}))
 
 (defn- filter-text-field [{:keys [text]}]
-  {:fx/type :text-field
+  {:fx/type fx.text-field/lifecycle
    :id "filter-text-field"
    :style-class ["text-field" "filter-text-field"]
    :prompt-text "Filter"
@@ -1264,7 +1285,7 @@
                visible (:visible section)]
            (if (empty? acc)
              [(conj acc section-view) visible]
-             [(into acc [{:fx/type :separator
+             [(into acc [{:fx/type fx.separator/lifecycle
                           :style-class "cljfx-form-separator"
                           :visible (and seen-visible visible)
                           :managed (and seen-visible visible)}
@@ -1286,14 +1307,14 @@
                                  (- content-height viewport-height))))))
 
 (defn- jump-to-button [{:keys [visible-titles]}]
-  {:fx/type :menu-button
+  {:fx/type fx.menu-button/lifecycle
    :text "Jump to..."
    :style-class "jump-to-menu-button"
    :disable (empty? visible-titles)
    :items (->> visible-titles
                (sort #(.compareToIgnoreCase ^String %1 %2))
                (mapv (fn [title]
-                       {:fx/type :menu-item
+                       {:fx/type fx.menu-item/lifecycle
                         :on-action {:event-type :jump-to
                                     :section (section-id title)}
                         :text title})))})
@@ -1319,7 +1340,7 @@
             :value parent}
      :props {:children (cond-> []
                                (:navigation form-data true)
-                               (conj {:fx/type :h-box
+                               (conj {:fx/type fx.h-box/lifecycle
                                       :style-class "cljfx-form-floating-area"
                                       :anchor-pane/top 24
                                       :anchor-pane/right 24
@@ -1336,11 +1357,11 @@
                                       :anchor-pane/bottom 0
                                       :anchor-pane/left 0
                                       :on-created #(ui/context! % :form {:root parent} nil)
-                                      :desc {:fx/type :scroll-pane
+                                      :desc {:fx/type fx.scroll-pane/lifecycle
                                              :id "scroll-pane"
                                              :view-order 1
                                              :fit-to-width true
-                                             :content {:fx/type :v-box
+                                             :content {:fx/type fx.v-box/lifecycle
                                                        :style-class "cljfx-form"
                                                        :children section-views}}}))}}))
 

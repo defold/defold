@@ -11,7 +11,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.bundle-dialog
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.fx.v-box :as fx.v-box]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
@@ -60,7 +61,7 @@
         {:title "Overwrite Existing Directory?"
          :owner owner-window
          :icon :icon/circle-question
-         :header {:fx/type :v-box
+         :header {:fx/type fx.v-box/lifecycle
                   :children [{:fx/type fxui/label
                               :variant :header
                               :text "A directory already exists"}

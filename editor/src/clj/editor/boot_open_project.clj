@@ -11,7 +11,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.boot-open-project
-  (:require [clojure.string :as string]
+  (:require [cljfx.fx.v-box :as fx.v-box]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
@@ -327,7 +328,7 @@
             (if-not (dialogs/make-confirmation-dialog
                       {:title "Resume Sync?"
                        :size :large
-                       :header {:fx/type :v-box
+                       :header {:fx/type fx.v-box/lifecycle
                                 :children [{:fx/type fxui/label
                                             :variant :header
                                             :text "The editor was shut down while synchronizing with the server"}

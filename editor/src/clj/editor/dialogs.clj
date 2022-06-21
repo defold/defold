@@ -12,6 +12,14 @@
 
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
+            [cljfx.fx.group :as fx.group]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.image-view :as fx.image-view]
+            [cljfx.fx.label :as fx.label]
+            [cljfx.fx.progress-bar :as fx.progress-bar]
+            [cljfx.fx.region :as fx.region]
+            [cljfx.fx.scene :as fx.scene]
+            [cljfx.fx.v-box :as fx.v-box]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -67,28 +75,28 @@
   (-> props
       (dissoc :size :header :content :footer)
       (assoc :fx/type fxui/dialog-stage
-             :scene {:fx/type :scene
+             :scene {:fx/type fx.scene/lifecycle
                      :stylesheets ["dialogs.css"]
-                     :root {:fx/type :v-box
+                     :root {:fx/type fx.v-box/lifecycle
                             :style-class ["dialog-body" (case size
                                                           :small "dialog-body-small"
                                                           :default "dialog-body-default"
                                                           :large "dialog-body-large")]
                             :children (if (some? content)
-                                        [{:fx/type :v-box
+                                        [{:fx/type fx.v-box/lifecycle
                                           :style-class "dialog-with-content-header"
                                           :children [header]}
-                                         {:fx/type :v-box
+                                         {:fx/type fx.v-box/lifecycle
                                           :style-class "dialog-content"
                                           :children [content]}
-                                         {:fx/type :v-box
+                                         {:fx/type fx.v-box/lifecycle
                                           :style-class "dialog-with-content-footer"
                                           :children [footer]}]
-                                        [{:fx/type :v-box
+                                        [{:fx/type fx.v-box/lifecycle
                                           :style-class "dialog-without-content-header"
                                           :children [header]}
-                                         {:fx/type :region :style-class "dialog-no-content"}
-                                         {:fx/type :v-box
+                                         {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
+                                         {:fx/type fx.v-box/lifecycle
                                           :style-class "dialog-without-content-footer"
                                           :children [footer]}])}})))
 
@@ -101,7 +109,7 @@
 
 (defn- dialog-buttons [props]
   (-> props
-      (assoc :fx/type :h-box)
+      (assoc :fx/type fx.h-box/lifecycle)
       (fxui/provide-defaults :alignment :center-right)
       (fxui/add-style-classes "spacing-smaller")))
 
@@ -129,7 +137,7 @@
                           (let [header-desc (confirmation-dialog-header->fx-desc header)]
                             (if (= icon ::no-icon)
                               header-desc
-                              {:fx/type :h-box
+                              {:fx/type fx.h-box/lifecycle
                                :style-class "spacing-smaller"
                                :alignment :center-left
                                :children [(if (keyword? icon)
@@ -213,7 +221,7 @@
      :on-close-request {:event-type :cancel}
      :title "Set Custom Resolution"
      :size :small
-     :header {:fx/type :v-box
+     :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/label
                           :variant :header
                           :text "Set custom game resolution"}
@@ -263,7 +271,7 @@
                  {:title "Update Failed"
                   :owner owner
                   :icon :icon/triangle-error
-                  :header {:fx/type :v-box
+                  :header {:fx/type fx.v-box/lifecycle
                            :children [{:fx/type fxui/label
                                        :variant :header
                                        :text "An error occurred during update installation"}
@@ -284,7 +292,7 @@
      :icon :icon/circle-info
      :size :large
      :owner owner
-     :header {:fx/type :v-box
+     :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/label
                           :variant :header
                           :text "Update is ready, but there is even newer version available"}
@@ -303,7 +311,7 @@
     {:title "Platform not supported"
      :icon :icon/circle-sad
      :owner owner
-     :header {:fx/type :v-box
+     :header {:fx/type fx.v-box/lifecycle
               :children [{:fx/type fxui/label
                           :variant :header
                           :text "Updates are no longer provided for this platform"}
@@ -343,7 +351,7 @@
    :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
    :title "Error"
-   :header {:fx/type :h-box
+   :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-smaller"
             :alignment :center-left
             :children [{:fx/type fxui/icon
@@ -353,7 +361,7 @@
                         :text "An error occurred"}]}
    :content {:fx/type info-dialog-text-area
              :text (messages ex-map)}
-   :footer {:fx/type :v-box
+   :footer {:fx/type fx.v-box/lifecycle
             :style-class "spacing-smaller"
             :children [{:fx/type fxui/label
                         :text "You can help us fix this problem by reporting it and providing more information about what you were doing when it happened."}
@@ -386,23 +394,23 @@
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request (fn [_] (Platform/exit))
-   :header {:fx/type :h-box
+   :header {:fx/type fx.h-box/lifecycle
             :style-class "spacing-default"
             :alignment :center-left
-            :children [{:fx/type :group
-                        :children [{:fx/type :image-view
+            :children [{:fx/type fx.group/lifecycle
+                        :children [{:fx/type fx.image-view/lifecycle
                                     :scale-x 0.25
                                     :scale-y 0.25
                                     :image "logo.png"}]}
                        {:fx/type fxui/label
                         :variant :header
                         :text "Loading project"}]}
-   :content {:fx/type :v-box
+   :content {:fx/type fx.v-box/lifecycle
              :style-class ["dialog-content-padding" "spacing-smaller"]
              :children [{:fx/type fxui/label
                          :wrap-text false
                          :text (:message progress)}
-                        {:fx/type :progress-bar
+                        {:fx/type fx.progress-bar/lifecycle
                          :max-width Double/MAX_VALUE
                          :progress (progress/fraction progress)}]}
    :footer {:fx/type dialog-buttons
@@ -805,13 +813,13 @@
               :text (str "Rename " initial-name)}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
-               :children [{:fx/type :label
+               :children [{:fx/type fx.label/lifecycle
                            :text label}
                           {:fx/type fxui/text-field
                            :text name
                            :variant (if invalid :error :default)
                            :on-text-changed {:event-type :set-name}}
-                          {:fx/type :label
+                          {:fx/type fx.label/lifecycle
                            :text "Preview"}
                           {:fx/type fxui/text-field
                            :editable false
@@ -884,7 +892,7 @@
                            :on-text-changed {:event-type :set-file-name}}
                           {:fx/type fxui/label
                            :text "Location"}
-                          {:fx/type :h-box
+                          {:fx/type fx.h-box/lifecycle
                            :spacing 4
                            :children [{:fx/type fxui/text-field
                                        :h-box/hgrow :always

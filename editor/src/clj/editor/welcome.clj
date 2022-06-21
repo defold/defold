@@ -11,7 +11,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.welcome
-  (:require [clojure.edn :as edn]
+  (:require [cljfx.fx.hyperlink :as fx.hyperlink]
+            [cljfx.fx.text :as fx.text]
+            [cljfx.fx.text-flow :as fx.text-flow]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [clojure.string :as string]
@@ -644,20 +647,20 @@
                                             {:title "SSL Connection Error"
                                              :icon :icon/triangle-error
                                              :header "Could not establish an SSL connection"
-                                             :content {:fx/type :text-flow
+                                             :content {:fx/type fx.text-flow/lifecycle
                                                        :style-class "dialog-content-padding"
-                                                       :children [{:fx/type :text
+                                                       :children [{:fx/type fx.text/lifecycle
                                                                    :text (str "Common causes are:\n"
                                                                               "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
                                                                               "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
                                                                               "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
                                                                               "\n"
                                                                               "The following FAQ may apply: ")}
-                                                                  {:fx/type :hyperlink
+                                                                  {:fx/type fx.hyperlink/lifecycle
                                                                    :text "PKIX path building failed"
                                                                    :on-action (fn [_]
                                                                                 (ui/open-url "https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md"))}
-                                                                  {:fx/type :text
+                                                                  {:fx/type fx.text/lifecycle
                                                                    :text (str "\n\n" (string/replace (.getMessage error) ": " ":\n\u00A0\u00A0"))}]}})
 
                                           :else
