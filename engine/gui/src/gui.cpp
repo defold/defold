@@ -1472,7 +1472,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (opacity == 0.0f || n->m_Node.m_IsBone)
             {
                 entry.m_Node = INVALID_HANDLE;
-                entry.m_RenderKey = 0xFFFFFFFF;
+                entry.m_RenderKey = (uint64_t)~0;
                 ++num_pruned;
                 continue;
             }
