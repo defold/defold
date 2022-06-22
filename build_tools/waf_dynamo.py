@@ -1584,7 +1584,7 @@ def detect(conf):
         conf.env['SHLIB_MARKER']=''
 
     if platform in ('x86_64-linux',): # Currently the only platform exhibiting the behavior
-        conf.env['STATICLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
+        conf.env['STLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
         conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
 
     if Options.options.static_analyze:
