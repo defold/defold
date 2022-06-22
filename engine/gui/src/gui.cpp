@@ -1471,7 +1471,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             // Ideally, we'd like to have this update step in the Update function (I'm not even sure why it isn't tbh)
             // But for now, let's prune the list here
-            if (opacity == 0.0f || n->m_Node.m_IsBone)
+            if (opacity == 0.0f || n->m_Node.m_IsBone || n->m_Node.m_IsVisible)
             {
                 entry.m_Node = INVALID_HANDLE;
                 entry.m_RenderKey = INVALID_RENDER_KEY;
@@ -3865,6 +3865,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             SetDirtyLocalRecursive(scene, node);
         }
+    }
+
+    bool IsNodeVisible(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_IsVisible;
+    }
+
+    void SetNodeVisible(HScene scene, HNode node, bool visible)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_IsVisible = visible;
     }
 
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)

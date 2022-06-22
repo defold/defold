@@ -2914,6 +2914,51 @@ namespace dmGui
         return 0;
     }
 
+   /*# returns if a node is visible or not
+     * Returns `true` if a node is visible and `false` if it's not.
+     * Invisible nodes are not rendered.
+     *
+     * @name gui.is_visible
+     * @param node [type:node] node to query
+     * @return visible [type:boolean] whether the node is visible or not
+     */
+    static int LuaIsVisible(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void) n;
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        int top = lua_gettop(L);
+        lua_pushboolean(L, dmGui::IsNodeVisible(scene, hnode));
+
+        return 1;
+    }
+
+    /*# set visibility for a node
+     * Set if a node should be visible or not. Only visible nodes are rendered.
+     *
+     * @name gui.set_visible
+     * @param node [type:node] node to be visible or not
+     * @param visible [type:boolean] whether the node should be visible or not
+     */
+    static int LuaSetVisible(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        (void) n;
+
+        int visible = lua_toboolean(L, 2);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        dmGui::SetNodeVisible(scene, hnode, visible != 0);
+
+        return 0;
+    }
+
     /*# gets the node adjust mode
      * Returns the adjust mode of a node.
      * The adjust mode defines how the node will adjust itself to screen
@@ -4189,6 +4234,8 @@ namespace dmGui
         {"pick_node",       LuaPickNode},
         {"is_enabled",      LuaIsEnabled},
         {"set_enabled",     LuaSetEnabled},
+        {"is_visible",      LuaIsVisible},
+        {"set_visible",     LuaSetVisible},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},
         {"get_size_mode",   LuaGetSizeMode},

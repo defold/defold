@@ -1059,6 +1059,23 @@ namespace dmGui
      * @param enabled whether the node should be enabled
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+
+    /** retrieves if a node is visible or not
+     * Only visible nodes are rendered.
+     *
+     * @param scene the scene the node exists in
+     * @param node the node to be visible or not
+     * @return whether the node is visible or not
+     */
+    bool IsNodeVisible(HScene scene, HNode node);
+    /** turn-on/turn-off rendering for a node
+     * Set if a node should be visible or not. Only visible nodes are rendered.
+     *
+     * @param scene the scene the node exists in
+     * @param node the node to be visible/hidden
+     * @param visible whether the node should be rendered
+     */
+    void SetNodeVisible(HScene scene, HNode node, bool visible);
     
     void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
 
