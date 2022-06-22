@@ -876,6 +876,15 @@ namespace dmGui
     {
     }
 
+    bool IsNodeVisible(HScene scene, HNode node)
+    {
+        return false;
+    }
+
+    void SetNodeVisible(HScene scene, HNode node, bool visible)
+    {
+    }
+
     void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position)
     {
     }
