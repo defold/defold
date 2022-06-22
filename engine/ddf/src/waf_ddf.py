@@ -260,10 +260,13 @@ def proto_file(self, node):
 
         task.env['PROTOC_FLAGS'] = protoc_flags
 
-        if self.bld.is_install:
+        do_install = self.bld.is_install
+        if 'test' in self.features:
+            do_install = False
+
+        if do_install:
             self.bld.install_files('${PREFIX}/share/proto/%s' % rel_path, out)
 
-        if self.bld.is_install:
             # For backward compatibility
             # proto-files imported without package name should
             # still install the header in APPNAME
@@ -310,14 +313,14 @@ def proto_file(self, node):
                 pkg_task.set_inputs(node)
                 pkg_task.set_outputs(pkg_out)
                 gen_py_proto_packages.add(py_out.parent.abspath())
-                if self.bld.is_install:
+                if do_install:
                     self.bld.install_files('${PREFIX}/lib/python/%s' % rel_path, pkg_out)
 
                 # Only create __init__.py once
                 gen_py_proto_packages.add(py_out.parent.abspath())
                 self.gen_py_proto_packages = gen_py_proto_packages
 
-            if self.bld.is_install:
+            if do_install:
                 self.bld.install_files('${PREFIX}/lib/python/%s' % rel_path, py_out)
             task.set_outputs(py_out)
 

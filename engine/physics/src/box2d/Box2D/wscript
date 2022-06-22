@@ -1,12 +1,9 @@
-from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
-    build_util = create_build_utility(bld.env)
     box2d = bld.stlib(features = 'cxx',
                       includes = '..',
                       source = bld.path.ant_glob('**/*.cpp'),
-                      install_path = build_util.get_library_path(),
                       target = 'Box2D')

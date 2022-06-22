@@ -16,12 +16,34 @@ import waflib.Task
 import waflib.Utils
 import waflib.Errors
 from waflib.TaskGen import extension, before, feature
-import hashlib, sys, os
+import hashlib, sys, os, importlib
 
 # NOTE: This must be included explicitly prior to any modules with fields that set [(resource) = true].
 # Otherwise field_desc.GetOptions().ListFields() will return [] for the first loaded module
 # Strange error and probably a bug in google protocol buffers
 import ddf.ddf_extensions_pb2
+
+from importlib.machinery import PathFinder
+
+class DefoldImporter(PathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if not "ddf_pb2" in fullname:
+            return None
+
+        tokens = fullname.split(".")
+        subpath = os.path.sep.join(tokens) + ".py"
+        spec = None
+        for x in sys.path:
+            p = os.path.join(x, subpath)
+            if not os.path.exists(p):
+                continue
+            spec = importlib.util.spec_from_file_location(fullname, p)
+            if spec is not None:
+                break
+        return spec
+
+sys.meta_path.insert(0, DefoldImporter())
+
 
 @feature('*')
 @before('apply_core')
@@ -191,7 +213,7 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
 
                 depnodes += scan_msg(task, msg)
 
-            except (google.protobuf.text_format.ParseError,e):
+            except google.protobuf.text_format.ParseError as e:
                 # We ignore parse error as the file will hopefully be changed and recompiled anyway
                 pass
 

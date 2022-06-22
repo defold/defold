@@ -120,11 +120,11 @@ def build(bld):
 
       bld.add_group()
 
-    embedded_wavs = bld(features = 'cxx cstaticlib embed test',
+    embedded_wavs = bld.stlib(features = 'cxx embed test',
                                      target = 'embedded_wavs',
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = wavs)
-    embedded_oggs = bld(features = 'cxx cstaticlib embed test',
+    embedded_oggs = bld.stlib(features = 'cxx embed test',
                                      target = 'embedded_oggs',
                                      source = 'dummy.cpp',  # Make waf happy
                                      embed_source = [x.name for x in bld.path.ant_glob('**/*.ogg')])
@@ -144,7 +144,7 @@ def build(bld):
         soundlibs.append('OPENGL')
 
     if 'TREMOLO' in soundlibs:
-        bld.program(features = 'cxx cprogram embed test',
+        bld.program(features = 'cxx embed test',
                     includes = '../../src .',
                     use = 'TESTMAIN DLIB PLATFORM_SOCKET PROFILE_NULL CARES sound embedded_wavs embedded_oggs'.split() + soundlibs,
                     web_libs = ['library_sound.js'],
@@ -152,7 +152,7 @@ def build(bld):
                     target = 'test_sound_perf',
                     source = 'test_sound_perf.cpp')
 
-    bld.program(features = 'cxx cprogram embed test',
+    foo = bld.program(features = 'cxx embed test',
                 includes = '../../src .',
                 use = 'TESTMAIN DLIB PLATFORM_SOCKET PROFILE_NULL CARES sound embedded_wavs embedded_oggs'.split() + soundlibs,
                 web_libs = ['library_sound.js'],
@@ -162,7 +162,7 @@ def build(bld):
 
     # test that the linkage doesn't break again
     exported_symbols = 'NullSoundDevice TestNullDevice'
-    bld.program(features = 'cxx cprogram embed test',
+    bld.program(features = 'cxx embed test',
                     includes = '../../src .',
                     use = 'TESTMAIN DLIB PLATFORM_SOCKET PROFILE_NULL CARES sound_null embedded_wavs embedded_oggs',
                     web_libs = ['library_sound.js'],

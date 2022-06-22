@@ -162,8 +162,8 @@ def build(bld):
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/resource'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/rig'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/script'))
-    sys.path.insert(0, os.path.abspath('build/default/proto/engine'))
-    sys.path.insert(0, os.path.abspath('default/proto/engine'))
+    sys.path.insert(0, os.path.abspath('build/proto/engine'))
+    sys.path.insert(0, os.path.abspath('proto/engine'))
 
     bld.recurse('content')
     bld.add_group()

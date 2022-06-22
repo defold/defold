@@ -8,11 +8,6 @@ from waflib.TaskGen import extension
 sys.path.insert(0, "src")
 import waf_gamesys
 
-if sys.platform == "win32":
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";default/proto;../src"
-else:
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto:../src"
-
 def configure(conf):
     pass
 

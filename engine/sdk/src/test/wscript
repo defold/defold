@@ -14,13 +14,13 @@ def sdk_include_filter(self):
     self.env['CPPATH'] = new_cpppath
 
 def build(bld):
-    bld.stlib(features = 'cxx cstaticlib test sdk_include_filter',
+    bld.stlib(features = 'cxx test sdk_include_filter',
               includes = '. ../',
               source   = 'test_sdk_lib.cpp',
               target   = 'test_sdk_lib',
               always   = True)
 
-    bld.program(features         = 'c cxx cprogram embed test',
+    bld.program(features         = 'c cxx embed test',
                 includes         = '.',
                 use              = 'TESTMAIN EXTENSION DLIB LUA PROFILE_NULL test_sdk_lib',
                 exported_symbols = ['TestSdk'],

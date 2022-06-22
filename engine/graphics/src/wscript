@@ -25,7 +25,6 @@ def build(bld):
                         proto_gen_py    = True,
                         protoc_includes = '../proto',
                         use             = 'DDF DLIB',
-                        install_path    = build_util.get_library_path(),
                         target          = 'graphics')
 
         if 'web' in bld.env.PLATFORM:
@@ -41,7 +40,6 @@ def build(bld):
                         proto_gen_py    = True,
                         protoc_includes = '../proto',
                         use             = 'DDF DLIB',
-                        install_path    = build_util.get_library_path(),
                         source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
                         target          = 'graphics_vulkan')
 
@@ -69,7 +67,6 @@ def build(bld):
                     proto_gen_py    = True,
                     protoc_includes = '../proto',
                     use             = 'DDF DLIB',
-                    install_path    = build_util.get_library_path(),
                     target          = 'graphics_null')
 
     obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
@@ -77,14 +74,12 @@ def build(bld):
     obj = bld.stlib(features     = 'cxx',
                     includes     = ['.', '../proto'],
                     use          = 'DLIB',
-                    install_path = build_util.get_library_path(),
                     source       = 'transcoder/graphics_transcoder_null.cpp',
                     target       = 'graphics_transcoder_null')
 
     obj = bld.stlib(features     = 'cxx',
                     includes     = ['.', '../proto'],
                     use          = 'DLIB',
-                    install_path = build_util.get_library_path(),
                     source       = 'transcoder/graphics_transcoder_basisu.cpp',
                     target       = 'graphics_transcoder_basisu')
 

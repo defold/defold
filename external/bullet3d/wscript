@@ -29,7 +29,7 @@ def build(bld):
     packagedir = 'package/%s/src' % name
 
     path = './%s/BulletCollision' % packagedir
-    bullet_collision = bld.new_task_gen(features = 'cxx cstaticlib',
+    bullet_collision = bld.stlib(features = 'cxx',
                                         defines = ['NDEBUG'],
                                         includes = '. .. ./package/%s/src' % name,
                                         target = 'BulletCollision')
@@ -42,7 +42,7 @@ def build(bld):
     bullet_collision.install_path = None
 
     path = './%s/BulletDynamics' % packagedir
-    bullet_dynamics = bld.new_task_gen(features = 'cxx cstaticlib',
+    bullet_dynamics = bld.stlib(features = 'cxx',
                                         defines = ['NDEBUG'],
                                        includes = '. .. ./package/%s/src' % name,
                                        target = 'BulletDynamics')
@@ -54,7 +54,7 @@ def build(bld):
     bullet_dynamics.install_path = None
 
     path = './%s/LinearMath' % packagedir
-    linear_math = bld.new_task_gen(features = 'cxx cstaticlib',
+    linear_math = bld.stlib(features = 'cxx',
                                    defines = ['NDEBUG'],
                                    includes = '. .. ./package/%s/src' % name,
                                    target = 'LinearMath')

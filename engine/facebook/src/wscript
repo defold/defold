@@ -2,7 +2,6 @@
 import os, re
 
 from waf_dynamo import apidoc_extract_task
-from BuildUtility import create_build_utility
 
 def init(ctx):
     pass
@@ -11,7 +10,6 @@ def configure(conf):
     pass
 
 def build(bld):
-    build_util  = create_build_utility(bld.env)
     source = 'facebook_null.cpp'
 
     platforms = ['arm.*?darwin', 'arm.*?android', '.*?web']
@@ -23,7 +21,6 @@ def build(bld):
     bld.stlib(features = 'cxx',
               includes = '.',
               source = source,
-              install_path = build_util.get_library_path(),
               target = 'facebookext')
 
     apidoc_extract_task(bld, ['facebook_doc.h'])

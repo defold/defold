@@ -509,7 +509,7 @@ def remove_flags_fn(self):
         for flag, argcount in values:
             remove_flag(self.env[name], flag, argcount)
 
-@feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
+@feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @before('process_source')
 @after('c')
 @after('cxx')
@@ -532,7 +532,7 @@ def web_exported_functions(self):
             self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_dmExportedSymbols","_main"]'])
 
 
-@feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
+@feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
 def android_link_flags(self):
     build_util = create_build_utility(self.env)
@@ -563,7 +563,7 @@ def asan_skip(self):
 def test_skip(self):
     self.skip_test = True
 
-@feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
+@feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @before('process_source')
 @after('skip_asan')
 def asan_cxxflags(self):
@@ -597,11 +597,11 @@ def apply_apk_test(self):
         self.features.append('cshlib')
 
 # Install all static libraries by default
-@feature('cstaticlib')
+@feature('cxxstlib', 'cstlib')
 @after('default_cc')
 @before('process_source')
 def default_install_staticlib(self):
-    self.default_install_path = self.env.LIBDIR
+    self.install_path = self.env.LIBDIR
 
 @feature('cshlib')
 @after('default_cc')
@@ -609,7 +609,7 @@ def default_install_staticlib(self):
 def default_install_shlib(self):
     # Force installation dir to LIBDIR.
     # Default on windows is BINDIR
-    self.default_install_path = self.env.LIBDIR
+    self.install_path = self.env.LIBDIR
 
 # iPhone bundle and signing support
 RESOURCE_RULES_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
@@ -811,7 +811,7 @@ task = Task.task_factory('create_export_symbols',
 task.runnable_status = lambda self: RUN_ME
 
 @task_gen
-@feature('cprogram')
+@feature('cprogram', 'cxxprogram')
 @before('process_source')
 def export_symbols(self):
     # Force inclusion of symbol, e.g. from static libraries
@@ -903,7 +903,7 @@ def authenticode(self):
 
 @task_gen
 @after('apply_link')
-@feature('cprogram')
+@feature('cprogram', 'cxxprogram')
 def create_app_bundle(self):
     if not re.match('arm.*?darwin', self.env['PLATFORM']):
         return
@@ -1293,7 +1293,7 @@ def run_tests(ctx, valgrind = False, configfile = None):
                 print("test failed %s" %(t.target) )
                 sys.exit(ret)
 
-@feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
+@feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
 def linux_link_flags(self):
     platform = self.env['PLATFORM']
@@ -1349,7 +1349,7 @@ Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
                       after='dSYM') # Not sure how I could ensure this task running after the dSYM task /MAWE
 
 @feature('extract_symbols')
-@after('cprogram')
+@after('cprogram', 'cxxprogram')
 def extract_symbols(self):
     platform = self.env['PLATFORM']
     if not 'darwin' in platform:

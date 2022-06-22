@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-from BuildUtility import create_build_utility
-
 def init(ctx):
     pass
 
@@ -12,18 +10,15 @@ def configure(conf):
     pass
 
 def build(bld):
-    build_util  = create_build_utility(bld.env)
     liveupdate = bld.stlib(features = 'cxx',
                            includes = '.',
                            source   = bld.path.ant_glob('*.cpp'),
-                           install_path = build_util.get_library_path(),
                            target   = 'liveupdate')
 
     liveupdate.source = [x for x in liveupdate.source if not 'null' in x.name]
 
     liveupdate_null = bld.stlib(features     = 'cxx',
                                 includes     = '.',
-                                install_path = build_util.get_library_path(),
                                 source       = 'liveupdate_null.cpp',
                                 target       = 'liveupdate_null')
 

@@ -6,8 +6,6 @@ def build(bld):
     if options.skip_build_tests:
         return
 
-    sys.path.insert(0, "default/proto")
-
     flist = 'c cxx cprogram'
 
     if 'web' in bld.env['PLATFORM']:

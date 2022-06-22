@@ -5,7 +5,7 @@ platform = bld.env.PLATFORM
 local_libs = 'dmglfw'
 if 'win32' in platform:
     local_libs = 'dmglfw dmglfw_getopt'
-    bld.new_task_gen(features = 'cc cstaticlib',
+    bld.stlib(features = 'c',
                      includes = '.',
                      target = 'dmglfw_getopt',
                      source = 'getopt.c',
@@ -20,7 +20,7 @@ elif 'web' in platform:
     samples = ''
 
 for e in samples.split():
-    bld.new_task_gen(features = 'cc cprogram apk',
+    bld.program(features = 'c apk',
                      includes = '. ../include',
                      target = e,
                      source = '%s.c' % e,

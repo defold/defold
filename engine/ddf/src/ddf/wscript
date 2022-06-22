@@ -2,10 +2,8 @@
 
 import os, sys
 from waf_dynamo import copy_file_task
-from BuildUtility import create_build_utility
 
 def build(bld):
-    build_util = create_build_utility(bld.env)
     proto_include_path = bld.env['DYNAMO_HOME'] + '/ext/include'
     proto_python_path = bld.env['DYNAMO_HOME'] + '/ext/lib/python'
 
@@ -39,14 +37,13 @@ def build(bld):
 
     bld.add_group()
   
-    bld.stlib(features = 'cxx cstaticlib ddf',
+    bld.stlib(features = 'cxx ddf',
         includes = '../.. ..',
         source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
         proto_gen_cc = True,
         proto_compile_cc = True,
         proto_gen_py = True,
         protoc_includes = '..',
-        install_path = build_util.get_library_path(),
         target = 'ddf')
 
     bld.install_files('${PREFIX}/include/ddf', 'ddf.h')

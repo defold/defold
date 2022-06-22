@@ -35,12 +35,6 @@ def configure(conf):
     if platform == "linux":
         conf.env.append_value('CXXFLAGS', '-DGL_GLEXT_PROTOTYPES')
 
-    if os.getenv('PYTHONPATH'):
-        if sys.platform == "win32":
-            ddf_search_lst = os.getenv('PYTHONPATH').split(';')
-        else:
-            ddf_search_lst = os.getenv('PYTHONPATH').split(':')
-
     if platform == "darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
     elif platform == "linux":

@@ -43,9 +43,9 @@ def build(bld):
 
     if re.match('arm.*?android', bld.env['PLATFORM']):
 
-        openal_soft = bld(features = 'cc cstaticlib',
-                          includes = '. config/armv7-android include OpenAL32/Include',
-                          source = source,
-                          defines = 'AL_ALEXT_PROTOTYPES',
-                          target = 'openal_soft')
+        openal_soft = bld.stlib(features = 'c',
+                                  includes = '. config/armv7-android include OpenAL32/Include',
+                                  source = source,
+                                  defines = 'AL_ALEXT_PROTOTYPES',
+                                  target = 'openal_soft')
 

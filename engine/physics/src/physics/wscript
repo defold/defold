@@ -1,18 +1,14 @@
 import waflib.Options
-from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
-    build_util = create_build_utility(bld.env)
-
     physics = bld.stlib(features = 'cxx',
                         use = 'DLIB  BULLET',
                         includes = '. .. ../box2d',
                         source = bld.path.ant_glob('*.cpp'),
                         proto_gen_py = True,
-                        install_path = build_util.get_library_path(),
                         target = 'physics')
 
     physics.source = [x for x in physics.source if not x.name.endswith('null.cpp')]
@@ -22,7 +18,6 @@ def build(bld):
               includes = '. ..',
               proto_gen_py = True,
               source = ['physics_common.cpp', 'physics_2d_null.cpp', 'physics_3d_null.cpp'],
-              install_path = build_util.get_library_path(),
               target = 'physics_null')
 
     bld.stlib(features = 'cxx',
@@ -30,7 +25,6 @@ def build(bld):
               includes = '. .. ../box2d',
               proto_gen_py = True,
               source = ['physics.cpp', 'physics_common.cpp', 'physics_2d.cpp', 'physics_3d_null.cpp', 'debug_draw_2d.cpp'],
-              install_path = build_util.get_library_path(),
               target = 'physics_2d')
 
     bld.stlib(features = 'cxx',
@@ -38,7 +32,6 @@ def build(bld):
               includes = '. ..',
               proto_gen_py = True,
               source = ['physics.cpp', 'physics_common.cpp', 'physics_3d.cpp', 'physics_2d_null.cpp', 'debug_draw_3d.cpp'],
-              install_path = build_util.get_library_path(),
               target = 'physics_3d')
 
     bld.install_files('${PREFIX}/include/physics', 'physics.h')

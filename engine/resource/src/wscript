@@ -1,22 +1,16 @@
 #! /usr/bin/env python
-import os
 import waflib.Options
 from waf_dynamo import dmsdk_add_files
-from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
-
-    build_util = create_build_utility(bld.env)
-
     resource = bld.stlib(features = 'cxx ddf',
                          includes = '. ../proto',
                          source = bld.path.ant_glob('*.cpp'),
                          protoc_includes = '../proto',
                          proto_gen_py = True,
-                         install_path = build_util.get_library_path(),
                          target = 'resource')
 
     if 'web' in bld.env.PLATFORM:

@@ -2,7 +2,6 @@
 import os
 import waflib.Utils
 from waf_dynamo import apidoc_extract_task, dmsdk_add_files, platform_supports_feature
-from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
@@ -11,7 +10,6 @@ def remove_from_node_list(lst, name):
     return [x for x in lst if not x.abspath().endswith(name)]
 
 def build(bld):
-    build_util = create_build_utility(bld.env)
     script = bld.stlib(features = 'cxx c',
                        includes = '. script',
                        source = bld.path.ant_glob(['*.cpp', 'script/*.proto']),
@@ -19,7 +17,6 @@ def build(bld):
                        proto_gen_py = True,
                        protoc_includes = '. script',
                        uselib = 'LUA',
-                       install_path = build_util.get_library_path(),
                        target = 'script')
 
     if 'web' in bld.env.PLATFORM:

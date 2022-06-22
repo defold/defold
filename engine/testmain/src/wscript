@@ -22,6 +22,5 @@ def build(bld):
     b = bld.stlib(features     = 'c cxx cstaticlib',
                   includes     = '. ..',
                   source       = bld.path.ant_glob(source_dirs),
-                  target       = 'testmain',
-                  install_path = build_util.get_library_path())
+                  target       = 'testmain')
 

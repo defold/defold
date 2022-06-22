@@ -66,11 +66,10 @@ def build(bld):
 
     source_files = bld.path.ant_glob(source_dirs)
 
-    dlib = bld.stlib(features = 'c cxx cstaticlib',
+    dlib = bld.stlib(features = 'c cxx',
                      source   = source_files,
                      includes = private_include_dir + ' . ./mbedtls/include ./mbedtls/crypto/include',
                      target   = 'dlib',
-                     install_path = build_util.get_library_path(),
                      defines  = ['VALGRIND'] + extra_defines)
 
     lib_features = {
@@ -115,7 +114,6 @@ def build(bld):
     dlib_noasan = bld.stlib(features    = dlib.features + ['skip_asan'],
                       includes    = dlib.includes,
                       defines     = dlib.defines,
-                      install_path = build_util.get_library_path(),
                       target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
@@ -136,12 +134,11 @@ def build(bld):
     else:
         extra_defines += ['MBEDTLS_ERROR_C']
 
-    mbedtls = bld.stlib(features    = 'c cxx cstaticlib remove_flags',
+    mbedtls = bld.stlib(features    = 'c cxx remove_flags',
                   includes    = '. ./mbedtls/include ./mbedtls/crypto/include',
                   target      = 'mbedtls',
                   source      = bld.path.ant_glob(mbedtls_dirs),
                   remove_flags= remove_flags,
-                  install_path = build_util.get_library_path(),
                   defines     = ['VALGRIND'] + extra_defines)
     mbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
 
@@ -150,30 +147,27 @@ def build(bld):
                          includes     = mbedtls.includes,
                          remove_flags = remove_flags,
                          defines      = mbedtls.defines,
-                         install_path = build_util.get_library_path(),
                          target       = 'mbedtls_noasan')
     mbedtls_noasan.source = [x for x in mbedtls.source]
     mbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     libzip_dirs = ['zip/**/*.cpp']
-    libzip = bld.stlib(features    = 'c cxx cstaticlib',
+    libzip = bld.stlib(features    = 'c cxx',
                  includes    = '. ./zip',
                  source      = bld.path.ant_glob(libzip_dirs),
                  target      = 'zip',
-                 install_path = build_util.get_library_path(),
                  defines     = ['VALGRIND'] + extra_defines)
 
     libzip_noasan = bld(features  = ' '.join(libzip.features) + ' skip_asan',
                         includes  = libzip.includes,
                         defines   = libzip.defines,
-                        install_path = build_util.get_library_path(),
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     # ******************************************************************
 
-    libprofile_features = 'cc cxx cstaticlib'
+    libprofile_features = 'c cxx'
     libprofile_includes = '. ./dlib/profile ./remotery'
     libprofile_defines = ['VALGRIND'] + extra_defines
     if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
@@ -181,13 +175,11 @@ def build(bld):
                                includes     = libprofile_includes,
                                defines      = libprofile_defines,
                                source       = ['dlib/profile/profile.cpp', 'dlib/profile/profile_remotery.cpp'],
-                               install_path = build_util.get_library_path(),
                                target       = 'profile')
 
         libprofile_noasan = bld.stlib(features     = libprofile.features + ['skip_asan'],
                                       includes     = libprofile.includes,
                                       defines      = libprofile.defines,
-                                      install_path = build_util.get_library_path(),
                                       target       = 'profile_noasan')
         libprofile_noasan.source = libprofile.source
 
@@ -196,13 +188,11 @@ def build(bld):
                                 includes     = libprofile_includes,
                                 defines      = libprofile_defines,
                                 source       = 'dlib/profile/profile.cpp dlib/profile/profile_null.cpp',
-                                install_path = build_util.get_library_path(),
                                 target       = 'profile_null')
 
     libprofile_null_noasan = bld.stlib(features     = libprofile_null.features + ['skip_asan'],
                                        includes     = libprofile_null.includes,
                                        defines      = libprofile_null.defines,
-                                       install_path = build_util.get_library_path(),
                                        target       = 'profile_null_noasan')
     libprofile_null_noasan.source = libprofile_null.source
 
@@ -214,19 +204,17 @@ def build(bld):
         remotery_defines = []
 
     if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
-        libremotery = bld.stlib(features     = 'cc cxx',
+        libremotery = bld.stlib(features     = 'c cxx',
                                 includes     = '. ./remotery/lib',
                                 target       = 'remotery',
-                                install_path = build_util.get_library_path(),
                                 source       = bld.path.ant_glob('remotery/lib/*.c'),
                                 defines      = ['VALGRIND'] + extra_defines + remotery_defines)
 
         if build_util.get_target_os() not in ['osx', 'ios']:
             libremotery.source = [x for x in libremotery.source if not x.abspath().endswith('.mm')]
 
-        libremotery_noasan = bld.stlib(features  = 'cc cxx skip_asan',
+        libremotery_noasan = bld.stlib(features  = 'c cxx skip_asan',
                                        includes  = '. ./remotery/lib',
-                                       install_path = build_util.get_library_path(),
                                        source       = bld.path.ant_glob('remotery/lib/*.c'),
                                        defines   = ['VALGRIND'] + extra_defines + remotery_defines,
                                        target    = 'remotery_noasan')
@@ -234,10 +222,9 @@ def build(bld):
         if build_util.get_target_os() not in ['osx', 'ios']:
             libremotery_noasan.source = [x for x in libremotery_noasan.source if not x.abspath().endswith('.mm')]
 
-    libremotery_null = bld.stlib(features    = 'cc cxx',
+    libremotery_null = bld.stlib(features    = 'c cxx',
                                  includes    = '. ./remotery/lib',
                                  target      = 'remotery_null',
-                                 install_path = build_util.get_library_path(),
                                  source       = bld.path.ant_glob('remotery/*.c'),
                                  defines     = ['VALGRIND'] + extra_defines + remotery_defines)
 
@@ -285,11 +272,10 @@ def build(bld):
     if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-darwin'):
         basis_flags += ['BASISU_SUPPORT_SSE=1']
 
-    basis_encoder = bld.stlib(features = 'c cxx cstaticlib skip_asan remove_flags',
+    basis_encoder = bld.stlib(features = 'c cxx skip_asan remove_flags',
                             includes = ['basis'],
                             target = 'basis_encoder',
                             source = bld.path.ant_glob(["basis/**/*.cpp", "basis/**/*.c"]),
-                            install_path = build_util.get_library_path(),
                             remove_flags = remove_flags,
                             defines = ['DM_BASIS_ENCODER'] + basis_flags)
 
@@ -299,12 +285,11 @@ def build(bld):
         basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
 
     # For the runtime
-    basis_transcoder = bld.stlib(features = 'cxx cstaticlib remove_flags',
+    basis_transcoder = bld.stlib(features = 'cxx remove_flags',
                             includes = ['basis'],
                             target = 'basis_transcoder',
                             remove_flags = remove_flags,
                             source = bld.path.ant_glob("basis/transcoder/**/*.cpp"),
-                            install_path = build_util.get_library_path(),
                             defines = ['DM_BASIS_TRANSCODER_UASTC', 'BASISD_SUPPORT_KTX2=0'] + basis_flags,
                             use = 'dlib')
 

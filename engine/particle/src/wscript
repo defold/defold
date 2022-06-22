@@ -13,18 +13,15 @@
 # specific language governing permissions and limitations under the License.
 
 import waflib.Options
-from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
-    build_util = create_build_utility(bld.env)
     particle = bld.stlib(features = 'cxx ddf',
                          includes = ['.', '../proto'],
                          proto_gen_py = True,
                          protoc_includes = '../proto',
-                         install_path = build_util.get_library_path(),
                          target = 'particle',
                          uselib = 'DDF DLIB PLATFORM_SOCKET',
                          source = 'particle.cpp ../proto/particle/particle_ddf.proto')

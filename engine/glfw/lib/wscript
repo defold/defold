@@ -1,10 +1,7 @@
 #! /usr/bin/env python
-import sys, re, os
-import waflib.Options
-from BuildUtility import create_build_utility
+import re
 
 def build(bld):
-    build_util = create_build_utility(bld.env)
 
     sources = []
     includes = []
@@ -31,7 +28,6 @@ def build(bld):
         includes = '. js-web'
 
     dmglfw = bld.stlib(features     = 'c',
-                       install_path = build_util.get_library_path(),
                        source       = sources,
                        includes     = includes, 
                        target       = 'dmglfw')

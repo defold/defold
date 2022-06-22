@@ -40,7 +40,7 @@ def build(bld):
 
     web_libs = ['library_glfw.js', 'library_sys.js']
 
-    bld.program(features = 'cxx cprogram test skip_test',
+    bld.program(features = 'cxx test skip_test',
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
         use = 'TESTMAIN TESTAPP DLIB PROFILE_NULL PLATFORM PLATFORM_SOCKET LUA SCRIPT hid'.split() + graphics_lib,
         web_libs = web_libs,

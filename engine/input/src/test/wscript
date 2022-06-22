@@ -4,11 +4,6 @@ import waflib.Task, waflib.TaskGen
 from waflib.TaskGen import extension
 import os, sys
 
-if sys.platform == "win32":
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ";default/proto"
-else:
-    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":default/proto"
-
 def create_protoc_task(name, type):
     return waflib.Task.task_factory(name, 
                                     'protoc --encode=%s -I ../src/test -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ../proto/input/input_ddf.proto < ${SRC} > ${TGT}' % type,

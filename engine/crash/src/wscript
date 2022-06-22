@@ -2,23 +2,20 @@
 
 import os, re
 from waf_dynamo import apidoc_extract_task
-from BuildUtility import create_build_utility
 
 def configure(conf):
     pass
 
 def build(bld):
-    build_util = create_build_utility(bld.env)
     load_addrs = 'load_addrs_null.cpp'
     sig_handler = 'backtrace_null.cpp'
     file_handler = 'file_null.cpp'
 
-    crashnull = bld.stlib(features = 'cxx cstaticlib',
+    crashnull = bld.stlib(features = 'cxx',
                           includes = ['.', '../proto'],
                           proto_gen_py = True,
                           proto_gen_cc = True,
                           protoc_includes = '../proto',
-                          install_path = build_util.get_library_path(),
                           source = 'crash_null.cpp script_crash_null.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler,
                           target = 'crashext_null')
 
@@ -54,13 +51,12 @@ def build(bld):
         sig_handler = 'backtrace_null.cpp'
         file_handler = 'file_null.cpp'
 
-    crash = bld.stlib(features = 'cxx cstaticlib',
+    crash = bld.stlib(features = 'cxx',
                       includes = ['.', '../proto'],
                       proto_gen_py = True,
                       proto_gen_cc = True,
                       protoc_includes = '../proto',
                       source = 'crash.cpp script_crash.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler,
-                      install_path = build_util.get_library_path(),
                       target = 'crashext')
 
     bld.recurse('test')
