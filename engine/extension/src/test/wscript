@@ -6,7 +6,7 @@ def build(bld):
                                    source = 'test_extension_lib.cpp',
                                    target = 'test_extension_lib')
 
-    test_extension = bld.program(features = 'cxx embed test',
+    test_extension = bld.program(features = 'cxx test',
                                  includes = '../../src .',
                                  use = 'TESTMAIN DLIB PROFILE_NULL LUA extension test_extension_lib',
                                  exported_symbols = ["TestExt"],

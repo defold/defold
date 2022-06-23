@@ -583,6 +583,7 @@ def asan_cxxflags(self):
 @feature('cprogram', 'cxxprogram')
 @after('apply_link')
 def apply_unit_test(self):
+    self.install_path = None # the tests shouldn't be installed
     # Do not execute unit-tests tasks (compile and link) when --skip-build-tests is set
     if 'test' in self.features and getattr(Options.options, 'skip_build_tests', False):
             for t in self.tasks:
@@ -1312,7 +1313,6 @@ def js_web_link_flags(self):
 @before('process_source')
 @feature('test')
 def test_flags(self):
-    self.install_path = None # the tests shouldn't be installed
     # When building tests for the web, we disable emission of emscripten js.mem init files,
     # as the assumption when these are loaded is that the cwd will contain these items.
     if 'web' in self.env['PLATFORM']:

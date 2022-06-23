@@ -10,7 +10,6 @@ srcdir = '.'
 blddir = 'build'
 
 import os, sys, re
-sys.path = ["src"] + sys.path
 import waf_ddf, waf_dynamo
 import waflib.Options
 import TestContext
