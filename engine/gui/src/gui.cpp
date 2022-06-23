@@ -1471,7 +1471,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             // Ideally, we'd like to have this update step in the Update function (I'm not even sure why it isn't tbh)
             // But for now, let's prune the list here
-            if (opacity == 0.0f || n->m_Node.m_IsBone || n->m_Node.m_IsVisible)
+            if (opacity == 0.0f || n->m_Node.m_IsBone || !n->m_Node.m_IsVisible)
             {
                 entry.m_Node = INVALID_HANDLE;
                 entry.m_RenderKey = INVALID_RENDER_KEY;
@@ -2326,6 +2326,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_Node.m_SizeMode = SIZE_MODE_MANUAL;
         node->m_Node.m_LineBreak = 0;
         node->m_Node.m_Enabled = 1;
+        node->m_Node.m_IsVisible = 1;
         node->m_Node.m_DirtyLocal = 1;
         node->m_Node.m_InheritAlpha = 0;
         node->m_Node.m_ClippingMode = CLIPPING_MODE_NONE;
