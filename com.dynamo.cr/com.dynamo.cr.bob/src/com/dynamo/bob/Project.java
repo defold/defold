@@ -1548,6 +1548,23 @@ run:
                     // Ignored, could not get URI and basic auth data from URL.
                 }
 
+                // Check if basic auth password is a token that should be replaced with
+                // an environment variable.
+                // The token should start and end with __ and exist as an environment
+                // variable.
+                if (basicAuthData != null) {
+                    String[] parts = basicAuthData.split(":");
+                    String username = parts[0];
+                    String password = parts.length > 1 ? parts[1] : "";
+                    if (password.startsWith("__") && password.endsWith("__")) {
+                        String envKey = password.substring(2, password.length() - 2);
+                        String envValue = System.getenv(envKey);
+                        if (envValue != null) {
+                            basicAuthData = username + ":" + envValue;
+                        }
+                    }
+                }
+
                 // Pass correct headers along to server depending on auth alternative.
                 final String email = this.options.get("email");
                 final String auth = this.options.get("auth");
