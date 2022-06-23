@@ -176,6 +176,10 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             b.setInheritAlpha(parentNode.getInheritAlpha());
         }
 
+        // Apply Enabled and Visible
+        b.setEnabled(parentNode.getEnabled());
+        b.setVisible(parentNode.getVisible());
+
         // Apply parent scale
         Vector3d parentScale = new Vector3d(parentNode.getScale().getX(), parentNode.getScale().getY(), parentNode.getScale().getZ());
         Point3d scale = new Point3d(b.getScale().getX(), b.getScale().getY(), b.getScale().getZ());
