@@ -2625,6 +2625,10 @@
 (defn register-gui-scene-loader! [loader]
   (swap! custom-gui-scene-loaders conj loader))
 
+;; Used by tests
+(defn clear-custom-gui-scene-loaders-for-tests! []
+  (reset! custom-gui-scene-loaders ()))
+
 (defn- get-registered-gui-scene-loaders []
   @custom-gui-scene-loaders)
 

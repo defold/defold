@@ -833,7 +833,7 @@
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 
-(defn- read-dependencies [game-project-resource]
+(defn read-dependencies [game-project-resource]
   (with-open [game-project-reader (io/reader game-project-resource)]
     (-> (settings-core/parse-settings game-project-reader)
         (settings-core/get-setting ["project" "dependencies"])
