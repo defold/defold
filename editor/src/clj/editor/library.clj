@@ -108,13 +108,21 @@
 
 (defn- make-basic-auth-headers
   [^String user-info]
-  {"Authorization" (format "Basic %s" (str->b64 user-info))})
+  (let [user-info-parts (str/split user-info #":")
+        username (get user-info-parts 0)
+        password (get user-info-parts 1)]
+          (if (and (str/starts-with? password "__") (str/ends-with? password "__"))
+            (let [password-env-key (subs password 2 (- (count password) 2))
+                  password-env-value (or (System/getenv password-env-key) password)]
+                     {"Authorization" (format "Basic %s" (str->b64 (str username ":" password-env-value)))})
+            {"Authorization" (format "Basic %s" (str->b64 user-info))})))
+  
 
 (defn- headers-for-uri [^URI lib-uri]
   (let [user-info (.getUserInfo lib-uri)]
     (cond
       (some? user-info)
-      (make-basic-auth-headers user-info))))
+         (make-basic-auth-headers user-info))))
 
 (defn default-http-resolver [^URI uri ^String tag]
   (let [http-headers (headers-for-uri uri)
@@ -135,6 +143,7 @@
        :tag tag})))
 
 (defn- fetch-library! [resolver ^URI uri tag]
+  (println (str "fetch library" uri tag))
   (try
     (let [response (resolver uri tag)]
       {:status (:status response)
@@ -146,6 +155,7 @@
        :exception e})))
 
 (defn- fetch-library-update! [{:keys [tag uri] :as lib-state} resolver render-progress!]
+  (println (str "fetch-library-update!" uri))
   (let [progress (progress/make (str "Fetching " uri))]
     (render-progress! progress)
     ;; tag may not be available ...
