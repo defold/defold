@@ -105,6 +105,12 @@ Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 > /usr/local/bin/ccache --max-size=5G
 ```
 
+Or just:
+
+```sh
+> ccache --max-size=5G
+```
+
 Install snapd package manager:
 
 ```sh
