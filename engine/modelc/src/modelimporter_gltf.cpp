@@ -202,7 +202,7 @@ static uint32_t FindNodeIndex(cgltf_node* node, uint32_t nodes_count, cgltf_node
             return i;
     }
     assert(false && "Failed to find node in list of nodes");
-    return 0xFFFFFFFF;
+    return INVALID_INDEX;
 }
 
 static Node* TranslateNode(cgltf_node* node, cgltf_data* gltf_data, Scene* scene)
@@ -440,7 +440,7 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
 static uint32_t FindBoneIndex(cgltf_skin* gltf_skin, cgltf_node* joint)
 {
     if (joint == 0)
-        return 0xFFFFFFFF;
+        return INVALID_INDEX;
 
     for (uint32_t i = 0; i < gltf_skin->joints_count; ++i)
     {
@@ -448,7 +448,7 @@ static uint32_t FindBoneIndex(cgltf_skin* gltf_skin, cgltf_node* joint)
         if (joint == gltf_joint)
             return i;
     }
-    return 0xFFFFFFFF;
+    return INVALID_INDEX;
 }
 
 static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
@@ -494,6 +494,52 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
         }
 
         // LOAD SKELETON?
+    }
+}
+
+static void GenerateBoneRoots(Scene* scene)
+{
+    // For each skin, we must only have one root bone
+    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+    {
+        Skin* skin = &scene->m_Skins[i];
+
+        uint32_t num_root_nodes = 0;
+
+        for (uint32_t j = 1; j < skin->m_BonesCount; ++j)
+        {
+            dmModelImporter::Bone* bone = &skin->m_Bones[j];
+            if (bone->m_ParentIndex == INVALID_INDEX)
+                ++num_root_nodes;
+        }
+
+        if (num_root_nodes > 1)
+        {
+            // We require 1 root node
+
+            // Create the new array
+            Bone* new_bones = new Bone[skin->m_BonesCount+1];
+            memcpy(new_bones+1, skin->m_Bones, sizeof(Bone)*skin->m_BonesCount);
+            Bone* bone = &new_bones[0];
+            memset(bone, 0, sizeof(Bone));
+            bone->m_Index = 0;
+            bone->m_ParentIndex = INVALID_INDEX;
+            bone->m_Name = strdup("_generated_root");
+
+            Bone* prev_bones = skin->m_Bones;
+            skin->m_Bones = new_bones;
+            skin->m_BonesCount++;
+            delete[] prev_bones;
+
+            // Update the indices
+            for (uint32_t j = 1; j < skin->m_BonesCount; ++j)
+            {
+                Bone* bone = &skin->m_Bones[j];
+                bone->m_Index++;
+                if (bone->m_ParentIndex == INVALID_INDEX)
+                    bone->m_ParentIndex = 0;
+            }
+        }
     }
 }
 
@@ -687,6 +733,11 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);
     LoadAnimations(scene, data);
+
+    // At this point, all the nodes reference each other
+
+    // Make sure the skins have only one root node
+    GenerateBoneRoots(scene);
 
     //DebugStructScene(scene);
 

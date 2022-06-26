@@ -48,7 +48,44 @@ TEST(ModelGLTF, Load)
 
     ASSERT_NE((void*)0, scene);
 
-    dmModelImporter::DebugScene(scene);
+    //dmModelImporter::DebugScene(scene);
+
+    dmModelImporter::DestroyScene(scene);
+
+    free(mem);
+}
+
+TEST(ModelGLTF, LoadSkeleton)
+{
+    const char* path = "./src/test/assets/skeleton1.gltf";
+    uint32_t file_size = 0;
+    void* mem = dmModelImporter::ReadFile(path, &file_size);
+
+    const char* suffix = strrchr(path, '.') + 1;
+
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+
+    ASSERT_NE((void*)0, scene);
+    ASSERT_EQ(1, scene->m_SkinsCount);
+
+    dmModelImporter::Skin* skin = &scene->m_Skins[0];
+    ASSERT_EQ(46, skin->m_BonesCount);
+
+    // The first bone is generated, and doesn't have a node
+    uint32_t num_root_bones = 1; // Since we're skipping the first root node
+    for (uint32_t i = 1; i < skin->m_BonesCount; ++i)
+    {
+        dmModelImporter::Bone* bone = &skin->m_Bones[i];
+        ASSERT_STREQ(bone->m_Name, bone->m_Node->m_Name);
+
+        if (bone->m_ParentIndex == dmModelImporter::INVALID_INDEX)
+            ++num_root_bones;
+    }
+
+    ASSERT_EQ(1U, num_root_bones);
+
+    //dmModelImporter::DebugScene(scene);
 
     dmModelImporter::DestroyScene(scene);
 

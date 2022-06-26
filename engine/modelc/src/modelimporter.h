@@ -25,6 +25,8 @@ namespace dmModelImporter
 {
     #pragma pack(push,8)
 
+    static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
+
     struct Material
     {
         const char* m_Name;
