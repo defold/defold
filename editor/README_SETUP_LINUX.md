@@ -4,11 +4,11 @@
 
 ### Required Software - Java JDK 11
 
-Download and install the latest JDK 11 release from either of these locations:
+Download and install the latest JDK 11 (11.0.15 or later) release from either of these locations:
 
 * [Adoptium/Temurin](https://github.com/adoptium/temurin11-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
 * [Microsoft OpenJDK builds](https://docs.microsoft.com/en-us/java/openjdk/download#openjdk-11) - The Microsoft Build of OpenJDK is a no-cost distribution of OpenJDK that's open source and available for free for anyone to deploy anywhere
-* or with:
+* or from apt-get:
 ```
 > sudo apt-get install openjdk-11-jdk
 ```
