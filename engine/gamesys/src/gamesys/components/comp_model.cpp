@@ -583,7 +583,7 @@ namespace dmGameSystem
         DM_PROFILE("RenderBatchWorld");
 
         uint32_t vertex_count = 0;
-        uint32_t max_component_vertices = 0;
+        uint32_t index_count = 0;
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
 
         for (uint32_t *i=begin;i!=end;i++)
@@ -592,21 +592,25 @@ namespace dmGameSystem
             const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
 
             uint32_t count = render_item->m_Buffers->m_VertexCount;
+            uint32_t icount = render_item->m_Buffers->m_IndexCount;
             // const ModelComponent* c = render_item->m_Component;
             // uint32_t count = dmRig::GetVertexCount(c->m_RigInstance);
 
             vertex_count += count;
-            max_component_vertices = dmMath::Max(max_component_vertices, count);
+            index_count += icount;
         }
 
         // Early exit if there is nothing to render
-        if (vertex_count == 0) {
+        if (vertex_count == 0 || index_count == 0) {
             return;
         }
 
+        // Since we currently don't support index buffer, we need to produce the indexed vertices
+        uint32_t required_vertex_count = dmMath::Max(vertex_count, index_count);
+
         dmArray<dmRig::RigModelVertex>& vertex_buffer = world->m_VertexBufferData[batchIndex];
-        if (vertex_buffer.Remaining() < vertex_count)
-            vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
+        if (vertex_buffer.Remaining() < required_vertex_count)
+            vertex_buffer.OffsetCapacity(required_vertex_count - vertex_buffer.Remaining());
 
         dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batchIndex];
 
@@ -624,8 +628,8 @@ namespace dmGameSystem
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
         // Ninja in-place writing of render object.
-        dmRender::RenderObject& ro = *world->m_RenderObjects.End();
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
+        dmRender::RenderObject& ro = world->m_RenderObjects[world->m_RenderObjects.Size()-1];
 
         const MeshRenderItem* render_item = (MeshRenderItem*) buf[*begin].m_UserData;
         const ModelComponent* component = render_item->m_Component;

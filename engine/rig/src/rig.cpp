@@ -27,7 +27,6 @@ namespace dmRig
     using namespace dmVMath;
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
-    static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
     //static const int SIGNAL_DELTA_UNCHANGED = 0x10cced; // Used to indicate if a draw order was unchanged for a certain slot
     //static const uint32_t INVALID_ATTACHMENT_INDEX = 0xffffffffu;
@@ -1453,7 +1452,6 @@ namespace dmRig
         {
             dmRig::RigBone* bind_bone = &bind_pose[i];
             dmRigDDF::Bone* bone = &skeleton.m_Bones[i];
-            //bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
             bind_bone->m_LocalToParent = bone->m_Transform;
             if (i > 0)
             {

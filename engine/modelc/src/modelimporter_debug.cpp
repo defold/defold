@@ -172,7 +172,7 @@ static void OutputNodeAnimation(NodeAnimation* node_animation, int indent)
 static void OutputAnimation(Animation* animation, int indent)
 {
     OutputIndent(indent);
-    printf("%s\n", animation->m_Name);
+    printf("%s duration: %f\n", animation->m_Name, animation->m_Duration);
 
     for (uint32_t i = 0; i < animation->m_NodeAnimationsCount; ++i)
     {

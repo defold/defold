@@ -26,7 +26,7 @@ def build(bld):
     is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
     if is_host:
         # Used by bob.jar + editor
-        model_shared = bld.new_task_gen(features = 'cc cxx cshlib',
+        model_shared = bld.new_task_gen(features = 'cc cxx cshlib extract_symbols',
                                         includes = model.includes,
                                         uselib = 'DLIB PROFILE_NULL JDK',
                                         target = 'modelc_shared')

@@ -175,6 +175,8 @@ struct NodeAnimationJNI
     jfieldID    translationKeys;
     jfieldID    rotationKeys;
     jfieldID    scaleKeys;
+    jfieldID    startTime;
+    jfieldID    endTime;
 } g_NodeAnimationJNI;
 
 struct AnimationJNI
@@ -182,6 +184,7 @@ struct AnimationJNI
     jclass      cls;
     jfieldID    name;
     jfieldID    nodeAnimations;
+    jfieldID    duration;
 } g_AnimationJNI;
 
 
@@ -285,11 +288,14 @@ static void InitializeJNITypes(JNIEnv* env)
         GET_FLD_ARRAY(translationKeys, "KeyFrame");
         GET_FLD_ARRAY(rotationKeys, "KeyFrame");
         GET_FLD_ARRAY(scaleKeys, "KeyFrame");
+        GET_FLD_TYPESTR(startTime, "F");
+        GET_FLD_TYPESTR(endTime, "F");
     }
     {
         SETUP_CLASS(AnimationJNI, "Animation");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_ARRAY(nodeAnimations, "NodeAnimation");
+        GET_FLD_TYPESTR(duration, "F");
     }
 
 #undef GET_FLD
@@ -530,8 +536,8 @@ static jobject CreateKeyFrame(JNIEnv* env, const dmModelImporter::KeyFrame* key_
     jfloatArray arr = env->NewFloatArray(4);
     env->SetFloatArrayRegion(arr, 0, 3, key_frame->m_Value);
     env->SetObjectField(obj, g_KeyFrameJNI.value, arr);
-    env->SetFloatField(obj, g_KeyFrameJNI.time, key_frame->m_Time);
     env->DeleteLocalRef(arr);
+    env->SetFloatField(obj, g_KeyFrameJNI.time, key_frame->m_Time);
     return obj;
 }
 
@@ -561,6 +567,9 @@ static jobject CreateNodeAnimation(JNIEnv* env, const dmModelImporter::NodeAnima
     arr = CreateKeyFramesArray(env, node_anim->m_ScaleKeysCount, node_anim->m_ScaleKeys);
     env->SetObjectField(obj, g_NodeAnimationJNI.scaleKeys, arr);
     env->DeleteLocalRef(arr);
+
+    env->SetFloatField(obj, g_NodeAnimationJNI.startTime, node_anim->m_StartTime);
+    env->SetFloatField(obj, g_NodeAnimationJNI.endTime,  node_anim->m_EndTime);
     return obj;
 }
 
@@ -582,6 +591,9 @@ static jobject CreateAnimation(JNIEnv* env, const dmModelImporter::Animation* an
     jobjectArray arr = CreateNodeAnimationsArray(env, animation->m_NodeAnimationsCount, animation->m_NodeAnimations, nodes);
     env->SetObjectField(obj, g_AnimationJNI.nodeAnimations, arr);
     env->DeleteLocalRef(arr);
+
+    env->SetFloatField(obj, g_AnimationJNI.duration, animation->m_Duration);
+
     return obj;
 }
 
@@ -604,7 +616,10 @@ static jobject CreateBone(JNIEnv* env, dmModelImporter::Bone* bone, const dmArra
     SetFieldInt(env, obj, g_BoneJNI.index, bone->m_Index);
     SetFieldString(env, obj, g_BoneJNI.name, bone->m_Name);
     SetFieldObject(env, obj, g_BoneJNI.invBindPose, CreateTransform(env, &bone->m_InvBindPose));
-    SetFieldObject(env, obj, g_BoneJNI.node, nodes[bone->m_Node->m_Index]);
+    if (bone->m_Node != 0) // A generated root bone doesn't have a corresponding Node
+        SetFieldObject(env, obj, g_BoneJNI.node, nodes[bone->m_Node->m_Index]);
+    else
+        SetFieldObject(env, obj, g_BoneJNI.node, 0);
     return obj;
 }
 
@@ -625,7 +640,7 @@ static jobjectArray CreateBonesArray(JNIEnv* env, uint32_t count, dmModelImporte
     for (uint32_t i = 0; i < count; ++i)
     {
         dmModelImporter::Bone* bone = &bones[i];
-        if (bone->m_ParentIndex == 0xFFFFFFFF)
+        if (bone->m_ParentIndex == INVALID_INDEX)
             continue;
         env->SetObjectField(tmp[bone->m_Index], g_BoneJNI.parent, tmp[bone->m_ParentIndex]);
     }

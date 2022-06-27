@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/hashtable.h>
@@ -596,6 +597,9 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
 
     bool all_identical = true;
 
+    float time_min = FLT_MAX;
+    float time_max = -FLT_MAX;
+
     KeyFrame* key_frames = new KeyFrame[accessor_times->count];
     memset(key_frames, 0, sizeof(KeyFrame)*accessor_times->count);
     for (uint32_t i = 0; i < accessor->count; ++i)
@@ -607,7 +611,12 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
         {
             all_identical = false;
         }
+
+        time_min = dmMath::Min(time_min, key_frames[i].m_Time);
+        time_max = dmMath::Max(time_max, key_frames[i].m_Time);
     }
+    node_animation->m_StartTime = time_min;
+    node_animation->m_EndTime = time_max;
 
     uint32_t key_count = accessor->count;
     if (all_identical)
@@ -697,6 +706,8 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
                 node_animation->m_Node = TranslateNode(channel->target_node, gltf_data, scene);
 
             LoadChannel(node_animation, channel);
+
+            animation->m_Duration = node_animation->m_EndTime - node_animation->m_StartTime;
         }
     }
 }

@@ -21,14 +21,19 @@ echo "Found ${JAR}"
 
 set +e
 USING_ASAN=$(otool -L $MODELIMPORTER_SHARED_LIB | grep -e "clang_rt.asan")
+USING_UBSAN=$(otool -L $MODELIMPORTER_SHARED_LIB | grep -e "clang_rt.ubsan")
 set -e
 if [ "${USING_ASAN}" != "" ]; then
     echo "Loading ASAN!"
     export DYLD_INSERT_LIBRARIES=${DYNAMO_HOME}/ext/SDKs/XcodeDefault13.2.1.xctoolchain/usr/lib/clang/13.0.0/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
+fi
+if [ "${USING_UBSAN}" != "" ]; then
+    echo "Loading UBSAN!"
+    export DYLD_INSERT_LIBRARIES=${DYNAMO_HOME}/ext/SDKs/XcodeDefault13.2.1.xctoolchain/usr/lib/clang/13.0.0/lib/darwin/libclang_rt.ubsan_osx_dynamic.dylib
 fi
 
 JNI_DEBUG_FLAGS="-Xcheck:jni"
 
 export DM_MODELIMPORTER_LOG_LEVEL=DEBUG
 
-java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djna.library.path=${BUILD_DIR} ${JNA_DEBUG_FLAGS} -cp ${JAR} ${CLASS_NAME} $*
+java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djni.library.path=${BUILD_DIR} ${JNA_DEBUG_FLAGS} -cp ${JAR} ${CLASS_NAME} $*

@@ -94,7 +94,7 @@ import com.google.protobuf.TextFormat;
 
 public class ColladaUtil {
 
-    static int BONE_NO_PARENT = 0xffff;
+    static int BONE_NO_PARENT = 0xffffffff;
 
     static private class AssetSpace
     {

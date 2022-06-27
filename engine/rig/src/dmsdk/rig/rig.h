@@ -28,6 +28,8 @@
 
 namespace dmRig
 {
+    static const uint32_t INVALID_BONE_INDEX = 0xFFFFFFFF;
+
     typedef struct RigContext*  HRigContext;
     typedef struct RigInstance* HRigInstance;
 

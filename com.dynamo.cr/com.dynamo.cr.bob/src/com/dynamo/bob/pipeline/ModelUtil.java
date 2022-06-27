@@ -471,7 +471,7 @@ public class ModelUtil {
 
     private static Bone findBone(ArrayList<ModelImporter.Bone> bones, ModelImporter.Node node) {
         for (ModelImporter.Bone bone : bones) {
-            if (bone.node.name.equals(node.name)) {
+            if ( (bone.node != null && bone.node.name.equals(node.name)) || bone.name.equals(node.name)) {
                 return bone;
             }
         }
@@ -525,23 +525,20 @@ public class ModelUtil {
                     return;
                 }
 
-                ModelImporter.KeyFrame firstKey = keys[0];
-                ModelImporter.KeyFrame lastKey = keys[count-1];
-                startTime = firstKey.time;
-                endTime = lastKey.time;
+                if (nodeAnimation.startTime < startTime)
+                    startTime = nodeAnimation.startTime;
             }
 
-            float duration = endTime - startTime;
-            animBuilder.setDuration(duration);
+            animBuilder.setDuration(animation.duration);
 
-    System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f\n", animation.name, duration, sampleRate, startTime);
+    System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f\n", animation.name, animation.duration, sampleRate, startTime);
 
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
 
                 Bone bone = findBone(bones, nodeAnimation.node);
                 assert(bone != null);
 
-                loadAnimationTracks(animBuilder, nodeAnimation, bone, duration, startTime, sampleRate);
+                loadAnimationTracks(animBuilder, nodeAnimation, bone, animation.duration, startTime, sampleRate);
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
@@ -966,7 +963,14 @@ public class ModelUtil {
         b.setLength(0.0f);
         b.setInheritScale(true);
 
-        ModelImporter.Transform transform = bone.node.transform;
+        ModelImporter.Transform transform = new ModelImporter.Transform();
+        if (bone.node != null) {
+            transform = bone.node.transform;
+        }
+        else {
+            transform = new ModelImporter.Transform();
+            transform.setIdentity();
+        }
         Vector3d translation = new Vector3d(transform.translation.x, transform.translation.y, transform.translation.z);
         Vector3d scale = new Vector3d(transform.scale.x, transform.scale.y, transform.scale.z);
         Quat4d rotation = new Quat4d(transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w);
@@ -1073,6 +1077,11 @@ public class ModelUtil {
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         loadSkeleton(scene, skeletonBuilder);
+
+        Rig.AnimationSet.Builder animationSetBuilder = Rig.AnimationSet.newBuilder();
+        ArrayList<String> animationIds = new ArrayList<>();
+        loadAnimations(scene, bones, animationSetBuilder, file.getName(), animationIds);
+
     }
 
 }

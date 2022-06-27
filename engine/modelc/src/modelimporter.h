@@ -105,6 +105,8 @@ namespace dmModelImporter
         uint32_t  m_TranslationKeysCount;
         uint32_t  m_RotationKeysCount;
         uint32_t  m_ScaleKeysCount;
+        float     m_StartTime;
+        float     m_EndTime;
     };
 
     struct Animation
@@ -112,6 +114,7 @@ namespace dmModelImporter
         const char*     m_Name;
         NodeAnimation*  m_NodeAnimations;
         uint32_t        m_NodeAnimationsCount;
+        float           m_Duration;
     };
 
     struct Scene
@@ -134,9 +137,6 @@ namespace dmModelImporter
 
         Animation*  m_Animations;
         uint32_t    m_AnimationsCount;
-
-        //Node*       m_Skeleton; // The skeleton top node
-
     };
 
     struct Options

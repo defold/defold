@@ -36,11 +36,16 @@ public class ModelImporter {
                 System.load(lib.getAbsolutePath());
             }
             else {
-                System.loadLibrary(LIBRARY_NAME); // Requires the java.library.path to be set
             }
-        } catch (Exception e) {
-            System.err.println("Native code library failed to load.\n" + e);
-            System.exit(1);
+        } catch (Exception e1) {
+            System.out.printf("Didn't find Bob class.\n" + e1);
+            try {
+                System.out.printf("Fallback to regular System.loadLibrary(%s)\n", LIBRARY_NAME);
+                System.loadLibrary(LIBRARY_NAME); // Requires the java.library.path to be set
+            } catch (Exception e2) {
+                System.err.println("Native code library failed to load.\n" + e2);
+                System.exit(1);
+            }
         }
     }
 
@@ -65,12 +70,27 @@ public class ModelImporter {
 
     public static class Vec4 { // simd Vector3/Vector4/Quat
         public float x, y, z, w;
+
+        public Vec4() {}
+        public Vec4(float x, float y, float z, float w) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.w = w;
+        }
     }
 
     public static class Transform {
         public Vec4 translation;
         public Vec4 rotation;
         public Vec4 scale;
+
+        public Transform setIdentity() {
+            this.translation = new Vec4(0,0,0,1); // i.e. a Point3(x,y,z,1)
+            this.rotation = new Vec4(0,0,0,1);
+            this.scale = new Vec4(1,1,1,1);
+            return this;
+        }
     }
 
     public static class Mesh {
@@ -143,11 +163,14 @@ public class ModelImporter {
         public KeyFrame[]   translationKeys;
         public KeyFrame[]   rotationKeys;
         public KeyFrame[]   scaleKeys;
+        public float        startTime;
+        public float        endTime;
     }
 
     public static class Animation {
         public String           name;
         public NodeAnimation[]  nodeAnimations;
+        public float            duration;
     }
 
     public static class Scene {
@@ -299,10 +322,12 @@ public class ModelImporter {
 
     private static void DebugPrintNodeAnimation(NodeAnimation nodeAnimation, int indent) {
         PrintIndent(indent);
-        System.out.printf("node: %s num keys: t: %d  r: %d  s: %d\n", nodeAnimation.node.name,
+        System.out.printf("node: %s num keys: t: %d  r: %d  s: %d  time: %f / %f\n", nodeAnimation.node.name,
             nodeAnimation.translationKeys.length,
             nodeAnimation.rotationKeys.length,
-            nodeAnimation.scaleKeys.length);
+            nodeAnimation.scaleKeys.length,
+            nodeAnimation.startTime,
+            nodeAnimation.endTime);
 
         DebugPrintKeyFrames("translation", nodeAnimation.translationKeys, indent+1);
         DebugPrintKeyFrames("rotation", nodeAnimation.rotationKeys, indent+1);
@@ -311,7 +336,7 @@ public class ModelImporter {
 
     private static void DebugPrintAnimation(Animation animation, int indent) {
         PrintIndent(indent);
-        System.out.printf("animation: %s\n", animation.name);
+        System.out.printf("animation: %s  duration: %f\n", animation.name, animation.duration);
 
         for (NodeAnimation nodeAnim : animation.nodeAnimations) {
             DebugPrintNodeAnimation(nodeAnim, indent+1);
