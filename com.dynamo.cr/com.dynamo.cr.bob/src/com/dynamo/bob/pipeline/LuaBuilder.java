@@ -117,6 +117,92 @@ public abstract class LuaBuilder extends Builder<Void> {
         return taskBuilder.build();
     }
 
+    public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
+
+        Bob.verbose("constructLuaBytecode");
+
+        java.io.FileOutputStream fo = null;
+        RandomAccessFile rdr = null;
+
+        try {
+            Bob.initLua(); // unpack the lua resources
+
+            File outputFile = File.createTempFile("script", ".raw");
+            File inputFile = File.createTempFile("script", ".lua");
+
+            // Need to write the input file separately in case it comes from built-in, and cannot
+            // be found through its path alone.
+            fo = new java.io.FileOutputStream(inputFile);
+            fo.write(source.getBytes());
+            fo.close();
+
+            List<String> options = new ArrayList<String>();
+            options.add(Bob.getExe(Platform.getHostPlatform(), luacExe));
+            options.add("-o"); options.add(outputFile.getAbsolutePath());
+            options.add(inputFile.getAbsolutePath());
+
+            ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
+
+            Bob.verbose("constructLuaBytecode running luac");
+            Process p = pb.start();
+            InputStream is = null;
+            int ret = 127;
+
+            try {
+                ret = p.waitFor();
+                is = p.getInputStream();
+
+                int toRead = is.available();
+                byte[] buf = new byte[toRead];
+                is.read(buf);
+
+                String cmdOutput = new String(buf);
+                if (ret != 0) {
+                    Bob.verbose("cmdOutput: " + cmdOutput);
+                    // first delimiter is the executable name "luac:"
+                    int execSep = cmdOutput.indexOf(':');
+                    if (execSep > 0) {
+                        // then comes the filename and the line like this:
+                        // "file.lua:30: <error message>"
+                        int lineBegin = cmdOutput.indexOf(':', execSep + 1);
+                        if (lineBegin > 0) {
+                            int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
+                            if (lineEnd > 0) {
+                                throw new CompileExceptionError(task.input(0),
+                                        Integer.parseInt(cmdOutput.substring(
+                                                lineBegin + 1, lineEnd)),
+                                        cmdOutput.substring(lineEnd + 2));
+                            }
+                        }
+                    }
+                    // Since parsing out the actual error failed, as a backup just
+                    // spit out whatever luajit said.
+                    inputFile.delete();
+                    throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+                }
+            } catch (InterruptedException e) {
+                Bob.verbose("InterruptedException");
+                Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
+            } finally {
+                IOUtils.closeQuietly(is);
+            }
+
+            Bob.verbose("constructLuaBytecode done");
+            long resultBytes = outputFile.length();
+            rdr = new RandomAccessFile(outputFile, "r");
+            byte tmp[] = new byte[(int) resultBytes];
+            rdr.readFully(tmp);
+
+            outputFile.delete();
+            inputFile.delete();
+            return tmp;
+        }
+        finally {
+            IOUtils.closeQuietly(fo);
+            IOUtils.closeQuietly(rdr);
+        }
+    }
+
     public byte[] constructBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
 
         java.io.FileOutputStream fo = null;
@@ -266,7 +352,11 @@ public abstract class LuaBuilder extends Builder<Void> {
         srcBuilder.setFilename(task.input(0).getPath());
 
         if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
-            srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
+            byte[] bytecode = constructLuaBytecode(task, "luac", script);
+            if (bytecode != null) {
+                srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
+                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode));
+            }
         } else {
             byte[] bytecode = constructBytecode(task, "luajit-32", script);
             if (bytecode != null) {
