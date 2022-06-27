@@ -17,6 +17,7 @@
 #include <render/render.h>
 
 #include <gameobject/lua_ddf.h>
+#include <gameobject/res_lua.h>
 #include <gameobject/gameobject_script_util.h>
 
 namespace dmGameSystem
@@ -28,10 +29,12 @@ namespace dmGameSystem
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
+        dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
+
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
         if (!dmGameObject::RegisterSubModules(params.m_Factory, dmRender::GetScriptContext(render_context), lua_module))
         {
-            dmDDF::FreeMessage(lua_module);
+            dmDDF::FreeMessage(&lua_module->m_Source);
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
@@ -66,6 +69,9 @@ namespace dmGameSystem
         if ( e != dmDDF::RESULT_OK ) {
             return dmResource::RESULT_FORMAT_ERROR;
         }
+
+        dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
+
         if (!dmGameObject::RegisterSubModules(params.m_Factory, dmRender::GetScriptContext(render_context), lua_module))
         {
             dmDDF::FreeMessage(lua_module);
