@@ -311,6 +311,7 @@
           passes))
 
 (defn- flatten-scene-renderables! [pass-renderables
+                                   parent-shows-children
                                    scene
                                    selection-set
                                    hidden-renderable-tags
@@ -332,6 +333,11 @@
         world-scale (math/multiply-vector parent-world-scale (math/scale local-transform))
         appear-selected? (some? (some selection-set node-id-path)) ; Child nodes appear selected if parent is.
         picking-node-id (or (:picking-node-id scene) (peek node-id-path))
+        visible? (and parent-shows-children
+                      (:visible-self? renderable true)
+                      (not (contains? hidden-node-outline-key-paths node-outline-key-path))
+                      (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
+        aabb ^AABB (if visible? (:aabb scene geom/null-aabb) geom/null-aabb)
         flat-renderable (-> scene
                             (dissoc :children :renderable)
                             (assoc :node-id-path node-id-path
@@ -348,11 +354,12 @@
                                    :selected appear-selected?
                                    :user-data (:user-data renderable)
                                    :batch-key (:batch-key renderable)
-                                   :aabb (geom/aabb-transform ^AABB (:aabb scene geom/null-aabb) world-transform)
+                                   :aabb (geom/aabb-transform aabb world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
-        visible? (and (not (contains? hidden-node-outline-key-paths node-outline-key-path))
-                      (not-any? (partial contains? hidden-renderable-tags) (:tags flat-renderable)))
+        flat-renderable (if visible?
+                          flat-renderable
+                          (dissoc flat-renderable :updatable))
         drawn-passes (cond
                        ;; Draw to all passes unless hidden.
                        visible?
@@ -381,6 +388,7 @@
                                                   node-outline-key-path
                                                   (conj node-outline-key-path (:node-outline-key child-scene)))]
                 (flatten-scene-renderables! pass-renderables
+                                            (and parent-shows-children (:visible-children? renderable true))
                                             child-scene
                                             selection-set
                                             hidden-renderable-tags
@@ -428,7 +436,8 @@
         parent-world-transform geom/Identity4d
         parent-world-scale (Vector3d. 1 1 1)]
     (-> (make-pass-renderables)
-        (flatten-scene-renderables! scene
+        (flatten-scene-renderables! true
+                                    scene
                                     selection-set
                                     hidden-renderable-tags
                                     hidden-node-outline-key-paths
