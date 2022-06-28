@@ -24,11 +24,10 @@
 
 namespace dmGameSystem
 {
-    void ScriptCollectionProxyFinalize(const ScriptLibContext& context)
-    {
-    }
+    static const char* COLLECTION_PROXY_EXT = "spinemodelc";
+    static const dmhash_t COLLECTION_PROXY_EXT_HASH = dmHashString64(COLLECTION_PROXY_EXT);
 
-    dmhash_t GetCollectionProxyUrlHash(lua_State* L, int index)
+    static dmhash_t GetCollectionProxyUrlHash(lua_State* L, int index)
     {
         dmMessage::URL sender;
         dmMessage::URL receiver;
@@ -53,36 +52,139 @@ namespace dmGameSystem
         return dmGameSystem::GetUrlHashFromComponent(world, dmGameObject::GetIdentifier(receiver_instance), component_index);
     }
 
-    int CollectionProxy_MissingResources(lua_State* L)
+    struct GetResourceHashContext
     {
-        int top = lua_gettop(L);
+        lua_State* m_L;
+        int        m_Index;
+    };
 
-        dmhash_t compUrlHash = GetCollectionProxyUrlHash(L, 1);
+    static void GetResourceHashCallback(void* context, const char* hex_digest, uint32_t length)
+    {
+        GetResourceHashContext* ctx = (GetResourceHashContext*)context;
+        lua_State* L = ctx->m_L;
 
-        if (compUrlHash == 0)
+        lua_pushnumber(L, ctx->m_Index++);
+        lua_pushlstring(L, hex_digest, length);
+        lua_settable(L, -3);
+    }
+
+    /*# return an array of missing resources for a collection proxy
+     *
+     * return an array of missing resources for a collection proxy. Each
+     * entry is a hexadecimal string that represents the data of the specific
+     * resource. This representation corresponds with the filename for each
+     * individual resource that is exported when you bundle an application with
+     * LiveUpdate functionality. It should be considered good practise to always
+     * check whether or not there are any missing resources in a collection proxy
+     * before attempting to load the collection proxy.
+     *
+     * @namespace collectionproxy
+     * @name collectionproxy.missing_resources
+     * @param collectionproxy [type:url] the collectionproxy to check for missing
+     * resources.
+     * @return resources [type:table] the missing resources
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     self.manifest = resource.get_current_manifest()
+     * end
+     *
+     * local function callback(self, id, response)
+     *     local expected = self.resources[id]
+     *     if response ~= nil and response.status == 200 then
+     *         print("Successfully downloaded resource: " .. expected)
+     *         resource.store_resource(response.response)
+     *     else
+     *         print("Failed to download resource: " .. expected)
+     *         -- error handling
+     *     end
+     * end
+     *
+     * local function download_resources(self, cproxy)
+     *     self.resources = {}
+     *     local resources = collectionproxy.missing_resources(cproxy)
+     *     for _, v in ipairs(resources) do
+     *         print("Downloading resource: " .. v)
+     *
+     *         local uri = "http://example.defold.com/" .. v
+     *         local id = http.request(uri, "GET", callback)
+     *         self.resources[id] = v
+     *     end
+     * end
+     * ```
+     */
+    static int CollectionProxy_MissingResources(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmhash_t url_hash = GetCollectionProxyUrlHash(L, 1);
+
+        if (url_hash == 0)
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "Unable to find collection proxy component.");
+            return DM_LUA_ERROR("Unable to find collection proxy component.");
         }
 
-        char** buffer = 0x0;
-        uint32_t resourceCount = dmLiveUpdate::GetMissingResources(compUrlHash, &buffer);
+        lua_newtable(L);
 
-        lua_createtable(L, resourceCount, 0);
-        for (uint32_t i = 0; i < resourceCount; ++i)
+        GetResourceHashContext ctx;
+        ctx.m_L = L;
+        ctx.m_Index = 1;
+        dmLiveUpdate::GetMissingResources(url_hash, GetResourceHashCallback, &ctx);
+
+        return 1;
+    }
+
+    /*# return an indexed table of all the resources of a collection proxy
+     *
+     * return an indexed table of resources for a collection proxy. Each
+     * entry is a hexadecimal string that represents the data of the specific
+     * resource. This representation corresponds with the filename for each
+     * individual resource that is exported when you bundle an application with
+     * LiveUpdate functionality.
+     *
+     * @namespace collectionproxy
+     * @name collectionproxy.get_resources
+     * @param collectionproxy [type:url] the collectionproxy to check for resources.
+     * @return resources [type:table] the resources
+     *
+     * @examples
+     *
+     * ```lua
+     * local function print_resources(self, cproxy)
+     *     local resources = collectionproxy.get_resources(cproxy)
+     *     for _, v in ipairs(resources) do
+     *         print("Resource: " .. v)
+     *     end
+     * end
+     * ```
+     */
+    static int CollectionProxy_GetResources(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmhash_t url_hash = GetCollectionProxyUrlHash(L, 1);
+
+        if (url_hash == 0)
         {
-            lua_pushnumber(L, i + 1);
-            lua_pushstring(L, buffer[i]);
-            lua_settable(L, -3);
+            return DM_LUA_ERROR("Unable to find collection proxy component.");
         }
 
-        assert(lua_gettop(L) == top+1);
+        lua_newtable(L);
+
+        GetResourceHashContext ctx;
+        ctx.m_L = L;
+        ctx.m_Index = 1;
+        dmLiveUpdate::GetResources(url_hash, GetResourceHashCallback, &ctx);
+
         return 1;
     }
 
     static const luaL_reg Module_methods[] =
     {
         {"missing_resources", CollectionProxy_MissingResources},
+        {"get_resources", CollectionProxy_GetResources},
         {0, 0}
     };
 
@@ -93,6 +195,10 @@ namespace dmGameSystem
 
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
+    }
+
+    void ScriptCollectionProxyFinalize(const ScriptLibContext& context)
+    {
     }
 
     void ScriptCollectionProxyRegister(const ScriptLibContext& context)

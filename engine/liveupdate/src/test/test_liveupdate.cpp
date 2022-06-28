@@ -67,6 +67,17 @@ TEST(dmLiveUpdate, InitExit)
     dmResource::DeleteFactory(factory);
 }
 
+struct GetResourceHashContext
+{
+    int m_Count;
+};
+
+static void GetResourceHashCallback(void* context, const char* hex_digest, uint32_t length)
+{
+    GetResourceHashContext* ctx = (GetResourceHashContext*)context;
+    ctx->m_Count++;
+}
+
 // We make sure we link with the functions to make sure we don't miss a null implementation
 TEST(dmLiveUpdate, GetMissingResources)
 {
@@ -74,9 +85,14 @@ TEST(dmLiveUpdate, GetMissingResources)
     dmResource::HFactory factory = dmResource::NewFactory(&factory_params, "build/default");
     dmLiveUpdate::Initialize(factory);
 
-    char** buffer = 0;
-    uint32_t num_missing = dmLiveUpdate::GetMissingResources(0, &buffer);
-    ASSERT_EQ(0U, num_missing);
+    GetResourceHashContext ctx;
+    ctx.m_Count = 0;
+
+    dmLiveUpdate::GetMissingResources(0, GetResourceHashCallback, &ctx);
+    ASSERT_EQ(0U, ctx.m_Count);
+
+    dmLiveUpdate::GetResources(0, GetResourceHashCallback, &ctx);
+    ASSERT_EQ(0U, ctx.m_Count);
 
     dmLiveUpdate::Finalize();
     dmResource::DeleteFactory(factory);
