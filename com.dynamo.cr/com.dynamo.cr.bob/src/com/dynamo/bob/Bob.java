@@ -438,20 +438,20 @@ public class Bob {
         addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
         addOption(options, null, "identity", true, "Sign identity (iOS)", false);
 
-        addOption(options, "ce", "certificate", true, "DEPRECATED! Certificate (Android)", false);
-        addOption(options, "pk", "private-key", true, "DEPRECATED! Private key (Android)", false);
+        addOption(options, "ce", "certificate", true, "DEPRECATED! Use --keystore instead", false);
+        addOption(options, "pk", "private-key", true, "DEPRECATED! Use --keystore instead", false);
 
         addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", false);
         addOption(options, "ksp", "keystore-pass", true, "Password of the deployment keystore (Android)", false);
         addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", false);
         addOption(options, "kp", "key-pass", true, "Password of the deployment key if different from the keystore password (Android)", false);
 
-        addOption(options, "d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead", false);
+        addOption(options, "d", "debug", false, "DEPRECATED! Use --variant=debug instead", false);
         addOption(options, null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)", false);
         addOption(options, null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)", false);
         addOption(options, null, "with-symbols", false, "Generate the symbol file (if applicable)", false);
 
-        addOption(options, "tp", "texture-profiles", true, "Use texture profiles (deprecated)", true);
+        addOption(options, "tp", "texture-profiles", true, "DEPRECATED! Use --texture-compression instead", true);
         addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
         addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
 
@@ -464,7 +464,8 @@ public class Bob {
         addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
         addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
 
-        addOption(options, null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)", true);
+        addOption(options, null, "use-vanilla-lua", false, "DEPRECATED! Use --use-lua-source instead.", true);
+        addOption(options, null, "use-lua-source", false, "Use uncompressed and unencrypted Lua source code instead of byte code", true);
         addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
 
         addOption(options, "l", "liveupdate", true, "Yes if liveupdate content should be published", true);
@@ -654,6 +655,11 @@ public class Bob {
 
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);
+        }
+
+        if (cmd.hasOption("use-vanilla-lua")) {
+            System.out.println("--use-vanilla-lua option is deprecated. Use --use-lua-source instead.");
+            project.setOption("use-lua-source", "true");
         }
 
         Option[] options = cmd.getOptions();
