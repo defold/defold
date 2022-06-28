@@ -49,6 +49,11 @@ namespace dmGameSystem
 
     const char* COLLECTION_PROXY_MAX_COUNT_KEY = "collection_proxy.max_count";
 
+    static const dmhash_t COLLECTION_PROXY_LOAD_HASH = dmHashString64("load");
+    static const dmhash_t COLLECTION_PROXY_ASYNC_LOAD_HASH = dmHashString64("async_load");
+    static const dmhash_t COLLECTION_PROXY_UNLOAD_HASH = dmHashString64("unload");
+    static const dmhash_t COLLECTION_PROXY_INIT_HASH = dmHashString64("init");
+
     struct CollectionProxyComponent
     {
         dmMessage::URL                  m_Unloader;
@@ -390,7 +395,7 @@ namespace dmGameSystem
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
 
-        if (params.m_Message->m_Id == dmHashString64("load") || params.m_Message->m_Id == dmHashString64("async_load"))
+        if (params.m_Message->m_Id == COLLECTION_PROXY_LOAD_HASH || params.m_Message->m_Id == COLLECTION_PROXY_ASYNC_LOAD_HASH)
         {
             if (proxy->m_Collection == 0)
             {
@@ -404,7 +409,7 @@ namespace dmGameSystem
                 proxy->m_LoadSender = params.m_Message->m_Sender;
                 proxy->m_LoadReceiver = params.m_Message->m_Receiver;
 
-                if (params.m_Message->m_Id == dmHashString64("async_load"))
+                if (params.m_Message->m_Id == COLLECTION_PROXY_ASYNC_LOAD_HASH)
                 {
                     proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, proxy->m_Resource->m_DDF->m_Collection);
                 }
@@ -423,7 +428,7 @@ namespace dmGameSystem
                 LogMessageError(params.m_Message, "The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64("unload"))
+        else if (params.m_Message->m_Id == COLLECTION_PROXY_UNLOAD_HASH)
         {
             if (proxy->m_Preloader != 0)
             {
@@ -445,7 +450,7 @@ namespace dmGameSystem
                 LogMessageError(params.m_Message, "The collection %s could not be unloaded since it was never loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64("init"))
+        else if (params.m_Message->m_Id == COLLECTION_PROXY_INIT_HASH)
         {
             if (proxy->m_Collection != 0)
             {
