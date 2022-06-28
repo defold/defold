@@ -36,6 +36,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
@@ -52,47 +53,35 @@ public class ArchiveBuilder {
     public static final int HASH_LENGTH = 20;
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
 
-    private static final List<String> ENCRYPTED_EXTS = Arrays.asList("luac", "scriptc", "gui_scriptc", "render_scriptc");
-
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
     private Set<String> lookup = new HashSet<String>(); // To see if a resource has already been added
     private String root;
     private ManifestBuilder manifestBuilder = null;
     private LZ4Compressor lz4Compressor;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
-    private boolean encrypt = true;
     private int resourcePadding = 4;
 
-    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, boolean encrypt, int resourcePadding) {
+    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
-        this.encrypt = encrypt;
         this.resourcePadding = resourcePadding;
     }
 
-    private void add(String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
-        ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress, isLiveUpdate);
+    private void add(String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
+        ArchiveEntry e = new ArchiveEntry(root, fileName, compress, encrypt, isLiveUpdate);
         if (!contains(e)) {
             lookup.add(e.relName);
             entries.add(e);
         }
     }
 
-    public void add(String fileName, boolean doCompress) throws IOException {
-        ArchiveEntry e = new ArchiveEntry(root, fileName, doCompress);
-        if (!contains(e)) {
-            lookup.add(e.relName);
-            entries.add(e);
-        }
+    public void add(String fileName, boolean compress, boolean encrypt) throws IOException {
+        add(fileName, compress, encrypt, false);
     }
 
     public void add(String fileName) throws IOException {
-        ArchiveEntry e = new ArchiveEntry(root, fileName, false);
-        if (!contains(e)) {
-            lookup.add(e.relName);
-            entries.add(e);
-        }
+        add(fileName, false, false, false);
     }
 
     private boolean contains(ArchiveEntry e) {
@@ -211,10 +200,7 @@ public class ArchiveBuilder {
             }
 
             // Encrypt data
-            String extension = FilenameUtils.getExtension(entry.fileName);
-            if (encrypt && ENCRYPTED_EXTS.indexOf(extension) != -1) {
-                archiveEntryFlags = (byte) (archiveEntryFlags | ArchiveEntry.FLAG_ENCRYPTED);
-                entry.flags = (entry.flags | ArchiveEntry.FLAG_ENCRYPTED);
+            if ((archiveEntryFlags & ArchiveEntry.FLAG_ENCRYPTED) != 0) {
                 buffer = this.encryptResourceData(buffer);
             }
 
@@ -374,14 +360,14 @@ public class ArchiveBuilder {
 
         int archivedEntries = 0;
         int excludedEntries = 0;
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, true, 4);
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4);
         for (File currentInput : inputs) {
             if (currentInput.getName().startsWith("liveupdate.")){
                 excludedEntries++;
-                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, true);
+                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, false, true);
             } else {
                 archivedEntries++;
-                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
+                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, false, false);
             }
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
             rootNode.addChild(currentNode);

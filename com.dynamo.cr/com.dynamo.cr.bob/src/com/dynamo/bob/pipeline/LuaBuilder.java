@@ -294,6 +294,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                 if (use_lua_source) {
                     project.addOutputFlags(path, Project.OutputFlags.UNCOMPRESSED);
                 }
+                else {
+                    project.addOutputFlags(path, Project.OutputFlags.ENCRYPTED);
+                }
             }
         }
 
