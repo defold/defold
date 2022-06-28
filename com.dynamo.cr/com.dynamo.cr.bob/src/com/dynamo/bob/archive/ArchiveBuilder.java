@@ -362,14 +362,16 @@ public class ArchiveBuilder {
         int excludedEntries = 0;
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4);
         for (File currentInput : inputs) {
+            String absolutePath = currentInput.getAbsolutePath();
+            boolean encrypt = (absolutePath.endsWith("luac") || absolutePath.endsWith("scriptc") || absolutePath.endsWith("gui_scriptc") || absolutePath.endsWith("render_scriptc"));
             if (currentInput.getName().startsWith("liveupdate.")){
                 excludedEntries++;
-                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, false, true);
+                archiveBuilder.add(absolutePath, doCompress, encrypt, true);
             } else {
                 archivedEntries++;
-                archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, false, false);
+                archiveBuilder.add(absolutePath, doCompress, encrypt, false);
             }
-            ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
+            ResourceNode currentNode = new ResourceNode(currentInput.getPath(), absolutePath);
             rootNode.addChild(currentNode);
         }
         System.out.println("Added " + Integer.toString(archivedEntries + excludedEntries) + " entries to archive (" + Integer.toString(excludedEntries) + " entries tagged as 'liveupdate' in archive).");
