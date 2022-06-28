@@ -69,7 +69,7 @@ import com.google.protobuf.Message;
  */
 public abstract class LuaBuilder extends Builder<Void> {
 
-    private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+    private static ArrayList<Platform> needsVanillaLua32 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
     private static LuaBuilderPlugin luaBuilderPlugin = null;
 
@@ -119,18 +119,13 @@ public abstract class LuaBuilder extends Builder<Void> {
         return taskBuilder.build();
     }
 
-    public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
-
-        Bob.verbose("constructLuaBytecode");
-
-        java.io.FileOutputStream fo = null;
+    public byte[] constructBytecode(Task<Void> task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
+        Bob.verbose("constructBytecode");
+        FileOutputStream fo = null;
         RandomAccessFile rdr = null;
 
         try {
             Bob.initLua(); // unpack the lua resources
-
-            File outputFile = File.createTempFile("script", ".raw");
-            File inputFile = File.createTempFile("script", ".lua");
 
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
@@ -138,14 +133,10 @@ public abstract class LuaBuilder extends Builder<Void> {
             fo.write(source.getBytes());
             fo.close();
 
-            List<String> options = new ArrayList<String>();
-            options.add(Bob.getExe(Platform.getHostPlatform(), luacExe));
-            options.add("-o"); options.add(outputFile.getAbsolutePath());
-            options.add(inputFile.getAbsolutePath());
-
             ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
+            pb.environment().putAll(env);
 
-            Bob.verbose("constructLuaBytecode running luac");
+            Bob.verbose("constructBytecode starting pb");
             Process p = pb.start();
             InputStream is = null;
             int ret = 127;
@@ -159,9 +150,10 @@ public abstract class LuaBuilder extends Builder<Void> {
                 is.read(buf);
 
                 String cmdOutput = new String(buf);
+                Bob.verbose("constructBytecode ret: " + ret);
+                Bob.verbose("constructBytecode output: " + cmdOutput);
                 if (ret != 0) {
-                    Bob.verbose("cmdOutput: " + cmdOutput);
-                    // first delimiter is the executable name "luac:"
+                    // first delimiter is the executable name "luajit:" or "luac:"
                     int execSep = cmdOutput.indexOf(':');
                     if (execSep > 0) {
                         // then comes the filename and the line like this:
@@ -178,22 +170,22 @@ public abstract class LuaBuilder extends Builder<Void> {
                         }
                     }
                     // Since parsing out the actual error failed, as a backup just
-                    // spit out whatever luajit said.
+                    // spit out whatever luajit/luac said.
                     inputFile.delete();
                     throw new CompileExceptionError(task.input(0), 1, cmdOutput);
                 }
             } catch (InterruptedException e) {
-                Bob.verbose("InterruptedException");
                 Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
             } finally {
                 IOUtils.closeQuietly(is);
             }
 
-            Bob.verbose("constructLuaBytecode done");
             long resultBytes = outputFile.length();
             rdr = new RandomAccessFile(outputFile, "r");
             byte tmp[] = new byte[(int) resultBytes];
             rdr.readFully(tmp);
+
+            Bob.verbose("constructBytecode bytecode length: " + resultBytes);
 
             outputFile.delete();
             inputFile.delete();
@@ -205,102 +197,54 @@ public abstract class LuaBuilder extends Builder<Void> {
         }
     }
 
-    public byte[] constructBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
+    public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
 
-        java.io.FileOutputStream fo = null;
-        RandomAccessFile rdr = null;
+        Bob.verbose("constructLuaBytecode");
 
-        try {
-            Bob.initLua(); // unpack the lua resources
+        File outputFile = File.createTempFile("script", ".raw");
+        File inputFile = File.createTempFile("script", ".lua");
 
-            File outputFile = File.createTempFile("script", ".raw");
-            File inputFile = File.createTempFile("script", ".lua");
+        List<String> options = new ArrayList<String>();
+        options.add(Bob.getExe(Platform.getHostPlatform(), luacExe));
+        options.add("-o"); options.add(outputFile.getAbsolutePath());
+        options.add(inputFile.getAbsolutePath());
 
-            // Need to write the input file separately in case it comes from built-in, and cannot
-            // be found through its path alone.
-            fo = new java.io.FileOutputStream(inputFile);
-            fo.write(source.getBytes());
-            fo.close();
+        Map<String, String> env = new HashMap<String, String>();
 
-            // Doing a bit of custom set up here as the path is required.
-            //
-            // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
-            //       correct chunk name (the original source file) already here.
-            //
-            // See implementation of luaO_chunkid and why a prefix '@' is used; it is to show the last 60 characters of the name.
-            //
-            // If a script error occurs in runtime we want Lua to report the end of the filepath
-            // associated with the chunk, since this is where the filename is visible.
-            //
-            final String chunkName = "@" + task.input(0).getPath();
-            List<String> options = new ArrayList<String>();
-            options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
-            options.add("-b");
-            options.add("-g");
-            options.add("-f"); options.add(chunkName);
-            options.add(inputFile.getAbsolutePath());
-            options.add(outputFile.getAbsolutePath());
+        return constructBytecode(task, source, inputFile, outputFile, options, env);
 
+    }
 
-            ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
+    public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
 
-            java.util.Map<String, String> env = pb.environment();
-            env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
+        Bob.initLua(); // unpack the lua resources
 
-            Process p = pb.start();
-            InputStream is = null;
-            int ret = 127;
+        File outputFile = File.createTempFile("script", ".raw");
+        File inputFile = File.createTempFile("script", ".lua");
 
-            try {
-                ret = p.waitFor();
-                is = p.getInputStream();
+        // Doing a bit of custom set up here as the path is required.
+        //
+        // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
+        //       correct chunk name (the original source file) already here.
+        //
+        // See implementation of luaO_chunkid and why a prefix '@' is used; it is to show the last 60 characters of the name.
+        //
+        // If a script error occurs in runtime we want Lua to report the end of the filepath
+        // associated with the chunk, since this is where the filename is visible.
+        //
+        final String chunkName = "@" + task.input(0).getPath();
+        List<String> options = new ArrayList<String>();
+        options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
+        options.add("-b");
+        options.add("-g");
+        options.add("-f"); options.add(chunkName);
+        options.add(inputFile.getAbsolutePath());
+        options.add(outputFile.getAbsolutePath());
 
-                int toRead = is.available();
-                byte[] buf = new byte[toRead];
-                is.read(buf);
+        Map<String, String> env = new HashMap<String, String>();
+        env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
 
-                String cmdOutput = new String(buf);
-                if (ret != 0) {
-                    // first delimiter is the executable name "luajit:"
-                    int execSep = cmdOutput.indexOf(':');
-                    if (execSep > 0) {
-                        // then comes the filename and the line like this:
-                        // "file.lua:30: <error message>"
-                        int lineBegin = cmdOutput.indexOf(':', execSep + 1);
-                        if (lineBegin > 0) {
-                            int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
-                            if (lineEnd > 0) {
-                                throw new CompileExceptionError(task.input(0),
-                                        Integer.parseInt(cmdOutput.substring(
-                                                lineBegin + 1, lineEnd)),
-                                        cmdOutput.substring(lineEnd + 2));
-                            }
-                        }
-                    }
-                    // Since parsing out the actual error failed, as a backup just
-                    // spit out whatever luajit said.
-                    inputFile.delete();
-                    throw new CompileExceptionError(task.input(0), 1, cmdOutput);
-                }
-            } catch (InterruptedException e) {
-                Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
-            } finally {
-                IOUtils.closeQuietly(is);
-            }
-
-            long resultBytes = outputFile.length();
-            rdr = new RandomAccessFile(outputFile, "r");
-            byte tmp[] = new byte[(int) resultBytes];
-            rdr.readFully(tmp);
-
-            outputFile.delete();
-            inputFile.delete();
-            return tmp;
-        }
-        finally {
-            IOUtils.closeQuietly(fo);
-            IOUtils.closeQuietly(rdr);
-        }
+        return constructBytecode(task, source, inputFile, outputFile, options, env);
     }
 
     @Override
@@ -339,12 +283,15 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
-        // if for some reason, the project needs to be bundled with regular Lua files (e.g. on iOS)
-        boolean use_vanilla_lua = this.project.option("use-vanilla-lua", "false").equals("true");
-        if (use_vanilla_lua) {
-            for(IResource res : task.getOutputs()) {
-                String path = res.getAbsPath();
-                if(path.endsWith("luac") || path.endsWith("scriptc") || path.endsWith("gui_scriptc") || path.endsWith("render_scriptc")) {
+        boolean use_lua_source = this.project.option("use-lua-source", "false").equals("true");
+        
+        // set compression and encryption flags
+        // if the use-lua-source flag is set the project will use uncompressed plain text Lua script files
+        // if the use-lua-source flag is NOT set the project will use encrypted and possibly also compressed bytecode
+        for(IResource res : task.getOutputs()) {
+            String path = res.getAbsPath();
+            if(path.endsWith("luac") || path.endsWith("scriptc") || path.endsWith("gui_scriptc") || path.endsWith("render_scriptc")) {
+                if (use_lua_source) {
                     project.addOutputFlags(path, Project.OutputFlags.UNCOMPRESSED);
                 }
             }
@@ -353,15 +300,22 @@ public abstract class LuaBuilder extends Builder<Void> {
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         srcBuilder.setFilename(task.input(0).getPath());
 
-        if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
-            byte[] bytecode = constructLuaBytecode(task, "luac", script);
+        if (use_lua_source) {
+            Bob.verbose("LuaBuilder use_lua_source");
+            srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
+        } else if (needsVanillaLua32.contains(project.getPlatform())) {
+            Bob.verbose("LuaBuilder luac");
+            byte[] bytecode = constructLuaBytecode(task, "luac-32", script);
             if (bytecode != null) {
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
-                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode));
+            }
+            else {
+                Bob.verbose("NO BYTECODE!");
             }
         } else {
-            byte[] bytecode32 = constructBytecode(task, "luajit-32", script);
-            byte[] bytecode64 = constructBytecode(task, "luajit-64", script);
+            Bob.verbose("LuaBuilder luajit");
+            byte[] bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
+            byte[] bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
 
             if (bytecode32.length != bytecode64.length) {
                 throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
