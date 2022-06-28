@@ -79,7 +79,7 @@
               (is (resource-node/defective? main-collection))
               (is (resource-node/defective? main-gui)))
             (testing "Without the extension, resources with embedded Spine data aren't connected to the save-data system, and cannot be corrupted by save."
-              (is (not-any? (set [main-collection-resource main-gui-resource])
+              (is (not-any? #{main-collection-resource main-gui-resource}
                             (map :resource (project/all-save-data project)))))
             (testing "Without the extension, resources with embedded Spine data report build errors due to invalid content."
               (letfn [(invalid-content-error? [error-resource-path error-value]
