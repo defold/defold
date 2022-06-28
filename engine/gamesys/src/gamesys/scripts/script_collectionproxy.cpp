@@ -24,9 +24,6 @@
 
 namespace dmGameSystem
 {
-    static const char* COLLECTION_PROXY_EXT = "spinemodelc";
-    static const dmhash_t COLLECTION_PROXY_EXT_HASH = dmHashString64(COLLECTION_PROXY_EXT);
-
     static dmhash_t GetCollectionProxyUrlHash(lua_State* L, int index)
     {
         dmMessage::URL sender;
