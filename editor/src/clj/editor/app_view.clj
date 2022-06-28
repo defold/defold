@@ -1700,7 +1700,7 @@ If you do not specifically require different script states, consider changing th
        (do (dialogs/make-info-dialog
              {:title "Unable to Open Resource"
               :icon :icon/triangle-error
-              :header (format "Unable to open '%s', since it appears damaged" (resource/proj-path resource))})
+              :header (format "Unable to open '%s', since it contains unrecognizable data. Could the project be missing a required extension?" (resource/proj-path resource))})
            false)
        (if-let [custom-editor (and (#{:code :text} (:id view-type))
                                    (let [ed-pref (some->
