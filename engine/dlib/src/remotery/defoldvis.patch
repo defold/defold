@@ -8,7 +8,7 @@ index 53795c3c9..ac32671cb 100644
  		<!-- Style Sheets -->
 -		<link rel="stylesheet" type="text/css" href="extern/BrowserLib/WindowManager/Styles/WindowManager.css" />
 -		<link rel="stylesheet" type="text/css" href="Styles/Remotery.css" />
-+		<link rel="stylesheet" type="text/css" href="engine-profiler/remotery/extern/BrowserLib/WindowManager/Styles/WindowManager.css" />
++		<link rel="stylesheet" type="text/css" href="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Styles/WindowManager.css" />
 +		<link rel="stylesheet" type="text/css" href="engine-profiler/remotery/Styles/Remotery.css" />
  
  	</head>
@@ -24,14 +24,14 @@ index 53795c3c9..ac32671cb 100644
 -		<script type="text/javascript" src="extern/BrowserLib/Core/Code/LocalStore.js"></script>
 -		<script type="text/javascript" src="extern/BrowserLib/Core/Code/Mouse.js"></script>
 -		<script type="text/javascript" src="extern/BrowserLib/Core/Code/Keyboard.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/Core/Code/Core.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/Core/Code/DOM.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/Core/Code/Bind.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/Core/Code/Animation.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/Core/Code/Convert.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/Core/Code/LocalStore.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/Core/Code/Mouse.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/Core/Code/Keyboard.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/Core.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/DOM.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/Bind.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/Animation.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/Convert.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/LocalStore.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/Mouse.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/Keyboard.js"></script>
  
  		<!-- User Interface Window Manager -->
 -		<script type="text/javascript" src="extern/BrowserLib/WindowManager/Code/WindowManager.js"></script>
@@ -41,13 +41,13 @@ index 53795c3c9..ac32671cb 100644
 -		<script type="text/javascript" src="extern/BrowserLib/WindowManager/Code/Grid.js"></script>
 -		<script type="text/javascript" src="extern/BrowserLib/WindowManager/Code/Label.js"></script>
 -		<script type="text/javascript" src="extern/BrowserLib/WindowManager/Code/Button.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/WindowManager/Code/WindowManager.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/WindowManager/Code/Window.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/WindowManager/Code/Container.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/WindowManager/Code/EditBox.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/WindowManager/Code/Grid.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/WindowManager/Code/Label.js"></script>
-+		<script type="text/javascript" src="engine-profiler/remotery/extern/BrowserLib/WindowManager/Code/Button.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Code/WindowManager.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Code/Window.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Code/Container.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Code/EditBox.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Code/Grid.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Code/Label.js"></script>
++		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Code/Button.js"></script>
  
  		<!-- Main Application -->
 -        <script type="text/javascript" src="Code/WebGL.js"></script>
