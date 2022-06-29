@@ -228,7 +228,7 @@
    :help
    "minimum velocity that will result in ellastic collisions",
    :default 1.0,
-   :path ["physics" "velocity_threshold"]},   
+   :path ["physics" "velocity_threshold"]},
   {:type :string,
    :help
    "which filtering to use for min filtering, linear (default) or nearest",
@@ -685,7 +685,7 @@
    :label "Info.plist",
    :default "/builtins/manifests/osx/Info.plist",
    :path ["osx" "infoplist"]}
-   {:type :string,
+  {:type :string,
    :help "default language and region (CFBundleDevelopmentRegion)",
    :default "en",
    :path ["osx" "default_language"]}
@@ -764,7 +764,7 @@
    :help "scale mode for canvas, by default 'Downscale Fit'",
    :default "downscale_fit",
    :path ["html5" "scale_mode"]
-   :options [["downscale_fit" "Downscale Fit"] ["fit" "Fit"] ["stretch" "Stretch"] ["no_scale" "No Scale" ]]}
+   :options [["downscale_fit" "Downscale Fit"] ["fit" "Fit"] ["stretch" "Stretch"] ["no_scale" "No Scale"]]}
   {:type :string,
    :help "the application id as issued by Facebook",
    :default "",
@@ -796,42 +796,79 @@
    :help "max number of concurrent (visible) tiles in a collection",
    :default 2048,
    :path ["tilemap" "max_tile_count"]}]
-
+ :group-order ["Main" "Platforms" "Components" "Runtime" "Distribution"]
+ :default-category "project"
  :categories
- {"sound" {:help "Sound related settings"},
+ {"sound" {:help "Sound related settings"
+           :group "Components"},
   "html5" {:help "HTML5 related settings"
-           :title "HTML5"},
-  "resource" {:help "Resource loading and management related settings"},
-  "factory" {:help "GameObject factory related settings"},
-  "graphics" {:help "Graphics related settings"},
-  "bootstrap" {:help "Initial settings for the engine"},
-  "label" {:help "Label related settings"},
-  "collection" {:help "Collection related settings"},
-  "project" {:help "General project settings"},
-  "collectionfactory" {:title "Collection Factory"}
-  "collection_proxy" {:help "Collection proxy related settings"}
-  "physics" {:help "Physics settings"},
+           :title "HTML5"
+           :group "Platforms"},
+  "resource" {:help "Resource loading and management related settings"
+              :group "Runtime"},
+  "factory" {:help "GameObject factory related settings"
+             :group "Components"},
+  "graphics" {:help "Graphics related settings"
+              :group "Runtime"},
+  "engine" {:help "Runtime settings for the engine"
+            :group "Runtime"},
+  "bootstrap" {:help "Initial settings for the engine"
+               :group "Main"},
+  "label" {:help "Label related settings"
+           :group "Components"},
+  "collection" {:help "Collection related settings"
+                :group "Components"},
+  "project" {:help "General project settings"
+             :group "Main"},
+  "collectionfactory" {:title "Collection Factory"
+                       :group "Components"}
+  "collection_proxy" {:help "Collection proxy related settings"
+                      :group "Components"}
+  "physics" {:help "Physics settings"
+             :group "Runtime"},
   "osx" {:help "Mac OSX related settings"
-         :title "OSX"},
-  "network" {:help "Network related settings"},
-  "script" {:help "Script system settings"},
-  "shader" {:help "Shader related settings"}
+         :title "OSX"
+         :group "Platforms"},
+  "network" {:help "Network related settings"
+             :group "Runtime"},
+  "script" {:help "Script system settings"
+            :group "Components"},
+  "shader" {:help "Shader related settings"
+            :group "Runtime"}
   "gui" {:help "GUI related settings"
-         :title "GUI"},
-  "sprite" {:help "Sprite related settings"},
-  "tilemap", {:help "Tilemap related settings"},
-  "facebook" {:help "Facebook related settings"},
-  "windows" {:help "Windows related settings"},
-  "input" {:help "Input related settings"},
-  "library" {:help "Settings for when this project is used as a library by another project"},
-  "display" {:help "Resolution and other display related settings"},
+         :title "GUI"
+         :group "Components"},
+  "sprite" {:help "Sprite related settings"
+            :group "Components"},
+  "tilemap" {:help "Tilemap related settings"
+             :group "Components"},
+  "facebook" {:help "Facebook related settings"
+              :group "Runtime"},
+  "windows" {:help "Windows related settings"
+             :group "Platforms"},
+  "input" {:help "Input related settings"
+           :group "Runtime"},
+  "library" {:help "Settings for when this project is used as a library by another project"
+             :group "Distribution"},
+  "display" {:help "Resolution and other display related settings"
+             :group "Runtime"},
   "ios" {:help "iOS related settings"
-         :title "iOS"},
+         :title "iOS"
+         :group "Platforms"},
   "iap" {:help "In App Purchase related settings"
-         :title "IAP"},
+         :title "IAP"
+         :group "Runtime"},
+  "mesh" {:group "Components"}
+  "model" {:group "Components"}
+  "render" {:group "Runtime"}
   "particle_fx" {:help "Particle FX related settings"
-                 :title "Particle FX"},
-  "android" {:help "Android related settings"},
-  "liveupdate" {:help "Liveupdate settings"},
-  "native_extension" {:help "Settings for native extensions"},
-  "profiler" {:help "Settings related to the runtime profiler"}}}
+                 :title "Particle FX"
+                 :group "Components"},
+  "android" {:help "Android related settings"
+             :group "Platforms"},
+  "liveupdate" {:help "Liveupdate settings"
+                :group "Distribution"},
+  "native_extension" {:help "Settings for native extensions"
+                      :group "Distribution"},
+  "profiler" {:help "Settings related to the runtime profiler"
+              :group "Runtime"}}}

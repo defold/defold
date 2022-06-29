@@ -76,7 +76,7 @@
 
                      [org.luaj/luaj-jse "3.0.1"]
 
-                     [cljfx "1.7.19"]
+                     [cljfx "1.7.20"]
 
                      [org.openjfx/javafx-base "18"]
                      [org.openjfx/javafx-base "18" :classifier "linux"]

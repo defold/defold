@@ -25,7 +25,6 @@
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-view :as fx.list-view]
-            [cljfx.fx.menu-button :as fx.menu-button]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.separator :as fx.separator]
@@ -36,6 +35,9 @@
             [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
+            [cljfx.prop :as fx.prop]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -51,7 +53,8 @@
             [editor.ui :as ui]
             [editor.url :as url]
             [editor.view :as view]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [internal.util :as util])
   (:import [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control Cell ComboBox ListView$EditEvent ScrollPane TableColumn$CellEditEvent TableView ListView]
@@ -1158,12 +1161,8 @@
                                       (not= ::no-value state)
                                       (assoc :state state))]}))))
 
-(defn- section-id [title]
-  (string/replace title " " "-"))
-
 (defn- section-view [{:keys [title help fields values ui-state resource-string-converter visible]}]
   {:fx/type fx.v-box/lifecycle
-   :id (section-id title)
    :visible visible
    :managed visible
    :children (cond-> []
@@ -1261,14 +1260,42 @@
   (when (= KeyCode/ESCAPE (.getCode event))
     {:set-ui-state (assoc ui-state :filter-term "")}))
 
-(defn- filter-text-field [{:keys [text]}]
-  {:fx/type fx.text-field/lifecycle
-   :id "filter-text-field"
-   :style-class ["text-field" "filter-text-field"]
-   :prompt-text "Filter"
-   :text text
-   :on-key-pressed {:event-type :filter-key-pressed}
-   :on-text-changed {:event-type :filter-text-changed}})
+(defmethod handle-event :navigate-sections [{:keys [fx/event ui-state sections selected-section-title]}]
+  (when (instance? KeyEvent event)
+    (let [^KeyEvent event event]
+      (when (= KeyEvent/KEY_PRESSED (.getEventType event))
+        (condp = (.getCode event)
+          KeyCode/DOWN
+          (do (.consume event)
+              (when-let [next-section (->> sections
+                                           (drop-while #(not= % selected-section-title))
+                                           second)]
+                {:set-ui-state (assoc ui-state :selected-section-title next-section)}))
+
+          KeyCode/UP
+          (do (.consume event)
+              (when-let [prev-section (->> sections
+                                           (take-while #(not= % selected-section-title))
+                                           last)]
+                {:set-ui-state (assoc ui-state :selected-section-title prev-section)}))
+
+          nil)))))
+
+(defn- filter-text-field [{:keys [text sections selected-section-title]}]
+  (wrap-focus-text-field
+    {:fx/type fx.text-field/lifecycle
+     :id "filter-text-field"
+     :min-height :use-pref-size
+     :pref-height 10
+     :max-height :use-pref-size
+     :style-class ["text-field" "filter-text-field"]
+     :prompt-text "Filter"
+     :text text
+     :event-filter {:event-type :navigate-sections
+                    :sections sections
+                    :selected-section-title selected-section-title}
+     :on-key-pressed {:event-type :filter-key-pressed}
+     :on-text-changed {:event-type :filter-text-changed}}))
 
 ;; endregion
 
@@ -1296,74 +1323,128 @@
 
 ;; region jump-to
 
-(defmethod handle-event :jump-to [{:keys [section ^Node parent]}]
-  (let [^ScrollPane scroll-pane (.lookup parent "#scroll-pane")
-        ^Node node (.lookup parent (str "#" section))
-        content-height (-> scroll-pane .getContent .getBoundsInLocal .getHeight)
-        viewport-height (-> scroll-pane .getViewportBounds .getHeight)]
-    (when (> content-height viewport-height)
-      (.setVvalue scroll-pane (/ (- (.getMinY (.getBoundsInParent node))
-                                    24)                     ;; form padding
-                                 (- content-height viewport-height))))))
+(defmethod handle-event :jump-to [{:keys [section ui-state]}]
+  {:set-ui-state (assoc ui-state :selected-section-title section)})
 
-(defn- jump-to-button [{:keys [visible-titles]}]
-  {:fx/type fx.menu-button/lifecycle
-   :text "Jump to..."
-   :style-class "jump-to-menu-button"
-   :disable (empty? visible-titles)
-   :items (->> visible-titles
-               (sort #(.compareToIgnoreCase ^String %1 %2))
-               (mapv (fn [title]
-                       {:fx/type fx.menu-item/lifecycle
-                        :on-action {:event-type :jump-to
-                                    :section (section-id title)}
-                        :text title})))})
+(defn- form-sections [{:keys [groups sections selected-section-title]}]
+  {:fx/type fx/ext-let-refs
+   :refs (into {}
+               (comp
+                 (mapcat val)
+                 (map (juxt identity
+                            (fn [title]
+                              {:fx/type fx.label/lifecycle
+                               :pseudo-classes (if (= title selected-section-title) #{:active} #{})
+                               :max-width ##Inf
+                               :style-class "cljfx-form-section-button"
+                               :on-mouse-clicked {:event-type :jump-to :section title}
+                               :text title}))))
+               groups)
+   :desc {:fx/type fxui/ext-ensure-scroll-pane-child-visible
+          :child-desc {:fx/type fx/ext-get-ref :ref selected-section-title}
+          :scroll-pane-desc {:fx/type fx.scroll-pane/lifecycle
+                             :event-filter {:event-type :navigate-sections
+                                            :sections sections
+                                            :selected-section-title selected-section-title}
+                             :style-class "cljfx-form-contents-scroll-pane"
+                             :hbar-policy :never
+                             :fit-to-width true
+                             :fit-to-height true
+                             :content {:fx/type fx.v-box/lifecycle
+                                       :fill-width true
+                                       :spacing 16
+                                       :children (mapv (fn [[group titles]]
+                                                         {:fx/type fx.v-box/lifecycle
+                                                          :fill-width true
+                                                          :children (into [{:fx/type fx.label/lifecycle
+                                                                            :style-class "cljfx-form-section-header"
+                                                                            :text group}]
+                                                                          (map
+                                                                            (fn [title]
+                                                                              {:fx/type fx/ext-get-ref :ref title}))
+                                                                          titles)})
+                                                       groups)}}}})
 
 ;; endregion
 
 (defn- form-view [{:keys [parent form-data ui-state resource-string-converter]}]
-  (let [{:keys [sections values]} form-data
+  (let [{:keys [sections values group-order default-section-name]} form-data
         filter-term (:filter-term ui-state)
-        sections-with-visibility (mapv #(set-section-visibility % values filter-term)
-                                       sections)
-        visible-titles (into []
-                             (comp
-                               (filter :visible)
-                               (map :title))
-                             sections-with-visibility)
-        section-views (make-section-views sections-with-visibility
-                                          values
-                                          ui-state
-                                          resource-string-converter)]
+        sections-with-visibility (mapv #(set-section-visibility % values filter-term) sections)
+        navigation (:navigation form-data true)]
     {:fx/type with-anchor-pane-props
      :desc {:fx/type fxui/ext-value
             :value parent}
-     :props {:children (cond-> []
-                               (:navigation form-data true)
-                               (conj {:fx/type fx.h-box/lifecycle
-                                      :style-class "cljfx-form-floating-area"
-                                      :anchor-pane/top 24
-                                      :anchor-pane/right 24
-                                      :view-order 0
-                                      :children [{:fx/type filter-text-field
-                                                  :text filter-term}
-                                                 {:fx/type jump-to-button
-                                                  :visible-titles visible-titles}]})
+     :props {:children [(if navigation
+                          (let [visible-sections (filterv :visible sections-with-visibility)
+                                groups (->> visible-sections
+                                            (util/group-into
+                                              {}
+                                              (sorted-set-by #(.compareToIgnoreCase ^String %1 %2))
+                                              :group
+                                              :title)
+                                            (sort-by #(group-order (key %) ##Inf)))
+                                visible-titles (into #{} (map :title) visible-sections)
+                                selected-section-title (or (-> ui-state :selected-section-title (or default-section-name) visible-titles)
+                                                           (some-> groups first val first visible-titles))]
+                            {:fx/type :h-box
+                             :anchor-pane/top 0
+                             :anchor-pane/right 0
+                             :anchor-pane/bottom 0
+                             :anchor-pane/left 0
+                             :children [{:fx/type fx.v-box/lifecycle
+                                         :min-width 160
+                                         :pref-width 160
+                                         :style-class "cljfx-form-contents"
+                                         :view-order 0
+                                         :children [{:fx/type filter-text-field
+                                                     :v-box/margin 12
+                                                     :text filter-term
+                                                     :sections (mapcat val groups)
+                                                     :selected-section-title selected-section-title}
+                                                    {:fx/type form-sections
+                                                     :sections (mapcat val groups)
+                                                     :selected-section-title selected-section-title
+                                                     :groups groups}]}
+                                        {:fx/type fx/ext-let-refs
+                                         :h-box/hgrow :always
+                                         :refs (into {}
+                                                     (map (juxt :title
+                                                                #(assoc % :fx/type section-view
+                                                                          :values values
+                                                                          :ui-state ui-state
+                                                                          :resource-string-converter resource-string-converter)))
+                                                     sections-with-visibility)
+                                         :desc {:fx/type fx/ext-on-instance-lifecycle
+                                                :on-created #(ui/context! % :form {:root parent} nil)
+                                                :desc {:fx/type fx.scroll-pane/lifecycle
+                                                       :id "scroll-pane"
+                                                       :view-order 1
+                                                       :fit-to-width true
+                                                       :content {:fx/type fx.v-box/lifecycle
+                                                                 :style-class "cljfx-form"
+                                                                 :children (if selected-section-title
+                                                                             [{:fx/type fx/ext-get-ref
+                                                                               :ref selected-section-title}]
+                                                                             [])}}}}]})
 
-                               :always
-                               (conj {:fx/type fx/ext-on-instance-lifecycle
-                                      :anchor-pane/top 0
-                                      :anchor-pane/right 0
-                                      :anchor-pane/bottom 0
-                                      :anchor-pane/left 0
-                                      :on-created #(ui/context! % :form {:root parent} nil)
-                                      :desc {:fx/type fx.scroll-pane/lifecycle
-                                             :id "scroll-pane"
-                                             :view-order 1
-                                             :fit-to-width true
-                                             :content {:fx/type fx.v-box/lifecycle
-                                                       :style-class "cljfx-form"
-                                                       :children section-views}}}))}}))
+                          {:fx/type fx/ext-on-instance-lifecycle
+                           :anchor-pane/top 0
+                           :anchor-pane/right 0
+                           :anchor-pane/bottom 0
+                           :anchor-pane/left 0
+                           :on-created #(ui/context! % :form {:root parent} nil)
+                           :desc {:fx/type fx.scroll-pane/lifecycle
+                                  :id "scroll-pane"
+                                  :view-order 1
+                                  :fit-to-width true
+                                  :content {:fx/type fx.v-box/lifecycle
+                                            :style-class "cljfx-form"
+                                            :children (make-section-views
+                                                        sections-with-visibility
+                                                        values
+                                                        ui-state
+                                                        resource-string-converter)}}})]}}))
 
 (defn- wrap-force-refresh [f view-id]
   (fn [event]
@@ -1428,6 +1509,7 @@
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed]
                                     (g/node-value view-id :form-view)))]
+    (g/node-value view-id :form-view)
     (ui/timer-start! repaint-timer)
     (ui/timer-stop-on-closed! tab repaint-timer)
     view-id))

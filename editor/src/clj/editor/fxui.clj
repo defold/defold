@@ -36,7 +36,7 @@
            [javafx.scene Node]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
-           [javafx.scene.control TextInputControl ListView]
+           [javafx.scene.control TextInputControl ListView ScrollPane]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -92,6 +92,49 @@
     (delete [_ component opts]
       (binding [fx.lifecycle/*in-progress?* false]
         (fx.lifecycle/delete fx.lifecycle/dynamic component opts)))))
+
+(def ^:private ext-ensure-scroll-pane-child-visible-impl
+  (fx/make-ext-with-props
+    {:ensure-visible
+     (fx.prop/make
+       (fx.mutator/setter
+         (fn [^ScrollPane pane ^Node child]
+           (when child
+             (let [content-height (-> pane .getContent .getBoundsInLocal .getHeight)
+                   viewport-bounds (.getViewportBounds pane)
+                   viewport-height (.getHeight viewport-bounds)
+                   viewport-bottom (- (.getHeight viewport-bounds) (.getMinY viewport-bounds))
+                   child-bounds (-> pane .getContent (.sceneToLocal (.localToScene child (.getBoundsInLocal child))))]
+               (when (< viewport-height content-height)
+                 (cond
+                   ;; when child view is below viewport, scroll down
+                   (< viewport-bottom (.getMaxY child-bounds))
+                   (.setVvalue pane (/ (- (.getMaxY child-bounds) (.getHeight viewport-bounds))
+                                       (- content-height viewport-height)))
+                   ;; when child view is above viewport, scroll down
+                   (< (.getMinY child-bounds) (- (.getMinY viewport-bounds)))
+                   (.setVvalue pane (/ (.getMinY child-bounds)
+                                       (- content-height viewport-height)))))))))
+       fx.lifecycle/dynamic)}))
+
+(defn ext-ensure-scroll-pane-child-visible
+  "Extension lifecycle that ensures ScrollPane's child node is visible
+
+  This extension will perform scroll whenever the child node is changed
+
+  Expected props:
+
+    :scroll-pane-desc    cljfx description (required) that resolves to
+                         a ScrollPane instance
+    :child-desc          cljfx description (optional) that resolves to a Node
+                         that is also present in the ScrollPane's content. This
+                         can be achieved using fx/ext-let-refs + fx/ext-get-ref"
+  [{:keys [scroll-pane-desc child-desc]}]
+  {:fx/type ext-ensure-scroll-pane-child-visible-impl
+   :props (if (some? child-desc)
+            {:ensure-visible child-desc}
+            {})
+   :desc scroll-pane-desc})
 
 (defn make-event-filter-prop
   "Creates a prop-config that will add event filter for specified `event-type`
