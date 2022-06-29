@@ -604,7 +604,6 @@
                                               :precision 0.01})))
   (property inherit-alpha g/Bool (default true))
   (property enabled g/Bool (default true))
-  (property visible g/Bool (default true))
 
   (property layer g/Str
             (default "")
@@ -755,6 +754,8 @@
 
 (g/defnode VisualNode
   (inherits GuiNode)
+
+  (property visible g/Bool (default true))
 
   (property blend-mode g/Keyword (default :blend-mode-alpha)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
@@ -1300,6 +1301,9 @@
                      #(contains? % :renderable)
                      #(update-in % [:renderable :tags] (fn [tags] (set (map (fn [tag] (get replacements tag tag)) tags))))))
 
+(defn- andf [a b]
+  (and a b))
+
 (g/defnode TemplateNode
   (inherits GuiNode)
 
@@ -1378,7 +1382,7 @@
                                                    (g/connect self from or-scene to)))))))))
                          []))))))
 
-  (display-order (into base-display-order [:template]))
+  (display-order (into base-display-order [:enabled :template]))
 
   (input scene-pb-msg g/Any :substitute (fn [_] {:nodes []}))
   (input scene-rt-pb-msg g/Any)
@@ -1409,8 +1413,7 @@
                                                                                (assoc :inherit-alpha (:inherit-alpha node-msg)))
                                                           (empty? (:parent %)) (->
                                                                                  (assoc :parent (:parent node-msg))
-                                                                                 (assoc :enabled (:enabled node-msg))
-                                                                                 (assoc :visible (:visible node-msg))
+                                                                                 (update :enabled andf (:enabled node-msg))
                                                                                  ;; In fact incorrect, but only possibility to retain rotation/scale separation
                                                                                  (update :scale (partial mapv * (:scale node-msg)))
                                                                                  (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
@@ -1429,11 +1432,11 @@
                                                (scene/claim-scene _node-id id)
                                                (add-renderable-tags #{:gui})
                                                :children))))
-  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha visible enabled]
+  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha enabled]
                                                 {:passes [pass/selection]
                                                  :child-index child-index
                                                  :layer-index layer-index
-                                                 :visible-self? (and visible enabled)
+                                                 :visible-self? enabled
                                                  :visible-children? enabled
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-gui-node template-resource]

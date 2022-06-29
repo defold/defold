@@ -176,9 +176,10 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             b.setInheritAlpha(parentNode.getInheritAlpha());
         }
 
-        // Apply Enabled and Visible
-        b.setEnabled(parentNode.getEnabled());
-        b.setVisible(parentNode.getVisible());
+        // Apply Enabled. We want to disable the node if the parent Template is disabled.
+        if(b.getEnabled()) {
+            b.setEnabled(parentNode.getEnabled());
+        }
 
         // Apply parent scale
         Vector3d parentScale = new Vector3d(parentNode.getScale().getX(), parentNode.getScale().getY(), parentNode.getScale().getZ());
