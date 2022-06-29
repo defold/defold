@@ -23,13 +23,16 @@ DEFOLD_REPO=${DYNAMO_HOME}/../..
 
 cp -v ${REMOTERY_REPO}/lib/*.c ${DEFOLD_REPO}/engine/dlib/src/remotery/lib/
 cp -v ${REMOTERY_REPO}/lib/*.h ${DEFOLD_REPO}/engine/dlib/src/dmsdk/external/remotery/Remotery.h
+
+# Cleanup the folder
+rm -rf ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis
 cp -v -r ${REMOTERY_REPO}/vis/ ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis
 
 echo "Applying patch"
 
 (cd ${DEFOLD_REPO} && git apply ./engine/dlib/src/remotery/defold.patch)
 
-# Since we want to be able to start the server stand along, we want to keep index.html intact
+# Since we want to be able to start the server standalone, we want to keep index.html intact
 # but we need a patched version to be served from the editor
 cp -v ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis/index.html ${DEFOLD_REPO}/editor/resources/engine-profiler/remotery/vis/orig.index.html
 (cd ${DEFOLD_REPO} && git apply ./engine/dlib/src/remotery/defoldvis.patch)
