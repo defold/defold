@@ -102,12 +102,12 @@ const glDynamicBufferType = Object.freeze({
 
 class glDynamicBuffer
 {
-    constructor(gl, element_type, nb_elements, nb_entries, buffer_type)
+    constructor(gl, buffer_type, element_type, nb_elements, nb_entries = 1)
     {
         this.gl = gl;
         this.elementType = element_type;
         this.nbElements = nb_elements;
-        this.bufferType = buffer_type == undefined ? glDynamicBufferType.Buffer : buffer_type;
+        this.bufferType = buffer_type;
         this.dirty = false;
 
         this.Resize(nb_entries);
@@ -143,13 +143,24 @@ class glDynamicBuffer
                 break;
 
             case glDynamicBufferType.Texture:
-                // Single element formats for now
-                assert(this.elementType == gl.BYTE || this.elementType == gl.FLOAT);
-                assert(this.nbElements == 1);
+                assert(this.elementType == gl.UNSIGNED_BYTE || this.elementType == gl.FLOAT);
                 gl.bindTexture(gl.TEXTURE_2D, this.texture);
-                const internal_format = this.elementType == gl.BYTE ? gl.ALPHA : gl.R32F;
-                const format = this.elementType == gl.BYTE ? gl.ALPHA : gl.RED;
-                const type = this.elementType == gl.BYTE ? gl.UNSIGNED_BYTE : gl.FLOAT;
+
+                // Very limited map from internal type to texture type
+                let internal_format, format, type;
+                if (this.elementType == gl.UNSIGNED_BYTE)
+                {
+                    internal_format = this.nbElements == 1 ? gl.ALPHA : gl.RGBA8;
+                    format = this.nbElements == 1 ? gl.ALPHA : gl.RGBA;
+                    type = gl.UNSIGNED_BYTE;
+                }
+                else if (this.elementType == gl.FLOAT)
+                {
+                    internal_format = this.nbElements == 1 ? gl.R32F : RGBA32F;
+                    format = this.nbElements == 1 ? gl.RED : gl.RGBA;
+                    type = gl.FLOAT;
+                }
+
                 gl.texImage2D(gl.TEXTURE_2D, 0, internal_format, this.nbEntries, 1, 0, format, type, this.cpuArray);
                 break;
         }
@@ -180,9 +191,9 @@ class glDynamicBuffer
 
     Resize(nb_entries)
     {
-        let gl = this.gl;
-
         this.nbEntries = nb_entries;
+
+        let gl = this.gl;
 
         // Create the CPU array
         const old_array = this.cpuArray;
@@ -193,7 +204,7 @@ class glDynamicBuffer
                 this.cpuArray = new Float32Array(this.nbElements * this.nbEntries);
                 break;
             
-            case gl.BYTE:
+            case gl.UNSIGNED_BYTE:
                 this.nbElementBytes = 1;
                 this.cpuArray = new Uint8Array(this.nbElements * this.nbEntries);
                 break;
@@ -209,12 +220,6 @@ class glDynamicBuffer
         {
             // Copy the values of the previous array over
             this.cpuArray.set(old_array);
-
-            console.log(`glDynamicBuffer: Resizing to ${nb_entries} entries, ${this.nbElements} elements per entry, ${this.nbElementBytes} bytes per element, ${this.nbBytes} bytes total.`);
-        }
-        else
-        {
-            console.log(`glDynamicBuffer: Creating ${nb_entries} entries, ${this.nbElements} elements per entry, ${this.nbElementBytes} bytes per element, ${this.nbBytes} bytes total.`);
         }
 
         // Create the GPU buffer

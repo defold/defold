@@ -111,6 +111,7 @@ static rmtBool g_SettingsInitialized = RMT_FALSE;
     #include <limits.h>
     #include <stdlib.h>
     #include <stdint.h>
+    #include <math.h>
 
     #ifdef RMT_PLATFORM_WINDOWS
         #include <winsock2.h>
@@ -188,9 +189,21 @@ static rmtU16 maxU16(rmtU16 a, rmtU16 b)
 {
     return a > b ? a : b;
 }
+static rmtS32 minS32(rmtS32 a, rmtS32 b)
+{
+    return a < b ? a : b;
+}
+static rmtS32 maxS32(rmtS32 a, rmtS32 b)
+{
+    return a > b ? a : b;
+}
 static rmtU32 minU32(rmtU32 a, rmtU32 b)
 {
     return a < b ? a : b;
+}
+static rmtU32 maxU32(rmtU32 a, rmtU32 b)
+{
+    return a > b ? a : b;
 }
 static rmtS64 maxS64(rmtS64 a, rmtS64 b)
 {
@@ -2409,6 +2422,27 @@ static rmtError Buffer_Grow(Buffer* buffer, rmtU32 length)
     return RMT_ERROR_NONE;
 }
 
+static rmtError Buffer_Pad(Buffer* buffer, rmtU32 length)
+{
+    assert(buffer != NULL);
+
+    // Reallocate the buffer on overflow
+    if (buffer->bytes_used + length > buffer->bytes_allocated)
+    {
+        rmtTry(Buffer_Grow(buffer, length));
+    }
+
+    // Step by the pad amount
+    buffer->bytes_used += length;
+
+    return RMT_ERROR_NONE;
+}
+
+static rmtError Buffer_AlignedPad(Buffer* buffer, rmtU32 start_pos)
+{
+    return Buffer_Pad(buffer, (4 - ((buffer->bytes_used - start_pos) & 3)) & 3);
+}
+
 static rmtError Buffer_Write(Buffer* buffer, const void* data, rmtU32 length)
 {
     assert(buffer != NULL);
@@ -2757,7 +2791,7 @@ static rmtPStr StringTable_Find(StringTable* table, rmtU32 name_hash)
     return NULL;
 }
 
-static void StringTable_Insert(StringTable* table, rmtU32 name_hash, rmtPStr name)
+static rmtBool StringTable_Insert(StringTable* table, rmtU32 name_hash, rmtPStr name)
 {
     // Only add to the buffer if the string isn't already there
     rmtU64 text_offset = rmtHashTable_Find(table->text_map, name_hash);
@@ -2767,7 +2801,10 @@ static void StringTable_Insert(StringTable* table, rmtU32 name_hash, rmtPStr nam
         text_offset = table->text->bytes_used;
         Buffer_WriteStringZ(table->text, name);
         rmtHashTable_Insert(table->text_map, name_hash, text_offset);
+        return RMT_TRUE;
     }
+
+    return RMT_FALSE;
 }
 
 /*
@@ -3537,7 +3574,7 @@ static rmtU32 MurmurHash3_x86_32(const void* key, int len, rmtU32 seed)
     return h1;
 }
 
-rmtU32 rmt_HashString32(const char* s, int len, rmtU32 seed)
+RMT_API rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed)
 {
     return MurmurHash3_x86_32(s, len, seed);
 }
@@ -3546,7 +3583,7 @@ rmtU32 rmt_HashString32(const char* s, int len, rmtU32 seed)
     #if defined(__cplusplus)
     extern "C"
     #endif
-    rmtU32 rmt_HashString32(const char* s, int len, rmtU32 seed);
+    RMT_API rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed);
 
 #endif // RMT_USE_INTERNAL_HASH_FUNCTION
 
@@ -4020,7 +4057,6 @@ typedef enum MessageID
     MsgID_LogText,
     MsgID_SampleTree,
     MsgID_ProcessorThreads,
-    MsgID_ThreadName,
     MsgID_None,
     MsgID_PropertySnapshot,
     MsgID_Force32Bits = 0xFFFFFFFF,
@@ -4320,6 +4356,26 @@ static rmtError Server_ReceiveMessage(Server* server, char message_first_byte, r
     return RMT_ERROR_NONE;
 }
 
+static rmtError bin_MessageHeader(Buffer* buffer, const char* id, rmtU32* out_write_start_offset)
+{
+    // Record where the header starts before writing it
+    *out_write_start_offset = buffer->bytes_used;
+    rmtTry(Buffer_Write(buffer, (void*)id, 4));
+    rmtTry(Buffer_Write(buffer, (void*)"    ", 4));
+    return RMT_ERROR_NONE;
+}
+
+static rmtError bin_MessageFooter(Buffer* buffer, rmtU32 write_start_offset)
+{
+    // Align message size to 32-bits so that the viewer can alias float arrays within log files
+    rmtTry(Buffer_AlignedPad(buffer, write_start_offset));
+
+    // Patch message size, including padding at the end
+    U32ToByteArray(buffer->data + write_start_offset + 4, (buffer->bytes_used - write_start_offset));
+
+    return RMT_ERROR_NONE;
+}
+
 static void Server_Update(Server* server)
 {
     rmtU32 cur_time;
@@ -4395,8 +4451,10 @@ static void Server_Update(Server* server)
     if (cur_time - server->last_ping_time > 1000)
     {
         Buffer* bin_buf = server->bin_buf;
+        rmtU32 write_start_offset;
         WebSocket_PrepareBuffer(bin_buf);
-        Buffer_WriteStringZ(bin_buf, "PING");
+        bin_MessageHeader(bin_buf, "PING", &write_start_offset);
+        bin_MessageFooter(bin_buf, write_start_offset);
         Server_Send(server, bin_buf->data, bin_buf->bytes_used, 10);
         server->last_ping_time = cur_time;
     }
@@ -4425,8 +4483,8 @@ typedef struct Sample
     // Unique, persistent ID among all samples
     rmtU32 unique_id;
 
-    // Null-terminated string storing the hash-prefixed 6-digit colour
-    rmtU8 unique_id_html_colour[8];
+    // RGB8 unique colour generated from the unique ID
+    rmtU8 uniqueColour[3];
 
     // Links to related samples in the tree
     struct Sample* parent;
@@ -4467,9 +4525,9 @@ static rmtError Sample_Constructor(Sample* sample)
     sample->type = RMT_SampleType_CPU;
     sample->name_hash = 0;
     sample->unique_id = 0;
-    sample->unique_id_html_colour[0] = '#';
-    sample->unique_id_html_colour[1] = 0;
-    sample->unique_id_html_colour[7] = 0;
+    sample->uniqueColour[0] = 0;
+    sample->uniqueColour[1] = 0;
+    sample->uniqueColour[2] = 0;
     sample->parent = NULL;
     sample->first_child = NULL;
     sample->last_child = NULL;
@@ -4511,17 +4569,17 @@ static void Sample_Prepare(Sample* sample, rmtU32 name_hash, Sample* parent)
     sample->max_recurse_depth = 0;
 }
 
-static void Sample_Close(Sample* sample, rmtU64 us_end)
+static void Sample_Close(Sample* sample, rmtS64 us_end)
 {
     // Aggregate samples use us_end to store start so that us_start is preserved
-    rmtU64 us_length = 0;
+    rmtS64 us_length = 0;
     if (sample->call_count > 1 && sample->max_recurse_depth == 0)
     {
-        us_length = (us_end - sample->us_end);
+        us_length = maxS64(us_end - sample->us_end, 0);
     }
     else
     {
-        us_length = (us_end - sample->us_start);
+        us_length = maxS64(us_end - sample->us_start, 0);
     }
 
     sample->us_length += us_length;
@@ -4536,7 +4594,7 @@ static void Sample_Close(Sample* sample, rmtU64 us_end)
 static void Sample_CopyState(Sample* dst_sample, const Sample* src_sample)
 {
     // Copy fields that don't override destination allocator links or transfer source sample tree positioning
-    // Also ignoring unique_id_html_colour as that's calculated in the Remotery thread
+    // Also ignoring uniqueColour as that's calculated in the Remotery thread
     dst_sample->type = src_sample->type;
     dst_sample->name_hash = src_sample->name_hash;
     dst_sample->unique_id = src_sample->unique_id;
@@ -4557,33 +4615,34 @@ static void Sample_CopyState(Sample* dst_sample, const Sample* src_sample)
     dst_sample->next_sibling = NULL;
 }
 
-static rmtError bin_SampleArray(Buffer* buffer, Sample* parent_sample);
+static rmtError bin_SampleArray(Buffer* buffer, Sample* parent_sample, rmtU8 depth);
 
-static rmtError bin_Sample(Buffer* buffer, Sample* sample)
+static rmtError bin_Sample(Buffer* buffer, Sample* sample, rmtU8 depth)
 {
     assert(sample != NULL);
 
     rmtTry(Buffer_WriteU32(buffer, sample->name_hash));
     rmtTry(Buffer_WriteU32(buffer, sample->unique_id));
-    rmtTry(Buffer_Write(buffer, sample->unique_id_html_colour, 7));
+    rmtTry(Buffer_Write(buffer, sample->uniqueColour, 3));
+    rmtTry(Buffer_Write(buffer, &depth, 1));
     rmtTry(Buffer_WriteU64(buffer, sample->us_start));
     rmtTry(Buffer_WriteU64(buffer, sample->us_length));
     rmtTry(Buffer_WriteU64(buffer, maxS64(sample->us_length - sample->us_sampled_length, 0)));
     rmtTry(Buffer_WriteU64(buffer, sample->usGpuIssueOnCpu));
     rmtTry(Buffer_WriteU32(buffer, sample->call_count));
     rmtTry(Buffer_WriteU32(buffer, sample->max_recurse_depth));
-    rmtTry(bin_SampleArray(buffer, sample));
+    rmtTry(bin_SampleArray(buffer, sample, depth + 1));
 
     return RMT_ERROR_NONE;
 }
 
-static rmtError bin_SampleArray(Buffer* buffer, Sample* parent_sample)
+static rmtError bin_SampleArray(Buffer* buffer, Sample* parent_sample, rmtU8 depth)
 {
     Sample* sample;
 
     rmtTry(Buffer_WriteU32(buffer, parent_sample->nb_children));
     for (sample = parent_sample->first_child; sample != NULL; sample = sample->next_sibling)
-        rmtTry(bin_Sample(buffer, sample));
+        rmtTry(bin_Sample(buffer, sample, depth));
 
     return RMT_ERROR_NONE;
 }
@@ -4986,30 +5045,6 @@ typedef struct ThreadProfiler
 #endif
 } ThreadProfiler;
 
-static rmtError QueueThreadName(rmtMessageQueue* queue, const char* name, ThreadProfiler* thread_profiler)
-{
-    Message* message;
-    rmtU32 name_length;
-
-    assert(queue != NULL);
-
-    // Allocate some space for the message
-    name_length = strnlen_s(name, 64);
-    message = rmtMessageQueue_AllocMessage(queue, sizeof(rmtU32) * 2 + name_length, thread_profiler);
-    if (message == NULL)
-    {
-        return RMT_ERROR_UNKNOWN;
-    }
-
-    // Copy and commit
-    U32ToByteArray(message->payload, rmt_HashString32(name, name_length, 0));
-    U32ToByteArray(message->payload + sizeof(rmtU32), name_length);
-    memcpy(message->payload + sizeof(rmtU32) * 2, name, name_length);
-    rmtMessageQueue_CommitMessage(message, MsgID_ThreadName);
-
-    return RMT_ERROR_NONE;
-}
-
 static rmtError ThreadProfiler_Constructor(rmtMessageQueue* mq_to_rmt, ThreadProfiler* thread_profiler, rmtThreadId thread_id)
 {
     rmtU32 name_length;
@@ -5032,12 +5067,12 @@ static rmtError ThreadProfiler_Constructor(rmtMessageQueue* mq_to_rmt, ThreadPro
     // Pre-open the thread handle
     rmtTry(rmtOpenThreadHandle(thread_id, &thread_profiler->threadHandle));
 
-    // Name the thread and send a thread name notification immediately
+    // Name the thread and add to the string table
     // Users can override this at a later point with the Remotery thread name API
     rmtGetThreadName(thread_id, thread_profiler->threadHandle, thread_profiler->threadName, sizeof(thread_profiler->threadName));
     name_length = strnlen_s(thread_profiler->threadName, 64);
-    thread_profiler->threadNameHash = rmt_HashString32(thread_profiler->threadName, name_length, 0);
-    QueueThreadName(mq_to_rmt, thread_profiler->threadName, thread_profiler);
+    thread_profiler->threadNameHash = _rmt_HashString32(thread_profiler->threadName, name_length, 0);
+    QueueAddToStringTable(mq_to_rmt, thread_profiler->threadNameHash, thread_profiler->threadName, name_length, thread_profiler);
 
     // Create the CPU sample tree only. The rest are created on-demand as they need extra context to function correctly.
     rmtTryNew(SampleTree, thread_profiler->sampleTrees[RMT_SampleType_CPU], sizeof(Sample), (ObjConstructor)Sample_Constructor,
@@ -5177,7 +5212,7 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
         {
             assert(name != NULL);
             name_len = strnlen_s(name, 256);
-            name_hash = rmt_HashString32(name, name_len, 0);
+            name_hash = _rmt_HashString32(name, name_len, 0);
 
             // Queue the string for the string table and only cache the hash if it succeeds
             if (QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler) == RMT_TRUE)
@@ -5191,7 +5226,7 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
 
     // Have to recalculate and speculatively insert the name every time when no cache storage exists
     name_len = strnlen_s(name, 256);
-    name_hash = rmt_HashString32(name, name_len, 0);
+    name_hash = _rmt_HashString32(name, name_len, 0);
     QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler);
     return name_hash;
 }
@@ -5277,7 +5312,6 @@ static void ThreadProfilers_Destructor(ThreadProfilers* thread_profilers)
 {
     rmtU32 thread_index;
 
-    rmtDelete(rmtThread, thread_profilers->threadGatherThread);
     rmtDelete(rmtThread, thread_profilers->threadSampleThread);
 
     // Delete all profilers
@@ -5678,9 +5712,6 @@ static rmtError InitThreadSampling(ThreadProfilers* thread_profilers)
     // Make an initial gather so that we have something to work with
     GatherThreads(thread_profilers);
 
-    // Kick-off the background thread that watches for new threads
-    rmtTryNew(rmtThread, thread_profilers->threadGatherThread, GatherThreadsLoop, thread_profilers);
-
 #ifdef RMT_ENABLE_THREAD_SAMPLER
     // Ensure we can wake up every millisecond
     if (timeBeginPeriod(1) != TIMERR_NOERROR)
@@ -5688,6 +5719,9 @@ static rmtError InitThreadSampling(ThreadProfilers* thread_profilers)
         return RMT_ERROR_UNKNOWN;
     }
 #endif
+
+    // Kick-off the background thread that watches for new threads
+    rmtTryNew(rmtThread, thread_profilers->threadGatherThread, GatherThreadsLoop, thread_profilers);
 
     // We're going to be shuffling thread visits to avoid the scheduler trying to predict a work-load based on sampling
     // Use the global RNG with a random seed to start the shuffle
@@ -5706,14 +5740,14 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
 
     ThreadProfilers* thread_profilers = (ThreadProfilers*)rmt_thread->param;
 
-    rmtTry(InitThreadSampling(thread_profilers));
-
     // If we can't figure out how many processors there are then we are running on an unsupported platform
     nb_processors = rmtGetNbProcessors();
     if (nb_processors == 0)
     {
         return RMT_ERROR_UNKNOWN;
     }
+
+    rmtTry(InitThreadSampling(thread_profilers));
 
     // An array entry for each processor
     rmtTryMallocArray(Processor, processors, nb_processors);
@@ -5909,6 +5943,8 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
         QueueProcessorThreads(thread_profilers->mqToRmtThread, processor_message_index++, nb_processors, processors);
     }
 
+    rmtDelete(rmtThread, thread_profilers->threadGatherThread);
+
 #ifdef RMT_ENABLE_THREAD_SAMPLER
     timeEndPeriod(1);
 #endif
@@ -5951,6 +5987,9 @@ typedef struct PropertySnapshot
     rmtU32 nameHash;
     rmtU32 uniqueID;
 
+    // Depth calculated as part of the walk
+    rmtU8 depth;
+
     // Link to the next property snapshot
     rmtU32 nbChildren;
     struct PropertySnapshot* nextSnapshot;
@@ -5960,7 +5999,6 @@ typedef struct Msg_PropertySnapshot
 {
     PropertySnapshot* rootSnapshot;
     rmtU32 nbSnapshots;
-    rmtU32 snapshotDigest;
     rmtU32 propertyFrame;
 } Msg_PropertySnapshot;
 
@@ -5975,6 +6013,7 @@ static rmtError PropertySnapshot_Constructor(PropertySnapshot* snapshot)
     snapshot->nameHash = 0;
     snapshot->uniqueID = 0;
     snapshot->nbChildren = 0;
+    snapshot->depth = 0;
     snapshot->nextSnapshot = NULL;
 
     return RMT_ERROR_NONE;
@@ -6050,66 +6089,78 @@ static Remotery* g_Remotery = NULL;
 //
 static rmtBool g_RemoteryCreated = RMT_FALSE;
 
-static const rmtU8 g_DecimalToHex[17] = "0123456789abcdef";
+static double saturate(double v)
+{
+    if (v < 0)
+    {
+        return 0;
+    }
+    if (v > 1)
+    {
+        return 1;
+    }
+    return v;
+}
 
-static void GetSampleDigest(Sample* sample, rmtU32* digest_hash, rmtU32* nb_samples)
+static void PostProcessSamples(Sample* sample, rmtU32* nb_samples)
 {
     Sample* child;
 
     assert(sample != NULL);
-    assert(digest_hash != NULL);
     assert(nb_samples != NULL);
 
-    // Concatenate this sample
     (*nb_samples)++;
-    *digest_hash = HashCombine(*digest_hash, sample->unique_id);
 
     {
-        rmtU8 shift = 4;
+        // Hash integer line position to full hue
+        double h = (double)sample->name_hash / (double)0xFFFFFFFF;
+        double r = saturate(fabs(fmod(h * 6 + 0, 6) - 3) - 1);
+        double g = saturate(fabs(fmod(h * 6 + 4, 6) - 3) - 1);
+        double b = saturate(fabs(fmod(h * 6 + 2, 6) - 3) - 1);
 
-        // Get 6 nibbles for lower 3 bytes of the name hash
-        rmtU8* sample_id = (rmtU8*)&sample->name_hash;
-        rmtU8 hex_sample_id[6];
-        hex_sample_id[0] = sample_id[0] & 15;
-        hex_sample_id[1] = sample_id[0] >> 4;
-        hex_sample_id[2] = sample_id[1] & 15;
-        hex_sample_id[3] = sample_id[1] >> 4;
-        hex_sample_id[4] = sample_id[2] & 15;
-        hex_sample_id[5] = sample_id[2] >> 4;
+        // Cubic smooth
+        r = r * r * (3 - 2 * r);
+        g = g * g * (3 - 2 * g);
+        b = b * b * (3 - 2 * b);
 
-        // As the nibbles will be used as hex colour digits, shift them up to make pastel colours
-        hex_sample_id[0] = minU8(hex_sample_id[0] + shift, 15);
-        hex_sample_id[1] = minU8(hex_sample_id[1] + shift, 15);
-        hex_sample_id[2] = minU8(hex_sample_id[2] + shift, 15);
-        hex_sample_id[3] = minU8(hex_sample_id[3] + shift, 15);
-        hex_sample_id[4] = minU8(hex_sample_id[4] + shift, 15);
-        hex_sample_id[5] = minU8(hex_sample_id[5] + shift, 15);
+        // Lerp to HSV lightness a little
+        double k = 0.4;
+        r = r * k + (1 - k);
+        g = g * k + (1 - k);
+        b = b * k + (1 - k);
 
-        // Convert the nibbles to hex for the final colour
-        sample->unique_id_html_colour[1] = g_DecimalToHex[hex_sample_id[0]];
-        sample->unique_id_html_colour[2] = g_DecimalToHex[hex_sample_id[1]];
-        sample->unique_id_html_colour[3] = g_DecimalToHex[hex_sample_id[2]];
-        sample->unique_id_html_colour[4] = g_DecimalToHex[hex_sample_id[3]];
-        sample->unique_id_html_colour[5] = g_DecimalToHex[hex_sample_id[4]];
-        sample->unique_id_html_colour[6] = g_DecimalToHex[hex_sample_id[5]];
+        // To RGB8
+        sample->uniqueColour[0] = (rmtU8)maxS32(minS32((rmtS32)(r * 255), 255), 0);
+        sample->uniqueColour[1] = (rmtU8)maxS32(minS32((rmtS32)(g * 255), 255), 0);
+        sample->uniqueColour[2] = (rmtU8)maxS32(minS32((rmtS32)(b * 255), 255), 0);
+
+        //rmtU32 hash = sample->name_hash;
+        //sample->uniqueColour[0] = 127 + ((hash & 255) >> 1);
+        //sample->uniqueColour[1] = 127 + (((hash >> 4) & 255) >> 1);
+        //sample->uniqueColour[2] = 127 + (((hash >> 8) & 255) >> 1);
     }
 
     // Concatenate children
     for (child = sample->first_child; child != NULL; child = child->next_sibling)
-        GetSampleDigest(child, digest_hash, nb_samples);
+    {
+        PostProcessSamples(child, nb_samples);
+    }
 }
 
 static rmtError Remotery_SendLogTextMessage(Remotery* rmt, Message* message)
 {
     rmtError error = RMT_ERROR_NONE;
     Buffer* bin_buf;
+    rmtU32 write_start_offset;
 
     // Build the buffer as if it's being sent to the server
     assert(rmt != NULL);
     assert(message != NULL);
     bin_buf = rmt->server->bin_buf;
     WebSocket_PrepareBuffer(bin_buf);
-    Buffer_Write(bin_buf, message->payload, message->payload_size);
+    rmtTry(bin_MessageHeader(bin_buf, "LOGM", &write_start_offset));
+    rmtTry(Buffer_Write(bin_buf, message->payload, message->payload_size));
+    rmtTry(bin_MessageFooter(bin_buf, write_start_offset));
 
     // Pass to either the server or the log file
     if (Server_IsClientConnected(rmt->server) == RMT_TRUE)
@@ -6126,10 +6177,12 @@ static rmtError Remotery_SendLogTextMessage(Remotery* rmt, Message* message)
 
 static rmtError bin_SampleName(Buffer* buffer, const char* name, rmtU32 name_hash, rmtU32 name_length)
 {
-    rmtTry(Buffer_Write(buffer, "SSMP", 4));
+    rmtU32 write_start_offset;
+    rmtTry(bin_MessageHeader(buffer, "SSMP", &write_start_offset));
     rmtTry(Buffer_WriteU32(buffer, name_hash));
     rmtTry(Buffer_WriteU32(buffer, name_length));
     rmtTry(Buffer_Write(buffer, (void*)name, name_length));
+    rmtTry(bin_MessageFooter(buffer, write_start_offset));
 
     return RMT_ERROR_NONE;
 }
@@ -6139,10 +6192,10 @@ static rmtError Remotery_AddToStringTable(Remotery* rmt, Message* message)
     // Add to the string table
     Msg_AddToStringTable* payload = (Msg_AddToStringTable*)message->payload;
     const char* name = (const char*)(payload + 1);
-    StringTable_Insert(rmt->string_table, payload->hash, name);
+    rmtBool name_inserted = StringTable_Insert(rmt->string_table, payload->hash, name);
 
     // Emit to log file if one is open
-    if (rmt->logfile != NULL)
+    if (name_inserted == RMT_TRUE && rmt->logfile != NULL)
     {
         Buffer* bin_buf = rmt->server->bin_buf;
         bin_buf->bytes_used = 0;
@@ -6158,8 +6211,8 @@ static rmtError bin_SampleTree(Buffer* buffer, Msg_SampleTree* msg)
 {
     Sample* root_sample;
     char thread_name[256];
-    rmtU32 digest_hash = 0;
     rmtU32 nb_samples = 0;
+    rmtU32 write_start_offset = 0;
 
     assert(buffer != NULL);
     assert(msg != NULL);
@@ -6193,22 +6246,21 @@ static rmtError bin_SampleTree(Buffer* buffer, Msg_SampleTree* msg)
     }
 
     // Get digest hash of samples so that viewer can efficiently rebuild its tables
-    GetSampleDigest(root_sample, &digest_hash, &nb_samples);
-
-    // Write global message header
-    rmtTry(Buffer_Write(buffer, (void*)"SMPL    ", 8));
+    PostProcessSamples(root_sample, &nb_samples);
 
     // Write sample message header
+    rmtTry(bin_MessageHeader(buffer, "SMPL", &write_start_offset));
     rmtTry(Buffer_WriteStringWithLength(buffer, thread_name));
     rmtTry(Buffer_WriteU32(buffer, nb_samples));
-    rmtTry(Buffer_WriteU32(buffer, digest_hash));
     rmtTry(Buffer_WriteU32(buffer, msg->partialTree ? 1 : 0));
 
-    // Write entire sample tree
-    rmtTry(bin_Sample(buffer, root_sample));
+    // Align serialised sample tree to 32-bit boundary
+    rmtTry(Buffer_AlignedPad(buffer, write_start_offset));
 
-    // Patch message size
-    U32ToByteArray(buffer->data + 4, buffer->bytes_used);
+    // Write entire sample tree
+    rmtTry(bin_Sample(buffer, root_sample, 0));
+
+    rmtTry(bin_MessageFooter(buffer, write_start_offset));
 
     return RMT_ERROR_NONE;
 }
@@ -6310,13 +6362,14 @@ static rmtError Remotery_SendProcessorThreads(Remotery* rmt, Message* message)
     Msg_ProcessorThreads* processor_threads = (Msg_ProcessorThreads*)message->payload;
 
     Buffer* bin_buf;
+    rmtU32 write_start_offset;
 
     // Reset the buffer for sending a websocket message
     bin_buf = rmt->server->bin_buf;
     WebSocket_PrepareBuffer(bin_buf);
 
     // Serialise the message
-    rmtTry(Buffer_Write(bin_buf, (void*)"PRTH", 4));
+    rmtTry(bin_MessageHeader(bin_buf, "PRTH", &write_start_offset));
     rmtTry(Buffer_WriteU32(bin_buf, processor_threads->nbProcessors));
     rmtTry(Buffer_WriteU64(bin_buf, processor_threads->messageIndex));
     for (processor_index = 0; processor_index < processor_threads->nbProcessors; processor_index++)
@@ -6336,24 +6389,7 @@ static rmtError Remotery_SendProcessorThreads(Remotery* rmt, Message* message)
         }
     }
 
-    return Remotery_SendToViewerAndLog(rmt, bin_buf, 50);
-}
-
-static rmtError Remotery_SendThreadName(Remotery* rmt, Message* message)
-{
-    rmtU32 name_length;
-
-    Buffer* bin_buf;
-
-    // Reset the buffer for sending a websocket message
-    bin_buf = rmt->server->bin_buf;
-    WebSocket_PrepareBuffer(bin_buf);
-
-    // Serialise the message
-    rmtTry(Buffer_Write(bin_buf, (void*)"THRN", 4));
-    rmtTry(Buffer_Write(bin_buf, message->payload, 8));
-    name_length = *(rmtU32*)(message->payload + 4);
-    rmtTry(Buffer_Write(bin_buf, message->payload + 8, name_length));
+    rmtTry(bin_MessageFooter(bin_buf, write_start_offset));
 
     return Remotery_SendToViewerAndLog(rmt, bin_buf, 50);
 }
@@ -6378,43 +6414,72 @@ static void FreePropertySnapshots(PropertySnapshot* snapshot)
 static rmtError Remotery_SerialisePropertySnapshots(Buffer* bin_buf, Msg_PropertySnapshot* msg_snapshot)
 {
     PropertySnapshot* snapshot;
+    rmtU8 empty_group[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    rmtU32 write_start_offset;
 
-    rmtTry(Buffer_Write(bin_buf, (void*)"PSNP", 4));
+    // Header
+    rmtTry(bin_MessageHeader(bin_buf, "PSNP", &write_start_offset));
     rmtTry(Buffer_WriteU32(bin_buf, msg_snapshot->nbSnapshots));
-    rmtTry(Buffer_WriteU32(bin_buf, msg_snapshot->snapshotDigest));
     rmtTry(Buffer_WriteU32(bin_buf, msg_snapshot->propertyFrame));
+
+    // Linearised snapshots
     for (snapshot = msg_snapshot->rootSnapshot; snapshot != NULL; snapshot = snapshot->nextSnapshot)
     {
+        rmtU8 colour_depth[4] = {0, 0, 0};
+
+        // Same place as samples so that the GPU renderer can easily pick them out
+        rmtTry(Buffer_WriteU32(bin_buf, snapshot->nameHash));
+        rmtTry(Buffer_WriteU32(bin_buf, snapshot->uniqueID));
+
+        // 3 byte place holder for viewer-side colour, with snapshot depth packed next to it
+        colour_depth[3] = snapshot->depth;
+        rmtTry(Buffer_Write(bin_buf, colour_depth, 4));
+
+        // Dispatch on property type, but maintaining 64-bits per value
         rmtTry(Buffer_WriteU32(bin_buf, snapshot->type));
         switch (snapshot->type)
         {
+            // Empty
             case RMT_PropertyType_rmtGroup:
+                rmtTry(Buffer_Write(bin_buf, empty_group, 16));
                 break;
+
+            // All value ranges here are double-representable, so convert them early in C where it's cheap
             case RMT_PropertyType_rmtBool:
-                rmtTry(Buffer_WriteBool(bin_buf, snapshot->value.Bool));
-                rmtTry(Buffer_WriteBool(bin_buf, snapshot->prevValue.Bool));
+                rmtTry(Buffer_WriteF64(bin_buf, snapshot->value.Bool));
+                rmtTry(Buffer_WriteF64(bin_buf, snapshot->prevValue.Bool));
                 break;
             case RMT_PropertyType_rmtS32:
-            case RMT_PropertyType_rmtU32:
-            case RMT_PropertyType_rmtF32:   // assume IEEE-754 LE, for now
-                rmtTry(Buffer_WriteU32(bin_buf, snapshot->value.U32));
-                rmtTry(Buffer_WriteU32(bin_buf, snapshot->prevValue.U32));
+                rmtTry(Buffer_WriteF64(bin_buf, snapshot->value.S32));
+                rmtTry(Buffer_WriteF64(bin_buf, snapshot->prevValue.S32));
                 break;
+            case RMT_PropertyType_rmtU32:
+                rmtTry(Buffer_WriteF64(bin_buf, snapshot->value.U32));
+                rmtTry(Buffer_WriteF64(bin_buf, snapshot->prevValue.U32));
+                break;
+            case RMT_PropertyType_rmtF32:
+                rmtTry(Buffer_WriteF64(bin_buf, snapshot->value.F32));
+                rmtTry(Buffer_WriteF64(bin_buf, snapshot->prevValue.F32));
+                break;
+
+            // The high end of these are not double representable but store their full pattern so we don't lose data
             case RMT_PropertyType_rmtS64:
             case RMT_PropertyType_rmtU64:
                 rmtTry(Buffer_WriteU64(bin_buf, snapshot->value.U64));
                 rmtTry(Buffer_WriteU64(bin_buf, snapshot->prevValue.U64));
                 break;
+
             case RMT_PropertyType_rmtF64:
                 rmtTry(Buffer_WriteF64(bin_buf, snapshot->value.F64));
                 rmtTry(Buffer_WriteF64(bin_buf, snapshot->prevValue.F64));
                 break;
         }
+
         rmtTry(Buffer_WriteU32(bin_buf, snapshot->prevValueFrame));
-        rmtTry(Buffer_WriteU32(bin_buf, snapshot->nameHash));
-        rmtTry(Buffer_WriteU32(bin_buf, snapshot->uniqueID));
         rmtTry(Buffer_WriteU32(bin_buf, snapshot->nbChildren));
     }
+
+    rmtTry(bin_MessageFooter(bin_buf, write_start_offset));
 
     return RMT_ERROR_NONE;
 }
@@ -6484,9 +6549,6 @@ static rmtError Remotery_ConsumeMessageQueue(Remotery* rmt)
                 Remotery_SendProcessorThreads(rmt, message);
                 nb_messages_sent++;
                 break;
-            case MsgID_ThreadName:
-                Remotery_SendThreadName(rmt, message);
-                break;
             case MsgID_PropertySnapshot:
                 error = Remotery_SendPropertySnapshot(rmt, message);
                 break;
@@ -6498,7 +6560,9 @@ static rmtError Remotery_ConsumeMessageQueue(Remotery* rmt)
         // Consume the message before reacting to any errors
         rmtMessageQueue_ConsumeNextMessage(rmt->mq_to_rmt_thread, message);
         if (error != RMT_ERROR_NONE)
+        {
             return error;
+        }
     }
 
     return RMT_ERROR_NONE;
@@ -7054,6 +7118,7 @@ static void SetDebuggerThreadName(const char* name)
 RMT_API void _rmt_SetCurrentThreadName(rmtPStr thread_name)
 {
     ThreadProfiler* thread_profiler;
+    rmtU32 name_length;
 
     if (g_Remotery == NULL)
     {
@@ -7068,12 +7133,13 @@ RMT_API void _rmt_SetCurrentThreadName(rmtPStr thread_name)
 
     // Copy name and apply to the debugger
     strcpy_s(thread_profiler->threadName, sizeof(thread_profiler->threadName), thread_name);
-    thread_profiler->threadNameHash = rmt_HashString32(thread_name, strnlen_s(thread_name, 64), 0);
+    thread_profiler->threadNameHash = _rmt_HashString32(thread_name, strnlen_s(thread_name, 64), 0);
     SetDebuggerThreadName(thread_name);
 
     // Send the thread name for lookup
 #ifdef RMT_PLATFORM_WINDOWS
-    QueueThreadName(g_Remotery->mq_to_rmt_thread, thread_name, thread_profiler);
+    name_length = strnlen_s(thread_profiler->threadName, 64);
+    QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, thread_profiler->threadNameHash, thread_name, name_length, NULL);
 #endif
 }
 
@@ -7084,9 +7150,9 @@ static rmtBool QueueLine(rmtMessageQueue* queue, unsigned char* text, rmtU32 siz
 
     assert(queue != NULL);
 
-    // Prefix with text size
-    text_size = size - 8;
-    U32ToByteArray(text + 4, text_size);
+    // Patch line size
+    text_size = size - 4;
+    U32ToByteArray(text, text_size);
 
     // Allocate some space for the line
     message = rmtMessageQueue_AllocMessage(queue, size, thread_profiler);
@@ -7114,18 +7180,14 @@ RMT_API void _rmt_LogText(rmtPStr text)
         return;
     }
 
-    // Start the line with the message header
-    line_buffer[0] = 'L';
-    line_buffer[1] = 'O';
-    line_buffer[2] = 'G';
-    line_buffer[3] = 'M';
+    // Start with empty line size
     // Fill with spaces to enable viewing line_buffer without offset in a debugger
     // (will be overwritten later by QueueLine/rmtMessageQueue_AllocMessage)
-    line_buffer[4] = ' ';
-    line_buffer[5] = ' ';
-    line_buffer[6] = ' ';
-    line_buffer[7] = ' ';
-    start_offset = 8;
+    line_buffer[0] = ' ';
+    line_buffer[1] = ' ';
+    line_buffer[2] = ' ';
+    line_buffer[3] = ' ';
+    start_offset = 4;
 
     // There might be newlines in the buffer, so split them into multiple network calls
     offset = start_offset;
@@ -9739,19 +9801,11 @@ RMT_API rmtSampleType _rmt_SampleGetType(rmtSample* sample)
     return sample->type;
 }
 
-static rmtU8 _rmt_HexDigitToByte(rmtU8 c)
-{
-    if (c >= (rmtU8)'a')
-        return 0xA + (c - (rmtU8)'a');
-    return c - (rmtU8)'0';
-}
-
 RMT_API void _rmt_SampleGetColour(rmtSample* sample, rmtU8* r, rmtU8* g, rmtU8* b)
 {
-    rmtU8* p = sample->unique_id_html_colour + 1; // skip the '#' sign
-    *r = _rmt_HexDigitToByte(p[0]) << 4 | _rmt_HexDigitToByte(p[1]);
-    *g = _rmt_HexDigitToByte(p[2]) << 4 | _rmt_HexDigitToByte(p[3]);
-    *b = _rmt_HexDigitToByte(p[4]) << 4 | _rmt_HexDigitToByte(p[5]);
+    *r = sample->uniqueColour[0];
+    *g = sample->uniqueColour[1];
+    *b = sample->uniqueColour[2];
 }
 
 /*
@@ -9869,7 +9923,7 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
             }
 
             name_len = strnlen_s(name, 256);
-            property->nameHash = rmt_HashString32(name, name_len, 0);
+            property->nameHash = _rmt_HashString32(name, name_len, 0);
             QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
 /// END DEFOLD
 
@@ -9921,7 +9975,7 @@ RMT_API void _rmt_PropertyAddValue(rmtProperty* property, rmtPropertyValue add_v
     // send the sample to remotery UI and disk log
 }
 
-static rmtError TakePropertySnapshot(rmtProperty* property, PropertySnapshot* parent_snapshot, PropertySnapshot** first_snapshot, PropertySnapshot** prev_snapshot, rmtU32* snapshot_digest)
+static rmtError TakePropertySnapshot(rmtProperty* property, PropertySnapshot* parent_snapshot, PropertySnapshot** first_snapshot, PropertySnapshot** prev_snapshot, rmtU32 depth)
 {
     rmtError error;
     rmtProperty* child_property;
@@ -9942,10 +9996,8 @@ static rmtError TakePropertySnapshot(rmtProperty* property, PropertySnapshot* pa
     snapshot->nameHash = property->nameHash;
     snapshot->uniqueID = property->uniqueID;
     snapshot->nbChildren = 0;
+    snapshot->depth = depth;
     snapshot->nextSnapshot = NULL;
-    
-    // Keep a running hash of all snapshots being sent
-    *snapshot_digest = HashCombine(*snapshot_digest, snapshot->nameHash);
 
     // Keep count of the number of children in the parent
     if (parent_snapshot != NULL)
@@ -9967,7 +10019,7 @@ static rmtError TakePropertySnapshot(rmtProperty* property, PropertySnapshot* pa
     // Snapshot the children
     for (child_property = property->firstChild; child_property != NULL; child_property = child_property->nextSibling)
     {
-        error = TakePropertySnapshot(child_property, snapshot, first_snapshot, prev_snapshot, snapshot_digest);
+        error = TakePropertySnapshot(child_property, snapshot, first_snapshot, prev_snapshot, depth + 1);
         if (error != RMT_ERROR_NONE)
         {
             return error;
@@ -10003,9 +10055,8 @@ RMT_API rmtError _rmt_PropertySnapshotAll()
     // Snapshot from the root into a linear list
     first_snapshot = NULL;
     prev_snapshot = NULL;
-    rmtU32 snapshot_digest = 0;
     mtxLock(&g_Remotery->propertyMutex);
-    error = TakePropertySnapshot(&g_Remotery->rootProperty, NULL, &first_snapshot, &prev_snapshot, &snapshot_digest);
+    error = TakePropertySnapshot(&g_Remotery->rootProperty, NULL, &first_snapshot, &prev_snapshot, 0);
 
     if (g_Settings.snapshot_callback != NULL)
     {
@@ -10031,7 +10082,6 @@ RMT_API rmtError _rmt_PropertySnapshotAll()
     payload = (Msg_PropertySnapshot*)message->payload;
     payload->rootSnapshot = first_snapshot;
     payload->nbSnapshots = g_Remotery->propertyAllocator->nb_inuse - nb_snapshot_allocs;
-    payload->snapshotDigest = snapshot_digest;
     payload->propertyFrame = g_Remotery->propertyFrame;
     rmtMessageQueue_CommitMessage(message, MsgID_PropertySnapshot);
 

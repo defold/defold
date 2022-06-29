@@ -17,10 +17,11 @@ WM.Window = (function()
 	*/});
 
 
-	function Window(manager, title, x, y, width, height, parent_node)
+	function Window(manager, title, x, y, width, height, parent_node, user_data)
 	{
 		this.Manager = manager;
 		this.ParentNode = parent_node || document.body;
+		this.userData = user_data;
 		this.OnMove = null;
 		this.OnResize = null;
 		this.Visible = false;

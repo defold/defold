@@ -85,7 +85,9 @@ class TraceDrop
                 // Forward all recorded events to message handlers
                 while (!data_view_reader.AtEnd())
                 {
-                    remotery.Server.CallMessageHandlers(data_view_reader);
+                    const start_offset = data_view_reader.Offset;
+                    const [id, length ] = remotery.Server.CallMessageHandlers(data_view_reader, this.Result);
+                    data_view_reader.Offset = start_offset + length;
                 }
             }
             catch (e)
@@ -108,22 +110,33 @@ class TraceDrop
                 let frame_history = remotery.FrameHistory[name];
                 remotery.SampleTimelineWindow.OnSamples(name, frame_history);
             }
-            remotery.SampleTimelineWindow.DrawAllRows();
 
+            // Set frame history for each processor
             for (let name in remotery.ProcessorFrameHistory)
             {
                 let frame_history = remotery.ProcessorFrameHistory[name];
                 remotery.ProcessorTimelineWindow.OnSamples(name, frame_history);
             }
-            remotery.ProcessorTimelineWindow.DrawAllRows();
-            
-            // Set the last frame of each thread sample history on the sample windows
+
+            // Set the last frame values for each grid window
             for (let name in remotery.gridWindows)
             {
-                let sample_window = remotery.gridWindows[name];
-                let frame_history = remotery.FrameHistory[name];
-                let frame = frame_history[frame_history.length - 1];
-                sample_window.UpdateEntries(frame.NbSamples, frame.SampleDigest, frame.Samples);
+                const grid_window = remotery.gridWindows[name];
+
+                const frame_history = remotery.FrameHistory[name];
+                if (frame_history)
+                {
+                    // This is a sample window
+                    const frame = frame_history[frame_history.length - 1];
+                    grid_window.UpdateEntries(frame.NbSamples, frame.sampleFloats);
+                }
+                else
+                {
+                    // This is a property window
+                    const frame_history = remotery.PropertyFrameHistory;
+                    const frame = frame_history[frame_history.length - 1];
+                    grid_window.UpdateEntries(frame.nbSnapshots, frame.snapshotFloats);
+                }
             }
 
             // Pause for viewing

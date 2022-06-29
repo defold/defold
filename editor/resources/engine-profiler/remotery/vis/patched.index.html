@@ -7,7 +7,11 @@
 
 		<!-- Style Sheets -->
 		<link rel="stylesheet" type="text/css" href="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Styles/WindowManager.css" />
-		<link rel="stylesheet" type="text/css" href="engine-profiler/remotery/vis/Styles/Remotery.css" />
+		<link rel="stylesheet" type="text/css" href="engine-profiler/remotery/Styles/Remotery.css" />
+
+	</head>
+
+	<body>
 
 		<!-- Utilities -->
 		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/Core.js"></script>
@@ -29,30 +33,34 @@
 		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Code/Button.js"></script>
 
 		<!-- Main Application -->
-        <script type="text/javascript" src="engine-profiler/remotery/vis/Code/WebGL.js"></script>
-        <script type="text/javascript" src="engine-profiler/remotery/vis/Code/WebGLFont.js"></script>
-        <script type="text/javascript" src="engine-profiler/remotery/vis/Code/Shaders.js"></script>
-        <script type="text/javascript" src="engine-profiler/remotery/vis/Code/DataViewReader.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/Console.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/NameMap.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/WebSocketConnection.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/TitleWindow.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/GridWindow.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/PixelTimeRange.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/TimelineRow.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/TimelineMarkers.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/TimelineWindow.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/ThreadFrame.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/TraceDrop.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/Remotery.js"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/Code/WebGL.js"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/Code/WebGLFont.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/NameMap.js"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/Code/GLCanvas.js"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/Code/DataViewReader.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/Console.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/WebSocketConnection.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/MouseInteraction.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/TitleWindow.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/SampleGlobals.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/GridWindow.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/PixelTimeRange.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/TimelineRow.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/TimelineMarkers.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/TimelineWindow.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/ThreadFrame.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/TraceDrop.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/Code/Remotery.js"></script>
 
-	</head>
-
-	<body>
+        <!-- Shaders -->
+		<script type="text/javascript" src="engine-profiler/remotery/Code/Shaders/Shared.glsl"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/Code/Shaders/Grid.glsl"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/Code/Shaders/Timeline.glsl"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/Code/Shaders/Window.glsl"></script>
 
 		<script type="text/javascript">
 
-			var remotery = new Remotery();
+			const remotery = new Remotery();
 
 		</script>
 

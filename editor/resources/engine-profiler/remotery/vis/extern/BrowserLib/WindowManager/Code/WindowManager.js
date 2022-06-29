@@ -11,10 +11,10 @@ WM.WindowManager = (function()
 	}
 
 
-	WindowManager.prototype.AddWindow = function(title, x, y, width, height, parent_node)
+	WindowManager.prototype.AddWindow = function(title, x, y, width, height, parent_node, user_data)
 	{
 		// Create the window and add it to the list of windows
-		var wnd = new WM.Window(this, title, x, y, width, height, parent_node);
+		var wnd = new WM.Window(this, title, x, y, width, height, parent_node, user_data);
 		this.Windows.push(wnd);
 
 		// Always bring to the top on creation

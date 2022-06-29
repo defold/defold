@@ -25,7 +25,7 @@
 #include "dmsdk/external/remotery/Remotery.h"
 
 
-rmtU32 rmt_HashString32(const char* s, int len, rmtU32 seed)
+rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed)
 {
     return dmHashBuffer32(s, len);
 }
