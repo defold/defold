@@ -1405,6 +1405,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         CollectRenderEntries(scene, scene->m_RenderHead, 0, 0x0, clippers, render_entries);
     }
 
+    static inline bool IsInvisible(InternalNode* n, float opacity)
+    {
+        bool no_clipping = n->m_ClipperIndex == INVALID_INDEX;
+
+        return !n->m_Node.m_IsVisible || opacity == 0.0f && no_clipping;
+    }
+
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context)
     {
         Context* c = scene->m_Context;
@@ -1471,7 +1478,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             // Ideally, we'd like to have this update step in the Update function (I'm not even sure why it isn't tbh)
             // But for now, let's prune the list here
-            if (opacity == 0.0f || n->m_Node.m_IsBone || !n->m_Node.m_IsVisible)
+            if (IsInvisible(n, opacity) || n->m_Node.m_IsBone)
             {
                 entry.m_Node = INVALID_HANDLE;
                 entry.m_RenderKey = INVALID_RENDER_KEY;

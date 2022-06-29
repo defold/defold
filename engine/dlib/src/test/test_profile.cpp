@@ -289,6 +289,8 @@ TEST(dmProfile, PropertyIterator)
 
             int index = i + 1;
 
+            DM_PROFILE(""); // Tests that the custom hash function doesn't return 0 (which Remotery doesn't like)
+
             DM_PROPERTY_SET_S32(propt_TestS32, index * 1);
             DM_PROPERTY_SET_U32(propt_TestU32, index * 2);
             DM_PROPERTY_SET_F32(propt_TestF32, index * 3.0f);
