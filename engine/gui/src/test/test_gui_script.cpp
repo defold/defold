@@ -960,6 +960,38 @@ TEST_F(dmGuiScriptTest, TestInstanceContext)
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
 }
 
+TEST_F(dmGuiScriptTest, TestVisibilityApi)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    local parent = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    local child = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    gui.set_parent(child, parent)\n"
+            "    gui.set_visible(parent, false)\n"
+            "    assert(gui.is_visible(parent) == false)\n"
+            "    assert(gui.is_visible(child) == true)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
