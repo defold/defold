@@ -159,6 +159,9 @@ static void PropertyTreeCallback(void* _ctx, dmProfile::HProperty root)
     }
 }
 
+#if 0
+// This test is currently disabled until we can figure out a good way to test it.
+// It is currentlyu very tricky to do due to its threadeded mechanic.
 
 // TODO
 // 100 msec, which is in fact much higher than the expected time of the profiler
@@ -250,6 +253,8 @@ TEST(dmProfile, Profile)
 
     dmMutex::Delete(ctx.m_Mutex);
 }
+
+#endif
 
 DM_PROPERTY_GROUP(prop_TestGroup1, "");
 DM_PROPERTY_BOOL(prop_TestBOOL, 0, FrameReset, "", &prop_TestGroup1);
