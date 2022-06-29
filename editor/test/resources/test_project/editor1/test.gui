@@ -181,7 +181,6 @@ nodes {
   template_node_child: false
   custom_type: 0
   enabled: true
-  visible: true
 }
 nodes {
   position {
