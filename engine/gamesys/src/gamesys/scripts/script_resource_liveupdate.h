@@ -23,20 +23,20 @@ extern "C"
 
 namespace dmLiveUpdate
 {
-    /*# Resource API documentation
+    /*# Liveupdate API documentation
      *
-     * Functions and constants to access resources.
+     * Functions and constants to access liveupdate resources.
      *
      * @document
-     * @name Resource
-     * @namespace resource
+     * @name Liveupdate
+     * @namespace liveupdate
      */
 
     /*# return a reference to the Manifest that is currently loaded
      *
      * Return a reference to the Manifest that is currently loaded.
      *
-     * @name resource.get_current_manifest
+     * @name liveupdate.get_current_manifest
      * @return manifest_reference [type:number] reference to the Manifest that is currently loaded
      */
     int Resource_GetCurrentManifest(lua_State* L);
@@ -46,11 +46,11 @@ namespace dmLiveUpdate
      * add a resource to the data archive and runtime index. The resource will be verified
      * internally before being added to the data archive.
      *
-     * @name resource.store_resource
+     * @name liveupdate.store_resource
      * @param manifest_reference [type:number] The manifest to check against.
      * @param data [type:string] The resource data that should be stored.
      * @param hexdigest [type:string] The expected hash for the resource,
-     * retrieved through collectionproxy.missing_resources.
+     * retrieved through collectionproxy.get_missing_resources.
      * @param callback [type:function(self, hexdigest, status)] The callback
      * function that is executed once the engine has been attempted to store
      * the resource.
@@ -68,7 +68,7 @@ namespace dmLiveUpdate
      *
      * ```lua
      * function init(self)
-     *     self.manifest = resource.get_current_manifest()
+     *     self.manifest = liveupdate.get_current_manifest()
      * end
      *
      * local function callback_store_resource(self, hexdigest, status)
@@ -80,12 +80,12 @@ namespace dmLiveUpdate
      * end
      *
      * local function load_resources(self, target)
-     *      local resources = collectionproxy.missing_resources(target)
+     *      local resources = collectionproxy.get_missing_resources(target)
      *      for _, resource_hash in ipairs(resources) do
      *           local baseurl = "http://example.defold.com:8000/"
      *           http.request(baseurl .. resource_hash, "GET", function(self, id, response)
      *                if response.status == 200 then
-     *                     resource.store_resource(self.manifest, response.response, resource_hash, callback_store_resource)
+     *                     liveupdate.store_resource(self.manifest, response.response, resource_hash, callback_store_resource)
      *                else
      *                     print("Failed to download resource: " .. resource_hash)
      *                end
@@ -107,7 +107,7 @@ namespace dmLiveUpdate
      * developer to update the game, modify existing resources, or add new
      * resources to the game through LiveUpdate.
      *
-     * @name resource.store_manifest
+     * @name liveupdate.store_manifest
      * @param manifest_buffer [type:string] the binary data that represents the manifest
      * @param callback [type:function(self, status)] the callback function
      * executed once the engine has attempted to store the manifest.
@@ -159,7 +159,7 @@ namespace dmLiveUpdate
      * to this function.
      * The path is stored in the (internal) live update location.
      *
-     * @name resource.store_archive
+     * @name liveupdate.store_archive
      * @param path [type:string] the path to the original file on disc
      * @param callback [type:function(self, status)] the callback function
      * executed after the storage has completed
@@ -281,7 +281,7 @@ namespace dmLiveUpdate
      * Is any liveupdate data mounted and currently in use?
      * This can be used to determine if a new manifest or zip file should be downloaded.
      *
-     * @name resource.is_using_liveupdate_data
+     * @name liveupdate.is_using_liveupdate_data
      * @return bool [type:bool] true if a liveupdate archive (any format) has been loaded
      * @note: Old downloaded files are automatically discarded upon startup, if their signatures mismatch with the bundled manifest.
      */

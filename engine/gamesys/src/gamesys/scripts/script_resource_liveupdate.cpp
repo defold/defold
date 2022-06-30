@@ -274,6 +274,27 @@ namespace dmLiveUpdate
         return 0;
     }
 
+    /*# get a list of stored resources in the dynamic archive
+     *
+     * Get a list of stored resources in the dynamic archive. These resource have previously been
+     * stored using liveupdate.store_resource()
+     *
+     * @name resource.get_stored_resourced
+     * @param manifest_reference [type:number] The manifest to check against.
+     * @param data [type:string] The resource data that should be stored.
+     * @param hexdigest [type:string] The expected hash for the resource,
+     * retrieved through collectionproxy.missing_resources.
+     * @return [type:table] The returned table is a list of resource names (hex digests)
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     local stored = liveupdate.get_stored_resources()
+     *     pprint("Stored resources", stored)
+     * end
+     * ```
+     */
     struct GetResourceHashContext
     {
         lua_State* m_L;
