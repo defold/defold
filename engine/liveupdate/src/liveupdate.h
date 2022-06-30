@@ -48,6 +48,16 @@ namespace dmLiveUpdate
         RESULT_IO_ERROR                  = -10,
     };
 
+    /**
+     * Archive type
+     */
+    enum ArchiveType
+    {
+        ARCHIVE_TYPE_DYNAMIC    = 0,   // Dynamically downloaded and stored
+        ARCHIVE_TYPE_ZIP        = 1,   // Dowloaded zip archive
+        ARCHIVE_TYPE_NONE       = -1,  // Currently not using any liveupdate archive
+    };
+
     const int MAX_MANIFEST_COUNT = 8;
     const int CURRENT_MANIFEST = 0x0ac83fcc;
     const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator
@@ -85,10 +95,7 @@ namespace dmLiveUpdate
 
     dmResource::Manifest* GetCurrentManifest();
 
-    // -1: not using liveupdate
-    // 0: single files
-    // 1: zip file
-    int GetLiveupdateType();
+    ArchiveType GetLiveupdateType();
 
     char* DecryptSignatureHash(const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t* signature, uint32_t signature_len, uint32_t* out_digest_len);
 };

@@ -46,8 +46,8 @@ namespace dmLiveUpdate
     int Resource_IsUsingLiveUpdateData(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        int type = dmLiveUpdate::GetLiveupdateType();
-        lua_pushboolean(L, type != -1);
+        dmLiveUpdate::ArchiveType type = dmLiveUpdate::GetLiveupdateType();
+        lua_pushboolean(L, type != dmLiveUpdate::ARCHIVE_TYPE_NONE);
         return 1;
     }
 

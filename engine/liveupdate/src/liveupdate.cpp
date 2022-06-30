@@ -95,7 +95,7 @@ namespace dmLiveUpdate
         char                        m_AppPath[DMPATH_MAX_PATH];
         dmResource::Manifest*       m_LUManifest;         // the new manifest from StoreManifest
         dmResource::HFactory        m_ResourceFactory;    // Resource system factory
-        int                         m_ArchiveType;        // 0: original format, 1: .ref archive, -1: no format used
+        ArchiveType                 m_ArchiveType;        // 0: original format, 1: .ref archive, -1: no format used
     };
 
     LiveUpdate g_LiveUpdate;
@@ -503,10 +503,10 @@ namespace dmLiveUpdate
     //  0: .arci/.arci format
     //  1: .ref format
     // -1: No LU archive file format found
-    static int DetermineLUType(const char* app_support_path)
+    static ArchiveType DetermineLUType(const char* app_support_path)
     {
         const char* names[4] = {LIVEUPDATE_ARCHIVE_TMP_FILENAME, LIVEUPDATE_INDEX_TMP_FILENAME, LIVEUPDATE_ARCHIVE_FILENAME, LIVEUPDATE_INDEX_FILENAME};
-        int types[4] = {1,0,1,0};
+        ArchiveType types[4] = {ARCHIVE_TYPE_ZIP, ARCHIVE_TYPE_DYNAMIC, ARCHIVE_TYPE_ZIP, ARCHIVE_TYPE_DYNAMIC};
         for (int i = 0; i < 4; ++i)
         {
             char path[DMPATH_MAX_PATH];
@@ -517,10 +517,10 @@ namespace dmLiveUpdate
                 return types[i];
             }
         }
-        return -1;
+        return ARCHIVE_TYPE_NONE;
     }
 
-    int GetLiveupdateType()
+    ArchiveType GetLiveupdateType()
     {
         return g_LiveUpdate.m_ArchiveType;
     }
@@ -530,17 +530,17 @@ namespace dmLiveUpdate
         dmStrlCpy(g_LiveUpdate.m_AppPath, app_path, DMPATH_MAX_PATH);
 
         g_LiveUpdate.m_ArchiveType = DetermineLUType(app_support_path);
-        if (g_LiveUpdate.m_ArchiveType == -1)
+        if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_NONE)
             return dmResourceArchive::RESULT_NOT_FOUND;
 
         dmResourceArchive::Result result = dmResourceArchive::RESULT_OK;
-        if (g_LiveUpdate.m_ArchiveType == 1)
+        if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_ZIP)
         {
             result = LULoadManifest_Zip(archive_name, app_path, app_support_path, base_manifest, out);
             if (dmResourceArchive::RESULT_OK != result)
             {
                 LUCleanup_Zip(archive_name, app_path, app_support_path);
-                g_LiveUpdate.m_ArchiveType = 0;
+                g_LiveUpdate.m_ArchiveType = ARCHIVE_TYPE_DYNAMIC;
             }
             else
             {
@@ -548,13 +548,13 @@ namespace dmLiveUpdate
             }
         }
 
-        if (g_LiveUpdate.m_ArchiveType == 0)
+        if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_DYNAMIC)
         {
             result = LULoadManifest_Regular(archive_name, app_path, app_support_path, base_manifest, out);
             if (dmResourceArchive::RESULT_OK != result)
             {
                 LUCleanup_Regular(archive_name, app_path, app_support_path);
-                g_LiveUpdate.m_ArchiveType = -1;
+                g_LiveUpdate.m_ArchiveType = ARCHIVE_TYPE_NONE;
             }
             else
             {
@@ -572,9 +572,9 @@ namespace dmLiveUpdate
 
     static dmResourceArchive::Result LUCleanupArchive(const char* archive_name, const char* app_path, const char* app_support_path)
     {
-        if (g_LiveUpdate.m_ArchiveType == -1)
+        if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_NONE)
             return dmResourceArchive::RESULT_OK;
-        else if (g_LiveUpdate.m_ArchiveType == 1)
+        else if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_ZIP)
             return LUCleanup_Zip(archive_name, app_path, app_support_path);
         else
             return LUCleanup_Regular(archive_name, app_path, app_support_path);
@@ -582,11 +582,11 @@ namespace dmLiveUpdate
 
     static dmResourceArchive::Result LULoadArchive(const dmResource::Manifest* manifest, const char* archive_name, const char* app_path, const char* app_support_path, dmResourceArchive::HArchiveIndexContainer previous, dmResourceArchive::HArchiveIndexContainer* out)
     {
-        if (g_LiveUpdate.m_ArchiveType == -1)
+        if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_NONE)
             return dmResourceArchive::RESULT_NOT_FOUND;
 
         dmResourceArchive::Result result;
-        if (g_LiveUpdate.m_ArchiveType == 1)
+        if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_ZIP)
             result = LULoadArchive_Zip(manifest, archive_name, app_path, app_support_path, previous, out);
         else
             result = LULoadArchive_Regular(manifest, archive_name, app_path, app_support_path, previous, out);
@@ -594,7 +594,7 @@ namespace dmLiveUpdate
         if (dmResourceArchive::RESULT_OK != result)
         {
             LUCleanupArchive(archive_name, app_path, app_support_path);
-            g_LiveUpdate.m_ArchiveType = -1;
+            g_LiveUpdate.m_ArchiveType = ARCHIVE_TYPE_NONE;
         }
 
         return result;
@@ -602,8 +602,8 @@ namespace dmLiveUpdate
 
     static dmResourceArchive::Result LUUnloadArchive(dmResourceArchive::HArchiveIndexContainer archive)
     {
-        assert(g_LiveUpdate.m_ArchiveType != -1);
-        if (g_LiveUpdate.m_ArchiveType == 1)
+        assert(g_LiveUpdate.m_ArchiveType != ARCHIVE_TYPE_NONE);
+        if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_ZIP)
             return LUUnloadArchive_Zip(archive);
         else
             return LUUnloadArchive_Regular(archive);
@@ -611,8 +611,8 @@ namespace dmLiveUpdate
 
     static dmResourceArchive::Result LUFindEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData* entry)
     {
-        assert(g_LiveUpdate.m_ArchiveType != -1);
-        if (g_LiveUpdate.m_ArchiveType == 1)
+        assert(g_LiveUpdate.m_ArchiveType != ARCHIVE_TYPE_NONE);
+        if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_ZIP)
             return LUFindEntryInArchive_Zip(archive, hash, hash_len, entry);
         else
             return LUFindEntryInArchive_Regular(archive, hash, hash_len, entry);
@@ -620,8 +620,8 @@ namespace dmLiveUpdate
 
     static dmResourceArchive::Result LUReadEntryInArchive(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, const dmResourceArchive::EntryData* entry, void* buffer)
     {
-        assert(g_LiveUpdate.m_ArchiveType != -1);
-        if (g_LiveUpdate.m_ArchiveType == 1)
+        assert(g_LiveUpdate.m_ArchiveType != ARCHIVE_TYPE_NONE);
+        if (g_LiveUpdate.m_ArchiveType == ARCHIVE_TYPE_ZIP)
             return LUReadEntryFromArchive_Zip(archive, hash, hash_len, entry, buffer);
         else
             return LUReadEntryFromArchive_Regular(archive, hash, hash_len, entry, buffer);

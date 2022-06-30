@@ -87,9 +87,9 @@ dmResource::Manifest* GetCurrentManifest()
 }
 
 // -1: not using liveupdate
-int GetLiveupdateType()
+ArchiveType GetLiveupdateType()
 {
-   return -1;
+   return ARCHIVE_TYPE_NONE;
 }
 
 // For unit tests
