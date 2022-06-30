@@ -2918,11 +2918,11 @@ namespace dmGui
      * Returns `true` if a node is visible and `false` if it's not.
      * Invisible nodes are not rendered.
      *
-     * @name gui.is_visible
+     * @name gui.get_visible
      * @param node [type:node] node to query
      * @return visible [type:boolean] whether the node is visible or not
      */
-    static int LuaIsVisible(lua_State* L)
+    static int LuaGetVisible(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         HNode hnode;
@@ -2931,7 +2931,7 @@ namespace dmGui
 
         Scene* scene = GuiScriptInstance_Check(L);
         int top = lua_gettop(L);
-        lua_pushboolean(L, dmGui::IsNodeVisible(scene, hnode));
+        lua_pushboolean(L, dmGui::GetNodeVisible(scene, hnode));
 
         return 1;
     }
@@ -4234,7 +4234,7 @@ namespace dmGui
         {"pick_node",       LuaPickNode},
         {"is_enabled",      LuaIsEnabled},
         {"set_enabled",     LuaSetEnabled},
-        {"is_visible",      LuaIsVisible},
+        {"get_visible",     LuaGetVisible},
         {"set_visible",     LuaSetVisible},
         {"get_adjust_mode", LuaGetAdjustMode},
         {"set_adjust_mode", LuaSetAdjustMode},

@@ -876,7 +876,7 @@ namespace dmGui
     {
     }
 
-    bool IsNodeVisible(HScene scene, HNode node)
+    bool GetNodeVisible(HScene scene, HNode node)
     {
         return false;
     }

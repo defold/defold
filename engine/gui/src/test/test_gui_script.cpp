@@ -977,8 +977,8 @@ TEST_F(dmGuiScriptTest, TestVisibilityApi)
             "    local child = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
             "    gui.set_parent(child, parent)\n"
             "    gui.set_visible(parent, false)\n"
-            "    assert(gui.is_visible(parent) == false)\n"
-            "    assert(gui.is_visible(child) == true)\n"
+            "    assert(gui.get_visible(parent) == false)\n"
+            "    assert(gui.get_visible(child) == true)\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));

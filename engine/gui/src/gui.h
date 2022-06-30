@@ -1050,6 +1050,7 @@ namespace dmGui
      * @return whether the node is enabled or not
      */
     bool IsNodeEnabled(HScene scene, HNode node, bool recursive);
+
     /** enables/disables a node
      * Set if a node should be enabled or not. Only enabled nodes are animated and rendered.
      *
@@ -1067,7 +1068,8 @@ namespace dmGui
      * @param node the node to be visible or not
      * @return whether the node is visible or not
      */
-    bool IsNodeVisible(HScene scene, HNode node);
+    bool GetNodeVisible(HScene scene, HNode node);
+
     /** turn-on/turn-off rendering for a node
      * Set if a node should be visible or not. Only visible nodes are rendered.
      *
@@ -1093,6 +1095,7 @@ namespace dmGui
      * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
      */
     void MoveNodeAbove(HScene scene, HNode node, HNode reference);
+
     /** reorders the given node relative the reference
      * Move the given node to be positioned below the reference node.
      * If the reference node is INVALID_HANDLE, the node is moved to the bottom.
