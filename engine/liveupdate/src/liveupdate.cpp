@@ -672,6 +672,46 @@ namespace dmLiveUpdate
         return manifest;
     }
 
+    struct GetResourceEntryContext
+    {
+        FGetResourceHashHex m_Callback;
+        void*               m_Context;
+        uint32_t            m_HexDigestLength;
+        char*               m_ScratchBuffer;
+    };
+
+    static void FGetResourceEntry(void* context, const uint8_t* hash, uint32_t hash_length, dmResourceArchive::EntryData* data)
+    {
+        GetResourceEntryContext* ctx = (GetResourceEntryContext*)context;
+
+        dmResource::BytesToHexString(hash, hash_length, ctx->m_ScratchBuffer, ctx->m_HexDigestLength);
+
+        ctx->m_Callback(ctx->m_Context, (const char*)ctx->m_ScratchBuffer, ctx->m_HexDigestLength-1);
+    }
+
+    void GetStoredResources(FGetResourceHashHex callback, void* context)
+    {
+        // The function exists in order to retrieve the currently stored dynamic resources
+        // and the ability remove these
+        if (g_LiveUpdate.m_ArchiveType != ARCHIVE_TYPE_DYNAMIC)
+            return;
+
+        dmResource::Manifest* manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
+        if (manifest == 0)
+            return;
+
+        GetResourceEntryContext ctx;
+        ctx.m_Callback = callback;
+        ctx.m_Context = context;
+
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+        ctx.m_HexDigestLength = HexDigestLength(algorithm) + 1;
+        ctx.m_ScratchBuffer = (char*) alloca(ctx.m_HexDigestLength * sizeof(char*));
+
+
+        dmResourceArchive::IterateEntries(manifest->m_ArchiveIndex, FGetResourceEntry, &ctx);
+    }
+
     void RegisterArchiveLoaders()
     {
         dmResourceArchive::ArchiveLoader loader;

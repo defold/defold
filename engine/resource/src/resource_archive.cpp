@@ -355,25 +355,39 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
+    static void ToNetwork(const EntryData* e, EntryData* out)
+    {
+        out->m_ResourceDataOffset = dmEndian::ToNetwork(e->m_ResourceDataOffset);
+        out->m_ResourceSize = dmEndian::ToNetwork(e->m_ResourceSize);
+        out->m_ResourceCompressedSize = dmEndian::ToNetwork(e->m_ResourceCompressedSize);
+        out->m_Flags = dmEndian::ToNetwork(e->m_Flags);
+    }
+
+    static uint8_t* GetHashes(HArchiveIndexContainer archive)
+    {
+        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
+        if (!archive->m_IsMemMapped)
+            return archive->m_ArchiveFileIndex->m_Hashes;
+
+        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
+        return (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
+    }
+
+    static EntryData* GetEntries(HArchiveIndexContainer archive)
+    {
+        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
+        if (!archive->m_IsMemMapped)
+            return archive->m_ArchiveFileIndex->m_Entries;
+
+        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
+        return (EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
+    }
+
     Result FindEntryInArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry)
     {
         uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-        uint8_t* hashes = 0;
-        EntryData* entries = 0;
-
-        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-        if (!archive->m_IsMemMapped)
-        {
-            hashes = archive->m_ArchiveFileIndex->m_Hashes;
-            entries = archive->m_ArchiveFileIndex->m_Entries;
-        }
-        else
-        {
-            hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-            entries = (EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-        }
+        uint8_t* hashes = GetHashes(archive);
+        EntryData* entries = GetEntries(archive);
 
         // Search for hash with binary search (entries are sorted on hash)
         int first = 0;
@@ -389,10 +403,7 @@ namespace dmResourceArchive
                 if (entry != 0)
                 {
                     EntryData* e = &entries[mid];
-                    entry->m_ResourceDataOffset = dmEndian::ToNetwork(e->m_ResourceDataOffset);
-                    entry->m_ResourceSize = dmEndian::ToNetwork(e->m_ResourceSize);
-                    entry->m_ResourceCompressedSize = dmEndian::ToNetwork(e->m_ResourceCompressedSize);
-                    entry->m_Flags = dmEndian::ToNetwork(e->m_Flags);
+                    ToNetwork(e, entry);
                 }
                 return RESULT_OK;
             }
@@ -407,6 +418,27 @@ namespace dmResourceArchive
         }
 
         return RESULT_NOT_FOUND;
+    }
+
+    // Iterates over the entries in an archive index
+    Result IterateEntries(HArchiveIndexContainer archive, FEntryDataCallback callback, void* context)
+    {
+        uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
+        uint8_t* hashes = GetHashes(archive);
+        EntryData* entries = GetEntries(archive);
+
+        uint32_t hash_length = archive->m_ArchiveIndex->m_HashLength;
+        for (int i = 0; i < entry_count; ++i)
+        {
+            uint8_t* hash = (hashes + dmResourceArchive::MAX_HASH * i);
+
+            EntryData entry;
+            ToNetwork(&entries[i], &entry);
+
+            callback(context, hash, hash_length, &entry);
+        }
+
+        return RESULT_OK;
     }
 
     static Result DecryptWithXtea(void* buffer, uint32_t buffer_len)

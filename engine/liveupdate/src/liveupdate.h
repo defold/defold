@@ -74,6 +74,9 @@ namespace dmLiveUpdate
     void GetResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context);
     void GetMissingResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context);
 
+    // Get the resources stored in the dynamic live update archive
+    void GetStoredResources(FGetResourceHashHex callback, void* context);
+
     /*
      * Verifies the manifest cryptographic signature and that the manifest supports the current running dmengine version.
      */

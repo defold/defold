@@ -92,6 +92,10 @@ ArchiveType GetLiveupdateType()
    return ARCHIVE_TYPE_NONE;
 }
 
+void GetStoredResources(FGetResourceHashHex callback, void* context)
+{
+}
+
 // For unit tests
 
 uint32_t HexDigestLength(dmLiveUpdateDDF::HashAlgorithm algorithm)

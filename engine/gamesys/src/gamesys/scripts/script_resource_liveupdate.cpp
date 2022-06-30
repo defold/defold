@@ -274,6 +274,36 @@ namespace dmLiveUpdate
         return 0;
     }
 
+    struct GetResourceHashContext
+    {
+        lua_State* m_L;
+        int        m_Index;
+    };
+
+    static void GetResourceHashCallback(void* context, const char* hex_digest, uint32_t length)
+    {
+        GetResourceHashContext* ctx = (GetResourceHashContext*)context;
+        lua_State* L = ctx->m_L;
+
+        lua_pushnumber(L, ctx->m_Index++);
+        lua_pushlstring(L, hex_digest, length);
+        lua_settable(L, -3);
+    }
+
+    static int GetStoredResources(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        lua_newtable(L);
+
+        GetResourceHashContext ctx;
+        ctx.m_L = L;
+        ctx.m_Index = 1;
+        dmLiveUpdate::GetStoredResources(GetResourceHashCallback, &ctx);
+
+        return 1;
+    }
+
     static const luaL_reg Module_methods[] =
     {
         {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
@@ -282,6 +312,7 @@ namespace dmLiveUpdate
         {"store_manifest", dmLiveUpdate::Resource_StoreManifest}, // Store a .dmanifest file
         {"store_archive", dmLiveUpdate::Resource_StoreArchive},   // Store a .zip archive
 
+        {"get_stored_resources", dmLiveUpdate::GetStoredResources},
         {0, 0}
     };
 

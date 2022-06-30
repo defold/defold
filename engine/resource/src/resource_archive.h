@@ -195,6 +195,11 @@ namespace dmResourceArchive
     // Finds an entry in a single archive
     Result FindEntryInArchive(HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, EntryData* entry);
 
+    typedef void (*FEntryDataCallback)(void* context, const uint8_t* hash, uint32_t hash_length, EntryData* data);
+
+    // Iterates over the entries in an archive index
+    Result IterateEntries(HArchiveIndexContainer archive, FEntryDataCallback callback, void* context);
+
     // Decrypts a buffer
     Result DecryptBuffer(void* buffer, uint32_t buffer_len);
 

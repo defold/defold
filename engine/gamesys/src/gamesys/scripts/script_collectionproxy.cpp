@@ -76,7 +76,7 @@ namespace dmGameSystem
      * before attempting to load the collection proxy.
      *
      * @namespace collectionproxy
-     * @name collectionproxy.missing_resources
+     * @name collectionproxy.get_missing_resources
      * @param collectionproxy [type:url] the collectionproxy to check for missing
      * resources.
      * @return resources [type:table] the missing resources
@@ -101,7 +101,7 @@ namespace dmGameSystem
      *
      * local function download_resources(self, cproxy)
      *     self.resources = {}
-     *     local resources = collectionproxy.missing_resources(cproxy)
+     *     local resources = collectionproxy.get_missing_resources(cproxy)
      *     for _, v in ipairs(resources) do
      *         print("Downloading resource: " .. v)
      *
@@ -112,7 +112,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    static int CollectionProxy_MissingResources(lua_State* L)
+    static int CollectionProxy_GetMissingResources(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -131,6 +131,12 @@ namespace dmGameSystem
         dmLiveUpdate::GetMissingResources(url_hash, GetResourceHashCallback, &ctx);
 
         return 1;
+    }
+
+    static int Deprecated_CollectionProxy_GetMissingResources(lua_State* L)
+    {
+        dmLogOnceWarning("Function collectionproxy.missing_resources() is deprecated. Please use collectionproxy.get_missing_resources() instead.");
+        return CollectionProxy_GetMissingResources(L);
     }
 
     /*# return an indexed table of all the resources of a collection proxy
@@ -180,7 +186,8 @@ namespace dmGameSystem
 
     static const luaL_reg Module_methods[] =
     {
-        {"missing_resources", CollectionProxy_MissingResources},
+        {"missing_resources", Deprecated_CollectionProxy_GetMissingResources},
+        {"get_missing_resources", CollectionProxy_GetMissingResources},
         {"get_resources", CollectionProxy_GetResources},
         {0, 0}
     };
