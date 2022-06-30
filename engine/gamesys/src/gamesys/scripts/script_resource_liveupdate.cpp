@@ -279,7 +279,7 @@ namespace dmLiveUpdate
      * Get a list of stored resources in the dynamic archive. These resource have previously been
      * stored using liveupdate.store_resource()
      *
-     * @name resource.get_stored_resourced
+     * @name resource.get_stored_resources
      * @param manifest_reference [type:number] The manifest to check against.
      * @param data [type:string] The resource data that should be stored.
      * @param hexdigest [type:string] The expected hash for the resource,
