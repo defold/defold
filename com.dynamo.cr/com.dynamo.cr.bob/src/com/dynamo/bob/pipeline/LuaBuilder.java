@@ -120,7 +120,6 @@ public abstract class LuaBuilder extends Builder<Void> {
     }
 
     public byte[] constructBytecode(Task<Void> task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
-        Bob.verbose("constructBytecode");
         FileOutputStream fo = null;
         RandomAccessFile rdr = null;
 
@@ -136,7 +135,6 @@ public abstract class LuaBuilder extends Builder<Void> {
             ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
             pb.environment().putAll(env);
 
-            Bob.verbose("constructBytecode starting pb");
             Process p = pb.start();
             InputStream is = null;
             int ret = 127;
@@ -150,8 +148,6 @@ public abstract class LuaBuilder extends Builder<Void> {
                 is.read(buf);
 
                 String cmdOutput = new String(buf);
-                Bob.verbose("constructBytecode ret: " + ret);
-                Bob.verbose("constructBytecode output: " + cmdOutput);
                 if (ret != 0) {
                     // first delimiter is the executable name "luajit:" or "luac:"
                     int execSep = cmdOutput.indexOf(':');
@@ -185,8 +181,6 @@ public abstract class LuaBuilder extends Builder<Void> {
             byte tmp[] = new byte[(int) resultBytes];
             rdr.readFully(tmp);
 
-            Bob.verbose("constructBytecode bytecode length: " + resultBytes);
-
             outputFile.delete();
             inputFile.delete();
             return tmp;
@@ -198,9 +192,6 @@ public abstract class LuaBuilder extends Builder<Void> {
     }
 
     public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
-
-        Bob.verbose("constructLuaBytecode");
-
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
 
@@ -304,19 +295,13 @@ public abstract class LuaBuilder extends Builder<Void> {
         srcBuilder.setFilename(task.input(0).getPath());
 
         if (use_lua_source) {
-            Bob.verbose("LuaBuilder use_lua_source");
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         } else if (needsVanillaLua32.contains(project.getPlatform())) {
-            Bob.verbose("LuaBuilder luac");
             byte[] bytecode = constructLuaBytecode(task, "luac-32", script);
             if (bytecode != null) {
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
             }
-            else {
-                Bob.verbose("NO BYTECODE!");
-            }
         } else {
-            Bob.verbose("LuaBuilder luajit");
             byte[] bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
             byte[] bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
 
