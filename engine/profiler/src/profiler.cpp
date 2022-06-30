@@ -468,10 +468,15 @@ static int ProfilerScopeBegin(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    const char* name = luaL_checkstring(L, 1);
+    size_t len;
+    const char* name = luaL_checklstring(L, 1, &len);
     if (!name)
     {
         return DM_LUA_ERROR("Expected string as second argument");
+    }
+    if (!len)
+    {
+        return DM_LUA_ERROR("Expected non-empty string");
     }
 
     dmProfile::ScopeBegin(name, 0);
