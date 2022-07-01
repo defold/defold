@@ -365,6 +365,9 @@ namespace dmGameSystem
             dmGui::SetNodeIsBone(scene, n, true);
         }
 
+        dmGui::SetNodeEnabled(scene, n, node_desc->m_Enabled);
+        dmGui::SetNodeVisible(scene, n, node_desc->m_Visible);
+
         // type specific attributes
         switch(node_desc->m_Type)
         {
