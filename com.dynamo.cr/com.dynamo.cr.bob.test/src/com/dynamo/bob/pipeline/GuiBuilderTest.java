@@ -122,13 +122,21 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         src.append("}\n");
     }
 
-    private void addTemplateNode(StringBuilder src, String id, String parent, String template) {
+    private void addTemplateNode(StringBuilder src, String id, String parent, String template, String[] extraProperties) {
         src.append("nodes {\n");
         src.append("  type: TYPE_TEMPLATE\n");
         src.append("  id: \""+id+"\"\n");
         src.append("  parent: \""+parent+"\"\n");
+        for (String prop: extraProperties) { 
+            src.append(prop);
+        }
         src.append("  template: \""+template+"\"\n");
         src.append("}\n");
+    }
+
+    private void addTemplateNode(StringBuilder src, String id, String parent, String template) {
+        String[] properties = {};
+        addTemplateNode(src, id, parent, template, properties);
     }
 
     private void startOverridedNode(StringBuilder src, String type, String id, String parent, List<Integer> overrides) {
@@ -183,13 +191,20 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private NodeDesc findNode(Gui.SceneDesc gui, String layoutName, String nodeName) {
-        for(LayoutDesc layout : gui.getLayoutsList()) {
-            if (layout.getName().equals(layoutName)) {
-                for(NodeDesc node : layout.getNodesList()) {
-                    if (node.getId().equals(nodeName)) {
-                        return node;
-                    }
+        List<NodeDesc> nodesList = Arrays.asList();
+        if (layoutName.equals("")) {
+            nodesList = gui.getNodesList();
+        }
+        else {
+            for(LayoutDesc layout : gui.getLayoutsList()) {
+                if (layout.getName().equals(layoutName)) {
+                    nodesList = layout.getNodesList();
                 }
+            }
+        }
+        for(NodeDesc node : nodesList) {
+            if (node.getId().equals(nodeName)) {
+                return node;
             }
         }
         return null;
@@ -210,5 +225,27 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertFalse("Can't find node!", node == null);
         Assert.assertFalse(node.getClippingVisible());
         Assert.assertEquals(node.getText(), "defaultText");
+    }
+
+    @Test
+    public void testEnabledPropertyOverridesFromTemplate() throws Exception {
+        StringBuilder src = createGui();
+        addBoxNode(src, "box", "");
+        addTextNode(src, "text", "box", "templateText");
+        addFile("/template.gui", src.toString());
+
+        src = createGui();
+        String[] properties = {"  enabled: false\n"};
+        addBoxNode(src, "box", "");
+        addTemplateNode(src, "template", "box", "/template.gui", properties);
+
+        Gui.SceneDesc gui = buildGui(src, "/test.gui");
+        NodeDesc boxNode = findNode(gui, "", "template/box");
+        NodeDesc textNode = findNode(gui, "", "template/text");
+
+        Assert.assertFalse("Can't find box node!", boxNode == null);
+        Assert.assertFalse("Can't find text node!", textNode == null);
+        Assert.assertFalse(boxNode.getEnabled());
+        Assert.assertTrue(textNode.getEnabled());
     }
 }
