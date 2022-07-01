@@ -22,11 +22,15 @@ jobs:
         name: 'Install Python',
         run: python --version
       },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
-        name: 'Build engine',
+        name: 'Build engine ASAN',
         run: 'ci/ci.sh --platform=x86_64-darwin --with-asan --with-vanilla-lua --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'Build engine UBSAN',
+        run: 'ci/ci.sh --platform=x86_64-darwin --with-ubsan --with-vanilla-lua --skip-builtins --skip-docs engine'
       },
       {
          name: 'Notify if build status changed',
@@ -41,7 +45,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2 },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.13', distribution: 'microsoft'} },
+      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'Build engine',
@@ -54,3 +58,23 @@ jobs:
          with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
+
+  build-engine-windown-64:
+    runs-on: windows-latest
+    steps: [
+      { name: 'Checkout', uses: actions/checkout@v2 },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
+      { name: 'Install dependencies', run: 'ci/ci.sh install' },
+      {
+        name: 'Build engine',
+        run: 'ci/ci.sh --platform=x86_64-win32 --with-asan --skip-builtins --skip-docs engine'
+      },
+      {
+         name: 'Notify if build status changed',
+         uses: homoluctus/slatify@master,
+         if: failure(),
+         with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+      }]
+

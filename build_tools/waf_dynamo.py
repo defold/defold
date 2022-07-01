@@ -309,6 +309,8 @@ def default_flags(self):
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
     if Options.options.with_asan and opt_level != '0':
         opt_level = 1
+        if 'win' in build_util.get_target_os():
+            opt_level = "d"
 
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
@@ -576,10 +578,15 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
-    if Options.options.with_asan and build_util.get_target_os() in ('osx','ios','android'):
-        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
-        self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
-        self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
+    if Options.options.with_asan:
+        if build_util.get_target_os() in ('osx','ios','android'):
+            self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+            self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+            self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
+        if build_util.get_target_os() in ('win',):
+            self.env.append_value('CXXFLAGS', ['/fsanitize=address'])
+            self.env.append_value('CCFLAGS', ['/fsanitize=address'])
+
     if Options.options.with_ubsan and build_util.get_target_os() in ('osx','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined'])
         self.env.append_value('CCFLAGS', ['-fsanitize=undefined'])

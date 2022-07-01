@@ -20,21 +20,33 @@
 # Download Windows SDK 8 and 10
 #  	https://developer.microsoft.com/en-us/windows/downloads/sdk-archive
 
-# Run from msys
+# Run from Windows Terminal in a git-bash environment
 # ./package_win32_sdk.sh
 
 set -e
 
-SDK_10_VERSION="10.0.18362.0"
-MSVC_VERSION="14.25.28610"
+VSWHERE=${DYNAMO_HOME}/../../scripts/windows/vswhere2/vswhere2.exe
 
-VC_PATH="/c/Program Files (x86)/Microsoft Visual Studio/2019/Community"
+echo "HELLO"
+WIN_SDK_ROOT=`${VSWHERE} --sdk_root`
+WIN_SDK_VERSION=`${VSWHERE} --sdk_version`
+INCLUDES_PATHS=`${VSWHERE} --includes`
+LIB_PATHS=`${VSWHERE} --lib_paths`
+BIN_PATHS=`${VSWHERE} --bin_paths`
+VS_ROOT=`${VSWHERE} --vs_root`
+VS_VERSION=`${VSWHERE} --vs_version`
+COMMUNITY_VERSION=2022
+echo "WIN_SDK_ROOT" ${WIN_SDK_ROOT}
+echo "WIN_SDK_VERSION" ${WIN_SDK_VERSION}
+echo "INCLUDES_PATHS" ${INCLUDES_PATHS}
+echo "LIB_PATHS" ${LIB_PATHS}
+echo "BIN_PATHS" ${BIN_PATHS}
+echo "VS_ROOT" ${VS_ROOT}
+echo "VS_VERSION" ${VS_VERSION}
 
-SDK_PATH="C:\Program Files (x86)\Windows Kits"
 
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-${MSVC_VERSION}.tar.gz"
-PACKAGES_WIN32_SDK_8="WindowsKits-8.1.tar.gz"
-PACKAGES_WIN32_SDK_10="WindowsKits-${SDK_10_VERSION}.tar.gz"
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-${COMMUNITY_VERSION}-${VS_VERSION}.tar.gz"
+PACKAGES_WIN32_SDK_10="WindowsKits-${WIN_SDK_VERSION}.tar.gz"
 
 
 TARGET_PATH=$(pwd)/local_sdks
@@ -43,37 +55,30 @@ if [ ! -d "${TMP_PATH}" ]; then
 	mkdir -p ${TMP_PATH}
 fi
 
-# if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_8}" ]; then
-# 	echo "Packing to ${PACKAGES_WIN32_SDK_8}"
-# 	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} -C "${SDK_PATH}" 8.1/Include 8.1/Lib 8.1/sdk_license.rtf 8.1/sdk_third_party_notices.rtf
-# else
-# 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_8} already existed"
-# fi
-
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_SDK_10}"
-	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_10_VERSION} 10/Lib/${SDK_10_VERSION}/um/x86 10/Lib/${SDK_10_VERSION}/um/x64 10/Lib/${SDK_10_VERSION}/ucrt/x86 10/Lib/${SDK_10_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_10_VERSION}/x64 10/bin/${SDK_10_VERSION}/x86
+	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${WIN_SDK_ROOT}/.." 10/Include/${WIN_SDK_VERSION} 10/Lib/${WIN_SDK_VERSION}/um/x86 10/Lib/${WIN_SDK_VERSION}/um/x64 10/Lib/${WIN_SDK_VERSION}/ucrt/x86 10/Lib/${WIN_SDK_VERSION}/ucrt/x64 10/Licenses 10/bin/${WIN_SDK_VERSION}/x64 10/bin/${WIN_SDK_VERSION}/x86
 else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} already existed"
 fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_TOOLCHAIN}"
-	TMP=${TMP_PATH}/MicrosoftVisualStudio2019
+	TMP=${TMP_PATH}/MicrosoftVisualStudio${COMMUNITY_VERSION}
+	TARGETDIR=${TMP}/VC/Tools/MSVC/${VS_VERSION}
 
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx86
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/include
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x64
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/lib/x86
-	mkdir -p $TMP/VC/Tools/MSVC/$MSVC_VERSION/atlmfc
+	mkdir -p ${TARGETDIR}/bin/Hostx64
+	mkdir -p ${TARGETDIR}/bin/Hostx86
+	mkdir -p ${TARGETDIR}/include
+	mkdir -p ${TARGETDIR}/lib/x64
+	mkdir -p ${TARGETDIR}/lib/x86
+	mkdir -p ${TARGETDIR}/atlmfc
 
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx64/x86" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/bin/Hostx86"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/include" "$TMP/VC/Tools/MSVC/$MSVC_VERSION"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x64" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/lib/x86" "$TMP/VC/Tools/MSVC/$MSVC_VERSION/lib"
-	cp -r -v "$VC_PATH/VC/Tools/MSVC/$MSVC_VERSION/atlmfc"  "$TMP/VC/Tools/MSVC/$MSVC_VERSION"
+	cp -r -v "${VS_ROOT}/bin/Hostx64/x64" "${TARGETDIR}/bin/Hostx64"
+	cp -r -v "${VS_ROOT}/bin/Hostx64/x86" "${TARGETDIR}/bin/Hostx86"
+	cp -r -v "${VS_ROOT}/include" "${TARGETDIR}"
+	cp -r -v "${VS_ROOT}/lib/x64" "${TARGETDIR}/lib"
+	cp -r -v "${VS_ROOT}/lib/x86" "${TARGETDIR}/lib"
 
 	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} -C "$TMP" VC
 else

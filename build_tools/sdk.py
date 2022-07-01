@@ -62,9 +62,10 @@ ANDROID_NDK_VERSION='20'
 # Win32
 
 # The version we have prepackaged
-VERSION_WINDOWS_SDK_10="10.0.18362.0"
-VERSION_WINDOWS_MSVC_2019="14.25.28610"
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(VERSION_WINDOWS_MSVC_2019)
+VERSION_WINDOWS_SDK_10="10.0.19041.0"
+VERSION_WINDOWS_MSVC="14.30.30705"
+VERSION_WINDOWS_MSVS="2022"
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-{0}-{1}".format(VERSION_WINDOWS_MSVS, VERSION_WINDOWS_MSVC)
 PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(VERSION_WINDOWS_SDK_10)
 
 ## **********************************************************************************************
