@@ -14,7 +14,8 @@
 
 (ns internal.cache
   (:require [clojure.core.cache :as cc]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt])
+  (:import [clojure.core.cache BasicCache]))
 
 (set! *warn-on-reflection* true)
 
@@ -31,7 +32,7 @@
   (hit [this item] this)
   (miss [this item result] this)
   (evict [this key] this)
-  (seed [this base] base))
+  (seed [this base] this))
 
 (def null-cache (NullCache. {}))
 
@@ -62,18 +63,30 @@
 ;; ----------------------------------------
 ;; Interface
 ;; ----------------------------------------
-(def default-cache-limit 1000)
-
 (defn cache? [value]
   (satisfies? cc/CacheProtocol value))
 
-(defn make-cache
-  ([]
-   (make-cache default-cache-limit))
-  ([limit]
-   (if (zero? limit)
-     null-cache
-     (cc/lru-cache-factory {} :threshold limit))))
+(defn unlimited-cache? [value]
+  (instance? BasicCache value))
+
+(defn make-cache [limit]
+  (cond
+    (= -1 limit) ; Unlimited cache.
+    (cc/basic-cache-factory {})
+
+    (zero? limit)
+    null-cache ; No cache.
+
+    (pos? limit) ; Limited cache that evicts the least recently used entry when full.
+    (cc/lru-cache-factory {} :threshold limit)
+
+    :else
+    (throw (ex-info (str "Invalid limit: " limit)
+                    {:limit limit}))))
+
+(defn cache-clear
+  [cache]
+  (cc/seed cache {}))
 
 (defn cache-hit
   [cache ks]

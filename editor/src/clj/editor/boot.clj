@@ -17,7 +17,6 @@
             [clojure.stacktrace :as stack]
             [clojure.tools.cli :as cli]
             [editor.analytics :as analytics]
-            [editor.code.view :as code-view]
             [editor.connection-properties :refer [connection-properties]]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
@@ -61,13 +60,20 @@
             render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
             project-file (io/file project)]
         (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
-        ;; ensure that namespace loading has completed
+
+        ;; Ensure that namespace loading has completed.
         @namespace-loader
-        (code-view/initialize! prefs)
-        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
-        (welcome/add-recent-project! prefs project-file)
-        (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! updater newly-created?])
-        (reset! namespace-progress-reporter nil)))))
+
+        ;; Initialize the system and load the project.
+        (let [editor-tweaks-file (io/file (.getParentFile project-file) "project.editor_tweaks")
+              system-config (if (.isFile editor-tweaks-file)
+                              (apply (var-get (ns-resolve 'editor.editor-tweaks 'load-system-config)) [editor-tweaks-file])
+                              {})]
+          (apply (var-get (ns-resolve 'editor.code.view 'initialize!)) [prefs])
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [system-config])
+          (welcome/add-recent-project! prefs project-file)
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! updater newly-created?])
+          (reset! namespace-progress-reporter nil))))))
 
 (defn- select-project-from-welcome
   [namespace-loader prefs updater]

@@ -1,0 +1,10 @@
+{:settings
+ [{:type :integer,
+   :help "maximum number of cache entries. increase for large projects. use -1 for unlimited, 40000 by default",
+   :default 40000,
+   :path ["graph" "cache_capacity"]}]
+ :group-order ["Performance"]
+ :default-category "graph"
+ :categories
+ {"graph" {:help "Performance-tweaks for the graph data model"
+           :group "Performance"}}}

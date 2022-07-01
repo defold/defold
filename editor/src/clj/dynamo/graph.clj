@@ -106,8 +106,9 @@
   "Clears a cache (default *the-system* cache), useful when debugging"
   ([] (clear-system-cache! *the-system*))
   ([sys-atom]
-   (swap! sys-atom assoc :cache (is/make-cache {}))
-   nil)
+   (let [cleared-cache (c/cache-clear (:cache @sys-atom))]
+     (swap! sys-atom assoc :cache cleared-cache)
+     nil))
   ([sys-atom node-id]
    (let [outputs (cached-outputs (node-type* node-id))
          entries (map (partial endpoint node-id) outputs)]

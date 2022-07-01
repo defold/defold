@@ -14,13 +14,9 @@
 
 (ns internal.cache-test
   (:require [clojure.test :refer :all]
-            [support.test-support :refer :all]
             [internal.cache :refer :all]
             [internal.graph.types :as gt]
-            [internal.system :as is]))
-
-(defn- mock-system [cache-size ch]
-  (is/make-system {:cache-size cache-size}))
+            [support.test-support :refer :all]))
 
 (defn- as-map [c] (select-keys c (keys c)))
 
@@ -58,15 +54,73 @@
                     (as-map)))))))
 
 (deftest limits
-  (with-clean-system {:cache-size 3}
-     (let [snapshot (-> cache
-                      (cache-encache {(gt/endpoint 1 :a) 1
-                                      (gt/endpoint 1 :b) 2
-                                      (gt/endpoint 1 :c) 3})
-                      (cache-hit [(gt/endpoint 1 :a)
-                                  (gt/endpoint 1 :c)])
-                      (cache-encache {(gt/endpoint 1 :d) 4}))]
-       (are [k v] (= v (get snapshot k))
+  (letfn [(populate-cache [cache]
+            (-> cache
+              (cache-encache {(gt/endpoint 1 :a) 1
+                              (gt/endpoint 1 :b) 2
+                              (gt/endpoint 1 :c) 3})
+              (cache-hit [(gt/endpoint 1 :a)
+                          (gt/endpoint 1 :c)])
+              (cache-encache {(gt/endpoint 1 :d) 4})))]
+
+    (testing "positive cache limit"
+      (with-clean-system {:cache-size 3}
+        (let [snapshot (populate-cache cache)]
+          (is (= 3 (count snapshot)))
+          (are [k v] (= v (get snapshot k))
             (gt/endpoint 1 :a) 1
             (gt/endpoint 1 :c) 3
             (gt/endpoint 1 :d) 4))))
+
+    (testing "zero cache limit (no caching)"
+      (with-clean-system {:cache-size 0}
+        (let [snapshot (populate-cache cache)]
+          (is (empty? snapshot)))))
+
+    (testing "unlimited cache"
+      (with-clean-system {:cache-size -1}
+        (let [snapshot (populate-cache cache)]
+          (is (= 4 (count snapshot)))
+          (are [k v] (= v (get snapshot k))
+            (gt/endpoint 1 :a) 1
+            (gt/endpoint 1 :b) 2
+            (gt/endpoint 1 :c) 3
+            (gt/endpoint 1 :d) 4))))))
+
+(deftest clear
+  (letfn [(populate-cache [cache]
+            (cache-encache cache {(gt/endpoint 1 :a) 1
+                                  (gt/endpoint 1 :b) 2
+                                  (gt/endpoint 1 :c) 3
+                                  (gt/endpoint 1 :d) 4}))]
+
+    (testing "positive cache limit"
+      (with-clean-system {:cache-size 3}
+        (let [cache (populate-cache cache)]
+          (is (= 3 (count cache)))
+          (let [cache (cache-clear cache)]
+            (is (= 0 (count cache)))
+            (let [cache (populate-cache cache)]
+              (is (= 3 (count cache))))))))
+
+    (testing "zero cache limit (no caching)"
+      (with-clean-system {:cache-size 0}
+        (is (identical? null-cache cache))
+        (let [cache (populate-cache cache)]
+          (is (= 0 (count cache)))
+          (let [cache (cache-clear cache)]
+            (is (= 0 (count cache)))
+            (is (identical? null-cache cache))
+            (let [cache (populate-cache cache)]
+              (is (= 0 (count cache))))))))
+
+    (testing "unlimited cache"
+      (with-clean-system {:cache-size -1}
+        (is (unlimited-cache? cache))
+        (let [cache (populate-cache cache)]
+          (is (= 4 (count cache)))
+          (let [cache (cache-clear cache)]
+            (is (= 0 (count cache)))
+            (is (unlimited-cache? cache))
+            (let [cache (populate-cache cache)]
+              (is (= 4 (count cache))))))))))

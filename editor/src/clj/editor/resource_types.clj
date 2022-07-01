@@ -28,6 +28,7 @@
             [editor.cubemap :as cubemap]
             [editor.display-profiles :as display-profiles]
             [editor.editor-script :as editor-script]
+            [editor.editor-tweaks :as editor-tweaks]
             [editor.factory :as factory]
             [editor.font :as font]
             [editor.game-object :as game-object]
@@ -66,6 +67,7 @@
       (cubemap/register-resource-types workspace)
       (display-profiles/register-resource-types workspace)
       (editor-script/register-resource-types workspace)
+      (editor-tweaks/register-resource-types workspace)
       (factory/register-resource-types workspace)
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)

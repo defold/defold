@@ -76,9 +76,9 @@
 (defn load-namespaces []
   (println "loaded namespaces"))
 
-(defn initialize-project []
+(defn initialize-project [system-config]
   (when (nil? @the-root)
-    (g/initialize! {})
+    (g/initialize! system-config)
     (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
