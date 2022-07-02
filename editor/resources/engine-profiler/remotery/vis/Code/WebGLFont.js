@@ -10,8 +10,8 @@ class glFont
         // Describe the font
         const font_size = 9;
         this.fontWidth = 5;
-        this.fontHeight = 12;
-        const font_face = "Consolas";
+        this.fontHeight = 13;
+        const font_face = "LocalFiraCode";
         const font_desc = font_size + "px " + font_face;
 
         // Ensure the CSS font is loaded before we do any work with it
@@ -58,24 +58,19 @@ class glFont
         this.charContext.fillStyle = "black";
         this.charContext.clearRect(0, 0, width, height);
 
+        // TODO(don): I don't know why this results in the crispest text!
+        // Every pattern I've checked so far has thrown up no ideas... but it works, so it will do for now
+        let offset = 0.25;
+        if ("AFILMTWijmw4+{};\'#,.?!\"£*()".includes(text))
+        {
+            offset = 0.0;
+        }
+
         // Render the text
         this.charContext.font = font;
         this.charContext.textAlign = "left";
         this.charContext.textBaseline = "top";
-
-        // TODO(don): I don't know why this results in the crispest text!
-        // Every pattern I've checked so far has thrown up no ideas... but it works, so it will do for now
-        let offset = 0;
-        if ("#$&0689BCDGHKNOPRSUbdefghknopqstuyz".includes(text))
-        {
-            offset = 0.5;
-        }
-        else if ("TI".includes(text))
-        {
-            offset = 0.25;
-        }
-
-        this.charContext.fillText(text, offset, 0.5);
+        this.charContext.fillText(text, offset, 2.5);
     }
 }
 
