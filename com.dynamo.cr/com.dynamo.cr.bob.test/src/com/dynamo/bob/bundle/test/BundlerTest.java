@@ -36,10 +36,12 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
 
 
@@ -228,6 +230,27 @@ public class BundlerTest {
         }
     }
 
+    
+    private void verifyArchive() throws IOException
+    {
+        String projectName = "unnamed";
+        File outputDirFile = getOutputDirFile(outputDir, projectName);
+        assertTrue(outputDirFile.exists());
+        switch (platform)
+        {
+            case Arm64Android:
+            case Armv7Android:
+            {
+                File outputApk = new File(outputDirFile, projectName + ".apk");
+                assertTrue(outputApk.exists());
+                ZipFile apkZip = new ZipFile(outputApk.getAbsolutePath());
+                ZipEntry zipEntry = apkZip.getEntry("assets/game.arcd");
+                assertFalse(zipEntry == null);
+                assertEquals(zipEntry.getMethod(), ZipEntry.STORED);
+            }
+        }
+    }
+
     private List<String> getZipFiles(File zipFile) throws IOException {
         List<String> files = new ArrayList<String>();
         InputStream inputStream = new FileInputStream(zipFile);
@@ -388,6 +411,7 @@ public class BundlerTest {
         createDefaultFiles(contentRoot);
         createFile(contentRoot, "test.icns", "test_icon");
         build();
+        verifyArchive();
     }
 
     private String createFile(String root, String name, String content) throws IOException {
