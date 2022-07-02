@@ -4301,6 +4301,31 @@ TEST_F(dmGuiTest, NoRenderOfDisabledTree)
     ASSERT_EQ(1u, count);
 }
 
+TEST_F(dmGuiTest, TurnOffNodeVisibility)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    dmGui::RenderSceneParams render_params;
+    render_params.m_RenderNodes = RenderNodesCount;
+
+    uint32_t count;
+
+    // Edge case: single node
+    dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeParent(m_Scene, child, parent, false);
+    dmGui::RenderScene(m_Scene, render_params, &count);
+    ASSERT_EQ(3u, count);
+
+    dmGui::SetNodeVisible(m_Scene, parent, false);
+    dmGui::RenderScene(m_Scene, render_params, &count);
+
+    ASSERT_EQ(2u, count);
+}
+
 TEST_F(dmGuiTest, DeleteTree)
 {
     // Setup

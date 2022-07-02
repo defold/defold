@@ -17,6 +17,7 @@
 
 #include <script/script.h>
 #include <dlib/log.h>
+#include <extension/extension.h>
 
 namespace dmLiveUpdate
 {
@@ -273,4 +274,36 @@ namespace dmLiveUpdate
         return 0;
     }
 
+    static const luaL_reg Module_methods[] =
+    {
+        {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
+        {"is_using_liveupdate_data", dmLiveUpdate::Resource_IsUsingLiveUpdateData},
+        {"store_resource", dmLiveUpdate::Resource_StoreResource}, // Stores a single resource
+        {"store_manifest", dmLiveUpdate::Resource_StoreManifest}, // Store a .dmanifest file
+        {"store_archive", dmLiveUpdate::Resource_StoreArchive},   // Store a .zip archive
+
+        {0, 0}
+    };
+
+    static void LuaInit(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        luaL_register(L, "liveupdate", Module_methods);
+
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+    }
+
+    static dmExtension::Result InitializeLiveUpdate(dmExtension::Params* params)
+    {
+        LuaInit(params->m_L);
+        return dmExtension::RESULT_OK;
+    }
+
+    static dmExtension::Result FinalizeLiveUpdate(dmExtension::Params* params)
+    {
+        return dmExtension::RESULT_OK;
+    }
 };
+
+DM_DECLARE_EXTENSION(LiveUpdateExt, "LiveUpdate", 0, 0, dmLiveUpdate::InitializeLiveUpdate, 0, 0, dmLiveUpdate::FinalizeLiveUpdate)
