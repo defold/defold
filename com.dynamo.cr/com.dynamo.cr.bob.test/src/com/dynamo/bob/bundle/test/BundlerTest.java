@@ -248,6 +248,7 @@ public class BundlerTest {
                 assertFalse(zipEntry == null);
                 assertEquals(zipEntry.getMethod(), ZipEntry.STORED);
             }
+            break;
         }
     }
 
