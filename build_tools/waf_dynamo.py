@@ -1537,7 +1537,7 @@ def detect(conf):
         conf.env['STATICLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
-    if platform in ('x86_64-linux',): # Currently the only platform exhibiting the behavior
+    if platform in ('x86_64-linux','armv7-android','arm64-android'): # Currently the only platform exhibiting the behavior
         conf.env['STATICLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
         conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
 
