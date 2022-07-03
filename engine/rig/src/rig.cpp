@@ -989,7 +989,7 @@ namespace dmRig
             in_v.setW(1.0f);
 
             Vector4 out_p(0.0f, 0.0f, 0.0f, 0.0f);
-            const uint32_t bi_offset = i << 2;
+            const uint32_t bi_offset = i * 4;
             const uint32_t* bone_indices = &indices[bi_offset];
             const float* bone_weights = &weights[bi_offset];
 

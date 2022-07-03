@@ -545,141 +545,6 @@ public class ModelUtil {
         }
     }
 
-    // public static void loadAnimations(AIScene scene, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
-    //     AssetSpace assetSpace = getAssetSpace(scene);
-    //     assert(bones != null);
-
-    //     //System.out.printf("loadAnimations skeleton: size: %d\n", bones.size());
-
-    //     int num_animations = scene.mNumAnimations();
-
-    //     //System.out.printf("ModelUtil: loadAnimations: %d\n", num_animations);
-
-    //     PointerBuffer aianimations = scene.mAnimations();
-    //     for (int i = 0; i < num_animations; ++i) {
-    //         AIAnimation aianimation = AIAnimation.create(aianimations.get(i));
-    //         String animation_name = aianimation.mName().dataString();
-
-    //         double duration = aianimation.mDuration();
-    //         double ticksPerSecond = aianimation.mTicksPerSecond();
-    //         double durationTime = duration/ticksPerSecond;
-    //         double sampleRate = 30.0;
-
-    //         int num_channels = aianimation.mNumChannels();
-
-    //         Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
-    //         animBuilder.setDuration((float)durationTime);
-
-    //         // We use the supplied framerate (if available) as samplerate to get correct timings when
-    //         // sampling the animation data. We used to have a static sample rate of 30, which would mean
-    //         // if the scene was saved with a different framerate the animation would either be too fast or too slow.
-    //         animBuilder.setSampleRate((float)sampleRate);
-
-    //         double startTime = 0.0;//getAnimationStartTime(aianimation);
-
-    //         //System.out.printf("ANIMATION: %s  dur: %f  sampleRate: %f  startTime: %f  mNumChannels: %d\n", animation_name, (float)durationTime, (float)sampleRate, (float)startTime, num_channels);
-
-    //         PointerBuffer aiChannels = aianimation.mChannels();
-    //         for (int c = 0; c < num_channels; ++c) {
-    //             AINodeAnim aiNodeAnim = AINodeAnim.create(aiChannels.get(c));
-    //             String node_name = aiNodeAnim.mNodeName().dataString();
-
-    //             ModelImporter.Bone bone = findBone(bones, node_name);
-    //             AssetSpace curAssetSpace = assetSpace;
-    //             if (bone.index != 0)
-    //             {
-    //                 // Only apply up axis rotation for first bone.
-    //                 curAssetSpace.rotation.setIdentity();
-    //             }
-
-    //             Matrix4d localToParent = bone.transform;
-    //             loadAnimationTracks(animBuilder, curAssetSpace, aiNodeAnim, localToParent, bone.index, durationTime, startTime, sampleRate, ticksPerSecond);
-    //         }
-
-    //         // The file name is usually based on the file name itself
-    //         animBuilder.setId(MurmurHash.hash64(parentAnimationId));
-    //         animationIds.add(parentAnimationId);
-    //         animationSetBuilder.addAnimations(animBuilder.build());
-    //     }
-    // }
-
-    // private static ArrayList<Float> getBufferData(AIVector3D.Buffer buffer, int numComponents) {
-    //     if (buffer == null)
-    //         return null;
-    //     ArrayList<Float> out = new ArrayList<>();
-    //     while (buffer.remaining() > 0) {
-    //         AIVector3D v = buffer.get();
-    //         out.add(v.x());
-    //         if (numComponents >= 2)
-    //             out.add(v.y());
-    //         if (numComponents >= 3)
-    //             out.add(v.z());
-    //     }
-    //     return out;
-    // }
-
-    // public static void loadWeights(AIMesh mesh, ArrayList<ModelImporter.Bone> skeleton, Rig.Mesh.Builder meshBuilder) {
-    //     int num_vertices = mesh.mNumVertices();
-
-    //     int num_bones = mesh.mNumBones();
-    //     if (num_bones == 0)
-    //         return;
-
-    //     ArrayList<Float>[] bone_weights = new ArrayList[num_vertices];
-    //     ArrayList<Integer>[] bone_indices = new ArrayList[num_vertices];
-    //     for (int i = 0; i < num_vertices; ++i) {
-    //         bone_weights[i] = new ArrayList<Float>();
-    //         bone_indices[i] = new ArrayList<Integer>();
-    //     }
-
-    //     PointerBuffer bones = mesh.mBones();
-    //     for (int i = 0; i < num_bones; ++i) {
-    //         AIBone bone = AIBone.create(bones.get(i));
-
-    //         // find the index of this bone in the skeleton list
-    //         int bone_index = 0;
-    //         for (ModelImporter.Bone skeleton_bone : skeleton) {
-    //             if (skeleton_bone.name.equals(bone.mName().dataString())) {
-    //                 break;
-    //             }
-    //             bone_index++;
-    //         }
-
-    //         AIVertexWeight.Buffer aiWeights = bone.mWeights();
-    //         while (aiWeights.remaining() > 0) {
-    //             AIVertexWeight bone_weight = aiWeights.get();
-    //             int vertex_index = bone_weight.mVertexId();
-    //             float vertex_weight = bone_weight.mWeight();
-
-    //             bone_weights[vertex_index].add(vertex_weight);
-    //             bone_indices[vertex_index].add(bone_index);
-    //         }
-    //     }
-
-    //     // Pad each list to the desired length (currently 4 weights per vertex)
-    //     for (int i = 0; i < num_vertices; ++i) {
-    //         ArrayList<Float> weights = bone_weights[i];
-    //         while (weights.size() < 4) {
-    //             weights.add(0.0f);
-    //             bone_indices[i].add(0);
-    //         }
-    //     }
-
-    //     // flatten the lists
-    //     ArrayList<Float> flattened_weights = new ArrayList<>();
-    //     ArrayList<Integer> flattened_indices = new ArrayList<>();
-    //     for (int i = 0; i < num_vertices; ++i) {
-    //         flattened_weights.addAll(bone_weights[i]);
-    //         flattened_indices.addAll(bone_indices[i]);
-
-    //         // System.out.printf("%4d: %f, %f, %f, %f = %f   %d, %d, %d, %d\n", i, bone_weights[i].get(0), bone_weights[i].get(1), bone_weights[i].get(2), bone_weights[i].get(3),
-    //         //     bone_weights[i].get(0) + bone_weights[i].get(1) + bone_weights[i].get(2) + bone_weights[i].get(3),
-    //         //         bone_indices[i].get(0), bone_indices[i].get(1), bone_indices[i].get(2), bone_indices[i].get(3));
-    //     }
-    //     meshBuilder.addAllWeights(flattened_weights);
-    //     meshBuilder.addAllBoneIndices(flattened_indices);
-    // }
-
     public static ArrayList<String> loadMaterialNames(Scene scene) {
         ArrayList<String> materials = new ArrayList<>();
 
@@ -795,8 +660,8 @@ public class ModelUtil {
         float[] normals = mesh.normals;
         float[] tangents = mesh.tangents;
         float[] colors = mesh.colors;
-        float[] weights = mesh.weights;
-        int[] bones = mesh.bones;
+        //float[] weights = mesh.weights;
+        //int[] bones = mesh.bones;
         float[] texCoords0 = mesh.getTexCoords(0);
         float[] texCoords1 = mesh.getTexCoords(1);
 
@@ -861,7 +726,16 @@ public class ModelUtil {
         }
         meshBuilder.setMaterialIndex(material_index);
 
-        //loadWeights(mesh, skeleton, meshBuilder);
+        if (mesh.weights != null) {
+            List<Float> weights_list = new ArrayList<Float>(mesh.weights.length);
+            for (int i = 0; i < mesh.weights.length; ++i) {
+                weights_list.add(mesh.weights[i]);
+            }
+            meshBuilder.addAllWeights(weights_list);
+        }
+        if (mesh.bones != null) {
+            meshBuilder.addAllBoneIndices(()->Arrays.stream(mesh.bones).iterator());
+        }
 
         return meshBuilder.build();
     }
