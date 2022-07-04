@@ -645,7 +645,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result StopNodeParticlefx(HScene scene, HNode node)
+    Result StopNodeParticlefx(HScene scene, HNode node, bool clear_particles)
     {
         return RESULT_OK;
     }

@@ -581,7 +581,7 @@ TEST_F(ParticleTest, Loop)
 
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
 
-    dmParticle::StopInstance(m_Context, instance);
+    dmParticle::StopInstance(m_Context, instance, false);
     dmParticle::Update(m_Context, dt, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
 
@@ -616,7 +616,7 @@ TEST_F(ParticleTest, LoopDelay)
 
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
 
-    dmParticle::StopInstance(m_Context, instance);
+    dmParticle::StopInstance(m_Context, instance, false);
     dmParticle::Update(m_Context, dt, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
 
