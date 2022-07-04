@@ -1723,6 +1723,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
         glAttachShader(p, fragment_program);
         CHECK_GL_ERROR;
+
+        // For MRT bindings to work correctly on all platforms,
+        // we need to specify output locations manually
+#ifndef GL_ES_VERSION_2_0
+        const char* base_output_name = "_DMENGINE_GENERATED_gl_FragColor";
+        char buf[64] = {0};
+        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            snprintf(buf, sizeof(buf), "%s_%d", base_output_name, i);
+            glBindFragDataLocation(p, i, buf);
+        }
+#endif
+
         glLinkProgram(p);
 
         GLint status;
@@ -1744,23 +1757,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             CHECK_GL_ERROR;
             return 0;
         }
-
-#ifndef GL_ES_VERSION_2_0
-        const char* base_output_name = "_DMENGINE_GENERATED_gl_FragColor";
-        char buf[64] = {0};
-        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            snprintf(buf, sizeof(buf), "%s_%d", base_output_name, i);
-            if (glGetFragDataLocation(p, buf) != -1)
-            {
-                glBindFragDataLocation(p, i, buf);
-            }
-        }
-
-        glBindFragDataLocation(p, 2, "_DMENGINE_GENERATED_gl_FragColor_0");
-        glBindFragDataLocation(p, 0, "_DMENGINE_GENERATED_gl_FragColor_1");
-        glBindFragDataLocation(p, 1, "_DMENGINE_GENERATED_gl_FragColor_2");
-#endif
 
         CHECK_GL_ERROR;
         return p;
@@ -1918,7 +1914,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             return false;
         }
-
         glLinkProgram(program);
         CHECK_GL_ERROR;
         return true;
@@ -2095,8 +2090,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 // attach the texture to FBO color attachment point
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rt->m_ColorBufferTexture[i]->m_Texture, 0);
                 CHECK_GL_ERROR;
-
-                // printf("Creating RT at %d with %d \n", GL_COLOR_ATTACHMENT0 + i, rt->m_ColorBufferTexture[i]->m_Texture);
             }
         }
     #endif
@@ -2212,18 +2205,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #ifndef GL_ES_VERSION_2_0
         if (render_target != NULL)
         {
-            uint8_t num_buffers = 0;
+            uint32_t num_buffers = 0;
+            GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
 
-            GLenum buffers[MAX_BUFFER_COLOR_ATTACHMENTS];
-
-            for (uint8_t i=0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
+            for (uint32_t i=0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
             {
                 if (render_target->m_ColorBufferTexture[i])
                 {
                     buffers[i] = GL_COLOR_ATTACHMENT0 + i;
                     num_buffers++;
-
-                    // printf("Attachment[%d]: id = %d, attachment = %d\n", i, render_target->m_ColorBufferTexture[i]->m_Texture, buffers[i]);
                 }
                 else
                 {

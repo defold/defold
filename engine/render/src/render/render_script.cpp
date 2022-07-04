@@ -1157,8 +1157,6 @@ namespace dmRender
 
             dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
 
-            printf("Buffer type %d - %s, P: %p\n", buffer_type_value, dmGraphics::GetBufferTypeLiteral(buffer_type), (void*) texture);
-
             if(texture != 0)
             {
                 if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t)texture)))
