@@ -1583,7 +1583,7 @@ def detect(conf):
         conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
-    if platform in ('x86_64-linux',): # Currently the only platform exhibiting the behavior
+    if platform in ('x86_64-linux','armv7-android','arm64-android'): # Currently the only platform exhibiting the behavior
         conf.env['STLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
         conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
 
@@ -1639,10 +1639,6 @@ def detect(conf):
         conf.env['STLIB_LUA'] = 'lua'
     else:
         conf.env['STLIB_LUA'] = 'luajit-5.1'
-        if '64' in build_util.get_target_platform():
-            conf.env['DEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_64']
-        else:
-            conf.env['DEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_32']
 
     conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
@@ -1677,7 +1673,7 @@ def detect(conf):
     conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
     conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null']
+    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null_noasan']
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'

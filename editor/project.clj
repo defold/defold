@@ -208,6 +208,7 @@
                       :reveal {:source-paths ["src/reveal"]
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.273"]]}
+                      :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :dev     {:dependencies      [[com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]

@@ -23,6 +23,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/gameobject', 'component.h')
     bld.install_files('${PREFIX}/include/gameobject', 'script.h')
     bld.install_files('${PREFIX}/include/gameobject', 'gameobject_script_util.h')
+    bld.install_files('${PREFIX}/include/gameobject', 'res_lua.h')
     bld.install_files('${PREFIX}/share/proto/gameobject', '../../proto/gameobject/properties_ddf.proto')
     bld.install_files('${PREFIX}/share/proto/gameobject', '../../proto/gameobject/gameobject_ddf.proto')
     bld.install_files('${PREFIX}/share/proto/gameobject', '../../proto/gameobject/lua_ddf.proto')

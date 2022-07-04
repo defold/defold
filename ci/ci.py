@@ -202,7 +202,6 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         opts.append('--skip-builtins')
     if skip_tests:
         opts.append('--skip-tests')
-        waf_opts.append('--skip-build-tests')
 
     if with_valgrind:
         waf_opts.append('--with-valgrind')

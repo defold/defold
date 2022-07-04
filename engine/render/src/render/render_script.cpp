@@ -669,7 +669,7 @@ namespace dmRender
      *
      * function update(self, dt)
      *     -- enable target so all drawing is done to it
-     *     render.enable_render_target(self.my_render_target)
+     *     render.set_render_target(self.my_render_target)
      *
      *     -- draw a predicate to the render target
      *     render.draw(self.my_pred)
@@ -1078,13 +1078,13 @@ namespace dmRender
      * ```lua
      * function update(self, dt)
      *     -- enable target so all drawing is done to it
-     *     render.enable_render_target(self.my_render_target)
+     *     render.set_render_target(self.my_render_target)
      *
      *     -- draw a predicate to the render target
      *     render.draw(self.my_pred)
      *
      *     -- disable target
-     *     render.disable_render_target(self.my_render_target)
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
      *
      *     render.enable_texture(0, self.my_render_target, render.BUFFER_COLOR_BIT)
      *     -- draw a predicate with the render target available as texture 0 in the predicate

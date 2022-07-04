@@ -51,14 +51,21 @@
                     "text/html")]
     mime-type))
 
-(defn- read-resource [req]
+(defn- try-local-path [req]
   (let [path (str "." (:url req)) ; Make it a relative path as it starts with a "/"
-        mime-type (get-mime-type path)
-        resource (io/resource path)
-        data (if (= resource nil)
-               nil
-               (slurp resource))
-        code (if (= data nil) 404 200)]
+        resource (io/resource path)]
+    resource))
+
+(defn- try-package-path [req]
+  (let [path (subs (:url req) 1) ; remove the initial "/"
+        resource (io/resource path)]
+    resource))
+
+(defn- read-resource [req] 
+  (let [mime-type (get-mime-type (:url req))
+        resource (or (try-package-path req) (try-local-path req))
+        data (some-> resource slurp)
+        code (if data 200 404)]
     {:code code
      :headers {"Content-Type" mime-type}
      :body data}))

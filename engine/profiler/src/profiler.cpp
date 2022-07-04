@@ -101,13 +101,6 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
 
-        for (uint32_t i = 0; i < g_ProfilerCurrentFrame->m_Properties.Size(); ++i)
-        {
-            dmProfileRender::ProfilerProperty& property = g_ProfilerCurrentFrame->m_Properties[i];
-            free((void*)property.m_Name);
-        }
-        g_ProfilerCurrentFrame->m_Properties.SetSize(0);
-
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
@@ -115,6 +108,11 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         dmRender::SetProjectionMatrix(render_context, dmVMath::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
         dmRender::DrawRenderList(render_context, 0, 0, 0);
         dmRender::ClearRenderObjects(render_context);
+    }
+
+    if (g_ProfilerCurrentFrame)
+    {
+        g_ProfilerCurrentFrame->m_Properties.SetSize(0);
     }
 }
 
@@ -470,10 +468,15 @@ static int ProfilerScopeBegin(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    const char* name = luaL_checkstring(L, 1);
+    size_t len;
+    const char* name = luaL_checklstring(L, 1, &len);
     if (!name)
     {
         return DM_LUA_ERROR("Expected string as second argument");
+    }
+    if (!len)
+    {
+        return DM_LUA_ERROR("Expected non-empty string");
     }
 
     dmProfile::ScopeBegin(name, 0);
@@ -538,9 +541,7 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     out.m_Count = dmProfile::SampleGetCallCount(sample);
     out.m_Color = dmProfile::SampleGetColor(sample);
     out.m_Indent = (uint8_t)indent;
-
-    const char* name = dmProfile::SampleGetName(sample); // Do not store this pointer!
-    out.m_Name = strdup(name);
+    out.m_NameHash = dmProfile::SampleGetNameHash(sample);
 
     if (thread->m_Samples.Full())
         thread->m_Samples.OffsetCapacity(32);
@@ -564,7 +565,8 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
         return;
 
-    if (strcmp(thread_name, "Remotery") == 0)
+    // TODO: Make a better selection scheme, letting the user step through the threads one by one
+    if (strcmp(thread_name, "Main") != 0)
         return;
 
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
@@ -575,7 +577,8 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     // Prune old profiler threads
     dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 150000);
 
-    dmProfileRender::ProfilerThread* thread = dmProfileRender::FindOrCreateProfilerThread(frame, thread_name);
+    uint32_t name_hash = dmHashString32(thread_name);
+    dmProfileRender::ProfilerThread* thread = dmProfileRender::FindOrCreateProfilerThread(frame, name_hash);
     dmProfileRender::ClearProfilerThreadSamples(thread);
 
     thread->m_Time = frame->m_Time;
@@ -591,12 +594,11 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
 
 static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
 {
-    const char* name = dmProfile::PropertyGetName(property); // Do not store this pointer!
-    dmhash_t name_hash = dmProfile::PropertyGetNameHash(property);
+    uint32_t name_hash = dmProfile::PropertyGetNameHash(property);
     dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
     dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
 
-    dmProfileRender::AddProperty(frame, name, name_hash, type, value, indent);
+    dmProfileRender::AddProperty(frame, name_hash, type, value, indent);
 }
 
 static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)

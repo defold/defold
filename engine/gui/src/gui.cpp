@@ -63,6 +63,8 @@ namespace dmGui
 
     const uint16_t INVALID_INDEX = 0xffff;
 
+    const uint64_t INVALID_RENDER_KEY = 0xffffffffffffffff;
+
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
     const uint64_t LAYER_RANGE = 4; // 16 layers
@@ -1107,9 +1109,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     struct RenderEntrySortPred
     {
-        HScene m_Scene;
-        RenderEntrySortPred(HScene scene) : m_Scene(scene) {}
+        bool operator ()(const RenderEntry& a, const RenderEntry& b) const
+        {
+            return a.m_RenderKey < b.m_RenderKey;
+        }
+    };
 
+    struct RenderEntrySortDisabledPred
+    {
         bool operator ()(const RenderEntry& a, const RenderEntry& b) const
         {
             return a.m_RenderKey < b.m_RenderKey;
@@ -1398,6 +1405,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         CollectRenderEntries(scene, scene->m_RenderHead, 0, 0x0, clippers, render_entries);
     }
 
+    static inline bool IsVisible(InternalNode* n, float opacity)
+    {
+        bool use_clipping = n->m_ClipperIndex != INVALID_INDEX;
+
+        return n->m_Node.m_IsVisible && (opacity != 0.0f || use_clipping);
+    }
+
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context)
     {
         Context* c = scene->m_Context;
@@ -1432,7 +1446,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         CollectNodes(scene, c->m_StencilClippingNodes, c->m_RenderNodes);
         uint32_t node_count = c->m_RenderNodes.Size();
-        std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortPred(scene));
+        std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortPred());
         Matrix4 transform;
 
         if (c->m_RenderNodes.Capacity() > c->m_RenderTransforms.Capacity())
@@ -1447,14 +1461,31 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             c->m_StencilScopeIndices.SetCapacity(new_capacity);
         }
 
+        uint32_t num_pruned = 0;
         for (uint32_t i = 0; i < node_count; ++i)
         {
-            const RenderEntry& entry = c->m_RenderNodes[i];
+            RenderEntry& entry = c->m_RenderNodes[i];
             uint16_t index = entry.m_Node & 0xffff;
             InternalNode* n = &scene->m_Nodes[index];
             float opacity = 1.0f;
+
+            // Ideally, we'd like to be able to do this in an Update step,
+            // but since the gui script is updated _after_ the gui component, we need to accomodate
+            // for any late scripting changes
+            // Note: We need this update step for bones as well, since they update their transform
             CalculateNodeSize(n);
             CalculateNodeTransformAndAlphaCached(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform, opacity);
+
+            // Ideally, we'd like to have this update step in the Update function (I'm not even sure why it isn't tbh)
+            // But for now, let's prune the list here
+            if (!IsVisible(n, opacity) || n->m_Node.m_IsBone)
+            {
+                entry.m_Node = INVALID_HANDLE;
+                entry.m_RenderKey = INVALID_RENDER_KEY;
+                ++num_pruned;
+                continue;
+            }
+
             c->m_RenderTransforms.Push(transform);
             c->m_RenderOpacities.Push(opacity);
             if (n->m_ClipperIndex != INVALID_INDEX) {
@@ -1477,15 +1508,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             }
         }
 
+        if (num_pruned)
+        {
+            std::sort(c->m_RenderNodes.Begin(), c->m_RenderNodes.End(), RenderEntrySortDisabledPred());
+            c->m_RenderNodes.SetSize(c->m_RenderNodes.Size() - num_pruned);
+        }
+
         scene->m_ResChanged = 0;
         params.m_RenderNodes(scene, c->m_RenderNodes.Begin(), c->m_RenderTransforms.Begin(), c->m_RenderOpacities.Begin(), (const StencilScope**)c->m_StencilScopes.Begin(), c->m_RenderNodes.Size(), context);
-    }
-
-    void RenderScene(HScene scene, RenderNodes render_nodes, void* context)
-    {
-        RenderSceneParams p;
-        p.m_RenderNodes = render_nodes;
-        RenderScene(scene, p, context);
     }
 
     static bool IsNodeEnabledRecursive(HScene scene, uint16_t node_index)
@@ -2303,6 +2333,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_Node.m_SizeMode = SIZE_MODE_MANUAL;
         node->m_Node.m_LineBreak = 0;
         node->m_Node.m_Enabled = 1;
+        node->m_Node.m_IsVisible = 1;
         node->m_Node.m_DirtyLocal = 1;
         node->m_Node.m_InheritAlpha = 0;
         node->m_Node.m_ClippingMode = CLIPPING_MODE_NONE;
@@ -3842,6 +3873,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             SetDirtyLocalRecursive(scene, node);
         }
+    }
+
+    bool GetNodeVisible(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_IsVisible;
+    }
+
+    void SetNodeVisible(HScene scene, HNode node, bool visible)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_IsVisible = visible;
     }
 
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)
