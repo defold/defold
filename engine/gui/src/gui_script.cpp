@@ -4023,6 +4023,9 @@ namespace dmGui
      *
      * @name gui.stop_particlefx
      * @param node [type:node] node to stop particle fx for
+     * @param options [type:table] options when stopping the particle fx. Supported options:
+     *
+     * - [type:boolean] `clear`: instantly clear spawned particles
      */
     static int LuaParticlefxStop(lua_State* L)
     {
@@ -4039,7 +4042,7 @@ namespace dmGui
             lua_pushnil(L);
             while (lua_next(L, -2)) {
                 const char* option = lua_tostring(L, -2);
-                if (strcmp(option, "clear_particles") == 0)
+                if (strcmp(option, "clear") == 0)
                 {
                     clear_particles = lua_toboolean(L, -1);
                 }

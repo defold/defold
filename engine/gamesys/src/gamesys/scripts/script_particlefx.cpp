@@ -227,13 +227,18 @@ namespace dmGameSystem
      *
      * @name particlefx.stop
      * @param url [type:string|hash|url] the particle fx that should stop playing
+     * @param options [type:table] Options when stopping the particle fx. Supported options:
+     *
+     * - [type:boolean] `clear`: instantly clear spawned particles
+     *
      * @examples
      *
-     * How to stop a particle fx when a game object is deleted:
+     * How to stop a particle fx when a game object is deleted and immediately also clear
+     * any spawned particles:
      *
      * ```lua
      * function final(self)
-     *     particlefx.stop("#particlefx")
+     *     particlefx.stop("#particlefx", { clear = true })
      * end
      * ```
      */
@@ -257,7 +262,7 @@ namespace dmGameSystem
             lua_pushnil(L);
             while (lua_next(L, -2)) {
                 const char* option = lua_tostring(L, -2);
-                if (strcmp(option, "clear_particles") == 0)
+                if (strcmp(option, "clear") == 0)
                 {
                     clear_particles = lua_toboolean(L, -1);
                 }
