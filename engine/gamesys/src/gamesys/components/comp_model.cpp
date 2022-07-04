@@ -623,7 +623,8 @@ namespace dmGameSystem
             const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
             const ModelComponent* c = render_item->m_Component;
             dmRig::HRigContext rig_context = world->m_RigContext;
-            vb_end = dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, Vector4(1.0), vb_end);
+            if (c->m_RigInstance)
+                vb_end = dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, Vector4(1.0), vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 

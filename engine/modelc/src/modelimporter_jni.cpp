@@ -534,7 +534,7 @@ static jobject CreateKeyFrame(JNIEnv* env, const dmModelImporter::KeyFrame* key_
 {
     jobject obj = env->AllocObject(g_KeyFrameJNI.cls);
     jfloatArray arr = env->NewFloatArray(4);
-    env->SetFloatArrayRegion(arr, 0, 3, key_frame->m_Value);
+    env->SetFloatArrayRegion(arr, 0, 4, key_frame->m_Value);
     env->SetObjectField(obj, g_KeyFrameJNI.value, arr);
     env->DeleteLocalRef(arr);
     env->SetFloatField(obj, g_KeyFrameJNI.time, key_frame->m_Time);

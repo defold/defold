@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+pushd $SCRIPT_DIR/..
 BUILD_DIR=./build/default/src
 
 set -e
@@ -32,7 +33,7 @@ if [ "${USING_UBSAN}" != "" ]; then
     export DYLD_INSERT_LIBRARIES=${DYNAMO_HOME}/ext/SDKs/XcodeDefault13.2.1.xctoolchain/usr/lib/clang/13.0.0/lib/darwin/libclang_rt.ubsan_osx_dynamic.dylib
 fi
 
-JNI_DEBUG_FLAGS="-Xcheck:jni"
+#JNI_DEBUG_FLAGS="-Xcheck:jni"
 
 export DM_MODELIMPORTER_LOG_LEVEL=DEBUG
 

@@ -394,7 +394,7 @@ public class ModelUtil {
         if (nodeAnimation.scaleKeys.length > 0) {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
-            copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
+            copyKeys(nodeAnimation.scaleKeys, 3, sparseTrack.keys);
 
             sampleScaleTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
         }
@@ -543,6 +543,8 @@ public class ModelUtil {
 
             animationSetBuilder.addAnimations(animBuilder.build());
         }
+
+        ModelUtil.setBoneList(animationSetBuilder, bones);
     }
 
     public static ArrayList<String> loadMaterialNames(Scene scene) {
