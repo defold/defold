@@ -86,7 +86,7 @@ def get_issue_type(issue):
 
 
 def issue_to_markdown(issue, hide_details = True):
-    md = ("__%s__: __%s__ ([#%s](%s))\n" % (issue["type"], issue["title"], issue["number"], issue["url"]))
+    md = ("__%s__: ([#%s](%s)) __%s__ \n" % (issue["type"], issue["number"], issue["url"],issue["title"]))
     if hide_details: md += ("[details=\"Details\"]\n")
     md += ("%s\n" % issue["body"])
     if hide_details: md += ("\n---\n[/details]\n")
@@ -201,6 +201,7 @@ generate - Generate release notes
 
     parser.add_option('--hide-details', dest='hide_details',
                       default = False,
+                      action = "store_true",
                       help = 'Hide details for each entry')
 
 

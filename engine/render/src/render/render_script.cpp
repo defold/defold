@@ -2701,9 +2701,7 @@ namespace dmRender
                     }
                 }
                 result = true;
-                // m_SourceFileName will be null if profiling is not enabled, this is fine
-                // as m_SourceFileName will only be used if profiling is enabled
-                script->m_SourceFileName = DM_INTERNALIZE(source->m_Filename);
+                script->m_SourceFileName = strdup(source->m_Filename);
             }
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -2744,6 +2742,7 @@ bail:
         luaL_getmetatable(L, RENDER_SCRIPT);
         lua_setmetatable(L, -2);
         render_script->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        render_script->m_SourceFileName = 0;
         if (LoadRenderScript(L, source, render_script))
         {
             assert(top == lua_gettop(L));
@@ -2771,6 +2770,7 @@ bail:
                 dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_FunctionReferences[i]);
         }
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
+        free((void*)render_script->m_SourceFileName);
         render_script->~RenderScript();
         ResetRenderScript(render_script);
     }
@@ -2868,7 +2868,7 @@ bail:
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
-        DM_PROFILE(Script, "RenderScript");
+        DM_PROFILE("RenderScript");
 
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
@@ -2903,7 +2903,7 @@ bail:
                 }
                 else
                 {
-                    if (dmProfile::g_IsInitialized)
+                    if (dmProfile::IsInitialized())
                     {
                         // Try to find the message name via id and reverse hash
                         message_name = (const char*)dmHashReverse64(message->m_Id, 0);
@@ -2927,9 +2927,10 @@ bail:
             }
 
             {
-                uint32_t profiler_hash = 0;
-                const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_SourceFileName, RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name, &profiler_hash);
-                DM_PROFILE_DYN(Script, profiler_string, profiler_hash);
+                char buffer[128];
+                const char* profiler_string = dmScript::GetProfilerString(L, 0, script->m_SourceFileName, RENDER_SCRIPT_FUNCTION_NAMES[script_function], message_name, buffer, sizeof(buffer));
+                DM_PROFILE_DYN(profiler_string, 0);
+
                 if (dmScript::PCall(L, arg_count, 0) != 0)
                 {
                     assert(top == lua_gettop(L));
@@ -3011,7 +3012,7 @@ bail:
 
     RenderScriptResult DispatchRenderScriptInstance(HRenderScriptInstance instance)
     {
-        DM_PROFILE(RenderScript, "DispatchRSI");
+        DM_PROFILE("DispatchRSI");
         DispatchContext context;
         context.m_Instance = instance;
         context.m_Result = RENDER_SCRIPT_RESULT_OK;
@@ -3021,7 +3022,7 @@ bail:
 
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance, float dt)
     {
-        DM_PROFILE(RenderScript, "UpdateRSI");
+        DM_PROFILE("UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);

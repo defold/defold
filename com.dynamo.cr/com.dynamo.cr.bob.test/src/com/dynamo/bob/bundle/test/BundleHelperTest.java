@@ -37,7 +37,6 @@ import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
-import com.dynamo.bob.util.BobProjectProperties;
 
 public class BundleHelperTest {
 
@@ -52,23 +51,6 @@ public class BundleHelperTest {
     @After
     public void tearDown() throws Exception {
         this.mp.unmount();
-    }
-
-    void testValue(String p, String c, String k, Object expected) throws IOException, ParseException {
-        BobProjectProperties properties = new BobProjectProperties();
-        properties.load(new ByteArrayInputStream(p.getBytes()));
-        Map<String, Map<String, Object>> map = BundleHelper.createPropertiesMap(properties);
-
-        Object actual = map.get(c).get(k);
-        assertEquals(expected, actual);
-    }
-
-    @Test
-    public void testProperties() throws IOException, ParseException {
-        testValue("[project]\nwrite_log=0", "project", "write_log", false);
-        testValue("[project]\nwrite_log=1", "project", "write_log", true);
-        testValue("", "project", "write_log", false);
-        testValue("", "project", "title", "unnamed");
     }
 
     // Thx, Java

@@ -27,7 +27,7 @@ def build(bld):
                                    includes = ['.'],
                                    remove_flags = remove_flags,
                                    target = 'texc_shared',
-                                   uselib = 'BASIS_ENCODER DLIB_NOASAN')
+                                   uselib = 'BASIS_ENCODER DLIB_NOASAN PROFILE_NULL_NOASAN')
     texc_shared.find_sources_in_dirs(["."], ['.cpp'])
     texc_shared.env.append_unique('CXXFLAGS', extra_encoder_flags)
     texc_shared.env.append_unique('LINKFLAGS', extra_encoder_flags)

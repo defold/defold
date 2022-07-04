@@ -10,7 +10,7 @@ def build(bld):
        return
 
     test_texc = bld.new_task_gen(features = 'cc cxx cprogram test',
-                                     uselib = 'DLIB BASIS_ENCODER',
+                                     uselib = 'DLIB BASIS_ENCODER PROFILE_NULL',
                                      uselib_local = 'texc',
                                      proto_gen_py = True,
                                      target = 'test_texc')

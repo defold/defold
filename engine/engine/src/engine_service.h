@@ -30,7 +30,7 @@ namespace dmGameObject
 
 namespace dmProfile
 {
-    typedef struct Profile* HProfile;
+    typedef void* HProfile;
 }
 
 namespace dmWebServer
