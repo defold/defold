@@ -339,6 +339,14 @@
    :preserve-extension true,
    :path ["network" "ssl_certificates"]}
   {:type :integer,
+   :default 4,
+   :help "number of worker threads for the http service",
+   :path ["network" "http_thread_count"]}
+  {:type :boolean,
+   :default true,
+   :help "Should the downloaded data persist for faster retrieval next time",
+   :path ["network" "http_cache_enabled"]}
+  {:type :integer,
    :help "max number of instances per collection, 1024 by default",
    :default 1024,
    :path ["collection" "max_instances"]}

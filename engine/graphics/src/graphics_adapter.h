@@ -27,9 +27,13 @@ namespace dmGraphics
 
     struct GraphicsAdapter
     {
+        GraphicsAdapter(AdapterType adapter_type)
+        : m_AdapterType(adapter_type) {}
+
         struct GraphicsAdapter*            m_Next;
         GraphicsAdapterRegisterFunctionsCb m_RegisterCb;
         GraphicsAdapterIsSupportedCb       m_IsSupportedCb;
+        AdapterType                        m_AdapterType;
         int8_t                             m_Priority;
     };
 

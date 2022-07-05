@@ -541,9 +541,12 @@ public class Bob {
 
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
         BobProjectProperties projectProperties = project.getProjectProperties();
-        String dependencies = projectProperties.getStringValue("project", "dependencies", "");
+        String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
+        List<URL> libUrls = new ArrayList<>();
+        for (String val : dependencies) {
+            libUrls.add(new URL(val));
+        }
 
-        List<URL> libUrls = LibraryUtil.parseLibraryUrls(dependencies);
         project.setLibUrls(libUrls);
         if (resolveLibraries) {
             TimeProfiler.start("Resolve libs");

@@ -104,9 +104,12 @@ extern "C" {
 }
 #endif
 
+DM_PROPERTY_EXTERN(rmtp_Script);
+DM_PROPERTY_U32(rmtp_LuaMem, 0, FrameReset, "kb", &rmtp_Script); // kilo bytes
+DM_PROPERTY_U32(rmtp_LuaRefs, 0, FrameReset, "# Lua references", &rmtp_Script);
+
 namespace dmEngine
 {
-
     using namespace dmVMath;
 
 #define SYSTEM_SOCKET_NAME "@system"
@@ -786,7 +789,7 @@ namespace dmEngine
         const char* update_order = dmConfigFile::GetString(engine->m_Config, "gameobject.update_order", 0);
 
         // This scope is mainly here to make sure the "Main" scope is created first
-        DM_PROFILE(Engine, "Init");
+        DM_PROFILE("Init");
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
@@ -1468,39 +1471,50 @@ bail:
             }
         }
 
-        dmProfile::HProfile profile = dmProfile::Begin();
+        dmProfile::HProfile profile = dmProfile::BeginFrame();
         {
-            DM_PROFILE(Engine, "Frame");
+            DM_PROFILE("Frame");
 
             {
-                DM_PROFILE(Engine, "Sim");
+                DM_PROFILE("Sim");
 
                 dmLiveUpdate::Update();
-                dmResource::UpdateFactory(engine->m_Factory);
 
-                dmHID::Update(engine->m_HidContext);
+                {
+                    DM_PROFILE("Resource");
+                    dmResource::UpdateFactory(engine->m_Factory);
+                }
+
+                {
+                    DM_PROFILE("Hid");
+                    dmHID::Update(engine->m_HidContext);
+                }
                 if (!engine->m_RunWhileIconified) {
                     if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
                     {
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
                         // crash the application
-                        dmProfile::Release(profile);
+                        dmProfile::EndFrame(profile);
                         return;
                     }
                 }
-                // Script context updates
-                if (engine->m_SharedScriptContext) {
-                    dmScript::Update(engine->m_SharedScriptContext);
-                } else {
-                    if (engine->m_GOScriptContext) {
-                        dmScript::Update(engine->m_GOScriptContext);
-                    }
-                    if (engine->m_RenderScriptContext) {
-                        dmScript::Update(engine->m_RenderScriptContext);
-                    }
-                    if (engine->m_GuiScriptContext) {
-                        dmScript::Update(engine->m_GuiScriptContext);
+                {
+                    DM_PROFILE("Script");
+                    
+                    // Script context updates
+                    if (engine->m_SharedScriptContext) {
+                        dmScript::Update(engine->m_SharedScriptContext);
+                    } else {
+                        if (engine->m_GOScriptContext) {
+                            dmScript::Update(engine->m_GOScriptContext);
+                        }
+                        if (engine->m_RenderScriptContext) {
+                            dmScript::Update(engine->m_RenderScriptContext);
+                        }
+                        if (engine->m_GuiScriptContext) {
+                            dmScript::Update(engine->m_GuiScriptContext);
+                        }
                     }
                 }
 
@@ -1604,8 +1618,8 @@ bail:
                 dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
             } // Sim
 
-            DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
-            DM_COUNTER("Lua.Mem (Kb)", GetLuaMemCount(engine));
+            DM_PROPERTY_SET_U32(rmtp_LuaRefs, dmScript::GetLuaRefCount());
+            DM_PROPERTY_SET_U32(rmtp_LuaMem, GetLuaMemCount(engine));
 
             if (dLib::IsDebugMode())
             {
@@ -1660,7 +1674,7 @@ bail:
                 record_data->m_FrameCount++;
             }
         }
-        dmProfile::Release(profile);
+        dmProfile::EndFrame(profile);
 
         ++engine->m_Stats.m_FrameCount;
         engine->m_Stats.m_TotalTime += dt;
@@ -1710,6 +1724,7 @@ bail:
 
     void Step(HEngine engine)
     {
+        DM_PROFILE("Step");
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
         engine->m_RunResult.m_Action = dmEngine::RunResult::NONE;
@@ -1992,7 +2007,6 @@ void dmEngineInitialize()
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
     dmMemProfile::Initialize();
-    dmProfile::Initialize(256, 1024 * 16, 128);
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
@@ -2011,17 +2025,36 @@ void dmEngineFinalize()
     }
     dmGraphics::Finalize();
     dmLog::LogFinalize();
-    dmProfile::Finalize();
     dmMemProfile::Finalize();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();
 }
 
+const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])
+{
+    for (int i = 0; i < argc; ++i)
+    {
+        const char* arg = argv[i];
+        if (strncmp(arg_str, arg, sizeof(arg_str)-1) == 0)
+        {
+            const char* res = strchr(arg, '=');
+            if (res)
+            {
+                return res + 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+
 dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 {
-    if (!dmGraphics::Initialize())
+    const char* arg_adapter_type = ParseArgOneOperand("--graphics-adapter", argc, argv);
+
+    if (!dmGraphics::Initialize(arg_adapter_type))
     {
-        dmLogError("Could not initialize graphics.");
         return 0;
     }
 
@@ -2034,6 +2067,7 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
         Delete(engine);
         return 0;
     }
+
     return engine;
 }
 

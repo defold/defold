@@ -35,6 +35,10 @@
 #include "resources/res_particlefx.h"
 #include "resources/res_textureset.h"
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -245,6 +249,7 @@ namespace dmGameSystem
 
     static void RenderBatch(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
+        DM_PROFILE("ParticleRenderBatch");
         const dmParticle::EmitterRenderData* first = (dmParticle::EmitterRenderData*) buf[*begin].m_UserData;
         ParticleFXContext* pfx_context = pfx_world->m_Context;
         dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;
@@ -314,7 +319,10 @@ namespace dmGameSystem
         {
             dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(),
                                             pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-            DM_COUNTER("ParticleFXVertexBuffer", pfx_world->m_VertexBufferData.Size() * sizeof(dmParticle::Vertex));
+
+            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VertexBufferData.Size());
+            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Size() * sizeof(dmParticle::Vertex));
+
         }
     }
 
