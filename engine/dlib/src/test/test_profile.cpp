@@ -168,6 +168,10 @@ TEST(dmProfile, SmallTest)
     dmProfile::Finalize();
 }
 
+#if 0
+// This test is currently disabled until we can figure out a good way to test it.
+// It is currentlyu very tricky to do due to its threadeded mechanic.
+
 // TODO
 // 100 msec, which is in fact much higher than the expected time of the profiler
 // On OSX, the time is usually a few microseconds, but once in a while the time spikes to ~0.5 ms
@@ -258,6 +262,9 @@ TEST(dmProfile, Profile)
 
     dmMutex::Delete(ctx.m_Mutex);
 }
+
+#endif // Disable
+
 
 DM_PROPERTY_GROUP(prop_TestGroup1, "");
 DM_PROPERTY_BOOL(prop_TestBOOL, 0, FrameReset, "", &prop_TestGroup1);
