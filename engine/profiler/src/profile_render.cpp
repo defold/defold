@@ -20,7 +20,6 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
@@ -108,7 +107,6 @@ namespace dmProfileRender
 
     ProfilerThread::ProfilerThread()
     : m_NameHash(0)
-    , m_Name(0)
     , m_Time(0)
     , m_SamplesTotalTime(0)
     {
@@ -439,8 +437,8 @@ namespace dmProfileRender
 
             params.m_FaceColor = TITLE_FACE_COLOR;
 
-
-            dmSnPrintf(buffer, sizeof(buffer), "Thread: %s", thread->m_Name);
+            const char* name = dmHashReverseSafe32(thread->m_NameHash);
+            dmSnPrintf(buffer, sizeof(buffer), "Thread: %s", name);
             params.m_Text = buffer;
             params.m_WorldTransform.setElem(3, 0, name_x);
             dmRender::DrawText(render_context, font_map, 0, batch_key, params);
@@ -494,7 +492,8 @@ namespace dmProfileRender
                 float r = ((color >> 16) & 0xFF) / 255.0f;
                 params.m_FaceColor = Vector4(r, g, b, 1.0f);
 
-                dmSnPrintf(buffer, sizeof(buffer), "%s", sample.m_Name);
+                const char* name = dmHashReverseSafe32(sample.m_NameHash);
+                dmSnPrintf(buffer, sizeof(buffer), "%s", name);
                 params.m_Text = buffer;
                 dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
@@ -558,7 +557,7 @@ namespace dmProfileRender
                 params.m_WorldTransform.setElem(3, 0, name_x + x);
                 params.m_WorldTransform.setElem(3, 1, y);
 
-                const char* name = property.m_Name;
+                const char* name = dmHashReverseSafe32(property.m_NameHash);
                 if (name[0]=='r' && name[1]=='m' && name[2]=='t' && name[3]=='p' && name[4]=='_')
                 {
                     name = name + 5;
@@ -762,16 +761,14 @@ namespace dmProfileRender
         return 0;
     }
 
-    ProfilerThread* FindOrCreateProfilerThread(ProfilerFrame* ctx, const char* name)
+    ProfilerThread* FindOrCreateProfilerThread(ProfilerFrame* ctx, uint32_t name_hash)
     {
-        dmhash_t name_hash = dmHashString64(name);
         ProfilerThread* thread = FindProfilerThread(ctx, name_hash);
         if (thread != 0)
             return thread;
 
         thread = new ProfilerThread;
         thread->m_NameHash = name_hash;
-        thread->m_Name = strdup(name);
         thread->m_Samples.SetCapacity(1); //TODO: Increase!!
 
         if (ctx->m_Threads.Full())
@@ -782,34 +779,23 @@ namespace dmProfileRender
 
     void ClearProfilerThreadSamples(ProfilerThread* thread)
     {
-        uint32_t num_samples = thread->m_Samples.Size();
-        for (uint32_t i = 0; i < num_samples; ++i)
-        {
-            free((void*)thread->m_Samples[i].m_Name);
-        }
         thread->m_Samples.SetSize(0);
     }
 
     static void DeleteProfilerThread(ProfilerThread* thread)
     {
         ClearProfilerThreadSamples(thread);
-        free((void*)thread->m_Name);
         delete thread;
     }
 
     void DeleteProfilerFrame(ProfilerFrame* frame)
     {
+        if (!frame)
+            return;
         for (uint32_t i = 0; i < frame->m_Threads.Size(); ++i)
         {
             DeleteProfilerThread(frame->m_Threads[i]);
         }
-        for (uint32_t i = 0; i < frame->m_Properties.Size(); ++i)
-        {
-            ProfilerProperty& property = frame->m_Properties[i];
-            free((void*)property.m_Name);
-        }
-        frame->m_Threads.SetSize(0);
-        frame->m_Properties.SetSize(0);
         delete frame;
     }
 
@@ -818,26 +804,14 @@ namespace dmProfileRender
         ProfilerThread* cpy = new ProfilerThread;
         cpy->m_SamplesTotalTime = thread->m_SamplesTotalTime;
         cpy->m_NameHash = thread->m_NameHash;
-        cpy->m_Name = strdup(thread->m_Name);
 
         uint32_t num_samples = thread->m_Samples.Size();
         cpy->m_Samples.SetCapacity(num_samples);
 
         for (uint32_t i = 0; i < num_samples; ++i)
         {
-            ProfilerSample sample;
-            sample = thread->m_Samples[i];
-            sample.m_Name = strdup(thread->m_Samples[i].m_Name);
-
-            cpy->m_Samples.Push(sample);
+            cpy->m_Samples.Push(thread->m_Samples[i]);
         }
-        return cpy;
-    }
-
-    static ProfilerProperty DuplicateProfilerProperty(const ProfilerProperty& property)
-    {
-        ProfilerProperty cpy = property;
-        cpy.m_Name = strdup(property.m_Name);
         return cpy;
     }
 
@@ -857,7 +831,7 @@ namespace dmProfileRender
         cpy->m_Properties.SetCapacity(num_properties);
         for (uint32_t i = 0; i < num_properties; ++i)
         {
-            cpy->m_Properties.Push(DuplicateProfilerProperty(frame->m_Properties[i]));
+            cpy->m_Properties.Push(frame->m_Properties[i]);
         }
         return cpy;
     }
@@ -879,10 +853,9 @@ namespace dmProfileRender
         }
     }
 
-    void AddProperty(ProfilerFrame* frame, const char* name, dmhash_t name_hash, dmProfile::PropertyType type, dmProfile::PropertyValue value, int indent)
+    void AddProperty(ProfilerFrame* frame, uint32_t name_hash, dmProfile::PropertyType type, dmProfile::PropertyValue value, int indent)
     {
         ProfilerProperty prop;
-        prop.m_Name = strdup(name);
         prop.m_NameHash = name_hash;
         prop.m_Value = value;
         prop.m_Type = type;

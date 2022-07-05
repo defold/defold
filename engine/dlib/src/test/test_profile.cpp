@@ -159,6 +159,9 @@ static void PropertyTreeCallback(void* _ctx, dmProfile::HProperty root)
     }
 }
 
+#if 0
+// This test is currently disabled until we can figure out a good way to test it.
+// It is currentlyu very tricky to do due to its threadeded mechanic.
 
 // TODO
 // 100 msec, which is in fact much higher than the expected time of the profiler
@@ -251,6 +254,9 @@ TEST(dmProfile, Profile)
     dmMutex::Delete(ctx.m_Mutex);
 }
 
+#endif // Disable
+
+
 DM_PROPERTY_GROUP(prop_TestGroup1, "");
 DM_PROPERTY_BOOL(prop_TestBOOL, 0, FrameReset, "", &prop_TestGroup1);
 DM_PROPERTY_S32(propt_TestS32, 0, FrameReset, "", &prop_TestGroup1);
@@ -288,6 +294,8 @@ TEST(dmProfile, PropertyIterator)
             dmProfile::HProfile profile = dmProfile::BeginFrame();
 
             int index = i + 1;
+
+            DM_PROFILE(""); // Tests that the custom hash function doesn't return 0 (which Remotery doesn't like)
 
             DM_PROPERTY_SET_S32(propt_TestS32, index * 1);
             DM_PROPERTY_SET_U32(propt_TestU32, index * 2);

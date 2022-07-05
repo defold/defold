@@ -197,10 +197,9 @@ def build(bld):
 
     # ******************************************************************
 
+    remotery_defines = ['RMT_USE_INTERNAL_HASH_FUNCTION=0']
     if '64' in build_util.get_target_architecture():
-        remotery_defines = ['RMT_ARCH_64BIT']
-    else:
-        remotery_defines = []
+        remotery_defines.append('RMT_ARCH_64BIT')
 
     if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
         libremotery = bld.new_task_gen( features    = 'cc cxx cstaticlib',
@@ -222,9 +221,17 @@ def build(bld):
 
     libremotery_null = bld.new_task_gen(features    = 'cc cxx cstaticlib',
                                         includes    = '. ./remotery/lib',
-                                        target      = 'remotery_null',
-                                        defines     = ['VALGRIND'] + extra_defines + remotery_defines)
+                                        defines     = ['VALGRIND'] + extra_defines + remotery_defines,
+                                        target      = 'remotery_null')
     libremotery_null.find_sources_in_dirs(['remotery'])
+
+    libremotery_null_noasan = bld.new_task_gen(  features  = 'cc cxx cstaticlib skip_asan',
+                                            includes  = '. ./remotery/lib',
+                                            defines   = ['VALGRIND'] + extra_defines + remotery_defines,
+                                            target    = 'remotery_null_noasan')
+    libremotery_null_noasan.find_sources_in_dirs(['remotery'])
+    if build_util.get_target_os() not in ['osx', 'ios']:
+        libremotery_null_noasan.source = [x for x in libremotery_null_noasan.source if not x.endswith('.mm')]
 
     # ******************************************************************
 

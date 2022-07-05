@@ -1537,7 +1537,7 @@ def detect(conf):
         conf.env['STATICLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
-    if platform in ('x86_64-linux',): # Currently the only platform exhibiting the behavior
+    if platform in ('x86_64-linux','armv7-android','arm64-android'): # Currently the only platform exhibiting the behavior
         conf.env['STATICLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
         conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
 
@@ -1593,10 +1593,6 @@ def detect(conf):
         conf.env['STATICLIB_LUA'] = 'lua'
     else:
         conf.env['STATICLIB_LUA'] = 'luajit-5.1'
-        if '64' in build_util.get_target_platform():
-            conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_64']
-        else:
-            conf.env['CXXDEFINES_LUA'] = ['LUA_BYTECODE_ENABLE_32']
 
     conf.env['STATICLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
@@ -1630,7 +1626,7 @@ def detect(conf):
     conf.env['STATICLIB_PROFILE'] = ['profile', 'remotery']
     conf.env['STATICLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
     conf.env['CXXDEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STATICLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null']
+    conf.env['STATICLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null_noasan']
 
     conf.env['STATICLIB_CRASH'] = 'crashext'
     conf.env['STATICLIB_CRASH_NULL'] = 'crashext_null'

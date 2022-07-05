@@ -3450,6 +3450,8 @@ static void Base64_Encode(const rmtU8* in_bytes, rmtU32 length, rmtU8* out_bytes
 // domain. The author hereby disclaims copyright to this source code.
 //-----------------------------------------------------------------------------
 
+#if RMT_USE_INTERNAL_HASH_FUNCTION
+
 static rmtU32 rotl32(rmtU32 x, rmtS8 r)
 {
     return (x << r) | (x >> (32 - r));
@@ -3534,6 +3536,19 @@ static rmtU32 MurmurHash3_x86_32(const void* key, int len, rmtU32 seed)
 
     return h1;
 }
+
+RMT_API rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed)
+{
+    return MurmurHash3_x86_32(s, len, seed);
+}
+
+#else
+    #if defined(__cplusplus)
+    extern "C"
+    #endif
+    RMT_API rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed);
+
+#endif // RMT_USE_INTERNAL_HASH_FUNCTION
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
@@ -4987,7 +5002,7 @@ static rmtError QueueThreadName(rmtMessageQueue* queue, const char* name, Thread
     }
 
     // Copy and commit
-    U32ToByteArray(message->payload, MurmurHash3_x86_32(name, name_length, 0));
+    U32ToByteArray(message->payload, _rmt_HashString32(name, name_length, 0));
     U32ToByteArray(message->payload + sizeof(rmtU32), name_length);
     memcpy(message->payload + sizeof(rmtU32) * 2, name, name_length);
     rmtMessageQueue_CommitMessage(message, MsgID_ThreadName);
@@ -5021,7 +5036,7 @@ static rmtError ThreadProfiler_Constructor(rmtMessageQueue* mq_to_rmt, ThreadPro
     // Users can override this at a later point with the Remotery thread name API
     rmtGetThreadName(thread_id, thread_profiler->threadHandle, thread_profiler->threadName, sizeof(thread_profiler->threadName));
     name_length = strnlen_s(thread_profiler->threadName, 64);
-    thread_profiler->threadNameHash = MurmurHash3_x86_32(thread_profiler->threadName, name_length, 0);
+    thread_profiler->threadNameHash = _rmt_HashString32(thread_profiler->threadName, name_length, 0);
     QueueThreadName(mq_to_rmt, thread_profiler->threadName, thread_profiler);
 
     // Create the CPU sample tree only. The rest are created on-demand as they need extra context to function correctly.
@@ -5162,7 +5177,7 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
         {
             assert(name != NULL);
             name_len = strnlen_s(name, 256);
-            name_hash = MurmurHash3_x86_32(name, name_len, 0);
+            name_hash = _rmt_HashString32(name, name_len, 0);
 
             // Queue the string for the string table and only cache the hash if it succeeds
             if (QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler) == RMT_TRUE)
@@ -5176,7 +5191,7 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
 
     // Have to recalculate and speculatively insert the name every time when no cache storage exists
     name_len = strnlen_s(name, 256);
-    name_hash = MurmurHash3_x86_32(name, name_len, 0);
+    name_hash = _rmt_HashString32(name, name_len, 0);
     QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler);
     return name_hash;
 }
@@ -5262,7 +5277,6 @@ static void ThreadProfilers_Destructor(ThreadProfilers* thread_profilers)
 {
     rmtU32 thread_index;
 
-    rmtDelete(rmtThread, thread_profilers->threadGatherThread);
     rmtDelete(rmtThread, thread_profilers->threadSampleThread);
 
     // Delete all profilers
@@ -5663,9 +5677,6 @@ static rmtError InitThreadSampling(ThreadProfilers* thread_profilers)
     // Make an initial gather so that we have something to work with
     GatherThreads(thread_profilers);
 
-    // Kick-off the background thread that watches for new threads
-    rmtTryNew(rmtThread, thread_profilers->threadGatherThread, GatherThreadsLoop, thread_profilers);
-
 #ifdef RMT_ENABLE_THREAD_SAMPLER
     // Ensure we can wake up every millisecond
     if (timeBeginPeriod(1) != TIMERR_NOERROR)
@@ -5673,6 +5684,9 @@ static rmtError InitThreadSampling(ThreadProfilers* thread_profilers)
         return RMT_ERROR_UNKNOWN;
     }
 #endif
+
+    // Kick-off the background thread that watches for new threads
+    rmtTryNew(rmtThread, thread_profilers->threadGatherThread, GatherThreadsLoop, thread_profilers);
 
     // We're going to be shuffling thread visits to avoid the scheduler trying to predict a work-load based on sampling
     // Use the global RNG with a random seed to start the shuffle
@@ -5691,14 +5705,14 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
 
     ThreadProfilers* thread_profilers = (ThreadProfilers*)rmt_thread->param;
 
-    rmtTry(InitThreadSampling(thread_profilers));
-
     // If we can't figure out how many processors there are then we are running on an unsupported platform
     nb_processors = rmtGetNbProcessors();
     if (nb_processors == 0)
     {
         return RMT_ERROR_UNKNOWN;
     }
+
+    rmtTry(InitThreadSampling(thread_profilers));
 
     // An array entry for each processor
     rmtTryMallocArray(Processor, processors, nb_processors);
@@ -5893,6 +5907,8 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
         // Send current processor state off to remotery
         QueueProcessorThreads(thread_profilers->mqToRmtThread, processor_message_index++, nb_processors, processors);
     }
+
+    rmtDelete(rmtThread, thread_profilers->threadGatherThread);
 
 #ifdef RMT_ENABLE_THREAD_SAMPLER
     timeEndPeriod(1);
@@ -7053,7 +7069,7 @@ RMT_API void _rmt_SetCurrentThreadName(rmtPStr thread_name)
 
     // Copy name and apply to the debugger
     strcpy_s(thread_profiler->threadName, sizeof(thread_profiler->threadName), thread_name);
-    thread_profiler->threadNameHash = MurmurHash3_x86_32(thread_name, strnlen_s(thread_name, 64), 0);
+    thread_profiler->threadNameHash = _rmt_HashString32(thread_name, strnlen_s(thread_name, 64), 0);
     SetDebuggerThreadName(thread_name);
 
     // Send the thread name for lookup
@@ -9854,7 +9870,7 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
             }
 
             name_len = strnlen_s(name, 256);
-            property->nameHash = MurmurHash3_x86_32(name, name_len, 0);
+            property->nameHash = _rmt_HashString32(name, name_len, 0);
             QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
 /// END DEFOLD
 

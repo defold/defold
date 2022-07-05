@@ -150,6 +150,10 @@ message NodeDesc
     optional string particlefx              = 43;
 
     optional uint32 custom_type             = 44 [default = 0]; // for custom types
+
+    optional bool enabled                   = 45 [default = true];
+    optional bool visible                   = 46 [default = true];
+
 }
 
 message SceneDesc

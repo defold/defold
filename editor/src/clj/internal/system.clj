@@ -65,7 +65,8 @@
 
 (defn merge-or-push-history
   [history old-graph new-graph outputs-modified]
-  (let [new-state (history-state new-graph (set outputs-modified))
+  (assert (set? outputs-modified))
+  (let [new-state (history-state new-graph outputs-modified)
         tape-op (if (=* (:tx-sequence-label new-graph) (:tx-sequence-label old-graph))
                   merge-into-top
                   conj)]
@@ -85,10 +86,7 @@
           {hydrated-basis :basis
            hydrated-outputs-to-refresh :outputs-to-refresh} (ig/hydrate-after-undo pseudo-basis graph)
           outputs-to-refresh (into (or outputs-to-refresh #{}) hydrated-outputs-to-refresh)
-          changes (->> outputs-to-refresh
-                       (group-by first)
-                       (map (fn [[node-id labels]] [node-id (set (map second labels))]))
-                       (into {}))
+          changes (util/group-into {} #{} gt/endpoint-node-id gt/endpoint-label outputs-to-refresh)
           warped-basis (ig/update-successors hydrated-basis changes)]
       {:graph (get-in warped-basis [:graphs graph-id])
        :outputs-to-refresh outputs-to-refresh})))
@@ -104,24 +102,24 @@
 (defn override-id-generator [system]          (-> system :override-id-generator))
 
 (defn- bump-invalidate-counters
-  [invalidate-map entries]
-  (reduce (fn [m entry] (update m entry (fnil unchecked-inc 0))) invalidate-map entries))
+  [invalidate-map endpoints]
+  (persistent!
+    (reduce
+      (fn [m endpoint]
+        (assert (gt/endpoint? endpoint))
+        (assoc! m endpoint (unchecked-inc (m endpoint 0))))
+      (transient invalidate-map)
+      endpoints)))
 
 (defn invalidate-outputs
   "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as pairs of [node-id label]
+  affected by them. Outputs are specified as collection of endpoints
   for both the argument and return value."
   [system outputs]
+  (assert (every? gt/endpoint? outputs))
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
   (let [basis (basis system)
-        cache-entries (->> outputs
-                           ;; vec -> map, [[node-id label]] -> {node-id #{labels}}
-                           (reduce (fn [m [node-id label]]
-                                     (update m node-id (fn [label-set label] (if label-set (conj label-set label) #{label})) label))
-                                   {})
-                           (gt/dependencies basis)
-                           ;; map -> vec
-                           (into [] (mapcat (fn [[node-id labels]] (mapv #(vector node-id %) labels)))))]
+        cache-entries (gt/dependencies basis outputs)]
     (-> system
         (update :cache c/cache-invalidate cache-entries)
         (update :invalidate-counters bump-invalidate-counters cache-entries))))
@@ -244,7 +242,11 @@
 
 (defn merge-graphs
   [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
-  (let [graph-id->outputs-modified (group-by #(gt/node-id->graph-id (first %)) outputs-modified)
+  (let [graph-id->outputs-modified (util/group-into
+                                     {}
+                                     #{}
+                                     #(gt/node-id->graph-id (gt/endpoint-node-id %))
+                                     outputs-modified)
         post-system (reduce (fn [system [graph-id graph]]
                               (let [start-tx (:tx-id graph -1)
                                     sidereal-tx (graph-time system graph-id)]
@@ -296,22 +298,20 @@
   ;; We can only later on update the cache if we have invalidate-counters from
   ;; when the evaluation context was created, and those are only merged if
   ;; we're using the system basis & cache.
-  [system options]
-  (assert (not (and (some? (:cache options)) (nil? (:basis options)))))
-  (let [system-options {:basis (basis system)
-                        :cache (system-cache system)
-                        :initial-invalidate-counters (:invalidate-counters system)}
-        options (merge
-                  options
-                  (cond
-                    (and (nil? (:cache options)) (nil? (:basis options)))
-                    system-options
-
-                    (and (nil? (:cache options))
-                         (some? (:basis options))
-                         (basis-graphs-identical? (:basis options) (:basis system-options)))
-                    system-options))]
-    (in/custom-evaluation-context options)))
+  [system {options-basis :basis options-cache :cache :as options}]
+  (in/custom-evaluation-context
+    (if (some? options-cache)
+      (do
+        (assert (some? options-basis))
+        options)
+      (let [system-basis (basis system)]
+        (if (or (nil? options-basis)
+                (basis-graphs-identical? options-basis system-basis))
+          (assoc options
+            :basis system-basis
+            :cache (system-cache system)
+            :initial-invalidate-counters (:invalidate-counters system))
+          options)))))
 
 (defn update-cache-from-evaluation-context
   [system evaluation-context]
@@ -328,8 +328,7 @@
   ;; initial-invalidate-counters to compare with, and we dont even try to
   ;; update the cache.
   (if-some [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
-    (let [cache (:cache system)
-          invalidate-counters (:invalidate-counters system)
+    (let [invalidate-counters (:invalidate-counters system)
           evaluation-context-hits @(:hits evaluation-context)
           evaluation-context-misses @(:local evaluation-context)]
       (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
@@ -339,9 +338,9 @@
 
                 (seq evaluation-context-misses)
                 (update :cache c/cache-encache evaluation-context-misses))
-        (let [invalidated-during-node-value? (fn [node-id+output]
-                                               (not= (get initial-invalidate-counters node-id+output 0)
-                                                     (get invalidate-counters node-id+output 0)))
+        (let [invalidated-during-node-value? (fn [endpoint]
+                                               (not= (get initial-invalidate-counters endpoint 0)
+                                                     (get invalidate-counters endpoint 0)))
               safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
               safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
           (cond-> system
