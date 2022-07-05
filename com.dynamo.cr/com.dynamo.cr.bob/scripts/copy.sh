@@ -71,6 +71,10 @@ tar xf ../../packages/luajit-2.1.0-beta3-x86_64-win32.tar.gz -C tmp
 tar xf ../../packages/luajit-2.1.0-beta3-x86_64-linux.tar.gz -C tmp
 tar xf ../../packages/luajit-2.1.0-beta3-x86_64-darwin.tar.gz -C tmp
 
+cp -v tmp/bin/x86_64-linux/luac-32 libexec/x86_64-linux/luac-32
+cp -v tmp/bin/x86_64-darwin/luac-32 libexec/x86_64-darwin/luac-32
+cp -v tmp/bin/x86_64-win32/luac-32.exe libexec/x86_64-win32/luac-32.exe
+
 cp -v tmp/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v tmp/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
 cp -v tmp/bin/x86_64-darwin/luajit-32 libexec/x86_64-darwin/luajit-32
