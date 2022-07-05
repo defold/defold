@@ -108,7 +108,8 @@ public class Project {
 
     public enum OutputFlags {
         NONE,
-        UNCOMPRESSED
+        UNCOMPRESSED,
+        ENCRYPTED
     }
 
     private ResourceCache resourceCache = new ResourceCache();
