@@ -72,7 +72,7 @@ struct PropertyCtx
 
 // *******************************************************************************
 // Samples
-
+/*
 static void ProcessSample(SampleCtx* ctx, dmProfile::HSample sample)
 {
     TestSample out;
@@ -112,6 +112,7 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     printf("Thread: %s\n", thread_name);
     TraverseSampleTree(ctx, 1, root);
 }
+*/
 
 // *******************************************************************************
 // Properties
@@ -159,6 +160,13 @@ static void PropertyTreeCallback(void* _ctx, dmProfile::HProperty root)
     }
 }
 
+TEST(dmProfile, SmallTest)
+{
+    dmProfile::Initialize(0);
+        DM_PROFILE(0);
+        DM_PROFILE_DYN(0, 0);
+    dmProfile::Finalize();
+}
 
 // TODO
 // 100 msec, which is in fact much higher than the expected time of the profiler
