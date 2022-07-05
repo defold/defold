@@ -1062,6 +1062,11 @@ namespace dmParticle
             tile_count = 1;
         }
 
+        // Create a pivot transform
+        dmTransform::Transform pivot_transform;
+        pivot_transform.SetIdentity();
+        pivot_transform.SetTranslation(Vector3(ddf->m_Pivot));
+
         // calculate emission space
         dmTransform::TransformS1 emission_transform;
         dmTransform::Transform particle_transform;
@@ -1143,6 +1148,8 @@ namespace dmParticle
             particle_transform.SetRotation(emission_transform.GetRotation() * particle_transform.GetRotation());
             particle_transform.SetTranslation(Vector3(Apply(emission_transform, Point3(particle_transform.GetTranslation()))));
             particle_transform.SetScale(emission_transform.GetScale() * particle_transform.GetScale());
+
+            particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
 
             Vector3 x = dmTransform::Apply(particle_transform, Vector3(width_factor, 0.0f, 0.0f));
             Vector3 y = dmTransform::Apply(particle_transform, Vector3(0.0f, height_factor, 0.0f));
