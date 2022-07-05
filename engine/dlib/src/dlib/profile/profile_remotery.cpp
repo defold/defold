@@ -186,11 +186,13 @@ namespace dmProfile
     void ProfileScope::StartScope(const char* name, uint64_t* name_hash)
     {
         if (g_Remotery == NULL) {
-            valid = 0;
             return;
         }
-        valid = 1;
-        _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)name_hash);
+        if (name != 0)
+        {
+            valid = 1;
+            _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)name_hash);
+        }
     }
 
     void ProfileScope::EndScope()
