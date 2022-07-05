@@ -29,6 +29,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [service.log :as log]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [util.text-util :as text-util])
@@ -459,3 +460,42 @@
                                   (is (nil? (project/get-resource-node project "/added_externally.md")))))
 
                               (exit-event-loop!))))))))
+
+(deftest save-data-remains-in-cache
+  (let [cache-size 50]
+    (letfn [(cached-endpoints-with-label [label]
+              (into #{}
+                    (filter #(= label (gt/endpoint-label %)))
+                    (keys (g/cache))))]
+      (with-clean-system {:cache-size cache-size}
+        (let [workspace (test-util/setup-workspace! world)
+              project (test-util/setup-project! workspace)
+              source-save-data-endpoints (into #{}
+                                               (map (partial apply gt/endpoint))
+                                               (g/sources-of project :save-data))]
+          (testing "Save data values remain in cache even though we've exceeded the cache limit."
+            (project/dirty-save-data project)
+            (let [cached-save-data-endpoints (cached-endpoints-with-label :save-data)]
+              (is (= source-save-data-endpoints cached-save-data-endpoints))
+              (is (= (+ cache-size (count source-save-data-endpoints)) (count (g/cache))))))
+
+          (testing "Save data values are always evicted from the cache after their dependencies change."
+            (let [test-module-script (test-util/resource-node project "/script/test_module.lua")]
+              (test-util/code-editor-source! test-module-script "-- Edited by us")
+              (let [test-module-save-data-endpoint (gt/endpoint test-module-script :save-data)
+                    source-save-data-endpoints-without-test-module-script (disj source-save-data-endpoints test-module-save-data-endpoint)
+                    cached-save-data-endpoints (cached-endpoints-with-label :save-data)]
+                (is (= source-save-data-endpoints-without-test-module-script cached-save-data-endpoints))
+                (is (= (+ cache-size (count source-save-data-endpoints-without-test-module-script)) (count (g/cache)))))))
+
+          (testing "Save data values are always evicted from the cache when it is explicitly cleared."
+            (g/clear-system-cache!)
+            (let [cached-save-data-endpoints (cached-endpoints-with-label :save-data)]
+              (is (= #{} cached-save-data-endpoints))
+              (is (= 0 (count (g/cache))))))
+
+          (testing "Save data values are excluded from the cache limit even after clearing the cache."
+            (project/dirty-save-data project)
+            (let [cached-save-data-endpoints (cached-endpoints-with-label :save-data)]
+              (is (= source-save-data-endpoints cached-save-data-endpoints))
+              (is (= (+ cache-size (count source-save-data-endpoints)) (count (g/cache)))))))))))
