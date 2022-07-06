@@ -310,15 +310,15 @@ def _setup_info_from_windowsinfo(windowsinfo, platform):
 
     info['bin_paths'] = {}
     info['bin_paths']['version'] = info[platform]['version']
-    info['bin_paths']['path'] = str(windowsinfo['bin_paths']).split(',')
+    info['bin_paths']['path'] = windowsinfo['bin_paths'].split(',')
 
     info['lib_paths'] = {}
     info['lib_paths']['version'] = info[platform]['version']
-    info['lib_paths']['path'] = str(windowsinfo['lib_paths']).split(',')
+    info['lib_paths']['path'] = windowsinfo['lib_paths'].split(',')
 
     info['includes'] = {}
     info['includes']['version'] = info[platform]['version']
-    info['includes']['path'] = str(windowsinfo['includes']).split(',')
+    info['includes']['path'] = windowsinfo['includes'].split(',')
 
     return info
 

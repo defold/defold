@@ -1536,7 +1536,7 @@ def detect(conf):
         bindirs = sdkinfo['bin_paths']['path']
 
         bindirs.append(build_util.get_binary_path())
-        bindirs.append(build_util.get_dynamo_ext_bin())
+        bindirs.append(build_util.get_dynamo_ext('bin', build_util.get_target_platform()))
 
         # The JDK dir doesn't get added since we use no_autodetect
         bindirs.append(os.path.join(os.getenv('JAVA_HOME'), 'bin'))

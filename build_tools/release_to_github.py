@@ -29,7 +29,7 @@ import urllib
 def get_current_repo():
     # git@github.com:defold/defold.git
     # https://github.com/defold/defold.git
-    url = str(run.shell_command('git remote get-url origin'))
+    url = run.shell_command('git remote get-url origin')
     url = url.replace('.git', '')
     url = url.strip()
 

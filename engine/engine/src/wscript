@@ -210,8 +210,6 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.nso')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_headless.nso')
 
-    bld.add_group()
-
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
 
