@@ -752,7 +752,7 @@ namespace dmResource
     // Continue until all requests are checked or we have created a one resource
     static bool PreloaderUpdateOneItem(HPreloader preloader, TRequestIndex index)
     {
-        DM_PROFILE(Resource, "PreloaderUpdateOneItem");
+        DM_PROFILE("PreloaderUpdateOneItem");
         while (index >= 0)
         {
             PreloadRequest* req = &preloader->m_Request[index];
@@ -781,7 +781,7 @@ namespace dmResource
     // Returns true if the item or any of its children is found that has completed its loading from the load queue
     static bool DoPreloaderUpdateOneReq(HPreloader preloader, TRequestIndex index, PreloadRequest* req)
     {
-        DM_PROFILE(Resource, "DoPreloaderUpdateOneReq");
+        DM_PROFILE("DoPreloaderUpdateOneReq");
 
         assert(!req->m_Resource);
 
@@ -921,7 +921,7 @@ namespace dmResource
 
     Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit)
     {
-        DM_PROFILE(Resource, "UpdatePreloader");
+        DM_PROFILE("UpdatePreloader");
 
         uint64_t start           = dmTime::GetTime();
         uint32_t empty_runs      = 0;

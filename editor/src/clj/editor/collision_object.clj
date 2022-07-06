@@ -449,7 +449,7 @@
 (g/defnk produce-build-targets
   [_node-id resource pb-msg collision-shape dep-build-targets mass type project-physics-type shapes]
   (let [dep-build-targets (flatten dep-build-targets)
-        convex-shape (when (and collision-shape (= "convexshape" (:ext (resource/resource-type collision-shape))))
+        convex-shape (when (and collision-shape (= "convexshape" (resource/type-ext collision-shape)))
                        (get-in (first dep-build-targets) [:user-data :pb]))
         pb-msg (if convex-shape
                  (dissoc pb-msg :collision-shape) ; Convex shape will be merged into :embedded-collision-shape below.

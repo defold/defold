@@ -216,15 +216,15 @@
   (when (= resource/Resource (:type edit-type))
     (resource-assignment-error node-id prop-kw prop-name value (:ext edit-type))))
 
-(g/defnk produce-script-property-entries [_basis _node-id deleted? name resource-kind type value]
+(g/defnk produce-script-property-entries [_this _node-id deleted? name resource-kind type value]
   (when-not deleted?
     (let [prop-kw (properties/user-name->key name)
           prop-type (script-property-type->property-type type)
           edit-type (script-property-edit-type prop-type resource-kind)
           error (validate-value-against-edit-type _node-id :value name value edit-type)
           go-prop-type (script-property-type->go-prop-type type)
-          overridden? (g/property-overridden? _basis _node-id :value)
-          read-only? (nil? (g/override-original _basis _node-id))
+          overridden? (g/node-property-overridden? _this :value)
+          read-only? (not (g/node-override? _this))
           visible? (not deleted?)]
       ;; NOTE: :assoc-original-value? here tells the node internals that it
       ;; needs to assoc in the :original-value from the overridden node when
@@ -462,21 +462,13 @@
       [bytecode-or-error]
       (let [go-props (properties/build-go-props dep-resources (:go-props user-data))
             modules (:modules user-data)
-            cleaned-lines (strip-go-property-declarations lines)
-            bytecode (if (identical? lines cleaned-lines)
-                       bytecode-or-error
-                       (script->bytecode cleaned-lines proj-path :32-bit))
-            bytecode-64 (script->bytecode cleaned-lines proj-path :64-bit)]
-        (assert (not (g/error? bytecode)))
-        (assert (not (g/error? bytecode-64)))
+            cleaned-lines (strip-go-property-declarations lines)]
         {:resource resource
          :content (protobuf/map->bytes
                     Lua$LuaModule
                     {:source {:script (ByteString/copyFromUtf8
                                         (slurp (data/lines-reader cleaned-lines)))
-                              :filename (resource/proj-path (:resource resource))
-                              :bytecode (ByteString/copyFrom ^bytes bytecode)
-                              :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
+                              :filename (resource/proj-path (:resource resource))}
                      :modules modules
                      :resources (mapv lua/lua-module->build-path modules)
                      :properties (properties/go-props->decls go-props true)

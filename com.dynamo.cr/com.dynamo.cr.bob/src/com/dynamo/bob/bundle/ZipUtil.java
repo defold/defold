@@ -61,7 +61,7 @@ public class ZipUtil {
 		boolean isAsset = filePath.startsWith("assets");
 		if (isAsset) {
 			// Set up an uncompressed file, unfortunately need to calculate crc32 and other data for this to work.
-			// https://blogs.oracle.com/CoreJavaTechTips/entry/creating_zip_and_jar_files
+			// https://www.infoworld.com/article/2071337/creating-zip-and-jar-files.html
 			crc = new CRC32();
 			zipMethod = ZipEntry.STORED;
 			ze.setCompressedSize(fileSize);

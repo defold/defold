@@ -58,7 +58,11 @@ namespace dmLiveUpdate
 
     void RegisterArchiveLoaders();
 
-    uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer);
+
+    typedef void (*FGetResourceHashHex)(void* context, const char* hash, uint32_t length);
+
+    void GetResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context);
+    void GetMissingResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context);
 
     /*
      * Verifies the manifest cryptographic signature and that the manifest supports the current running dmengine version.

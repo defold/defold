@@ -25,6 +25,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
+#include <dmsdk/dlib/profile.h>
 
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
@@ -103,44 +104,70 @@ namespace dmLiveUpdate
      ** LiveUpdate utility functions
      ********************************************************************** **/
 
-    uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
+    struct GetResourceHashContext
+    {
+        uint32_t            m_HexDigestLength;
+        void*               m_Context;
+        FGetResourceHashHex m_Callback;
+        dmArray<dmhash_t>   m_Unique;
+        char*               m_ScratchBuffer;
+    };
+
+    static inline bool ContainsResource(dmArray<dmhash_t>& entries, dmhash_t entry)
+    {
+        uint32_t size = entries.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            if (entries[i] == entry)
+                return true;
+        }
+        return false;
+    }
+
+    static void GetResourceHashCallback(void* context, const uint8_t* resource_hash, uint32_t length)
+    {
+        GetResourceHashContext* ctx = (GetResourceHashContext*)context;
+
+        dmhash_t short_hash = dmHashBuffer64(resource_hash, length);
+        bool contains = ContainsResource(ctx->m_Unique, short_hash);
+        if (contains)
+            return;
+
+        ctx->m_Unique.Push(short_hash);
+
+        dmResource::BytesToHexString(resource_hash, length, ctx->m_ScratchBuffer, ctx->m_HexDigestLength);
+
+        ctx->m_Callback(ctx->m_Context, (const char*)ctx->m_ScratchBuffer, ctx->m_HexDigestLength-1);
+    }
+
+    static void GetResources(const dmhash_t url_hash, bool only_missing, FGetResourceHashHex callback, void* context)
     {
         dmResource::Manifest* manifest = dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory);
+        if (manifest == 0)
+            return;
 
-        uint32_t resourceCount = MissingResources(manifest, urlHash, NULL, 0); // First, get the number of dependants
-        uint32_t uniqueCount = 0;
-        if (resourceCount > 0)
-        {
-            uint8_t** resources = (uint8_t**) malloc(resourceCount * sizeof(uint8_t*));
-            *buffer = (char**) malloc(resourceCount * sizeof(char**));
-            resourceCount = MissingResources(manifest, urlHash, resources, resourceCount);
+        GetResourceHashContext ctx;
+        ctx.m_Context = context;
+        ctx.m_Callback = callback;
 
-            dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
-            uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;
-            bool isUnique;
-            char* scratch = (char*) alloca(hexDigestLength * sizeof(char*));
-            for (uint32_t i = 0; i < resourceCount; ++i)
-            {
-                isUnique = true;
-                dmResource::BytesToHexString(resources[i], dmResource::HashLength(algorithm), scratch, hexDigestLength);
-                for (uint32_t j = 0; j < uniqueCount; ++j) // only return unique hashes even if there are multiple resource instances in the collectionproxy
-                {
-                    if (memcmp((*buffer)[j], scratch, hexDigestLength) == 0)
-                    {
-                        isUnique = false;
-                        break;
-                    }
-                }
-                if (isUnique)
-                {
-                    (*buffer)[uniqueCount] = (char*) malloc(hexDigestLength * sizeof(char*));
-                    memcpy((*buffer)[uniqueCount], scratch, hexDigestLength);
-                    ++uniqueCount;
-                }
-            }
-            free(resources);
-        }
-        return uniqueCount;
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
+        ctx.m_HexDigestLength = HexDigestLength(algorithm) + 1;
+        ctx.m_ScratchBuffer = (char*) alloca(ctx.m_HexDigestLength * sizeof(char*));
+
+        uint32_t resource_count = GetNumDependants(manifest, url_hash);
+        ctx.m_Unique.SetCapacity(resource_count);
+
+        GetResourceHashes(manifest, url_hash, only_missing, GetResourceHashCallback, &ctx);
+    }
+
+    void GetResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context)
+    {
+        GetResources(url_hash, false, callback, context);
+    }
+
+    void GetMissingResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context)
+    {
+        GetResources(url_hash, true, callback, context);
     }
 
     Result VerifyResource(const dmResource::Manifest* manifest, const char* expected, uint32_t expected_length, const char* data, uint32_t data_length)
@@ -467,6 +494,7 @@ namespace dmLiveUpdate
 
     void Update()
     {
+        DM_PROFILE("LiveUpdate");
         AsyncUpdate();
     }
 

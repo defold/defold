@@ -113,18 +113,21 @@
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-darwin">
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
+                <include name="luac-32"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-linux">
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
+                <include name="luac-32"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-win32">
                 <include name="glslc.exe"/>
                 <include name="spirv-cross.exe"/>
+                <include name="luac-32.exe"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86-win32" overwrite="true" flatten="true">
@@ -298,6 +301,7 @@
                 <include name="libexec/**/glslc*"/>
                 <include name="libexec/**/spirv-cross*"/>
                 <include name="libexec/**/luajit*"/>
+                <include name="libexec/**/luac-32*"/>
             </fileset>
             <zipfileset src="${bob.dir}/tmp/external-libs-light.jar">
               <exclude name="**/META-INF/**"/>
@@ -349,6 +353,9 @@
             </fileset>
             <fileset dir="${bob.dir}">
                 <include name="lib/report_template.html"/>
+            </fileset>
+            <fileset dir="${bob.dir}">
+                <include name="lib/time_report_template.html"/>
             </fileset>
             <zipfileset src="${bob.dir}/lib/builtins.zip"/>
             <zipfileset src="${bob.dir}/tmp/external-libs-builtins.jar">

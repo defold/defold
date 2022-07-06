@@ -647,10 +647,11 @@ namespace dmScript
      * @param source_file_name Default source file name (may be overriden by callback info)
      * @param function_name Default function name (may be overriden by callback info)
      * @param optional_message_name Optional message name
-     * @param out_profiler_hash Pointer to resulting string hash
-     * @return Pointer to internalized string - the string is safe to use until profiler in finalized, null if profiling is disabled
+     * @param buffer Buffer to receive the string
+     * @param buffer_size size of buffer in bytes
+     * @return Pointer to buffer
      */
-    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, uint32_t* out_profiler_hash);
+    const char* GetProfilerString(lua_State* L, int optional_callback_index, const char* source_file_name, const char* function_name, const char* optional_message_name, char* buffer, uint32_t buffer_size);
 
 } // dmScript
 

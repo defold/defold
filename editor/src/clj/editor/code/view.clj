@@ -17,7 +17,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [pair split-lines]]
+            [editor.code.util :refer [split-lines]]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
@@ -31,7 +31,8 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [service.smoke-log :as slog])
+            [service.smoke-log :as slog]
+            [util.coll :refer [pair]])
   (:import [com.defold.control ListView]
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
@@ -767,8 +768,8 @@
           (map (partial cursor-range-draw-info :range (color-lookup color-scheme "editor.selection.occurrence.outline") nil)
                (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout nil)))))))
 
-(g/defnk produce-execution-markers [lines debugger-execution-locations node-id+resource]
-  (when-some [path (some-> node-id+resource second resource/proj-path)]
+(g/defnk produce-execution-markers [lines debugger-execution-locations node-id+type+resource]
+  (when-some [path (some-> node-id+type+resource (get 2) resource/proj-path)]
     (into []
           (comp (filter #(= path (:file %)))
                 (map (fn [{:keys [^long line type]}]

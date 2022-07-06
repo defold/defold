@@ -87,10 +87,10 @@ PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8"
 PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
 PACKAGES_DARWIN="protobuf-2.3.0 vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41 luac-32-5.1.5".split()
 PACKAGES_WIN32="luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
-PACKAGES_LINUX_64="luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_LINUX_64="luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
 PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
@@ -1748,7 +1748,7 @@ class Configuration(object):
         config = ConfigParser()
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
-        jdk = 'jdk11.0.1-p1'
+        jdk = 'jdk-11.0.15+10'
         host2 = get_host_platform2()
         if 'win32' in host2:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')

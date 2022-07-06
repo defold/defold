@@ -176,6 +176,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             b.setInheritAlpha(parentNode.getInheritAlpha());
         }
 
+        // Apply Enabled. We want to disable the node if the parent Template is disabled.
+        if(b.getEnabled()) {
+            b.setEnabled(parentNode.getEnabled());
+        }
+
         // Apply parent scale
         Vector3d parentScale = new Vector3d(parentNode.getScale().getX(), parentNode.getScale().getY(), parentNode.getScale().getZ());
         Point3d scale = new Point3d(b.getScale().getX(), b.getScale().getY(), b.getScale().getZ());
@@ -282,9 +287,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private static String replaceTextureName(String str) {
         String out = str;
         if(str.endsWith(".atlas")) {
-            out = BuilderUtil.replaceExt(out, ".atlas", ".texturesetc");
+            out = BuilderUtil.replaceExt(out, ".atlas", ".a.texturesetc");
         } else if(str.endsWith(".tilesource")) {
-            out = BuilderUtil.replaceExt(out, ".tilesource", ".texturesetc");
+            out = BuilderUtil.replaceExt(out, ".tilesource", ".t.texturesetc");
         } else {
             out = ProtoBuilders.replaceTextureName(str);
         }

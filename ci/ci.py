@@ -202,7 +202,6 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         opts.append('--skip-builtins')
     if skip_tests:
         opts.append('--skip-tests')
-        waf_opts.append('--skip-build-tests')
 
     if with_valgrind:
         waf_opts.append('--with-valgrind')
@@ -472,7 +471,6 @@ def main(argv):
         engine_channel = "dev"
         editor_channel = "dev"
         make_release = False
-        skip_editor_tests = True
         engine_artifacts = args.engine_artifacts or "archived"
 
     print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))

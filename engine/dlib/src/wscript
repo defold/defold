@@ -164,14 +164,85 @@ def build(bld):
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CCFLAGS', FLAG_ST % 's')
 
+    # ******************************************************************
+
+    libprofile_features = 'cc cxx cstaticlib'
+    libprofile_includes = '. ./dlib/profile ./remotery'
+    libprofile_defines = ['VALGRIND'] + extra_defines
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
+        libprofile = bld.new_task_gen(  features    = libprofile_features,
+                                        includes    = libprofile_includes,
+                                        defines     = libprofile_defines,
+                                        source      = './dlib/profile/profile.cpp ./dlib/profile/profile_remotery.cpp',
+                                        target      = 'profile')
+
+        libprofile_noasan = bld.new_task_gen(features  = libprofile.features + ' skip_asan',
+                                             includes  = libprofile.includes,
+                                             defines   = libprofile.defines,
+                                             target    = 'profile_noasan')
+        libprofile_noasan.source = libprofile.source
+
+    # null version
+    libprofile_null = bld.new_task_gen( features    = libprofile_features,
+                                        includes    = libprofile_includes,
+                                        defines     = libprofile_defines,
+                                        source      = './dlib/profile/profile.cpp ./dlib/profile/profile_null.cpp',
+                                        target      = 'profile_null')
+
+    libprofile_null_noasan = bld.new_task_gen( features  = libprofile_null.features + ' skip_asan',
+                                      includes  = libprofile_null.includes,
+                                      defines   = libprofile_null.defines,
+                                      target    = 'profile_null_noasan')
+    libprofile_null_noasan.source = libprofile_null.source
+
+    # ******************************************************************
+
+    remotery_defines = ['RMT_USE_INTERNAL_HASH_FUNCTION=0']
+    if '64' in build_util.get_target_architecture():
+        remotery_defines.append('RMT_ARCH_64BIT')
+
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
+        libremotery = bld.new_task_gen( features    = 'cc cxx cstaticlib',
+                                        includes    = '. ./remotery/lib',
+                                        target      = 'remotery',
+                                        defines     = ['VALGRIND'] + extra_defines + remotery_defines)
+        libremotery.find_sources_in_dirs(['remotery/lib'])
+
+        if build_util.get_target_os() not in ['osx', 'ios']:
+            libremotery.source = [x for x in libremotery.source if not x.endswith('.mm')]
+
+        libremotery_noasan = bld.new_task_gen(  features  = 'cc cxx cstaticlib skip_asan',
+                                                includes  = '. ./remotery/lib',
+                                                defines   = ['VALGRIND'] + extra_defines + remotery_defines,
+                                                target    = 'remotery_noasan')
+        libremotery_noasan.find_sources_in_dirs(['remotery/lib'])
+        if build_util.get_target_os() not in ['osx', 'ios']:
+            libremotery_noasan.source = [x for x in libremotery_noasan.source if not x.endswith('.mm')]
+
+    libremotery_null = bld.new_task_gen(features    = 'cc cxx cstaticlib',
+                                        includes    = '. ./remotery/lib',
+                                        defines     = ['VALGRIND'] + extra_defines + remotery_defines,
+                                        target      = 'remotery_null')
+    libremotery_null.find_sources_in_dirs(['remotery'])
+
+    libremotery_null_noasan = bld.new_task_gen(  features  = 'cc cxx cstaticlib skip_asan',
+                                            includes  = '. ./remotery/lib',
+                                            defines   = ['VALGRIND'] + extra_defines + remotery_defines,
+                                            target    = 'remotery_null_noasan')
+    libremotery_null_noasan.find_sources_in_dirs(['remotery'])
+    if build_util.get_target_os() not in ['osx', 'ios']:
+        libremotery_null_noasan.source = [x for x in libremotery_null_noasan.source if not x.endswith('.mm')]
+
+    # ******************************************************************
+
     desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
     if desktop:
         dlib_shared = bld.new_task_gen( features = 'cc cxx cshlib skip_asan',
                                         includes = '. ./mbedtls/include ./mbedtls/crypto/include',
-                                        uselib_local = 'mbedtls_noasan zip_noasan',
+                                        uselib_local = 'mbedtls_noasan zip_noasan profile_null_noasan remotery_noasan',
                                         target = 'dlib_shared',
                                         defines= ['VALGRIND'] + extra_defines,
-                                        uselib = ['PLATFORM_SOCKET', 'CARES'])
+                                        uselib = ['PLATFORM_SOCKET', 'PROFILE_NULL'])
 
         dlib_shared.source = [x for x in dlib.source]
 
@@ -285,7 +356,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/pprint.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/profile.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/profile/profile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')

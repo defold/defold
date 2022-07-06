@@ -55,6 +55,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.TimeProfiler;
 
 import com.defold.extender.client.ExtenderResource;
 
@@ -570,10 +571,11 @@ public class AndroidBundler implements IBundler {
                     // - x86_64
                     // - include
                     // we only copy files from the two architectures we support
-                    for (String architecture : platformToLibMap.values()) {
-                        File architectureDir = new File(jniDir, architecture);
+                    for (Platform platformArchitecture : getArchitectures(project)) {
+                        String architectureLibName = platformToLibMap.get(platformArchitecture);
+                        File architectureDir = new File(jniDir, architectureLibName);
                         if (architectureDir.exists()) {
-                            File dest = new File(libDir, architecture);
+                            File dest = new File(libDir, architectureLibName);
                             log("Copying shared library dir " + architectureDir + " to " + dest);
                             FileUtils.copyDirectory(architectureDir, dest);
                         }
@@ -604,8 +606,13 @@ public class AndroidBundler implements IBundler {
         log("Creating Android Application Bundle");
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
-
             File baseAab = new File(outDir, getProjectTitle(project) + ".aab");
+
+            File aabDir = new File(outDir, "aab");
+            File baseConfig = new File(aabDir, "BundleConfig.json");
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(baseConfig))) {
+                writer.write("{\"compression\":{\"uncompressedGlob\": [\"assets/game.arcd\"]}}");
+            }
 
             List<String> args = new ArrayList<String>();
             args.add(getJavaBinFile("java")); args.add("-jar");
@@ -613,6 +620,7 @@ public class AndroidBundler implements IBundler {
             args.add("build-bundle");
             args.add("--modules"); args.add(baseZip.getAbsolutePath());
             args.add("--output"); args.add(baseAab.getAbsolutePath());
+            args.add("--config"); args.add(baseConfig.getAbsolutePath());
 
             Result res = exec(args);
             if (res.ret != 0) {
@@ -818,7 +826,9 @@ public class AndroidBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        Bob.initAndroid(); // extract resources
+        TimeProfiler.start("Init Android");
+        Bob.initAndroid(); // extract 
+        TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
@@ -829,10 +839,14 @@ public class AndroidBundler implements IBundler {
 
 
         String bundleFormat = project.option("bundle-format", "apk");
+        TimeProfiler.start("Create AAB");
         File aab = createAAB(project, outDir, helper, canceled);
+        TimeProfiler.stop();
 
         if (bundleFormat.contains("apk")) {
+            TimeProfiler.start("Create APK");
             File apk = createAPK(aab, project, outDir, canceled);
+            TimeProfiler.stop();
         }
 
         if (!bundleFormat.contains("aab")) {

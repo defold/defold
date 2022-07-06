@@ -4,14 +4,14 @@ from waf_dynamo import platform_supports_feature
 def build(bld):
     bld.new_task_gen(features = 'cxx cprogram test',
                     source = 'test_physics.cpp',
-                    uselib = 'TESTMAIN DLIB PLATFORM_THREAD BULLET',
+                    uselib = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD BULLET',
                     uselib_local = 'physics Box2D',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics')
 
     bld.new_task_gen(features = 'cxx cprogram test',
                     source = 'test_physics_2d.cpp',
-                    uselib = 'TESTMAIN DLIB PLATFORM_THREAD BULLET',
+                    uselib = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_THREAD BULLET',
                     uselib_local = 'physics_2d Box2D',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics_2d')
@@ -21,14 +21,14 @@ def build(bld):
     # We do this by removing the 'test' feature which excludes it from the test run
     bld.new_task_gen(features = 'cxx cprogram test skip_test',
                     source = 'test_physics.cpp',
-                    uselib = 'TESTMAIN DLIB GTEST PLATFORM_THREAD BULLET',
+                    uselib = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD BULLET',
                     uselib_local = 'physics_null',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics_null')
 
     bld.new_task_gen(features = 'cxx cprogram test skip_test',
                     source = 'test_physics_2d.cpp',
-                    uselib = 'TESTMAIN DLIB GTEST PLATFORM_THREAD BULLET',
+                    uselib = 'TESTMAIN DLIB PROFILE_NULL GTEST PLATFORM_THREAD BULLET',
                     uselib_local = 'physics_null',
                     includes = ['../../../src', '../../../src/box2d'],
                     target = 'test_physics_2d_null')

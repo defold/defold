@@ -31,25 +31,37 @@ def get_archive_prefix(archive_path, sha1):
     prefix = os.path.join(u.path, sha1)[1:]
     return prefix
 
+def get_config_key_and_secret():
+    s3configpath = os.path.expanduser("~/.s3cfg")
+    awsconfigpath = os.path.expanduser("~/.aws/credentials")
+
+    if os.path.exists(s3configpath):
+        config = ConfigParser()
+        config.read(s3configpath)
+        key = config.get('default', 'access_key')
+        secret = config.get('default', 'secret_key')
+    elif os.path.exists(awsconfigpath):
+        config = ConfigParser()
+        config.read(awsconfigpath)
+        key = config.get('default', 'aws_access_key_id')
+        secret = config.get('default', 'aws_secret_access_key')
+    else:
+        key = os.getenv("S3_ACCESS_KEY")
+        secret = os.getenv("S3_SECRET_KEY")
+    return (key, secret)
 
 def get_bucket(bucket_name):
     if bucket_name in s3buckets:
         return s3buckets[bucket_name]
 
-    configpath = os.path.expanduser("~/.s3cfg")
-    if os.path.exists(configpath):
-        config = ConfigParser()
-        config.read(configpath)
-        key = config.get('default', 'access_key')
-        secret = config.get('default', 'secret_key')
-    else:
-        key = os.getenv("S3_ACCESS_KEY")
-        secret = os.getenv("S3_SECRET_KEY")
+    ks = get_config_key_and_secret()
+    key = ks[0]
+    secret = ks[1]
 
-    log("get_bucket key %s" % (key))
+    log("get_bucket using key %s" % (key))
 
     if not (key and secret):
-        log('S3 key and/or secret not found in .s3cfg or environment variables')
+        log('S3 key and/or secret not found in ~/.s3cfg, ~/.aws/credentials or environment variables')
         sys.exit(5)
 
     from boto.s3.connection import S3Connection

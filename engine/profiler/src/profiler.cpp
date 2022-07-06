@@ -15,14 +15,17 @@
 #include "profiler.h"
 
 #include <dlib/dlib.h>
-#include <dlib/profile.h>
 #include <dlib/log.h>
+#include <dlib/profile.h>
+#include <dlib/time.h>
 #include <extension/extension.h>
 #include <render/render.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dmsdk/dlib/vmath.h>
 
 #include "profiler_private.h"
 #include "profile_render.h"
+
+#include <algorithm> // std::sort
 
 namespace dmProfiler
 {
@@ -37,9 +40,19 @@ namespace dmProfiler
  * @namespace profiler
  */
 
+DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
+DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);
+DM_PROPERTY_U32(rmtp_Memory, 0, FrameReset, "Memory usage in kb", &rmtp_Profiler);
+
+static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library
 static bool g_TrackCpuUsage = false;
 static dmProfileRender::HRenderProfile gRenderProfile = 0;
 static uint32_t gUpdateFrequency = 60;
+
+static dmProfileRender::ProfilerFrame*  g_ProfilerCurrentFrame = 0;
+static dmMutex::HMutex                  g_ProfilerMutex = 0;
+static dmHashTable64<int>               g_ProfilerThreadSortOrder;
+
 
 void SetUpdateFrequency(uint32_t update_frequency)
 {
@@ -59,14 +72,35 @@ void ToggleProfiler()
     }
 }
 
+struct ThreadSortPred
+{
+    dmHashTable64<int>* m_SortOrder;
+    ThreadSortPred(dmHashTable64<int>* sort_order) : m_SortOrder(sort_order) {}
+
+    bool operator()(dmProfileRender::ProfilerThread* a, dmProfileRender::ProfilerThread* b) const
+    {
+        int* p_order_a = m_SortOrder->Get(a->m_NameHash);
+        int* p_order_b = m_SortOrder->Get(b->m_NameHash);
+        int order_a = p_order_a ? *p_order_a : -1;
+        int order_b = p_order_b ? *p_order_b : -1;
+        return order_a < order_b;
+    }
+};
+
+
 void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map)
 {
-    if(gRenderProfile)
+    if(gRenderProfile && g_ProfilerCurrentFrame)
     {
-        DM_PROFILE(Profile, "Draw");
-        dmProfile::Pause(true);
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
-        dmProfileRender::UpdateRenderProfile(gRenderProfile, profile);
+        DM_PROFILE("RenderProfiler");
+
+        // Make sure the main thread is at the front so it's picked by default
+        std::sort(g_ProfilerCurrentFrame->m_Threads.Begin(), g_ProfilerCurrentFrame->m_Threads.End(), ThreadSortPred(&g_ProfilerThreadSortOrder));
+
+        dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
+
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
@@ -74,8 +108,11 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         dmRender::SetProjectionMatrix(render_context, dmVMath::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
         dmRender::DrawRenderList(render_context, 0, 0, 0);
         dmRender::ClearRenderObjects(render_context);
+    }
 
-        dmProfile::Pause(false);
+    if (g_ProfilerCurrentFrame)
+    {
+        g_ProfilerCurrentFrame->m_Properties.SetSize(0);
     }
 }
 
@@ -107,7 +144,7 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
  */
 static int MemoryUsage(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 1)
+    DM_LUA_STACK_CHECK(L, 1);
     lua_pushnumber(L, dmProfilerExt::GetMemoryUsage());
     return 1;
 }
@@ -127,7 +164,7 @@ static int MemoryUsage(lua_State* L)
  */
 static int CPUUsage(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 1)
+    DM_LUA_STACK_CHECK(L, 1);
     lua_pushnumber(L, dmProfilerExt::GetCpuUsage());
     return 1;
 }
@@ -150,7 +187,7 @@ static int CPUUsage(lua_State* L)
  */
 static int EnableProfilerUI(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!lua_isboolean(L, 1))
     {
@@ -202,7 +239,7 @@ static int EnableProfilerUI(lua_State* L)
  */
 static int SetProfileUIMode(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!gRenderProfile)
     {
@@ -234,7 +271,7 @@ static int SetProfileUIMode(lua_State* L)
  */
 static int SetProfilerUIViewMode(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!gRenderProfile)
     {
@@ -275,7 +312,7 @@ static int SetProfilerUIViewMode(lua_State* L)
  */
 static int SetProfileUIVSyncWaitVisible(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!gRenderProfile)
     {
@@ -309,7 +346,7 @@ static int SetProfileUIVSyncWaitVisible(lua_State* L)
  */
 static int ProfilerUIRecordedFrameCount(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 1)
+    DM_LUA_STACK_CHECK(L, 1);
 
     if (!gRenderProfile)
     {
@@ -343,7 +380,7 @@ static int ProfilerUIRecordedFrameCount(lua_State* L)
  */
 static int ProfilerUIViewRecordedFrame(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0)
+    DM_LUA_STACK_CHECK(L, 0);
 
     if (!gRenderProfile)
     {
@@ -384,6 +421,82 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
     return 0;
 }
 
+/*# send a text to the profiler
+ * Send a text to the profiler
+ *
+ * @name profiler.log_text
+ * @param text [type:string] the string to send to the profiler
+ *
+ * @examples
+ * ```lua
+ * profiler.log_text("Event: " .. name)
+ * ```
+ */
+static int ProfilerLogText(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    const char* text = luaL_checkstring(L, 1);
+    if (!text)
+    {
+        return DM_LUA_ERROR("Expected string as second argument");
+    }
+
+    dmProfile::LogText(text);
+
+    return 0;
+}
+
+
+/*# start a profile scope
+ *
+ * Starts a profile scope.
+ * @note Must be correctly matched with a corresponding call to `profiler.scope_end()`
+ *
+ * @name profiler.scope_begin
+ * @param name [type:string] The name of the scope
+ *
+ * @examples
+ * ```lua
+ * -- Go back one frame
+ * profiler.scope_begin("test_function")
+ *   test_function()
+ * profiler.scope_end()
+ * ```
+ */
+static int ProfilerScopeBegin(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    size_t len;
+    const char* name = luaL_checklstring(L, 1, &len);
+    if (!name)
+    {
+        return DM_LUA_ERROR("Expected string as second argument");
+    }
+    if (!len)
+    {
+        return DM_LUA_ERROR("Expected non-empty string");
+    }
+
+    dmProfile::ScopeBegin(name, 0);
+    return 0;
+}
+
+/*# end the current profile scope
+ *
+ * End the current profile scope.
+ * @name profiler.scope_end
+ *
+ */
+static int ProfilerScopeEnd(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    dmProfile::ScopeEnd();
+    return 0;
+}
+
+
 /*# continously show latest frame
 *
 * @name profiler.MODE_RUN
@@ -415,7 +528,107 @@ static int ProfilerUIViewRecordedFrame(lua_State* L)
 * @variable
 */
 
-} // dmProfiler
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
+{
+    dmProfileRender::ProfilerSample out;
+
+    out.m_StartTime = dmProfile::SampleGetStart(sample);
+    out.m_Time = dmProfile::SampleGetTime(sample);
+    out.m_SelfTime = dmProfile::SampleGetSelfTime(sample);
+    out.m_Count = dmProfile::SampleGetCallCount(sample);
+    out.m_Color = dmProfile::SampleGetColor(sample);
+    out.m_Indent = (uint8_t)indent;
+    out.m_NameHash = dmProfile::SampleGetNameHash(sample);
+
+    if (thread->m_Samples.Full())
+        thread->m_Samples.OffsetCapacity(32);
+    thread->m_Samples.Push(out);
+}
+
+static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfile::HSample sample)
+{
+    ProcessSample(thread, indent, sample);
+
+    dmProfile::SampleIterator iter;
+    dmProfile::SampleIterateChildren(sample, &iter);
+    while (dmProfile::SampleIterateNext(&iter))
+    {
+        TraverseSampleTree(thread, indent + 1, iter.m_Sample);
+    }
+}
+
+static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::HSample root)
+{
+    if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
+        return;
+
+    // TODO: Make a better selection scheme, letting the user step through the threads one by one
+    if (strcmp(thread_name, "Main") != 0)
+        return;
+
+    DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+
+    dmProfileRender::ProfilerFrame* frame = (dmProfileRender::ProfilerFrame*)_ctx;
+    frame->m_Time = dmTime::GetTime();
+
+    // Prune old profiler threads
+    dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 150000);
+
+    uint32_t name_hash = dmHashString32(thread_name);
+    dmProfileRender::ProfilerThread* thread = dmProfileRender::FindOrCreateProfilerThread(frame, name_hash);
+    dmProfileRender::ClearProfilerThreadSamples(thread);
+
+    thread->m_Time = frame->m_Time;
+
+    thread->m_SamplesTotalTime = dmProfile::SampleGetTime(root);
+
+    //printf("Thread: %s\n", thread_name);
+    TraverseSampleTree(thread, 0, root);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
+{
+    uint32_t name_hash = dmProfile::PropertyGetNameHash(property);
+    dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
+    dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
+
+    dmProfileRender::AddProperty(frame, name_hash, type, value, indent);
+}
+
+static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
+{
+    ProcessProperty(frame, indent, property);
+
+    dmProfile::PropertyIterator iter;
+    dmProfile::PropertyIterateChildren(property, &iter);
+    while (dmProfile::PropertyIterateNext(&iter))
+    {
+        TraversePropertyTree(frame, indent + 1, iter.m_Property);
+    }
+}
+
+static void PropertyTreeCallback(void* _ctx, dmProfile::HProperty root)
+{
+    if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
+        return;
+
+    DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+
+    dmProfile::PropertyIterator iter;
+    dmProfile::PropertyIterateChildren(root, &iter);
+    while (dmProfile::PropertyIterateNext(&iter))
+    {
+        TraversePropertyTree(g_ProfilerCurrentFrame, 0, iter.m_Property);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 {
@@ -429,14 +642,19 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 
     static const luaL_reg Module_methods[] =
     {
-        {"get_memory_usage", dmProfiler::MemoryUsage},
-        {"get_cpu_usage", dmProfiler::CPUUsage},
-        {"enable_ui", dmProfiler::EnableProfilerUI},
-        {"set_ui_mode", dmProfiler::SetProfileUIMode},
-        {"set_ui_view_mode", dmProfiler::SetProfilerUIViewMode},
-        {"set_ui_vsync_wait_visible", dmProfiler::SetProfileUIVSyncWaitVisible},
-        {"recorded_frame_count", dmProfiler::ProfilerUIRecordedFrameCount},
-        {"view_recorded_frame", dmProfiler::ProfilerUIViewRecordedFrame},
+        {"get_memory_usage",            MemoryUsage},
+        {"get_cpu_usage",               CPUUsage},
+        {"enable_ui",                   EnableProfilerUI},
+        {"set_ui_mode",                 SetProfileUIMode},
+        {"set_ui_view_mode",            SetProfilerUIViewMode},
+        {"set_ui_vsync_wait_visible",   SetProfileUIVSyncWaitVisible},
+        {"recorded_frame_count",        ProfilerUIRecordedFrameCount},
+        {"view_recorded_frame",         ProfilerUIViewRecordedFrame},
+        {"log_text",                    ProfilerLogText},
+
+        {"scope_begin",                 ProfilerScopeBegin},
+        {"scope_end",                   ProfilerScopeEnd},
+
         {0, 0}
     };
 
@@ -463,14 +681,14 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
 
 static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 {
-    if (dmProfiler::g_TrackCpuUsage)
+    if (g_TrackCpuUsage)
     {
         dmProfilerExt::SampleCpuUsage();
     }
 
     if (dLib::IsDebugMode()) {
-        DM_COUNTER("CPU Usage", dmProfilerExt::GetCpuUsage()*100.0);
-        DM_COUNTER("Mem Usage (Kb)", dmProfilerExt::GetMemoryUsage() / 1024u);
+        DM_PROPERTY_SET_U32(rmtp_CpuUsage, dmProfilerExt::GetCpuUsage()*100.0);
+        DM_PROPERTY_SET_U32(rmtp_Memory, dmProfilerExt::GetMemoryUsage() / 1024u);
     }
 
     return dmExtension::RESULT_OK;
@@ -478,22 +696,67 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 
 static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 {
-    if (dmProfiler::gRenderProfile)
+    if (gRenderProfile)
     {
-        dmProfileRender::DeleteRenderProfile(dmProfiler::gRenderProfile);
-        dmProfiler::gRenderProfile = 0;
+        dmProfileRender::DeleteRenderProfile(gRenderProfile);
+        gRenderProfile = 0;
     }
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 {
+    g_ProfilerPort = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.port", 0);
+
+    g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
+    dmProfile::SetSampleTreeCallback(g_ProfilerCurrentFrame, SampleTreeCallback);
+    dmProfile::SetPropertyTreeCallback(g_ProfilerCurrentFrame, PropertyTreeCallback);
+
+    dmProfile::Options options;
+    options.m_Port = g_ProfilerPort;
+    dmProfile::Initialize(&options);
+
+    if (!dmProfile::IsInitialized()) // We might use the null implementation
+    {
+        delete g_ProfilerCurrentFrame;
+        g_ProfilerCurrentFrame = 0;
+        return dmExtension::RESULT_OK;
+    }
+
+    // Note that the callback might come from a different thread!
+    g_ProfilerMutex = dmMutex::New();
+
+    g_ProfilerThreadSortOrder.SetCapacity(7, 8);
+    g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);
+    g_ProfilerThreadSortOrder.Put(dmHashString64("sound"), 1);
+    g_ProfilerThreadSortOrder.Put(dmHashString64("liveupdate"), 2);
+
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 {
+    if (!dmProfile::IsInitialized()) // We might use the null implementation
+    {
+        return dmExtension::RESULT_OK;
+    }
+
+    dmProfile::SetSampleTreeCallback(0, 0);
+    dmProfile::SetPropertyTreeCallback(0, 0);
+    dmProfile::Finalize();
+
+    if (g_ProfilerCurrentFrame)
+    {
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+        DeleteProfilerFrame(g_ProfilerCurrentFrame);
+        g_ProfilerCurrentFrame = 0;
+    }
+    dmMutex::Delete(g_ProfilerMutex);
+    g_ProfilerMutex = 0;
+
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(ProfilerExt, "Profiler", AppInitializeProfiler, AppFinalizeProfiler, InitializeProfiler, UpdateProfiler, 0, FinalizeProfiler)
+} // dmProfiler
+
+DM_DECLARE_EXTENSION(ProfilerExt, "Profiler", dmProfiler::AppInitializeProfiler, dmProfiler::AppFinalizeProfiler, dmProfiler::InitializeProfiler, dmProfiler::UpdateProfiler, 0, dmProfiler::FinalizeProfiler)

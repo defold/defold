@@ -50,6 +50,7 @@
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
             [editor.util :as util]
+            [editor.engine-profiler :as engine-profiler]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
             [service.log :as log]
@@ -106,7 +107,8 @@
 
 (defn- handle-application-focused! [workspace changes-view]
   (app-view/clear-build-launch-progress!)
-  (when (and (not (sync/sync-dialog-open?))
+  (when (and (not (app-view/build-in-progress?))
+             (not (sync/sync-dialog-open?))
              (disk-availability/available?))
     (async-reload! workspace changes-view)))
 
@@ -184,7 +186,8 @@
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
-          web-server           (-> (http-server/->server 0 {"/profiler" web-profiler/handler
+          web-server           (-> (http-server/->server 0 {engine-profiler/url-prefix engine-profiler/handler
+                                                            web-profiler/url-prefix web-profiler/handler
                                                             hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
                                                             hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
                                                             bob/html5-url-prefix (partial bob/html5-handler project)})
@@ -303,7 +306,7 @@
           (g/connect app-view :selected-node-ids outline-view :selection)
           (g/connect app-view :hidden-node-outline-key-paths outline-view :hidden-node-outline-key-paths)
           (g/connect app-view :active-resource asset-browser :active-resource)
-          (g/connect app-view :active-resource-node scene-visibility :active-resource-node)
+          (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type)
           (g/connect app-view :active-scene scene-visibility :active-scene)
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)

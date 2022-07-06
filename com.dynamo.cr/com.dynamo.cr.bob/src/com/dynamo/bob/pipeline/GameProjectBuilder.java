@@ -198,9 +198,6 @@ public class GameProjectBuilder extends Builder<Void> {
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
 
-        // When passing use vanilla lua, we want the Lua code as clear text
-        boolean use_vanilla_lua = project.option("use-vanilla-lua", "false").equals("true");
-
         int resourcePadding = 4;
         String resourcePaddingStr = project.option("archive-resource-padding", null);
         if (resourcePaddingStr != null) {
@@ -212,14 +209,15 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, use_vanilla_lua ? false : true, resourcePadding);
-        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, resourcePadding);
 
+        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
         for (String s : resources) {
             EnumSet<Project.OutputFlags> flags = outputs.get(s);
             boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
-            archiveBuilder.add(s, compress);
+            boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
+            archiveBuilder.add(s, compress, encrypt);
         }
 
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
@@ -501,8 +499,7 @@ public class GameProjectBuilder extends Builder<Void> {
     // Used to transform an input game.project properties map to a game.projectc representation.
     // Can be used for doing build time properties conversion.
     static public void transformGameProjectFile(BobProjectProperties properties) throws IOException {
-        // Remove project dependencies list for security.
-        properties.remove("project", "dependencies");
+        properties.removePrivateFields();
 
         // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
         Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
@@ -527,7 +524,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         IResource input = task.input(0);
 
-        BobProjectProperties properties = Project.loadProperties(input, project.getPropertyFiles());
+        BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles());
 
         try {
             if (project.option("archive", "false").equals("true")) {

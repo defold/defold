@@ -752,7 +752,7 @@
   (resource-node/register-ddf-resource-type workspace
                                     :ext "atlas"
                                     :label "Atlas"
-                                    :build-ext "texturesetc"
+                                    :build-ext "a.texturesetc"
                                     :node-type AtlasNode
                                     :ddf-type AtlasProto$Atlas
                                     :load-fn load-atlas

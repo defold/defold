@@ -23,6 +23,9 @@
 #include "script.h"
 #include "script_private.h"
 
+DM_PROPERTY_EXTERN(rmtp_Script);
+DM_PROPERTY_U32(rmtp_TimerCount, 0, FrameReset, "# timers", &rmtp_Script);
+
 namespace dmScript
 {
     /*# Timer API documentation
@@ -192,14 +195,14 @@ namespace dmScript
     void UpdateTimers(HTimerWorld timer_world, float dt)
     {
         assert(timer_world != 0x0);
-        DM_PROFILE(TimerWorld, "Update");
+        DM_PROFILE("Update");
 
         timer_world->m_InUpdate = 1;
 
         // We only scan timers for trigger if the timer *existed at entry to UpdateTimers*, any timers added
         // in a trigger callback will always be added at the end of m_Timers and not triggered in this scope.
         uint32_t size = timer_world->m_Timers.Size();
-        DM_COUNTER("timerc", size);
+        DM_PROPERTY_ADD_U32(rmtp_TimerCount, size);
 
         for (uint32_t i = 0; i < size; ++i)
         {
@@ -244,7 +247,8 @@ namespace dmScript
             float wrapped_count = ((-timer->m_Remaining) / timer->m_Delay) + 1.f;
             float offset_to_next_trigger  = floor(wrapped_count) * timer->m_Delay;
             timer->m_Remaining += offset_to_next_trigger;
-            assert(timer->m_Remaining >= 0.f);
+            if (timer->m_Remaining < 0) // If the delay is very small, the floating point precision might produce issues
+                timer->m_Remaining = timer->m_Delay; // reset the timer
         }
 
         timer_world->m_InUpdate = 0;

@@ -15,6 +15,7 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 #include <dlib/profile.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
@@ -26,12 +27,14 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+DM_PROPERTY_EXTERN(rmtp_DrawCalls);
+
 namespace dmGraphics
 {
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
     static const int8_t    g_vulkan_adapter_priority = 0;
-    static GraphicsAdapter g_vulkan_adapter;
+    static GraphicsAdapter g_vulkan_adapter(ADAPTER_TYPE_VULKAN);
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, g_vulkan_adapter_priority);
 
@@ -92,7 +95,7 @@ namespace dmGraphics
 
         return "UNKNOWN_ERROR";
     }
-    #undef DM_VK_RESULT_TO_STRING_CASE
+    #undef DM_VK_RESULT_TO_STR_CASE
 
     #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
     static const char* TextureFormatToString(TextureFormat format)
@@ -146,15 +149,6 @@ namespace dmGraphics
         m_RenderDocSupport        = params.m_RenderDocSupport;
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
-    }
-
-    Context::~Context()
-    {
-        if (m_Instance != VK_NULL_HANDLE)
-        {
-            vkDestroyInstance(m_Instance, 0);
-            m_Instance = VK_NULL_HANDLE;
-        }
     }
 
     static inline uint32_t GetNextRenderTargetId()
@@ -1081,6 +1075,12 @@ bail:
     {
         if (context != 0x0)
         {
+            if (context->m_Instance != VK_NULL_HANDLE)
+            {
+                vkDestroyInstance(context->m_Instance, 0);
+                context->m_Instance = VK_NULL_HANDLE;
+            }
+
             delete context;
             g_VulkanContext = 0x0;
         }
@@ -1170,7 +1170,7 @@ bail:
 
     static void VulkanFlip(HContext context)
     {
-        DM_PROFILE(VSync, "Wait");
+        DM_PROFILE(__FUNCTION__);
         uint32_t frame_ix = context->m_SwapChain->m_ImageIndex;
         FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameInFlight];
 
@@ -1226,8 +1226,8 @@ bail:
 
     static void VulkanClear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
+        DM_PROFILE(__FUNCTION__);
         assert(context->m_CurrentRenderTarget);
-        DM_PROFILE(Graphics, "Clear");
 
         uint32_t attachment_count = 0;
         VkClearAttachment vk_clear_attachments[2];
@@ -1432,7 +1432,7 @@ bail:
 
     static void VulkanSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DM_PROFILE(Graphics, "SetVertexBufferData");
+        DM_PROFILE(__FUNCTION__);
 
         if (size == 0)
         {
@@ -1451,7 +1451,7 @@ bail:
 
     static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        DM_PROFILE(Graphics, "SetVertexBufferSubData");
+        DM_PROFILE(__FUNCTION__);
         assert(size > 0);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size <= buffer_ptr->m_MemorySize);
@@ -1485,7 +1485,7 @@ bail:
 
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DM_PROFILE(Graphics, "SetIndexBufferData");
+        DM_PROFILE(__FUNCTION__);
 
         if (size == 0)
         {
@@ -1506,7 +1506,7 @@ bail:
 
     static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        DM_PROFILE(Graphics, "SetIndexBufferSubData");
+        DM_PROFILE(__FUNCTION__);
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size < buffer_ptr->m_MemorySize);
@@ -2015,9 +2015,9 @@ bail:
 
     static void VulkanDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context->m_FrameBegun);
-        DM_PROFILE(Graphics, "DrawElements");
-        DM_COUNTER("DrawCalls", 1);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
@@ -2031,9 +2031,9 @@ bail:
 
     static void VulkanDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context->m_FrameBegun);
-        DM_PROFILE(Graphics, "Draw");
-        DM_COUNTER("DrawCalls", 1);
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;

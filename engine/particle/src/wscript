@@ -34,7 +34,7 @@ def build(bld):
                         includes = ['.', '../proto'],
                         target = 'particle_shared',
                         protoc_includes = '../proto',
-                        uselib = 'DDF DLIB PLATFORM_SOCKET',
+                        uselib = 'DDF DLIB PLATFORM_SOCKET PROFILE_NULL',
                         source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
     bld.install_files('${PREFIX}/include/particle', 'particle.h')
