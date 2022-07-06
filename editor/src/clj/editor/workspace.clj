@@ -79,13 +79,13 @@ ordinary paths."
   (openable? [this] false)
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (let [file (File. (resource/abs-path this))] (io/make-output-stream file opts)))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+  (make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
+  (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [this opts] (let [file (File. (resource/abs-path this))] (io/make-output-stream file opts)))
+  (make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (io/as-file [this] (File. (resource/abs-path this))))
+  (as-file [this] (File. (resource/abs-path this))))
 
 (def build-resource? (partial instance? BuildResource))
 

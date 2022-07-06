@@ -7,6 +7,7 @@
             [internal.graph.types :as gt]
             [internal.system :as is])
   (:import [clojure.lang IRef]
+           [editor.resource FileResource ZipResource]
            [internal.graph.types Endpoint]))
 
 (defn- node-value-or-err [ec node-id label]
@@ -120,3 +121,15 @@
     r/separator
     (r/stream (gt/endpoint-label endpoint))
     (r/raw-string "]" {:fill :object})))
+
+(r/defstream FileResource [resource]
+  (r/horizontal
+    (r/raw-string "#resource/file" {:fill :object})
+    r/separator
+    (r/stream (resource/proj-path resource))))
+
+(r/defstream ZipResource [resource]
+  (r/horizontal
+    (r/raw-string "#resource/zip" {:fill :object})
+    r/separator
+    (r/stream (resource/proj-path resource))))

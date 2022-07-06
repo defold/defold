@@ -177,10 +177,10 @@
   (openable? [this] (= :file source-type))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream content opts))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (assert false "writing to not supported"))
-  (io/make-writer        [this opts] (assert false "writing to not supported")))
+  (make-input-stream  [this opts] (io/make-input-stream content opts))
+  (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [this opts] (assert false "writing to not supported"))
+  (make-writer        [this opts] (assert false "writing to not supported")))
 
 (defn make-fake-file-resource
   ([workspace root file content]
