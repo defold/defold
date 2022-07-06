@@ -1626,12 +1626,7 @@ class Configuration(object):
         tag_name = self._get_tag_name(self.version, self.channel)
         release_sha1 = self._git_sha1(self.version)
         releases = [s3.get_single_release(self.get_archive_path(''), self.version, release_sha1)]
-
-        #Hack since the no-channel bucket is the one containing both bob and editors
-        channel = self.channel
-        self.channel = ''
         release_to_github.release(self, tag_name, release_sha1, releases[0])
-        self.channel = channel
 
     def sync_archive(self):
         u = urlparse.urlparse(self.get_archive_path())
