@@ -234,7 +234,7 @@ def build(bld):
                                         target    = 'remotery_null_noasan')
 
     if build_util.get_target_os() not in ['osx', 'ios']:
-        libremotery_null_noasan.source = [x for x in libremotery_null_noasan.source if not x.endswith('.mm')]
+        libremotery_null_noasan.source = [x for x in libremotery_null_noasan.source if not x.abspath().endswith('.mm')]
 
     # ******************************************************************
 
