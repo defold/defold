@@ -113,18 +113,21 @@
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-darwin">
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
+                <include name="luac-32"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-linux">
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
+                <include name="luac-32"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-win32">
                 <include name="glslc.exe"/>
                 <include name="spirv-cross.exe"/>
+                <include name="luac-32.exe"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86-win32" overwrite="true" flatten="true">
