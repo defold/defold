@@ -317,12 +317,14 @@
                                :center (* 0.5 (- max-width line-width))
                                :right (- max-width line-width))]
                       (if glyph
-                        (let [glyph (place-glyph glyph-cache glyph)
-                              cursor (doto (Matrix4d.) (.set (Vector3d. (+ x (:x text-cursor-offset)) (+ y (:y text-cursor-offset)) 0.0)))
-                              cursor (doto cursor (.mul xform cursor))]
-                          (recur (put-glyph-quad-fn vbuf glyph cursor put-pos-uv-fn)
-                                 glyphs
-                                 (+ x ^double (:advance glyph) text-tracking)))
+                        (let [glyph (place-glyph glyph-cache glyph)]
+                          (if (and (:x glyph) (:y glyph))
+                            (let [cursor (doto (Matrix4d.) (.set (Vector3d. (+ x (:x text-cursor-offset)) (+ y (:y text-cursor-offset)) 0.0)))
+                                  cursor (doto cursor (.mul xform cursor))]
+                              (recur (put-glyph-quad-fn vbuf glyph cursor put-pos-uv-fn)
+                                     glyphs
+                                     (+ x ^double (:advance glyph) text-tracking)))
+                            vbuf))
                         vbuf))
                     (recur vbuf lines line-widths (inc line-no)))
                   vbuf))))
@@ -545,8 +547,8 @@
   (String. (Character/toChars c)))
 
 (g/defnk produce-preview-text [font-map]
-  (let [char->glyph (into {} (map (fn [g] [(:character g) g]) (:glyphs font-map)))
-        chars (filter (fn [c] (and (contains? char->glyph c) (> (:width (get char->glyph c)) 0))) (range 255))
+  (let [char->glyph (into {} (map (juxt :character identity)) (:glyphs font-map))
+        chars (->> char->glyph keys sort (filter #(pos? (:width (char->glyph %)))))
         cache-width (:cache-width font-map)
         lines (loop [lines []
                      chars chars]
