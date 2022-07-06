@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -640,6 +640,10 @@ namespace dmRender
      * `u_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
      * `v_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
      *
+     * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters, 
+     * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
+     * Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by render.BUFFER_COLORX_BIT where 'X' is the attachment you want to create).
+     *
      * @name render.render_target
      * @param name [type:string] render target name
      * @param parameters [type:table] table of buffer parameters, see the description for available keys and values
@@ -675,6 +679,44 @@ namespace dmRender
      * end
      * ```
      *
+     * How to create a render target with multiple outputs:
+     *
+     * ```lua
+     * function init(self)
+     *     -- render target buffer parameters
+     *     local color_params_rgba = { format = render.FORMAT_RGBA,
+     *                                 width = render.get_window_width(),
+     *                                 height = render.get_window_height(),
+     *                                 min_filter = render.FILTER_LINEAR,
+     *                                 mag_filter = render.FILTER_LINEAR,
+     *                                 u_wrap = render.WRAP_CLAMP_TO_EDGE,
+     *                                 v_wrap = render.WRAP_CLAMP_TO_EDGE }
+     *     local color_params_float = { format = render.FORMAT_RG32F,
+     *                            width = render.get_window_width(),
+     *                            height = render.get_window_height(),
+     *                            min_filter = render.FILTER_LINEAR,
+     *                            mag_filter = render.FILTER_LINEAR,
+     *                            u_wrap = render.WRAP_CLAMP_TO_EDGE,
+     *                            v_wrap = render.WRAP_CLAMP_TO_EDGE }
+     *
+     *
+     *     -- Create a render target with three color attachments
+     *     -- Note: No depth buffer is attached here
+     *     self.my_render_target = render.render_target({
+     *            [render.BUFFER_COLOR0_BIT] = color_params_rgba,
+     *            [render.BUFFER_COLOR1_BIT] = color_params_rgba,
+     *            [render.BUFFER_COLOR2_BIT] = color_params_float, })
+     * end
+     *
+     * function update(self, dt)
+     *     -- enable target so all drawing is done to it
+     *     render.enable_render_target(self.my_render_target)
+     *
+     *     -- draw a predicate to the render target
+     *     render.draw(self.my_pred)
+     * end
+     * ```
+     *
      */
     int RenderScript_RenderTarget(lua_State* L)
     {
@@ -699,11 +741,12 @@ namespace dmRender
         lua_pushnil(L);
         while (lua_next(L, table_index))
         {
-            bool required_found[] = { false, false, false };
-            uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -2);
-            buffer_type_flags |= buffer_type;
-            uint32_t index = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
-            dmGraphics::TextureParams* p = &params[index];
+            bool required_found[]  = { false, false, false };
+            uint32_t buffer_type   = (uint32_t)luaL_checknumber(L, -2);
+            buffer_type_flags     |= buffer_type;
+
+            uint32_t index                        = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
+            dmGraphics::TextureParams* p          = &params[index];
             dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
@@ -1072,6 +1115,14 @@ namespace dmRender
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
+     * If the render target has been created with multiple color attachments, these buffer types can be used
+     * to enable those textures as well. Currently only 4 color attachments are supported.
+     *
+     * - `render.BUFFER_COLOR0_BIT`
+     * - `render.BUFFER_COLOR1_BIT`
+     * - `render.BUFFER_COLOR2_BIT`
+     * - `render.BUFFER_COLOR3_BIT`
+     *
      * @examples
      *
      * ```lua
@@ -1101,8 +1152,11 @@ namespace dmRender
         if (lua_islightuserdata(L, 2))
         {
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
-            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 3);
+            int buffer_type_value = (int)luaL_checknumber(L, 3);
+            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) buffer_type_value;
+
             dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
+
             if(texture != 0)
             {
                 if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t)texture)))
@@ -1185,7 +1239,7 @@ namespace dmRender
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT &&
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
@@ -1236,7 +1290,7 @@ namespace dmRender
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT &&
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
@@ -1255,6 +1309,26 @@ namespace dmRender
      */
 
     /*#
+     * @name render.BUFFER_COLOR0_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_COLOR1_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_COLOR2_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_COLOR3_BIT
+     * @variable
+     */
+
+    /*#
      * @name render.BUFFER_DEPTH_BIT
      * @variable
      */
@@ -1265,7 +1339,8 @@ namespace dmRender
      */
 
     /*# clears the active render target
-     * Clear buffers in the currently enabled render target with specified value.
+     * Clear buffers in the currently enabled render target with specified value. If the render target has been created with multiple
+     * color attachments, all buffers will be cleared with the same value.
      *
      * @name render.clear
      * @param buffers [type:table] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
@@ -1302,7 +1377,7 @@ namespace dmRender
             uint32_t buffer_type = luaL_checknumber(L, -2);
             flags |= buffer_type;
 
-            if (buffer_type == dmGraphics::BUFFER_TYPE_COLOR_BIT)
+            if (buffer_type == dmGraphics::BUFFER_TYPE_COLOR0_BIT)
             {
                 color = *dmScript::CheckVector4(L, -1);
             }
@@ -2640,13 +2715,17 @@ namespace dmRender
 
 #undef REGISTER_FACE_CONSTANT
 
-#define REGISTER_BUFFER_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::BUFFER_TYPE_##name); \
+#define REGISTER_BUFFER_CONSTANT(enum_type, name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::BUFFER_TYPE_##enum_type); \
         lua_setfield(L, -2, "BUFFER_"#name);
 
-        REGISTER_BUFFER_CONSTANT(COLOR_BIT);
-        REGISTER_BUFFER_CONSTANT(DEPTH_BIT);
-        REGISTER_BUFFER_CONSTANT(STENCIL_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR_BIT); // For backwards compatability
+        REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR0_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR1_BIT,  COLOR1_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR2_BIT,  COLOR2_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR3_BIT,  COLOR3_BIT);
+        REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
+        REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
 
 #undef REGISTER_BUFFER_CONSTANT
 

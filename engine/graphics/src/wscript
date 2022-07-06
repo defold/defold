@@ -33,6 +33,7 @@ def build(bld):
              obj.source.append('opengl/async/job_queue_threaded.cpp');
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
+
         obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
                                includes = ['. vulkan', '../proto'],
                                proto_gen_py = True,
