@@ -545,8 +545,8 @@
   (String. (Character/toChars c)))
 
 (g/defnk produce-preview-text [font-map]
-  (let [char->glyph (into {} (map (fn [g] [(:character g) g]) (:glyphs font-map)))
-        chars (filter (fn [c] (and (contains? char->glyph c) (> (:width (get char->glyph c)) 0))) (range 255))
+  (let [char->glyph (into {} (map (juxt :character identity)) (:glyphs font-map))
+        chars (->> char->glyph keys sort (filter #(pos? (:width (char->glyph %)))))
         cache-width (:cache-width font-map)
         lines (loop [lines []
                      chars chars]
