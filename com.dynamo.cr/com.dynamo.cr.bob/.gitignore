@@ -19,7 +19,7 @@
 /libexec/*/*luajit*
 /libexec/*/glslc*
 /libexec/*/spirv-cross*
-/libexec/*/luac*
+/libexec/*/luac-32*
 /share/luajit
 /res
 /src/com/dynamo/bob/archive/EngineVersion.java

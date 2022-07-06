@@ -301,6 +301,7 @@
                 <include name="libexec/**/glslc*"/>
                 <include name="libexec/**/spirv-cross*"/>
                 <include name="libexec/**/luajit*"/>
+                <include name="libexec/**/luac-32*"/>
             </fileset>
             <zipfileset src="${bob.dir}/tmp/external-libs-light.jar">
               <exclude name="**/META-INF/**"/>
