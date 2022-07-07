@@ -60,7 +60,7 @@ def symbolicate(cd):
     address_map = get_address_map(stack_trace)
 
     for i, t in enumerate(stack_trace):
-        print "thread %d:" % (i)
+        print("thread %d:" % (i))
         for j, s in enumerate(t):
             address = s[1]
             print '%2s:    %30s  %s (0x%x)' % (j, s[0], str(address_map[address]), address)

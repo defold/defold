@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmScriptDoc;
 
 option java_package = "com.dynamo.scriptdoc.proto";

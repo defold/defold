@@ -18,7 +18,7 @@ shutil.rmtree('tmp/http_files', True)
 os.mkdir('tmp/http_files')
 
 def http_file(name, content):
-    f = open('tmp/http_files/%s' % name, 'wb')
+    f = open('tmp/http_files/%s' % name, 'w')
     f.write(content)
     f.close()
 

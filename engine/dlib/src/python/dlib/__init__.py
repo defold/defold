@@ -22,7 +22,7 @@ if platform.architecture()[0] == '32bit':
 if sys.platform == "darwin":
     libname = "libdlib_shared.dylib"
     libdir = "lib/x86_64-darwin"
-elif sys.platform == "linux2":
+elif sys.platform == "linux":
     libname = "libdlib_shared.so"
     libdir = "lib/x86_64-linux"
 elif sys.platform == "win32":
@@ -69,10 +69,10 @@ dlib.DecryptXTeaCTR.restype = ctypes.c_int
 
 
 def dmHashBuffer32(buf):
-    return dlib.dmHashBuffer32(buf, len(buf))
+    return dlib.dmHashBuffer32(buf.encode('ascii'), len(buf))
 
 def dmHashBuffer64(buf):
-    return dlib.dmHashBuffer64(buf, len(buf))
+    return dlib.dmHashBuffer64(buf.encode('ascii'), len(buf))
 
 def dmLZ4MaxCompressedSize(uncompressed_size):
     mcs = ctypes.c_int()

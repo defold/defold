@@ -9,16 +9,16 @@ blddir = 'build'
 import sys
 import waf_dynamo, waf_ddf
 
-def init():
+def init(ctx):
     pass
 
-def set_options(opt):
-    opt.tool_options('waf_dynamo')
-    opt.sub_options('src')
+def options(opt):
+    opt.load('waf_dynamo')
+    opt.recurse('src')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.sub_config('src')
+    conf.load('waf_dynamo')
+    conf.recurse('src')
 
 def build(bld):
-    bld.add_subdirs('src')
+    bld.recurse('src')

@@ -30,7 +30,7 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-#define PATH_FORMAT "build/default/src/test/%s"
+#define PATH_FORMAT "build/src/test/%s"
 
 #if defined(__NX__)
     #define MOUNTFS "host:/"
@@ -141,8 +141,10 @@ TEST_F(ScriptTest, TestPrint)
     ASSERT_TRUE(RunString(L, "print(\"test print\")"));
     ASSERT_TRUE(RunString(L, "print(\"test\", \"multiple\")"));
 
+    char* log = GetLog();
+
     ASSERT_EQ(top, lua_gettop(L));
-    ASSERT_STREQ("DEBUG:SCRIPT: test print\nDEBUG:SCRIPT: test\tmultiple\n", GetLog());
+    ASSERT_STREQ("DEBUG:SCRIPT: test print\nDEBUG:SCRIPT: test\tmultiple\n", log);
 }
 
 TEST_F(ScriptTest, TestPPrint)

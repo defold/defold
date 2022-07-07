@@ -10,7 +10,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
 
     # Sometimes, we need to disable certain tests until they're supported
     if not platform_supports_feature(bld.env.PLATFORM, name, {}):
-        print "Skipping test '%s' due to platform missing feature" % name
+        print ("Skipping test '%s' due to platform missing feature" % name)
         return
 
     build_util = create_build_utility(bld.env)
@@ -36,7 +36,6 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     req_features.append('test')
     if skip_run:
         req_features.append('skip_test')
-        
     if extra_features != None:
         req_features.extend(extra_features)
     if extra_libs != None:
@@ -63,31 +62,36 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     if extra_includes != None:
         req_includes.extend(extra_includes)
 
+    use_lib_list = 'dlib mbedtls zip %s %s %s' % (' '.join(req_libs), ' '.join(local_libs), ' '.join(extra_local_libs))
     task_args = {
         'features': ' '.join(req_features),
         'source': name + '.cpp' + ' testutil.cpp' + platform_source,
-        'uselib': ' '.join(req_libs),
-        'uselib_local': local_libs + extra_local_libs,
+        'use': use_lib_list,
         'web_libs': ['library_sys.js'], # part of dlib, which we're testing
         'includes': req_includes,
         'defines': req_defines,
         'target': target_name or name
     }
+
     if req_embed != None:
         task_args['embed_source'] = ' '.join(req_embed)
 
-    test = bld.new_task_gen(**task_args)
+    test = bld(**task_args)
     test.install_path = None
 
     js_lib_paths = {}
     js_lib_paths['library_sys.js'] = '../src/dlib/js'
     test.env['JS_LIB_PATHS'] = js_lib_paths
 
-def build(bld):
+def configure(conf):
+    conf.env.append_value('CLASSPATH', '../ext/jetty-all-7.0.2.v20100331.jar')
+    conf.env.append_value('CLASSPATH', '../ext/servlet-api-2.5.jar')
 
-    bld.new_task_gen(features='javac seq',
-                     classpath=os.pathsep.join(['../ext/jetty-all-7.0.2.v20100331.jar','../ext/servlet-api-2.5.jar']),
-                     source_root='http_server')
+def build(bld):
+    bld(features='javac seq',
+        outdir='http_server',
+        name='test_http_server',
+        source_root='http_server')
 
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
 
@@ -108,6 +112,7 @@ def build(bld):
         skip_ssdp = True
 
     create_test(bld, 'test_memory')
+
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
     create_test(bld, 'test_buffer')
     create_test(bld, 'test_math', extra_libs = ['THREAD'])
@@ -133,6 +138,7 @@ def build(bld):
     create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
+
     create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
     create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
     create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
@@ -140,7 +146,7 @@ def build(bld):
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
-    bld.new_task_gen(rule = 'echo generated data > ${TGT}',
+    bld(rule = 'echo generated data > ${TGT}',
                      target = 'generated.embed')
 
     bld.add_group()
