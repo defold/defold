@@ -26,7 +26,7 @@
             <Button id="error-button" text="Exit" visible="false" />
             <TextFlow id="startup-tip" maxWidth="500.0"/>
             <Label id="version" text="No Version" visible="false" wrapText="true" />
-            <Label id="copyright" text="2009–2021 Defold Foundation. All rights reserved." wrapText="true" />
+            <Label id="copyright" text="2009-2022 Defold Foundation. All rights reserved." wrapText="true" />
           </VBox>
        </AnchorPane>
        <AnchorPane id="footer" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
