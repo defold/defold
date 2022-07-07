@@ -32,6 +32,8 @@ def build(bld):
         else:
              obj.source.append('opengl/async/job_queue_threaded.cpp');
 
+    bld.add_group()
+
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
         obj = bld.stlib(features        = 'ddf cxx',
                         includes        = ['. vulkan', '../proto'],
