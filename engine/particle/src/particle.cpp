@@ -1031,6 +1031,8 @@ namespace dmParticle
         emitter->m_VertexIndex = vertex_index;
         emitter->m_VertexCount = 0;
 
+        Vector3 pivot_vector(ddf->m_Pivot);
+
         const AnimationData& anim_data = emitter->m_AnimationData;
         // texture animation
         uint32_t start_tile = anim_data.m_StartTile;
@@ -1047,6 +1049,7 @@ namespace dmParticle
         bool anim_once = playback == ANIM_PLAYBACK_ONCE_FORWARD || playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_ONCE_PINGPONG;
         bool anim_bwd = playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_LOOP_BACKWARD;
         bool anim_ping_pong = playback == ANIM_PLAYBACK_ONCE_PINGPONG || playback == ANIM_PLAYBACK_LOOP_PINGPONG;
+        bool use_pivot = length(pivot_vector) > 0.0f;
         if (anim_ping_pong) {
             tile_count = dmMath::Max(1u, tile_count * 2 - 2);
         }
@@ -1065,7 +1068,10 @@ namespace dmParticle
         // Create a pivot transform
         dmTransform::Transform pivot_transform;
         pivot_transform.SetIdentity();
-        pivot_transform.SetTranslation(Vector3(ddf->m_Pivot));
+        if (use_pivot)
+        {
+            pivot_transform.SetTranslation(Vector3(ddf->m_Pivot));
+        }
 
         // calculate emission space
         dmTransform::TransformS1 emission_transform;
@@ -1149,7 +1155,10 @@ namespace dmParticle
             particle_transform.SetTranslation(Vector3(Apply(emission_transform, Point3(particle_transform.GetTranslation()))));
             particle_transform.SetScale(emission_transform.GetScale() * particle_transform.GetScale());
 
-            particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
+            if (use_pivot)
+            {
+                particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
+            }
 
             Vector3 x = dmTransform::Apply(particle_transform, Vector3(width_factor, 0.0f, 0.0f));
             Vector3 y = dmTransform::Apply(particle_transform, Vector3(0.0f, height_factor, 0.0f));
