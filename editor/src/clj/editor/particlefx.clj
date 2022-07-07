@@ -583,7 +583,7 @@
            :modifiers modifier-msgs}
           (concat
             (mapcat (fn [kw] (get-property properties kw))
-                 [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
+                 [:id :pivot :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
                   :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset])
             [[:properties (into []
                                 (comp (map first)
@@ -627,6 +627,7 @@
   (inherits ParticleProperties)
 
   (property id g/Str)
+  (property pivot types/Vec3 (default [0 0 0]))
   (property mode g/Keyword
             (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$PlayMode)))
             (dynamic label (g/constantly "Play Mode")))
@@ -693,7 +694,7 @@
   (property stretch-with-velocity g/Bool)
   (property start-offset g/Num)
 
-  (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
+  (display-order [:id scene/SceneNode :pivot :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
@@ -845,7 +846,7 @@
                                                        (map-indexed (fn [index emitter-node]
                                                                       [emitter-node index])))
                                                      nodes)))
-                                                 
+
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output scene-updatable g/Any :cached produce-scene-updatable)
@@ -935,7 +936,7 @@
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
           material (workspace/resolve-workspace-resource workspace (:material emitter))]
       (g/make-nodes graph-id
-                    [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
+                    [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter) :pivot (:pivot emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
