@@ -1065,14 +1065,6 @@ namespace dmParticle
             tile_count = 1;
         }
 
-        // Create a pivot transform
-        dmTransform::Transform pivot_transform;
-        pivot_transform.SetIdentity();
-        if (use_pivot)
-        {
-            pivot_transform.SetTranslation(Vector3(ddf->m_Pivot));
-        }
-
         // calculate emission space
         dmTransform::TransformS1 emission_transform;
         dmTransform::Transform particle_transform;
@@ -1088,19 +1080,43 @@ namespace dmParticle
 
         float width_factor = 1.0f;
         float height_factor = 1.0f;
+
+        float tile_width_factor = width_factor;
+        float tile_height_factor = height_factor;
+
+        if (anim_data.m_TileWidth > anim_data.m_TileHeight)
+        {
+            tile_height_factor = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
+        }
+        else if (anim_data.m_TileHeight > 0)
+        {
+            tile_width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
+        }
+
         if(!anim_auto_size)
         {
             if (anim_data.m_TileWidth > anim_data.m_TileHeight)
             {
-                height_factor = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
+                height_factor = tile_height_factor;
             }
             else if (anim_data.m_TileHeight > 0)
             {
-                width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
+                width_factor = tile_width_factor;
             }
             // Extent for each vertex, scale by half
             width_factor *= 0.5f;
             height_factor *= 0.5f;
+        }
+
+        // Create a pivot transform
+        dmTransform::Transform pivot_transform;
+        pivot_transform.SetIdentity();
+        if (use_pivot)
+        {
+            pivot_transform.SetTranslation(Vector3(
+                ddf->m_Pivot.getX() * tile_width_factor,
+                ddf->m_Pivot.getY() * tile_height_factor,
+                ddf->m_Pivot.getZ()));
         }
 
         for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
