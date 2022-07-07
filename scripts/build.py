@@ -2037,6 +2037,7 @@ Commands:
 distclean        - Removes the DYNAMO_HOME folder
 install_ext      - Install external packages
 install_ems      - Install emscripten sdk
+install_sdk      - Install sdk
 sync_archive     - Sync engine artifacts from S3
 activate_ems     - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine     - Build engine
