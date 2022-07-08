@@ -490,6 +490,12 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
+        self.env.LIB_ST           = 'lib%s.lib'
+        self.env.STLIB_ST         = 'lib%s.lib'
+        self.env.implib_PATTERN   = 'lib%s.lib'
+        self.env.cstlib_PATTERN   = 'lib%s.lib'
+        self.env.cxxstlib_PATTERN = 'lib%s.lib'
+
     platform_setup_vars(self, build_util)
 
     if Options.options.with_iwyu and 'IWYU' in self.env:
