@@ -23,7 +23,8 @@
             [editor.resource-io :as resource-io]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
-            [editor.outline :as outline])
+            [editor.outline :as outline]
+            [internal.graph.types :as gt])
   (:import [org.apache.commons.codec.digest DigestUtils]
            [java.io StringReader]))
 
@@ -111,6 +112,28 @@
                                      (with-open [s (io/input-stream resource)]
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
+
+(definline ^:private resource-node-resource [basis resource-node]
+  ;; This is a faster than g/node-value, and doesn't require creating an
+  ;; evaluation-context. The resource property is unjammable and properties
+  ;; aren't cached, so there is no need to do a full g/node-value.
+  `(gt/get-property ~resource-node ~basis :resource))
+
+(defn resource
+  ([resource-node-id]
+   (resource (g/now) resource-node-id))
+  ([basis resource-node-id]
+   (let [resource-node (g/node-by-id basis resource-node-id)]
+     (assert (g/node-instance*? resource/ResourceNode resource-node))
+     (resource-node-resource basis resource-node))))
+
+(defn as-resource
+  ([resource-node-id]
+   (as-resource (g/now) resource-node-id))
+  ([basis resource-node-id]
+   (when-some [resource-node (g/node-by-id basis resource-node-id)]
+     (when (g/node-instance*? resource/ResourceNode resource-node)
+       (resource-node-resource basis resource-node)))))
 
 (defn defective? [resource-node]
   (let [value (g/node-value resource-node :valid-node-id+type+resource)]

@@ -78,7 +78,7 @@
 
 (defn initialize-project [system-config]
   (when (nil? @the-root)
-    (g/initialize! system-config)
+    (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))
     (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))

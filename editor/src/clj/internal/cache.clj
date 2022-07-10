@@ -37,8 +37,81 @@
 (def null-cache (NullCache. {}))
 
 ;; ----------------------------------------
+;; Application-specialized LRU cache with the ability to selectively exclude
+;; entries from the cache limit.
+;; ----------------------------------------
+(cc/defcache RetainingLRUCache [cache lru tick limit retain?]
+  cc/CacheProtocol
+  (lookup [_ item]
+    (get cache item))
+  (lookup [_ item not-found]
+    (get cache item not-found))
+  (has? [_ item]
+    (contains? cache item))
+  (hit [_ item]
+    (let [tick+ (inc tick)]
+      (RetainingLRUCache. cache
+                          (if (and (not (retain? item))
+                                   (contains? cache item))
+                            (assoc lru item tick+)
+                            lru)
+                          tick+
+                          limit
+                          retain?)))
+  (miss [_ item result]
+    (let [tick+ (inc tick)
+          retain (retain? item)]
+      (if (and (not retain)
+               (>= (count lru) limit))
+        (let [k (if (contains? lru item)
+                  item
+                  (first (peek lru))) ; minimum-key, maybe evict case
+              c (-> cache (dissoc k) (assoc item result))
+              l (-> lru (dissoc k) (assoc item tick+))]
+          (RetainingLRUCache. c l tick+ limit retain?))
+        (RetainingLRUCache. (assoc cache item result) ; no change case
+                            (if retain
+                              lru
+                              (assoc lru item tick+))
+                            tick+
+                            limit
+                            retain?))))
+  (evict [this item]
+    (if (contains? cache item)
+      (RetainingLRUCache. (dissoc cache item)
+                          (dissoc lru item)
+                          (inc tick)
+                          limit
+                          retain?)
+      this))
+  (seed [_ base]
+    (let [unretained-base (into {}
+                                (remove (comp retain? key))
+                                base)
+          lru (#'cc/build-leastness-queue unretained-base limit 0)]
+      (RetainingLRUCache. base
+                          lru
+                          0
+                          limit
+                          retain?)))
+  Object
+  (toString [_]
+    (str cache \, \space lru \, \space tick \, \space limit)))
+
+(defn retaining-lru-cache-factory
+  [base & {threshold :threshold retain? :retain?}]
+  {:pre [(map? base)
+         (number? threshold) (< 0 threshold)
+         (ifn? retain?)]}
+  (cc/seed (RetainingLRUCache. nil nil 0 threshold retain?) base))
+
+;; ----------------------------------------
 ;; Mutators
 ;; ----------------------------------------
+(defn- clear
+  [cache]
+  (cc/seed cache {}))
+
 (defn- encache
   [cache kvs]
   (if-let [kv (first kvs)]
@@ -69,7 +142,7 @@
 (defn unlimited-cache? [value]
   (instance? BasicCache value))
 
-(defn make-cache [limit]
+(defn make-cache [limit retain?]
   (cond
     (= -1 limit) ; Unlimited cache.
     (cc/basic-cache-factory {})
@@ -78,15 +151,16 @@
     null-cache ; No cache.
 
     (pos? limit) ; Limited cache that evicts the least recently used entry when full.
-    (cc/lru-cache-factory {} :threshold limit)
+    (if (some? retain?)
+      (retaining-lru-cache-factory {} :threshold limit :retain? retain?)
+      (cc/lru-cache-factory {} :threshold limit))
 
     :else
     (throw (ex-info (str "Invalid limit: " limit)
                     {:limit limit}))))
-
 (defn cache-clear
   [cache]
-  (cc/seed cache {}))
+  (clear cache))
 
 (defn cache-hit
   [cache ks]

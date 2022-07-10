@@ -36,7 +36,7 @@
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
-            [internal.cache :as c]
+            [internal.graph.types :as gt]
             [schema.core :as s]
             [service.log :as log]
             [util.coll :refer [pair]]
@@ -566,19 +566,18 @@
             (g/set-property resource-node :resource new-resource))))
 
       (du/measuring process-metrics :mark-deleted
-        (g/transact transaction-metrics
-          (for [node (:mark-deleted plan)]
-            (let [flaw (resource-io/file-not-found-error node nil :fatal (g/node-value node :resource))]
-              (g/mark-defective node flaw)))))
+        (let [basis (g/now)]
+          (g/transact transaction-metrics
+            (for [node-id (:mark-deleted plan)]
+              (let [flaw (resource-io/file-not-found-error node-id nil :fatal (resource-node/resource basis node-id))]
+                (g/mark-defective node-id flaw))))))
 
       ;; invalidate outputs.
       (du/measuring process-metrics :invalidate-outputs
-        (let [basis (g/now)
-              uncached-evaluation-context (du/when-metrics
-                                            (g/make-evaluation-context {:basis basis :cache c/null-cache}))]
+        (let [basis (g/now)]
           (du/if-metrics
             (doseq [node-id (:invalidate-outputs plan)]
-              (du/measuring resource-metrics (resource/proj-path (g/node-value node-id :resource uncached-evaluation-context)) :invalidate-outputs
+              (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
                 (g/invalidate-outputs! (mapv (fn [[_ src-label]]
                                                (g/endpoint node-id src-label))
                                              (g/explicit-outputs basis node-id)))))
@@ -839,25 +838,45 @@
         (settings-core/get-setting ["project" "dependencies"])
         (library/parse-library-uris))))
 
-(def ^:private embedded-resource? (comp nil? resource/proj-path))
+(defn- project-resource-node? [basis node-id]
+  (if-some [resource (resource-node/as-resource basis node-id)]
+    (and (some? (resource/proj-path resource))
+         (not (g/override? basis node-id)))
+    false))
 
-(defn project-resource-node? [node-id evaluation-context]
-  (let [basis (:basis evaluation-context)]
-    (and (g/node-instance? basis resource-node/ResourceNode node-id)
-         (not (embedded-resource? (g/node-value node-id :resource evaluation-context))))))
+(defn- project-file-resource-node? [basis node-id]
+  (if-some [resource (resource-node/as-resource basis node-id)]
+    (and (some? (resource/abs-path resource))
+         (not (g/override? basis node-id)))
+    false))
+
+(defn cache-retain? [endpoint]
+  (case (gt/endpoint-label endpoint)
+    (:build-targets) (project-resource-node? (g/now) (gt/endpoint-node-id endpoint))
+    (:save-data :source-value) (project-file-resource-node? (g/now) (gt/endpoint-node-id endpoint))
+    false))
+
+(defn- cached-build-target-output? [node-id label evaluation-context]
+  (case label
+    (:build-targets) (project-resource-node? (:basis evaluation-context) node-id)
+    false))
 
 (defn- cached-save-data-output? [node-id label evaluation-context]
   (case label
-    (:save-data :source-value) (project-resource-node? node-id evaluation-context)
+    (:save-data :source-value) (project-file-resource-node? (:basis evaluation-context) node-id)
     false))
 
-(defn update-system-cache-save-data! [evaluation-context]
+(defn- update-system-cache-from-pruned-evaluation-context! [cache-entry-pred evaluation-context]
   ;; To avoid cache churn, we only transfer the most important entries to the system cache.
-  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-save-data-output?)]
+  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
     (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
 
+(def update-system-cache-build-targets! (partial update-system-cache-from-pruned-evaluation-context! cached-build-target-output?))
+
+(def update-system-cache-save-data! (partial update-system-cache-from-pruned-evaluation-context! cached-save-data-output?))
+
 (defn- cache-save-data! [project]
-  ;; Save data is required for the Search in Files feature so we pull
+  ;; Save data is required for the Search in Files feature, so we pull
   ;; it in the background here to cache it.
   (let [evaluation-context (g/make-evaluation-context)]
     (future

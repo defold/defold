@@ -171,8 +171,8 @@
   graph)
 
 (defn make-cache
-  [{cache-size :cache-size :or {cache-size maximum-cached-items}}]
-  (c/make-cache cache-size))
+  [{:keys [cache-size cache-retain?] :or {cache-size maximum-cached-items}}]
+  (c/make-cache cache-size cache-retain?))
 
 (defn- next-available-graph-id
   [system]

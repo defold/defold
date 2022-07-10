@@ -15,6 +15,7 @@
 (ns integration.save-test
   (:require [clojure.data :as data]
             [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -30,6 +31,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
+            [internal.node :as in]
             [service.log :as log]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [util.text-util :as text-util])
@@ -462,40 +464,59 @@
                               (exit-event-loop!))))))))
 
 (deftest save-data-remains-in-cache
-  (let [cache-size 50]
-    (letfn [(cached-endpoints-with-label [label]
-              (into #{}
-                    (filter #(= label (gt/endpoint-label %)))
+  (let [cache-size 50
+        retained-labels #{:save-data :source-value}]
+    (letfn [(cached-endpoints []
+              (into (sorted-set)
                     (keys (g/cache))))]
-      (with-clean-system {:cache-size cache-size}
+      (with-clean-system {:cache-size cache-size
+                          :cache-retain? project/cache-retain?}
         (let [workspace (test-util/setup-workspace! world)
               project (test-util/setup-project! workspace)
-              source-save-data-endpoints (into #{}
-                                               (map (partial apply gt/endpoint))
-                                               (g/sources-of project :save-data))]
-          (testing "Save data values remain in cache even though we've exceeded the cache limit."
-            (project/dirty-save-data project)
-            (let [cached-save-data-endpoints (cached-endpoints-with-label :save-data)]
-              (is (= source-save-data-endpoints cached-save-data-endpoints))
-              (is (= (+ cache-size (count source-save-data-endpoints)) (count (g/cache))))))
+              invalidated-save-data-endpoints-atom (atom #{})
+              cacheable-save-data-endpoints (into (sorted-set)
+                                                  (mapcat (fn [[node-id]]
+                                                            (let [node-type (g/node-type* node-id)
+                                                                  cached-outputs (in/cached-outputs node-type)]
+                                                              (map (partial gt/endpoint node-id)
+                                                                   (set/intersection cached-outputs retained-labels)))))
+                                                  (g/sources-of project :save-data))]
+          ;; The source-value output will be evicted from the cache for resource
+          ;; nodes whose save-data was dirty. This needs to happen, as the
+          ;; source-value output should always represent the on-disk state.
+          ;; Here, we keep track of (and prevent) disk writes, so we can exclude
+          ;; these endpoints from what we expect to be in the cache after the
+          ;; save operation concludes.
+          (with-redefs [project/write-save-data-to-disk!
+                        (fn mock-write-save-data-to-disk! [save-data _opts]
+                          (swap! invalidated-save-data-endpoints-atom
+                                 (fn [invalidated-save-data-endpoints]
+                                   (into invalidated-save-data-endpoints
+                                         (mapcat (fn [save-data]
+                                                   (let [resource (:resource save-data)
+                                                         resource-node (test-util/resource-node project resource)]
+                                                     (map (partial gt/endpoint resource-node)
+                                                          retained-labels))))
+                                         save-data))))]
+            (test-util/run-event-loop!
+              (fn [exit-event-loop!]
+                (g/clear-system-cache!)
+                (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+                                  (fn [successful?]
+                                    (when (is successful?)
 
-          (testing "Save data values are always evicted from the cache after their dependencies change."
-            (let [test-module-script (test-util/resource-node project "/script/test_module.lua")]
-              (test-util/code-editor-source! test-module-script "-- Edited by us")
-              (let [test-module-save-data-endpoint (gt/endpoint test-module-script :save-data)
-                    source-save-data-endpoints-without-test-module-script (disj source-save-data-endpoints test-module-save-data-endpoint)
-                    cached-save-data-endpoints (cached-endpoints-with-label :save-data)]
-                (is (= source-save-data-endpoints-without-test-module-script cached-save-data-endpoints))
-                (is (= (+ cache-size (count source-save-data-endpoints-without-test-module-script)) (count (g/cache)))))))
+                                      (testing "Save data values remain in cache even though we've exceeded the cache limit."
+                                        (let [expected-cached-save-data-endpoints (set/difference cacheable-save-data-endpoints @invalidated-save-data-endpoints-atom)]
+                                          (is (set/subset? expected-cached-save-data-endpoints (cached-endpoints)))))
 
-          (testing "Save data values are always evicted from the cache when it is explicitly cleared."
-            (g/clear-system-cache!)
-            (let [cached-save-data-endpoints (cached-endpoints-with-label :save-data)]
-              (is (= #{} cached-save-data-endpoints))
-              (is (= 0 (count (g/cache))))))
+                                      (testing "Save data values are always evicted from the cache after their dependencies change."
+                                        (let [graphics-atlas (test-util/resource-node project "/graphics/atlas.atlas")]
+                                          (is (contains? (cached-endpoints) (gt/endpoint graphics-atlas :save-data)))
+                                          (test-util/prop! graphics-atlas :margin 10)
+                                          (is (not (contains? (cached-endpoints) (gt/endpoint graphics-atlas :save-data))))))
 
-          (testing "Save data values are excluded from the cache limit even after clearing the cache."
-            (project/dirty-save-data project)
-            (let [cached-save-data-endpoints (cached-endpoints-with-label :save-data)]
-              (is (= source-save-data-endpoints cached-save-data-endpoints))
-              (is (= (+ cache-size (count source-save-data-endpoints)) (count (g/cache)))))))))))
+                                      (testing "Save data values are always evicted from the cache when it is explicitly cleared."
+                                        (g/clear-system-cache!)
+                                        (is (empty? (g/cache)))))
+
+                                    (exit-event-loop!)))))))))))
