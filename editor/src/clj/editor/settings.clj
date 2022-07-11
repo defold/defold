@@ -77,15 +77,9 @@
 (defn- make-form-values-map [settings]
   (settings-core/make-settings-map settings))
 
-(defn- label [key]
-  (-> key
-      name
-      camel/->Camel_Snake_Case_String
-      (string/replace "_" " ")))
-
 (defn- make-form-field [setting]
   (cond-> (assoc setting
-                 :label (or (:label setting) (label (second (:path setting))))
+                 :label (or (:label setting) (settings-core/label (second (:path setting))))
                  :optional true
                  :hidden? (:hidden? setting false))
 
@@ -100,9 +94,7 @@
 
 (defn- section-title [category-name category-info]
   (or (:title category-info)
-      (->> (string/split category-name #"(_|\s+)")
-           (mapv string/capitalize)
-           (string/join " "))))
+      (settings-core/label category-name)))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (section-title category-name category-info)
