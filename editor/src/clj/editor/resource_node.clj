@@ -128,12 +128,21 @@
      (resource-node-resource basis resource-node))))
 
 (defn as-resource
-  ([resource-node-id]
-   (as-resource (g/now) resource-node-id))
-  ([basis resource-node-id]
-   (when-some [resource-node (g/node-by-id basis resource-node-id)]
-     (when (g/node-instance*? resource/ResourceNode resource-node)
-       (resource-node-resource basis resource-node)))))
+  ([node-id]
+   (as-resource (g/now) node-id))
+  ([basis node-id]
+   (when-some [node (g/node-by-id basis node-id)]
+     (when (g/node-instance*? resource/ResourceNode node)
+       (resource-node-resource basis node)))))
+
+(defn as-resource-original
+  ([node-id]
+   (as-resource-original (g/now) node-id))
+  ([basis node-id]
+   (when-some [node (g/node-by-id basis node-id)]
+     (when (and (nil? (gt/original node))
+                (g/node-instance*? resource/ResourceNode node))
+       (resource-node-resource basis node)))))
 
 (defn defective? [resource-node]
   (let [value (g/node-value resource-node :valid-node-id+type+resource)]

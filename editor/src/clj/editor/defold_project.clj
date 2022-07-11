@@ -839,15 +839,13 @@
         (library/parse-library-uris))))
 
 (defn- project-resource-node? [basis node-id]
-  (if-some [resource (resource-node/as-resource basis node-id)]
-    (and (some? (resource/proj-path resource))
-         (not (g/override? basis node-id)))
+  (if-some [resource (resource-node/as-resource-original basis node-id)]
+    (some? (resource/proj-path resource))
     false))
 
 (defn- project-file-resource-node? [basis node-id]
-  (if-some [resource (resource-node/as-resource basis node-id)]
-    (and (some? (resource/abs-path resource))
-         (not (g/override? basis node-id)))
+  (if-some [resource (resource-node/as-resource-original basis node-id)]
+    (some? (resource/abs-path resource))
     false))
 
 (defn cache-retain? [endpoint]

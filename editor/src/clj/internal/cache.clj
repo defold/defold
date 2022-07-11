@@ -48,16 +48,16 @@
     (get cache item not-found))
   (has? [_ item]
     (contains? cache item))
-  (hit [_ item]
-    (let [tick+ (inc tick)]
-      (RetainingLRUCache. cache
-                          (if (and (not (retain? item))
-                                   (contains? cache item))
+  (hit [this item]
+    (if (or (not (contains? cache item))
+            (retain? item))
+      this
+      (let [tick+ (inc tick)]
+        (RetainingLRUCache. cache
                             (assoc lru item tick+)
-                            lru)
-                          tick+
-                          limit
-                          retain?)))
+                            tick+
+                            limit
+                            retain?))))
   (miss [_ item result]
     (let [tick+ (inc tick)
           retain (retain? item)]
@@ -77,13 +77,14 @@
                             limit
                             retain?))))
   (evict [this item]
-    (if (contains? cache item)
-      (RetainingLRUCache. (dissoc cache item)
-                          (dissoc lru item)
-                          (inc tick)
-                          limit
-                          retain?)
-      this))
+    (let [cache-without-item (dissoc cache item)]
+      (if (identical? cache cache-without-item)
+        this
+        (RetainingLRUCache. cache-without-item
+                            (dissoc lru item)
+                            (inc tick)
+                            limit
+                            retain?))))
   (seed [_ base]
     (let [unretained-base (into {}
                                 (remove (comp retain? key))
