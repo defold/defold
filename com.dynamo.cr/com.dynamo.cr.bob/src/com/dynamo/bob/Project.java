@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+import java.util.stream.Collectors;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -440,17 +441,19 @@ public class Project {
     }
 
     private List<String> loadDefoldIgnore() throws CompileExceptionError {
-        List<String> ignoredFolders = new ArrayList<String>();
         final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
         if (defIgnoreFile.isFile()) {
             try {
-                ignoredFolders = FileUtils.readLines(defIgnoreFile, "UTF-8");
+                return FileUtils.readLines(defIgnoreFile, "UTF-8")
+                        .stream()
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toList());
             }
             catch(IOException e) {
                 throw new CompileExceptionError("Unable to read .defignore", e);
             }
         }
-        return ignoredFolders;
+        return Collections.emptyList();
     }
 
     private void createTasks() throws CompileExceptionError {

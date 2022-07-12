@@ -48,8 +48,8 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        m_Path = "build/default/src/gameobject/test/script";
-        m_Factory = dmResource::NewFactory(&params, MOUNTFS "build/default/src/gameobject/test/script");
+        m_Path = "build/src/gameobject/test/script";
+        m_Factory = dmResource::NewFactory(&params, MOUNTFS "build/src/gameobject/test/script");
         m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();

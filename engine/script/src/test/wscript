@@ -1,82 +1,85 @@
 #! /usr/bin/env python
 
-import Task, TaskGen
-from TaskGen import extension, declare_extension
+import waflib.Task, waflib.TaskGen
+from waflib.TaskGen import extension
 from waf_dynamo import new_copy_task, platform_supports_feature
 
 new_copy_task('luascript', '.lua', '.luac')
 new_copy_task('save_file', '.sav', '.savc')
 
 def build(bld):
-    flist = 'cxx cprogram test'
+    flist = 'cxx test'
     if 'web' in bld.env['PLATFORM']:
         lib_dirs = {}
         lib_dirs['library_script.js'] = '../lib/js'
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
     web_libs = ['library_sys.js', 'library_script.js']
-    libs = 'TESTMAIN PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA'
+    libs = 'TESTMAIN PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA CARES script'
 
-    test_script_ddf = bld.new_task_gen(features = flist,
-                                        includes = '..',
-                                        uselib = libs,
-                                        uselib_local = 'script',
-                                        web_libs = web_libs,
-                                        proto_gen_py = True,
-                                        target = 'test_script_ddf',
-                                        source = 'test_script_ddf.cpp test_ddf.proto')
+    if not 'web' in bld.env['PLATFORM']:
+        if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
+            bld.program(features = flist,
+                                       includes = '..',
+                                       use = libs,
+                                       web_libs = web_libs,
+                                       proto_gen_py = True,
+                                       target = 'test_script_http',
+                                       source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
 
-    test_script_msg = bld.new_task_gen(features = flist,
+    test_script_ddf = bld.program(features = flist,
+                                  includes = '..',
+                                  use = libs,
+                                  web_libs = web_libs,
+                                  proto_gen_py = True,
+                                  target = 'test_script_ddf',
+                                  source = 'test_script_ddf.cpp test_ddf.proto')
+
+    test_script_msg = bld.program(features = flist,
                                         includes = '..',
-                                        uselib = libs,
-                                        uselib_local = 'script',
+                                        use = libs,
                                         web_libs = web_libs,
                                         proto_gen_py = True,
                                         target = 'test_script_msg',
                                         source = 'test_script_msg.cpp test_ddf.proto')
 
-    test_script_hash = bld.new_task_gen(features = flist,
+    test_script_hash = bld.program(features = flist,
                                         includes = '..',
-                                        uselib = libs,
-                                        uselib_local = 'script',
+                                        use = libs,
                                         web_libs = web_libs,
                                         proto_gen_py = True,
                                         target = 'test_script_hash',
                                         source = 'test_script_hash.cpp test_hash.lua')
 
-    test_script_vmath = bld.new_task_gen(features = flist,
+    test_script_vmath = bld.program(features = flist,
                                      includes = '.. .',
-                                     uselib = libs,
-                                     uselib_local = 'script',
+                                     use = libs,
                                      web_libs = web_libs,
                                      proto_gen_py = True,
                                      target = 'test_script_vmath',
                                      source = 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua')
 
     script_table_features = flist + ' embed';
-    test_script_table = bld.new_task_gen(features = script_table_features,
+    test_script_table = bld.program(features = script_table_features,
                                      includes = '.. .',
-                                     uselib = libs,
-                                     uselib_local = 'script',
+                                     use = libs,
                                      web_libs = web_libs,
                                      proto_gen_py = True,
                                      embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat data/table_v818192.dat data/table_tstring_v1.dat data/table_tstring_v2.dat',
                                      target = 'test_script_table',
                                      source = 'test_script_table.cpp test_script_table.lua')
 
-    test_script_table_log = bld.new_task_gen(features = flist,
+    test_script_table_log = bld.program(features = flist,
                                      includes = '.. .',
-                                     uselib = libs,
-                                     uselib_local = 'script',
+                                     use = libs,
                                      web_libs = web_libs,
                                      proto_gen_py = True,
                                      target = 'test_script_table_log',
                                      source = 'test_script_table_log.cpp')
 
-    test_script_timer = bld.new_task_gen(features = flist,
+    test_script_timer = bld.program(features = flist,
                                      includes = '.. .',
-                                     uselib = libs,
-                                     uselib_local = 'script',
+                                     use = libs,
                                      web_libs = web_libs,
                                      proto_gen_py = True,
                                      target = 'test_script_timer',
@@ -84,37 +87,33 @@ def build(bld):
 
     test_script_timer.install_path = None
 
-    test_script_sys = bld.new_task_gen(features = flist,
+    test_script_sys = bld.program(features = flist,
                                        includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
+                                       use = libs,
                                        web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_sys',
                                        source = 'test_script_sys.cpp test_sys.lua')
 
-    test_script = bld.new_task_gen(features = flist,
+    test_script = bld.program(features = flist,
                                         includes = '..',
-                                        uselib = libs,
-                                        uselib_local = 'script',
+                                        use = libs,
                                         web_libs = web_libs,
                                         proto_gen_py = True,
                                         target = 'test_script',
                                         source = 'test_script.cpp test_script.lua test_script_coroutine.lua test_circular_ref_pprint.lua test_pprint_truncate.lua test_lua_callstack.lua')
 
-    test_script_module = bld.new_task_gen(features = flist,
+    test_script_module = bld.program(features = flist,
                                           includes = '..',
-                                          uselib = libs,
-                                          uselib_local = 'script',
+                                          use = libs,
                                           web_libs = web_libs,
                                           proto_gen_py = True,
                                           target = 'test_script_module',
                                           source = 'test_script_module.cpp test_module.lua test_module_missing.lua')
 
-    test_script_json = bld.new_task_gen(features = flist,
+    test_script_json = bld.program(features = flist,
                                        includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
+                                       use = libs,
                                        web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_json',
@@ -122,56 +121,50 @@ def build(bld):
 
     if not 'web' in bld.env['PLATFORM']:
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
-            bld.new_task_gen(features = flist,
+            bld.program(features = flist,
                                        includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
+                                       use = libs,
                                        web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_http',
                                        source = 'test_script_http.cpp test_http.lua test_http_timeout.lua')
 
-    test_script_zlib = bld.new_task_gen(features = flist,
+    test_script_zlib = bld.program(features = flist,
                                        includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
+                                       use = libs,
                                        web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_zlib',
                                        source = 'test_script_zlib.cpp test_zlib.lua')
 
-    test_script_image = bld.new_task_gen(features = flist,
+    test_script_image = bld.program(features = flist,
                                        includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
+                                       use = libs,
                                        web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_image',
                                        source = 'test_script_image.cpp test_image.lua')
 
-    test_script_user_type = bld.new_task_gen(features = flist,
+    test_script_user_type = bld.program(features = flist,
                                        includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
+                                       use = libs,
                                        web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_user_type',
                                        source = 'test_script_user_type.cpp')
 
     if platform_supports_feature(bld.env.PLATFORM, 'luasocket', {}):
-        bld.new_task_gen(features = flist,
+        bld.program(features = flist,
                         includes = '..',
-                        uselib = libs,
-                        uselib_local = 'script',
+                        use = libs,
                         web_libs = web_libs,
                         proto_gen_py = True,
                         target = 'test_script_luasocket',
                         source = 'test_script_luasocket.cpp test_luasocket.lua')
 
-    test_script_bitop = bld.new_task_gen(features = flist,
+    test_script_bitop = bld.program(features = flist,
                                        includes = '..',
-                                       uselib = libs,
-                                       uselib_local = 'script',
+                                       use = libs,
                                        web_libs = web_libs,
                                        proto_gen_py = True,
                                        target = 'test_script_bitop',

@@ -12,21 +12,19 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-from TaskGen import extension
-import cc, cxx
+from waflib.TaskGen import extension
+import waflib.Tools.c, waflib.Tools.cxx
 
 # objective-c++ support
-EXT_OBJCXX = ['.mm']
-@extension(EXT_OBJCXX)
+@extension('.mm')
 def objcxx_hook(self, node):
-    tsk = cxx.cxx_hook(self, node)
+    tsk = waflib.Tools.cxx.cxx_hook(self, node)
     tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJCXX'])
     tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])
 
 # objective-c support
-EXT_OBJC = ['.m']
-@extension(EXT_OBJC)
+@extension('.m')
 def objc_hook(self, node):
-    tsk = cc.c_hook(self, node)
+    tsk = waflib.Tools.c.c_hook(self, node)
     tsk.env.append_unique('CXXFLAGS', tsk.env['GCC-OBJCC'])
     tsk.env.append_unique('LINKFLAGS', tsk.env['GCC-OBJCLINK'])

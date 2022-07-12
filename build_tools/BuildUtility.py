@@ -13,9 +13,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-
-
-import os, subprocess, exceptions;
+import os, subprocess, builtins;
 
 class BuildUtilityException(Exception):
     def __init__(self, msg):
@@ -87,7 +85,7 @@ class BuildUtility:
         if process.returncode != 0:
             sys.exit(process.returncode)
 
-        line = out.split('\n')[0].strip()
+        line = out.decode().split('\n')[0].strip()
         sha1 = line.split()[0]
         return sha1
     # get_sha1
@@ -121,7 +119,7 @@ class BuildUtility:
             raise BuildUtilityException("DYNAMO_HOME not set")
         self._dynamo_home = dynamo_home
         self._dynamo_ext = os.path.join(self._dynamo_home, 'ext')
-        self._library_path = os.path.join(self._dynamo_home, "lib", self._platform['platform'])
+        self._library_path = os.path.join(self._dynamo_home, 'lib', self._platform['platform'])
         self._binary_path = os.path.join(self._dynamo_home, 'bin', self._platform['platform'])
     # _initialise_paths
 

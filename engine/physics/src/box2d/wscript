@@ -4,4 +4,4 @@ def configure(conf):
     pass
 
 def build(bld):
-    bld.add_subdirs('Box2D')
+    bld.recurse('Box2D')

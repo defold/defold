@@ -23,7 +23,7 @@ class ExecException(Exception):
 
 def _exec_command(arg_list, **kwargs):
     arg_str = arg_list
-    if not isinstance(arg_str, basestring):
+    if not isinstance(arg_str, str):
         arg_str = ' '.join(arg_list)
     log('[exec] %s' % arg_str)
 
@@ -44,7 +44,7 @@ def _exec_command(arg_list, **kwargs):
 
         output = ''
         while True:
-            line = process.stdout.readline()
+            line = process.stdout.readline().decode()
             if line != '':
                 output += line
                 log(line.rstrip())
@@ -54,7 +54,7 @@ def _exec_command(arg_list, **kwargs):
     if process.wait() != 0:
         raise ExecException(process.returncode, output)
 
-    return output
+    return str(output)
 
 def command(args, **kwargs):
     if kwargs.get("shell") is None:
@@ -62,14 +62,14 @@ def command(args, **kwargs):
     # Executes a command, and exits if it fails
     try:
         return _exec_command(args, **kwargs)
-    except ExecException, e:
+    except ExecException as e:
         sys.exit(e.retcode)
 
 def shell_command(args):
     # Executes a command, and exits if it fails
     try:
         return _exec_command(args, shell = True)
-    except ExecException, e:
+    except ExecException as e:
         sys.exit(e.retcode)
 
 

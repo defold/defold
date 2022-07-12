@@ -200,11 +200,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "precision mediump float;\n" +
                     "\n" +
-                    "out vec4 _DMENGINE_GENERATED_gl_FragColor;\n" +
+                    "out vec4 _DMENGINE_GENERATED_gl_FragColor_0;\n" +
                     "\n" +
                     "#line 1\n" +
                     "void main() {\n" +
-                    "    _DMENGINE_GENERATED_gl_FragColor = vec4(1.0);\n" +
+                    "    _DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);\n" +
                     "}\n";
         testOutput(expected, source);
 

@@ -531,7 +531,7 @@ public class IOSBundler implements IBundler {
                         continue;
                     }
 
-                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity, file.getAbsolutePath());
+                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "--preserve-metadata=entitlements", "-f", "-s", identity, file.getAbsolutePath());
                     processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
 
                     Process process = processBuilder.start();

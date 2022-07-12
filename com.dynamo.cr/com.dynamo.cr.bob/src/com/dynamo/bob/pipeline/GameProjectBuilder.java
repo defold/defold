@@ -77,7 +77,7 @@ import com.dynamo.rig.proto.Rig.RigScene;
 
 import com.google.protobuf.DescriptorProtos.FieldOptions;
 import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.Message;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
@@ -283,7 +283,7 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
-        GeneratedMessage.Builder<?> builder = ProtoBuilder.newBuilder(ext);
+        GeneratedMessageV3.Builder<?> builder = ProtoBuilder.newBuilder(ext);
         try {
             final byte[] content = resource.output().getContent();
             if(content == null) {
@@ -353,7 +353,7 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
-        GeneratedMessage.Builder<?> builder = ProtoBuilder.newBuilder(ext);
+        GeneratedMessageV3.Builder<?> builder = ProtoBuilder.newBuilder(ext);
         try {
             final byte[] content = resource.output().getContent();
             if(content == null) {

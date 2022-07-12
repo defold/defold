@@ -1,6 +1,0 @@
-# Settings: Derived from src/engine/wscript, debug target
-# Derived from src/engine/wscript, headless target: Removes Record,Sound,Graphics,Input
-platforms:
-    common:
-        context:
-            defines: ["DM_DEBUG"]

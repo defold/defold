@@ -13,8 +13,8 @@
 # specific language governing permissions and limitations under the License.
 
 from threading import Thread
-from SocketServer import ThreadingMixIn
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import time
 import sys
@@ -45,7 +45,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_response(500, "Could not parse time argument as float: %s" % self.path)
                     self.send_header("Content-type", "text/plain")
                     self.end_headers()
-                    self.wfile.write(to_send)
+                    self.wfile.write(to_send.encode('ascii'))
                     return
 
             sys.stdout.flush()
@@ -59,16 +59,15 @@ class Handler(BaseHTTPRequestHandler):
 
         self.send_header("Content-type", "text/plain")
         self.end_headers()
-        self.wfile.write(to_send)
+        self.wfile.write(to_send.encode('ascii'))
 
     def do_POST(self):
         len = self.headers.get('Content-Length')
         s = self.rfile.read(int(len))
-
         self.send_response(200)
         self.send_header("Content-type", "text/plain")
         self.end_headers()
-        self.wfile.write('PONG')
+        self.wfile.write('PONG'.encode('ascii'))
         self.wfile.write(s)
 
     def do_PUT(self):
@@ -78,7 +77,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/plain")
         self.end_headers()
-        self.wfile.write('PONG_PUT')
+        self.wfile.write('PONG_PUT'.encode('ascii'))
         self.wfile.write(s)
 
     def do_HEAD(self):

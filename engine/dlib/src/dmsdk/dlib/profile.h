@@ -587,7 +587,7 @@ namespace dmProfile
     /// Internal, do not use.
     struct ProfileScope
     {
-        inline ProfileScope(const char* name, uint64_t* name_hash)
+        inline ProfileScope(const char* name, uint64_t* name_hash) : valid(0)
         {
             StartScope(name, name_hash);
         }

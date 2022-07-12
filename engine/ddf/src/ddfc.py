@@ -24,8 +24,9 @@ if sys.platform == 'win32':
     msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
     msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
 
-from cStringIO import StringIO
+from io import StringIO
 import dlib
+import functools
 
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
@@ -123,31 +124,31 @@ class PrettyPrinter(object):
 
     def begin(self, str, *format):
         str = str % format
-        print >>self.stream, " " * self.indent + str
-        print >>self.stream, " " * self.indent + "{"
+        print (" " * self.indent + str, file=self.stream)
+        print (" " * self.indent + "{", file=self.stream)
         self.indent += 4
 
     def begin_paren(self, str, *format):
         str = str % format
-        print >>self.stream, " " * self.indent + str
-        print >>self.stream, " " * self.indent + "("
+        print (" " * self.indent + str, file=self.stream)
+        print (" " * self.indent + "(", file=self.stream)
         self.indent += 4
 
     def p(self, str, *format):
         str = str % format
-        print >>self.stream, " " * self.indent + str
+        print (" " * self.indent + str, file=self.stream)
 
     def end(self, str = "", *format):
         str = str % format
         self.indent -= 4
-        print >>self.stream, " " * self.indent + "}%s;" % str
-        print >>self.stream, ""
+        print (" " * self.indent + "}%s;" % str, file=self.stream)
+        print ("", file=self.stream)
 
     def end_paren(self, str = "", *format):
         str = str % format
         self.indent -= 4
-        print >>self.stream, " " * self.indent + ")%s;" % str
-        print >>self.stream, ""
+        print (" " * self.indent + ")%s;" % str, file=self.stream)
+        print ("", file=self.stream)
 
 def to_camel_case(name, initial_capital = True):
     """Returns a camel-case separated format of the supplied name, which is supposed to be lower-case separated by under-score:
@@ -254,7 +255,7 @@ def to_cxx_enum(context, pp, message_type):
     for f in message_type.value:
         lst.append((f.name, f.number))
 
-    max_len = reduce(lambda y,x: max(len(x[0]), y), lst, 0)
+    max_len = functools.reduce(lambda y,x: max(len(x[0]), y), lst, 0)
     pp.begin("enum %s",  message_type.name)
 
     for t,n in lst:
@@ -281,7 +282,7 @@ def to_cxx_default_value_string(context, f):
             form, func = type_to_struct_format[f.type]
             # Store in little endian
             tmp = struct.pack('<' + form, func(default_value))
-            return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(x), tmp))
+            return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(chr(x)), tmp))
         elif f.type == FieldDescriptor.TYPE_BOOL:
             if f.default_value == "true":
                 return '"\\x01"'
@@ -291,7 +292,7 @@ def to_cxx_default_value_string(context, f):
             form, func = type_to_struct_format[f.type]
             # Store in little endian
             tmp = struct.pack('<' + form, func(f.default_value))
-            return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(x), tmp))
+            return '"%s"' % ''.join(map(lambda x: '\\x%02x' % ord(chr(x)), tmp))
 
 def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
     namespace = "_".join(namespace_lst)
@@ -559,10 +560,10 @@ def compile_java(context, proto_file, ddf_java_package, file_to_generate):
 
 def to_ensure_struct_alias_size(context, file_desc, pp_cpp):
     import hashlib
-    m = hashlib.md5(file_desc.package + file_desc.name)
+    m = hashlib.md5((file_desc.package + file_desc.name).encode('ascii'))
     pp_cpp.begin('void EnsureStructAliasSize_%s()' % m.hexdigest())
 
-    for t, at in context.type_alias_messages.iteritems():
+    for t, at in context.type_alias_messages.items():
         pp_cpp.p('DM_STATIC_ASSERT(sizeof(%s) == sizeof(%s), Invalid_Struct_Alias_Size);' % (dot_to_cxx_namespace(t), at))
 
     pp_cpp.end()
@@ -729,7 +730,7 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
 
     request = CodeGeneratorRequest()
-    request.ParseFromString(sys.stdin.read())
+    request.ParseFromString(sys.stdin.buffer.read())
     context = CompilerContext(request)
 
     for pf in request.proto_file:
@@ -765,4 +766,5 @@ if __name__ == '__main__':
                     if options.java:
                         compile_java(context, pf, x[1], request.file_to_generate[0])
 
-    sys.stdout.write(context.response.SerializeToString())
+    sys.stdout.buffer.write(context.response.SerializeToString())
+    # res = str(context.response.SerializeToString())

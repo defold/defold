@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmGameObjectDDF;
 
 import "ddf/ddf_extensions.proto";

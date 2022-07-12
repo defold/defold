@@ -199,7 +199,7 @@ static UpdateResult EngineUpdate(void* _engine)
     static uint8_t color_a = 255;
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
     dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-    dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT,
+    dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
                                 (float)color_r,
                                 (float)color_g,
                                 (float)color_b,

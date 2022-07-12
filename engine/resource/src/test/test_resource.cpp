@@ -105,7 +105,7 @@ class DynamicResourceTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        const char* test_dir = "build/default/src/test";
+        const char* test_dir = "build/src/test";
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
@@ -191,7 +191,7 @@ TEST_F(ResourceTest, UnknownResourceType)
     dmResource::Result e;
 
     void* resource = (void*) 0;
-    e = dmResource::Get(factory, "/build/default/src/test/test.testresourcecont", &resource);
+    e = dmResource::Get(factory, "/build/src/test/test.testresourcecont", &resource);
     ASSERT_EQ(dmResource::RESULT_UNKNOWN_RESOURCE_TYPE, e);
     ASSERT_EQ((void*) 0, resource);
 }
@@ -544,7 +544,7 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
 
-const char* params_resource_paths[] = {"build/default/src/test/", "http://127.0.0.1:6123", "dmanif:build/default/src/test/resources_pb.dmanifest"};
+const char* params_resource_paths[] = {"build/src/test/", "http://127.0.0.1:6123", "dmanif:build/src/test/resources_pb.dmanifest"};
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI, GetResourceTest, jc_test_values_in(params_resource_paths));
 
 #endif // TEST_HTTP_SUPPORTED
@@ -1386,7 +1386,7 @@ TEST(RecreateTest, ReloadCallbackTest)
 
 TEST(OverflowTest, OverflowTest)
 {
-    const char* test_dir = "./build/default/src/test";
+    const char* test_dir = "./build/src/test";
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 1;
@@ -1412,7 +1412,7 @@ TEST(OverflowTest, OverflowTest)
 TEST_P(GetResourceTest, OverflowTestRecursive)
 {
     // Needs to be GetResourceTest or cannot use ResourceContainer resource here which is needed for the test.
-    const char* test_dir = "build/default/src/test";
+    const char* test_dir = "build/src/test";
     for (uint32_t max=0;max<5;max++)
     {
         // recreate with new settings
