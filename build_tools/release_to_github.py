@@ -24,7 +24,8 @@ import re
 import run
 import s3
 import subprocess
-import urllib, urllib.parse
+import urllib
+from urllib.parse import urlparse
 
 def get_current_repo():
     # git@github.com:defold/defold.git
@@ -136,7 +137,7 @@ def release(config, tag_name, release_sha, s3_release):
     # for now we ignore this and fix it ourselves (note this may break if GitHub
     # changes the way uploads are done)
     log("Uploading artifacts to GitHub from S3")
-    base_url = "https://" + urllib.parse(config.archive_path).hostname
+    base_url = "https://" + urlparse(config.archive_path).hostname
 
     def is_main_file(path):
         return os.path.basename(path) in ('bob.jar', 'Defold-x86_64-darwin.dmg', 'Defold-x86_64-linux.zip', 'Defold-x86_64-win32.zip')
