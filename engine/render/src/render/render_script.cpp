@@ -52,6 +52,7 @@ namespace dmRender
     #define RENDER_SCRIPT "RenderScript"
 
     #define RENDER_SCRIPT_CONSTANTBUFFER "RenderScriptConstantBuffer"
+    #define RENDER_SCRIPT_CONSTANTBUFFER_ARRAY "RenderScriptConstantBufferArray"
 
     #define RENDER_SCRIPT_PREDICATE "RenderScriptPredicate"
 
@@ -68,6 +69,7 @@ namespace dmRender
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_PREDICATE_TYPE_HASH = 0;
+    static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_ARRAY_TYPE_HASH = 0;
 
     const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
     {
@@ -112,7 +114,12 @@ namespace dmRender
         }
         else
         {
-            return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
+            lua_newtable(L);
+            luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY);
+            lua_setmetatable(L, -2);
+            return 1;
+
+            // return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
         }
         return 0;
     }
@@ -124,11 +131,29 @@ namespace dmRender
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
-        dmhash_t name_hash = dmHashString64(name);
 
-        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-        SetNamedConstant(*cb, name_hash, value, 1);
+        if (lua_istable(L, 3))
+        {
+            // Do something here
+        }
+        else
+        {
+            dmhash_t name_hash = dmHashString64(name);
+
+            dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
+            SetNamedConstant(*cb, name_hash, value, 1);
+        }
         assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    static int RenderScriptConstantBufferArray_index(lua_State *L)
+    {
+        return 0;
+    }
+
+    static int RenderScriptConstantBufferArray_newindex(lua_State *L)
+    {
         return 0;
     }
 
@@ -143,6 +168,13 @@ namespace dmRender
         {"__tostring",  RenderScriptConstantBuffer_tostring},
         {"__index",     RenderScriptConstantBuffer_index},
         {"__newindex",  RenderScriptConstantBuffer_newindex},
+        {0, 0}
+    };
+
+    static const luaL_reg RenderScriptConstantBufferArray_meta[] =
+    {
+        {"__index",     RenderScriptConstantBufferArray_index},
+        {"__newindex",  RenderScriptConstantBufferArray_newindex},
         {0, 0}
     };
 
@@ -641,7 +673,7 @@ namespace dmRender
      * `u_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
      * `v_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
      *
-     * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters, 
+     * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters,
      * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
      * Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by render.BUFFER_COLORX_BIT where 'X' is the attachment you want to create).
      *
@@ -2588,6 +2620,8 @@ namespace dmRender
         RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_CONSTANTBUFFER, RenderScriptConstantBuffer_methods, RenderScriptConstantBuffer_meta);
 
         RENDER_SCRIPT_PREDICATE_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_PREDICATE, RenderScriptPredicate_methods, RenderScriptPredicate_meta);
+
+        RENDER_SCRIPT_CONSTANTBUFFER_ARRAY_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY, RenderScriptConstantBuffer_methods, RenderScriptConstantBufferArray_meta);
 
         luaL_register(L, RENDER_SCRIPT_LIB_NAME, Render_methods);
 
