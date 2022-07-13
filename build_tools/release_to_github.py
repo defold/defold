@@ -24,7 +24,7 @@ import re
 import run
 import s3
 import subprocess
-import urllib
+import urllib, urllib.parse
 
 def get_current_repo():
     # git@github.com:defold/defold.git
