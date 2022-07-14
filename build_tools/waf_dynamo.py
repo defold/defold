@@ -230,6 +230,8 @@ def dmsdk_add_files(bld, target, source):
     doc_files = []
     for root, dirs, files in os.walk(bld_sdk_files):
         for f in files:
+            if f.endswith('.DS_Store'):
+                continue;
             f = os.path.relpath(os.path.join(root, f), bld_path)
             doc_files.append(f)
             sdk_dir = os.path.dirname(os.path.relpath(f, source))
