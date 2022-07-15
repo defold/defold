@@ -247,6 +247,10 @@ $spacing-largest: 40px;
   }
   &:vertical {
     -fx-pref-width: 10px;
+    > .increment-button, > .decrement-button {
+      // this actually sets minimum scrollbar thumb height...
+      -fx-pref-width: 15px;
+    }
   }
   &:horizontal {
     -fx-pref-height: 10px;
@@ -264,10 +268,59 @@ $spacing-largest: 40px;
   > .viewport {
     -fx-background-color: transparent;
   }
-  > .corner {
-    -fx-background-color: transparent;
-  }
 }
+
+.corner {
+  -fx-background-color: transparent;
+}
+
+// file extensions
+
+@mixin icon-extension-template($color, $active-color){
+    & > .content > .image-view {
+        -fx-effect: innershadow(gaussian, $color, 20, 0.3, 0, 0);
+    }
+    &:selected > .content > .image-view, &:hover > .content > .image-view {
+        -fx-effect: innershadow(gaussian, $active-color, 20, 0.3, 0, 0);
+    }
+}
+
+@mixin icon-extensions () {
+    &.resource {
+        @include icon-extension-template(-df-unknown-file, -df-unknown-file-active)
+    }
+
+    &.resource-folder {
+        @include icon-extension-template(-df-folder, -df-folder-active)
+    }
+
+    &.resource-ext- {
+        /* Script files */
+        &fp, &gui_script, &lua,
+        &render_script, &script, &vp {
+            @include icon-extension-template(-df-script-file, -df-script-file-active);
+        }
+
+        /* Design files */
+        &atlas, &collection, &collisionobject,
+        &cubemap, &dae, &font, &go,
+        &gui, &label, &model, &particlefx,
+        &spinemodel, &spinescene, &sprite,
+        &tilemap, &tilesource {
+            @include icon-extension-template(-df-design-file, -df-design-file-active);
+        }
+
+        /* Property container files */
+        &animationset,
+        &camera, &collectionfactory, &collectionproxy,
+        &display_profiles, &factory,
+        &gamepads, &input_binding, &material, &project,
+        &render, &sound, &texture_profiles {
+            @include icon-extension-template(-df-property-file, -df-property-file-active);
+        }
+    }
+}
+
 
 // components
 
@@ -344,5 +397,47 @@ Text {
     &:vertical > .line {
       -fx-pref-width: 1;
     }
+  }
+}
+
+.list-view {
+  -fx-background-color: transparent;
+  &:focused > .virtual-flow > .clipped-container > .sheet > .list-cell:selected {
+    -fx-border-color: -df-defold-orange;
+  }
+}
+.list-cell {
+  @include font-size-default();
+  @include font-default();
+  @include text-fill-text-color();
+  -fx-background-color: transparent;
+  -fx-border-width: 0 0 0 2;
+  -fx-border-color: transparent;
+
+  &:selected {
+    -fx-background-color: -df-background-light;
+  }
+
+  &:hover {
+    -fx-text-fill: -df-text-selected;
+    & > .content > TextFlow > Text {
+      -fx-fill: -df-text-selected;
+      &.matched {
+        -fx-fill: -df-defold-blue-lighter;
+      }
+    }
+  }
+
+  @include icon-extensions()
+}
+
+Text {
+  -fx-font-smoothing-type: lcd;
+  -fx-fill: -df-text;
+  &.diminished {
+    -fx-opacity: 0.5;
+  }
+  &.matched {
+    -fx-fill: -df-defold-blue-lighter;
   }
 }
