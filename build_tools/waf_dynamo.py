@@ -1120,6 +1120,7 @@ def create_copy_glue(self):
         return
 
     stub = self.path.get_bld().find_or_declare('android_stub.c')
+    self.source.append(stub)
     task = self.create_task('copy_stub')
     task.set_outputs([stub])
 
