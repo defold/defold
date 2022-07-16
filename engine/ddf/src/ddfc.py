@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
 LICENSE="""
 // Copyright 2020-2022 The Defold Foundation
 // Copyright 2014-2020 King
