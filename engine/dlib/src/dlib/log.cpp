@@ -397,7 +397,7 @@ uint16_t GetPort()
 }
 
 #ifdef ANDROID
-static android_LogPriority ToAndroidPriority(Severity severity)
+static android_LogPriority ToAndroidPriority(LogSeverity severity)
 {
     switch (severity)
     {
@@ -576,7 +576,7 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     }
 
 #ifdef ANDROID
-    __android_log_print(ToAndroidPriority(severity), "defold", "%s", str_buf);
+    __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", str_buf);
 
 // iOS
 #elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
