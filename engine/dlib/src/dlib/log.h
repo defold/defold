@@ -117,7 +117,7 @@ void SetCustomLogCallback(CustomLogCallback callback, void* user_data);
  * @param severity Log severity
  * @param str_buf String buffer to print
  */
-void __ios_log_print(Severity severity, const char* str_buf);
+void __ios_log_print(LogSeverity severity, const char* str_buf);
 
 
 } //namespace dmLog

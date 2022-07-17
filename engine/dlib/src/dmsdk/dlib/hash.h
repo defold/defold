@@ -39,8 +39,9 @@
  */
 typedef uint64_t dmhash_t;
 
-extern "C"
-{
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*#
  * Calculate 32-bit hash value from buffer
@@ -130,6 +131,12 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash);
  */
 DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
 
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+
+#ifdef __cplusplus
 
 /*#
  * Hash state used for 32-bit incremental hashing
@@ -260,6 +267,6 @@ DM_DLLEXPORT uint64_t dmHashFinal64(HashState64* hash_state);
  */
 DM_DLLEXPORT void dmHashRelease64(HashState64* hash_state);
 
-}
+#endif // __cplusplus
 
 #endif // DMSDK_HASH_H

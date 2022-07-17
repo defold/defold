@@ -72,7 +72,7 @@ struct dmLogServer
 };
 
 static dmLogServer* g_dmLogServer = 0;
-static Severity g_LogLevel = LOG_SEVERITY_USER_DEBUG;
+static LogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
 static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
 static CustomLogCallback g_CustomLogCallback = 0;
@@ -398,7 +398,7 @@ uint16_t GetPort()
 
 void Setlevel(Severity severity)
 {
-    g_LogLevel = severity;
+    g_LogLevel = (LogSeverity)severity;
 }
 
 #ifdef ANDROID
@@ -460,8 +460,34 @@ void UnregisterLogListener(LogListener listener)
 
 #undef MAX_LISTENERS
 
-void LogInternal(Severity severity, const char* domain, const char* format, ...)
+bool SetLogFile(const char* path)
 {
+    if (g_LogFile) {
+        fclose(g_LogFile);
+        g_LogFile = 0;
+    }
+    g_LogFile = fopen(path, "wb");
+    if (g_LogFile) {
+        dmLogInfo("Writing log to: %s", path);
+    } else {
+        dmLogFatal("Failed to open log-file '%s'", path);
+        return false;
+    }
+    return true;
+}
+
+void SetCustomLogCallback(CustomLogCallback callback, void* user_data)
+{
+    g_CustomLogCallback = callback;
+    g_CustomLogCallbackUserData = user_data;
+}
+
+} //namespace dmLog
+
+void LogInternal(LogSeverity severity, const char* domain, const char* format, ...)
+{
+    using namespace dmLog;
+
     bool is_debug_mode = dLib::IsDebugMode();
 
     if (!is_debug_mode && g_dmLog_ListenersCount == 0)
@@ -480,22 +506,22 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
     const char* severity_str = 0;
     switch (severity)
     {
-        case LOG_SEVERITY_DEBUG:
+        case DM_LOG_SEVERITY_DEBUG:
             severity_str = "DEBUG";
             break;
-        case LOG_SEVERITY_USER_DEBUG:
+        case DM_LOG_SEVERITY_USER_DEBUG:
             severity_str = "DEBUG";
             break;
-        case LOG_SEVERITY_INFO:
+        case DM_LOG_SEVERITY_INFO:
             severity_str = "INFO";
             break;
-        case LOG_SEVERITY_WARNING:
+        case DM_LOG_SEVERITY_WARNING:
             severity_str = "WARNING";
             break;
-        case LOG_SEVERITY_ERROR:
+        case DM_LOG_SEVERITY_ERROR:
             severity_str = "ERROR";
             break;
-        case LOG_SEVERITY_FATAL:
+        case DM_LOG_SEVERITY_FATAL:
             severity_str = "FATAL";
             break;
         default:
@@ -536,7 +562,7 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
         g_isSendingLogs = true;
         for (int i = g_dmLog_ListenersCount - 1; i >= 0 ; --i)
         {
-            g_dmLog_Listeners[i](severity, domain, str_buf);
+            g_dmLog_Listeners[i]((dmLog::Severity)severity, domain, str_buf);
         }
         g_isSendingLogs = false;
     }
@@ -592,27 +618,3 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
         dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
     }
 }
-
-bool SetLogFile(const char* path)
-{
-    if (g_LogFile) {
-        fclose(g_LogFile);
-        g_LogFile = 0;
-    }
-    g_LogFile = fopen(path, "wb");
-    if (g_LogFile) {
-        dmLogInfo("Writing log to: %s", path);
-    } else {
-        dmLogFatal("Failed to open log-file '%s'", path);
-        return false;
-    }
-    return true;
-}
-
-void SetCustomLogCallback(CustomLogCallback callback, void* user_data)
-{
-    g_CustomLogCallback = callback;
-    g_CustomLogCallbackUserData = user_data;
-}
-
-} //namespace dmLog
