@@ -580,7 +580,7 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 
 // iOS
 #elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
-    __ios_log_print(severity, str_buf);
+    dmLog::__ios_log_print(severity, str_buf);
 #endif
 
 #ifdef __EMSCRIPTEN__
