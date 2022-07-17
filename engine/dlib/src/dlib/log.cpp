@@ -72,7 +72,7 @@ struct dmLogServer
 };
 
 static dmLogServer* g_dmLogServer = 0;
-static LogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
+static LogSeverity g_LogLevel = LOG_SEVERITY_USER_DEBUG;
 static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
 static CustomLogCallback g_CustomLogCallback = 0;
@@ -396,11 +396,6 @@ uint16_t GetPort()
     return g_dmLogServer->m_Port;
 }
 
-void Setlevel(Severity severity)
-{
-    g_LogLevel = (LogSeverity)severity;
-}
-
 #ifdef ANDROID
 static android_LogPriority ToAndroidPriority(Severity severity)
 {
@@ -430,36 +425,6 @@ static android_LogPriority ToAndroidPriority(Severity severity)
 }
 #endif
 
-#define MAX_LISTENERS (32)
-static LogListener g_dmLog_Listeners[MAX_LISTENERS];
-static int g_dmLog_ListenersCount = 0;
-static bool g_isSendingLogs = false;
-
-void RegisterLogListener(LogListener listener)
-{
-    if (g_dmLog_ListenersCount >= MAX_LISTENERS) {
-        dmLogWarning("Max dmLog listeners reached (%d)", MAX_LISTENERS);
-    } else {
-        g_dmLog_Listeners[g_dmLog_ListenersCount++] = listener;
-    }
-}
-
-void UnregisterLogListener(LogListener listener)
-{
-    for (int i = 0; i < g_dmLog_ListenersCount; ++i)
-    {
-        if (g_dmLog_Listeners[i] == listener)
-        {
-            g_dmLog_Listeners[i] = g_dmLog_Listeners[g_dmLog_ListenersCount - 1];
-            g_dmLog_ListenersCount--;
-            return;
-        }
-    }
-    dmLogWarning("dmLog listener not found");
-}
-
-#undef MAX_LISTENERS
-
 bool SetLogFile(const char* path)
 {
     if (g_LogFile) {
@@ -484,10 +449,52 @@ void SetCustomLogCallback(CustomLogCallback callback, void* user_data)
 
 } //namespace dmLog
 
+
+static const int g_dmLog_MaxListeners = 32;
+static FLogListener g_dmLog_Listeners[g_dmLog_MaxListeners];
+static int g_dmLog_ListenersCount = 0;
+static bool g_isSendingLogs = false;
+
+void dmLogRegisterListener(FLogListener listener)
+{
+    if (g_dmLog_ListenersCount >= g_dmLog_MaxListeners) {
+        dmLogWarning("Max dmLog listeners reached (%d)", g_dmLog_MaxListeners);
+    } else {
+        g_dmLog_Listeners[g_dmLog_ListenersCount++] = listener;
+    }
+}
+
+void dmLogUnregisterListener(FLogListener listener)
+{
+    for (int i = 0; i < g_dmLog_ListenersCount; ++i)
+    {
+        if (g_dmLog_Listeners[i] == listener)
+        {
+            g_dmLog_Listeners[i] = g_dmLog_Listeners[g_dmLog_ListenersCount - 1];
+            g_dmLog_ListenersCount--;
+            return;
+        }
+    }
+    dmLogWarning("dmLog listener not found");
+}
+
+#undef g_dmLog_MaxListeners
+
+void dmLogSetLevel(LogSeverity severity)
+{
+    dmLog::g_LogLevel = severity;
+}
+
+// Deprecated. Try to move back to the C api
+namespace dmLog {
+    void RegisterLogListener(FLogListener listener)     { dmLogRegisterListener(listener); }
+    void UnregisterLogListener(FLogListener listener)   { dmLogUnregisterListener(listener); }
+    void Setlevel(LogSeverity severity)                 { dmLogSetLevel(severity); }
+}
+
+
 void LogInternal(LogSeverity severity, const char* domain, const char* format, ...)
 {
-    using namespace dmLog;
-
     bool is_debug_mode = dLib::IsDebugMode();
 
     if (!is_debug_mode && g_dmLog_ListenersCount == 0)
@@ -495,7 +502,7 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
         return;
     }
 
-    if (severity < g_LogLevel)
+    if (severity < dmLog::g_LogLevel)
     {
         return;
     }
@@ -506,54 +513,42 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     const char* severity_str = 0;
     switch (severity)
     {
-        case DM_LOG_SEVERITY_DEBUG:
-            severity_str = "DEBUG";
-            break;
-        case DM_LOG_SEVERITY_USER_DEBUG:
-            severity_str = "DEBUG";
-            break;
-        case DM_LOG_SEVERITY_INFO:
-            severity_str = "INFO";
-            break;
-        case DM_LOG_SEVERITY_WARNING:
-            severity_str = "WARNING";
-            break;
-        case DM_LOG_SEVERITY_ERROR:
-            severity_str = "ERROR";
-            break;
-        case DM_LOG_SEVERITY_FATAL:
-            severity_str = "FATAL";
-            break;
+        case LOG_SEVERITY_DEBUG:        severity_str = "DEBUG"; break;
+        case LOG_SEVERITY_USER_DEBUG:   severity_str = "DEBUG"; break;
+        case LOG_SEVERITY_INFO:         severity_str = "INFO"; break;
+        case LOG_SEVERITY_WARNING:      severity_str = "WARNING"; break;
+        case LOG_SEVERITY_ERROR:        severity_str = "ERROR"; break;
+        case LOG_SEVERITY_FATAL:        severity_str = "FATAL"; break;
         default:
             assert(0);
             break;
     }
 
-    char tmp_buf[sizeof(LogMessage) + MAX_STRING_SIZE];
-    LogMessage* msg = (LogMessage*) &tmp_buf[0];
-    char* str_buf = &tmp_buf[sizeof(LogMessage)];
+    char tmp_buf[sizeof(dmLog::LogMessage) + dmLog::MAX_STRING_SIZE];
+    dmLog::LogMessage* msg = (dmLog::LogMessage*) &tmp_buf[0];
+    char* str_buf = &tmp_buf[sizeof(dmLog::LogMessage)];
 
     int n = 0;
-    n += dmSnPrintf(str_buf + n, MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
-    if (n < MAX_STRING_SIZE)
+    n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
+    if (n < dmLog::MAX_STRING_SIZE)
     {
-        n += vsnprintf(str_buf + n, MAX_STRING_SIZE - n, format, lst);
+        n += vsnprintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, format, lst);
     }
 
-    if (n < MAX_STRING_SIZE)
+    if (n < dmLog::MAX_STRING_SIZE)
     {
-        n += dmSnPrintf(str_buf + n, MAX_STRING_SIZE - n, "\n");
+        n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "\n");
     }
 
-    if (n >= MAX_STRING_SIZE)
+    if (n >= dmLog::MAX_STRING_SIZE)
     {
-        strcpy(&str_buf[MAX_STRING_SIZE - (strlen(LOG_OUTPUT_TRUNCATED_MESSAGE) + 1)], LOG_OUTPUT_TRUNCATED_MESSAGE);
+        strcpy(&str_buf[dmLog::MAX_STRING_SIZE - (strlen(dmLog::LOG_OUTPUT_TRUNCATED_MESSAGE) + 1)], dmLog::LOG_OUTPUT_TRUNCATED_MESSAGE);
     }
 
-    str_buf[MAX_STRING_SIZE-1] = '\0';
-    int actual_n = dmMath::Min(n, (int)(MAX_STRING_SIZE-1));
+    str_buf[dmLog::MAX_STRING_SIZE-1] = '\0';
+    int actual_n = dmMath::Min(n, (int)(dmLog::MAX_STRING_SIZE-1));
 
-    g_TotalBytesLogged += actual_n;
+    dmLog::g_TotalBytesLogged += actual_n;
 
     va_end(lst);
 
@@ -562,7 +557,7 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
         g_isSendingLogs = true;
         for (int i = g_dmLog_ListenersCount - 1; i >= 0 ; --i)
         {
-            g_dmLog_Listeners[i]((dmLog::Severity)severity, domain, str_buf);
+            g_dmLog_Listeners[i](severity, domain, str_buf);
         }
         g_isSendingLogs = false;
     }
@@ -574,9 +569,9 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 
     DM_PROFILE_TEXT("%s", str_buf);
 
-    if (g_CustomLogCallback != 0x0)
+    if (dmLog::g_CustomLogCallback != 0x0)
     {
-        g_CustomLogCallback(g_CustomLogCallbackUserData, str_buf);
+        dmLog::g_CustomLogCallback(dmLog::g_CustomLogCallbackUserData, str_buf);
         return;
     }
 
@@ -602,19 +597,19 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;
 
-    if (g_LogFile && g_TotalBytesLogged < MAX_LOG_FILE_SIZE) {
-        fwrite(str_buf, 1, actual_n, g_LogFile);
-        fflush(g_LogFile);
+    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
+        fwrite(str_buf, 1, actual_n, dmLog::g_LogFile);
+        fflush(dmLog::g_LogFile);
     }
 
-    dmLogServer* self = g_dmLogServer;
+    dmLog::dmLogServer* self = dmLog::g_dmLogServer;
     if (self)
     {
-        msg->m_Type = LogMessage::MESSAGE;
+        msg->m_Type = dmLog::LogMessage::MESSAGE;
         dmMessage::URL receiver;
         receiver.m_Socket = self->m_MessgeSocket;
         receiver.m_Path = 0;
         receiver.m_Fragment = 0;
-        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
+        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLog::LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
     }
 }
