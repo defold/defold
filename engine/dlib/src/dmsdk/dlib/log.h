@@ -17,9 +17,6 @@
 
 #include <stdint.h>
 
-namespace dmLog
-{
-
 /*# logging functions
  *
  * Logging functions.
@@ -120,23 +117,28 @@ namespace dmLog
  * Log severity
  *
  * @enum
- * @name dmLog::Severity
- * @member dmLog::LOG_SEVERITY_DEBUG
- * @member dmLog::LOG_SEVERITY_USER_DEBUG
- * @member dmLog::LOG_SEVERITY_INFO
- * @member dmLog::LOG_SEVERITY_WARNING
- * @member dmLog::LOG_SEVERITY_ERROR
- * @member dmLog::LOG_SEVERITY_FATAL
+ * @name LogSeverity
+ * @member LOG_SEVERITY_DEBUG
+ * @member LOG_SEVERITY_USER_DEBUG
+ * @member LOG_SEVERITY_INFO
+ * @member LOG_SEVERITY_WARNING
+ * @member LOG_SEVERITY_ERROR
+ * @member LOG_SEVERITY_FATAL
  */
-enum Severity
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum LogSeverity
 {
-    LOG_SEVERITY_DEBUG       = 0,//!< dmLog::LOG_SEVERITY_DEBUG
-    LOG_SEVERITY_USER_DEBUG  = 1,//!< dmLog::LOG_SEVERITY_USER_DEBUG
-    LOG_SEVERITY_INFO        = 2,//!< dmLog::LOG_SEVERITY_INFO
-    LOG_SEVERITY_WARNING     = 3,//!< dmLog::LOG_SEVERITY_WARNING
-    LOG_SEVERITY_ERROR       = 4,//!< dmLog::LOG_SEVERITY_ERROR
-    LOG_SEVERITY_FATAL       = 5,//!< dmLog::LOG_SEVERITY_FATAL
-};
+    LOG_SEVERITY_DEBUG       = 0,//!< LOG_SEVERITY_DEBUG
+    LOG_SEVERITY_USER_DEBUG  = 1,//!< LOG_SEVERITY_USER_DEBUG
+    LOG_SEVERITY_INFO        = 2,//!< LOG_SEVERITY_INFO
+    LOG_SEVERITY_WARNING     = 3,//!< LOG_SEVERITY_WARNING
+    LOG_SEVERITY_ERROR       = 4,//!< LOG_SEVERITY_ERROR
+    LOG_SEVERITY_FATAL       = 5,//!< LOG_SEVERITY_FATAL
+} LogSeverity;
 
 #if defined(NDEBUG)
 
@@ -164,26 +166,26 @@ enum Severity
 #endif
 
 #ifdef __GNUC__
-void LogInternal(Severity severity, const char* domain, const char* format, ...)
+void LogInternal(LogSeverity severity, const char* domain, const char* format, ...)
     __attribute__ ((format (printf, 3, 4)));
 #else
-void LogInternal(Severity severity, const char* domain, const char* format, ...);
+void LogInternal(LogSeverity severity, const char* domain, const char* format, ...);
 #endif
 
 #ifdef _MSC_VER
-#define dmLogDebug(format, ... ) LogInternal(dmLog::LOG_SEVERITY_DEBUG, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
-#define dmLogUserDebug(format, ... ) LogInternal(dmLog::LOG_SEVERITY_USER_DEBUG, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
-#define dmLogInfo(format, ... ) LogInternal(dmLog::LOG_SEVERITY_INFO, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
-#define dmLogWarning(format, ... ) LogInternal(dmLog::LOG_SEVERITY_WARNING, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
-#define dmLogError(format, ... ) LogInternal(dmLog::LOG_SEVERITY_ERROR, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
-#define dmLogFatal(format, ... ) LogInternal(dmLog::LOG_SEVERITY_FATAL, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
+#define dmLogDebug(format, ... ) LogInternal(LOG_SEVERITY_DEBUG, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
+#define dmLogUserDebug(format, ... ) LogInternal(LOG_SEVERITY_USER_DEBUG, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
+#define dmLogInfo(format, ... ) LogInternal(LOG_SEVERITY_INFO, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
+#define dmLogWarning(format, ... ) LogInternal(LOG_SEVERITY_WARNING, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
+#define dmLogError(format, ... ) LogInternal(LOG_SEVERITY_ERROR, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
+#define dmLogFatal(format, ... ) LogInternal(LOG_SEVERITY_FATAL, DLIB_LOG_DOMAIN, format, __VA_ARGS__ );
 #else
-#define dmLogDebug(format, args...) LogInternal(dmLog::LOG_SEVERITY_DEBUG, DLIB_LOG_DOMAIN, format, ## args);
-#define dmLogUserDebug(format, args...) LogInternal(dmLog::LOG_SEVERITY_USER_DEBUG, DLIB_LOG_DOMAIN, format, ## args);
-#define dmLogInfo(format, args...) LogInternal(dmLog::LOG_SEVERITY_INFO, DLIB_LOG_DOMAIN, format, ## args);
-#define dmLogWarning(format, args...) LogInternal(dmLog::LOG_SEVERITY_WARNING, DLIB_LOG_DOMAIN, format, ## args);
-#define dmLogError(format, args...) LogInternal(dmLog::LOG_SEVERITY_ERROR, DLIB_LOG_DOMAIN, format, ## args);
-#define dmLogFatal(format, args...) LogInternal(dmLog::LOG_SEVERITY_FATAL, DLIB_LOG_DOMAIN, format, ## args);
+#define dmLogDebug(format, args...) LogInternal(LOG_SEVERITY_DEBUG, DLIB_LOG_DOMAIN, format, ## args);
+#define dmLogUserDebug(format, args...) LogInternal(LOG_SEVERITY_USER_DEBUG, DLIB_LOG_DOMAIN, format, ## args);
+#define dmLogInfo(format, args...) LogInternal(LOG_SEVERITY_INFO, DLIB_LOG_DOMAIN, format, ## args);
+#define dmLogWarning(format, args...) LogInternal(LOG_SEVERITY_WARNING, DLIB_LOG_DOMAIN, format, ## args);
+#define dmLogError(format, args...) LogInternal(LOG_SEVERITY_ERROR, DLIB_LOG_DOMAIN, format, ## args);
+#define dmLogFatal(format, args...) LogInternal(LOG_SEVERITY_FATAL, DLIB_LOG_DOMAIN, format, ## args);
 #endif
 
 #define dmLogOnceIdentifier __dmLogOnce
@@ -224,8 +226,6 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
 #define dmLogOnceFatal(format, args... ) dmLogOnceInternal(dmLogFatal, format, ## args )
 #endif
 
-#endif // NDEBUG
-
 /*# dmLog:LogListener callback typedef
  *
  * dmLog listener function type. Provides all logs from dmLog* functions and print/pprint Lua functions.
@@ -233,40 +233,85 @@ void LogInternal(Severity severity, const char* domain, const char* format, ...)
  *
  * @typedef
  * @name dmLog:LogListener
- * @param severity [type:dmLog::Severity]
+ * @param severity [type:LogSeverity]
  * @param domain [type:const char*]
  * @param formatted_string [type:const char*] null terminated string
  */
-typedef void (*LogListener)(Severity severity, const char* domain, const char* formatted_string);
+typedef void (*FLogListener)(LogSeverity severity, const char* domain, const char* formatted_string);
 
-/*# register dmLog listener.
+/*# register a log listener.
  *
- * Registers a dmLog listener.
- * This listener recieve logs even in release bundle.
+ * Registers a log listener.
+ * This listener receive logs even in release bundle.
  *
- * @name dmLog::RegisterLogListener
- * @param listener [type:dmLog::LogListener]
+ * @name dmLogRegisterListener
+ * @param listener [type:FLogListener]
  */
-void RegisterLogListener(LogListener listener);
+void dmLogRegisterListener(FLogListener listener);
 
-/*# unregister dmLog listener.
+/*# unregister a log listener.
  *
- * Unregisters a dmLog listener.
+ * Unregisters a log listener.
  *
- * @name dmLog::UnregisterLogListener
- * @param [type:dmLog::LogListener] listener
+ * @name dmLogUnregisterListener
+ * @param [type:FLogListener] listener
  */
-void UnregisterLogListener(LogListener listener);
+void dmLogUnregisterListener(FLogListener listener);
 
 /*# set log system severity level.
  *
  * set log system severity level.
  *
+ * @name dmLogSetLevel
+ * @param [type:dmLog::Severity] severity
+ */
+void dmLogSetLevel(LogSeverity severity);
+
+
+#endif // NDEBUG
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+#ifdef __cplusplus
+
+namespace dmLog
+{
+
+/*# register dmLog listener.
+ *
+ * Registers a dmLog listener.
+ * This listener receive logs even in release bundle.
+ *
+ * @note deprecated. Use dmLogRegisterListener instead.
+ * @name dmLog::RegisterLogListener
+ * @param listener [type:FLogListener]
+ */
+void RegisterLogListener(FLogListener listener);
+
+/*# unregister dmLog listener.
+ *
+ * Unregisters a dmLog listener.
+ *
+ * @note deprecated. Use dmLogUnregisterListener instead.
+ * @name dmLog::UnregisterLogListener
+ * @param [type:FLogListener] listener
+ */
+void UnregisterLogListener(FLogListener listener);
+
+/*# set log system severity level.
+ *
+ * set log system severity level.
+ *
+ * @note deprecated. Use dmLogSetLevel instead.
  * @name dmLog::Setlevel
  * @param [type:dmLog::Severity] severity
  */
-void Setlevel(Severity severity);
+void Setlevel(LogSeverity severity);
 
 } //namespace dmLog
+
+#endif //__cplusplus
 
 #endif // DMSDK_LOG_H

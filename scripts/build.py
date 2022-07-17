@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,8 +19,7 @@ from os.path import join, dirname, basename, relpath, expanduser, normpath, absp
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes
-import optparse, subprocess, urllib, urlparse, tempfile, time
-import imp
+import optparse, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import run
 import s3
@@ -28,11 +27,12 @@ import sdk
 import release_to_github
 import BuildUtility
 import http_cache
+from urllib.parse import urlparse
 from tarfile import TarFile
 from glob import glob
 from threading import Thread, Event
-from Queue import Queue
-from ConfigParser import ConfigParser
+from queue import Queue
+from configparser import ConfigParser
 
 BASE_PLATFORMS = [  'x86_64-linux',
                     'x86_64-darwin',
@@ -45,13 +45,13 @@ sys.dont_write_bytecode = True
 try:
     import build_nx64
     sys.modules['build_private'] = build_nx64
-except Exception, e:
+except Exception:
     pass
 
 sys.dont_write_bytecode = False
 try:
     import build_private
-except Exception, e:
+except Exception:
     pass
 
 if 'build_private' not in sys.modules:
@@ -82,18 +82,18 @@ def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
-PACKAGES_HOST="protobuf-2.3.0 cg-3.1 vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
-PACKAGES_IOS_X86_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-2.3.0 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_DARWIN="protobuf-2.3.0 vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41".split()
-PACKAGES_WIN32="luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
-PACKAGES_LINUX_64="luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-2.3.0 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_ANDROID_64="protobuf-2.3.0 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_EMSCRIPTEN="protobuf-2.3.0 bullet-2.77".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
+PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
+PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
+PACKAGES_DARWIN="vpx-1.7.0".split()
+PACKAGES_DARWIN_64="protobuf-3.20.1 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41 luac-32-5.1.5".split()
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -130,7 +130,7 @@ def is_64bit_machine():
 # Legacy format, should be removed eventually
 # Returns: [linux|x86_64-linux|win32|x86_64-win32|darwin]
 def get_host_platform():
-    if sys.platform == 'linux2':
+    if sys.platform == 'linux':
         arch = platform.architecture()[0]
         if arch == '64bit':
             return 'x86_64-linux'
@@ -144,7 +144,7 @@ def get_host_platform():
 # The difference from get_host_platform is that it returns the correct platform
 # Returns: [x86|x86_64][win32|linux|darwin]
 def get_host_platform2():
-    if sys.platform == 'linux2':
+    if sys.platform == 'linux':
         arch = platform.architecture()[0]
         if arch == '64bit':
             return 'x86_64-linux'
@@ -217,7 +217,7 @@ class ThreadPool(object):
             try:
                 result = func(*args)
                 future.result = result
-            except Exception,e:
+            except Exception as e:
                 future.result = e
             future.event.set()
             func, args, future = self.work_queue.get()
@@ -233,7 +233,7 @@ class Future(object):
             # In order to respond to ctrl+c wait with timeout...
             while not self.event.is_set():
                 self.event.wait(0.1)
-        except KeyboardInterrupt,e:
+        except KeyboardInterrupt as e:
             sys.exit(0)
 
         if isinstance(self.result, Exception):
@@ -248,7 +248,7 @@ def download_sdk(conf, url, targetfolder, strip_components=1, force_extract=Fals
         path = conf.get_local_or_remote_file(url)
         conf._extract_tgz_rename_folder(path, targetfolder, strip_components, format=format)
     else:
-        print "SDK already installed:", targetfolder
+        print ("SDK already installed:", targetfolder)
 
 class Configuration(object):
     def __init__(self, dynamo_home = None,
@@ -348,7 +348,7 @@ class Configuration(object):
             os.makedirs(path)
 
     def _log(self, msg):
-        print msg
+        print(str(msg))
         sys.stdout.flush()
         sys.stderr.flush()
 
@@ -414,7 +414,7 @@ class Configuration(object):
         def _extract_zip_entry( zf, info, extract_dir ):
             zf.extract( info.filename, path=extract_dir )
             out_path = os.path.join( extract_dir, info.filename )
-            perm = info.external_attr >> 16L
+            perm = info.external_attr >> 16
             os.chmod( out_path, perm )
 
         with zipfile.ZipFile(file, 'r') as zf:
@@ -532,11 +532,11 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), ['python', './packages/get-pip.py', 'pip==20.3.4'])
+        run.env_command(self._form_env(), ['python', './packages/get-pip.py', 'pip==20.3.4', '--user'])
         run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
-            run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), whl])
+            run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
 
         print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
@@ -558,10 +558,10 @@ class Configuration(object):
         if os.path.isdir(self.package_path): # is is a local path?
             if os.path.exists(path):
                 return os.path.normpath(os.path.abspath(path))
-            print "Could not find local file:", path
+            print("Could not find local file:", path)
             sys.exit(1)
         dirname, basename = os.path.split(path)
-        path = dirname + "/" + urllib.quote(basename)
+        path = dirname + "/" + urllib.parse.quote(basename)
         path = self._download(path) # it should be an url
         if path is None:
             print("Error. Could not download %s" % path)
@@ -642,7 +642,7 @@ class Configuration(object):
         os.environ['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
 
         if os.path.isdir(emsDir):
-            print "Emscripten is already installed:", emsDir
+            print("Emscripten is already installed:", emsDir)
         else:
             self._check_package_path()
             platform_map = {'x86_64-linux':'linux','x86_64-darwin':'darwin','x86_64-win32':'win32'}
@@ -676,14 +676,14 @@ class Configuration(object):
         config = join(self.get_ems_dir(), '.emscripten')
         err = False
         if not os.path.isfile(config):
-            print 'No .emscripten file.'
+            print('No .emscripten file.')
             err = True
         emsDir = self.get_ems_dir()
         if not os.path.isdir(emsDir):
-            print 'Emscripten tools not installed.'
+            print('Emscripten tools not installed.')
             err = True
         if err:
-            print 'Consider running install_ems'
+            print('Consider running install_ems')
 
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
@@ -852,7 +852,7 @@ class Configuration(object):
                 for root, dirs, files in os.walk(os.path.join(self.dynamo_home, 'ext/lib/python/google')):
                     for f in files:
                         _, ext = os.path.splitext(f)
-                        print root, f
+                        print (root, f)
                         if ext in ('.pyc',):
                             continue
                         path = os.path.join(root, f)
@@ -880,10 +880,10 @@ class Configuration(object):
         # Helper function to make it easier to build a platform sdk locally
         try:
             path = self._package_platform_sdk(self.target_platform)
-        except Exception, e:
-            print "Failed to package sdk for platform %s: %s" % (self.target_platform, e)
+        except Exception as e:
+            print ("Failed to package sdk for platform %s: %s" % (self.target_platform, e))
         else:
-            print "Wrote %s" % path
+            print ("Wrote %s" % path)
 
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
@@ -906,10 +906,10 @@ class Configuration(object):
             elif target_platform == 'arm64-android':
                 ANDROID_PLATFORM = 'aarch64-linux-android'
 
-            ANDROID_HOST = 'linux' if sys.platform == 'linux2' else 'darwin'
+            ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
-        if self.target_platform in ('x86_64-darwin','arm64-darwin','x86_64-ios') and 'linux2' == sys.platform:
+        if self.target_platform in ('x86_64-darwin','arm64-darwin','x86_64-ios') and 'linux' == sys.platform:
             strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
 
         run.shell_command("%s %s" % (strip, path))
@@ -1059,11 +1059,11 @@ class Configuration(object):
         s = run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
         if self.verbose:
-            print s
+            print (s)
 
         s = run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
-            print s
+            print (s)
 
     def build_engine(self):
         self.check_sdk()
@@ -1111,7 +1111,7 @@ class Configuration(object):
             shutil.rmtree(scan_output_dir)
 
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
-            print "Removing", os.environ['DM_BOB_ROOTFOLDER']
+            print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
 
     def build_external(self):
@@ -1174,15 +1174,15 @@ class Configuration(object):
                            'ios-bundling': [['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
                            'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux']],
-                           'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.iteritems():
+                           'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.items():
             # plfs is pairs of src-platform -> dst-platform
             for plf in plfs:
                 exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
                 artefacts[type].update(dict([['bin/%s/%s' % (plf[0], exe), 'libexec/%s/%s' % (plf[1], exe)] for exe in exes]))
         # Perform the actual copy, or list which files are missing
-        for type, files in artefacts.iteritems():
+        for type, files in artefacts.items():
             m = []
-            for src, dst in files.iteritems():
+            for src, dst in files.items():
                 src_path = join(self.dynamo_home, src)
                 if not os.path.exists(src_path):
                     m.append(src_path)
@@ -1235,10 +1235,10 @@ class Configuration(object):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
 
         sha1 = self._git_sha1()
-        u = urlparse.urlparse(self.get_archive_path())
+        u = urlparse(self.get_archive_path())
         bucket = s3.get_bucket(u.netloc)
 
-        root = urlparse.urlparse(self.get_archive_path()).path[1:]
+        root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
         platforms = get_target_platforms()
@@ -1257,15 +1257,15 @@ class Configuration(object):
                 raise Exception("Could not find sdk: %s" % prefix)
 
             platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
-            print "Downloading", entry.key
+            print ("Downloading", entry.key)
             entry.get_contents_to_filename(platform_sdk_zip.name)
-            print "Downloaded", entry.key, "to", platform_sdk_zip.name
+            print ("Downloaded", entry.key, "to", platform_sdk_zip.name)
 
             self._extract_zip(platform_sdk_zip.name, tempdir)
-            print "Extracted", platform_sdk_zip.name, "to", tempdir
+            print ("Extracted", platform_sdk_zip.name, "to", tempdir)
 
             os.unlink(platform_sdk_zip.name)
-            print ""
+            print ("")
 
         # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
         # and set the flags explicitly
@@ -1278,13 +1278,13 @@ class Configuration(object):
 
         treepath = os.path.join(tempdir, 'defoldsdk')
         sdkpath = self._ziptree(treepath, directory=tempdir)
-        print "Packaged defold sdk from", tempdir, "to", sdkpath
+        print ("Packaged defold sdk from", tempdir, "to", sdkpath)
 
         sdkurl = join(sha1, 'engine').replace('\\', '/')
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
         shutil.rmtree(tempdir)
-        print "Removed", tempdir
+        print ("Removed", tempdir)
 
     def build_docs(self):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
@@ -1417,8 +1417,8 @@ class Configuration(object):
         with open('VERSION', 'w') as f:
             f.write(new_version)
 
-        print 'Bumping engine version from %s to %s' % (current, new_version)
-        print 'Review changes and commit'
+        print ('Bumping engine version from %s to %s' % (current, new_version))
+        print ('Review changes and commit')
 
     def save_env(self):
         if not self.save_env_path:
@@ -1434,18 +1434,21 @@ class Configuration(object):
             f.write(res)
 
     def shell(self):
-        print 'Setting up shell with DYNAMO_HOME, PATH, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set'
+        print ('Setting up shell with DYNAMO_HOME, PATH, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
         if "win32" in self.host:
             preexec_fn = None
         else:
             preexec_fn = self.check_ems
 
         if "darwin" in self.host and "arm" in platform.processor():
-            print 'Detected Apple M1 CPU - running shell with x86 architecture'
-            args = ['arch', '-arch', 'x86_64', SHELL, '-l']
+            print ('Detected Apple M1 CPU - running shell with x86 architecture')
+            # Submit as string because on POSIX subsequent tokens are passed to the shell - not the arch command.
+            # See: https://docs.python.org/3.10/library/subprocess.html#popen-constructor
+            args = 'arch -arch x86_64 %s -l' % SHELL
         else:
             args = [SHELL, '-l']
-        process = subprocess.Popen(args, env = self._form_env(), preexec_fn=preexec_fn)
+
+        process = subprocess.Popen(args, env=self._form_env(), shell=True)
         output = process.communicate()[0]
 
         if process.returncode != 0:
@@ -1506,11 +1509,11 @@ class Configuration(object):
         else:
             editor_channel = self.channel or "stable"
 
-        u = urlparse.urlparse(self.get_archive_path())
+        u = urlparse(self.get_archive_path())
         hostname = u.hostname
         bucket = s3.get_bucket(hostname)
 
-        editor_archive_path = urlparse.urlparse(self.get_archive_path(editor_channel)).path
+        editor_archive_path = urlparse(self.get_archive_path(editor_channel)).path
 
         release_sha1 = releases[0]['sha1']
 
@@ -1634,7 +1637,7 @@ class Configuration(object):
         self.channel = channel
 
     def sync_archive(self):
-        u = urlparse.urlparse(self.get_archive_path())
+        u = urlparse(self.get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
 
@@ -1837,7 +1840,7 @@ class Configuration(object):
 
     def get_archive_redirect_key(self, url):
         old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path)
-        u = urlparse.urlparse(old_url)
+        u = urlparse(old_url)
         return u.path
 
     def download_from_archive(self, src_path, dst_file):
@@ -1852,7 +1855,7 @@ class Configuration(object):
 
         # create redirect so that the old s3 paths still work
         # s3://d.defold.com/archive/channel/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
-        bucket = s3.get_bucket(urlparse.urlparse(url).netloc)
+        bucket = s3.get_bucket(urlparse(url).netloc)
         redirect_key = self.get_archive_redirect_key(url)
         redirect_url = url.replace("s3://", "http://")
         key = bucket.new_key(redirect_key)
@@ -1862,7 +1865,7 @@ class Configuration(object):
     def download_from_s3(self, path, url):
         url = url.replace('\\', '/')
         self._log('Downloading %s -> %s' % (url, path))
-        u = urlparse.urlparse(url)
+        u = urlparse(url)
 
         if u.scheme == 's3':
             self._mkdirs(os.path.dirname(path))
@@ -1881,7 +1884,7 @@ class Configuration(object):
         url = url.replace('\\', '/')
         self._log('Uploading %s -> %s' % (path, url))
 
-        u = urlparse.urlparse(url)
+        u = urlparse(url)
 
         if u.scheme == 's3':
             bucket = s3.get_bucket(u.netloc)
@@ -1911,7 +1914,7 @@ class Configuration(object):
                 chunkcount = int(math.ceil(source_size / float(chunksize)))
 
                 def upload_part(filepath, part, offset, size):
-                    with open(filepath, 'r') as fhandle:
+                    with open(filepath, 'rb') as fhandle:
                         fhandle.seek(offset)
                         mp.upload_part_from_file(fp=fhandle, part_num=part, size=size)
 
@@ -1955,7 +1958,7 @@ class Configuration(object):
         self.futures = []
 
     def _form_env(self):
-        env = dict(os.environ)
+        env = os.environ.copy()
 
         host = self.host2
         if 'x86-' in host:
@@ -2034,6 +2037,7 @@ Commands:
 distclean        - Removes the DYNAMO_HOME folder
 install_ext      - Install external packages
 install_ems      - Install emscripten sdk
+install_sdk      - Install sdk
 sync_archive     - Sync engine artifacts from S3
 activate_ems     - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine     - Build engine
@@ -2174,8 +2178,8 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     options, all_args = parser.parse_args()
 
-    args = filter(lambda x: x[:2] != '--', all_args)
-    waf_options = filter(lambda x: x[:2] == '--', all_args)
+    args = list(filter(lambda x: x[:2] != '--', all_args))
+    waf_options = list(filter(lambda x: x[:2] == '--', all_args))
 
     if len(args) == 0:
         parser.error('No command specified')

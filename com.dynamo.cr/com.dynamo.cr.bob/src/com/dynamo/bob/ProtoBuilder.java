@@ -22,14 +22,14 @@ import java.util.Map;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
-import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.Message;
 
-public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extends Builder<Void> {
+public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> extends Builder<Void> {
 
     private ProtoParams protoParams;
 
-    private static Map<String, Class<? extends GeneratedMessage>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessage>>();
+    private static Map<String, Class<? extends GeneratedMessageV3>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessageV3>>();
 
     public ProtoBuilder() {
         protoParams = getClass().getAnnotation(ProtoParams.class);
@@ -38,26 +38,26 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
         extToMessageClass.put(builderParams.outExt(), protoParams.messageClass());
     }
 
-    static public void addMessageClass(String ext, Class<? extends GeneratedMessage> klass) {
+    static public void addMessageClass(String ext, Class<? extends GeneratedMessageV3> klass) {
         extToMessageClass.put(ext, klass);
     }
 
-    static public Class<? extends GeneratedMessage> getMessageClassFromExt(String ext) {
+    static public Class<? extends GeneratedMessageV3> getMessageClassFromExt(String ext) {
         return extToMessageClass.get(ext);
     }
 
     static public boolean supportsType(String ext) {
-        Class<? extends GeneratedMessage> klass = getMessageClassFromExt(ext);
+        Class<? extends GeneratedMessageV3> klass = getMessageClassFromExt(ext);
         return klass != null;
     }
 
-    static public GeneratedMessage.Builder<?> newBuilder(String ext) throws CompileExceptionError {
-        Class<? extends GeneratedMessage> klass = getMessageClassFromExt(ext);
+    static public GeneratedMessageV3.Builder<?> newBuilder(String ext) throws CompileExceptionError {
+        Class<? extends GeneratedMessageV3> klass = getMessageClassFromExt(ext);
         if (klass != null) {
-            GeneratedMessage.Builder<?> builder;
+            GeneratedMessageV3.Builder<?> builder;
             try {
                 Method newBuilder = klass.getDeclaredMethod("newBuilder");
-                return (GeneratedMessage.Builder<?>) newBuilder.invoke(null);
+                return (GeneratedMessageV3.Builder<?>) newBuilder.invoke(null);
             } catch(Exception e) {
                 throw new RuntimeException(e);
             }

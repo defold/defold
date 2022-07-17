@@ -30,7 +30,10 @@
 #include "testutil.h"
 
 #define JC_TEST_IMPLEMENTATION
+#define JC_TEST_NO_DEATH_TEST
 #include <jc_test/jc_test.h>
+
+#include <signal.h>
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmHttpClient::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmHttpClient::ResultToString(r));
@@ -800,6 +803,8 @@ TEST_P(dmHttpClientTest, Cache)
 
 TEST_P(dmHttpClientTest, MaxAgeCache)
 {
+    signal(SIGPIPE, SIG_IGN);
+
     dmHttpClient::Delete(m_Client);
 
     // Reinit client with http-cache
@@ -1158,10 +1163,11 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_INFO);
+    dmLogSetLevel(LOG_SEVERITY_INFO);
     dmSocket::Initialize();
     dmSSLSocket::Initialize();
     jc_test_init(&argc, argv);
+
     int ret = jc_test_run_all();
     dmSSLSocket::Finalize();
     dmSocket::Finalize();

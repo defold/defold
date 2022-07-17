@@ -3,10 +3,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,16 +17,15 @@ from log import log
 import os
 import re
 import sys
-import urlparse
+import urllib
+from urllib.parse import urlparse
 from datetime import datetime
-from ConfigParser import ConfigParser
-
-
+from configparser import ConfigParser
 
 s3buckets = {}
 
 def get_archive_prefix(archive_path, sha1):
-    u = urlparse.urlparse(archive_path)
+    u = urlparse(archive_path)
     assert (u.scheme == 's3')
     prefix = os.path.join(u.path, sha1)[1:]
     return prefix
@@ -78,7 +77,7 @@ def get_bucket(bucket_name):
 
 
 def find_files_in_bucket(archive_path, bucket, sha1, path, pattern):
-    root = urlparse.urlparse(archive_path).path[1:]
+    root = urlparse(archive_path).path[1:]
     base_prefix = os.path.join(root, sha1)
     prefix = os.path.join(base_prefix, path)
     files = []
@@ -105,7 +104,7 @@ def get_files(archive_path, bucket, sha1):
     return files
 
 def get_tagged_releases(archive_path, pattern=None):
-    u = urlparse.urlparse(archive_path)
+    u = urlparse(archive_path)
     bucket = get_bucket(u.hostname)
 
     if pattern is None:
@@ -141,7 +140,7 @@ def get_tagged_releases(archive_path, pattern=None):
     return releases
 
 def get_single_release(archive_path, version_tag, sha1):
-    u = urlparse.urlparse(archive_path)
+    u = urlparse(archive_path)
     bucket = get_bucket(u.hostname)
     files = get_files(archive_path, bucket, sha1)
 
@@ -151,7 +150,7 @@ def get_single_release(archive_path, version_tag, sha1):
             'files': files}
 
 def move_release(archive_path, sha1, channel):
-    u = urlparse.urlparse(archive_path)
+    u = urlparse(archive_path)
     # get archive root and bucket name
     # archive root:     s3://d.defold.com/archive -> archive
     # bucket name:      s3://d.defold.com/archive -> d.defold.com
@@ -181,7 +180,7 @@ def move_release(archive_path, sha1, channel):
             continue
 
         # resolve the redirect and get a key to the file
-        redirect_name = urlparse.urlparse(redirect_path).path[1:]
+        redirect_name = urlparse(redirect_path).path[1:]
         redirect_key = bucket.get_key(redirect_name)
         if not redirect_key:
             print("Invalid redirect for %s. The file will not be moved" % redirect_path)

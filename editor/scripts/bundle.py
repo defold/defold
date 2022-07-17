@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,18 +25,19 @@ import shutil
 import subprocess
 import tarfile
 import zipfile
-import ConfigParser
+import configparser
 import datetime
 import imp
 import fnmatch
 import urllib
+import urllib.parse
 
 # TODO: collect common functions in a more suitable reusable module
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
     sys.dont_write_bytecode = True
     import build_private
-except Exception, e:
+except Exception as e:
     class build_private(object):
         @classmethod
         def get_tag_suffix(self):
@@ -58,7 +59,7 @@ platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86_64-darwin': 'macos-x64',
                     'x86_64-win32': 'windows-x64'}
 
-python_platform_to_java = {'linux2': 'linux-x64',
+python_platform_to_java = {'linux': 'linux-x64',
                            'win32': 'windows-x64',
                            'darwin': 'macos-x64'}
 
@@ -106,7 +107,7 @@ def extract(file, path, is_mac):
 modules = {}
 
 def download(url):
-    if not modules.has_key('http_cache'):
+    if not modules.__contains__('http_cache'):
         modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
     log('Downloading %s' % (url))
     path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
@@ -120,7 +121,7 @@ def exec_command(args):
 
     output = ''
     while True:
-        line = process.stdout.readline()
+        line = process.stdout.readline().decode()
         if line != '':
             output += line
             print(line.rstrip())
@@ -171,7 +172,7 @@ def git_sha1_from_version_file(options):
     process = subprocess.Popen(['git', 'rev-list', '-n', '1', tag_name], stdout = subprocess.PIPE)
     out, err = process.communicate()
     if process.returncode != 0:
-        print "Unable to find git sha from tag=%s" % tag_name
+        print("Unable to find git sha from tag=%s" % tag_name)
         return None
     return out.strip()
 
@@ -180,7 +181,7 @@ def git_sha1(ref = 'HEAD'):
     out, err = process.communicate()
     if process.returncode != 0:
         sys.exit("Unable to find git sha from ref: %s" % (ref))
-    return out.strip()
+    return out.strip().decode()
 
 def remove_readonly_retry(function, path, excinfo):
     try:
@@ -261,8 +262,8 @@ def launcher_path(options, platform, exe_suffix):
         return path.join(os.environ['DYNAMO_HOME'], "bin", platform, "launcher%s" % exe_suffix)
 
 def full_jdk_url(jdk_platform):
-    version = urllib.quote(java_version)
-    platform = urllib.quote(jdk_platform)
+    version = urllib.parse.quote(java_version)
+    platform = urllib.parse.quote(jdk_platform)
     extension = "zip" if jdk_platform.startswith("windows") else "tar.gz"
     return '%s/microsoft-jdk-%s-%s.%s' % (CDN_PACKAGES_URL, version, platform, extension)
 
@@ -435,7 +436,7 @@ def create_bundle(options):
             shutil.copy('bundle-resources/%s' % icon, resources_dir)
 
         # creating editor config file
-        config = ConfigParser.ConfigParser()
+        config = configparser.ConfigParser()
         config.read('bundle-resources/config')
         config.set('build', 'editor_sha1', options.editor_sha1)
         config.set('build', 'engine_sha1', options.engine_sha1)
@@ -446,7 +447,7 @@ def create_bundle(options):
         if options.channel:
             config.set('build', 'channel', options.channel)
 
-        with open('%s/config' % resources_dir, 'wb') as f:
+        with open('%s/config' % resources_dir, 'w') as f:
             config.write(f)
 
         defold_jar = '%s/defold-%s.jar' % (packages_dir, options.editor_sha1)
@@ -676,7 +677,7 @@ Commands:
     elif options.engine_artifacts == 'archived-stable':
         options.engine_sha1 = git_sha1_from_version_file(options)
         if not options.engine_sha1:
-            print "Unable to find git sha from VERSION file"
+            print("Unable to find git sha from VERSION file")
             sys.exit(1)
     else:
         options.engine_sha1 = options.engine_artifacts

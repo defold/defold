@@ -63,7 +63,7 @@ jobs:
     runs-on: windows-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -88,10 +88,7 @@ jobs:
     runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      {
-        name: 'Install Python',
-        run: python --version
-      },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Build engine',
@@ -114,7 +111,7 @@ jobs:
     runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -138,7 +135,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -162,7 +159,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -186,7 +183,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -210,7 +207,7 @@ jobs:
     runs-on: windows-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -235,7 +232,7 @@ jobs:
     runs-on: windows-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -259,7 +256,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Build bob',
@@ -279,7 +276,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       {
         name: 'Build SDK',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
@@ -301,7 +298,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
       {
@@ -330,10 +327,7 @@ jobs:
         platform: [x86_64-darwin]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      {
-        name: 'Install Python',
-        run: python --version
-      },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Download editor',
@@ -377,7 +371,7 @@ jobs:
         platform: [x86_64-win32]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Download editor',
@@ -424,7 +418,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 2.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
         name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)

@@ -15,13 +15,13 @@ import waf_package
 def init():
     pass
 
-def set_options(opt):
+def options(opt):
     opt.tool_options('waf_dynamo')
 
 def configure(conf):
     conf.check_tool('waf_dynamo')
 
-    conf.env.append_unique('CXXDEFINES', 'NDEBUG')
+    conf.env.append_unique('DEFINES', 'NDEBUG')
 
 def build(bld):
 
@@ -29,7 +29,7 @@ def build(bld):
     packagedir = 'package/%s/src' % name
 
     path = './%s/BulletCollision' % packagedir
-    bullet_collision = bld.new_task_gen(features = 'cxx cstaticlib',
+    bullet_collision = bld.stlib(features = 'cxx',
                                         defines = ['NDEBUG'],
                                         includes = '. .. ./package/%s/src' % name,
                                         target = 'BulletCollision')
@@ -42,7 +42,7 @@ def build(bld):
     bullet_collision.install_path = None
 
     path = './%s/BulletDynamics' % packagedir
-    bullet_dynamics = bld.new_task_gen(features = 'cxx cstaticlib',
+    bullet_dynamics = bld.stlib(features = 'cxx',
                                         defines = ['NDEBUG'],
                                        includes = '. .. ./package/%s/src' % name,
                                        target = 'BulletDynamics')
@@ -54,7 +54,7 @@ def build(bld):
     bullet_dynamics.install_path = None
 
     path = './%s/LinearMath' % packagedir
-    linear_math = bld.new_task_gen(features = 'cxx cstaticlib',
+    linear_math = bld.stlib(features = 'cxx',
                                    defines = ['NDEBUG'],
                                    includes = '. .. ./package/%s/src' % name,
                                    target = 'LinearMath')
@@ -84,7 +84,7 @@ def package(conf):
     files.extend(waf_package.glob_files("include/*", cwd=cwd))
     target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, "common"))
     waf_package.create_tar(files, cwd, target=target)
-    print "Wrote", target
+    print("Wrote", target)
 
     files = waf_package.glob_files(["bin/%s/*" % env.PLATFORM,
                                     "bin/%s/**/*" % env.PLATFORM,
@@ -95,7 +95,7 @@ def package(conf):
     target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, env.PLATFORM))
     waf_package.create_tar(files, cwd, target=target)
 
-    print "Wrote", target
+    print("Wrote", target)
 
 
 
