@@ -1501,7 +1501,7 @@ bail:
                 }
                 {
                     DM_PROFILE("Script");
-                    
+
                     // Script context updates
                     if (engine->m_SharedScriptContext) {
                         dmScript::Update(engine->m_SharedScriptContext);
