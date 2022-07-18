@@ -977,7 +977,7 @@ typedef struct VirtualMirrorBuffer
  * `name' is an optional label to give the region (visible in /proc/pid/maps)
  * `size' is the size of the region, in page-aligned bytes
  */
-int ashmem_create_region(const char* name, size_t size)
+static int ashmem_dev_create_region(const char* name, size_t size)
 {
     int fd, ret;
 
@@ -1006,6 +1006,49 @@ error:
     close(fd);
     return ret;
 }
+
+// https://chromium.googlesource.com/chromium/src/+/HEAD/third_party/ashmem/ashmem-dev.c
+
+// Starting with API level 26, the following functions from
+// libandroid.so should be used to create shared memory regions.
+typedef int(*ASharedMemory_createFunc)(const char*, size_t);
+typedef size_t(*ASharedMemory_getSizeFunc)(int fd);
+typedef int(*ASharedMemory_setProtFunc)(int fd, int prot);
+
+typedef struct {
+  ASharedMemory_createFunc create;
+  ASharedMemory_getSizeFunc getSize;
+  ASharedMemory_setProtFunc setProt;
+} ASharedMemoryFuncs;
+
+static void* s_LibAndroid = 0;
+static pthread_once_t s_ashmem_funcs_once = PTHREAD_ONCE_INIT;
+static ASharedMemoryFuncs s_ashmem_funcs = {};
+
+static void ashmem_init_funcs() {
+  ASharedMemoryFuncs* funcs = &s_ashmem_funcs;
+  if (android_get_device_api_level() >= __ANDROID_API_O__) {
+    // Leaked intentionally!
+    s_LibAndroid = dlopen("libandroid.so", RTLD_NOW);
+    funcs->create = (ASharedMemory_createFunc)dlsym(s_LibAndroid, "ASharedMemory_create");
+    // funcs->getSize = (ASharedMemory_getSizeFunc)dlsym(s_LibAndroid, "ASharedMemory_getSize");
+    // funcs->setProt = (ASharedMemory_setProtFunc)dlsym(s_LibAndroid, "ASharedMemory_setProt");
+  } else {
+    funcs->create = &ashmem_dev_create_region;
+    // funcs->getSize = &ashmem_dev_get_size_region;
+    // funcs->setProt = &ashmem_dev_set_prot_region;
+  }
+}
+
+static const ASharedMemoryFuncs* ashmem_get_funcs() {
+  pthread_once(&s_ashmem_funcs_once, ashmem_init_funcs);
+  return &s_ashmem_funcs;
+}
+
+static int ashmem_create_region(const char* name, size_t size) {
+  return ashmem_get_funcs()->create(name, size);
+}
+
 #endif // __ANDROID__
 
 static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmtU32 size, int nb_attempts)
