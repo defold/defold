@@ -57,6 +57,7 @@ import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
@@ -193,6 +194,7 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+        TimeProfiler.start("createArchive");
         Bob.verbose("GameProjectBuilder.createArchive\n");
         long tstart = System.currentTimeMillis();
 
@@ -222,6 +224,9 @@ public class GameProjectBuilder extends Builder<Void> {
             archiveBuilder.add(s, compress);
         }
 
+        TimeProfiler.addData("resources", resources.size());
+        TimeProfiler.addData("excludedResources", excludedResources.size());
+
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
         manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
         archiveIndex.close();
@@ -236,6 +241,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         long tend = System.currentTimeMillis();
         Bob.verbose("GameProjectBuilder.createArchive took %f\n", (tend-tstart)/1000.0);
+        TimeProfiler.stop();
     }
 
     private static void findResources(Project project, Message node, Collection<String> resources) throws CompileExceptionError {
@@ -534,8 +540,11 @@ public class GameProjectBuilder extends Builder<Void> {
                 HashSet<String> resources = findResources(project, rootNode);
 
                 List<String> excludedResources = new ArrayList<String>();
-                for (String excludedResource : project.getExcludedCollectionProxies()) {
-                    excludedResources.add(excludedResource);
+                boolean shouldPublish = project.option("liveupdate", "false").equals("true");
+                if (shouldPublish) {
+                    for (String excludedResource : project.getExcludedCollectionProxies()) {
+                        excludedResources.add(excludedResource);
+                    }
                 }
 
                 ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
