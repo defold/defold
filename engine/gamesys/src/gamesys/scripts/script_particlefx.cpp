@@ -227,26 +227,27 @@ namespace dmGameSystem
      *
      * @name particlefx.stop
      * @param url [type:string|hash|url] the particle fx that should stop playing
+     * @param options [type:table] Options when stopping the particle fx. Supported options:
+     *
+     * - [type:boolean] `clear`: instantly clear spawned particles
+     *
      * @examples
      *
-     * How to stop a particle fx when a game object is deleted:
+     * How to stop a particle fx when a game object is deleted and immediately also clear
+     * any spawned particles:
      *
      * ```lua
      * function final(self)
-     *     particlefx.stop("#particlefx")
+     *     particlefx.stop("#particlefx", { clear = true })
      * end
      * ```
      */
     int ParticleFX_Stop(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
-        if (top != 1)
-        {
-            return luaL_error(L, "particlefx.stop only takes a URL as parameter");
-        }
         dmGameSystemDDF::StopParticleFX msg;
         uint32_t msg_size = sizeof(dmGameSystemDDF::StopParticleFX);
 
@@ -254,8 +255,29 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
+        int clear_particles = 0;
+        if (!lua_isnil(L, 2)) {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_pushvalue(L, 2);
+            lua_pushnil(L);
+            while (lua_next(L, -2)) {
+                const char* option = lua_tostring(L, -2);
+                if (strcmp(option, "clear") == 0)
+                {
+                    clear_particles = lua_toboolean(L, -1);
+                }
+                else
+                {
+                    dmLogWarning("Unknown option to particlefx.stop() %s", option);
+                }
+                lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
+        }
+
+        msg.m_ClearParticles = clear_particles;
+
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopParticleFX::m_DDFDescriptor, (void*)&msg, msg_size, 0);
-        assert(top == lua_gettop(L));
         return 0;
     }
 
