@@ -133,13 +133,18 @@ struct ShiftConstantsContext
 {
     uint32_t m_Index;
     uint32_t m_NumValues;
+    uint32_t m_Direction;
 };
 
 static inline void ShiftConstantIndices(ShiftConstantsContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
 {
-    if (constant->m_ValueIndex > context->m_Index)
+    if (context->m_Direction == -1 && constant->m_ValueIndex > context->m_Index)
     {
         constant->m_ValueIndex -= context->m_NumValues;
+    }
+    else if (context->m_Direction == 1 && constant->m_ValueIndex > context->m_Index)
+    {
+        constant->m_ValueIndex += context->m_NumValues;
     }
 }
 
@@ -163,9 +168,69 @@ void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
     buffer->m_Values.SetSize(buffer->m_Values.Size() - num_values);
 
     ShiftConstantsContext shift_context;
-    shift_context.m_Index = values_index;
+    shift_context.m_Index     = values_index;
     shift_context.m_NumValues = num_values;
+    shift_context.m_Direction = -1;
     buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
+}
+
+void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4 value, uint32_t value_index)
+{
+    dmHashTable64<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
+    NamedConstantBuffer::Constant* c = constants.Get(name_hash);
+
+    if (c == 0)
+    {
+        if (constants.Full())
+        {
+            uint32_t capacity = constants.Capacity() + 8;
+            constants.SetCapacity(capacity, capacity * 2);
+        }
+
+        if (buffer->m_Values.Remaining() < value_index)
+        {
+            buffer->m_Values.OffsetCapacity(value_index - buffer->m_Values.Remaining());
+        }
+
+        uint32_t values_index = buffer->m_Values.Size();
+        buffer->m_Values.SetSize(buffer->m_Values.Size() + value_index);
+
+        NamedConstantBuffer::Constant constant;
+        constant.m_NameHash    = name_hash;
+        constant.m_NumValues   = value_index;
+        constant.m_ValueIndex  = values_index;
+        constants.Put(name_hash, constant);
+
+        // Get the pointer
+        c = constants.Get(name_hash);
+    }
+    else if (c->m_NumValues < value_index)
+    {
+        uint32_t values_index      = c->m_ValueIndex;
+        uint32_t num_values        = c->m_NumValues;
+        uint32_t num_values_expand = value_index - num_values;
+
+        if (buffer->m_Values.Remaining() < num_values_expand)
+        {
+            buffer->m_Values.OffsetCapacity(num_values_expand);
+        }
+
+        uint32_t remaining = buffer->m_Values.Size() - (values_index + num_values);
+        buffer->m_Values.SetSize(buffer->m_Values.Size() + num_values_expand);
+
+        dmVMath::Vector4* p_src  = &buffer->m_Values[values_index];
+        dmVMath::Vector4* p_dest = p_src + num_values_expand;
+
+        memmove(p_dest, p_src, remaining);
+
+        ShiftConstantsContext shift_context;
+        shift_context.m_Index     = values_index;
+        shift_context.m_NumValues = num_values_expand;
+        shift_context.m_Direction = 1;
+        buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
+    }
+
+    buffer->m_Values[c->m_ValueIndex] = value;
 }
 
 void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values)

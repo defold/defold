@@ -98,28 +98,44 @@ namespace dmRender
         return 1;
     }
 
+    struct ConstantBufferTableEntry
+    {
+        HNamedConstantBuffer m_ConstantBuffer;
+        dmhash_t             m_ConstantName;
+        int32_t              m_LuaRef;
+    };
+
+    struct NamedConstantBufferTable
+    {
+        HNamedConstantBuffer                    m_ConstantBuffer;
+        dmHashTable64<ConstantBufferTableEntry> m_ConstantArrayEntries;
+    };
+
     static int RenderScriptConstantBuffer_index(lua_State *L)
     {
-        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
+        NamedConstantBufferTable* cb_table = (NamedConstantBufferTable*)lua_touserdata(L, 1);
+        HNamedConstantBuffer cb = cb_table->m_ConstantBuffer;
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
         dmhash_t name_hash = dmHashString64(name);
         dmVMath::Vector4* values;
         uint32_t num_values = 0;
-        if (GetNamedConstant(*cb, name_hash, &values, &num_values))
+
+        ConstantBufferTableEntry* table_entry = cb_table->m_ConstantArrayEntries.Get(name_hash);
+        if (table_entry != 0)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, table_entry->m_LuaRef);
+            return 1;
+        }
+        else if (GetNamedConstant(cb, name_hash, &values, &num_values))
         {
             dmScript::PushVector4(L, values[0]);
             return 1;
         }
         else
         {
-            lua_newtable(L);
-            luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY);
-            lua_setmetatable(L, -2);
-            return 1;
-
-            // return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
+            return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
         }
         return 0;
     }
@@ -127,21 +143,38 @@ namespace dmRender
     static int RenderScriptConstantBuffer_newindex(lua_State *L)
     {
         int top = lua_gettop(L);
-        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
+        NamedConstantBufferTable* cb_table = (NamedConstantBufferTable*) lua_touserdata(L, 1);
+        HNamedConstantBuffer cb = cb_table->m_ConstantBuffer;
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
+        dmhash_t name_hash = dmHashString64(name);
 
         if (lua_istable(L, 3))
         {
-            // Do something here
+            ConstantBufferTableEntry* p_table_entry = (ConstantBufferTableEntry*) lua_newuserdata(L, sizeof(ConstantBufferTableEntry));
+            luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY);
+            lua_setmetatable(L, -2);
+
+            lua_pushvalue(L, -1);
+            int p_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            lua_pop(L, 1);
+
+            p_table_entry->m_ConstantBuffer = cb;
+            p_table_entry->m_ConstantName   = name_hash;
+            p_table_entry->m_LuaRef         = p_ref;
+
+            if (cb_table->m_ConstantArrayEntries.Full())
+            {
+                cb_table->m_ConstantArrayEntries.SetCapacity(4, cb_table->m_ConstantArrayEntries.Size() + 1);
+            }
+
+            cb_table->m_ConstantArrayEntries.Put(name_hash, *p_table_entry);
         }
         else
         {
-            dmhash_t name_hash = dmHashString64(name);
-
             dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-            SetNamedConstant(*cb, name_hash, value, 1);
+            SetNamedConstant(cb, name_hash, value, 1);
         }
         assert(top == lua_gettop(L));
         return 0;
@@ -149,11 +182,41 @@ namespace dmRender
 
     static int RenderScriptConstantBufferArray_index(lua_State *L)
     {
+        int top = lua_gettop(L);
+        ConstantBufferTableEntry* table_entry = (ConstantBufferTableEntry*) lua_touserdata(L, 1);
+        HNamedConstantBuffer  cb              = table_entry->m_ConstantBuffer;
+        dmhash_t name_hash                    = table_entry->m_ConstantName;
+        const char* table_index_str           = luaL_checkstring(L, 2);
+        uint32_t table_index                  = (uint32_t) atoi(table_index_str) - 1;
+        dmVMath::Vector4* values;
+        uint32_t num_values = 0;
+
+        if (GetNamedConstant(cb, name_hash, &values, &num_values))
+        {
+            dmScript::PushVector4(L, values[table_index]);
+            return 1;
+        }
+        else
+        {
+            return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
+        }
         return 0;
     }
 
     static int RenderScriptConstantBufferArray_newindex(lua_State *L)
     {
+        int top                               = lua_gettop(L);
+        ConstantBufferTableEntry* table_entry = (ConstantBufferTableEntry*) lua_touserdata(L, 1);
+        HNamedConstantBuffer cb               = table_entry->m_ConstantBuffer;
+        dmhash_t name_hash                    = table_entry->m_ConstantName;
+        const char* table_index_str           = luaL_checkstring(L, 2);
+        uint32_t table_index                  = (uint32_t) atoi(table_index_str) - 1;
+        dmVMath::Vector4* value               = dmScript::CheckVector4(L, 3);
+
+        SetNamedConstantAtIndex(cb, name_hash, *value, table_index);
+
+        assert(top == lua_gettop(L));
+
         return 0;
     }
 
@@ -235,8 +298,12 @@ namespace dmRender
         int top = lua_gettop(L);
         (void) top;
 
-        HNamedConstantBuffer* p_buffer = (HNamedConstantBuffer*) lua_newuserdata(L, sizeof(HNamedConstantBuffer*));
-        *p_buffer = NewNamedConstantBuffer();
+        HNamedConstantBuffer cb            = NewNamedConstantBuffer();
+        NamedConstantBufferTable* p_buffer = (NamedConstantBufferTable*) lua_newuserdata(L, sizeof(NamedConstantBufferTable));
+        memset(p_buffer, 0, sizeof(NamedConstantBufferTable));
+
+        p_buffer->m_ConstantBuffer         = cb;
+        p_buffer->m_ConstantArrayEntries.Clear();
 
         luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER);
         lua_setmetatable(L, -2);

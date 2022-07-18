@@ -504,6 +504,8 @@ namespace dmRender
      */
     void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values);
 
+    void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4 value, uint32_t value_index);
+
     /*#
      * Sets a list of named constants to the buffer
      * @name SetNamedConstants
