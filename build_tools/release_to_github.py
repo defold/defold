@@ -140,7 +140,27 @@ def release(config, tag_name, release_sha, s3_release):
     base_url = "https://" + urlparse(config.archive_path).hostname
 
     def is_main_file(path):
-        return os.path.basename(path) in ('bob.jar', 'Defold-x86_64-darwin.dmg', 'Defold-x86_64-linux.zip', 'Defold-x86_64-win32.zip')
+        return os.path.basename(path) in ('bob.jar',
+                                          'Defold-x86_64-darwin.dmg',
+                                          'Defold-x86_64-linux.zip',
+                                          'Defold-x86_64-win32.zip')
+
+    def is_platform_file(path):
+        return os.path.basename(path) in ('gdc',
+                                          'gdc.exe')
+
+    def get_platform(path):
+        if 'linux' in path: return 'linux'
+        if 'darwin' in path: return 'macos'
+        if 'macos' in path: return 'macos'
+        if 'win32' in path: return 'win'
+        return ''
+
+    def convert_to_platform_name(path):
+        platform = get_platform(path)
+        basename = os.path.basename(path)
+        name, ext = os.path.splitext(basename)
+        return '%s-%s%s' % (name, platform, ext if ext else '')
 
     urls = set() # not sure why some files are reported twice, but we don't want to download/upload them twice
     for file in s3_release.get("files", None):
@@ -148,7 +168,7 @@ def release(config, tag_name, release_sha, s3_release):
         path = file.get("path")
 
         keep = False
-        if is_main_file(path):
+        if is_main_file(path) or is_platform_file(path):
             keep = True
 
         if not keep:
@@ -164,14 +184,18 @@ def release(config, tag_name, release_sha, s3_release):
         filename = re.sub(r'https://%s/archive/(.*?)/' % config.archive_path, '', download_url)
         basename = os.path.basename(filename)
         # file stream upload to GitHub
-        log("Uploading to GitHub " + filename)
         with open(filepath, 'rb') as f:
             content_type,_ = mimetypes.guess_type(basename)
             headers = { "Content-Type": content_type or "application/octet-stream" }
             name = filename
-            if is_main_file(path):
+            if is_main_file(download_url):
                 name = basename
-            github.post(upload_url % (name), config.github_token, data = f, headers = headers)
+            elif is_platform_file(download_url):
+                name = convert_to_platform_name(download_url)
+
+            url = upload_url % (name)
+            log("Uploading to GitHub " + url)
+            github.post(url, config.github_token, data = f, headers = headers)
 
     log("Released Defold %s to GitHub" % tag_name)
 
