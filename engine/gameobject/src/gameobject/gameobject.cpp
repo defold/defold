@@ -225,7 +225,6 @@ namespace dmGameObject
         memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
         memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::Transform) * max_instances);
         memset(&m_LevelIndices[0], 0, sizeof(m_LevelIndices));
-        memset(&m_ComponentInstanceCount[0], 0, sizeof(uint32_t) * MAX_COMPONENT_TYPES);
     }
 
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity)
@@ -580,7 +579,6 @@ namespace dmGameObject
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
         regist->m_ComponentTypes[regist->m_ComponentTypeCount].m_NameHash = dmHashString64(type.m_Name);
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
-        regist->m_ComponentProfileCounterIndex[regist->m_ComponentTypeCount] = 0; // TODO: dmProfile Remotery
         regist->m_ComponentTypeCount++;
         return RESULT_OK;
     }
@@ -778,7 +776,6 @@ namespace dmGameObject
             CreateResult create_result =  component_type->m_CreateFunction(params);
             if (create_result == CREATE_RESULT_OK)
             {
-                collection->m_ComponentInstanceCount[component->m_TypeIndex]++;
                 components_created++;
             }
             else
@@ -803,7 +800,6 @@ namespace dmGameObject
                 }
                 assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-                collection->m_ComponentInstanceCount[component->m_TypeIndex]--;
                 ComponentDestroyParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_Instance = instance;
@@ -840,7 +836,6 @@ namespace dmGameObject
             }
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-            collection->m_ComponentInstanceCount[component->m_TypeIndex]--;
             ComponentDestroyParams params;
             params.m_Collection = collection->m_HCollection;
             params.m_Instance = instance;
@@ -2490,8 +2485,6 @@ namespace dmGameObject
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
 
-            DM_COUNTER_DYN(collection->m_Register->m_ComponentProfileCounterIndex[update_index], collection->m_ComponentInstanceCount[update_index]);
-
             // Avoid to call UpdateTransforms for each/all component types.
             if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
                 UpdateTransforms(collection);
@@ -2551,8 +2544,6 @@ namespace dmGameObject
                     {
                         uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
                         ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-
-                        DM_COUNTER_DYN(collection->m_Register->m_ComponentProfileCounterIndex[update_index], collection->m_ComponentInstanceCount[update_index]);
 
                         // Avoid to call UpdateTransforms for each/all component types.
                         if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
