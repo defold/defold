@@ -224,14 +224,11 @@ namespace dmGameObject
         RunScriptParams run_params;
         run_params.m_UpdateContext = params.m_UpdateContext;
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
-        update_result.m_TransformsUpdated = false;
         uint32_t size = script_world->m_Instances.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
             HScriptInstance script_instance = script_world->m_Instances[i];
             if (script_instance->m_Update) {
-                // TODO: Find out if the scripts actually sent any transform events
-                update_result.m_TransformsUpdated = true;
                 ScriptResult ret = RunScript(L, script_instance->m_Script, function, script_instance, run_params);
                 if (ret == SCRIPT_RESULT_FAILED)
                 {
@@ -239,6 +236,9 @@ namespace dmGameObject
                 }
             }
         }
+
+        // TODO: Find out if the scripts actually sent any transform events
+        update_result.m_TransformsUpdated = true;
 
         assert(top == lua_gettop(L));
         return result;
