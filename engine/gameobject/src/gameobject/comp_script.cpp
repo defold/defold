@@ -209,7 +209,8 @@ namespace dmGameObject
     CreateResult CompScriptAddToUpdate(const ComponentAddToUpdateParams& params)
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
-        script_instance->m_Update = 1;
+        HScript script = script_instance->m_Script;
+        script_instance->m_Update = script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF || script->m_FunctionReferences[SCRIPT_FUNCTION_FIXED_UPDATE] != LUA_NOREF;
         return CREATE_RESULT_OK;
     }
 
