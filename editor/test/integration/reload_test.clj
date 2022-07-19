@@ -32,7 +32,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system write-until-new-mtime]])
+            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system do-until-new-mtime]])
   (:import [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
@@ -166,7 +166,7 @@
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
         type (FilenameUtils/getExtension name)
         f (File. (workspace/project-path workspace) name)]
-    (write-until-new-mtime (fn [f] (ImageIO/write img type f)) f)
+    (do-until-new-mtime (fn [f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 
 (defn- has-undo? [project]

@@ -96,10 +96,10 @@
   (openable? [this] (resource/openable? resource))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/input-stream resource))
-  (io/make-reader        [this opts] (io/reader resource))
-  (io/make-output-stream [this opts] (io/output-stream resource))
-  (io/make-writer        [this opts] (io/writer resource)))
+  (make-input-stream  [this opts] (io/input-stream resource))
+  (make-reader        [this opts] (io/reader resource))
+  (make-output-stream [this opts] (io/output-stream resource))
+  (make-writer        [this opts] (io/writer resource)))
 
 (defn- make-custom-build-target [node-id resource]
   (bt/with-content-hash

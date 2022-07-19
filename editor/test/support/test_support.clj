@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns support.test-support
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.fs :as fs]
-            [clojure.java.io :as io]
             [internal.system :as is]))
 
 (def enable-performance-tests
@@ -56,7 +56,7 @@
 
 ;; These *-until-new-mtime fns are hacks to support the resource-watch sync, which checks mtime
 
-(defn write-until-new-mtime [write-fn f & args]
+(defn do-until-new-mtime [write-fn f & args]
   (let [f (io/as-file f)
         mtime (.lastModified f)]
     (loop []
@@ -67,10 +67,13 @@
           (recur))))))
 
 (defn spit-until-new-mtime [f content & args]
-  (apply write-until-new-mtime spit f content args))
+  (apply do-until-new-mtime spit f content args))
 
 (defn touch-until-new-mtime [f]
-  (write-until-new-mtime (fn [f] (fs/touch-file! f)) f))
+  (do-until-new-mtime (fn [f] (fs/touch-file! f)) f))
+
+(defn write-until-new-mtime [f content]
+  (do-until-new-mtime (fn [f] (fs/create-file! f content)) f))
 
 (defn graph-dependencies
   ([tgts]

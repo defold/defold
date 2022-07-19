@@ -280,8 +280,14 @@
        project))))
 
 (defn make-embedded-resource [project type data]
-  (when-let [resource-type (get (g/node-value project :resource-types) type)]
-    (resource/make-memory-resource (g/node-value project :workspace) resource-type data)))
+  (let [resource-types (g/node-value project :resource-types)]
+    (if-some [resource-type (get resource-types type)]
+      (resource/make-memory-resource (g/node-value project :workspace) resource-type data)
+      (throw (ex-info (format "Unable to locate resource type info. Extension not loaded? (type=%s)"
+                              type)
+                      {:type type
+                       :registered-types (into (sorted-set)
+                                               (keys resource-types))})))))
 
 (defn all-save-data [project]
   (g/node-value project :save-data))
@@ -827,7 +833,7 @@
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 
-(defn- read-dependencies [game-project-resource]
+(defn read-dependencies [game-project-resource]
   (with-open [game-project-reader (io/reader game-project-resource)]
     (-> (settings-core/parse-settings game-project-reader)
         (settings-core/get-setting ["project" "dependencies"])
