@@ -45,7 +45,7 @@
 #include <dmsdk/gamesys/render_constants.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Model, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_Model, 0, FrameReset, "# components", &rmtp_Components);
 DM_PROPERTY_U32(rmtp_ModelVertexCount, 0, FrameReset, "# vertices", &rmtp_Model);
 DM_PROPERTY_U32(rmtp_ModelVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Model);
 

@@ -36,7 +36,7 @@
 #include "resources/res_textureset.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_ParticleFx, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleFx, 0, FrameReset, "# components", &rmtp_Components);
 DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, FrameReset, "# vertices", &rmtp_ParticleFx);
 DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_ParticleFx);
 

@@ -44,7 +44,7 @@
 #include <dmsdk/gamesys/render_constants.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_Sprite, 0, FrameReset, "# vertices", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_Sprite, 0, FrameReset, "# components", &rmtp_Components);
 DM_PROPERTY_U32(rmtp_SpriteVertexCount, 0, FrameReset, "# vertices", &rmtp_Sprite);
 DM_PROPERTY_U32(rmtp_SpriteVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Sprite);
 DM_PROPERTY_U32(rmtp_SpriteIndexSize, 0, FrameReset, "size of indices in bytes", &rmtp_Sprite);
