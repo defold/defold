@@ -74,11 +74,11 @@ namespace dmGameSystem
 
         SoundWorld* world = new SoundWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sound_context->m_MaxComponentCount);
-        const uint32_t MAX_INSTANCE_COUNT = 32;
-        world->m_Entries.SetCapacity(MAX_INSTANCE_COUNT);
-        world->m_Entries.SetSize(MAX_INSTANCE_COUNT);
-        world->m_EntryIndices.SetCapacity(MAX_INSTANCE_COUNT);
-        memset(&world->m_Entries.Front(), 0, MAX_INSTANCE_COUNT * sizeof(PlayEntry));
+        const uint32_t max_instances = sound_context->m_MaxSoundInstances;
+        world->m_Entries.SetCapacity(max_instances);
+        world->m_Entries.SetSize(max_instances);
+        world->m_EntryIndices.SetCapacity(max_instances);
+        memset(&world->m_Entries.Front(), 0, max_instances * sizeof(PlayEntry));
 
         world->m_Components.SetCapacity(comp_count);
 
@@ -408,7 +408,7 @@ namespace dmGameSystem
             }
             else
             {
-                LogMessageError(params.m_Message, "A sound could not be played since the sound buffer is full (%d).", world->m_EntryIndices.Capacity());
+                LogMessageError(params.m_Message, "A sound could not be played since all sounds instances are used (%d). Increase the project setting 'sound.max_sound_instances'", world->m_EntryIndices.Capacity());
             }
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor)
