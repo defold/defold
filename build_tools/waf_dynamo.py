@@ -230,6 +230,8 @@ def dmsdk_add_files(bld, target, source):
     doc_files = []
     for root, dirs, files in os.walk(bld_sdk_files):
         for f in files:
+            if f.endswith('.DS_Store'):
+                continue;
             f = os.path.relpath(os.path.join(root, f), bld_path)
             doc_files.append(f)
             sdk_dir = os.path.dirname(os.path.relpath(f, source))
@@ -489,6 +491,12 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
+
+        # Make sure we prefix with lib*.lib on windows, since this is not done
+        # by waf anymore and several extensions rely on them being named that way
+        self.env.STLIB_ST         = 'lib%s.lib'
+        self.env.cstlib_PATTERN   = 'lib%s.lib'
+        self.env.cxxstlib_PATTERN = 'lib%s.lib'
 
     platform_setup_vars(self, build_util)
 
@@ -1112,6 +1120,7 @@ def create_copy_glue(self):
         return
 
     stub = self.path.get_bld().find_or_declare('android_stub.c')
+    self.source.append(stub)
     task = self.create_task('copy_stub')
     task.set_outputs([stub])
 

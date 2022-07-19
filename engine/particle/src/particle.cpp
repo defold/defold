@@ -445,7 +445,7 @@ namespace dmParticle
         }
     }
 
-    void StopInstance(HParticleContext context, HInstance instance)
+    void StopInstance(HParticleContext context, HInstance instance, bool clear_particles)
     {
         if (instance == INVALID_INSTANCE) return;
         Instance* i = GetInstance(context, instance);
@@ -456,7 +456,14 @@ namespace dmParticle
         {
             Emitter* emitter = &emitters[emitter_i];
             StopEmitter(i, emitter);
+
+            if (clear_particles)
+            {
+                emitter->m_Particles.SetSize(0);
+            }
         }
+
+
     }
 
     void RetireInstance(HParticleContext context, HInstance instance)
@@ -2178,7 +2185,7 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE3(void, ReloadInstance, HParticleContext, HInstance, bool);
 
     DM_PARTICLE_TRAMPOLINE2(void, StartInstance, HParticleContext, HInstance);
-    DM_PARTICLE_TRAMPOLINE2(void, StopInstance, HParticleContext, HInstance);
+    DM_PARTICLE_TRAMPOLINE3(void, StopInstance, HParticleContext, HInstance, bool);
     DM_PARTICLE_TRAMPOLINE2(void, ResetInstance, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, SetPosition, HParticleContext, HInstance, const Point3&);
     DM_PARTICLE_TRAMPOLINE3(void, SetRotation, HParticleContext, HInstance, const Quat&);

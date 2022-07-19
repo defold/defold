@@ -59,6 +59,14 @@
 #define RMT_IMPL
 #include "Remotery.h"
 
+// DEFOLD
+#include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/hash.h>
+
+static const char* g_EmptyString = "<empty>"; // As seen in profile_remotery.cpp _rmt_HashString32()
+static rmtU32 g_EmptyHash = 0;
+// END DEFOLD
+
 #ifdef RMT_PLATFORM_WINDOWS
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "winmm.lib")
@@ -969,7 +977,7 @@ typedef struct VirtualMirrorBuffer
  * `name' is an optional label to give the region (visible in /proc/pid/maps)
  * `size' is the size of the region, in page-aligned bytes
  */
-int ashmem_create_region(const char* name, size_t size)
+static int ashmem_dev_create_region(const char* name, size_t size)
 {
     int fd, ret;
 
@@ -998,6 +1006,49 @@ error:
     close(fd);
     return ret;
 }
+
+// https://chromium.googlesource.com/chromium/src/+/HEAD/third_party/ashmem/ashmem-dev.c
+
+// Starting with API level 26, the following functions from
+// libandroid.so should be used to create shared memory regions.
+typedef int(*ASharedMemory_createFunc)(const char*, size_t);
+typedef size_t(*ASharedMemory_getSizeFunc)(int fd);
+typedef int(*ASharedMemory_setProtFunc)(int fd, int prot);
+
+typedef struct {
+  ASharedMemory_createFunc create;
+  ASharedMemory_getSizeFunc getSize;
+  ASharedMemory_setProtFunc setProt;
+} ASharedMemoryFuncs;
+
+static void* s_LibAndroid = 0;
+static pthread_once_t s_ashmem_funcs_once = PTHREAD_ONCE_INIT;
+static ASharedMemoryFuncs s_ashmem_funcs = {};
+
+static void ashmem_init_funcs() {
+  ASharedMemoryFuncs* funcs = &s_ashmem_funcs;
+  if (android_get_device_api_level() >= __ANDROID_API_O__) {
+    // Leaked intentionally!
+    s_LibAndroid = dlopen("libandroid.so", RTLD_NOW);
+    funcs->create = (ASharedMemory_createFunc)dlsym(s_LibAndroid, "ASharedMemory_create");
+    // funcs->getSize = (ASharedMemory_getSizeFunc)dlsym(s_LibAndroid, "ASharedMemory_getSize");
+    // funcs->setProt = (ASharedMemory_setProtFunc)dlsym(s_LibAndroid, "ASharedMemory_setProt");
+  } else {
+    funcs->create = &ashmem_dev_create_region;
+    // funcs->getSize = &ashmem_dev_get_size_region;
+    // funcs->setProt = &ashmem_dev_set_prot_region;
+  }
+}
+
+static const ASharedMemoryFuncs* ashmem_get_funcs() {
+  pthread_once(&s_ashmem_funcs_once, ashmem_init_funcs);
+  return &s_ashmem_funcs;
+}
+
+static int ashmem_create_region(const char* name, size_t size) {
+  return ashmem_get_funcs()->create(name, size);
+}
+
 #endif // __ANDROID__
 
 static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmtU32 size, int nb_attempts)
@@ -2608,6 +2659,16 @@ static rmtError rmtHashTable_Insert(rmtHashTable* table, rmtU32 key, rmtU64 valu
     // Calculate initial slot location for this key
     rmtU32 index_mask = table->maxNbSlots - 1;
     rmtU32 index = key & index_mask;
+
+// DEFOLD
+    if (key == 0) {
+        if (g_EmptyHash == 0) {
+            g_EmptyHash = dmHashString32(g_EmptyString);
+        }
+        key = g_EmptyHash;
+        dmLogError("REMOTERY: MAWE: rmtHashTable_Insert: The hash was 0x%08x. Setting it to 0x%08x ('%s')", key, g_EmptyHash, g_EmptyString);
+    }
+// END DEFOLD
 
     assert(key != 0);
     assert(value != RMT_NOT_FOUND);
@@ -4922,6 +4983,12 @@ static rmtBool QueueAddToStringTable(rmtMessageQueue* queue, rmtU32 hash, const 
         return RMT_FALSE;
     }
 
+// DEFOLD
+    if (hash == 0 || length == 0) {
+        dmLogError("REMOTERY: MAWE: QueueAddToStringTable: The hash is 0x%08x! String is '%s' len: %u", hash, string, (uint32_t)length);
+    }
+// END DEFOLD
+
     // Populate and commit
     payload = (Msg_AddToStringTable*)message->payload;
     payload->hash = hash;
@@ -5179,6 +5246,12 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
             name_len = strnlen_s(name, 256);
             name_hash = _rmt_HashString32(name, name_len, 0);
 
+// DEFOLD
+    if (name_hash == 0 || name_len == 0) {
+        dmLogError("REMOTERY: MAWE: ThreadProfiler_GetNameHash(a): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
+    }
+// END DEFOLD
+
             // Queue the string for the string table and only cache the hash if it succeeds
             if (QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler) == RMT_TRUE)
             {
@@ -5192,6 +5265,13 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
     // Have to recalculate and speculatively insert the name every time when no cache storage exists
     name_len = strnlen_s(name, 256);
     name_hash = _rmt_HashString32(name, name_len, 0);
+
+// DEFOLD
+    if (name_hash == 0 || name_len == 0) {
+        dmLogError("REMOTERY: MAWE: ThreadProfiler_GetNameHash(b): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
+    }
+// END DEFOLD
+
     QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler);
     return name_hash;
 }
@@ -6914,6 +6994,8 @@ RMT_API rmtSettings* _rmt_Settings(void)
 
 RMT_API rmtError _rmt_CreateGlobalInstance(Remotery** remotery)
 {
+    dmLogInfo("MAWE: Create global Remotery instance!");
+
     // Ensure load/acquire store/release operations match this enum size
     assert(sizeof(MessageID) == sizeof(rmtU32));
 
@@ -9871,6 +9953,11 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
 
             name_len = strnlen_s(name, 256);
             property->nameHash = _rmt_HashString32(name, name_len, 0);
+
+            if (property->nameHash == 0 || name_len == 0) {
+                dmLogError("REMOTERY: MAWE: RegisterProperty: The hash is 0x%08x! String is '%s' len: %u", property->nameHash, name, (uint32_t)name_len);
+            }
+
             QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
 /// END DEFOLD
 
