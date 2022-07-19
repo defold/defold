@@ -154,7 +154,10 @@ def generate(version, hide_details = False):
                 "labels": get_issue_labels(issue),
                 "type": get_issue_type(issue)
             }
-        entry["body"] = re.sub("Fixes #....", "", entry["body"])
+        entry["body"] = re.sub("Fixes #....", "", entry["body"]).strip()
+        entry["body"] = re.sub("Fixes https.*", "", entry["body"]).strip()
+        entry["body"] = re.sub("Fix #....", "", entry["body"]).strip()
+        entry["body"] = re.sub("Fix https.*", "", entry["body"]).strip()
         output.append(entry)
 
     cards = []
