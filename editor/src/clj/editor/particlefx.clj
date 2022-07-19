@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -583,8 +583,8 @@
            :modifiers modifier-msgs}
           (concat
             (mapcat (fn [kw] (get-property properties kw))
-                 [:id :pivot :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
-                  :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset])
+                 [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
+                  :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset :pivot])
             [[:properties (into []
                                 (comp (map first)
                                       (keep (fn [kw]
@@ -936,13 +936,13 @@
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
           material (workspace/resolve-workspace-resource workspace (:material emitter))]
       (g/make-nodes graph-id
-                    [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter) :pivot (:pivot emitter)
+                    [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)
                                    :tile-source tile-source :animation (:animation emitter) :material material
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
                                    :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)
-                                   :stretch-with-velocity (:stretch-with-velocity emitter) :start-offset (:start-offset emitter)]]
+                                   :stretch-with-velocity (:stretch-with-velocity emitter) :start-offset (:start-offset emitter) :pivot (:pivot emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
                       (for [key (g/declared-property-labels EmitterProperties)
                             :when (contains? emitter-properties key)
