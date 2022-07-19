@@ -1055,20 +1055,6 @@ namespace dmRender
         HRenderContext render_context = (HRenderContext)params.m_UserData;
         TextContext& text_context = render_context->m_TextContext;
 
-        // This function is called for both game object text (labels) and gui
-        // Once the sprites are done rendering, it is ok to reuse/reset the state
-        // and the gui can start rendering its text
-        // See also ClearRenderObjects() in render.cpp for clearing the text entries
-        if (text_context.m_Frame != text_context.m_PreviousFrame)
-        {
-            text_context.m_PreviousFrame = text_context.m_Frame;
-
-            text_context.m_RenderObjectIndex = 0;
-            text_context.m_VertexIndex = 0;
-            text_context.m_VerticesFlushed = 0;
-            text_context.m_TextEntriesFlushed = 0;
-        }
-
         switch (params.m_Operation)
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
@@ -1103,9 +1089,22 @@ namespace dmRender
         (void)final;
         TextContext& text_context = render_context->m_TextContext;
 
-        uint32_t count = 0;
-        if (text_context.m_TextEntries.Size() > 0) {
-            count = text_context.m_TextEntries.Size() - text_context.m_TextEntriesFlushed;
+        if (text_context.m_TextEntries.Size() > 0)
+        {
+            // This function is called for both game object text (labels) and gui
+            // Once the sprites are done rendering, it is ok to reuse/reset the state
+            // and the gui can start rendering its text
+            // See also ClearRenderObjects() in render.cpp for clearing the text entries
+            if (text_context.m_Frame != text_context.m_PreviousFrame)
+            {
+                text_context.m_PreviousFrame = text_context.m_Frame;
+                text_context.m_RenderObjectIndex = 0;
+                text_context.m_VertexIndex = 0;
+                text_context.m_VerticesFlushed = 0;
+                text_context.m_TextEntriesFlushed = 0;
+            }
+
+            uint32_t count = text_context.m_TextEntries.Size() - text_context.m_TextEntriesFlushed;
 
             if (count > 0) {
                 dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
@@ -1130,7 +1129,7 @@ namespace dmRender
         }
 
         // Always update after flushing
-        text_context.m_TextEntriesFlushed = count;
+        text_context.m_TextEntriesFlushed = text_context.m_TextEntries.Size();
     }
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space)
