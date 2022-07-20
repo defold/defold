@@ -1365,6 +1365,8 @@ struct TileSource
     : m_Texture((void*)0xBAADF00D)
     , m_TexCoords(g_TexCoords)
     , m_TexDims(g_TexDims)
+    , m_TileWidth(0)
+    , m_TileHeight(0)
     {
 
     }
@@ -1372,6 +1374,8 @@ struct TileSource
     void* m_Texture;
     float* m_TexCoords;
     float* m_TexDims;
+    uint32_t m_TileWidth;
+    uint32_t m_TileHeight;
 };
 
 dmParticle::FetchAnimationResult FetchAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
@@ -2115,6 +2119,69 @@ TEST_F(ParticleTest, Stats)
     ASSERT_EQ(1024U, stats.m_Particles);
     ASSERT_EQ(1024U, stats.m_MaxParticles);
     ASSERT_NEAR(instance_stats.m_Time, 2 * dt, 0.001f);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+dmParticle::FetchAnimationResult FetchPivotAnimationCallback(void* tile_source, dmhash_t animation, dmParticle::AnimationData* out_data)
+{
+    if (tile_source == 0x0)
+    {
+        return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
+    }
+    TileSource* ts = (TileSource*)tile_source;
+    out_data->m_Texture = ts->m_Texture;
+    out_data->m_TexCoords = ts->m_TexCoords;
+    out_data->m_TexDims = ts->m_TexDims;
+    out_data->m_TileWidth = ts->m_TileWidth;
+    out_data->m_TileHeight = ts->m_TileHeight;
+    out_data->m_StartTile = 0;
+    out_data->m_EndTile = 1;
+    out_data->m_FPS = 4;
+    out_data->m_Texture = (void*)0xBAADF00D;
+    out_data->m_StructSize = sizeof(dmParticle::AnimationData);
+    out_data->m_Playback = dmParticle::ANIM_PLAYBACK_ONCE_FORWARD;
+    return dmParticle::FETCH_ANIMATION_OK;
+}
+
+/**
+ * Verify that particle pivot outputs particles in correct position
+ */
+TEST_F(ParticleTest, Pivot)
+{
+    float dt = 1.0f;
+    ASSERT_TRUE(LoadPrototype("pivot.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+
+    // Test with pivot 0, 0.5, 0 and 1x2 tile
+    TileSource tile_source;
+    tile_source.m_TileWidth  = 1;
+    tile_source.m_TileHeight = 2;
+
+    dmParticle::SetTileSource(m_Prototype, 0, &tile_source);
+    dmParticle::SetPosition(m_Context, instance, Point3(0.0f, 0.0f, 0.0f));
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, FetchPivotAnimationCallback);
+
+    uint32_t out_vertex_buffer_size = 0;
+    uint32_t max_vb_size = dmParticle::GetVertexBufferSize(1, dmParticle::PARTICLE_GO);
+    dmParticle::Vertex vertex_buffer[6];
+    dmParticle::GenerateVertexData(m_Context, dt, instance, 0, Vector4(1,1,1,1), (void*)vertex_buffer, max_vb_size, &out_vertex_buffer_size, dmParticle::PARTICLE_GO);
+    dmParticle::UpdateRenderData(m_Context, instance, 0);
+    ASSERT_EQ(sizeof(vertex_buffer), out_vertex_buffer_size);
+
+    dmParticle::EmitterRenderData* emitter_render_data;
+    dmParticle::GetEmitterRenderData(m_Context, instance, 0, &emitter_render_data);
+    ASSERT_EQ(6u, out_vertex_buffer_size / sizeof(dmParticle::Vertex));
+
+    // Without pivot, y should be between -0.5 and 0.5
+    ASSERT_NEAR(0.0f, vertex_buffer[0].m_Y, EPSILON); // bottom left
+    ASSERT_NEAR(1.0f, vertex_buffer[1].m_Y, EPSILON); // top left
+    ASSERT_NEAR(1.0f, vertex_buffer[2].m_Y, EPSILON); // top right
+    ASSERT_NEAR(1.0f, vertex_buffer[3].m_Y, EPSILON); // top right
+    ASSERT_NEAR(0.0f, vertex_buffer[4].m_Y, EPSILON); // bottom right
+    ASSERT_NEAR(0.0f, vertex_buffer[5].m_Y, EPSILON); // bottom left
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

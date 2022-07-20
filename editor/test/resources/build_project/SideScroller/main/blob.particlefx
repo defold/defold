@@ -197,6 +197,11 @@ emitters {
       t_y: 0.0
     }
   }
+  pivot {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
 }
 modifiers {
   type: MODIFIER_TYPE_ACCELERATION

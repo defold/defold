@@ -98,3 +98,5 @@ particle_properties {
   key: PARTICLE_KEY_ROTATION
   points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 }
 }
+pivot { x: 0.0 y: 0.0 z: 0.0 }
+

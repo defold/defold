@@ -29,4 +29,6 @@ emitters: {
         points: { x: 0.75 y: 0 t_x: 1 t_y: -1 }
         points: { x: 1.00 y: 0 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }

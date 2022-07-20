@@ -9,6 +9,7 @@ emitters
 	material: "/builtins/materials/sprite.material"
 	max_particle_count: 1
 	type: EMITTER_TYPE_CIRCLE
+	pivot {x: 0.0 y: 0.0 z: 0.0 }
 }
 modifiers
 {
