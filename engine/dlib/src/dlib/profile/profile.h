@@ -109,6 +109,7 @@ namespace dmProfile
 
     // Sample accessors
 
+    uint32_t        SampleGetNameHash(HSample sample);
     const char*     SampleGetName(HSample sample);
     uint64_t        SampleGetStart(HSample sample);
     uint64_t        SampleGetTime(HSample sample);      // in ticks per second
@@ -158,9 +159,9 @@ namespace dmProfile
 
     // Sample accessors
 
+    uint32_t        PropertyGetNameHash(HProperty property);
     const char*     PropertyGetName(HProperty property);
     const char*     PropertyGetDesc(HProperty property);
-    uint64_t        PropertyGetNameHash(HProperty property);
     PropertyType    PropertyGetType(HProperty property);
     PropertyValue   PropertyGetValue(HProperty property);
 

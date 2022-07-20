@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from waf_dynamo import dmsdk_add_files
+from waflib.Options import options
 
 def configure(conf):
     pass
@@ -12,41 +13,39 @@ def build(bld):
     if not is_host:
         return
 
+    modelc_sources = bld.path.ant_glob("*.cpp")
+    modelc_sources = [x for x in modelc_sources if not 'test' in x.name]
+    modelc_sources = [x for x in modelc_sources if not '_jni.cpp' in x.name]
+
     # really only used for the unit tests
-    model = bld.new_task_gen(features = 'cc cxx cstaticlib',
-                             includes = ['.', './model'],
-                             target = 'model')
-    model.find_sources_in_dirs('.')
-
-    model_source = model.source
-    model_source = [x for x in model_source if not 'test' in x]
-
-    model.source = [x for x in model_source if not '_jni.cpp' in x]
+    model = bld.stlib(features = 'c cxx',
+                      includes = ['.', './model'],
+                      source = modelc_sources,
+                      target = 'model')
 
     is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
     if is_host:
         # Used by bob.jar + editor
-        model_shared = bld.new_task_gen(features = 'cc cxx cshlib extract_symbols',
-                                        includes = model.includes,
-                                        uselib = 'DLIB PROFILE_NULL JDK',
-                                        target = 'modelc_shared')
+        model_shared = bld(features = 'c cxx cshlib extract_symbols',
+                           includes = model.includes,
+                           uselib = 'DLIB PROFILE_NULL JDK',
+                           source = modelc_sources,
+                           target = 'modelc_shared')
 
-        model_shared.source = model_source
-
-    # classpath = ['%s/ext/share/java/junit-4.6.jar' % bld.env.DYNAMO_HOME]
-    # classpath = os.pathsep.join(classpath)
     classpath = []
 
-    bld.new_task_gen(features='javac seq',
-                     classpath=classpath,
-                     source_root='java')
+    bld(features='javac seq',
+        classpath=classpath,
+        srcdir='java',
+        outdir='java')
 
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
 
-    bld.new_task_gen(features='jar seq',
-                     basedir='java',
-                     destfile='modelimporter.jar')
+    bld(features='jar seq',
+        basedir='java',
+        destfile='modelimporter.jar')
 
     bld.install_files('${PREFIX}/share/java', 'modelimporter.jar')
 
-    bld.add_subdirs('test')
+    if not options.skip_build_tests:
+        bld.recurse('test')

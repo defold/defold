@@ -98,9 +98,9 @@
      :label ""}))
 
 (def ^:private identity-transform-properties
-  {:position [0.0 0.0 0.0]
-   :rotation [0.0 0.0 0.0 1.0]
-   :scale [1.0 1.0 1.0]})
+  {:position [(float 0.0) (float 0.0) (float 0.0)]
+   :rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
+   :scale [(float 1.0) (float 1.0) (float 1.0)]})
 
 (defn- supported-transform-properties [component-resource-type]
   (assert (some? component-resource-type))
@@ -309,7 +309,7 @@
                            (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                              (concat
                                connect-tx-data
-                               (g/override comp-node {:traverse? (constantly true)}
+                               (g/override comp-node {:traverse-fn g/always-override-traverse-fn}
                                            (fn [evaluation-context id-mapping]
                                              (let [or-comp-node (get id-mapping comp-node)
                                                    comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]

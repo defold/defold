@@ -427,7 +427,8 @@ namespace dmResourceArchive
     Result DecompressBuffer(const void* compressed_buf, uint32_t compressed_size, void* buffer, uint32_t buffer_len)
     {
         assert(compressed_buf != buffer);
-        dmLZ4::Result r = dmLZ4::DecompressBufferFast(compressed_buf, compressed_size, buffer, buffer_len);
+        int decompressed_size;
+        dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, buffer_len, &decompressed_size);
         if (dmLZ4::RESULT_OK != r)
         {
             return RESULT_OUTBUFFER_TOO_SMALL;
@@ -527,7 +528,8 @@ namespace dmResourceArchive
         if (compressed)
         {
             assert(compressed_buf != buffer);
-            dmLZ4::Result r = dmLZ4::DecompressBufferFast(compressed_buf, compressed_size, buffer, size);
+            int decompressed_size;
+            dmLZ4::Result r = dmLZ4::DecompressBuffer(compressed_buf, compressed_size, buffer, size, &decompressed_size);
             if (dmLZ4::RESULT_OK != r)
             {
                 if (temp_buffer)

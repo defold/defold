@@ -83,12 +83,12 @@ def process_file(file_name):
         msg_str_prim = str(msg)
         if msg_str != msg_str_prim:
             with open(file_name, 'wb') as out_f:
-                print 'Updating %s' % file_name
+                print('Updating %s' % file_name)
                 out_f.write(msg_str_prim)
 #        print msg
 
     else:
-        print 'Unsupported extension %s' % ext
+        print('Unsupported extension %s' % ext)
 
 ProtofileType('.collection', 'gameobject_ddf_pb2', 'CollectionDesc')
 ProtofileType('.go', 'gameobject_ddf_pb2', 'PrototypeDesc')

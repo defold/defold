@@ -28,10 +28,8 @@
 (defn- load-sdoc [path]
   (try
     (with-open [in (io/input-stream (io/resource path))]
-      (let [doc (-> (ScriptDoc$Document/newBuilder)
-                  (.mergeFrom in)
-                  (.build))
-            elements (.getElementsList ^ScriptDoc$Document doc)]
+      (let [^ScriptDoc$Document doc (.build (protobuf/read-text-into! (ScriptDoc$Document/newBuilder) in))
+            elements (.getElementsList doc)]
         (reduce
          (fn [ns-elements ^ScriptDoc$Element element]
            (let [qname (.getName element)
@@ -129,15 +127,15 @@
            :display-string s/Str
            :insert-string s/Str
            (s/optional-key :doc) s/Str
-           (s/optional-key :tab-triggers) (s/both {:select [s/Str]
-                                                   (s/optional-key :types) [(s/enum :arglist :expr :name)]
-                                                   (s/optional-key :start) s/Str
-                                                   (s/optional-key :exit) s/Str}
-                                                  (s/pred (fn [tab-trigger]
-                                                            (or (nil? (:types tab-trigger))
-                                                                (= (count (:select tab-trigger))
-                                                                   (count (:types tab-trigger)))))
-                                                          "specified :types count equals :select count"))}]})
+           (s/optional-key :tab-triggers) (s/constrained {:select [s/Str]
+                                                          (s/optional-key :types) [(s/enum :arglist :expr :name)]
+                                                          (s/optional-key :start) s/Str
+                                                          (s/optional-key :exit) s/Str}
+                                                         (fn [tab-trigger]
+                                                           (or (nil? (:types tab-trigger))
+                                                               (= (count (:select tab-trigger))
+                                                                  (count (:types tab-trigger)))))
+                                                         "specified :types count equals :select count")}]})
 
 (defn defold-documentation []
   (s/validate documentation-schema

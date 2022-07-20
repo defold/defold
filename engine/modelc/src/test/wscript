@@ -1,10 +1,8 @@
 #! /usr/bin/env python
 
 def build(bld):
-    bld.new_task_gen(features = 'cxx cprogram test',
+    bld.program(features = 'cxx test',
                     includes = '. ..',
-                    #uselib = 'TESTMAIN DLIB DDF PLATFORM_SOCKET LUA SCRIPT',
-                    uselib = 'DLIB PROFILE',
-                    uselib_local = 'model',
+                    use = 'DLIB PROFILE model',
                     target = 'test_model',
                     source = 'test_model.cpp')

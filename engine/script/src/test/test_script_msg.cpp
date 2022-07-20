@@ -30,7 +30,7 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-#define PATH_FORMAT "build/default/src/test/%s"
+#define PATH_FORMAT "build/src/test/%s"
 
 #define DEFAULT_URL "__default_url"
 

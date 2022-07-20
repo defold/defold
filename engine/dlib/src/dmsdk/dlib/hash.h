@@ -39,8 +39,9 @@
  */
 typedef uint64_t dmhash_t;
 
-extern "C"
-{
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*#
  * Calculate 32-bit hash value from buffer
@@ -86,7 +87,7 @@ DM_DLLEXPORT uint64_t dmHashString64(const char* string);
  * Always returns a null terminated string. Returns "<unknown>" if the original string wasn't found.
  * @name dmHashReverseSafe64
  * @param hash [type:uint64_t] hash value
- * @return [type:const char*] Original string value
+ * @return [type:const char*] Original string value or "<unknown>" if it wasn't found.
  * @note Do not store this pointer
  */
 DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
@@ -105,7 +106,37 @@ DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
  */
 DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
 
+/*# get string value from hash
+ *
+ * Returns the original string used to produce a hash.
+ * Always returns a null terminated string. Returns "<unknown>" if the original string wasn't found.
+ * @name dmHashReverseSafe32
+ * @param hash [type:uint32_t] hash value
+ * @return [type:const char*] Original string value or "<unknown>" if it wasn't found.
+ * @note Do not store this pointer
+ */
+DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash);
 
+/*# get string value from hash
+ *
+ * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
+ * buffer is null-terminated. If the buffer contains a valid c-string
+ * it can safely be used in printf and friends.
+ *
+ * @name dmHashReverseSafe32
+ * @param hash [type:uint32_t] hash to lookup
+ * @param length [type:uint32_t*] original data length. Optional argument and NULL-pointer is accepted.
+ * @return [type:const char*] pointer to buffer. 0 if no reverse exists or if reverse lookup is disabled
+ * @note Do not store this pointer
+ */
+DM_DLLEXPORT const void* dmHashReverse32(uint32_t hash, uint32_t* length);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+
+#ifdef __cplusplus
 
 /*#
  * Hash state used for 32-bit incremental hashing
@@ -236,6 +267,6 @@ DM_DLLEXPORT uint64_t dmHashFinal64(HashState64* hash_state);
  */
 DM_DLLEXPORT void dmHashRelease64(HashState64* hash_state);
 
-}
+#endif // __cplusplus
 
 #endif // DMSDK_HASH_H

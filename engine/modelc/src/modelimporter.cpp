@@ -27,9 +27,9 @@ static void SetLogLevel()
     if (!env_debug_level)
         return;
 
-    dmLog::Severity severity = dmLog::LOG_SEVERITY_WARNING;
+    LogSeverity severity = LOG_SEVERITY_WARNING;
 #define STRMATCH(LEVEL) if (strcmp(env_debug_level, #LEVEL) == 0) \
-        severity = dmLog::LOG_SEVERITY_ ## LEVEL;
+        severity = LOG_SEVERITY_ ## LEVEL;
 
     STRMATCH(DEBUG);
     STRMATCH(USER_DEBUG);
@@ -39,7 +39,7 @@ static void SetLogLevel()
     STRMATCH(FATAL);
 #undef STRMATCH
 
-    dmLog::Setlevel(severity);
+    dmLogSetLevel(severity);
 }
 
 struct ModelImporterInitializer
@@ -185,7 +185,7 @@ Scene* LoadFromPath(Options* options, const char* path)
 
 void EnableDebugLogging(bool enable)
 {
-    dmLog::Setlevel( enable ? dmLog::LOG_SEVERITY_DEBUG : dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetLevel( enable ? LOG_SEVERITY_DEBUG : LOG_SEVERITY_WARNING);
 }
 
 }

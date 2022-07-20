@@ -912,7 +912,7 @@ namespace dmGui
     void SetNodeAlpha(HScene scene, HNode node, float alpha);
 
     Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* data);
-    Result StopNodeParticlefx(HScene scene, HNode node);
+    Result StopNodeParticlefx(HScene scene, HNode node, bool clear_particles);
     Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, dmVMath::Vector4& value);
     Result ResetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id);
 
@@ -1050,6 +1050,7 @@ namespace dmGui
      * @return whether the node is enabled or not
      */
     bool IsNodeEnabled(HScene scene, HNode node, bool recursive);
+
     /** enables/disables a node
      * Set if a node should be enabled or not. Only enabled nodes are animated and rendered.
      *
@@ -1059,6 +1060,24 @@ namespace dmGui
      * @param enabled whether the node should be enabled
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+
+    /** retrieves if a node is visible or not
+     * Only visible nodes are rendered.
+     *
+     * @param scene the scene the node exists in
+     * @param node the node to be visible or not
+     * @return whether the node is visible or not
+     */
+    bool GetNodeVisible(HScene scene, HNode node);
+
+    /** turn-on/turn-off rendering for a node
+     * Set if a node should be visible or not. Only visible nodes are rendered.
+     *
+     * @param scene the scene the node exists in
+     * @param node the node to be visible/hidden
+     * @param visible whether the node should be rendered
+     */
+    void SetNodeVisible(HScene scene, HNode node, bool visible);
     
     void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
 
@@ -1076,6 +1095,7 @@ namespace dmGui
      * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
      */
     void MoveNodeAbove(HScene scene, HNode node, HNode reference);
+
     /** reorders the given node relative the reference
      * Move the given node to be positioned below the reference node.
      * If the reference node is INVALID_HANDLE, the node is moved to the bottom.

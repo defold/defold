@@ -782,8 +782,8 @@ TEST(dmResourceArchive, Wrap_Compressed)
 TEST(dmResourceArchive, LoadFromDisk)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = MOUNTFS "build/default/src/test/resources.arci";
-    const char* resource_path = MOUNTFS "build/default/src/test/resources.arcd";
+    const char* archive_path = MOUNTFS "build/src/test/resources.arci";
+    const char* resource_path = MOUNTFS "build/src/test/resources.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
@@ -817,8 +817,8 @@ TEST(dmResourceArchive, LoadFromDisk)
 TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = MOUNTFS "build/default/src/test/missing-archive.arci";
-    const char* resource_path = MOUNTFS "build/default/src/test/resources.arcd";
+    const char* archive_path = MOUNTFS "build/src/test/missing-archive.arci";
+    const char* resource_path = MOUNTFS "build/src/test/resources.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_IO_ERROR, result);
 }
@@ -826,8 +826,8 @@ TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 TEST(dmResourceArchive, LoadFromDisk_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = MOUNTFS "build/default/src/test/resources_compressed.arci";
-    const char* resource_path = MOUNTFS "build/default/src/test/resources_compressed.arcd";
+    const char* archive_path = MOUNTFS "build/src/test/resources_compressed.arci";
+    const char* resource_path = MOUNTFS "build/src/test/resources_compressed.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));

@@ -109,6 +109,12 @@ documented just below this comment.
 #define RMT_D3D11_RESYNC_ON_DISJOINT 1
 #endif
 
+// If RMT_USE_INTERNAL_HASH_FUNCTION is defined to 1, the internal hash function for strings is used.
+// This is the default setting.
+// If you set RMT_USE_INTERNAL_HASH_FUNCTION to 0, you must implement rmt_HashString32 yourself.
+#ifndef RMT_USE_INTERNAL_HASH_FUNCTION
+#define RMT_USE_INTERNAL_HASH_FUNCTION 1
+#endif
 
 /*--------------------------------------------------------------------------------------------------------------------------------
    Compiler/Platform Detection and Preprocessor Utilities
@@ -729,7 +735,6 @@ typedef struct rmtProperty
 // Reset all RMT_PropertyFlags_FrameReset properties to their default value
 #define rmt_PropertyFrameResetAll() _rmt_PropertyFrameResetAll()
 
-
 /* --- Private Details ---------------------------------------------------------------------------------------------------------*/
 
 
@@ -769,6 +774,7 @@ RMT_API void _rmt_PropertySetValue(rmtProperty* property);
 RMT_API void _rmt_PropertyAddValue(rmtProperty* property, rmtPropertyValue add_value);
 RMT_API rmtError _rmt_PropertySnapshotAll();
 RMT_API void _rmt_PropertyFrameResetAll();
+RMT_API rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed);
 
 #ifdef __cplusplus
 }

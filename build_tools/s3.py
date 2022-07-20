@@ -3,10 +3,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,39 +17,50 @@ from log import log
 import os
 import re
 import sys
-import urlparse
+import urllib
+from urllib.parse import urlparse
 from datetime import datetime
-from ConfigParser import ConfigParser
-
-
+from configparser import ConfigParser
 
 s3buckets = {}
 
 def get_archive_prefix(archive_path, sha1):
-    u = urlparse.urlparse(archive_path)
+    u = urlparse(archive_path)
     assert (u.scheme == 's3')
     prefix = os.path.join(u.path, sha1)[1:]
     return prefix
 
+def get_config_key_and_secret():
+    s3configpath = os.path.expanduser("~/.s3cfg")
+    awsconfigpath = os.path.expanduser("~/.aws/credentials")
+
+    if os.path.exists(s3configpath):
+        config = ConfigParser()
+        config.read(s3configpath)
+        key = config.get('default', 'access_key')
+        secret = config.get('default', 'secret_key')
+    elif os.path.exists(awsconfigpath):
+        config = ConfigParser()
+        config.read(awsconfigpath)
+        key = config.get('default', 'aws_access_key_id')
+        secret = config.get('default', 'aws_secret_access_key')
+    else:
+        key = os.getenv("S3_ACCESS_KEY")
+        secret = os.getenv("S3_SECRET_KEY")
+    return (key, secret)
 
 def get_bucket(bucket_name):
     if bucket_name in s3buckets:
         return s3buckets[bucket_name]
 
-    configpath = os.path.expanduser("~/.s3cfg")
-    if os.path.exists(configpath):
-        config = ConfigParser()
-        config.read(configpath)
-        key = config.get('default', 'access_key')
-        secret = config.get('default', 'secret_key')
-    else:
-        key = os.getenv("S3_ACCESS_KEY")
-        secret = os.getenv("S3_SECRET_KEY")
+    ks = get_config_key_and_secret()
+    key = ks[0]
+    secret = ks[1]
 
-    log("get_bucket key %s" % (key))
+    log("get_bucket using key %s" % (key))
 
     if not (key and secret):
-        log('S3 key and/or secret not found in .s3cfg or environment variables')
+        log('S3 key and/or secret not found in ~/.s3cfg, ~/.aws/credentials or environment variables')
         sys.exit(5)
 
     from boto.s3.connection import S3Connection
@@ -66,7 +77,7 @@ def get_bucket(bucket_name):
 
 
 def find_files_in_bucket(archive_path, bucket, sha1, path, pattern):
-    root = urlparse.urlparse(archive_path).path[1:]
+    root = urlparse(archive_path).path[1:]
     base_prefix = os.path.join(root, sha1)
     prefix = os.path.join(base_prefix, path)
     files = []
@@ -93,7 +104,7 @@ def get_files(archive_path, bucket, sha1):
     return files
 
 def get_tagged_releases(archive_path, pattern=None):
-    u = urlparse.urlparse(archive_path)
+    u = urlparse(archive_path)
     bucket = get_bucket(u.hostname)
 
     if pattern is None:
@@ -129,7 +140,7 @@ def get_tagged_releases(archive_path, pattern=None):
     return releases
 
 def get_single_release(archive_path, version_tag, sha1):
-    u = urlparse.urlparse(archive_path)
+    u = urlparse(archive_path)
     bucket = get_bucket(u.hostname)
     files = get_files(archive_path, bucket, sha1)
 
@@ -139,7 +150,7 @@ def get_single_release(archive_path, version_tag, sha1):
             'files': files}
 
 def move_release(archive_path, sha1, channel):
-    u = urlparse.urlparse(archive_path)
+    u = urlparse(archive_path)
     # get archive root and bucket name
     # archive root:     s3://d.defold.com/archive -> archive
     # bucket name:      s3://d.defold.com/archive -> d.defold.com
@@ -169,7 +180,7 @@ def move_release(archive_path, sha1, channel):
             continue
 
         # resolve the redirect and get a key to the file
-        redirect_name = urlparse.urlparse(redirect_path).path[1:]
+        redirect_name = urlparse(redirect_path).path[1:]
         redirect_key = bucket.get_key(redirect_name)
         if not redirect_key:
             print("Invalid redirect for %s. The file will not be moved" % redirect_path)

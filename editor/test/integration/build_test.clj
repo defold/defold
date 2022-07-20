@@ -488,7 +488,7 @@
       (let [content (get content-by-source "/script/good.script")
             module    (Lua$LuaModule/parseFrom content)
             source (.getSource module)]
-        (is (pos? (.size (.getBytecode source))))
+        (is (pos? (.size (.getScript source))))
         (is (= "/script/good.script" (.getFilename source))))))
   (testing "Building a broken script fails"
     (with-build-results "/script/bad.script"

@@ -41,18 +41,19 @@
             [editor.resource-node :as resource-node]
             [editor.properties :as properties]
             [editor.handler :as handler]
-            [editor.ui :as ui]
             [editor.font :as font]
             [editor.dialogs :as dialogs]
             [editor.outline :as outline]
             [editor.material :as material]
             [editor.particlefx :as particlefx]
-            [editor.validation :as validation])
+            [editor.validation :as validation]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
+           [internal.graph.types Arc]
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d Vector3d]))
 
@@ -602,6 +603,7 @@
                                               :max 1.0
                                               :precision 0.01})))
   (property inherit-alpha g/Bool (default true))
+  (property enabled g/Bool (default true))
 
   (property layer g/Str
             (default "")
@@ -753,6 +755,8 @@
 (g/defnode VisualNode
   (inherits GuiNode)
 
+  (property visible g/Bool (default true))
+
   (property blend-mode g/Keyword (default :blend-mode-alpha)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
   (property adjust-mode g/Keyword (default :adjust-mode-fit)
@@ -780,7 +784,7 @@
 
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data]
+          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data visible enabled]
                  (let [clipping-state (:clipping-state scene-renderable-user-data)
                        gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
                        material-shader (get scene-renderable-user-data :override-material-shader material-shader)]
@@ -800,10 +804,12 @@
                     :child-index child-index
                     :layer-index layer-index
                     :topmost? true
+                    :visible-self? (and visible enabled)
+                    :visible-children? enabled
                     :pass-overrides {pass/outline {:batch-key ::outline}}})))
 
   (output scene-outline-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index scene-renderable-user-data]
+          (g/fnk [_node-id child-index layer-index scene-renderable-user-data visible enabled]
                  {:render-fn render-lines
                   :tags (set/union #{:gui :outline} (:renderable-tags scene-renderable-user-data))
                   :passes [pass/outline]
@@ -812,7 +818,9 @@
                   :select-batch-key _node-id
                   :child-index child-index
                   :layer-index layer-index
-                  :topmost? true}))
+                  :topmost? true
+                  :visible-self? (and visible enabled)
+                  :visible-children? enabled}))
 
   (output build-errors-visual-node g/Any (gu/passthrough build-errors-gui-node))
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
@@ -940,7 +948,7 @@
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
 
   (display-order (into base-display-order
-                       [:size-mode :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:enabled :size-mode :visible :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
@@ -1100,7 +1108,7 @@
   (property pie-fill-angle g/Num (default 360.0))
 
   (display-order (into base-display-order
-                       [:size-mode :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
+                       [:enabled :size-mode :visible :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
@@ -1201,7 +1209,7 @@
                                       :max 1.0
                                       :precision 0.01})))
 
-  (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:enabled :text :line-break :visible :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [font-datas font]
                                     (or (font-datas font)
@@ -1293,6 +1301,9 @@
                      #(contains? % :renderable)
                      #(update-in % [:renderable :tags] (fn [tags] (set (map (fn [tag] (get replacements tag tag)) tags))))))
 
+(defn- andf [a b]
+  (and a b))
+
 (g/defnode TemplateNode
   (inherits GuiNode)
 
@@ -1305,8 +1316,12 @@
             (dynamic error (g/fnk [_node-id template-resource]
                              (prop-resource-error _node-id :template template-resource "Template")))
             (value (g/fnk [_node-id id template-resource template-overrides]
-                     (let [overrides (into {} (map (fn [[k v]] [(subs k (inc (count id))) v]) template-overrides))]
-                       {:resource template-resource :overrides overrides})))
+                     {:resource template-resource
+                      :overrides (into {}
+                                       (map (fn [[k v]]
+                                              (pair (subs k (inc (count id)))
+                                                    v)))
+                                       template-overrides)}))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
                          project (project/get-project basis self)
@@ -1322,14 +1337,17 @@
                              (let [properties-by-node-id (comp (or (:overrides new-value) {})
                                                                (into {} (map (fn [[k v]] [v k]))
                                                                      (g/node-value scene-node :node-ids evaluation-context)))]
-                               (g/override scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
-                                                                    (if (not= src current-scene)
-                                                                      (or (g/node-instance? basis GuiNode src)
-                                                                          (g/node-instance? basis NodeTree src)
-                                                                          (g/node-instance? basis GuiSceneNode src)
-                                                                          (g/node-instance? basis LayoutsNode src)
-                                                                          (g/node-instance? basis LayoutNode src))
-                                                                      false))
+                               ;; TODO: Check if we can filter based on connection label instead of source-node-id to be able to share :traverse-fn with other overrides.
+                               (g/override scene-node {:traverse-fn (g/make-override-traverse-fn
+                                                                      (fn [basis ^Arc arc]
+                                                                        (let [source-node-id (.source-id arc)]
+                                                                          (and (not= source-node-id current-scene)
+                                                                               (g/node-instance-of-any? basis source-node-id
+                                                                                                        [GuiNode
+                                                                                                         NodeTree
+                                                                                                         GuiSceneNode
+                                                                                                         LayoutsNode
+                                                                                                         LayoutNode])))))
                                                        :properties-by-node-id properties-by-node-id}
                                            (fn [evaluation-context id-mapping]
                                              (let [or-scene (get id-mapping scene-node)]
@@ -1364,7 +1382,7 @@
                                                    (g/connect self from or-scene to)))))))))
                          []))))))
 
-  (display-order (into base-display-order [:template]))
+  (display-order (into base-display-order [:enabled :template]))
 
   (input scene-pb-msg g/Any :substitute (fn [_] {:nodes []}))
   (input scene-rt-pb-msg g/Any)
@@ -1395,6 +1413,7 @@
                                                                                (assoc :inherit-alpha (:inherit-alpha node-msg)))
                                                           (empty? (:parent %)) (->
                                                                                  (assoc :parent (:parent node-msg))
+                                                                                 (update :enabled andf (:enabled node-msg))
                                                                                  ;; In fact incorrect, but only possibility to retain rotation/scale separation
                                                                                  (update :scale (partial mapv * (:scale node-msg)))
                                                                                  (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
@@ -1407,14 +1426,18 @@
                        (if (some? template-scene)
                          (:aabb template-scene)
                          geom/empty-bounding-box)))
-  (output scene-children g/Any (g/fnk [_node-id id template-scene]
-                                 (if-let [child-scenes (:children (add-renderable-tags template-scene #{:gui}))]
-                                   (mapv (partial scene/claim-child-scene (:node-id template-scene) _node-id id) child-scenes)
-                                   [])))
-  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha]
+  (output scene-children g/Any :cached (g/fnk [_node-id id template-scene]
+                                         (when (seq (:children template-scene))
+                                           (-> template-scene
+                                               (scene/claim-scene _node-id id)
+                                               (add-renderable-tags #{:gui})
+                                               :children))))
+  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha enabled]
                                                 {:passes [pass/selection]
                                                  :child-index child-index
                                                  :layer-index layer-index
+                                                 :visible-self? enabled
+                                                 :visible-children? enabled
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-gui-node template-resource]
                                    (g/package-errors _node-id
@@ -1451,12 +1474,13 @@
     (dynamic visible (g/constantly false)))
 
   (display-order (into base-display-order
-                       [:particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:enabled :visible :particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (output source-scene g/Any :cached (g/fnk [particlefx-infos particlefx child-index layer-index material-shader color+alpha]
+  (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index material-shader color+alpha]
                                             (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
                                               (-> source-scene
+                                                  (scene/claim-scene _node-id id)
                                                   (move-topmost)
                                                   (add-renderable-tags #{:gui})
                                                   (replace-renderable-tags {:particlefx :gui-particlefx})
@@ -1472,24 +1496,25 @@
                                                                 (cond->
                                                                     layer-index (assoc :layer-index layer-index)))))))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output aabb g/Any :cached (g/fnk [source-scene]
-                               (if (some? source-scene)
-                                 (:aabb source-scene)
-                                 geom/empty-bounding-box)))
-  (output scene g/Any :cached (g/fnk [_node-id id aabb transform source-scene scene-children color+alpha inherit-alpha]
-                                     (let [scene (if source-scene
-                                                   (let [updatable (assoc (:updatable source-scene) :node-id _node-id)]
-                                                     (cond-> (scene/claim-scene source-scene _node-id id)
-                                                       updatable
-                                                       ((partial scene/map-scene #(assoc % :updatable updatable)))))
-                                                   {:renderable {:passes [pass/selection]
-                                                                 :user-data {:color color+alpha :inherit-alpha inherit-alpha}}})]
-                                       (-> scene
-                                           (assoc
-                                             :node-id _node-id
-                                             :aabb aabb
-                                             :transform transform)
-                                           (update :children (fnil into []) scene-children)))))
+  (output aabb g/Any (g/fnk [source-scene]
+                       (if (some? source-scene)
+                         (:aabb source-scene)
+                         geom/empty-bounding-box)))
+  (output scene g/Any :cached (g/fnk [_node-id aabb transform source-scene scene-children color+alpha inherit-alpha visible enabled]
+                                (let [scene (if source-scene
+                                              (if-some [updatable (some-> source-scene :updatable (assoc :node-id _node-id))]
+                                                (scene/map-scene #(assoc % :updatable updatable) source-scene)
+                                                source-scene)
+                                              {:renderable {:passes [pass/selection]
+                                                            :user-data {:color color+alpha :inherit-alpha inherit-alpha}}})]
+                                  (-> scene
+                                      (assoc
+                                        :node-id _node-id
+                                        :aabb aabb
+                                        :transform transform
+                                        :visible-self? (and visible enabled)
+                                        :visible-children? enabled)
+                                      (update :children (fnil into []) scene-children)))))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-visual-node particlefx particlefx-resource-names]
                                    (g/package-errors _node-id
                                                      build-errors-visual-node
@@ -1766,6 +1791,14 @@
       (not-empty node-msgs)
       (assoc :nodes node-msgs))))
 
+(def ^:private layout-node-traverse-fn
+  (g/make-override-traverse-fn
+    (fn layout-node-traverse-fn [basis ^Arc arc]
+      (g/node-instance-of-any? basis (.source-id arc)
+                               [GuiNode
+                                NodeTree
+                                GuiSceneNode]))))
+
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
   (property name g/Str
@@ -1779,10 +1812,7 @@
                          scene (ffirst (g/targets-of basis self :_node-id))
                          node-tree (g/node-value scene :node-tree evaluation-context)
                          or-data new-value]
-                     (g/override node-tree {:traverse? (fn [basis [src src-label tgt tgt-label]]
-                                                         (or (g/node-instance? basis GuiNode src)
-                                                             (g/node-instance? basis NodeTree src)
-                                                             (g/node-instance? basis GuiSceneNode src)))}
+                     (g/override node-tree {:traverse-fn layout-node-traverse-fn}
                                  (fn [evaluation-context id-mapping]
                                    (let [or-node-tree (get id-mapping node-tree)
                                          node-mapping (comp id-mapping (g/node-value node-tree :node-ids evaluation-context))]
@@ -2906,8 +2936,10 @@
   (active? [selection] (or (selection->gui-node selection)
                            (selection->layer-node selection)))
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
-                              node-child-index (g/node-value selected-node-id :child-index)]
-                          (pos? node-child-index)))
+                              parent (core/scope selected-node-id)
+                              node-child-index (g/node-value selected-node-id :child-index)
+                              first-index (transduce (map second) min Long/MAX_VALUE (g/node-value parent :child-indices))]
+                          (< first-index node-child-index)))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected -1))))
 
@@ -2917,8 +2949,8 @@
   (enabled? [selection] (let [selected-node-id (g/override-root (handler/selection->node-id selection))
                               parent (core/scope selected-node-id)
                               node-child-index (g/node-value selected-node-id :child-index)
-                              child-indices (g/node-value parent :child-indices)]
-                          (< node-child-index (dec (count child-indices)))))
+                              last-index (transduce (map second) max 0 (g/node-value parent :child-indices))]
+                          (< node-child-index last-index)))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected 1))))
 

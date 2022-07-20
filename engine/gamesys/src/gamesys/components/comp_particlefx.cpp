@@ -439,6 +439,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
+            dmGameSystemDDF::StopParticleFX* ddf = (dmGameSystemDDF::StopParticleFX*)params.m_Message->m_Data;
             uint32_t count = world->m_Components.Size();
             for (uint32_t i = 0; i < count; ++i)
             {
@@ -446,7 +447,7 @@ namespace dmGameSystem
                 dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
                 if (component->m_Instance == params.m_Instance && component->m_ComponentId == component_id)
                 {
-                    dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance);
+                    dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_ClearParticles);
                 }
             }
         }

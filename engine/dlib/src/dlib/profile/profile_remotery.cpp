@@ -24,6 +24,13 @@
 
 #include "dmsdk/external/remotery/Remotery.h"
 
+rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed)
+{
+    static uint32_t empty_hash = dmHashString32("<empty>");
+    rmtU32 hash = dmHashBuffer32(s, len);
+    return hash != 0 ? hash : empty_hash;
+}
+
 namespace dmProfile
 {
     static Remotery* g_Remotery = 0;
@@ -90,7 +97,7 @@ namespace dmProfile
         rmtError result = rmt_CreateGlobalInstance(&g_Remotery);
         if (result != RMT_ERROR_NONE)
         {
-            dmLogError("Failed to initialize profile library");
+            dmLogError("Failed to initialize profile library %d", result);
             return;
         }
 
@@ -179,11 +186,13 @@ namespace dmProfile
     void ProfileScope::StartScope(const char* name, uint64_t* name_hash)
     {
         if (g_Remotery == NULL) {
-            valid = 0;
             return;
         }
-        valid = 1;
-        _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)name_hash);
+        if (name != 0)
+        {
+            valid = 1;
+            _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)name_hash);
+        }
     }
 
     void ProfileScope::EndScope()
@@ -240,6 +249,11 @@ namespace dmProfile
         bool result = rmt_IterateNext(rmt_iter);
         iter->m_Sample = SampleToHandle(rmt_iter->sample);
         return result;
+    }
+
+    uint32_t SampleGetNameHash(HSample sample)
+    {
+        return (uint32_t)rmt_SampleGetNameHash(SampleFromHandle(sample));
     }
 
     const char* SampleGetName(HSample sample)
@@ -309,6 +323,12 @@ namespace dmProfile
 
     // Property accessors
 
+    uint32_t PropertyGetNameHash(HProperty hproperty)
+    {
+        rmtProperty* property = PropertyFromHandle(hproperty);
+        return (uint32_t)property->nameHash;
+    }
+
     const char* PropertyGetName(HProperty hproperty)
     {
         rmtProperty* property = PropertyFromHandle(hproperty);
@@ -319,12 +339,6 @@ namespace dmProfile
     {
         rmtProperty* property = PropertyFromHandle(hproperty);
         return property->description;
-    }
-
-    uint64_t PropertyGetNameHash(HProperty hproperty)
-    {
-        rmtProperty* property = PropertyFromHandle(hproperty);
-        return property->nameHash | ((uint64_t)(~property->nameHash) << 32);
     }
 
     PropertyType PropertyGetType(HProperty hproperty)

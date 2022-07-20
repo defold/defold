@@ -702,7 +702,7 @@ namespace dmEngine
             else if (strncmp(verbose_long, arg, sizeof(verbose_long)-1) == 0 ||
                      strncmp(verbose_short, arg, sizeof(verbose_short)-1) == 0)
             {
-                dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
+                dmLogSetLevel(LOG_SEVERITY_DEBUG);
             }
         }
 
@@ -1231,7 +1231,7 @@ namespace dmEngine
         for (int i = 0; i < 3; ++i) {
             dmGraphics::BeginFrame(engine->m_GraphicsContext);
             dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT,
+            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
                                         (float)((engine->m_ClearColor>> 0)&0xFF),
                                         (float)((engine->m_ClearColor>> 8)&0xFF),
                                         (float)((engine->m_ClearColor>>16)&0xFF),
@@ -1599,7 +1599,7 @@ bail:
                     else
                     {
                         dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
                                             (float)((engine->m_ClearColor>> 0)&0xFF),
                                             (float)((engine->m_ClearColor>> 8)&0xFF),
                                             (float)((engine->m_ClearColor>>16)&0xFF),

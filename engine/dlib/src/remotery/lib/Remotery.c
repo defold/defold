@@ -59,6 +59,14 @@
 #define RMT_IMPL
 #include "Remotery.h"
 
+// DEFOLD
+#include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/hash.h>
+
+static const char* g_EmptyString = "<empty>"; // As seen in profile_remotery.cpp _rmt_HashString32()
+static rmtU32 g_EmptyHash = 0;
+// END DEFOLD
+
 #ifdef RMT_PLATFORM_WINDOWS
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "winmm.lib")
@@ -969,7 +977,7 @@ typedef struct VirtualMirrorBuffer
  * `name' is an optional label to give the region (visible in /proc/pid/maps)
  * `size' is the size of the region, in page-aligned bytes
  */
-int ashmem_create_region(const char* name, size_t size)
+static int ashmem_dev_create_region(const char* name, size_t size)
 {
     int fd, ret;
 
@@ -998,6 +1006,49 @@ error:
     close(fd);
     return ret;
 }
+
+// https://chromium.googlesource.com/chromium/src/+/HEAD/third_party/ashmem/ashmem-dev.c
+
+// Starting with API level 26, the following functions from
+// libandroid.so should be used to create shared memory regions.
+typedef int(*ASharedMemory_createFunc)(const char*, size_t);
+typedef size_t(*ASharedMemory_getSizeFunc)(int fd);
+typedef int(*ASharedMemory_setProtFunc)(int fd, int prot);
+
+typedef struct {
+  ASharedMemory_createFunc create;
+  ASharedMemory_getSizeFunc getSize;
+  ASharedMemory_setProtFunc setProt;
+} ASharedMemoryFuncs;
+
+static void* s_LibAndroid = 0;
+static pthread_once_t s_ashmem_funcs_once = PTHREAD_ONCE_INIT;
+static ASharedMemoryFuncs s_ashmem_funcs = {};
+
+static void ashmem_init_funcs() {
+  ASharedMemoryFuncs* funcs = &s_ashmem_funcs;
+  if (android_get_device_api_level() >= __ANDROID_API_O__) {
+    // Leaked intentionally!
+    s_LibAndroid = dlopen("libandroid.so", RTLD_NOW);
+    funcs->create = (ASharedMemory_createFunc)dlsym(s_LibAndroid, "ASharedMemory_create");
+    // funcs->getSize = (ASharedMemory_getSizeFunc)dlsym(s_LibAndroid, "ASharedMemory_getSize");
+    // funcs->setProt = (ASharedMemory_setProtFunc)dlsym(s_LibAndroid, "ASharedMemory_setProt");
+  } else {
+    funcs->create = &ashmem_dev_create_region;
+    // funcs->getSize = &ashmem_dev_get_size_region;
+    // funcs->setProt = &ashmem_dev_set_prot_region;
+  }
+}
+
+static const ASharedMemoryFuncs* ashmem_get_funcs() {
+  pthread_once(&s_ashmem_funcs_once, ashmem_init_funcs);
+  return &s_ashmem_funcs;
+}
+
+static int ashmem_create_region(const char* name, size_t size) {
+  return ashmem_get_funcs()->create(name, size);
+}
+
 #endif // __ANDROID__
 
 static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmtU32 size, int nb_attempts)
@@ -2609,6 +2660,16 @@ static rmtError rmtHashTable_Insert(rmtHashTable* table, rmtU32 key, rmtU64 valu
     rmtU32 index_mask = table->maxNbSlots - 1;
     rmtU32 index = key & index_mask;
 
+// DEFOLD
+    if (key == 0) {
+        if (g_EmptyHash == 0) {
+            g_EmptyHash = dmHashString32(g_EmptyString);
+        }
+        key = g_EmptyHash;
+        dmLogError("REMOTERY: MAWE: rmtHashTable_Insert: The hash was 0x%08x. Setting it to 0x%08x ('%s')", key, g_EmptyHash, g_EmptyString);
+    }
+// END DEFOLD
+
     assert(key != 0);
     assert(value != RMT_NOT_FOUND);
 
@@ -3450,6 +3511,8 @@ static void Base64_Encode(const rmtU8* in_bytes, rmtU32 length, rmtU8* out_bytes
 // domain. The author hereby disclaims copyright to this source code.
 //-----------------------------------------------------------------------------
 
+#if RMT_USE_INTERNAL_HASH_FUNCTION
+
 static rmtU32 rotl32(rmtU32 x, rmtS8 r)
 {
     return (x << r) | (x >> (32 - r));
@@ -3534,6 +3597,19 @@ static rmtU32 MurmurHash3_x86_32(const void* key, int len, rmtU32 seed)
 
     return h1;
 }
+
+RMT_API rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed)
+{
+    return MurmurHash3_x86_32(s, len, seed);
+}
+
+#else
+    #if defined(__cplusplus)
+    extern "C"
+    #endif
+    RMT_API rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed);
+
+#endif // RMT_USE_INTERNAL_HASH_FUNCTION
 
 /*
 ------------------------------------------------------------------------------------------------------------------------
@@ -4907,6 +4983,12 @@ static rmtBool QueueAddToStringTable(rmtMessageQueue* queue, rmtU32 hash, const 
         return RMT_FALSE;
     }
 
+// DEFOLD
+    if (hash == 0 || length == 0) {
+        dmLogError("REMOTERY: MAWE: QueueAddToStringTable: The hash is 0x%08x! String is '%s' len: %u", hash, string, (uint32_t)length);
+    }
+// END DEFOLD
+
     // Populate and commit
     payload = (Msg_AddToStringTable*)message->payload;
     payload->hash = hash;
@@ -4987,7 +5069,7 @@ static rmtError QueueThreadName(rmtMessageQueue* queue, const char* name, Thread
     }
 
     // Copy and commit
-    U32ToByteArray(message->payload, MurmurHash3_x86_32(name, name_length, 0));
+    U32ToByteArray(message->payload, _rmt_HashString32(name, name_length, 0));
     U32ToByteArray(message->payload + sizeof(rmtU32), name_length);
     memcpy(message->payload + sizeof(rmtU32) * 2, name, name_length);
     rmtMessageQueue_CommitMessage(message, MsgID_ThreadName);
@@ -5021,7 +5103,7 @@ static rmtError ThreadProfiler_Constructor(rmtMessageQueue* mq_to_rmt, ThreadPro
     // Users can override this at a later point with the Remotery thread name API
     rmtGetThreadName(thread_id, thread_profiler->threadHandle, thread_profiler->threadName, sizeof(thread_profiler->threadName));
     name_length = strnlen_s(thread_profiler->threadName, 64);
-    thread_profiler->threadNameHash = MurmurHash3_x86_32(thread_profiler->threadName, name_length, 0);
+    thread_profiler->threadNameHash = _rmt_HashString32(thread_profiler->threadName, name_length, 0);
     QueueThreadName(mq_to_rmt, thread_profiler->threadName, thread_profiler);
 
     // Create the CPU sample tree only. The rest are created on-demand as they need extra context to function correctly.
@@ -5162,7 +5244,13 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
         {
             assert(name != NULL);
             name_len = strnlen_s(name, 256);
-            name_hash = MurmurHash3_x86_32(name, name_len, 0);
+            name_hash = _rmt_HashString32(name, name_len, 0);
+
+// DEFOLD
+    if (name_hash == 0 || name_len == 0) {
+        dmLogError("REMOTERY: MAWE: ThreadProfiler_GetNameHash(a): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
+    }
+// END DEFOLD
 
             // Queue the string for the string table and only cache the hash if it succeeds
             if (QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler) == RMT_TRUE)
@@ -5176,7 +5264,14 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
 
     // Have to recalculate and speculatively insert the name every time when no cache storage exists
     name_len = strnlen_s(name, 256);
-    name_hash = MurmurHash3_x86_32(name, name_len, 0);
+    name_hash = _rmt_HashString32(name, name_len, 0);
+
+// DEFOLD
+    if (name_hash == 0 || name_len == 0) {
+        dmLogError("REMOTERY: MAWE: ThreadProfiler_GetNameHash(b): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
+    }
+// END DEFOLD
+
     QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler);
     return name_hash;
 }
@@ -5262,7 +5357,6 @@ static void ThreadProfilers_Destructor(ThreadProfilers* thread_profilers)
 {
     rmtU32 thread_index;
 
-    rmtDelete(rmtThread, thread_profilers->threadGatherThread);
     rmtDelete(rmtThread, thread_profilers->threadSampleThread);
 
     // Delete all profilers
@@ -5663,9 +5757,6 @@ static rmtError InitThreadSampling(ThreadProfilers* thread_profilers)
     // Make an initial gather so that we have something to work with
     GatherThreads(thread_profilers);
 
-    // Kick-off the background thread that watches for new threads
-    rmtTryNew(rmtThread, thread_profilers->threadGatherThread, GatherThreadsLoop, thread_profilers);
-
 #ifdef RMT_ENABLE_THREAD_SAMPLER
     // Ensure we can wake up every millisecond
     if (timeBeginPeriod(1) != TIMERR_NOERROR)
@@ -5673,6 +5764,9 @@ static rmtError InitThreadSampling(ThreadProfilers* thread_profilers)
         return RMT_ERROR_UNKNOWN;
     }
 #endif
+
+    // Kick-off the background thread that watches for new threads
+    rmtTryNew(rmtThread, thread_profilers->threadGatherThread, GatherThreadsLoop, thread_profilers);
 
     // We're going to be shuffling thread visits to avoid the scheduler trying to predict a work-load based on sampling
     // Use the global RNG with a random seed to start the shuffle
@@ -5691,14 +5785,14 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
 
     ThreadProfilers* thread_profilers = (ThreadProfilers*)rmt_thread->param;
 
-    rmtTry(InitThreadSampling(thread_profilers));
-
     // If we can't figure out how many processors there are then we are running on an unsupported platform
     nb_processors = rmtGetNbProcessors();
     if (nb_processors == 0)
     {
         return RMT_ERROR_UNKNOWN;
     }
+
+    rmtTry(InitThreadSampling(thread_profilers));
 
     // An array entry for each processor
     rmtTryMallocArray(Processor, processors, nb_processors);
@@ -5893,6 +5987,8 @@ static rmtError SampleThreadsLoop(rmtThread* rmt_thread)
         // Send current processor state off to remotery
         QueueProcessorThreads(thread_profilers->mqToRmtThread, processor_message_index++, nb_processors, processors);
     }
+
+    rmtDelete(rmtThread, thread_profilers->threadGatherThread);
 
 #ifdef RMT_ENABLE_THREAD_SAMPLER
     timeEndPeriod(1);
@@ -6898,6 +6994,8 @@ RMT_API rmtSettings* _rmt_Settings(void)
 
 RMT_API rmtError _rmt_CreateGlobalInstance(Remotery** remotery)
 {
+    dmLogInfo("MAWE: Create global Remotery instance!");
+
     // Ensure load/acquire store/release operations match this enum size
     assert(sizeof(MessageID) == sizeof(rmtU32));
 
@@ -7053,7 +7151,7 @@ RMT_API void _rmt_SetCurrentThreadName(rmtPStr thread_name)
 
     // Copy name and apply to the debugger
     strcpy_s(thread_profiler->threadName, sizeof(thread_profiler->threadName), thread_name);
-    thread_profiler->threadNameHash = MurmurHash3_x86_32(thread_name, strnlen_s(thread_name, 64), 0);
+    thread_profiler->threadNameHash = _rmt_HashString32(thread_name, strnlen_s(thread_name, 64), 0);
     SetDebuggerThreadName(thread_name);
 
     // Send the thread name for lookup
@@ -9854,7 +9952,12 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
             }
 
             name_len = strnlen_s(name, 256);
-            property->nameHash = MurmurHash3_x86_32(name, name_len, 0);
+            property->nameHash = _rmt_HashString32(name, name_len, 0);
+
+            if (property->nameHash == 0 || name_len == 0) {
+                dmLogError("REMOTERY: MAWE: RegisterProperty: The hash is 0x%08x! String is '%s' len: %u", property->nameHash, name, (uint32_t)name_len);
+            }
+
             QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
 /// END DEFOLD
 

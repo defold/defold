@@ -166,7 +166,7 @@
   (with-clean-system
     (let [[node-id] (tx-nodes (g/make-node world node-type :foo "one"))
           tx-result (g/transact (f node-id))]
-      (let [modified (into #{} (map second (:outputs-modified tx-result)))]
+      (let [modified (into #{} (map gt/endpoint-label) (:outputs-modified tx-result))]
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
@@ -187,7 +187,9 @@
                                                               target VisibilityTestNode]
                                                        (g/connect source :foo target :bar)))
           tx-result                     (g/set-property! source :foo "hi")
-          properties-modified-on-target (set (keep #(when (= (first %) target) (second %)) (:outputs-modified tx-result)))]
+          properties-modified-on-target (set (keep #(when (= (gt/endpoint-node-id %) target)
+                                                      (gt/endpoint-label %))
+                                                   (:outputs-modified tx-result)))]
       (is (= #{:_declared-properties :baz :_properties} properties-modified-on-target)))))
 
 (deftest visibility-properties
@@ -205,8 +207,8 @@
                                   (g/make-node world EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
-            enode-results (filter #(= (first %) enode) (:outputs-modified tx-result))
-            modified      (into #{} (map second enode-results))]
+            enode-results (filter #(= (gt/endpoint-node-id %) enode) (:outputs-modified tx-result))
+            modified      (into #{} (map gt/endpoint-label) enode-results)]
         (is (= #{:_declared-properties :baz :_properties} modified))))))
 
 (deftest enablement-properties
@@ -366,9 +368,9 @@
       (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/declared-properties)))
       (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
       (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
-      (is (= nil                 (-> (g/construct BasicNode)         :property-to-override  )))
-      (is (= "override"          (-> (g/construct InheritsBasicNode) :property-to-override   )))
-      (is (= "multiple"          (-> (g/construct InheritsBasicNode) :property-from-multiple )))))
+      (is (= nil                 (-> (g/construct BasicNode)         :property-to-override)))
+      (is (= "override"          (-> (g/construct InheritsBasicNode) :property-to-override)))
+      (is (= "multiple"          (-> (g/construct InheritsBasicNode) :property-from-multiple)))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)

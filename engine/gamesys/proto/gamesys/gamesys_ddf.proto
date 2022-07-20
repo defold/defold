@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmGameSystemDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -122,7 +123,9 @@ message SetSpeed
 
 /* Documented in scripts/script_particlefx.cpp */
 message PlayParticleFX {}
-message StopParticleFX {}
+message StopParticleFX {
+    optional bool clear_particles     = 1 [default=false];
+}
 message SetConstantParticleFX
 {
     required uint64         emitter_id  = 1;
