@@ -214,4 +214,9 @@ emitters {
     }
   }
   size_mode: SIZE_MODE_AUTO
+  pivot {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
 }
