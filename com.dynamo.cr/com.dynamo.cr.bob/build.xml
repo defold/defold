@@ -13,7 +13,6 @@
         <fileset dir="${common.dir}/ext" includes="snakeyaml-1.24.jar"/>
         <fileset dir="${common.dir}/ext" includes="jsoup-1.11.3.jar"/>
         <fileset dir="${common.dir}/ext/aws" includes="*.jar"/>
-        <fileset dir="${common.dir}/ext" includes="lwjgl*.jar"/>
         <fileset dir="${bob.dir}/lib" includes="*.jar"/>
     </path>
 
@@ -214,6 +213,7 @@
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-darwin/*texc_shared*"/>
                 <include name="x86_64-darwin/*modelc_shared*"/>
+                <exclude name="**/*dSYM.zip"/>
             </fileset>
 <!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
             </fileset> -->
@@ -222,6 +222,7 @@
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-linux/*texc_shared*"/>
                 <include name="x86_64-linux/*modelc_shared*"/>
+                <exclude name="**/*dSYM.zip"/>
             </fileset>
 <!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
             </fileset> -->
@@ -230,12 +231,14 @@
             <fileset dir="${env.DYNAMO_HOME}/lib">
               <include name="win32/*texc_shared*"/>
               <include name="win32/*modelc_shared*"/>
+                <exclude name="**/*dSYM.zip"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-win32/*texc_shared*"/>
                 <include name="x86_64-win32/*modelc_shared*"/>
+                <exclude name="**/*dSYM.zip"/>
             </fileset>
 <!--             <fileset dir="${env.DYNAMO_HOME}/lib">
             </fileset> -->
@@ -285,7 +288,6 @@
               <include name="snakeyaml-1.24.jar"/>
               <include name="jsoup-1.11.3.jar"/>
               <include name="httpcore-4.1.4.jar"/>
-              <include name="lwjgl*.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="${bob.dir}/lib">
               <include name="dlib.jar"/>
@@ -311,6 +313,7 @@
             <fileset dir="${bob.dir}">
                 <include name="lib/**/*texc_shared*"/>
                 <include name="lib/**/*modelc_shared*"/>
+                <exclude name="**/*dSYM.zip"/>
             </fileset>
 
             <fileset dir="${bob.dir}">
@@ -346,7 +349,6 @@
               <include name="extender-client-*.jar"/>
               <include name="snakeyaml-1.24.jar"/>
               <include name="jsoup-1.11.3.jar"/>
-              <include name="lwjgl*.jar"/>
             </zipgroupfileset>
             <zipgroupfileset dir="${common.dir}/ext/aws">
                 <include name="*.jar" />
@@ -365,6 +367,7 @@
                 <include name="lib/**/*libc++*"/>
                 <include name="lib/*win32/OpenAL32.dll"/>
                 <include name="lib/*win32/wrap_oal.dll"/>
+                <exclude name="**/*dSYM.zip"/>
             </fileset>
             <fileset dir="${bob.dir}">
                 <include name="libexec/**/*"/>

@@ -8,14 +8,15 @@ set -e
 
 CLASS_NAME=ModelUtil
 
-DEFOLD_DIR=$DYNAMO_HOME/../..
-MODELC_BUILD_DIR=${DEFOLD_DIR}/engine/modelc/build/default/src
+DEFOLD_HOME=$DYNAMO_HOME/../..
+MODELC_BUILD_DIR=${DEFOLD_HOME}/engine/modelc/build/src
 
 PACKAGE_CLASS=com.dynamo.bob.pipeline.$CLASS_NAME
 JAR=${DYNAMO_HOME}/share/java/bob-light.jar
 
 #JNI_DEBUG_FLAGS="-Xcheck:jni"
 
+echo "java.library.path ${MODELC_BUILD_DIR}"
 echo "Running jar:" $JAR
 
 java ${JNI_DEBUG_FLAGS} -Djava.library.path=${MODELC_BUILD_DIR} -cp ${JAR} ${PACKAGE_CLASS} $*
