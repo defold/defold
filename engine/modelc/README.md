@@ -16,12 +16,12 @@ $ waf build
 Currently, it's easiest to invoke the unit test:
 
 ```
-$ ./build/default/src/test/test_model <path_to_model>`
+$ ./build/src/test/test_model <path_to_model>`
 ```
 
 Or faster in combination:
 ```
-$ waf --opt-level=0 --skip-tests --target=test_model && ./build/default/src/test/test_model <path_to_model>
+$ waf --opt-level=0 --skip-tests --target=test_model && ./build/src/test/test_model <path_to_model>
 ```
 
 

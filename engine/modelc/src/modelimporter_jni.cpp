@@ -789,7 +789,7 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
         return 0;
     }
 
-    if (dmLog::Getlevel() == dmLog::LOG_SEVERITY_DEBUG) // verbose mode
+    if (dmLogGetLevel() == LOG_SEVERITY_DEBUG) // verbose mode
     {
         dmModelImporter::DebugScene(scene);
     }

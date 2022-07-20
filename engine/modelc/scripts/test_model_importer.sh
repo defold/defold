@@ -2,13 +2,18 @@
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 pushd $SCRIPT_DIR/..
-BUILD_DIR=./build/default/src
+BUILD_DIR=$(realpath ./build/src)
 
 set -e
 
 CLASS_NAME=com.dynamo.bob.pipeline.ModelImporter
+LIBNAME=modelc_shared
+SUFFIX=.so
+if [ "Darwin" == "$(uname)" ]; then
+    SUFFIX=.dylib
+fi
 
-MODELIMPORTER_SHARED_LIB=$(find . -iname "*.dylib")
+MODELIMPORTER_SHARED_LIB=./build/src/lib${LIBNAME}${SUFFIX}
 if [ -z "${MODELIMPORTER_SHARED_LIB}" ]; then
     echo "Couldn't find the shared library!"
 fi

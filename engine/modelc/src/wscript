@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+import os
 from waf_dynamo import dmsdk_add_files
 from waflib.Options import options
 
@@ -14,12 +15,18 @@ def build(bld):
         return
 
     modelc_sources = bld.path.ant_glob("*.cpp")
-    modelc_sources = [x for x in modelc_sources if not 'test' in x.name]
-    modelc_sources = [x for x in modelc_sources if not '_jni.cpp' in x.name]
+
+    java_includes = [os.path.join(os.environ['JAVA_HOME'], 'include')]
+    if 'linux' in bld.env['PLATFORM']:
+        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'linux'))
+    if 'windows' in bld.env['PLATFORM']:
+        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'windows'))
+    if 'darwin' in bld.env['PLATFORM']:
+        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
 
     # really only used for the unit tests
     model = bld.stlib(features = 'c cxx',
-                      includes = ['.', './model'],
+                      includes = ['.', './model'] + java_includes,
                       source = modelc_sources,
                       target = 'model')
 
