@@ -27,8 +27,8 @@
 #include "particle.h"
 #include "particle_private.h"
 
-DM_PROPERTY_GROUP(rmtp_Particles, "Particles");
-DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, FrameReset, "# particles alive", &rmtp_Particles);
+DM_PROPERTY_EXTERN(rmtp_ParticleFx);
+DM_PROPERTY_U32(rmtp_ParticlesAlive, 0, FrameReset, "# particles alive", &rmtp_ParticleFx);
 
 namespace dmParticle
 {
