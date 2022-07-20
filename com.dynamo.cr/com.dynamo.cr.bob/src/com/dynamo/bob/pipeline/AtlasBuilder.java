@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.awt.image.BufferedImage;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
@@ -33,19 +34,18 @@ import com.dynamo.gamesys.proto.AtlasProto.Atlas;
 import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
-public class AtlasBuilder extends Builder<Void>  {
+public class AtlasBuilder extends Builder<TextureSetResult>  {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task<TextureSetResult> create(IResource input) throws IOException, CompileExceptionError {
         Atlas.Builder builder = Atlas.newBuilder();
         ProtoUtil.merge(input, builder);
         Atlas atlas = builder.build();
 
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        TaskBuilder<TextureSetResult> taskBuilder = Task.<TextureSetResult>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()))
-                .addOutput(input.changeExt(".texturec"));
+                .addOutput(input.changeExt(params.outExt()));
 
         for (AtlasImage image : AtlasUtil.collectImages(atlas)) {
             taskBuilder.addInput(input.getResource(image.getImage()));
@@ -58,30 +58,46 @@ public class AtlasBuilder extends Builder<Void>  {
             taskBuilder.addInput(this.project.getResource(textureProfilesPath));
         }
 
+        // JG: This is probably a bad idea, but I think we need to know how many outputs we need to add right?
+        TextureSetResult result = AtlasUtil.generateTextureSet(this.project, input);
+
+        for (int i=0; i < result.images.size(); i++) {
+            taskBuilder.addOutput(input.changeExt("_page" + i + ".texturec"));
+        }
+
+        taskBuilder.setData(result);
         return taskBuilder.build();
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        TextureSetResult result = AtlasUtil.generateTextureSet(project, task.input(0));
-
+    public void build(Task<TextureSetResult> task) throws CompileExceptionError, IOException {
+        TextureSetResult result = task.data;
+        TextureSet.Builder textureSetBuilder = result.builder;
         int buildDirLen = project.getBuildDirectory().length();
-        String texturePath = task.output(1).getPath().substring(buildDirLen);
-        TextureSet textureSet = result.builder.setTexture(texturePath).build();
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
         Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
-        TextureImage texture;
-        try {
-            boolean compress = project.option("texture-compression", "false").equals("true");
-            texture = TextureGenerator.generate(result.image, texProfile, compress);
-        } catch (TextureGeneratorException e) {
-            throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+        int image_i = 1;
+        for (BufferedImage image : result.images)
+        {
+            TextureImage texture;
+            try {
+                boolean compress = project.option("texture-compression", "false").equals("true");
+                texture = TextureGenerator.generate(image, texProfile, compress);
+            } catch (TextureGeneratorException e) {
+                throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+            }
+
+            String texturePath = task.output(image_i).getPath().substring(buildDirLen);
+            textureSetBuilder.addTextures(texturePath);
+
+            task.output(image_i).setContent(texture.toByteArray());
+            image_i++;
         }
 
+        TextureSet textureSet = textureSetBuilder.build();
         task.output(0).setContent(textureSet.toByteArray());
-        task.output(1).setContent(texture.toByteArray());
     }
 
 }

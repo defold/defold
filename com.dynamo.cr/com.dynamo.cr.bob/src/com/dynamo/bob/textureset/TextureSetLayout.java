@@ -14,10 +14,12 @@
 
 package com.dynamo.bob.textureset;
 
+import javax.vecmath.Point2d;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Arrays;
 
 /**
  * Atlas layout algorithm(s)
@@ -109,12 +111,12 @@ public class TextureSetLayout {
 
     }
 
-    public static Layout packedLayout(int margin, List<Rect> rectangles, boolean rotate) {
+    public static List<Layout> packedLayout(int margin, List<Rect> rectangles, boolean rotate, Point2d maxPageSize) {
         if (rectangles.size() == 0) {
-            return new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>());
+            return Arrays.asList(new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>()));
         }
 
-        return createMaxRectsLayout(margin, rectangles, rotate);
+        return createMaxRectsLayout(margin, rectangles, rotate, maxPageSize);
     }
 
     private static int getExponentNextOrMatchingPowerOfTwo(int value) {
@@ -166,7 +168,7 @@ public class TextureSetLayout {
      * @param rotate
      * @return
      */
-    public static Layout createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate) {
+    public static List<Layout> createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate, Point2d maxPageSize) {
         // Sort by area first, then longest side
         Collections.sort(rectangles, new Comparator<Rect>() {
             @Override
@@ -182,44 +184,70 @@ public class TextureSetLayout {
             }
         });
 
-        // Calculate total area of rectangles and the max length of a rectangle
-        int maxLengthScale = 0;
-        int area = 0;
-        for (Rect rect : rectangles) {
-            area += rect.area();
-            maxLengthScale = Math.max(maxLengthScale, rect.width + margin);
-            maxLengthScale = Math.max(maxLengthScale, rect.height + margin);
-        }
-
-        // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
-        final int defaultMaxPageSize = 1 << getExponentNextOrMatchingPowerOfTwo(Math.max((int)Math.sqrt(area), maxLengthScale));
+        int maxPageWidth = (int) maxPageSize.getX();
+        int maxPageHeight = (int) maxPageSize.getY();
+        boolean useMaxPageSize = maxPageWidth > 0 && maxPageHeight > 0;
         final int defaultMinPageSize = 16;
 
-        MaxRectsLayoutStrategy.Settings settings = new MaxRectsLayoutStrategy.Settings();
-        settings.maxPageHeight = defaultMaxPageSize;
-        settings.maxPageWidth = defaultMaxPageSize;
-        settings.minPageHeight = defaultMinPageSize;
-        settings.minPageWidth = defaultMinPageSize;
-        settings.paddingX = margin;
-        settings.paddingY = margin;
-        settings.rotation = rotate;
-        settings.square = false;
+        if (useMaxPageSize) {
+            MaxRectsLayoutStrategy.Settings settings = new MaxRectsLayoutStrategy.Settings();
+            settings.maxPageHeight = maxPageHeight;
+            settings.maxPageWidth  = maxPageWidth;
+            settings.minPageHeight = defaultMinPageSize;
+            settings.minPageWidth  = defaultMinPageSize;
+            settings.paddingX      = margin;
+            settings.paddingY      = margin;
+            settings.rotation      = rotate;
+            settings.square        = false;
 
-        MaxRectsLayoutStrategy strategy = new MaxRectsLayoutStrategy(settings);
-        List<Layout> layouts = strategy.createLayout(rectangles);
+            MaxRectsLayoutStrategy strategy = new MaxRectsLayoutStrategy(settings);
 
-        // Repeat layout creation using alternating increase of width and height until
-        // all rectangles can be fit into a single layout
-        int iterations = 0;
-        while (layouts.size() > 1) {
-            iterations++;
-            settings.minPageWidth = settings.maxPageWidth;
-            settings.minPageHeight = settings.maxPageHeight;
-            settings.maxPageHeight *= (iterations % 2) == 0 ? 2 : 1;
-            settings.maxPageWidth *= (iterations % 2) == 0 ? 1 : 2;
-            layouts = strategy.createLayout(rectangles);
+            List<Layout> layouts = strategy.createLayout(rectangles);
+            int l_i = 0;
+            for (Layout l : layouts) {
+                List<Rect> rects = l.getRectangles();
+                System.out.println("Layout[" + (l_i++) + "]: has " + rects.size() + " rects");
+            }
+
+            return layouts;
+        } else {
+            // Calculate total area of rectangles and the max length of a rectangle
+            int maxLengthScale = 0;
+            int area = 0;
+            for (Rect rect : rectangles) {
+                area += rect.area();
+                maxLengthScale = Math.max(maxLengthScale, rect.width + margin);
+                maxLengthScale = Math.max(maxLengthScale, rect.height + margin);
+            }
+
+            // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
+            final int defaultMaxPageSize = 1 << getExponentNextOrMatchingPowerOfTwo(Math.max((int)Math.sqrt(area), maxLengthScale));
+            MaxRectsLayoutStrategy.Settings settings = new MaxRectsLayoutStrategy.Settings();
+            settings.maxPageHeight = defaultMaxPageSize;
+            settings.maxPageWidth = defaultMaxPageSize;
+            settings.minPageHeight = defaultMinPageSize;
+            settings.minPageWidth = defaultMinPageSize;
+            settings.paddingX = margin;
+            settings.paddingY = margin;
+            settings.rotation = rotate;
+            settings.square = false;
+
+            MaxRectsLayoutStrategy strategy = new MaxRectsLayoutStrategy(settings);
+            List<Layout> layouts = strategy.createLayout(rectangles);
+
+            // Repeat layout creation using alternating increase of width and height until
+            // all rectangles can be fit into a single layout
+            int iterations = 0;
+            while (layouts.size() > 1) {
+                iterations++;
+                settings.minPageWidth = settings.maxPageWidth;
+                settings.minPageHeight = settings.maxPageHeight;
+                settings.maxPageHeight *= (iterations % 2) == 0 ? 2 : 1;
+                settings.maxPageWidth *= (iterations % 2) == 0 ? 1 : 2;
+                layouts = strategy.createLayout(rectangles);
+            }
+
+            return layouts.subList(0,1);
         }
-
-        return layouts.get(0);
     }
 }

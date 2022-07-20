@@ -22,6 +22,7 @@
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/physics/physics.h>
+#include <dmsdk/render/render.h>
 #include <gamesys/texture_set_ddf.h>
 
 namespace dmGameSystem
@@ -30,15 +31,14 @@ namespace dmGameSystem
     {
         inline TextureSetResource()
         {
-            m_Texture = 0;
             m_TextureSet = 0;
             m_HullSet = 0;
         }
 
         dmArray<dmhash_t>                   m_HullCollisionGroups;
         dmHashTable<dmhash_t, uint32_t>     m_AnimationIds;
-        dmGraphics::HTexture                m_Texture;
-        dmhash_t                            m_TexturePath;
+        dmGraphics::HTexture                m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                            m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmGameSystemDDF::TextureSet*        m_TextureSet;
         dmPhysics::HHullSet2D               m_HullSet;
     };

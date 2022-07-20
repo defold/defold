@@ -18,6 +18,7 @@ import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import javax.vecmath.Point2d;
 
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
@@ -139,7 +140,7 @@ public class TileSetGenerator {
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
         TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, names, iterator, 0,
                 tileSet.getInnerPadding(),
-                tileSet.getExtrudeBorders(), false, true, grid_size );
+                tileSet.getExtrudeBorders(), false, true, grid_size, new Point2d());
 
         TextureSet.Builder builder = result.builder;
 

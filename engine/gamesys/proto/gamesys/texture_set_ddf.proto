@@ -41,7 +41,7 @@ message SpriteGeometry
 
 message TextureSet
 {
-    required string texture                 = 1 [(resource)=true];
+    repeated string textures                = 1 [(resource)=true];
     repeated TextureSetAnimation animations = 2;
     repeated ConvexHull convex_hulls        = 3;
 
@@ -74,4 +74,6 @@ message TextureSet
 
     // Maps animation frames to geometry index
     repeated uint32 frame_indices           = 22;
+
+    repeated uint32 images_per_page         = 23;
 }

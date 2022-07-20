@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -645,7 +645,7 @@ namespace dmGameSystem
         ro.m_VertexStart = vb_begin - world->m_VertexBufferData;
         ro.m_VertexCount = (world->m_VertexBufferWritePtr - vb_begin);
         ro.m_Material = GetMaterial(first);
-        ro.m_Textures[0] = texture_set->m_Texture;
+        ro.m_Textures[0] = texture_set->m_Textures[0];
 
         if (first->m_RenderConstants) {
             dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);
@@ -984,7 +984,6 @@ namespace dmGameSystem
 
     static bool CompTileGridIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
     {
-        TileGridWorld* world = (TileGridWorld*)pit->m_Node->m_ComponentWorld;
         TileGridComponent* component = (TileGridComponent*)pit->m_Node->m_Component;
 
         uint64_t index = pit->m_Next++;

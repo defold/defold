@@ -42,7 +42,7 @@ public class TextureSetLayoutTest {
     }
 
     private static Layout packedLayout(int margin, List<Rect> rectangles) {
-        return TextureSetLayout.packedLayout(margin, rectangles, true);
+        return TextureSetLayout.packedLayout(margin, rectangles, true, new Point2d());
     }
 
     private static Layout gridLayout(int margin, List<Rect> rectangles, Grid gridSize) {

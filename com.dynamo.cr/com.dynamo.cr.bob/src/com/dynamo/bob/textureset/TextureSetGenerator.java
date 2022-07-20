@@ -152,12 +152,12 @@ public class TextureSetGenerator {
     }
 
     public static class LayoutResult {
-        public final Layout layout;
+        public final List<Layout> layouts;
         public final int innerPadding;
         public final int extrudeBorders;
 
-        public LayoutResult(Layout layout, int innerPadding, int extrudeBorders) {
-            this.layout = layout;
+        public LayoutResult(List<Layout> layouts, int innerPadding, int extrudeBorders) {
+            this.layouts = layouts;
             this.innerPadding = innerPadding;
             this.extrudeBorders = extrudeBorders;
         }
@@ -165,13 +165,13 @@ public class TextureSetGenerator {
 
     public static class TextureSetResult {
         public final TextureSet.Builder builder;
-        public BufferedImage image;
+        public List<BufferedImage> images;
         public final List<UVTransform> uvTransforms;
         public final LayoutResult layoutResult;
 
         public TextureSetResult(TextureSet.Builder builder, List<UVTransform> uvTransforms, LayoutResult layoutResult) {
             this.builder = builder;
-            this.image = null;
+            this.images = new ArrayList<BufferedImage>();
             this.uvTransforms = uvTransforms;
             this.layoutResult = layoutResult;
         }
@@ -300,7 +300,7 @@ public class TextureSetGenerator {
     public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int use_geometries,
                                                 AnimIterator iterator,
                                                int margin, int innerPadding, int extrudeBorders,
-                                               boolean rotate, boolean useTileGrid, Grid gridSize) {
+                                               boolean rotate, boolean useTileGrid, Grid gridSize, Point2d maxPageSize) {
 
         int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
 
@@ -313,34 +313,83 @@ public class TextureSetGenerator {
                 .map(i -> new Rect(i.id, i.index, i.width + totalSizeIncrease, i.height + totalSizeIncrease))
                 .collect(Collectors.toList());
 
-        Layout layout;
+        List<Integer> imagesPerPage = new ArrayList<>();
+        List<Layout> layouts;
+        List<Rect> layoutRects;
+        int layoutWidth;
+        int layoutHeight;
+
         if (useTileGrid) {
-            layout = TextureSetLayout.gridLayout(margin, resizedImages, gridSize);
+            Layout layout = TextureSetLayout.gridLayout(margin, resizedImages, gridSize);
+            layoutWidth = layout.getWidth();
+            layoutHeight = layout.getHeight();
+            layoutRects = layout.getRectangles();
+            layoutRects.sort(Comparator.comparing(o -> o.index));
+            layouts = new ArrayList<Layout>();
+            layouts.add(layout);
+            imagesPerPage.add(layoutRects.size());
         } else {
-            layout = TextureSetLayout.packedLayout(margin, resizedImages, rotate);
+            List<Layout> packedLayouts = TextureSetLayout.packedLayout(margin, resizedImages, rotate, maxPageSize);
+
+            System.out.println("Size: " + packedLayouts.size());
+
+            layoutRects = new ArrayList<Rect>();
+
+            int rectIndexOffset = 0;
+            int layout_i = 0;
+
+            for (Layout l : packedLayouts)
+            {
+                List<Rect> packedLayoutRects = l.getRectangles();
+
+                /*
+                for (Rect r : packedLayoutRects)
+                {
+                    r.index += rectIndexOffset;
+                    System.out.println(layout_i + " - Rect.index = " + r.index);
+                }
+
+                layout_i++;
+                */
+
+                packedLayoutRects.sort(Comparator.comparing(o -> o.index));
+
+                rectIndexOffset += packedLayoutRects.size();
+                layoutRects.addAll(packedLayoutRects);
+                imagesPerPage.add(packedLayoutRects.size());
+            }
+
+            layouts = packedLayouts;
+            layoutWidth = layouts.get(0).getWidth();
+            layoutHeight = layouts.get(0).getHeight();
         }
 
-        layout.getRectangles().sort(Comparator.comparing(o -> o.index));
-
+        //System.out.println("Sorting rects");
+        //layoutRects.sort(Comparator.comparing(o -> o.index));
+        //System.out.println("Clipping borders");
         // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
-        List<Rect> rects = clipBorders(layout.getRectangles(), extrudeBorders);
+        layoutRects = clipBorders(layoutRects, extrudeBorders);
 
-        Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layout.getWidth(), layout.getHeight(), rects, iterator);
+        System.out.println("Generating vertex data");
+        Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layoutWidth, layoutHeight, layoutRects, iterator);
 
         vertexData.left.setUseGeometries(use_geometries);
+        vertexData.left.addAllImagesPerPage(imagesPerPage);
 
         if (imageHulls != null) {
-            for (Rect rect : layout.getRectangles()) {
+            System.out.println("Adding geometries");
+            for (Rect rect : layoutRects) {
                 SpriteGeometry geometry = imageHulls.get(rect.index);
-                vertexData.left.addGeometries(createPolygonUVs(geometry, rect, layout.getWidth(), layout.getHeight(), extrudeBorders));
+                vertexData.left.addGeometries(createPolygonUVs(geometry, rect, layoutWidth, layoutHeight, extrudeBorders));
             }
         }
 
-        return new TextureSetResult(vertexData.left, vertexData.right, new LayoutResult(layout, innerPadding, extrudeBorders));
+        System.out.println("Done!");
+        return new TextureSetResult(vertexData.left, vertexData.right, new LayoutResult(layouts, innerPadding, extrudeBorders));
     }
 
     public static BufferedImage layoutImages(LayoutResult layoutResult, Map<String, BufferedImage> images) {
-        Layout layout = layoutResult.layout;
+        Layout layout = layoutResult.layouts.get(0);
 
         BufferedImage packedImage = new BufferedImage(layout.getWidth(), layout.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
         Graphics2D g = packedImage.createGraphics();
@@ -383,7 +432,7 @@ public class TextureSetGenerator {
      * @return {@link AtlasMap}
      */
     public static TextureSetResult generate(List<BufferedImage> images, List<Integer> imageHullSizes, List<String> paths, AnimIterator iterator,
-            int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize) {
+            int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize, Point2d maxPageSize) {
 
         List<Rect> imageRects = rectanglesFromImages(images, paths);
 
@@ -399,8 +448,64 @@ public class TextureSetGenerator {
 
         // The layout step will expand the rect, and possibly rotate them
         TextureSetResult result = calculateLayout(imageRects, imageHulls, use_geometries, iterator,
-                                                        margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize);
+            margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize, maxPageSize);
 
+        List<Layout> layouts = result.layoutResult.layouts;
+
+        List<List<BufferedImage>> layoutImages = new ArrayList<>();
+
+        int layoutOffset = 0;
+
+        for (int i=0; i < layouts.size(); i++) {
+            layoutImages.add(new ArrayList<>());
+        }
+
+        for (int i = 0; i < images.size(); ++i) {
+            Layout layout = null;
+
+            int layoutIndex = 0;
+
+            for (Layout l : layouts) {
+                int numRects = l.getRectangles().size();
+
+                System.out.println("Num Rects " + numRects);
+
+                if (i < (layoutOffset + numRects))
+                {
+                    layout = l;
+                    break;
+                } else {
+                    layoutIndex++;
+                    layoutOffset += numRects;
+                }
+            }
+
+            System.out.println("Images i = " + i + ", offset = " + (i - layoutOffset));
+
+            BufferedImage image = images.get(i);
+            Rect rect = layout.getRectangles().get(i - layoutOffset);
+
+            System.out.println("Creating image");
+
+            if (innerPadding > 0) {
+                image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
+            }
+            if (extrudeBorders > 0) {
+                image = TextureUtil.extrudeBorders(image, extrudeBorders);
+            }
+            if (rect.rotated) {
+                image = rotateImage(image);
+            }
+
+            layoutImages.get(layoutIndex).add(image);
+        }
+
+        for (int i = 0; i < layoutImages.size(); i++)
+        {
+            result.images.add(composite(layoutImages.get(i), layouts.get(i)));
+        }
+
+        /*
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
             Rect rect = result.layoutResult.layout.getRectangles().get(i);
@@ -418,6 +523,7 @@ public class TextureSetGenerator {
         }
 
         result.image = composite(images, result.layoutResult.layout);
+        */
 
         // try {
         //     File outputfile = new File(String.format("image%d.png", debugImageCount));

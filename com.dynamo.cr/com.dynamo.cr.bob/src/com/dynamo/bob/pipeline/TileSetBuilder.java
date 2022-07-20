@@ -141,12 +141,12 @@ public class TileSetBuilder extends Builder<Void>  {
 
         int buildDirLen = project.getBuildDirectory().length();
         String texturePath = task.output(1).getPath().substring(buildDirLen);
-        TextureSet textureSet = textureSetBuilder.setTexture(texturePath).build();
+        TextureSet textureSet = textureSetBuilder.addTextures(texturePath).build();
 
         TextureImage texture;
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
-            texture = TextureGenerator.generate(result.image, texProfile, compress);
+            texture = TextureGenerator.generate(result.images.get(0), texProfile, compress);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }

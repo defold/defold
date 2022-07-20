@@ -117,7 +117,7 @@ namespace dmGameSystem
             else
             {
                 tsr.m_TextureSet = texture_set_resource;
-                tsr.m_Texture = texture_set_resource->m_Texture;
+                tsr.m_Texture = texture_set_resource->m_Textures[0];
             }
             resource->m_GuiTextureSets.Push(tsr);
         }

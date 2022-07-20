@@ -99,7 +99,7 @@ public class TileSetc {
             compiledImageName = compiledImageName.substring(0, index) + ".texturec";
             TextureSetResult result = TileSetGenerator.generate(tileSet, image, collisionImage);
             TextureSet.Builder textureSetBuilder = result.builder;
-            textureSetBuilder.setTexture(compiledImageName).setTileWidth(tileSet.getTileWidth())
+            textureSetBuilder.addTextures(compiledImageName).setTileWidth(tileSet.getTileWidth())
                     .setTileHeight(tileSet.getTileHeight());
             textureSetBuilder.build().writeTo(output);
         } finally {

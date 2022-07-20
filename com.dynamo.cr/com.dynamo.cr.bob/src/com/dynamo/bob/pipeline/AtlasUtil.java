@@ -24,10 +24,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
+import javax.vecmath.Point2d;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
@@ -41,6 +41,7 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasAnimation;
 import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.dynamo.gamesys.proto.Tile.Playback;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
+import com.dynamo.proto.DdfMath.Point3;
 
 public class AtlasUtil {
     public static class MappedAnimDesc extends AnimDesc {
@@ -226,11 +227,15 @@ public class AtlasUtil {
         for (int i = 0; i < imagePathCount; ++i) {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
+
+        Point3 maxPageSizeP3 = atlas.getMaxTextureDimensions();
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
-                Math.max(0, atlas.getExtrudeBorders()), true, false, null);
+                Math.max(0, atlas.getExtrudeBorders()),
+                true, false, null,
+                new Point2d(maxPageSizeP3.getX(), maxPageSizeP3.getY()));
         TimeProfiler.stop();
         return result;
     }

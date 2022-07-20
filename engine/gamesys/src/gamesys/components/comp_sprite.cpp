@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -98,6 +98,7 @@ namespace dmGameSystem
         float z;
         float u;
         float v;
+        float p;
     };
 
     struct SpriteWorld
@@ -202,6 +203,7 @@ namespace dmGameSystem
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
+                {"page_index", 2, 1, dmGraphics::TYPE_FLOAT, false},
         };
 
         sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
@@ -333,7 +335,9 @@ namespace dmGameSystem
             component->m_Playing = 0;
             component->m_CurrentAnimation = 0x0;
             component->m_CurrentAnimationFrame = 0;
-            dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.", dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePath));
+            // TODO: Get correct texture path
+            dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.",
+                dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePaths[0]));
         }
         return anim_id != 0;
     }
@@ -515,7 +519,9 @@ namespace dmGameSystem
                 2,3,0,0,1,2     //hv
             };
 
-            const float* tex_coords = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
+            const float* tex_coords         = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
+            const uint32_t* images_per_page = (const uint32_t*) texture_set->m_TextureSet->m_ImagesPerPage.m_Data;
+            const uint32_t num_pages        = texture_set->m_TextureSet->m_ImagesPerPage.m_Count;
 
             for (uint32_t *i = begin;i != end; ++i)
             {
@@ -523,6 +529,18 @@ namespace dmGameSystem
                 const SpriteComponent* component = (const SpriteComponent*) &components[component_index];
 
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
+
+                uint32_t page_index = 0;
+                uint32_t page_start = 0;
+                for (int j = 0; j < num_pages; ++j)
+                {
+                    page_start += images_per_page[j];
+                    if (component->m_AnimationID <= page_start)
+                    {
+                        page_index = j;
+                        break;
+                    }
+                }
 
                 uint32_t frame_index = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
                 const float* tc = &tex_coords[frame_index * 4 * 2];
@@ -549,6 +567,7 @@ namespace dmGameSystem
                 vertices[0].z = p0.getZ();
                 vertices[0].u = tc[tex_lookup[0] * 2];
                 vertices[0].v = tc[tex_lookup[0] * 2 + 1];
+                vertices[0].p = (float) page_index;
 
                 Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
                 vertices[1].x = p1.getX();
@@ -556,6 +575,7 @@ namespace dmGameSystem
                 vertices[1].z = p1.getZ();
                 vertices[1].u = tc[tex_lookup[1] * 2];
                 vertices[1].v = tc[tex_lookup[1] * 2 + 1];
+                vertices[1].p = (float) page_index;
 
                 Vector4 p2 = w * Point3(0.5f, 0.5f, 0.0f);
                 vertices[2].x = p2.getX();
@@ -563,6 +583,7 @@ namespace dmGameSystem
                 vertices[2].z = p2.getZ();
                 vertices[2].u = tc[tex_lookup[2] * 2];
                 vertices[2].v = tc[tex_lookup[2] * 2 + 1];
+                vertices[2].p = (float) page_index;
 
                 Vector4 p3 = w * Point3(0.5f, -0.5f, 0.0f);
                 vertices[3].x = p3.getX();
@@ -570,6 +591,7 @@ namespace dmGameSystem
                 vertices[3].z = p3.getZ();
                 vertices[3].u = tc[tex_lookup[4] * 2];
                 vertices[3].v = tc[tex_lookup[4] * 2 + 1];
+                vertices[3].p = (float) page_index;
 
                 // for (int f = 0; f < 4; ++f)
                 //     printf("  %u: %.2f, %.2f\t%.2f, %.2f\n", f, vertices[f].x, vertices[f].y, vertices[f].u, vertices[f].v );
@@ -621,9 +643,13 @@ namespace dmGameSystem
         ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
         ro.m_IndexBuffer = sprite_world->m_IndexBuffer;
         ro.m_Material = GetMaterial(first, resource);
-        ro.m_Textures[0] = texture_set->m_Texture;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_IndexType = sprite_world->m_Is16BitIndex ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
+
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            ro.m_Textures[i] = texture_set->m_Textures[i];
+        }
 
         // offset in bytes into element buffer
         uint32_t index_offset = ib_begin - sprite_world->m_IndexBufferData;
@@ -1172,7 +1198,7 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_TEXTURE[0])
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component, component->m_Resource)->m_Texture, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component, component->m_Resource)->m_Textures[0], out_value);
         }
         else if (get_property == SPRITE_PROP_ANIMATION)
         {
