@@ -39,9 +39,10 @@
 #include <dmsdk/gamesys/render_constants.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_TilemapTileCount, 0, FrameReset, "# vertices", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_TilemapVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_TilemapVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_Tilemap, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_TilemapTileCount, 0, FrameReset, "# vertices", &rmtp_Tilemap);
+DM_PROPERTY_U32(rmtp_TilemapVertexCount, 0, FrameReset, "# vertices", &rmtp_Tilemap);
+DM_PROPERTY_U32(rmtp_TilemapVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Tilemap);
 
 namespace dmGameSystem
 {
@@ -505,6 +506,7 @@ namespace dmGameSystem
                 component->m_World = dmTransform::MulNoScaleZ(go_world, local);
             }
         }
+        DM_PROPERTY_ADD_U32(rmtp_Tilemap, world->m_Components.Size());
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
