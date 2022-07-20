@@ -252,8 +252,8 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         //printf("node %s:  ", gltf_node->name);
 
         dmVMath::Vector3 scale = dmVMath::Vector3(1,1,1);
-        dmVMath::Vector3 translation;
-        dmVMath::Quat rotation;
+        dmVMath::Vector3 translation = dmVMath::Vector3(0,0,0);
+        dmVMath::Quat rotation = dmVMath::Quat(0,0,0,1);
 
         node->m_Skin = 0;
         if (gltf_node->skin)
@@ -607,7 +607,7 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
         cgltf_accessor_read_float(accessor_times, i, &key_frames[i].m_Time, 1);
         cgltf_accessor_read_float(accessor, i, key_frames[i].m_Value, num_components);
 
-        if (i > 0 && !AreEqual(key_frames[0].m_Value, key_frames[i].m_Value, num_components, 0.0001f))
+        if (all_identical && !AreEqual(key_frames[0].m_Value, key_frames[i].m_Value, num_components, 0.0001f))
         {
             all_identical = false;
         }
@@ -624,18 +624,54 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
         key_count = 1;
     }
 
+
+    dmTransform::Transform inverse_transform = dmTransform::Inv(node_animation->m_Node->m_Transform);
     if (channel->target_path == cgltf_animation_path_type_translation)
     {
+        float inv_px = inverse_transform.GetTranslation().getX();
+        float inv_py = inverse_transform.GetTranslation().getY();
+        float inv_pz = inverse_transform.GetTranslation().getZ();
+
+        for (uint32_t i = 0; i < key_count; ++i)
+        {
+            key_frames[i].m_Value[0] += inv_px;
+            key_frames[i].m_Value[1] += inv_py;
+            key_frames[i].m_Value[2] += inv_pz;
+        }
+
         node_animation->m_TranslationKeys = key_frames;
         node_animation->m_TranslationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_rotation)
     {
+        const dmVMath::Quat& inv_rot = inverse_transform.GetRotation();
+
+        for (uint32_t i = 0; i < key_count; ++i)
+        {
+            dmVMath::Quat key_rot = dmVMath::Quat(key_frames[i].m_Value[0], key_frames[i].m_Value[1], key_frames[i].m_Value[2], key_frames[i].m_Value[3]);
+            key_rot = inv_rot * key_rot;
+
+            key_frames[i].m_Value[0] = key_rot.getX();
+            key_frames[i].m_Value[1] = key_rot.getY();
+            key_frames[i].m_Value[2] = key_rot.getZ();
+            key_frames[i].m_Value[3] = key_rot.getW();
+        }
+
         node_animation->m_RotationKeys = key_frames;
         node_animation->m_RotationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_scale)
     {
+        float inv_sx = inverse_transform.GetScale().getX();
+        float inv_sy = inverse_transform.GetScale().getY();
+        float inv_sz = inverse_transform.GetScale().getZ();
+
+        for (uint32_t i = 0; i < key_count; ++i)
+        {
+            key_frames[i].m_Value[0] *= inv_sx;
+            key_frames[i].m_Value[1] *= inv_sy;
+            key_frames[i].m_Value[2] *= inv_sz;
+        }
         node_animation->m_ScaleKeys = key_frames;
         node_animation->m_ScaleKeysCount = key_count;
     } else
