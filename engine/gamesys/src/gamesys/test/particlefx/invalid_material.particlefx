@@ -14,4 +14,5 @@ emitters {
     material: "/material/missing_name.material"
     max_particle_count: 8
     type: EMITTER_TYPE_CONE
+    pivot: { x: 0 y: 0 z: 0 }
 }
