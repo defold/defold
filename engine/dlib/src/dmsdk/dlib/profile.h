@@ -505,8 +505,6 @@
     #define DM_PROFILE(name)
     #define DM_PROFILE_DYN(name, name_hash)
 
-    #define DM_COUNTER_DYN(counter_index, amount)
-
     #define DM_PROPERTY_EXTERN(name)                extern rmtProperty name;
     #define DM_PROPERTY_GROUP(name, desc, ...)
     #define DM_PROPERTY_BOOL(name, default_value, flag, desc, ...)
@@ -547,8 +545,6 @@
 
     #define DM_PROFILE_TEXT_LENGTH 1024
     #define DM_PROFILE_TEXT(format, ...)              dmProfile::LogText(format, __VA_ARGS__)
-
-    #define DM_COUNTER_DYN(counter_index, amount)
 
     // The profiler property api
     #define DM_PROPERTY_EXTERN(name)                                rmt_PropertyExtern(name)

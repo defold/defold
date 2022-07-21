@@ -194,7 +194,6 @@ namespace dmGameObject
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
-        uint32_t                    m_ComponentProfileCounterIndex[MAX_COMPONENT_TYPES];
         dmMutex::HMutex             m_Mutex;
 
         // All collections. Protected by m_Mutex
@@ -225,8 +224,6 @@ namespace dmGameObject
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
-        // Component type specific instance counters
-        uint32_t                 m_ComponentInstanceCount[MAX_COMPONENT_TYPES];
 
         // Maximum number of instances
         uint32_t                 m_MaxInstances;
