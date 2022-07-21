@@ -22,12 +22,16 @@
 #include <dlib/hash.h>
 #include <dlib/index_pool.h>
 #include <dlib/log.h>
+#include <dlib/profile.h>
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
 #include <dmsdk/dlib/vmath.h>
 
 #include "../gamesys.h"
 #include "../gamesys_private.h"
+
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollectionFactory, 0, FrameReset, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -142,7 +146,7 @@ namespace dmGameSystem
                 }
             }
         }
-
+        DM_PROPERTY_ADD_U32(rmtp_CollectionFactory, world->m_IndexPool.Size());
         return result;
     }
 

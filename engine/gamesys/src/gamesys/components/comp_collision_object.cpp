@@ -34,6 +34,9 @@
 #include <gamesys/physics_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollisionObject, 0, FrameReset, "# components", &rmtp_Components);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -1030,11 +1033,13 @@ namespace dmGameSystem
         else
             dmPhysics::SetDrawDebug2D(world->m_World2D, physics_context->m_Debug);
 
+        DM_PROPERTY_ADD_U32(rmtp_CollisionObject, world->m_Components.Size());
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
+
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         if (physics_context->m_UseFixedTimestep)
             return dmGameObject::UPDATE_RESULT_OK; // Let the fixed update handle this
