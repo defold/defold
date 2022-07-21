@@ -80,12 +80,6 @@ char**              g_Argv = 0;
 
     [self forceDeviceOrientation];
 
-    float version = [[UIDevice currentDevice].systemVersion floatValue];
-    if (8.0 <= version && 8.1 > version) {
-        // These suspect versions of iOS will crash if we proceed to recreate the GL view.
-        return;
-    }
-
     // We then rebuild the GL view back within the application's event loop.
     dispatch_async(dispatch_get_main_queue(), ^{
         ViewController *controller = (ViewController *)window.rootViewController;
