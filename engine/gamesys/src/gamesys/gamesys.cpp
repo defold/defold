@@ -75,8 +75,7 @@
 #include "components/comp_tilegrid.h"
 #include "components/comp_label.h"
 
-DM_PROPERTY_GROUP(rmtp_GameSys, "Gameobjects");
-DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components", &rmtp_GameSys);
+DM_PROPERTY_GROUP(rmtp_Components, "Gameobject Components");
 
 namespace dmGameSystem
 {

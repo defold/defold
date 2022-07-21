@@ -36,8 +36,9 @@
 #include "resources/res_textureset.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleFx, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, FrameReset, "# vertices", &rmtp_ParticleFx);
+DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_ParticleFx);
 
 namespace dmGameSystem
 {
@@ -356,6 +357,8 @@ namespace dmGameSystem
             ParticleFXComponent& c = pfx_world->m_Components[i];
             if (c.m_AddedToUpdate)
             {
+                DM_PROPERTY_ADD_U32(rmtp_ParticleFx, 1);
+
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
                 for (uint32_t j = 0; j < emitter_count; ++j)
                 {

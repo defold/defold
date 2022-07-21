@@ -43,8 +43,9 @@
 #include "../resources/res_mesh.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_Mesh, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_MeshVertexCount, 0, FrameReset, "# vertices", &rmtp_Mesh);
+DM_PROPERTY_U32(rmtp_MeshVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Mesh);
 
 namespace dmGameSystem
 {
@@ -783,6 +784,7 @@ namespace dmGameSystem
             if (!component.m_Enabled)
                 continue;
 
+            DM_PROPERTY_ADD_U32(rmtp_Mesh, 1);
             const Vector4 trans = component.m_World.getCol(3);
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) &component;

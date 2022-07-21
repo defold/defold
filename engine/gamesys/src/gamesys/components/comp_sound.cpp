@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/object_pool.h>
+#include <dlib/profile.h>
 #include <sound/sound.h>
 
 #include <gamesys/gamesys_ddf.h>
@@ -29,6 +30,9 @@
 #include "../resources/res_sound.h"
 #include "comp_private.h"
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_Sound, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_SoundPlaying, 0, FrameReset, "# sounds playing", &rmtp_Sound);
 
 namespace dmGameSystem
 {
@@ -144,11 +148,13 @@ namespace dmGameSystem
     {
         dmGameObject::UpdateResult update_result = dmGameObject::UPDATE_RESULT_OK;
         SoundWorld* world = (SoundWorld*)params.m_World;
+        DM_PROPERTY_ADD_U32(rmtp_Sound, world->m_Components.Size());
         for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
         {
             PlayEntry& entry = world->m_Entries[i];
             if (entry.m_SoundInstance != 0)
             {
+                DM_PROPERTY_ADD_U32(rmtp_SoundPlaying, 1);
                 float prev_delay = entry.m_Delay;
                 entry.m_Delay -= params.m_UpdateContext->m_DT;
                 if (entry.m_Delay < 0.0f)
