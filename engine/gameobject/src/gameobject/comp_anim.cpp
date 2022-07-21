@@ -30,8 +30,8 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-DM_PROPERTY_EXTERN(rmtp_Script);
-DM_PROPERTY_U32(rmtp_AnimCount, 0, FrameReset, "# of animations", &rmtp_Script);
+DM_PROPERTY_EXTERN(rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ComponentsAnim, 0, FrameReset, "#", &rmtp_GameObject);
 
 namespace dmGameObject
 {
@@ -185,7 +185,7 @@ namespace dmGameObject
         uint32_t size = world->m_Animations.Size();
         uint32_t orig_size = size;
 
-        DM_PROPERTY_ADD_U32(rmtp_AnimCount, size);
+        DM_PROPERTY_ADD_U32(rmtp_ComponentsAnim, size);
 
         uint32_t i = 0;
         for (i = 0; i < size; ++i)

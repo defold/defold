@@ -41,6 +41,8 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+DM_PROPERTY_GROUP(rmtp_Script, "");
+
 namespace dmScript
 {
     /*# Built-ins API documentation
