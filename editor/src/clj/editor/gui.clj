@@ -947,7 +947,7 @@
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
 
   (display-order (into base-display-order
-                       [:enabled :size-mode :visible :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:size-mode :enabled :visible :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
@@ -1107,7 +1107,7 @@
   (property pie-fill-angle g/Num (default 360.0))
 
   (display-order (into base-display-order
-                       [:enabled :size-mode :visible :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
+                       [:size-mode :enabled :visible :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
@@ -1208,7 +1208,7 @@
                                       :max 1.0
                                       :precision 0.01})))
 
-  (display-order (into base-display-order [:enabled :text :line-break :visible :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:enabled :visible :text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [font-datas font]
                                     (or (font-datas font)
