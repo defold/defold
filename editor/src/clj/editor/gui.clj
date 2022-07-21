@@ -48,7 +48,7 @@
             [editor.particlefx :as particlefx]
             [editor.validation :as validation]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
+  (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -366,11 +366,9 @@
                 (update :rotation (fn [rotation]
                                     (clj-quat->euler-v4 (or rotation [0.0 0.0 0.0 1.0])))))
         node-type-info (get-registered-node-type-info type custom-type)
-        convert-fn (:convert-fn node-type-info)
-        convert-fn (if (not= convert-fn nil)
-                     convert-fn
-                     (fn [info x] x))
-        msg (convert-fn node-type-info msg)]
+        msg (if-some [convert-fn (:convert-fn node-type-info)]
+              (convert-fn node-type-info msg)
+              msg)]
     msg))
 
 (def gui-node-parent-attachments
@@ -632,7 +630,7 @@
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
-  
+
   (input spine-scene-element-ids SpineSceneElementIds)
   (output spine-scene-element-ids SpineSceneElementIds (gu/passthrough spine-scene-element-ids))
   (input spine-scene-infos SpineSceneInfos)
@@ -652,17 +650,18 @@
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [child-outlines]
                                                                      (vec (sort-by :child-index child-outlines))))
   (output node-outline-reqs g/Any :cached (g/fnk []
-                                                 (mapv (fn [type-info] {:node-type (:node-cls type-info)
-                                                                        :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
-                                                       (get-registered-node-type-infos))))
-  
+                                            (mapv (fn [type-info]
+                                                    {:node-type (:node-cls type-info)
+                                                     :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
+                                                  (get-registered-node-type-infos))))
+
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type custom-type own-build-errors _overridden-properties]
             (cond-> {:node-id _node-id
                      :node-outline-key id
                      :label id
                      :child-index child-index
-                     :icon (or (:icon (get-registered-node-type-info type custom-type)) gui-icon)
+                     :icon (:icon (get-registered-node-type-info type custom-type))
                      :child-reqs node-outline-reqs
                      :copy-include-fn (fn [node]
                                         (let [node-id (g/node-id node)]
@@ -773,7 +772,7 @@
 
   (output gui-scene g/Any (g/fnk [_node-id]
                                  (node->gui-scene _node-id)))
-  
+
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output aabb g/Any :cached (g/fnk [pivot size]
                                     (let [offset-fn (partial mapv + (pivot-offset pivot size))
@@ -948,7 +947,7 @@
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
 
   (display-order (into base-display-order
-                       [:enabled :size-mode :visible :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:size-mode :enabled :visible :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
@@ -1108,7 +1107,7 @@
   (property pie-fill-angle g/Num (default 360.0))
 
   (display-order (into base-display-order
-                       [:enabled :size-mode :visible :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
+                       [:size-mode :enabled :visible :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
@@ -1209,7 +1208,7 @@
                                       :max 1.0
                                       :precision 0.01})))
 
-  (display-order (into base-display-order [:enabled :text :line-break :visible :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:enabled :visible :text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [font-datas font]
                                     (or (font-datas font)
@@ -1369,7 +1368,7 @@
                                                                   [:font-shaders :aux-font-shaders]
                                                                   [:font-datas :aux-font-datas]
                                                                   [:font-names :aux-font-names]
-                                                                  
+
                                                                   [:spine-scene-element-ids :aux-spine-scene-element-ids]
                                                                   [:spine-scene-infos :aux-spine-scene-infos]
                                                                   [:spine-scene-names :aux-spine-scene-names]
@@ -2592,7 +2591,7 @@
                                  (map (fn [[parent menu-label menu-icon add-fn opts]]
                                         (let [parent (if (= node scene) parent node)]
                                           (make-add-handler scene parent menu-label menu-icon add-fn opts)))))))]
-      (filter some? (into node-options handler-options))))
+    (filter some? (into node-options handler-options))))
 
 (defn- add-layout-options [node user-data]
   (g/with-auto-evaluation-context evaluation-context
@@ -2642,6 +2641,10 @@
 ;; SDK api
 (defn register-gui-scene-loader! [loader]
   (swap! custom-gui-scene-loaders conj loader))
+
+;; Used by tests
+(defn clear-custom-gui-scene-loaders-for-tests! []
+  (reset! custom-gui-scene-loaders ()))
 
 (defn- get-registered-gui-scene-loaders []
   @custom-gui-scene-loaders)
@@ -2797,7 +2800,6 @@
                            child-index 0]
                       (if node-desc
                         (let [node-type (get-registered-node-type-cls (:type node-desc) (:custom-type node-desc))
-                              node-type-info (get-registered-node-type-info (:type node-desc) (:custom-type node-desc))
                               props (-> node-desc
                                         (assoc :child-index child-index)
                                         (select-keys (g/declared-property-labels node-type))
@@ -2858,19 +2860,17 @@
   (let [node-type (:type node-desc)
         custom-type (:custom-type node-desc 0)
         node-type-info (get-registered-node-type-info node-type custom-type)
-        convert-fn (:convert-fn node-type-info)
-        convert-fn (if (not= convert-fn nil)
-                     convert-fn
-                     (fn [info x] x))
-        node-desc (convert-fn node-type-info node-desc)]
+        node-desc (if-some [convert-fn (:convert-fn node-type-info)]
+                    (convert-fn node-type-info node-desc)
+                    node-desc)]
     (cond-> (-> node-desc
                 sanitize-node-colors
                 sanitize-node-rotation)
 
-          ;; Size mode is not applicable for text nodes, but might still be
-          ;; stored in the files from editor 1.
-      (= :type-text (:type node-desc))
-      (dissoc :size-mode))))
+            ;; Size mode is not applicable for text nodes, but might still be
+            ;; stored in the files from editor 1.
+            (= :type-text (:type node-desc))
+            (dissoc :size-mode))))
 
 (def ^:private sanitize-nodes #(mapv sanitize-node %))
 
@@ -3028,18 +3028,20 @@
   (concat base-node-type-infos @custom-node-type-infos))
 
 (defn- get-registered-node-type-info [node-type custom-type]
-  (let [infos (filter (fn [info] (and
-                                  (= (:node-type info) node-type)
-                                  (= (:custom-type info) custom-type))) (get-registered-node-type-infos))
-        info (first infos)]
-    info))
+  (or (some (fn [info]
+              (when (and (= node-type (:node-type info))
+                         (= custom-type (:custom-type info)))
+                info))
+            (get-registered-node-type-infos))
+      (throw (ex-info (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, custom-type=%s)"
+                              node-type
+                              custom-type)
+                      {:node-type node-type
+                       :custom-type custom-type
+                       :custom-node-type-infos @custom-node-type-infos}))))
 
 (defn- get-registered-node-type-cls [node-type custom-type]
-  (let [info (get-registered-node-type-info node-type custom-type)
-        cls (if (nil? info)
-              GuiNode
-              (:node-cls info))]
-    cls))
+  (:node-cls (get-registered-node-type-info node-type custom-type)))
 
 ;; SDK api
 (defn register-node-type-info! [type-info]

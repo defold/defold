@@ -17,27 +17,30 @@
             [clojure.string :as string]
             [clojure.test :refer [is testing]]
             [dynamo.graph :as g]
-            [editor.graph-util :as gu]
             [editor.app-view :as app-view]
-            [editor.ui :as ui]
-            [editor.fs :as fs]
-            [editor.game-object :as game-object]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.fs :as fs]
+            [editor.game-object :as game-object]
+            [editor.graph-util :as gu]
+            [editor.handler :as handler]
             [editor.material :as material]
             [editor.prefs :as prefs]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
-            [editor.workspace :as workspace]
-            [editor.handler :as handler]
+            [editor.ui :as ui]
             [editor.view :as view]
+            [editor.workspace :as workspace]
             [internal.system :as is]
+            [service.log :as log]
             [support.test-support :as test-support]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
-  (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
+  (:import [java.io ByteArrayOutputStream File FilenameFilter FileInputStream]
            [java.util UUID]
            [java.util.concurrent LinkedBlockingQueue]
            [java.util.zip ZipEntry ZipOutputStream]
@@ -128,6 +131,13 @@
    (let [temp-project-path (make-temp-project-copy! project-path)]
      (setup-workspace! graph temp-project-path))))
 
+(defn fetch-libraries! [workspace]
+  (let [game-project-resource (workspace/find-resource workspace "/game.project")
+        dependencies (project/read-dependencies game-project-resource)]
+    (->> (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)
+         (workspace/install-validated-libraries! workspace dependencies))
+    (workspace/resource-sync! workspace [] progress/null-render-progress!)))
+
 (defn setup-project!
   ([workspace]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
@@ -167,10 +177,10 @@
   (openable? [this] (= :file source-type))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream content opts))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (assert false "writing to not supported"))
-  (io/make-writer        [this opts] (assert false "writing to not supported")))
+  (make-input-stream  [this opts] (io/make-input-stream content opts))
+  (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [this opts] (assert false "writing to not supported"))
+  (make-writer        [this opts] (assert false "writing to not supported")))
 
 (defn make-fake-file-resource
   ([workspace root file content]
@@ -268,18 +278,34 @@
 
 (defn- load-system-and-project-raw [path]
   (test-support/with-clean-system
-    (let [workspace (setup-workspace! world path)
-          project (setup-project! workspace)]
-      [@g/*the-system* workspace project])))
+    (let [workspace (setup-workspace! world path)]
+      (fetch-libraries! workspace)
+      (let [project (setup-project! workspace)]
+        [@g/*the-system* workspace project]))))
 
 (def load-system-and-project (memoize load-system-and-project-raw))
 
+(defn- split-keyword-options [forms]
+  (let [keyword-options (into {}
+                              (comp (take-while (comp keyword? first))
+                                    (map vec)) ; Convert lazy sequences to vectors required by (into {}).
+                              (partition 2 forms))
+        forms (drop (* 2 (count keyword-options))
+                    forms)]
+    [keyword-options forms]))
+
 (defmacro with-loaded-project
   [& forms]
-  (let [custom-path?  (or (string? (first forms)) (symbol? (first forms)))
-        project-path  (if custom-path? (first forms) project-path)
-        forms         (if custom-path? (next forms) forms)]
-    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
+  (let [first-form (first forms)
+        custom-path? (or (string? first-form) (symbol? first-form))
+        project-path (if custom-path? first-form project-path)
+        forms (if custom-path? (next forms) forms)
+        [options forms] (split-keyword-options forms)]
+    `(let [options# ~options
+           [system# ~'workspace ~'project] (if (:logging-suppressed options#)
+                                             (log/without-logging
+                                               (load-system-and-project ~project-path))
+                                             (load-system-and-project ~project-path))
            system-clone# (is/clone-system system#)
            ~'cache  (:cache system-clone#)
            ~'world  (g/node-id->graph-id ~'workspace)]
@@ -658,3 +684,40 @@
           (is (= (dissoc (get-in scene-data (conj gpu-texture-path :params)) :default-tex-params)
                  (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 
+(defn- build-node! [resource-node]
+  (let [project (project/get-project resource-node)
+        workspace (project/workspace project)
+        old-artifact-map (workspace/artifact-map workspace)
+        build-path (workspace/build-path workspace)
+        build-result (g/with-auto-evaluation-context evaluation-context
+                       (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))]
+    [build-path build-result]))
+
+(defn build! [resource-node]
+  (let [[build-path] (build-node! resource-node)]
+    (make-directory-deleter build-path)))
+
+(defn build-error! [resource-node]
+  (let [[build-path build-result] (build-node! resource-node)
+        error (:error build-result)]
+    (fs/delete-directory! (io/file build-path) {:fail :silently})
+    error))
+
+(defn build-resource [project path]
+  (when-some [resource-node (resource-node project path)]
+    (:resource (first (g/node-value resource-node :build-targets)))))
+
+(defn build-output [project path]
+  (with-open [in (io/input-stream (build-resource project path))
+              out (ByteArrayOutputStream.)]
+    (io/copy in out)
+    (.toByteArray out)))
+
+(defn node-build-resource [node-id]
+  (:resource (first (g/node-value node-id :build-targets))))
+
+(defn node-build-output [node-id]
+  (with-open [in (io/input-stream (node-build-resource node-id))
+              out (ByteArrayOutputStream.)]
+    (io/copy in out)
+    (.toByteArray out)))

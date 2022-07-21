@@ -138,6 +138,7 @@ namespace dmGameSystem
             memset(this, 0, sizeof(*this));
         }
         uint32_t                    m_MaxComponentCount;
+        uint32_t                    m_MaxSoundInstances;
     };
 
     struct MeshContext

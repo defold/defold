@@ -47,9 +47,8 @@
 
 #include <dmsdk/gamesys/gui.h>
 
-DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_GROUP(rmtp_ComponentsGui, "Gui component");
-DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_ComponentsGui);
+DM_PROPERTY_EXTERN(rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_Gui);
 
 namespace dmGameSystem
 {

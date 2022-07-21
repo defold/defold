@@ -44,6 +44,9 @@
 #include <gamesys/gamesys_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_Label, 0, FrameReset, "# components", &rmtp_Components);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -431,6 +434,8 @@ namespace dmGameSystem
 
         dmArray<LabelComponent>& components = world->m_Components.m_Objects;
         uint32_t component_count = components.Size();
+
+        DM_PROPERTY_ADD_U32(rmtp_Label, component_count);
 
         if (!component_count)
             return dmGameObject::UPDATE_RESULT_OK;
