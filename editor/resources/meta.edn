@@ -811,6 +811,10 @@
    :help "enable CPU usage sampling in release"
    :default false
    :path ["profiler" "track_cpu"]}
+  {:type :integer
+   :help "Number of milliseconds to sleep between server updates"
+   :default 0
+   :path ["profiler" "sleep_between_server_updates"]}
   {:type :resource
    :filter "settings"
    :default "/liveupdate.settings"

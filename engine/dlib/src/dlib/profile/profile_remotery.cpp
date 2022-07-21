@@ -88,6 +88,10 @@ namespace dmProfile
             {
                 settings->port = (rmtU16)options->m_Port;
             }
+            if (options->m_SleepBetweenServerUpdates > 0)
+            {
+                settings->msSleepBetweenServerUpdates = options->m_SleepBetweenServerUpdates;
+            }
         }
         settings->sampletree_handler = SampleTreeCallback;
         settings->sampletree_context = 0;
