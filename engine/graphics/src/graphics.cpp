@@ -640,9 +640,9 @@ namespace dmGraphics
     {
         g_functions.m_SetConstantM4(context, data, base_register);
     }
-    void SetSampler(HContext context, int32_t location, int32_t unit)
+    void SetSampler(HContext context, int32_t location, int32_t* units, int count)
     {
-        g_functions.m_SetSampler(context, location, unit);
+        g_functions.m_SetSampler(context, location, units, count);
     }
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {

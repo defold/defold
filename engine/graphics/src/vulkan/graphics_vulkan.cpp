@@ -2552,8 +2552,9 @@ bail:
         }
     }
 
-    static void VulkanSetSampler(HContext context, int32_t location, int32_t unit)
+    static void VulkanSetSampler(HContext context, int32_t location, int32_t* units, int count)
     {
+        assert(count == 1 && "TODO: SetSampler with count != not implemented..");
         assert(context && context->m_CurrentProgram);
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
@@ -2566,7 +2567,7 @@ bail:
             ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
             assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
             assert(IsUniformTextureSampler(res));
-            program_ptr->m_VertexModule->m_Uniforms[index_vs].m_TextureUnit = (uint16_t) unit;
+            program_ptr->m_VertexModule->m_Uniforms[index_vs].m_TextureUnit = (uint16_t) units[0];
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -2574,7 +2575,7 @@ bail:
             ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
             assert(IsUniformTextureSampler(res));
-            program_ptr->m_FragmentModule->m_Uniforms[index_fs].m_TextureUnit = (uint16_t) unit;
+            program_ptr->m_FragmentModule->m_Uniforms[index_fs].m_TextureUnit = (uint16_t) units[0];
         }
     }
 

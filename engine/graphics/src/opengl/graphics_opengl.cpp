@@ -456,6 +456,8 @@ static void LogFrameBufferError(GLenum status)
                 return TYPE_FLOAT_MAT4;
             case GL_SAMPLER_2D:
                 return TYPE_SAMPLER_2D;
+            case GL_SAMPLER_2D_ARRAY:
+                return TYPE_SAMPLER_2D_ARRAY;
             case GL_SAMPLER_CUBE:
                 return TYPE_SAMPLER_CUBE;
             default:break;
@@ -466,15 +468,13 @@ static void LogFrameBufferError(GLenum status)
 
     static GLenum GetOpenGLTextureType(TextureType type)
     {
-        if (type == TEXTURE_TYPE_2D)
+        switch(type)
         {
-            return GL_TEXTURE_2D;
+            case TEXTURE_TYPE_2D:       return GL_TEXTURE_2D;
+            case TEXTURE_TYPE_2D_ARRAY: return GL_TEXTURE_2D_ARRAY;
+            case TEXTURE_TYPE_CUBE_MAP: return GL_TEXTURE_CUBE_MAP;
+            default:break;
         }
-        else if (type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            return GL_TEXTURE_CUBE_MAP;
-        }
-
         return GL_FALSE;
     }
 
@@ -1973,10 +1973,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetSampler(HContext context, int32_t location, int32_t unit)
+    static void OpenGLSetSampler(HContext context, int32_t location, int32_t* units, int count)
     {
         assert(context);
-        glUniform1i(location, unit);
+        glUniform1iv(location, count, units);
         CHECK_GL_ERROR;
     }
 
@@ -2291,6 +2291,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         tex->m_Width = params.m_Width;
         tex->m_Height = params.m_Height;
+        tex->m_Depth = params.m_Depth;
 
         if (params.m_OriginalWidth == 0){
             tex->m_OriginalWidth = params.m_Width;
@@ -2659,6 +2660,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
                 }
                 CHECK_GL_ERROR;
+            } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
+                if (params.m_SubUpdate) {
+                    glTexSubImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                } else {
+                    glTexImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
+                }
+                CHECK_GL_ERROR;
             } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                 const char* p = (const char*) params.m_Data;
                 if (params.m_SubUpdate) {
@@ -2688,7 +2696,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
                     CHECK_GL_ERROR;
                 }
-
             } else {
                 assert(0);
             }
@@ -2714,6 +2721,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                         glCompressedTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, params.m_Data);
                     } else {
                         glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
+                    }
+                    CHECK_GL_ERROR;
+                } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
+                    if (params.m_SubUpdate) {
+                        glCompressedTexSubImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                    } else {
+                        glCompressedTexImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
                     }
                     CHECK_GL_ERROR;
                 } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {

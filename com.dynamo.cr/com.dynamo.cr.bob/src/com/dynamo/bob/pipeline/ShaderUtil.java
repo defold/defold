@@ -195,8 +195,8 @@ public class ShaderUtil {
         private static final Pattern regexUniformKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
         private static final Pattern regexFragDataArrayPattern = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
 
-        private static final String[][] vsKeywordReps = {{"varying", "out"}, {"attribute", "in"}, {"texture2D", "texture"}, {"textureCube", "texture"}};
-        private static final String[][] fsKeywordReps = {{"varying", "in"}, {"texture2D", "texture"}, {"textureCube", "texture"}};
+        private static final String[][] vsKeywordReps = {{"varying", "out"}, {"attribute", "in"}, {"texture2D", "texture"}, {"texture2DArray", "texture"}, {"textureCube", "texture"}};
+        private static final String[][] fsKeywordReps = {{"varying", "in"}, {"texture2D", "texture"}, {"texture2DArray", "texture"}, {"textureCube", "texture"}};
 
         private static final String dmEngineGeneratedRep = "_DMENGINE_GENERATED_";
 
@@ -255,7 +255,7 @@ public class ShaderUtil {
                 maxColorOutputs = Math.max(maxColorOutputs, Integer.parseInt(fragDataArrayIndex) + 1);
             }
 
-            // Replace fragment output variables 
+            // Replace fragment output variables
             boolean output_glFragColor = input.contains(glFragColorKeyword);
             boolean output_glFragData = input.contains(glFragDataKeyword);
 
@@ -351,7 +351,7 @@ public class ShaderUtil {
                     }
                     for (int i = 0; i < maxColorOutputs; i++) {
                          // insert fragcolor out attr
-                        output.add(patchLineIndex++, String.format(glFragColorAttrRep, "_" + i));   
+                        output.add(patchLineIndex++, String.format(glFragColorAttrRep, "_" + i));
                     }
                 }
             }

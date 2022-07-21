@@ -880,7 +880,7 @@ namespace dmGraphics
         memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4);
     }
 
-    static void NullSetSampler(HContext context, int32_t location, int32_t unit)
+    static void NullSetSampler(HContext context, int32_t location, int32_t* units, int count)
     {
     }
 

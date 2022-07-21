@@ -330,61 +330,34 @@ public class TextureSetGenerator {
             imagesPerPage.add(layoutRects.size());
         } else {
             List<Layout> packedLayouts = TextureSetLayout.packedLayout(margin, resizedImages, rotate, maxPageSize);
-
-            System.out.println("Size: " + packedLayouts.size());
-
             layoutRects = new ArrayList<Rect>();
-
-            int rectIndexOffset = 0;
-            int layout_i = 0;
-
             for (Layout l : packedLayouts)
             {
                 List<Rect> packedLayoutRects = l.getRectangles();
-
-                /*
-                for (Rect r : packedLayoutRects)
-                {
-                    r.index += rectIndexOffset;
-                    System.out.println(layout_i + " - Rect.index = " + r.index);
-                }
-
-                layout_i++;
-                */
-
                 packedLayoutRects.sort(Comparator.comparing(o -> o.index));
-
-                rectIndexOffset += packedLayoutRects.size();
                 layoutRects.addAll(packedLayoutRects);
                 imagesPerPage.add(packedLayoutRects.size());
             }
 
-            layouts = packedLayouts;
-            layoutWidth = layouts.get(0).getWidth();
+            // JG: Hm, not all layouts might have the same dimensions
+            layouts      = packedLayouts;
+            layoutWidth  = layouts.get(0).getWidth();
             layoutHeight = layouts.get(0).getHeight();
         }
 
-        //System.out.println("Sorting rects");
-        //layoutRects.sort(Comparator.comparing(o -> o.index));
-        //System.out.println("Clipping borders");
         // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
         layoutRects = clipBorders(layoutRects, extrudeBorders);
-
-        System.out.println("Generating vertex data");
         Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layoutWidth, layoutHeight, layoutRects, iterator);
 
         vertexData.left.setUseGeometries(use_geometries);
         vertexData.left.addAllImagesPerPage(imagesPerPage);
 
         if (imageHulls != null) {
-            System.out.println("Adding geometries");
             for (Rect rect : layoutRects) {
                 SpriteGeometry geometry = imageHulls.get(rect.index);
                 vertexData.left.addGeometries(createPolygonUVs(geometry, rect, layoutWidth, layoutHeight, extrudeBorders));
             }
         }
-
-        System.out.println("Done!");
         return new TextureSetResult(vertexData.left, vertexData.right, new LayoutResult(layouts, innerPadding, extrudeBorders));
     }
 
@@ -504,26 +477,6 @@ public class TextureSetGenerator {
         {
             result.images.add(composite(layoutImages.get(i), layouts.get(i)));
         }
-
-        /*
-        for (int i = 0; i < images.size(); ++i) {
-            BufferedImage image = images.get(i);
-            Rect rect = result.layoutResult.layout.getRectangles().get(i);
-
-            if (innerPadding > 0) {
-                image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
-            }
-            if (extrudeBorders > 0) {
-                image = TextureUtil.extrudeBorders(image, extrudeBorders);
-            }
-            if (rect.rotated) {
-                image = rotateImage(image);
-            }
-            images.set(i, image);
-        }
-
-        result.image = composite(images, result.layoutResult.layout);
-        */
 
         // try {
         //     File outputfile = new File(String.format("image%d.png", debugImageCount));

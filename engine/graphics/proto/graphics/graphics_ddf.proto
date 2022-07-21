@@ -165,19 +165,20 @@ message ShaderDesc
 
     enum ShaderDataType
     {
-        SHADER_TYPE_UNKNOWN      = 0;
-        SHADER_TYPE_INT          = 1;
-        SHADER_TYPE_UINT         = 2;
-        SHADER_TYPE_FLOAT        = 3;
-        SHADER_TYPE_VEC2         = 4;
-        SHADER_TYPE_VEC3         = 5;
-        SHADER_TYPE_VEC4         = 6;
-        SHADER_TYPE_MAT2         = 7;
-        SHADER_TYPE_MAT3         = 8;
-        SHADER_TYPE_MAT4         = 9;
-        SHADER_TYPE_SAMPLER2D    = 10;
-        SHADER_TYPE_SAMPLER3D    = 11;
-        SHADER_TYPE_SAMPLER_CUBE = 12;
+        SHADER_TYPE_UNKNOWN         = 0;
+        SHADER_TYPE_INT             = 1;
+        SHADER_TYPE_UINT            = 2;
+        SHADER_TYPE_FLOAT           = 3;
+        SHADER_TYPE_VEC2            = 4;
+        SHADER_TYPE_VEC3            = 5;
+        SHADER_TYPE_VEC4            = 6;
+        SHADER_TYPE_MAT2            = 7;
+        SHADER_TYPE_MAT3            = 8;
+        SHADER_TYPE_MAT4            = 9;
+        SHADER_TYPE_SAMPLER2D       = 10;
+        SHADER_TYPE_SAMPLER3D       = 11;
+        SHADER_TYPE_SAMPLER_CUBE    = 12;
+        SHADER_TYPE_SAMPLER2D_ARRAY = 13;
     }
 
     message ResourceBinding

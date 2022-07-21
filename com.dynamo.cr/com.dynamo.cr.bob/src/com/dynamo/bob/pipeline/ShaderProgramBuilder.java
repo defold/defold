@@ -81,6 +81,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         String firstNonDirectiveLine = null;
         int directiveLineCount = 0;
 
+        final String sampler2DArrayStr = "sampler2DArray";
+        boolean hasTextureArrays = shaderSource.contains(sampler2DArrayStr);
+
         Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
         Scanner scanner = new Scanner(shaderSource);
 
@@ -105,6 +108,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         boolean gles3Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
                                 shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
 
+        boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
+                                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
+
+        if (gles3Standard)
+        {
+            System.out.println("ES3 STANDARD");
+        }
+
         // Write our directives.
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
             // Normally, the ES2ToES3Converter would do this
@@ -118,6 +129,24 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             writer.println("#define highp");
             writer.println("#endif");
             writer.println();
+        }
+
+        // TODO: Where to get this value from
+        int maxArraySliceCount = 4;
+        if (gles2Standard && hasTextureArrays)
+        {
+            // Array indices must be constant, so can't use texture[ix]
+            writer.println("vec4 texture2DArray(sampler2D dm_texture_arrays[" + maxArraySliceCount + "], vec3 dm_texture_array_args) {");
+            writer.println("    int page_index = int(dm_texture_array_args.z);");
+            writer.println("    for (int i = 0; i < 4; ++i)");
+            writer.println("    {");
+            writer.println("        if (i == page_index)");
+            writer.println("        {");
+            writer.println("            return texture2D(dm_texture_arrays[i], dm_texture_array_args.st);");
+            writer.println("        }");
+            writer.println("    }");
+            writer.println("    return vec4(0.0);");
+            writer.println("}");
         }
 
         // We want "correct" line numbers from the GLSL compiler.
@@ -151,6 +180,32 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, false);
             source = es3Result.output;
         }
+
+        // For texture array support, we need to convert texture2DArray functions
+        // JG: Move to shaderutil.java?
+        if (gles2Standard)
+        {
+            if (source.contains(sampler2DArrayStr))
+            {
+                final String sampler2DArrayRegex = "(.+)sampler2DArray\\s+(\\w+);";
+                final String texture2DArrayRegex = "texture2DArray\\s?\\(([^,]*),(.+)";
+                source = source.replaceAll(sampler2DArrayRegex, "$1 sampler2D $2[" + maxArraySliceCount + "];");
+
+                ArrayList<String> output = new ArrayList<String>(source.length());
+
+                String[] lines = source.split(System.getProperty("line.separator"));
+                for(String sourceLine : lines) {
+                    if (!sourceLine.contains(sampler2DArrayStr))
+                    {
+                        output.add(sourceLine);
+                    }
+                }
+
+                source = String.join("\n", output);
+                System.out.println(source);
+            }
+        }
+
         return source;
     }
 
@@ -197,18 +252,19 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     {
         switch(typeAsString)
         {
-            case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
-            case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
-            case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
-            case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
-            case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
-            case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
-            case "mat2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
-            case "mat3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
-            case "mat4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
-            case "sampler2D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
-            case "sampler3D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
-            case "samplerCube" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
+            case "int"            : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
+            case "uint"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
+            case "float"          : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
+            case "vec2"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
+            case "vec3"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
+            case "vec4"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
+            case "mat2"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
+            case "mat3"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
+            case "mat4"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
+            case "sampler2D"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
+            case "sampler3D"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+            case "samplerCube"    : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
+            case "sampler2DArray" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY;
             default: break;
         }
 
@@ -217,8 +273,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
     static private boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
     {
-        return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE ||
-               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D ||
+        return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
+               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
+               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
                data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
     }
 

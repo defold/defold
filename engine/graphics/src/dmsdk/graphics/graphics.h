@@ -237,20 +237,22 @@ namespace dmGraphics
      * @member TYPE_FLOAT_MAT4
      * @member TYPE_SAMPLER_2D
      * @member TYPE_SAMPLER_CUBE
+     * @member TYPE_SAMPLER_2D_ARRAY
      */
     enum Type
     {
-        TYPE_BYTE           = 0,
-        TYPE_UNSIGNED_BYTE  = 1,
-        TYPE_SHORT          = 2,
-        TYPE_UNSIGNED_SHORT = 3,
-        TYPE_INT            = 4,
-        TYPE_UNSIGNED_INT   = 5,
-        TYPE_FLOAT          = 6,
-        TYPE_FLOAT_VEC4     = 7,
-        TYPE_FLOAT_MAT4     = 8,
-        TYPE_SAMPLER_2D     = 9,
-        TYPE_SAMPLER_CUBE   = 10,
+        TYPE_BYTE             = 0,
+        TYPE_UNSIGNED_BYTE    = 1,
+        TYPE_SHORT            = 2,
+        TYPE_UNSIGNED_SHORT   = 3,
+        TYPE_INT              = 4,
+        TYPE_UNSIGNED_INT     = 5,
+        TYPE_FLOAT            = 6,
+        TYPE_FLOAT_VEC4       = 7,
+        TYPE_FLOAT_MAT4       = 8,
+        TYPE_SAMPLER_2D       = 9,
+        TYPE_SAMPLER_CUBE     = 10,
+        TYPE_SAMPLER_2D_ARRAY = 11,
     };
 
 

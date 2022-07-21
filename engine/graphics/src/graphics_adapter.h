@@ -117,7 +117,7 @@ namespace dmGraphics
     typedef int32_t (* GetUniformLocationFn)(HProgram prog, const char* name);
     typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, int base_register);
     typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int base_register);
-    typedef void (*SetSamplerFn)(HContext context, int32_t location, int32_t unit);
+    typedef void (*SetSamplerFn)(HContext context, int32_t location, int32_t* units, int count);
     typedef void (*SetViewportFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*EnableStateFn)(HContext context, State state);
     typedef void (*DisableStateFn)(HContext context, State state);

@@ -77,6 +77,7 @@ namespace dmGraphics
         uint32_t    m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
         uint16_t    m_Width;
         uint16_t    m_Height;
+        uint16_t    m_Depth;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint16_t    m_MipMapCount;

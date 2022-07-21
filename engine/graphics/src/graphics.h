@@ -150,7 +150,8 @@ namespace dmGraphics
     enum TextureType
     {
         TEXTURE_TYPE_2D       = 0,
-        TEXTURE_TYPE_CUBE_MAP = 1,
+        TEXTURE_TYPE_2D_ARRAY = 1,
+        TEXTURE_TYPE_CUBE_MAP = 2,
     };
 
     // Texture filter
@@ -231,6 +232,7 @@ namespace dmGraphics
             m_Type(TEXTURE_TYPE_2D),
             m_Width(0),
             m_Height(0),
+            m_Depth(1),
             m_OriginalWidth(0),
             m_OriginalHeight(0),
             m_MipMapCount(1)
@@ -239,6 +241,7 @@ namespace dmGraphics
         TextureType m_Type;
         uint16_t    m_Width;
         uint16_t    m_Height;
+        uint16_t    m_Depth;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint8_t     m_MipMapCount;
@@ -257,9 +260,11 @@ namespace dmGraphics
         , m_MipMap(0)
         , m_Width(0)
         , m_Height(0)
+        , m_Depth(0)
         , m_SubUpdate(false)
         , m_X(0)
         , m_Y(0)
+        , m_Z(0)
         {}
 
         TextureFormat m_Format;
@@ -272,11 +277,13 @@ namespace dmGraphics
         uint16_t m_MipMap;
         uint16_t m_Width;
         uint16_t m_Height;
+        uint16_t m_Depth; // For array texture, this is slice count
 
         // For sub texture updates
         bool m_SubUpdate;
         uint32_t m_X;
         uint32_t m_Y;
+        uint32_t m_Z; // For array texture, this is the slice to set
     };
 
     // Parameters structure for OpenWindow
@@ -536,7 +543,7 @@ namespace dmGraphics
 
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
-    void SetSampler(HContext context, int32_t location, int32_t unit);
+    void SetSampler(HContext context, int32_t location, int32_t* units, int count);
 
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 

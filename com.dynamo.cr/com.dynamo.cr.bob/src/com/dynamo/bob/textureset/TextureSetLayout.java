@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -184,9 +184,9 @@ public class TextureSetLayout {
             }
         });
 
-        int maxPageWidth = (int) maxPageSize.getX();
-        int maxPageHeight = (int) maxPageSize.getY();
-        boolean useMaxPageSize = maxPageWidth > 0 && maxPageHeight > 0;
+        int maxPageWidth             = (int) maxPageSize.getX();
+        int maxPageHeight            = (int) maxPageSize.getY();
+        boolean useMaxPageSize       = maxPageWidth > 0 && maxPageHeight > 0;
         final int defaultMinPageSize = 16;
 
         if (useMaxPageSize) {
@@ -201,14 +201,7 @@ public class TextureSetLayout {
             settings.square        = false;
 
             MaxRectsLayoutStrategy strategy = new MaxRectsLayoutStrategy(settings);
-
             List<Layout> layouts = strategy.createLayout(rectangles);
-            int l_i = 0;
-            for (Layout l : layouts) {
-                List<Rect> rects = l.getRectangles();
-                System.out.println("Layout[" + (l_i++) + "]: has " + rects.size() + " rects");
-            }
-
             return layouts;
         } else {
             // Calculate total area of rectangles and the max length of a rectangle

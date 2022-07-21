@@ -40,8 +40,10 @@ namespace dmRender
     struct Sampler
     {
         dmhash_t m_NameHash;
-        int32_t  m_Location : 24;
-        int32_t  m_Unit     : 8;
+        int32_t  m_Location       : 24;
+        int32_t  m_Unit           : 8;
+        int32_t  m_UnitValueCount : 8;
+        int32_t  m_UnitValueIndex : 24;
 
         dmGraphics::TextureFilter m_MinFilter;
         dmGraphics::TextureFilter m_MagFilter;
@@ -52,12 +54,13 @@ namespace dmRender
             : m_NameHash(0)
             , m_Location(-1)
             , m_Unit(unit)
+            , m_UnitValueCount(0)
+            , m_UnitValueIndex(0)
             , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
-        {
-        }
+        {}
     };
 
     struct Material
@@ -80,6 +83,7 @@ namespace dmRender
         dmHashTable64<int32_t>                  m_NameHashToLocation;
         dmArray<MaterialConstant>               m_Constants;
         dmArray<Sampler>                        m_Samplers;
+        dmArray<int32_t>                        m_SamplerUnitData;
         uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()
         uint64_t                                m_UserData1;
         uint64_t                                m_UserData2;

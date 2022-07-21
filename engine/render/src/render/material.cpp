@@ -44,6 +44,7 @@ namespace dmRender
 
         uint32_t constants_count = 0;
         uint32_t samplers_count = 0;
+        uint32_t samplers_value_count = 0;
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
             type = (dmGraphics::Type) -1;
@@ -53,9 +54,10 @@ namespace dmRender
             {
                 constants_count++;
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
             {
                 samplers_count++;
+                samplers_value_count += num_values;
             }
             else
             {
@@ -72,6 +74,13 @@ namespace dmRender
         if (samplers_count > 0)
         {
             m->m_Samplers.SetCapacity(samplers_count);
+            m->m_SamplerUnitData.SetCapacity(samplers_value_count);
+
+            for (uint32_t i = 0; i < samplers_value_count; ++i)
+            {
+                m->m_SamplerUnitData.Push(i);
+            }
+
             for (uint32_t i = 0; i < samplers_count; ++i)
             {
                 m->m_Samplers.Push(Sampler(i));
@@ -80,6 +89,8 @@ namespace dmRender
 
         uint32_t default_values_capacity = 0;
         dmVMath::Vector4* default_values = 0;
+        uint32_t sampler_index = 0;
+        uint32_t sampler_value_index = 0;
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
@@ -160,6 +171,11 @@ namespace dmRender
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
+                Sampler& s           = m->m_Samplers[sampler_index];
+                s.m_UnitValueCount   = num_values;
+                s.m_UnitValueIndex   = sampler_value_index;
+                sampler_value_index += num_values;
+                sampler_index++;
             }
         }
 
@@ -296,6 +312,8 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmArray<Sampler>& samplers = material->m_Samplers;
+        dmArray<int32_t>& sampler_unit_values = material->m_SamplerUnitData;
+
         uint32_t n = samplers.Size();
 
         if (unit < n)
@@ -304,7 +322,7 @@ namespace dmRender
 
             if (s.m_Location != -1)
             {
-                dmGraphics::SetSampler(graphics_context, s.m_Location, s.m_Unit);
+                dmGraphics::SetSampler(graphics_context, s.m_Location, &sampler_unit_values[s.m_UnitValueIndex], s.m_UnitValueCount);
 
                 if (s.m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
                     s.m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
@@ -435,17 +453,34 @@ namespace dmRender
 
         uint32_t n = samplers.Size();
         uint32_t i = unit;
+
+        bool readjust_value_indices = false;
         if (unit < n && name_hash != 0 && material->m_NameHashToLocation.Get(name_hash) != 0)
         {
             Sampler& s = samplers[i];
+            readjust_value_indices = s.m_Unit != unit;
+
             s.m_NameHash = name_hash;
             s.m_Location = *material->m_NameHashToLocation.Get(name_hash);
             s.m_Unit = unit;
-
             s.m_UWrap = u_wrap;
             s.m_VWrap = v_wrap;
             s.m_MinFilter = min_filter;
             s.m_MagFilter = mag_filter;
+        }
+
+        if (readjust_value_indices)
+        {
+            uint32_t num_values = material->m_SamplerUnitData.Size();
+            uint32_t value_index = 0;
+
+            for (int i = 0; i < n; ++i)
+            {
+                assert(value_index < num_values);
+                Sampler& s         = samplers[i];
+                s.m_UnitValueIndex = value_index;
+                value_index       += s.m_UnitValueCount;
+            }
         }
     }
 
