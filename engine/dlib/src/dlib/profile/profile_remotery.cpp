@@ -97,6 +97,7 @@ namespace dmProfile
         settings->sampletree_context = 0;
         settings->snapshot_callback = PropertyTreeCallback;
         settings->snapshot_context = 0;
+        settings->reuse_open_port = true;
 
         rmtError result = rmt_CreateGlobalInstance(&g_Remotery);
         if (result != RMT_ERROR_NONE)
