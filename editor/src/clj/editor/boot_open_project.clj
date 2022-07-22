@@ -32,7 +32,7 @@
             [editor.editor-extensions :as extensions]
             [editor.fxui :as fxui]
             [editor.git :as git]
-            [editor.graph-view :as graph-view]
+            [editor.graph-view-old :as graph-view]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
             [editor.icons :as icons]

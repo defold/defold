@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.graph-view
+(ns editor.graph-view-old
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.gviz :as gviz]
