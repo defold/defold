@@ -43,20 +43,6 @@ char**              g_Argv = 0;
 
 @synthesize window;
 
-- (void)forceDeviceOrientation;
-{
-    // Running iOS8, if we don't force a change in the device orientation then
-    // the framebuffer will not be created with the correct orientation.
-    UIDevice *device = [UIDevice currentDevice];
-    UIDeviceOrientation desired = UIDeviceOrientationLandscapeRight;
-    if (_glfwWin.portrait) {
-        desired = UIDeviceOrientationPortrait;
-    } else if (UIDeviceOrientationLandscapeLeft == device.orientation) {
-        desired = UIDeviceOrientationLandscapeLeft;
-    }
-    [device setValue: [NSNumber numberWithInteger: desired] forKey:@"orientation"];
-}
-
 - (void)reinit:(UIApplication *)application
 {
     g_IsReboot = 1;
@@ -78,8 +64,6 @@ char**              g_Argv = 0;
         _glfwWin.height = tmp;
     }
 
-    [self forceDeviceOrientation];
-
     // We then rebuild the GL view back within the application's event loop.
     dispatch_async(dispatch_get_main_queue(), ^{
         ViewController *controller = (ViewController *)window.rootViewController;
@@ -92,7 +76,6 @@ char**              g_Argv = 0;
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    [self forceDeviceOrientation];
 
     // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
     // Points vs pixels (and scale factors). I'm not sure that this correct though

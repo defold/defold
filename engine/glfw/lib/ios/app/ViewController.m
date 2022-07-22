@@ -167,42 +167,7 @@ static int g_view_type = GLFW_NO_API;
     [super viewDidUnload];
 }
 
-- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
-{
-    // NOTE: For iOS < 6
-    if (_glfwWin.portrait)
-    {
-        return   interfaceOrientation == UIInterfaceOrientationPortrait
-              || interfaceOrientation == UIInterfaceOrientationPortraitUpsideDown;
-    }
-    else
-    {
-        return   interfaceOrientation == UIInterfaceOrientationLandscapeRight
-              || interfaceOrientation == UIInterfaceOrientationLandscapeLeft;
-    }
-}
-
-- (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
-{
-}
-
--(BOOL)shouldAutorotate{
-    // NOTE: Only for iOS6
-    return YES;
-}
-
--(UIInterfaceOrientationMask)supportedInterfaceOrientations {
-    // NOTE: Only for iOS6
-    return UIInterfaceOrientationMaskLandscape | UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown;
-}
-
 #pragma mark UIContentContainer
-
-// Introduced in iOS8.0
-- (void)viewWillTransitionToSize:(CGSize)size
-       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
-{
-}
 
 - (void)accelerometer:(UIAccelerometer *)accelerometer didAccelerate:(UIAcceleration *)acceleration
 {
