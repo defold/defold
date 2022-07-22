@@ -41,7 +41,7 @@ message SpriteGeometry
 
 message TextureSet
 {
-    repeated string textures                = 1 [(resource)=true];
+    required string texture                 = 1 [(resource)=true];
     repeated TextureSetAnimation animations = 2;
     repeated ConvexHull convex_hulls        = 3;
 

@@ -337,7 +337,7 @@ namespace dmGameSystem
             component->m_CurrentAnimationFrame = 0;
             // TODO: Get correct texture path
             dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.",
-                dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePaths[0]));
+                dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePath));
         }
         return anim_id != 0;
     }
@@ -642,14 +642,10 @@ namespace dmGameSystem
         ro.m_VertexDeclaration = sprite_world->m_VertexDeclaration;
         ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
         ro.m_IndexBuffer = sprite_world->m_IndexBuffer;
+        ro.m_Textures[0] = texture_set->m_Texture;
         ro.m_Material = GetMaterial(first, resource);
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_IndexType = sprite_world->m_Is16BitIndex ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
-
-        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            ro.m_Textures[i] = texture_set->m_Textures[i];
-        }
 
         // offset in bytes into element buffer
         uint32_t index_offset = ib_begin - sprite_world->m_IndexBufferData;
@@ -1198,7 +1194,7 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_TEXTURE[0])
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component, component->m_Resource)->m_Textures[0], out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTextureSet(component, component->m_Resource)->m_Texture, out_value);
         }
         else if (get_property == SPRITE_PROP_ANIMATION)
         {

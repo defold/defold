@@ -111,11 +111,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                                 shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
 
-        if (gles3Standard)
-        {
-            System.out.println("ES3 STANDARD");
-        }
-
         // Write our directives.
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
             // Normally, the ES2ToES3Converter would do this
@@ -202,7 +197,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 }
 
                 source = String.join("\n", output);
-                System.out.println(source);
+                // System.out.println(source);
             }
         }
 

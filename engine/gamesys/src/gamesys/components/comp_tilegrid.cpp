@@ -645,7 +645,7 @@ namespace dmGameSystem
         ro.m_VertexStart = vb_begin - world->m_VertexBufferData;
         ro.m_VertexCount = (world->m_VertexBufferWritePtr - vb_begin);
         ro.m_Material = GetMaterial(first);
-        ro.m_Textures[0] = texture_set->m_Textures[0];
+        ro.m_Textures[0] = texture_set->m_Texture;
 
         if (first->m_RenderConstants) {
             dmGameSystem::EnableRenderObjectConstants(&ro, first->m_RenderConstants);

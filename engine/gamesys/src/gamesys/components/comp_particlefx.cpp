@@ -566,7 +566,7 @@ namespace dmGameSystem
             {
                 return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
             }
-            out_data->m_Texture = texture_set_res->m_Textures[0];
+            out_data->m_Texture = texture_set_res->m_Texture;
             out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_TexDims = (float*) texture_set_res->m_TextureSet->m_TexDims.m_Data;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[*anim_index];

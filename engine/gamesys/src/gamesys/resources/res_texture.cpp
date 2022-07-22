@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -125,18 +125,27 @@ namespace dmGameSystem
 
             assert(image->m_MipMapOffset.m_Count <= s_MaxMipCount);
 
-            if (image_desc->m_DDFImage->m_Type == dmGraphics::TextureImage::TYPE_2D) {
-                creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
-            } else if (image_desc->m_DDFImage->m_Type == dmGraphics::TextureImage::TYPE_CUBEMAP) {
-                creation_params.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
-            } else {
-                assert(0);
+            switch(image_desc->m_DDFImage->m_Type)
+            {
+                case dmGraphics::TextureImage::TYPE_2D:
+                    creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
+                    break;
+                case dmGraphics::TextureImage::TYPE_2D_ARRAY:
+                    creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+                    creation_params.m_Depth = image_desc->m_DDFImage->m_Count;
+                    params.m_Depth          = image_desc->m_DDFImage->m_Count;
+                    break;
+                case dmGraphics::TextureImage::TYPE_CUBEMAP:
+                    creation_params.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+                    break;
+                default: assert(0);
             }
-            creation_params.m_Width = image->m_Width;
-            creation_params.m_Height = image->m_Height;
-            creation_params.m_OriginalWidth = image->m_OriginalWidth;
+
+            creation_params.m_Width          = image->m_Width;
+            creation_params.m_Height         = image->m_Height;
+            creation_params.m_OriginalWidth  = image->m_OriginalWidth;
             creation_params.m_OriginalHeight = image->m_OriginalHeight;
-            creation_params.m_MipMapCount = image->m_MipMapOffset.m_Count;
+            creation_params.m_MipMapCount    = image->m_MipMapOffset.m_Count;
 
             if (!texture)
                 texture = dmGraphics::NewTexture(context, creation_params);

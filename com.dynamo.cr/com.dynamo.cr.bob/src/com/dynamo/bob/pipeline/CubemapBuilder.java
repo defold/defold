@@ -66,8 +66,7 @@ public class CubemapBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
-            IOException {
+    public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
         Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");

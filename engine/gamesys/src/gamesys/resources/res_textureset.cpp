@@ -25,41 +25,18 @@ namespace dmGameSystem
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory,  dmGameSystemDDF::TextureSet* texture_set_ddf,
                                         TextureSetResource* tile_set, const char* filename, bool reload)
     {
-        dmResource::Result r = dmResource::RESULT_OK;
-        dmGraphics::HTexture textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmGraphics::HTexture));
-
-        dmhash_t texture_paths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        memset(texture_paths, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(dmhash_t));
-
-        for (uint32_t i = 0; i < texture_set_ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            const char* texture_path = texture_set_ddf->m_Textures[i];
-            if (*texture_path != 0)
-            {
-                dmResource::Result get_result = dmResource::Get(factory, texture_path, (void**) &textures[i]);
-                if (get_result != dmResource::RESULT_OK)
-                {
-                    if (r == dmResource::RESULT_OK) {
-                        r = get_result;
-                    }
-                } else {
-                    get_result = dmResource::GetPath(factory, textures[i], &texture_paths[i]);
-                    if (get_result != dmResource::RESULT_OK) {
-                       r = get_result;
-                    }
-                }
-            }
-        }
-
+        dmResource::Result r = dmResource::Get(factory, texture_set_ddf->m_Texture, (void**)&tile_set->m_Texture);
         if (r == dmResource::RESULT_OK)
         {
-            memcpy(tile_set->m_Textures, textures, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
-            memcpy(tile_set->m_TexturePaths, texture_paths, sizeof(dmGraphics::HTexture) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
+            // Get path for texture
+            r = dmResource::GetPath(factory, tile_set->m_Texture, &tile_set->m_TexturePath);
+            if (r != dmResource::RESULT_OK) {
+                return r;
+            }
 
             tile_set->m_TextureSet = texture_set_ddf;
-            uint16_t width = dmGraphics::GetOriginalTextureWidth(tile_set->m_Textures[0]);
-            uint16_t height = dmGraphics::GetOriginalTextureHeight(tile_set->m_Textures[0]);
+            uint16_t width = dmGraphics::GetOriginalTextureWidth(tile_set->m_Texture);
+            uint16_t height = dmGraphics::GetOriginalTextureHeight(tile_set->m_Texture);
             // Check dimensions
             if (width < texture_set_ddf->m_TileWidth || height < texture_set_ddf->m_TileHeight)
             {
@@ -106,13 +83,6 @@ namespace dmGameSystem
         }
         else
         {
-            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-            {
-                if (textures[i])
-                {
-                    dmResource::Release(factory, (void*) textures[i]);
-                }
-            }
             dmDDF::FreeMessage(texture_set_ddf);
         }
         return r;
@@ -120,13 +90,8 @@ namespace dmGameSystem
 
     void ReleaseResources(dmResource::HFactory factory, TextureSetResource* tile_set)
     {
-        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            if (tile_set->m_Textures[i])
-            {
-                dmResource::Release(factory, (void*) tile_set->m_Textures[i]);
-            }
-        }
+        if (tile_set->m_Texture)
+            dmResource::Release(factory, tile_set->m_Texture);
 
         if (tile_set->m_TextureSet)
             dmDDF::FreeMessage(tile_set->m_TextureSet);
@@ -153,13 +118,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        for (uint32_t i = 0; i < texture_set_ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            if (texture_set_ddf->m_Textures[i])
-            {
-                dmResource::PreloadHint(params.m_HintInfo, texture_set_ddf->m_Textures[i]);
-            }
-        }
+        dmResource::PreloadHint(params.m_HintInfo, texture_set_ddf->m_Texture);
 
         *params.m_PreloadData = texture_set_ddf;
         return dmResource::RESULT_OK;
@@ -207,12 +166,8 @@ namespace dmGameSystem
         {
             ReleaseResources(params.m_Factory, tile_set);
 
-            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-            {
-                tile_set->m_Textures[i] = tmp_tile_set.m_Textures[i];
-            }
-
             tile_set->m_TextureSet = tmp_tile_set.m_TextureSet;
+            tile_set->m_Texture = tmp_tile_set.m_Texture;
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
             tile_set->m_HullSet = tmp_tile_set.m_HullSet;
             tile_set->m_AnimationIds.Swap(tmp_tile_set.m_AnimationIds);
