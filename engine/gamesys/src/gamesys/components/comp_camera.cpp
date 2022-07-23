@@ -50,6 +50,7 @@ namespace dmGameSystem
         float m_FarZ;
         uint32_t m_AutoAspectRatio : 1;
         uint32_t m_AddedToUpdate : 1;
+        uint32_t m_Center : 1;
         uint16_t m_ComponentIndex;
     };
 
@@ -94,6 +95,7 @@ namespace dmGameSystem
             camera.m_NearZ = cam_resource->m_DDF->m_NearZ;
             camera.m_FarZ = cam_resource->m_DDF->m_FarZ;
             camera.m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
+            camera.m_Center = cam_resource->m_DDF->m_Center != 0;
             camera.m_AddedToUpdate = 0;
             camera.m_ComponentIndex = params.m_ComponentIndex;
             w->m_Cameras.Push(camera);
@@ -168,8 +170,19 @@ namespace dmGameSystem
             dmVMath::Matrix4 projection = Matrix4::perspective(camera->m_Fov, aspect_ratio, camera->m_NearZ, camera->m_FarZ);
 
             dmVMath::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
+            if (camera->m_Center)
+            {
+                uint32_t width = dmGraphics::GetWindowWidth(dmRender::GetGraphicsContext(render_context));
+                uint32_t height = dmGraphics::GetWindowHeight(dmRender::GetGraphicsContext(render_context));
+                float display_scale = dmGraphics::GetDisplayScaleFactor(dmRender::GetGraphicsContext(render_context));
+                float half_width = (float)width / display_scale / 2.0f;
+                float half_height = (float)height / display_scale / 2.0f;
+                pos = pos - dmVMath::Vector3(half_width, half_height, 0.0f);
+            }
+
             dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
             Point3 look_at = pos + Vectormath::Aos::rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+
             Vector3 up = Vectormath::Aos::rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
             dmVMath::Matrix4 view = Matrix4::lookAt(pos, look_at, up);
 

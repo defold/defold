@@ -23,6 +23,7 @@ message CameraDesc
     required float  near_z              = 3;
     required float  far_z               = 4;
     optional uint32 auto_aspect_ratio   = 5 [default = 0];
+    optional uint32 center              = 6 [default = 0];
 }
 
 /*# sets camera properties
