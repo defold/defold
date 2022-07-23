@@ -59,7 +59,7 @@ static void OutputIndent(int indent)
     }
 }
 
-static void OutputTransform(dmTransform::Transform& transform)
+static void OutputTransform(const dmTransform::Transform& transform)
 {
     printf("t: %f, %f, %f  ", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
     printf("r: %f, %f, %f, %f  ", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
@@ -84,6 +84,13 @@ static void OutputSkin(Skin* skin, int indent)
     {
         OutputBone(&skin->m_Bones[i], indent+1);
     }
+}
+
+static void OutputNode(Node* node)
+{
+    printf("Node: %s : ", node->m_Name);
+    OutputTransform(node->m_Transform);
+    printf("\n");
 }
 
 static void OutputNodeTree(Node* node, int indent)
@@ -140,33 +147,33 @@ static void OutputNodeAnimation(NodeAnimation* node_animation, int indent)
     OutputIndent(indent);
     printf("node: %s\n", node_animation->m_Node->m_Name);
 
-    // indent++;
-    // OutputIndent(indent);
-    // printf("# translation keys: %u\n", node_animation->m_TranslationKeysCount);
-    // for (uint32_t i = 0; i < node_animation->m_TranslationKeysCount; ++i)
-    // {
-    //     OutputIndent(indent+1);
-    //     KeyFrame* key = &node_animation->m_TranslationKeys[i];
-    //     printf("%.3f:  %.3f, %.3f, %.3f\n", key->m_Time, key->m_Value[0], key->m_Value[1], key->m_Value[2]);
-    // }
+    indent++;
+    OutputIndent(indent);
+    printf("# translation keys: %u\n", node_animation->m_TranslationKeysCount);
+    for (uint32_t i = 0; i < node_animation->m_TranslationKeysCount; ++i)
+    {
+        OutputIndent(indent+1);
+        KeyFrame* key = &node_animation->m_TranslationKeys[i];
+        printf("%.3f:  %.3f, %.3f, %.3f\n", key->m_Time, key->m_Value[0], key->m_Value[1], key->m_Value[2]);
+    }
 
-    // OutputIndent(indent);
-    // printf("# rotation keys: %u\n", node_animation->m_RotationKeysCount);
-    // for (uint32_t i = 0; i < node_animation->m_RotationKeysCount; ++i)
-    // {
-    //     OutputIndent(indent+1);
-    //     KeyFrame* key = &node_animation->m_RotationKeys[i];
-    //     printf("%.3f:  %.3f, %.3f, %.3f, %.3f\n", key->m_Time, key->m_Value[0], key->m_Value[1], key->m_Value[2], key->m_Value[3]);
-    // }
+    OutputIndent(indent);
+    printf("# rotation keys: %u\n", node_animation->m_RotationKeysCount);
+    for (uint32_t i = 0; i < node_animation->m_RotationKeysCount; ++i)
+    {
+        OutputIndent(indent+1);
+        KeyFrame* key = &node_animation->m_RotationKeys[i];
+        printf("%.3f:  %.3f, %.3f, %.3f, %.3f\n", key->m_Time, key->m_Value[0], key->m_Value[1], key->m_Value[2], key->m_Value[3]);
+    }
 
-    // OutputIndent(indent);
-    // printf("# scale keys: %u\n", node_animation->m_ScaleKeysCount);
-    // for (uint32_t i = 0; i < node_animation->m_ScaleKeysCount; ++i)
-    // {
-    //     OutputIndent(indent+1);
-    //     KeyFrame* key = &node_animation->m_ScaleKeys[i];
-    //     printf("%.3f:  %.3f, %.3f, %.3f\n", key->m_Time, key->m_Value[0], key->m_Value[1], key->m_Value[2]);
-    // }
+    OutputIndent(indent);
+    printf("# scale keys: %u\n", node_animation->m_ScaleKeysCount);
+    for (uint32_t i = 0; i < node_animation->m_ScaleKeysCount; ++i)
+    {
+        OutputIndent(indent+1);
+        KeyFrame* key = &node_animation->m_ScaleKeys[i];
+        printf("%.3f:  %.3f, %.3f, %.3f\n", key->m_Time, key->m_Value[0], key->m_Value[1], key->m_Value[2]);
+    }
 }
 
 static void OutputAnimation(Animation* animation, int indent)
@@ -188,8 +195,7 @@ void DebugScene(Scene* scene)
     printf("------------------------------\n");
     for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
     {
-        const Node& node = scene->m_Nodes[i];
-        printf("Node: %s\n", node.m_Name);
+        OutputNode(&scene->m_Nodes[i]);
     }
     printf("------------------------------\n");
 

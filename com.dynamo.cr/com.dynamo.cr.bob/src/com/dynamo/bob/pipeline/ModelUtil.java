@@ -371,92 +371,74 @@ public class ModelUtil {
         }
     }
 
+    private static float EPSILON = 0.00001f;
+
+    private static boolean AlmostEqual(float v, float limit, float epsilon)
+    {
+        v = (v - limit);
+        if (v < 0)
+            v = -v;
+        return v < epsilon;
+    }
+
+    private static boolean IsIdentityPos(ModelImporter.KeyFrame keyFrame)
+    {
+        return AlmostEqual(keyFrame.value[0], 0.0f, EPSILON) && AlmostEqual(keyFrame.value[1], 0.0f, EPSILON) && AlmostEqual(keyFrame.value[2], 0.0f, EPSILON);
+    }
+
+    private static boolean IsIdentityScale(ModelImporter.KeyFrame keyFrame)
+    {
+        return AlmostEqual(keyFrame.value[0], 1.0f, EPSILON) && AlmostEqual(keyFrame.value[1], 1.0f, EPSILON) && AlmostEqual(keyFrame.value[2], 1.0f, EPSILON);
+    }
+
+    private static boolean IsIdentityRotation(ModelImporter.KeyFrame keyFrame)
+    {
+        return AlmostEqual(keyFrame.value[0], 0.0f, EPSILON) && AlmostEqual(keyFrame.value[1], 0.0f, EPSILON) &&
+                AlmostEqual(keyFrame.value[2], 0.0f, EPSILON) && AlmostEqual(keyFrame.value[3], 1.0f, EPSILON);
+    }
 
     public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation, ModelImporter.Bone bone, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
         if (nodeAnimation.translationKeys.length > 0) {
-            RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
-            sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
-            copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
 
-            samplePosTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+            if (nodeAnimation.translationKeys.length == 1 && IsIdentityPos(nodeAnimation.translationKeys[0])) {
+                // pass
+            } else {
+                RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+                sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
+                copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
+
+                samplePosTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+            }
         }
 
         if (nodeAnimation.rotationKeys.length > 0) {
-            RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
-            sparseTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
-            copyKeys(nodeAnimation.rotationKeys, 4, sparseTrack.keys);
 
-            sampleRotTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+            if (nodeAnimation.rotationKeys.length == 1 && IsIdentityRotation(nodeAnimation.rotationKeys[0])) {
+                // pass
+            } else {
+                RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+                sparseTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
+                copyKeys(nodeAnimation.rotationKeys, 4, sparseTrack.keys);
+
+                sampleRotTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+            }
         }
 
         if (nodeAnimation.scaleKeys.length > 0) {
-            RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
-            sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
-            copyKeys(nodeAnimation.scaleKeys, 3, sparseTrack.keys);
 
-            sampleScaleTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+            if (nodeAnimation.scaleKeys.length == 1 && IsIdentityScale(nodeAnimation.scaleKeys[0])) {
+                // pass
+            } else {
+                RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
+                sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
+                copyKeys(nodeAnimation.scaleKeys, 3, sparseTrack.keys);
+
+                sampleScaleTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+            }
         }
     }
-
-
-    // private static double getAnimationStartTime(AIAnimation anim) {
-    //     double startTime = 10000.0;
-
-    //     double ticksPerSecond = anim.mTicksPerSecond();
-    //     PointerBuffer aiChannels = anim.mChannels();
-    //     int num_channels = anim.mNumChannels();
-    //     for (int c = 0; c < num_channels; ++c) {
-    //         AINodeAnim nodeAnim = AINodeAnim.create(aiChannels.get(c));
-    //         {
-    //             AIVectorKey.Buffer buffer = nodeAnim.mPositionKeys();
-    //             while (buffer.remaining() > 0) {
-    //                 AIVectorKey key = buffer.get();
-    //                 double time = key.mTime() / ticksPerSecond;
-    //                 if (time < startTime) {
-    //                     startTime = time;
-    //                 }
-    //                 break;
-    //             }
-    //         }
-    //         {
-    //             AIQuatKey.Buffer buffer = nodeAnim.mRotationKeys();
-    //             while (buffer.remaining() > 0) {
-    //                 AIQuatKey key = buffer.get();
-    //                 double time = key.mTime() / ticksPerSecond;
-    //                 if (time < startTime) {
-    //                     startTime = time;
-    //                 }
-    //                 break;
-    //             }
-    //         }
-    //         {
-    //             AIVectorKey.Buffer buffer = nodeAnim.mScalingKeys();
-    //             while (buffer.remaining() > 0) {
-    //                 AIVectorKey key = buffer.get();
-    //                 double time = key.mTime() / ticksPerSecond;
-    //                 if (time < startTime) {
-    //                     startTime = time;
-    //                 }
-    //                 break;
-    //             }
-    //         }
-    //     }
-    //     if (startTime == 10000.0) {
-    //         startTime = 0.0;
-    //     }
-    //     return startTime;
-    // }
-
-    // private static ModelImporter.Bone findBone(ArrayList<ModelImporter.Bone> bones, String name) {
-    //     for (ModelImporter.Bone bone : bones) {
-    //         if (bone.name.equals(name)) {
-    //             return bone;
-    //         }
-    //     }
-    //     return null;
-    // }
 
     public static void setBoneList(Rig.AnimationSet.Builder animationSetBuilder, ArrayList<Bone> bones) {
         for (Bone bone : bones) {
@@ -788,8 +770,10 @@ public class ModelUtil {
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            loadModelInstances(root, skeleton, materials, models);
+            if (root.model == null)
+                continue;
 
+            loadModelInstances(root, skeleton, materials, models);
             break; // TODO: Support more than one root node
         }
 

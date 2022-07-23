@@ -624,19 +624,19 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
         key_count = 1;
     }
 
+    const dmTransform::Transform node_transform = node_animation->m_Node->m_Transform;
 
-    dmTransform::Transform inverse_transform = dmTransform::Inv(node_animation->m_Node->m_Transform);
     if (channel->target_path == cgltf_animation_path_type_translation)
     {
-        float inv_px = inverse_transform.GetTranslation().getX();
-        float inv_py = inverse_transform.GetTranslation().getY();
-        float inv_pz = inverse_transform.GetTranslation().getZ();
+        float inv_px = node_transform.GetTranslation().getX();
+        float inv_py = node_transform.GetTranslation().getY();
+        float inv_pz = node_transform.GetTranslation().getZ();
 
         for (uint32_t i = 0; i < key_count; ++i)
         {
-            key_frames[i].m_Value[0] += inv_px;
-            key_frames[i].m_Value[1] += inv_py;
-            key_frames[i].m_Value[2] += inv_pz;
+            key_frames[i].m_Value[0] -= inv_px;
+            key_frames[i].m_Value[1] -= inv_py;
+            key_frames[i].m_Value[2] -= inv_pz;
         }
 
         node_animation->m_TranslationKeys = key_frames;
@@ -662,16 +662,17 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     }
     else if(channel->target_path == cgltf_animation_path_type_scale)
     {
-        float inv_sx = inverse_transform.GetScale().getX();
-        float inv_sy = inverse_transform.GetScale().getY();
-        float inv_sz = inverse_transform.GetScale().getZ();
+        float inv_sx = node_transform.GetScale().getX();
+        float inv_sy = node_transform.GetScale().getY();
+        float inv_sz = node_transform.GetScale().getZ();
 
         for (uint32_t i = 0; i < key_count; ++i)
         {
-            key_frames[i].m_Value[0] *= inv_sx;
-            key_frames[i].m_Value[1] *= inv_sy;
-            key_frames[i].m_Value[2] *= inv_sz;
+            key_frames[i].m_Value[0] /= inv_sx;
+            key_frames[i].m_Value[1] /= inv_sy;
+            key_frames[i].m_Value[2] /= inv_sz;
         }
+
         node_animation->m_ScaleKeys = key_frames;
         node_animation->m_ScaleKeysCount = key_count;
     } else
