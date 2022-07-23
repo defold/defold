@@ -444,6 +444,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetWindowHeight(context);
     }
+    float GetDisplayScaleFactor(HContext context)
+    {
+        return g_functions.m_GetDisplayScaleFactor(context);
+    }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
         g_functions.m_SetWindowSize(context, width, height);

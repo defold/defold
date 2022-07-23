@@ -683,6 +683,11 @@ void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
 {
 }
 
+float _glfwPlatformGetDisplayScaleFactor()
+{
+    return 1.0f;
+}
+
 #define MAX_ACTIVITY_LISTENERS (32)
 static glfwactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];
 static int g_ListenersCount = 0;

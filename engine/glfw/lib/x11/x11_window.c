@@ -2077,3 +2077,9 @@ void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
     attributes.background_pixel = xc.pixel;
     XChangeWindowAttributes(_glfwLibrary.display, _glfwWin.window, CWBackPixel, &attributes);
 }
+
+float _glfwPlatformGetDisplayScaleFactor()
+{
+    return 1.0f;
+}
+

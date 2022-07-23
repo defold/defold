@@ -2045,3 +2045,9 @@ void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
     HBRUSH brush = CreateSolidBrush(RGB(r, g, b));
     SetClassLongPtr(_glfwWin.classAtom, GCLP_HBRBACKGROUND, (LONG_PTR)brush);
 }
+
+float _glfwPlatformGetDisplayScaleFactor()
+{
+    return 1.0f;
+}
+

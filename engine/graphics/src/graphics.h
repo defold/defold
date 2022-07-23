@@ -453,6 +453,13 @@ namespace dmGraphics
     void ResizeWindow(HContext context, uint32_t width, uint32_t height);
 
     /**
+     * Get the scale factor of the display.
+     * The display scale factor is usally 1.0 but will for instance be 2.0 on a macOS Retina display.
+     * @return Scale factor
+     */
+    float GetDisplayScaleFactor(HContext context);
+
+    /**
      * Return the default texture filtering modes.
      * @param context Graphics context handle
      * @param out_min_filter Out parameter to write the default min filtering mode to

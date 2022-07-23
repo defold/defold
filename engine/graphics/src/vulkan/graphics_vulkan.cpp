@@ -3469,6 +3469,7 @@ bail:
         fn_table.m_GetHeight = VulkanGetHeight;
         fn_table.m_GetWindowWidth = VulkanGetWindowWidth;
         fn_table.m_GetWindowHeight = VulkanGetWindowHeight;
+        fn_table.m_GetDisplayScaleFactor = VulkanGetDisplayScaleFactor;
         fn_table.m_SetWindowSize = VulkanSetWindowSize;
         fn_table.m_ResizeWindow = VulkanResizeWindow;
         fn_table.m_GetDefaultTextureFilters = VulkanGetDefaultTextureFilters;
