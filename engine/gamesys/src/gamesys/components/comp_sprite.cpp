@@ -535,7 +535,7 @@ namespace dmGameSystem
                 for (int j = 0; j < num_pages; ++j)
                 {
                     page_start += images_per_page[j];
-                    if (component->m_AnimationID <= page_start)
+                    if (component->m_AnimationID < page_start)
                     {
                         page_index = j;
                         break;

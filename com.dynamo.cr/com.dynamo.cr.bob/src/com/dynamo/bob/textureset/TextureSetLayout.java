@@ -202,6 +202,46 @@ public class TextureSetLayout {
 
             MaxRectsLayoutStrategy strategy = new MaxRectsLayoutStrategy(settings);
             List<Layout> layouts = strategy.createLayout(rectangles);
+
+            int maxWidth  = -1;
+            int maxHeight = -1;
+            int minWidth  = Integer.MAX_VALUE;
+            int minHeight = Integer.MAX_VALUE;
+
+            for (Layout l : layouts)
+            {
+                maxWidth  = Math.max(maxWidth, l.getWidth());
+                maxHeight = Math.max(maxHeight, l.getHeight());
+                minWidth  = Math.min(minWidth, l.getWidth());
+                minHeight = Math.min(minHeight, l.getHeight());
+            }
+
+            if (maxWidth != minWidth || maxHeight != minHeight)
+            {
+                settings.maxPageHeight = maxHeight;
+                settings.maxPageWidth  = maxWidth;
+                settings.minPageHeight = maxHeight;
+                settings.minPageWidth  = maxWidth;
+
+                System.out.println("Not all pages are the same size");
+                System.out.println("    Width Min, Max: " + minWidth + ", " + maxWidth);
+                System.out.println("    Height Min, Max: " + minHeight + ", " + maxHeight);
+
+                for (int i=0; i < layouts.size(); i++)
+                {
+                    if (layouts.get(i).getWidth() != maxWidth || layouts.get(i).getHeight() != maxHeight)
+                    {
+                        layouts.set(i, new Layout(maxWidth, maxHeight, layouts.get(i).getRectangles()));
+                    }
+                }
+            }
+
+            int l_i = 0;
+            for (Layout l : layouts)
+            {
+                System.out.println("Layout " + (l_i++) + " w/h: " + l.getWidth() + ", " + l.getHeight());
+            }
+
             return layouts;
         } else {
             // Calculate total area of rectangles and the max length of a rectangle

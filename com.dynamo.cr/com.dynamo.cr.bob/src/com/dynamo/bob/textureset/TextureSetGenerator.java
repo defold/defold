@@ -50,9 +50,9 @@ import java.util.HashMap;
 import java.util.stream.Collectors;
 
 // For debugging image output
-// import java.io.IOException;
-// import java.io.File;
-// import javax.imageio.ImageIO;
+import java.io.IOException;
+import java.io.File;
+import javax.imageio.ImageIO;
 
 public class TextureSetGenerator {
 
@@ -387,7 +387,7 @@ public class TextureSetGenerator {
         return packedImage;
     }
 
-    // static int debugImageCount = 0;
+    static int debugImageCount = 0;
 
     /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
@@ -424,10 +424,7 @@ public class TextureSetGenerator {
             margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize, maxPageSize);
 
         List<Layout> layouts = result.layoutResult.layouts;
-
         List<List<BufferedImage>> layoutImages = new ArrayList<>();
-
-        int layoutOffset = 0;
 
         for (int i=0; i < layouts.size(); i++) {
             layoutImages.add(new ArrayList<>());
@@ -437,11 +434,12 @@ public class TextureSetGenerator {
             Layout layout = null;
 
             int layoutIndex = 0;
+            int layoutOffset = 0;
 
             for (Layout l : layouts) {
                 int numRects = l.getRectangles().size();
 
-                System.out.println("Num Rects " + numRects);
+                // System.out.println("::" + i + ", " + layoutOffset + ", " + numRects + ", " + (layoutOffset + numRects));
 
                 if (i < (layoutOffset + numRects))
                 {
@@ -453,12 +451,10 @@ public class TextureSetGenerator {
                 }
             }
 
-            System.out.println("Images i = " + i + ", offset = " + (i - layoutOffset));
+            // System.out.println("Images i = " + i + ", offset = " + (i - layoutOffset));
 
             BufferedImage image = images.get(i);
             Rect rect = layout.getRectangles().get(i - layoutOffset);
-
-            System.out.println("Creating image");
 
             if (innerPadding > 0) {
                 image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
@@ -470,21 +466,25 @@ public class TextureSetGenerator {
                 image = rotateImage(image);
             }
 
+            System.out.println("Adding image " + i + " to layout " + layoutIndex);
+
             layoutImages.get(layoutIndex).add(image);
         }
 
         for (int i = 0; i < layoutImages.size(); i++)
         {
-            result.images.add(composite(layoutImages.get(i), layouts.get(i)));
-        }
+            BufferedImage imgOut = composite(layoutImages.get(i), layouts.get(i));
+            result.images.add(imgOut);
 
-        // try {
-        //     File outputfile = new File(String.format("image%d.png", debugImageCount));
-        //     ++debugImageCount;
-        //     ImageIO.write(result.image, "png", outputfile);
-        //     System.out.println(String.format("Wrote image to %s", outputfile.getAbsolutePath()));
-        // } catch (IOException e) {
-        // }
+            try {
+                File outputfile = new File(String.format("image%d.png", debugImageCount));
+                ++debugImageCount;
+                ImageIO.write(imgOut, "png", outputfile);
+                System.out.println(String.format("Wrote image to %s", outputfile.getAbsolutePath()));
+            } catch (IOException e) {
+                System.out.println(String.format("Unable to write debug image due to:\n%s", e.getMessage()));
+            }
+        }
 
         return result;
     }

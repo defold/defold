@@ -97,8 +97,6 @@ public class AtlasBuilder extends Builder<Void>  {
         for (int i = 0; i < textureImageBuilder.getAlternativesCount(); i++) {
             Image.Builder imageBuilder = TextureImage.Image.newBuilder(textureImages[0].getAlternatives(i));
 
-            System.out.println("Alternative " + i);
-
             ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
             for (int j = 0; j < imageBuilder.getMipMapSizeCount(); j++) {
                 int mipSize = imageBuilder.getMipMapSize(j);
@@ -106,6 +104,9 @@ public class AtlasBuilder extends Builder<Void>  {
                 for (int k = 0; k < numTextures; k++) {
                     ByteString data = textureImages[k].getAlternatives(i).getData();
                     int mipOffset = imageBuilder.getMipMapOffset(j);
+
+                    System.out.println("mipOffset " + mipOffset + ", mipSize " + mipSize);
+
                     data.copyTo(buf, mipOffset, 0, mipSize);
                     os.write(buf);
                 }
@@ -124,29 +125,6 @@ public class AtlasBuilder extends Builder<Void>  {
 
         task.output(0).setContent(textureSet.toByteArray());
         task.output(1).setContent(texture.toByteArray());
-
-        /*
-        int image_i = 1;
-        for (BufferedImage image : result.images)
-        {
-            TextureImage texture;
-            try {
-                boolean compress = project.option("texture-compression", "false").equals("true");
-                texture = TextureGenerator.generate(image, texProfile, compress);
-            } catch (TextureGeneratorException e) {
-                throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
-            }
-
-            String texturePath = task.output(image_i).getPath().substring(buildDirLen);
-            textureSetBuilder.addTextures(texturePath);
-
-            task.output(image_i).setContent(texture.toByteArray());
-            image_i++;
-        }
-
-        TextureSet textureSet = textureSetBuilder.build();
-        task.output(0).setContent(textureSet.toByteArray());
-        */
     }
 
 }
