@@ -28,7 +28,6 @@
 #include "resources/res_collection_proxy.h"
 #include "resources/res_collision_object.h"
 #include "resources/res_convex_shape.h"
-#include "resources/res_emitter.h"
 #include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
 #include "resources/res_vertex_program.h"
@@ -61,7 +60,6 @@
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
-#include "components/comp_emitter.h"
 #include "components/comp_particlefx.h"
 #include "components/comp_model.h"
 #include "components/comp_mesh.h"
@@ -96,7 +94,6 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
         REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
         REGISTER_RESOURCE_TYPE("convexshapec", physics_context, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
-        REGISTER_RESOURCE_TYPE("emitterc", 0, 0, ResEmitterCreate, 0,ResEmitterDestroy, ResEmitterRecreate);
         REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
         REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramPreload, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate);
@@ -252,14 +249,6 @@ namespace dmGameSystem
                 CompMeshUpdate, 0, CompMeshRender, 0, CompMeshOnMessage, 0,
                 0, CompMeshGetProperty, CompMeshSetProperty,
                 0, CompMeshIterProperties,
-                0);
-
-        REGISTER_COMPONENT_TYPE("emitterc", 750, 0x0,
-                &CompEmitterNewWorld, &CompEmitterDeleteWorld,
-                &CompEmitterCreate, &CompEmitterDestroy, 0, 0, 0, 0,
-                0, 0, 0, 0, CompEmitterOnMessage, 0,
-                0, 0, 0,
-                0, 0,
                 0);
 
         REGISTER_COMPONENT_TYPE("particlefxc", 800, particlefx_context,
