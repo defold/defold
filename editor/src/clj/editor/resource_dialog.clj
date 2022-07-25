@@ -13,7 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.resource-dialog
-  (:require [clojure.string :as string]
+  (:require [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.text :as fx.text]
+            [cljfx.fx.text-flow :as fx.text-flow]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project :as project]
@@ -22,25 +25,19 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
-            [editor.ui.fuzzy-choices :as fuzzy-choices])
+            [editor.ui.fuzzy-choices :as fuzzy-choices]
+            [editor.ui.select-list-dialog :as select-list-dialog])
   (:import  [javafx.scene.layout HBox VBox]
             [javafx.scene.text Text TextFlow]
             [javafx.geometry Pos]))
 
 (def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
 
-(defn- file-scope [node-id]
-  (last (take-while (fn [n] (and n (not (g/node-instance? project/Project n)))) (iterate core/scope node-id))))
-
-
-(defn- sub-nodes [n]
-  (g/node-value n :nodes))
-
-(defn- sub-seq [n]
-  (tree-seq (partial g/node-instance? resource-node/ResourceNode) sub-nodes n))
-
 (defn- override-seq [node-id]
   (tree-seq g/overrides g/overrides node-id))
+
+(defn- file-scope [node-id]
+  (last (take-while (fn [n] (and n (not (g/node-instance? project/Project n)))) (iterate core/scope node-id))))
 
 (defn- refs-filter-fn [project filter-value items]
   ;; Temp limitation to avoid stalls
@@ -61,6 +58,11 @@
       distinct)
     []))
 
+(defn- sub-nodes [n]
+  (g/node-value n :nodes))
+
+(defn- sub-seq [n]
+  (tree-seq (partial g/node-instance? resource-node/ResourceNode) sub-nodes n))
 
 (defn- deps-filter-fn [project filter-value items]
   ;; Temp limitation to avoid stalls
@@ -83,10 +85,10 @@
     []))
 
 (defn- make-text-run [text style-class]
-  (let [text-view (Text. text)]
-    (when (some? style-class)
-      (.add (.getStyleClass text-view) style-class))
-    text-view))
+  (cond-> {:fx/type fx.text/lifecycle
+           :text text}
+          style-class
+          (assoc :style-class style-class)))
 
 (defn- matched-text-runs [text matching-indices]
   (let [/ (or (some-> text (string/last-index-of \/) inc) 0)]
@@ -107,13 +109,16 @@
                       [(make-text-run (subs text start end) nil)])))
           (fuzzy-text/runs (count text) matching-indices))))
 
-(defn- make-matched-list-item-graphic [icon text matching-indices]
-  (let [icon-view (icons/get-image-view icon 16)
-        text-view (TextFlow. (into-array Text (matched-text-runs text matching-indices)))]
-    (doto (HBox. (ui/node-array [icon-view text-view]))
-      (.setAlignment Pos/CENTER_LEFT)
-      (.setSpacing 4.0))))
-
+(defn- matched-list-item-view [{:keys [icon text matching-indices]}]
+  {:fx/type fx.h-box/lifecycle
+   :style-class "content"
+   :alignment :center-left
+   :spacing 4
+   :children [{:fx/type ui/image-icon
+               :path icon
+               :size 16.0}
+              {:fx/type fx.text-flow/lifecycle
+               :children (matched-text-runs text matching-indices)}]})
 
 (defn make-resource-dialog [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
@@ -125,22 +130,20 @@
                                          (not (resource/internal? %))
                                          (accept-fn %)))
                            (g/node-value workspace :resource-list))
+        tooltip-gen (:tooltip-gen options)
         options (-> {:title "Select Resource"
-                     :prompt "Type to filter"
                      :cell-fn (fn [r]
                                 (let [text (resource/proj-path r)
                                       icon (resource/resource-icon r)
-                                      style (resource/style-classes r)
-                                      tooltip (when-let [tooltip-gen (:tooltip-gen options)] (tooltip-gen r))
+                                      tooltip (when tooltip-gen (tooltip-gen r))
                                       matching-indices (:matching-indices (meta r))]
-                                  (cond-> {:style style
-                                           :tooltip tooltip}
-
-                                          (empty? matching-indices)
-                                          (assoc :icon icon :text text)
-
-                                          :else
-                                          (assoc :graphic (make-matched-list-item-graphic icon text matching-indices)))))
+                                  (cond-> {:style-class (into ["list-cell"] (resource/style-classes r))
+                                           :graphic {:fx/type matched-list-item-view
+                                                     :icon icon
+                                                     :text text
+                                                     :matching-indices matching-indices}}
+                                          tooltip
+                                          (assoc :tooltip tooltip))))
                      :filter-fn (fn [filter-value items]
                                   (let [fns {"refs" (partial refs-filter-fn project)
                                              "deps" (partial deps-filter-fn project)}
@@ -150,7 +153,7 @@
                                                           [nil (first parts)]))
                                         f (get fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
-                  (merge options))]
-    (ui/make-select-list-dialog items options)))
+                    (merge options))]
+    (select-list-dialog/make-select-list-dialog items options)))
 
 
