@@ -277,11 +277,12 @@ ordinary paths."
     (catch Exception e
       (log/error :msg (str "Exception while loading plugin: " (.getMessage e)))
       (ui/run-later
-        (do (dialogs/make-info-dialog
-           {:title "Unable to Load Plugin"
-            :icon :icon/triangle-error
-            :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))})
-             false)))))
+        (do
+          (dialogs/make-info-dialog
+            {:title "Unable to Load Plugin"
+             :icon :icon/triangle-error
+             :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))})
+          false)))))
 
 (defn- load-editor-plugins! [workspace added]
   (let [added-resources (set (map resource/proj-path added))
