@@ -16,6 +16,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.fx.group :as fx.group]
             [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.progress-bar :as fx.progress-bar]
@@ -42,13 +43,11 @@
            [java.nio.file Path Paths]
            [java.util Collection List]
            [javafx.application Platform]
+           [javafx.collections ListChangeListener]
            [javafx.event Event]
-           [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ListView TextField]
-           [javafx.scene.input KeyCode]
-           [javafx.scene.layout HBox VBox]
-           [javafx.scene.text Text TextFlow]
+           [javafx.scene.control Button]
+           [javafx.scene.input KeyCode KeyEvent MouseEvent MouseButton]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
            [org.apache.commons.io FilenameUtils]))
 
@@ -58,44 +57,51 @@
   "Dialog `:stage` that manages scene graph itself and provides layout common
   for many dialogs.
 
-  Scene graph is configured using these keys:
-  - `:size` (optional, default `:default`) - a dialog width, either `:small`,
-    `:default` or `:large`
-  - `:header` (required, fx description) - header of a dialog, padded
-  - `:content` (optional, nil allowed) - content of a dialog, not padded, you
-    can use \"dialog-content-padding\" style class to set desired padding (or
-    \"text-area-with-dialog-content-padding\" for text areas)
-  - `:footer` (required, fx description) - footer of a dialog, padded"
-  [{:keys [size header content footer]
-    :or {size :default}
+  Required keys:
+
+    :header    cljfx description, header of a dialog, already padded
+    :footer    cljfx description, footer of a dialog, already padded
+
+  Optional keys:
+
+    :size          dialog width, either :small, :default or :large
+    :content       a content of a dialog, not padded; you can use
+                   \"dialog-content-padding\" style class to set desired padding
+                   (or \"text-area-with-dialog-content-padding\" for text areas)
+    :root-props    extra props to scene root's v-box lifecycle (sans :children)"
+  [{:keys [size header content footer root-props]
+    :or {size :default root-props {}}
     :as props}]
   (-> props
-      (dissoc :size :header :content :footer)
+      (dissoc :size :header :content :footer :root-props)
       (assoc :fx/type fxui/dialog-stage
              :scene {:fx/type fx.scene/lifecycle
-                     :stylesheets ["dialogs.css"]
-                     :root {:fx/type fx.v-box/lifecycle
-                            :style-class ["dialog-body" (case size
-                                                          :small "dialog-body-small"
-                                                          :default "dialog-body-default"
-                                                          :large "dialog-body-large")]
-                            :children (if (some? content)
-                                        [{:fx/type fx.v-box/lifecycle
-                                          :style-class "dialog-with-content-header"
-                                          :children [header]}
-                                         {:fx/type fx.v-box/lifecycle
-                                          :style-class "dialog-content"
-                                          :children [content]}
-                                         {:fx/type fx.v-box/lifecycle
-                                          :style-class "dialog-with-content-footer"
-                                          :children [footer]}]
-                                        [{:fx/type fx.v-box/lifecycle
-                                          :style-class "dialog-without-content-header"
-                                          :children [header]}
-                                         {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
-                                         {:fx/type fx.v-box/lifecycle
-                                          :style-class "dialog-without-content-footer"
-                                          :children [footer]}])}})))
+                     :stylesheets [(str (io/resource "dialogs.css"))]
+                     :root (-> root-props
+                               (fxui/add-style-classes
+                                 "dialog-body"
+                                 (case size
+                                   :small "dialog-body-small"
+                                   :default "dialog-body-default"
+                                   :large "dialog-body-large"))
+                               (assoc :fx/type fx.v-box/lifecycle
+                                      :children (if (some? content)
+                                                  [{:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-with-content-header"
+                                                    :children [header]}
+                                                   {:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-content"
+                                                    :children [content]}
+                                                   {:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-with-content-footer"
+                                                    :children [footer]}]
+                                                  [{:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-without-content-header"
+                                                    :children [header]}
+                                                   {:fx/type fx.region/lifecycle :style-class "dialog-no-content"}
+                                                   {:fx/type fx.v-box/lifecycle
+                                                    :style-class "dialog-without-content-footer"
+                                                    :children [footer]}])))})))
 
 (defn- confirmation-dialog-header->fx-desc [header]
   (if (string? header)
@@ -434,28 +440,33 @@
         ret))))
 
 (defn make-gl-support-error-dialog [support-error]
-  (let [root ^VBox (ui/load-fxml "gl-error.fxml")
-        stage (ui/make-dialog-stage)
-        scene (Scene. root)
-        result (atom :quit)]
-    (ui/with-controls root [message ^Button quit ^Button continue glgenbuffers-link opengl-linux-link]
-      (when-not (util/is-linux?)
-        (.. root getChildren (remove opengl-linux-link)))
-      (ui/context! root :dialog {:stage stage} nil)
-      (ui/title! stage "Insufficient OpenGL Support")
-      (ui/text! message support-error)
-      (ui/on-action! continue (fn [_] (reset! result :continue) (ui/close! stage)))
-      (.setDefaultButton continue true)
-      (ui/bind-action! quit ::close)
-      (.setCancelButton quit true)
-      (ui/on-action! glgenbuffers-link (fn [_] (ui/open-url (github/glgenbuffers-link))))
-      (ui/on-action! opengl-linux-link (fn [_] (ui/open-url "https://www.defold.com/faq/#_linux_issues")))
-      (.setScene stage scene)
-      ;; We want to show this dialog before the main ui is up running
-      ;; so we can't use ui/show-and-wait! which does some extra menu
-      ;; update magic.
-      (.showAndWait stage)
-      @result)))
+  (make-confirmation-dialog
+    {:title "Insufficient OpenGL Support"
+     :header {:fx/type fx.v-box/lifecycle
+              :children
+              (-> [{:fx/type fxui/label
+                    :variant :header
+                    :text "This is a very common issue. See if any of these instructions help:"}]
+                  (cond->
+                    (util/is-linux?)
+                    (conj {:fx/type fx.hyperlink/lifecycle
+                           :text "OpenGL on linux"
+                           :on-action (fn [_] (ui/open-url "https://defold.com/faq/faq/#linux-questions"))}))
+                  (conj
+                    {:fx/type fx.hyperlink/lifecycle
+                     :on-action (fn [_] (ui/open-url (github/glgenbuffers-link)))
+                     :text "glGenBuffers"}
+                    {:fx/type fxui/label
+                     :text "You can continue with scene editing disabled."}))}
+     :icon :icon/circle-sad
+     :content {:fx/type info-dialog-text-area
+               :text support-error}
+     :buttons [{:text "Quit"
+                :cancel-button true
+                :result :quit}
+               {:text "Disable Scene Editor"
+                :default-button true
+                :result :continue}]}))
 
 (defn make-file-dialog
   ^File [title filter-descs ^File initial-file ^Window owner-window]
