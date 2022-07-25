@@ -128,7 +128,6 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.camera', '.camerac')
         c.component = c.component.replace('.collectionproxy', '.collectionproxyc')
         c.component = c.component.replace('.collisionobject', '.collisionobjectc')
-        c.component = c.component.replace('.emitter', '.emitterc')
         c.component = c.component.replace('.particlefx', '.particlefxc')
         c.component = c.component.replace('.gui', '.guic')
         c.component = c.component.replace('.model', '.modelc')
@@ -456,7 +455,6 @@ proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', t
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
 
 new_copy_task('project', '.project', '.projectc')
-new_copy_task('emitter', '.emitter', '.emitterc')
 
 # Copy prebuilt spine scenes
 new_copy_task('copy prebuilt animationsetc', '.prebuilt_animationsetc', '.animationsetc')
