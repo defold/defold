@@ -97,12 +97,15 @@ ordinary paths."
    (BuildResource. resource prefix)))
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
-  (let [sorted-children (sort-by (fn [r]
-                                   [(resource/file-resource? r)
-                                    ({:folder 0 :file 1} (resource/source-type r))
-                                    (some-> (resource/resource-name r) util/natural-order-key)])
-                                 (map sort-resource-tree children))]
-    (assoc tree :children (vec sorted-children))))
+  (let [sorted-children (->> children
+                             (map sort-resource-tree)
+                             (sort
+                               (util/comparator-chain
+                                 (util/comparator-on editor.resource/file-resource?)
+                                 (util/comparator-on #({:folder 0 :file 1} (editor.resource/source-type %)))
+                                 (util/comparator-on util/natural-order editor.resource/resource-name)))
+                             vec)]
+    (assoc tree :children sorted-children)))
 
 (g/defnk produce-resource-tree [_node-id root resource-snapshot]
   (sort-resource-tree

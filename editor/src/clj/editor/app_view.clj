@@ -14,8 +14,10 @@
 
 (ns editor.app-view
   (:require [cljfx.fx.hyperlink :as fx.hyperlink]
+            [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
+            [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.java.io :as io]
             [clojure.edn :as edn]
@@ -1936,27 +1938,26 @@ If you do not specifically require different script states, consider changing th
   (let [resource-type (resource/resource-type resource)
         view-type (or (first (:view-types resource-type)) (workspace/get-view-type workspace :text))]
     (when-let [make-preview-fn (:make-preview-fn view-type)]
-      (let [tooltip (Tooltip.)]
-        (doto tooltip
-          (.setGraphic (doto (ImageView.)
-                         (.setScaleY -1.0)))
-          (.setOnShowing (ui/event-handler
-                           e
-                           (let [image-view ^ImageView (.getGraphic tooltip)]
-                             (when-not (.getImage image-view)
-                               (let [resource-node (project/get-resource-node project resource)
-                                     view-graph (g/make-graph! :history false :volatility 2)
-                                     select-fn (partial select app-view)
-                                     opts (assoc ((:id view-type) (:view-opts resource-type))
-                                            :app-view app-view
-                                            :select-fn select-fn
-                                            :project project
-                                            :workspace workspace)
-                                     preview (make-preview-fn view-graph resource-node opts 256 256)]
-                                 (.setImage image-view ^Image (g/node-value preview :image))
-                                 (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
-                                   (dispose-preview-fn preview))
-                                 (g/delete-graph! view-graph)))))))))))
+      {:fx/type fx.tooltip/lifecycle
+       :graphic {:fx/type fx.image-view/lifecycle
+                 :scale-y -1}
+       :on-showing (fn [^Event e]
+                     (let [^Tooltip tooltip (.getSource e)
+                           image-view ^ImageView (.getGraphic tooltip)]
+                       (when-not (.getImage image-view)
+                         (let [resource-node (project/get-resource-node project resource)
+                               view-graph (g/make-graph! :history false :volatility 2)
+                               select-fn (partial select app-view)
+                               opts (assoc ((:id view-type) (:view-opts resource-type))
+                                      :app-view app-view
+                                      :select-fn select-fn
+                                      :project project
+                                      :workspace workspace)
+                               preview (make-preview-fn view-graph resource-node opts 256 256)]
+                           (.setImage image-view ^Image (g/node-value preview :image))
+                           (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
+                             (dispose-preview-fn preview))
+                           (g/delete-graph! view-graph)))))})))
 
 (def ^:private open-assets-term-prefs-key "open-assets-term")
 

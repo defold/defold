@@ -314,10 +314,6 @@
      (g/connect collision-group-node :collision-group-node project :collision-group-nodes)
      (g/connect project :collision-groups-data collision-group-node :collision-groups-data))))
 
-(defn- outline-sort-by-fn [v]
-  [(:name (g/node-type* (:node-id v)))
-   (when-let [label (:label v)] (util/natural-order-key (str/lower-case label)))])
-
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
   (let [[coll-outlines anim-outlines] (let [outlines (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
                                         [(get outlines true) (get outlines false)])]
