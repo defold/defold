@@ -520,9 +520,7 @@ namespace dmGameSystem
             };
 
             const float* tex_coords         = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
-            const uint32_t* images_per_page = (const uint32_t*) texture_set->m_TextureSet->m_ImagesPerPage.m_Data;
-            const uint32_t num_pages        = texture_set->m_TextureSet->m_ImagesPerPage.m_Count;
-
+            const uint32_t* page_indices    = (const uint32_t*) texture_set->m_TextureSet->m_PageIndices.m_Data;
             for (uint32_t *i = begin;i != end; ++i)
             {
                 uint32_t component_index = (uint32_t)buf[*i].m_UserData;
@@ -530,19 +528,11 @@ namespace dmGameSystem
 
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
 
-                uint32_t page_index = 0;
-                uint32_t page_start = 0;
-                for (int j = 0; j < num_pages; ++j)
-                {
-                    page_start += images_per_page[j];
-                    if (component->m_AnimationID < page_start)
-                    {
-                        page_index = j;
-                        break;
-                    }
-                }
-
                 uint32_t frame_index = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
+
+                uint32_t frame_index2 = frame_indices[frame_index];
+                uint32_t page_index  = page_indices[frame_index2]; // animation_ddf->m_PageIndex;
+
                 const float* tc = &tex_coords[frame_index * 4 * 2];
                 uint32_t flip_flag = 0;
 

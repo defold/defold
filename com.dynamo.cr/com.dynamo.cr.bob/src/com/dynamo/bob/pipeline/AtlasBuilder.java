@@ -104,9 +104,6 @@ public class AtlasBuilder extends Builder<Void>  {
                 for (int k = 0; k < numTextures; k++) {
                     ByteString data = textureImages[k].getAlternatives(i).getData();
                     int mipOffset = imageBuilder.getMipMapOffset(j);
-
-                    System.out.println("mipOffset " + mipOffset + ", mipSize " + mipSize);
-
                     data.copyTo(buf, mipOffset, 0, mipSize);
                     os.write(buf);
                 }

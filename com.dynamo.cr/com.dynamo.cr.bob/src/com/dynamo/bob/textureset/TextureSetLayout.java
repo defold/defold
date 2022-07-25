@@ -47,6 +47,7 @@ public class TextureSetLayout {
         public String id;
         public int index; // for easier keeping the original order
         public int x, y, width, height;
+        public int page;
         public boolean rotated;
 
         public Rect(String id, int index, int x, int y, int width, int height) {

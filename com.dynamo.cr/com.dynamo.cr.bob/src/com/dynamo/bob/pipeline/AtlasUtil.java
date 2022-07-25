@@ -161,6 +161,7 @@ public class AtlasUtil {
             if (image == null) {
                 throw new CompileExceptionError(resource, -1, "Unable to load image " + resource.getPath());
             }
+            System.out.println("Adding image " + resource.getPath());
             images.add(image);
         }
         return images;
