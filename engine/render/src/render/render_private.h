@@ -48,6 +48,8 @@ namespace dmRender
         dmGraphics::TextureWrap m_UWrap;
         dmGraphics::TextureWrap m_VWrap;
 
+        float m_MaxAnisotropy;
+
         Sampler(int32_t unit)
             : m_NameHash(0)
             , m_Location(-1)
@@ -56,6 +58,7 @@ namespace dmRender
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
+            , m_MaxAnisotropy(1.0f)
         {
         }
     };

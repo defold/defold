@@ -1135,6 +1135,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         }
 
+        if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_filter_anisotropic"))
+        {
+            context->m_AnisotropySupport = 1;
+            glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &context->m_MaxAnisotropy);
+        }
+
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
         if ((OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint")))
         {
@@ -2402,7 +2408,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return texture_filter_lut[texture_filter];
     }
 
-    static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         GLenum type = GetOpenGLTextureType(texture->m_Type);
 
@@ -2417,6 +2423,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glTexParameteri(type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
         CHECK_GL_ERROR
+
+        if (g_Context->m_AnisotropySupport)
+        {
+            glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, max_anisotropy > g_Context->m_MaxAnisotropy ? g_Context->m_MaxAnisotropy : max_anisotropy);
+            CHECK_GL_ERROR
+        }
     }
 
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
@@ -2529,7 +2541,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         texture->m_Params = params;
         if (!params.m_SubUpdate) {
-            SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+            SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
             if (params.m_MipMap == 0)
             {
@@ -2818,7 +2830,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindTexture(GetOpenGLTextureType(texture->m_Type), texture->m_Texture);
         CHECK_GL_ERROR;
 
-        SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
+        SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap, 1.0f);
     }
 
     static void OpenGLDisableTexture(HContext context, uint32_t unit, HTexture texture)

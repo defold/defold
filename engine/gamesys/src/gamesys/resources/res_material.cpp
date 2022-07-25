@@ -166,7 +166,11 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < texture_count; i++)
             {
                 dmhash_t name_hash = dmHashString64(textures[i]);
-                dmRender::SetMaterialSampler(material, name_hash, i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_DEFAULT, dmGraphics::TEXTURE_FILTER_DEFAULT);
+                dmRender::SetMaterialSampler(material, name_hash, i,
+                    dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                    dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                    dmGraphics::TEXTURE_FILTER_DEFAULT,
+                    dmGraphics::TEXTURE_FILTER_DEFAULT, 1.0f);
             }
         }
 
@@ -179,8 +183,9 @@ namespace dmGameSystem
             dmGraphics::TextureWrap vwrap = WrapFromDDF(sampler[i].m_WrapV);
             dmGraphics::TextureFilter minfilter = FilterMinFromDDF(sampler[i].m_FilterMin);
             dmGraphics::TextureFilter magfilter = FilterMagFromDDF(sampler[i].m_FilterMag);
+            float anisotropy = sampler[i].m_MaxAnisotropy;
 
-            dmRender::SetMaterialSampler(material, name_hash, i, uwrap, vwrap, minfilter, magfilter);
+            dmRender::SetMaterialSampler(material, name_hash, i, uwrap, vwrap, minfilter, magfilter, anisotropy);
         }
     }
 
