@@ -417,6 +417,17 @@
         matcher (.getPathMatcher file-system (str "glob:" query))]
     (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))
 
+(defn resource-icon [resource]
+  (when resource
+    (if (and (read-only? resource)
+             (= (path resource) (resource-name resource)))
+      "icons/32/Icons_03-Builtins.png"
+      (condp = (source-type resource)
+        :file
+        (or (:icon (resource-type resource)) "icons/32/Icons_29-AT-Unknown.png")
+        :folder
+        "icons/32/Icons_01-Folder-closed.png"))))
+
 (defn internal?
   [resource]
   (string/starts-with? (resource->proj-path resource) "/_defold"))

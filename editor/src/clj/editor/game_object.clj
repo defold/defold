@@ -20,7 +20,6 @@
             [editor.build-target :as bt]
             [editor.code.script :as script]
             [editor.defold-project :as project]
-            [editor.dialogs :as dialogs]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
@@ -29,6 +28,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
@@ -511,7 +511,7 @@
 (defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
                                          (workspace/get-resource-types workspace :embeddable)))]
-    (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext component-exts :title "Select Component File"}))]
+    (when-let [resource (first (resource-dialog/make-resource-dialog workspace project {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource select-fn))))
 
 (defn- selection->game-object [selection]

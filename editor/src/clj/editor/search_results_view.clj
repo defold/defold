@@ -97,7 +97,7 @@
 (defn- make-matched-item-icon
   [{:keys [resource] :as _item}]
   (-> resource
-      workspace/resource-icon
+      resource/resource-icon
       (icons/get-image-view 16)))
 
 (defn- make-matched-item-row-indicator

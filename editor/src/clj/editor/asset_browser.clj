@@ -627,7 +627,7 @@
         db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
         content (ClipboardContent.)]
     (when (= 1 (count resources))
-      (.setDragView db (icons/get-image (workspace/resource-icon (first resources)) 16)
+      (.setDragView db (icons/get-image (resource/resource-icon (first resources)) 16)
                     0 16))
     (.putFiles content files)
     (.setContent db content)
@@ -748,7 +748,7 @@
                           (if (nil? resource)
                             {}
                             {:text (resource/resource-name resource)
-                             :icon (workspace/resource-icon resource)
+                             :icon (resource/resource-icon resource)
                              :style (resource/style-classes resource)
                              :over-handler over-handler
                              :dropped-handler dropped-handler

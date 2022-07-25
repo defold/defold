@@ -51,6 +51,7 @@
             [editor.icons :as icons]
             [editor.handler :as handler]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
             [editor.ui :as ui]
             [editor.url :as url]
@@ -436,7 +437,7 @@
                                                     on-added
                                                     state-path
                                                     ui-state]}]
-  (let [resources (dialogs/make-resource-dialog workspace project {:ext filter
+  (let [resources (resource-dialog/make-resource-dialog workspace project {:ext filter
                                                                    :selection :multiple})]
     (when-not (empty? resources)
       (let [value-count (count value)
@@ -637,7 +638,7 @@
                                                        project
                                                        filter
                                                        on-value-changed]}]
-  (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
+  (when-let [resource (first (resource-dialog/make-resource-dialog workspace project {:ext filter}))]
     {:dispatch (assoc on-value-changed :fx/event resource)}))
 
 (defmethod form-input-view :resource [{:keys [value

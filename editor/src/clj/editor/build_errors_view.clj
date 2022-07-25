@@ -171,7 +171,7 @@
   [tree-item]
   (let [resource (-> tree-item :value :resource)]
     {:text (resource/proj-path resource)
-     :icon (workspace/resource-icon resource)
+     :icon (resource/resource-icon resource)
      :style (resource/style-classes resource)}))
 
 (defmethod make-tree-cell :unknown-parent

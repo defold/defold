@@ -21,11 +21,13 @@ ordinary paths."
             [clojure.edn :as edn]
             [dynamo.graph :as g]
             [editor.fs :as fs]
+            [editor.dialogs :as dialogs]
             [editor.library :as library]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
+            [editor.ui :as ui]
             [editor.url :as url]
             [editor.util :as util]
             [service.log :as log])
@@ -160,15 +162,7 @@ ordinary paths."
    (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
 (defn resource-icon [resource]
-  (when resource
-    (if (and (resource/read-only? resource)
-             (= (resource/path resource) (resource/resource-name resource)))
-      "icons/32/Icons_03-Builtins.png"
-      (condp = (resource/source-type resource)
-        :file
-        (or (:icon (resource/resource-type resource)) "icons/32/Icons_29-AT-Unknown.png")
-        :folder
-        "icons/32/Icons_01-Folder-closed.png"))))
+  (resource/resource-icon resource))
 
 (defn file-resource
   ([workspace path-or-file]
@@ -274,11 +268,20 @@ ordinary paths."
 (defn- load-plugin! [workspace resource]
   ; TODO Handle Exceptions!
   (log/info :msg (str "Loading plugin " (resource/path resource)))
-  (if-let [plugin-fn (load-string (slurp resource))]
-    (do
-      (plugin-fn workspace)
-      (log/info :msg (str "Loaded plugin " (resource/path resource))))
-    (log/info :msg (str "Unable to load plugin " (resource/path resource)))))
+  (try
+    (if-let [plugin-fn (load-string (slurp resource))]
+      (do
+        (plugin-fn workspace)
+        (log/info :msg (str "Loaded plugin " (resource/path resource)))))
+    (log/info :msg (str "Unable to load plugin " (resource/path resource)))
+    (catch Exception e
+      (log/error :msg (str "Exception while loading plugin: " (.getMessage e)))
+      (ui/run-later
+        (do (dialogs/make-info-dialog
+           {:title "Unable to Load Plugin"
+            :icon :icon/triangle-error
+            :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))})
+             false)))))
 
 (defn- load-editor-plugins! [workspace added]
   (let [added-resources (set (map resource/proj-path added))

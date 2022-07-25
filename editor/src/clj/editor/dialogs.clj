@@ -26,21 +26,16 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.defold-project :as project]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.fuzzy-text :as fuzzy-text]
             [editor.fxui :as fxui]
             [editor.github :as github]
             [editor.handler :as handler]
-            [editor.icons :as icons]
             [editor.progress :as progress]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
-            [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.util :as util]
-            [editor.workspace :as workspace]
             [service.log :as log])
   (:import [clojure.lang Named]
            [java.io File]
@@ -498,187 +493,6 @@
   (run [^Stage stage user-data]
        (when-let [^Node node (:node user-data)]
          (ui/request-focus! node))))
-
-(defn- default-filter-fn [cell-fn text items]
-  (let [text (string/lower-case text)
-        str-fn (comp string/lower-case :text cell-fn)]
-    (filter (fn [item] (string/starts-with? (str-fn item) text)) items)))
-
-(defn make-select-list-dialog [items options]
-  (let [^Parent root (ui/load-fxml "select-list.fxml")
-        scene (Scene. root)
-        ^Stage stage (doto (ui/make-dialog-stage (ui/main-stage))
-                       (ui/title! (or (:title options) "Select Item"))
-                       (.setScene scene))
-        controls (ui/collect-controls root ["filter" "item-list" "ok"])
-        ok-label (:ok-label options "OK")
-        ^TextField filter-field (:filter controls)
-        filter-value (or (:filter options)
-                         (some-> (:filter-atom options) deref)
-                         "")
-        cell-fn (:cell-fn options identity)
-        ^ListView item-list (doto ^ListView (:item-list controls)
-                              (.setFixedCellSize 27.0) ; Fixes missing cells in VirtualFlow
-                              (ui/cell-factory! cell-fn)
-                              (ui/selection-mode! (:selection options :single)))]
-    (doto item-list
-      (ui/observe-list (ui/items item-list)
-                       (fn [_ items]
-                         (when (not (empty? items))
-                           (ui/select-index! item-list 0))))
-      (ui/items! (if (string/blank? filter-value) items [])))
-    (let [filter-fn (or (:filter-fn options) (partial default-filter-fn cell-fn))]
-      (ui/observe (.textProperty filter-field)
-                  (fn [_ _ ^String new]
-                    (let [filtered-items (filter-fn new items)]
-                      (ui/items! item-list filtered-items)))))
-    (doto filter-field
-      (.setText filter-value)
-      (.setPromptText (:prompt options "")))
-
-    (ui/context! root :dialog {:stage stage} (ui/->selection-provider item-list))
-    (ui/text! (:ok controls) ok-label)
-    (ui/bind-action! (:ok controls) ::confirm)
-    (ui/observe-selection item-list (fn [_ _] (ui/refresh-bound-action-enabled! (:ok controls))))
-    (ui/bind-double-click! item-list ::confirm)
-    (ui/bind-keys! root {KeyCode/ENTER ::confirm
-                         KeyCode/ESCAPE ::close
-                         KeyCode/DOWN [::focus {:active-fn (fn [_] (and (seq (ui/items item-list))
-                                                                        (ui/focus? filter-field)))
-                                                :node item-list}]
-                         KeyCode/UP [::focus {:active-fn (fn [_] (= 0 (.getSelectedIndex (.getSelectionModel item-list))))
-                                              :node filter-field}]})
-
-    (ui/show-and-wait! stage)
-
-    (let [selected-items (ui/user-data stage ::selected-items)
-          filter-atom (:filter-atom options)]
-      (when (and (some? selected-items) (some? filter-atom))
-        (reset! filter-atom (.getText filter-field)))
-      selected-items)))
-
-(def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
-
-(defn- override-seq [node-id]
-  (tree-seq g/overrides g/overrides node-id))
-
-(defn- file-scope [node-id]
-  (last (take-while (fn [n] (and n (not (g/node-instance? project/Project n)))) (iterate core/scope node-id))))
-
-(defn- refs-filter-fn [project filter-value items]
-  ;; Temp limitation to avoid stalls
-  ;; Optimally we would do the work in the background with a progress-bar
-  (if-let [n (project/get-resource-node project filter-value)]
-    (->>
-      (let [all (override-seq n)]
-        (mapcat (fn [n]
-                  (keep (fn [[src src-label node-id label]]
-                          (when-let [node-id (file-scope node-id)]
-                            (when (and (not= n node-id)
-                                       (g/node-instance? resource-node/ResourceNode node-id))
-                              (when-let [r (g/node-value node-id :resource)]
-                                (when (resource/exists? r)
-                                  r)))))
-                        (g/outputs n)))
-                all))
-      distinct)
-    []))
-
-(defn- sub-nodes [n]
-  (g/node-value n :nodes))
-
-(defn- sub-seq [n]
-  (tree-seq (partial g/node-instance? resource-node/ResourceNode) sub-nodes n))
-
-(defn- deps-filter-fn [project filter-value items]
-  ;; Temp limitation to avoid stalls
-  ;; Optimally we would do the work in the background with a progress-bar
-  (if-let [node-id (project/get-resource-node project filter-value)]
-    (->>
-      (let [all (sub-seq node-id)]
-        (mapcat
-          (fn [n]
-            (keep (fn [[src src-label tgt tgt-label]]
-                    (when-let [src (file-scope src)]
-                      (when (and (not= node-id src)
-                                 (g/node-instance? resource-node/ResourceNode src))
-                        (when-let [r (g/node-value src :resource)]
-                          (when (resource/exists? r)
-                            r)))))
-                  (g/inputs n)))
-          all))
-      distinct)
-    []))
-
-(defn- make-text-run [text style-class]
-  (let [text-view (Text. text)]
-    (when (some? style-class)
-      (.add (.getStyleClass text-view) style-class))
-    text-view))
-
-(defn- matched-text-runs [text matching-indices]
-  (let [/ (or (some-> text (string/last-index-of \/) inc) 0)]
-    (into []
-          (mapcat (fn [[matched? start end]]
-                    (cond
-                      matched?
-                      [(make-text-run (subs text start end) "matched")]
-
-                      (< start / end)
-                      [(make-text-run (subs text start /) "diminished")
-                       (make-text-run (subs text / end) nil)]
-
-                      (<= start end /)
-                      [(make-text-run (subs text start end) "diminished")]
-
-                      :else
-                      [(make-text-run (subs text start end) nil)])))
-          (fuzzy-text/runs (count text) matching-indices))))
-
-(defn- make-matched-list-item-graphic [icon text matching-indices]
-  (let [icon-view (icons/get-image-view icon 16)
-        text-view (TextFlow. (into-array Text (matched-text-runs text matching-indices)))]
-    (doto (HBox. (ui/node-array [icon-view text-view]))
-      (.setAlignment Pos/CENTER_LEFT)
-      (.setSpacing 4.0))))
-
-(defn make-resource-dialog [workspace project options]
-  (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
-        accepted-ext (if (seq exts) (set exts) (constantly true))
-        accept-fn    (or (:accept-fn options) (constantly true))
-        items        (into []
-                           (filter #(and (= :file (resource/source-type %))
-                                         (accepted-ext (resource/type-ext %))
-                                         (not (resource/internal? %))
-                                         (accept-fn %)))
-                           (g/node-value workspace :resource-list))
-        options (-> {:title "Select Resource"
-                     :prompt "Type to filter"
-                     :cell-fn (fn [r]
-                                (let [text (resource/proj-path r)
-                                      icon (workspace/resource-icon r)
-                                      style (resource/style-classes r)
-                                      tooltip (when-let [tooltip-gen (:tooltip-gen options)] (tooltip-gen r))
-                                      matching-indices (:matching-indices (meta r))]
-                                  (cond-> {:style style
-                                           :tooltip tooltip}
-
-                                          (empty? matching-indices)
-                                          (assoc :icon icon :text text)
-
-                                          :else
-                                          (assoc :graphic (make-matched-list-item-graphic icon text matching-indices)))))
-                     :filter-fn (fn [filter-value items]
-                                  (let [fns {"refs" (partial refs-filter-fn project)
-                                             "deps" (partial deps-filter-fn project)}
-                                        [command arg] (let [parts (string/split filter-value #":")]
-                                                        (if (< 1 (count parts))
-                                                          parts
-                                                          [nil (first parts)]))
-                                        f (get fns command fuzzy-resource-filter-fn)]
-                                    (f arg items)))}
-                  (merge options))]
-    (make-select-list-dialog items options)))
 
 (declare sanitize-folder-name)
 

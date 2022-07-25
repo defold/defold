@@ -19,7 +19,6 @@
             [editor.colors :as colors]
             [editor.core :as core]
             [editor.defold-project :as project]
-            [editor.dialogs :as dialogs]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -40,6 +39,7 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
+            [editor.resource-dialog :as resource-dialog]
             [editor.scene-picking :as scene-picking]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
@@ -790,7 +790,7 @@
   (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
 
 (defn- add-images-handler [app-view workspace project parent] ; parent = new parent of images
-  (when-some [image-resources (seq (dialogs/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
+  (when-some [image-resources (seq (resource-dialog/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
     (let [op-seq (gensym)
           image-msgs (map #(assoc default-image-msg :image %) image-resources)
           image-nodes (g/tx-nodes-added

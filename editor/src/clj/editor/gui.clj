@@ -38,6 +38,7 @@
             [editor.gl.pass :as pass]
             [editor.types :as types]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.properties :as properties]
             [editor.handler :as handler]
@@ -1926,7 +1927,7 @@
 
 
 (defn- browse [title project exts]
-  (seq (dialogs/make-resource-dialog (project/workspace project) project {:ext exts :title title :selection :multiple})))
+  (seq (resource-dialog/make-resource-dialog (project/workspace project) project {:ext exts :title title :selection :multiple})))
 
 (defn- resource->id [resource]
   (resource/base-name resource))

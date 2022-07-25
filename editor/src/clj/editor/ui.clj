@@ -2151,3 +2151,64 @@ command."
      (doto (SVGPath.)
        (add-style! "bottom")
        (.setContent (make-path-data col row [[0,6 1,5 1,7 2,6 3,7 4,6 5,7 5,5 6,6 5,7 4,8 5,9 4,10 3,9 2,10 1,9 2,8] [3,5 2,4 3,3 4,4]])))]))
+
+
+
+(defn- default-filter-fn [cell-fn text items]
+  (let [text (string/lower-case text)
+        str-fn (comp string/lower-case :text cell-fn)]
+    (filter (fn [item] (string/starts-with? (str-fn item) text)) items)))
+
+(defn make-select-list-dialog [items options]
+  (let [^Parent root (load-fxml "select-list.fxml")
+        scene (Scene. root)
+        ^Stage stage (doto (make-dialog-stage (main-stage))
+                       (title! (or (:title options) "Select Item"))
+                       (.setScene scene))
+        controls (collect-controls root ["filter" "item-list" "ok"])
+        ok-label (:ok-label options "OK")
+        ^TextField filter-field (:filter controls)
+        filter-value (or (:filter options)
+                         (some-> (:filter-atom options) deref)
+                         "")
+        cell-fn (:cell-fn options identity)
+        ^ListView item-list (doto ^ListView (:item-list controls)
+                              (.setFixedCellSize 27.0) ; Fixes missing cells in VirtualFlow
+                              (cell-factory! cell-fn)
+                              (selection-mode! (:selection options :single)))]
+    (doto item-list
+      (observe-list (items item-list)
+                       (fn [_ items]
+                         (when (not (empty? items))
+                           (select-index! item-list 0))))
+      (items! (if (string/blank? filter-value) items [])))
+    (let [filter-fn (or (:filter-fn options) (partial default-filter-fn cell-fn))]
+      (observe (.textProperty filter-field)
+                  (fn [_ _ ^String new]
+                    (let [filtered-items (filter-fn new items)]
+                      (items! item-list filtered-items)))))
+    (doto filter-field
+      (.setText filter-value)
+      (.setPromptText (:prompt options "")))
+
+    (context! root :dialog {:stage stage} (->selection-provider item-list))
+    (text! (:ok controls) ok-label)
+    (bind-action! (:ok controls) ::confirm)
+    (observe-selection item-list (fn [_ _] (refresh-bound-action-enabled! (:ok controls))))
+    (bind-double-click! item-list ::confirm)
+    (bind-keys! root {KeyCode/ENTER ::confirm
+                         KeyCode/ESCAPE ::close
+                         KeyCode/DOWN [::focus {:active-fn (fn [_] (and (seq (items item-list))
+                                                                        (focus? filter-field)))
+                                                :node item-list}]
+                         KeyCode/UP [::focus {:active-fn (fn [_] (= 0 (.getSelectedIndex (.getSelectionModel item-list))))
+                                              :node filter-field}]})
+
+    (show-and-wait! stage)
+
+    (let [selected-items (user-data stage ::selected-items)
+          filter-atom (:filter-atom options)]
+      (when (and (some? selected-items) (some? filter-atom))
+        (reset! filter-atom (.getText filter-field)))
+      selected-items)))
+

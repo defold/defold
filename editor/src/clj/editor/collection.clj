@@ -20,7 +20,6 @@
             [editor.code.script :as script]
             [editor.core :as core]
             [editor.defold-project :as project]
-            [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
@@ -31,6 +30,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.validation :as validation]
@@ -703,14 +703,14 @@
         (select-fn [go-node])))))
 
 (defn- select-go-file [workspace project]
-  (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"})))
+  (first (resource-dialog/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"})))
 
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->collection selection))
   (label [selection] "Add Game Object File")
   (run [workspace project app-view selection]
     (let [collection (selection->collection selection)]
-      (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
+      (when-let [resource (first (resource-dialog/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
         (add-game-object-file collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
 (defn- make-embedded-go [self project type data id position rotation scale parent select-fn]
@@ -785,7 +785,7 @@
                resource-type (workspace/get-resource-type workspace ext)
                coll-node-path (resource/proj-path (g/node-value coll-node :resource))
                accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
-           (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
+           (when-let [resource (first (resource-dialog/make-resource-dialog workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    op-seq (gensym)

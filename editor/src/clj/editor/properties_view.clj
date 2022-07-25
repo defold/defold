@@ -15,7 +15,6 @@
 (ns editor.properties-view
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.dialogs :as dialogs]
             [editor.ui :as ui]
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.jfx :as jfx]
@@ -23,6 +22,7 @@
             [editor.properties :as properties]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.math :as math]
             [editor.field-expression :as field-expression]
             [util.id-vec :as iv]
@@ -327,7 +327,7 @@
                               resource (workspace/resolve-workspace-resource workspace path)]
                           (properties/set-values! (property-fn) (repeat resource))))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project dialog-opts))]
+    (ui/on-action! browse-button (fn [_] (when-let [resource (first (resource-dialog/make-resource-dialog workspace project dialog-opts))]
                                            (properties/set-values! (property-fn) (repeat resource)))))
     (ui/on-action! open-button (fn [_]  (when-let [resource (-> (property-fn)
                                                               properties/values
