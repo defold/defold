@@ -20,12 +20,14 @@ ordinary paths."
             [clojure.string :as string]
             [clojure.edn :as edn]
             [dynamo.graph :as g]
+            [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.library :as library]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
+            [editor.ui :as ui]
             [editor.url :as url]
             [editor.util :as util]
             [service.log :as log])
@@ -277,11 +279,20 @@ ordinary paths."
 (defn- load-plugin! [workspace resource]
   ; TODO Handle Exceptions!
   (log/info :msg (str "Loading plugin " (resource/path resource)))
-  (if-let [plugin-fn (load-string (slurp resource))]
-    (do
-      (plugin-fn workspace)
-      (log/info :msg (str "Loaded plugin " (resource/path resource))))
-    (log/info :msg (str "Unable to load plugin " (resource/path resource)))))
+  (try
+    (if-let [plugin-fn (load-string (slurp resource))]
+      (do
+        (plugin-fn workspace)
+        (log/info :msg (str "Loaded plugin " (resource/path resource))))
+      (log/info :msg (str "Unable to load plugin " (resource/path resource))))
+    (catch Exception e
+      (log/error :msg (str "Exception while loading plugin: " (.getMessage e)))
+      (ui/run-later
+        (dialogs/make-info-dialog
+          {:title "Unable to Load Plugin"
+           :icon :icon/triangle-error
+           :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
+      false)))
 
 (defn- load-editor-plugins! [workspace added]
   (let [added-resources (set (map resource/proj-path added))
