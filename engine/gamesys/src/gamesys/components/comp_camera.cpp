@@ -241,6 +241,8 @@ namespace dmGameSystem
             camera->m_Fov = ddf->m_Fov;
             camera->m_NearZ = ddf->m_NearZ;
             camera->m_FarZ = ddf->m_FarZ;
+            camera->m_OrthographicProjection = ddf->m_OrthographicProjection;
+            camera->m_OrthographicZoom = ddf->m_OrthographicZoom;
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
         {
