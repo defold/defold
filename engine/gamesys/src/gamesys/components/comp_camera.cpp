@@ -301,7 +301,6 @@ namespace dmGameSystem
         camera->m_Fov = cam_resource->m_DDF->m_Fov;
         camera->m_NearZ = cam_resource->m_DDF->m_NearZ;
         camera->m_FarZ = cam_resource->m_DDF->m_FarZ;
-        camera->m_FarZ = cam_resource->m_DDF->m_FarZ;
         camera->m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
         camera->m_OrthographicProjection = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera->m_OrthographicZoom = cam_resource->m_DDF->m_OrthographicZoom;
