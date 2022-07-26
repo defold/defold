@@ -178,10 +178,10 @@ TEST_F(ScriptTest, TestFailingScript02)
     // Test init failure
 
     // Avoid logging expected errors. Better solution?
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLogSetLevel(LOG_SEVERITY_FATAL);
     dmGameObject::New(m_Collection, "/go2.goc");
     bool result = dmGameObject::Init(m_Collection);
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
     EXPECT_FALSE(result);
     result = dmGameObject::Final(m_Collection);
     EXPECT_FALSE(result);
@@ -196,9 +196,9 @@ TEST_F(ScriptTest, TestFailingScript03)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Avoid logging expected errors. Better solution?
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLogSetLevel(LOG_SEVERITY_FATAL);
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
     dmGameObject::Delete(m_Collection, go, false);
 }
 
