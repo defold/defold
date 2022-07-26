@@ -57,6 +57,7 @@
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-cache :as scene-cache]
@@ -1852,7 +1853,7 @@ If you do not specifically require different script states, consider changing th
               (and (resource/abs-path r)
                    (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
-                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
+                                                      (doseq [resource (resource-dialog/make workspace project {:title "Referencing Files" :selection :multiple :ok-label "Open" :filter (format "refs:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :dependencies :global
@@ -1863,7 +1864,7 @@ If you do not specifically require different script states, consider changing th
               (and (resource/abs-path r)
                    (resource/exists? r))))
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
-                                                      (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
+                                                      (doseq [resource (resource-dialog/make workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
 (handler/defhandler :toggle-pane-left :global
@@ -1964,15 +1965,15 @@ If you do not specifically require different script states, consider changing th
 (defn- query-and-open! [workspace project app-view prefs term]
   (let [prev-filter-term (prefs/get-prefs prefs open-assets-term-prefs-key nil)
         filter-term-atom (atom prev-filter-term)
-        selected-resources (dialogs/make-resource-dialog workspace project
-                                                         (cond-> {:title "Open Assets"
-                                                                  :accept-fn resource/editable-resource?
-                                                                  :selection :multiple
-                                                                  :ok-label "Open"
-                                                                  :filter-atom filter-term-atom
-                                                                  :tooltip-gen (partial gen-tooltip workspace project app-view)}
-                                                                 (some? term)
-                                                                 (assoc :filter term)))
+        selected-resources (resource-dialog/make workspace project
+                                                 (cond-> {:title "Open Assets"
+                                                          :accept-fn resource/editable-resource?
+                                                          :selection :multiple
+                                                          :ok-label "Open"
+                                                          :filter-atom filter-term-atom
+                                                          :tooltip-gen (partial gen-tooltip workspace project app-view)}
+                                                         (some? term)
+                                                         (assoc :filter term)))
         filter-term @filter-term-atom]
     (when (not= prev-filter-term filter-term)
       (prefs/set-prefs prefs open-assets-term-prefs-key filter-term))

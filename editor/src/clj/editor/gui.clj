@@ -42,10 +42,10 @@
             [editor.properties :as properties]
             [editor.handler :as handler]
             [editor.font :as font]
-            [editor.dialogs :as dialogs]
             [editor.outline :as outline]
             [editor.material :as material]
             [editor.particlefx :as particlefx]
+            [editor.resource-dialog :as resource-dialog]
             [editor.validation :as validation]
             [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
@@ -1926,7 +1926,7 @@
 
 
 (defn- browse [title project exts]
-  (seq (dialogs/make-resource-dialog (project/workspace project) project {:ext exts :title title :selection :multiple})))
+  (seq (resource-dialog/make (project/workspace project) project {:ext exts :title title :selection :multiple})))
 
 (defn- resource->id [resource]
   (resource/base-name resource))
