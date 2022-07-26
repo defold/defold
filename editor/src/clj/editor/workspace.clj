@@ -27,6 +27,7 @@ ordinary paths."
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.url :as url]
+            [editor.util :as util]
             [service.log :as log])
   (:import [java.io File PushbackReader]
            [java.net URI]
@@ -78,13 +79,13 @@ ordinary paths."
   (openable? [this] false)
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (let [file (File. (resource/abs-path this))] (io/make-output-stream file opts)))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+  (make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
+  (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [this opts] (let [file (File. (resource/abs-path this))] (io/make-output-stream file opts)))
+  (make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (io/as-file [this] (File. (resource/abs-path this))))
+  (as-file [this] (File. (resource/abs-path this))))
 
 (def build-resource? (partial instance? BuildResource))
 
@@ -99,8 +100,7 @@ ordinary paths."
   (let [sorted-children (sort-by (fn [r]
                                    [(resource/file-resource? r)
                                     ({:folder 0 :file 1} (resource/source-type r))
-                                    (when-let [node-name (resource/resource-name r)]
-                                      (string/lower-case node-name))])
+                                    (some-> (resource/resource-name r) util/natural-order-key)])
                                  (map sort-resource-tree children))]
     (assoc tree :children (vec sorted-children))))
 
@@ -109,7 +109,7 @@ ordinary paths."
     (resource/make-file-resource _node-id root (io/as-file root) (:resources resource-snapshot))))
 
 (g/defnk produce-resource-list [resource-tree]
-  (resource/resource-seq resource-tree))
+  (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree))))
 
 (g/defnk produce-resource-map [resource-list]
   (into {} (map #(do [(resource/proj-path %) %]) resource-list)))

@@ -161,10 +161,23 @@
   (-> (add-type-defaults (edn/read reader))
       (add-to-from-string)))
 
+(defn label [key]
+  (->> (s/split (name key) #"(_|\s+)")
+       (mapv s/capitalize)
+       (s/join " ")))
+
 (defn- make-meta-settings-for-unknown [meta-settings settings]
-  (let [known-settings (set (map :path meta-settings))
-        unknown-settings (remove known-settings (map :path settings))]
-    (map (fn [setting-path] {:path setting-path :type :string :help "unknown setting" :unknown-setting? true}) unknown-settings)))
+  (let [known-settings (into #{} (map :path) meta-settings)]
+    (into []
+          (comp
+            (map :path)
+            (remove known-settings)
+            (map (fn [setting-path]
+                   {:path setting-path
+                    :type :string
+                    :help (label (last setting-path))
+                    :unknown-setting? true})))
+          settings)))
 
 (defn add-meta-info-for-unknown-settings [meta-info settings]
   (update meta-info :settings #(concat % (make-meta-settings-for-unknown % settings))))

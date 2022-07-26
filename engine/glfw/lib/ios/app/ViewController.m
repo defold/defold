@@ -35,23 +35,6 @@ static int g_view_type = GLFW_NO_API;
 - (void)createView:(BOOL)recreate
 {
     CGRect bounds = self.view.bounds;
-    float version = [[UIDevice currentDevice].systemVersion floatValue];
-    if (8.0 <= version && version < 8.1) {
-        CGSize size = [self getIntendedViewSize];
-        CGRect parent_bounds = self.view.bounds;
-        parent_bounds.size = size;
-
-        if ([self shouldUpdateViewFrame]) {
-            CGPoint origin = [self getIntendedFrameOrigin: size];
-
-            CGRect parent_frame = self.view.frame;
-            parent_frame.origin = origin;
-            parent_frame.size = size;
-
-            self.view.frame = parent_frame;
-        }
-        bounds = parent_bounds;
-    }
     cachedViewSize = bounds.size;
 
     if (g_view_type == GLFW_NO_API)
@@ -87,29 +70,6 @@ static int g_view_type = GLFW_NO_API;
     {
         // According to Apple glFinish() should be called here (Comment moved from AppDelegate applicationWillResignActive)
         glFinish();
-    }
-}
-
-- (void)updateViewFramesWorkaround
-{
-    float version = [[UIDevice currentDevice].systemVersion floatValue];
-    if (8.0 <= version && version < 8.1) {
-        CGRect parent_frame = self.view.frame;
-        CGRect parent_bounds = self.view.bounds;
-
-        CGSize size = [self getIntendedViewSize];
-
-        parent_bounds.size = size;
-
-        if ([self shouldUpdateViewFrame]) {
-            CGPoint origin = [self getIntendedFrameOrigin: size];
-            parent_frame.origin = origin;
-            parent_frame.size = size;
-
-            self.view.frame = parent_frame;
-        }
-
-        baseView.frame = parent_bounds;
     }
 }
 
@@ -207,43 +167,7 @@ static int g_view_type = GLFW_NO_API;
     [super viewDidUnload];
 }
 
-- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
-{
-    // NOTE: For iOS < 6
-    if (_glfwWin.portrait)
-    {
-        return   interfaceOrientation == UIInterfaceOrientationPortrait
-              || interfaceOrientation == UIInterfaceOrientationPortraitUpsideDown;
-    }
-    else
-    {
-        return   interfaceOrientation == UIInterfaceOrientationLandscapeRight
-              || interfaceOrientation == UIInterfaceOrientationLandscapeLeft;
-    }
-}
-
-- (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation
-{
-}
-
--(BOOL)shouldAutorotate{
-    // NOTE: Only for iOS6
-    return YES;
-}
-
--(UIInterfaceOrientationMask)supportedInterfaceOrientations {
-    // NOTE: Only for iOS6
-    return UIInterfaceOrientationMaskLandscape | UIInterfaceOrientationMaskPortrait | UIInterfaceOrientationMaskPortraitUpsideDown;
-}
-
 #pragma mark UIContentContainer
-
-// Introduced in iOS8.0
-- (void)viewWillTransitionToSize:(CGSize)size
-       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
-{
-    [self updateViewFramesWorkaround];
-}
 
 - (void)accelerometer:(UIAccelerometer *)accelerometer didAccelerate:(UIAcceleration *)acceleration
 {

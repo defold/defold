@@ -14,18 +14,6 @@
 
 // OpenGL view
 
-/*
- * Launching your Application in Landscape
- * https://developer.apple.com/library/ios/#technotes/tn2244/_index.html
- *
- * This is something we might want to add support for soon. The following is required:
- *   - Flip width/height when creating the window (in applicationDidFinishLaunching)
- *   - return (interfaceOrientation == UIInterfaceOrientationLandscapeRight);
- *     from shouldAutorotateToInterfaceOrientation
- *
- *   See TN2244 for more information
- */
-
 #include "EAGLView.h"
 #import "TextUtil.h"
 #import "AppDelegate.h"

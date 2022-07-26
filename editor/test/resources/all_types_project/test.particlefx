@@ -218,4 +218,9 @@ emitters {
   size_mode: SIZE_MODE_MANUAL
   start_delay_spread: 0.0
   duration_spread: 0.0
+  pivot {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
 }

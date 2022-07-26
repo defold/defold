@@ -1112,6 +1112,7 @@ namespace dmEngine
         engine->m_TilemapContext.m_MaxTileCount     = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_tile_count", 2048);
 
         engine->m_SoundContext.m_MaxComponentCount  = dmConfigFile::GetInt(engine->m_Config, "sound.max_component_count", 32);
+        engine->m_SoundContext.m_MaxSoundInstances  = dmConfigFile::GetInt(engine->m_Config, "sound.max_sound_instances", 256);
 
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
@@ -1501,7 +1502,7 @@ bail:
                 }
                 {
                     DM_PROFILE("Script");
-                    
+
                     // Script context updates
                     if (engine->m_SharedScriptContext) {
                         dmScript::Update(engine->m_SharedScriptContext);

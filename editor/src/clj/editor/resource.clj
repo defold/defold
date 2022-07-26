@@ -95,10 +95,36 @@
   (when-let [last-slash (string/last-index-of proj-path "/")]
     (subs proj-path 0 last-slash)))
 
+(def ^:private defignore-cache
+  ;; path->{:mtime ... :pred ...}
+  (atom {}))
+
+;; root -> pred if project path (string starting with /) is ignored
+(defn- defignore-pred [^File root]
+  (let [defignore-file (io/file root ".defignore")
+        defignore-path (.getCanonicalPath defignore-file)
+        latest-mtime (.lastModified defignore-file)
+        {:keys [mtime pred]} (get @defignore-cache defignore-path)]
+    (if (= mtime latest-mtime)
+      pred
+      (let [pred (if (.isFile defignore-file)
+                   (let [prefixes (into
+                                    #{}
+                                    (filter #(string/starts-with? % "/"))
+                                    (string/split-lines (slurp defignore-file)))]
+                     (fn ignored-path? [path]
+                       (boolean (some #(string/starts-with? path %) prefixes))))
+                   (constantly false))]
+        (swap! defignore-cache assoc defignore-path {:mtime latest-mtime :pred pred})
+        pred))))
+
+(defn ignored-project-path? [^File root path]
+  ((defignore-pred root) path))
+
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
 ;; FileResource equality tests.
-(defrecord FileResource [workspace ^String abs-path ^String project-path ^String name ^String ext source-type children]
+(defrecord FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type children]
   Resource
   (children [this] children)
   (ext [this] ext)
@@ -115,6 +141,7 @@
       ;; fix it manually and hopefully remember to update the scripts too.
       (let [file (io/file this)]
         (and (.exists file)
+             (not (ignored-project-path? (io/file root) project-path))
              (string/ends-with? (->unix-seps (.getCanonicalPath file)) project-path)))
       (catch IOException _
         false)
@@ -134,13 +161,13 @@
   (openable? [this] (= :file source-type))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (io/make-output-stream (io/file this) opts))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+  (make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
+  (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [this opts] (io/make-output-stream (io/file this) opts))
+  (make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (io/as-file [this] (File. abs-path)))
+  (as-file [this] (File. abs-path)))
 
 (defn make-file-resource [workspace ^String root ^File file children]
   (let [source-type (if (.isDirectory file) :folder :file)
@@ -149,7 +176,7 @@
         name (.getName file)
         project-path (if (= "" name) "" (str "/" (relative-path (File. root) (io/file path))))
         ext (FilenameUtils/getExtension path)]
-    (FileResource. workspace abs-path project-path name ext source-type children)))
+    (FileResource. workspace root abs-path project-path name ext source-type children)))
 
 (defn file-resource? [resource]
   (instance? FileResource resource))
@@ -157,8 +184,8 @@
 (core/register-read-handler!
   "file-resource"
   (transit/read-handler
-    (fn [{:keys [workspace ^String abs-path ^String project-path ^String name ^String ext source-type children]}]
-      (FileResource. workspace abs-path project-path name ext source-type children))))
+    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type children]}]
+      (FileResource. workspace root abs-path project-path name ext source-type children))))
 
 (core/register-write-handler!
  FileResource
@@ -196,10 +223,10 @@
   (openable? [this] false)
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (io/make-output-stream (.toCharArray ^String (:data this)) opts))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+  (make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
+  (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [this opts] (io/make-output-stream (.toCharArray ^String (:data this)) opts))
+  (make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
 (core/register-record-type! MemoryResource)
 
@@ -236,13 +263,13 @@
   (openable? [this] (= :file (source-type this)))
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (make-zip-resource-input-stream this))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (throw (Exception. "Zip resources are read-only")))
-  (io/make-writer        [this opts] (throw (Exception. "Zip resources are read-only")))
+  (make-input-stream  [this opts] (make-zip-resource-input-stream this))
+  (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [this opts] (throw (Exception. "Zip resources are read-only")))
+  (make-writer        [this opts] (throw (Exception. "Zip resources are read-only")))
 
   io/Coercions
-  (io/as-file [this] (io/as-file zip-uri)))
+  (as-file [this] (io/as-file zip-uri)))
 
 (core/register-record-type! ZipResource)
 
