@@ -18,12 +18,13 @@ option java_outer_classname = "Camera";
 
 message CameraDesc
 {
-    required float  aspect_ratio        = 1;
-    required float  fov                 = 2;
-    required float  near_z              = 3;
-    required float  far_z               = 4;
-    optional uint32 auto_aspect_ratio   = 5 [default = 0];
-    optional uint32 center              = 6 [default = 0];
+    required float  aspect_ratio            = 1;
+    required float  fov                     = 2;
+    required float  near_z                  = 3;
+    required float  far_z                   = 4;
+    optional uint32 auto_aspect_ratio       = 5 [default = 0];
+    optional uint32 orthographic_projection = 6 [default = 0];
+    optional float  orthographic_zoom       = 7 [default = 1.0];
 }
 
 /*# sets camera properties
