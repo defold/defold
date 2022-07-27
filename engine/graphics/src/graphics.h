@@ -601,6 +601,7 @@ namespace dmGraphics
     uint16_t GetTextureHeight(HTexture texture);
     uint16_t GetOriginalTextureWidth(HTexture texture);
     uint16_t GetOriginalTextureHeight(HTexture texture);
+    uint8_t GetNumTextureHandles(HTexture texture);
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit, HTexture texture);
     uint32_t GetMaxTextureSize(HContext context);

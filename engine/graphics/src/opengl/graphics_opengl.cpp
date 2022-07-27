@@ -379,6 +379,12 @@ static void LogFrameBufferError(GLenum status)
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
+    static inline bool IsTextureArraySupported()
+    {
+        // TODO
+        return false;
+    }
+
     static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
     {
         const GLenum primitive_type_lut[] = {
@@ -471,7 +477,7 @@ static void LogFrameBufferError(GLenum status)
         switch(type)
         {
             case TEXTURE_TYPE_2D:       return GL_TEXTURE_2D;
-            case TEXTURE_TYPE_2D_ARRAY: return GL_TEXTURE_2D_ARRAY;
+            case TEXTURE_TYPE_2D_ARRAY: return IsTextureArraySupported() ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D;
             case TEXTURE_TYPE_CUBE_MAP: return GL_TEXTURE_CUBE_MAP;
             default:break;
         }
@@ -664,7 +670,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
             DM_ALIGNED(16) uint8_t gpu_data[sizeof(data)];
             memset(gpu_data, 0x0, sizeof(gpu_data));
-            glBindTexture(GL_TEXTURE_2D, texture->m_Texture);
+            glBindTexture(GL_TEXTURE_2D, texture->m_TextureIds[0]);
             CHECK_GL_ERROR;
 
             GLuint osfb;
@@ -673,7 +679,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glBindFramebuffer(GL_FRAMEBUFFER, osfb);
             CHECK_GL_ERROR;
 
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->m_Texture, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->m_TextureIds[0], 0);
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
             {
                 GLint vp[4];
@@ -887,8 +893,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_WindowWidth = (uint32_t)width;
         context->m_WindowHeight = (uint32_t)height;
         context->m_Dpi = 0;
-
-
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
@@ -2070,7 +2074,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             rt->m_ColorBufferTexture[0] = NewTexture(context, creation_params[color_buffer_index]);
             SetTexture(rt->m_ColorBufferTexture[0], params[color_buffer_index]);
             // attach the texture to FBO color attachment point
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture[0]->m_Texture, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture[0]->m_TextureIds[0], 0);
             CHECK_GL_ERROR;
         }
     #else
@@ -2088,7 +2092,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 rt->m_ColorBufferTexture[i] = NewTexture(context, creation_params[color_buffer_index]);
                 SetTexture(rt->m_ColorBufferTexture[i], params[color_buffer_index]);
                 // attach the texture to FBO color attachment point
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rt->m_ColorBufferTexture[i]->m_Texture, 0);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rt->m_ColorBufferTexture[i]->m_TextureIds[0], 0);
                 CHECK_GL_ERROR;
             }
         }
@@ -2281,17 +2285,24 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static HTexture OpenGLNewTexture(HContext context, const TextureCreationParams& params)
     {
-        GLuint t;
-        glGenTextures( 1, &t );
+        uint16_t num_texture_ids = 1;
+
+        if (params.m_Type == TEXTURE_TYPE_2D_ARRAY && !IsTextureArraySupported())
+        {
+            num_texture_ids = params.m_Depth;
+        }
+
+        GLuint* t = (GLuint*) malloc(num_texture_ids * sizeof(GLuint));
+        glGenTextures(num_texture_ids, t);
         CHECK_GL_ERROR;
 
-        Texture* tex = new Texture;
-        tex->m_Type = params.m_Type;
-        tex->m_Texture = t;
-
-        tex->m_Width = params.m_Width;
-        tex->m_Height = params.m_Height;
-        tex->m_Depth = params.m_Depth;
+        Texture* tex         = new Texture;
+        tex->m_Type          = params.m_Type;
+        tex->m_TextureIds    = t;
+        tex->m_Width         = params.m_Width;
+        tex->m_Height        = params.m_Height;
+        tex->m_Depth         = params.m_Depth;
+        tex->m_NumTextureIds = num_texture_ids;
 
         if (params.m_OriginalWidth == 0){
             tex->m_OriginalWidth = params.m_Width;
@@ -2310,7 +2321,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLDoDeleteTexture(void* context)
     {
         HTexture texture = (HTexture)context;
-        glDeleteTextures(1, &texture->m_Texture);
+        glDeleteTextures(texture->m_NumTextureIds, texture->m_TextureIds);
         CHECK_GL_ERROR;
         delete texture;
     }
@@ -2420,6 +2431,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR
     }
 
+    static uint8_t OpenGLGetNumTextureHandles(HTexture texture)
+    {
+        return texture->m_NumTextureIds;
+    }
+
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
     {
         uint32_t flags = TEXTURE_STATUS_OK;
@@ -2475,7 +2491,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return HANDLE_RESULT_ERROR;
         }
 
-        *out_handle = &texture->m_Texture;
+        *out_handle = &texture->m_TextureIds[0];
 
         return HANDLE_RESULT_OK;
     }
@@ -2525,22 +2541,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
         GLenum type = GetOpenGLTextureType(texture->m_Type);
-        glBindTexture(type, texture->m_Texture);
-        CHECK_GL_ERROR;
-
-        texture->m_Params = params;
-        if (!params.m_SubUpdate) {
-            SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
-
-            if (params.m_MipMap == 0)
-            {
-                texture->m_Width  = params.m_Width;
-                texture->m_Height = params.m_Height;
-            }
-
-            if (params.m_MipMap == 0)
-                texture->m_ResourceSize = params.m_DataSize;
-        }
 
         GLenum gl_format;
         GLenum gl_type = GL_UNSIGNED_BYTE; // only used of uncompressed formats
@@ -2635,6 +2635,195 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             gl_format = 0;
             assert(0);
             break;
+        }
+
+        texture->m_Params = params;
+
+        if (!params.m_SubUpdate) {
+            if (params.m_MipMap == 0)
+            {
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+            }
+
+            if (params.m_MipMap == 0)
+                texture->m_ResourceSize = params.m_DataSize;
+        }
+
+        for (int i = 0; i < texture->m_NumTextureIds; ++i)
+        {
+            glBindTexture(type, texture->m_TextureIds[i]);
+            CHECK_GL_ERROR;
+
+            if (!params.m_SubUpdate) {
+                SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+            }
+
+            switch (params.m_Format)
+            {
+            case TEXTURE_FORMAT_LUMINANCE:
+            case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            case TEXTURE_FORMAT_RGB:
+            case TEXTURE_FORMAT_RGBA:
+            case TEXTURE_FORMAT_RGB_16BPP:
+            case TEXTURE_FORMAT_RGBA_16BPP:
+            case TEXTURE_FORMAT_RGB16F:
+            case TEXTURE_FORMAT_RGB32F:
+            case TEXTURE_FORMAT_RGBA16F:
+            case TEXTURE_FORMAT_RGBA32F:
+            case TEXTURE_FORMAT_R16F:
+            case TEXTURE_FORMAT_R32F:
+            case TEXTURE_FORMAT_RG16F:
+            case TEXTURE_FORMAT_RG32F:
+                if (texture->m_Type == TEXTURE_TYPE_2D) {
+                    assert(texture->m_NumTextureIds == 1);
+                    if (params.m_SubUpdate) {
+                        glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, params.m_Data);
+                    } else {
+                        glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
+                    }
+                    CHECK_GL_ERROR;
+                } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
+                    assert(texture->m_NumTextureIds == params.m_Depth);
+                    if (IsTextureArraySupported())
+                    {
+                        if (params.m_SubUpdate) {
+                            glTexSubImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                        } else {
+                            glTexImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
+                        }
+                    }
+                    else
+                    {
+                        const char* p = (const char*) params.m_Data;
+                        if (params.m_SubUpdate) {
+                            glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * i);
+                        } else {
+                            glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * i);
+                        }   
+                    }
+                    CHECK_GL_ERROR;
+                } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                    assert(texture->m_NumTextureIds == 1);
+                    const char* p = (const char*) params.m_Data;
+                    if (params.m_SubUpdate) {
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 0);
+                        CHECK_GL_ERROR;
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 1);
+                        CHECK_GL_ERROR;
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 2);
+                        CHECK_GL_ERROR;
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 3);
+                        CHECK_GL_ERROR;
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 4);
+                        CHECK_GL_ERROR;
+                        glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * 5);
+                        CHECK_GL_ERROR;
+                    } else {
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 0);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 1);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 2);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 3);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 4);
+                        CHECK_GL_ERROR;
+                        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * 5);
+                        CHECK_GL_ERROR;
+                    }
+                } else {
+                    assert(0);
+                }
+                break;
+
+            case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
+            case TEXTURE_FORMAT_RGB_ETC1:
+            case TEXTURE_FORMAT_R_ETC2:
+            case TEXTURE_FORMAT_RG_ETC2:
+            case TEXTURE_FORMAT_RGBA_ETC2:
+            case TEXTURE_FORMAT_RGBA_ASTC_4x4:
+            case TEXTURE_FORMAT_RGB_BC1:
+            case TEXTURE_FORMAT_RGBA_BC3:
+            case TEXTURE_FORMAT_R_BC4:
+            case TEXTURE_FORMAT_RG_BC5:
+            case TEXTURE_FORMAT_RGBA_BC7:
+                if (params.m_DataSize > 0) {
+                    if (texture->m_Type == TEXTURE_TYPE_2D) {
+                        if (params.m_SubUpdate) {
+                            glCompressedTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, params.m_Data);
+                        } else {
+                            glCompressedTexImage2D(GL_TEXTURE_2D, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, params.m_Data);
+                        }
+                        CHECK_GL_ERROR;
+                    } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
+                        if (params.m_SubUpdate) {
+                            glCompressedTexSubImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                        } else {
+                            glCompressedTexImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
+                        }
+                        CHECK_GL_ERROR;
+                    } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
+                        const char* p = (const char*) params.m_Data;
+                        if (params.m_SubUpdate) {
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 0);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 1);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 2);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 3);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 4);
+                            CHECK_GL_ERROR;
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
+                            CHECK_GL_ERROR;
+                        } else {
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 0);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 1);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 2);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 3);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 4);
+                            CHECK_GL_ERROR;
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
+                            CHECK_GL_ERROR;
+                        }
+                    } else {
+                        assert(0);
+                    }
+                }
+
+                break;
+            default:
+                assert(0);
+                break;
+            }
+        }
+
+        /*
+        glBindTexture(type, texture->m_TextureIds[0]);
+        CHECK_GL_ERROR;
+
+        texture->m_Params = params;
+        if (!params.m_SubUpdate) {
+            SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+
+            if (params.m_MipMap == 0)
+            {
+                texture->m_Width  = params.m_Width;
+                texture->m_Height = params.m_Height;
+            }
+
+            if (params.m_MipMap == 0)
+                texture->m_ResourceSize = params.m_DataSize;
         }
 
         switch (params.m_Format)
@@ -2769,6 +2958,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             assert(0);
             break;
         }
+        */
 
         glBindTexture(type, 0);
         CHECK_GL_ERROR;
@@ -2827,12 +3017,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
 #endif
 
-        glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR;
-        glBindTexture(GetOpenGLTextureType(texture->m_Type), texture->m_Texture);
-        CHECK_GL_ERROR;
+        for (int i = 0; i < texture->m_NumTextureIds; ++i)
+        {
+            glActiveTexture(TEXTURE_UNIT_NAMES[unit + i]);
+            CHECK_GL_ERROR;
+            glBindTexture(GetOpenGLTextureType(texture->m_Type), texture->m_TextureIds[i]);
+            CHECK_GL_ERROR;
 
-        SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
+            SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
+        }
     }
 
     static void OpenGLDisableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -2844,10 +3037,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
 #endif
 
-        glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
-        CHECK_GL_ERROR;
-        glBindTexture(GetOpenGLTextureType(texture->m_Type), 0);
-        CHECK_GL_ERROR;
+        for (int i = 0; i < texture->m_NumTextureIds; ++i)
+        {
+            glActiveTexture(TEXTURE_UNIT_NAMES[unit + i]);
+            CHECK_GL_ERROR;
+            glBindTexture(GetOpenGLTextureType(texture->m_Type), 0);
+            CHECK_GL_ERROR;
+        }
     }
 
     static void OpenGLReadPixels(HContext context, void* buffer, uint32_t buffer_size)
@@ -3203,6 +3399,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_IsExtensionSupported = OpenGLIsExtensionSupported;
         fn_table.m_GetNumSupportedExtensions = OpenGLGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = OpenGLGetSupportedExtension;
+        fn_table.m_GetNumTextureHandles = OpenGLGetNumTextureHandles;
         return fn_table;
     }
 }

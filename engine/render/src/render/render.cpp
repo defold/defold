@@ -745,6 +745,7 @@ namespace dmRender
             if (ro->m_SetFaceWinding)
                 dmGraphics::SetFaceWinding(context, ro->m_FaceWinding);
 
+            uint8_t next_bind_point = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
@@ -752,8 +753,11 @@ namespace dmRender
                     texture = render_context->m_Textures[i];
                 if (texture)
                 {
-                    dmGraphics::EnableTexture(context, i, texture);
+                    dmGraphics::EnableTexture(context, next_bind_point, texture);
+                    // TODO: Use next_bind_point for applymaterialsampler
                     ApplyMaterialSampler(render_context, material, i, texture);
+
+                    next_bind_point += dmGraphics::GetNumTextureHandles(texture);
                 }
 
             }

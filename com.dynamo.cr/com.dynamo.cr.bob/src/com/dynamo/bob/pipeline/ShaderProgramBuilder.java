@@ -111,6 +111,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                                 shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
 
+        // For testing
+        gles2Standard = true;
+
         // Write our directives.
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
             // Normally, the ES2ToES3Converter would do this
