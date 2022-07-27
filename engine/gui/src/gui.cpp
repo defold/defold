@@ -968,6 +968,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return GetNodeFlipbookAnimUVInternal(GetNode(scene, node));
     }
 
+    uint32_t GetNodeTexturePageIndex(HScene scene, HNode node)
+    {
+        InternalNode* in = GetNode(scene, node);
+        int32_t anim_frame = GetNodeAnimationFrameInternal(in);
+        if (anim_frame < 0)
+        {
+            return 0.0;
+        }
+        Node& n = in->m_Node;
+        TextureSetAnimDesc* anim_desc = &n.m_TextureSetAnimDesc;
+        uint32_t frame_index = anim_desc->m_FrameIndices[anim_frame];
+        return  anim_desc->m_PageIndices[frame_index];
+    }
+
     Vector4 CalculateReferenceScale(HScene scene, InternalNode* node)
     {
         float scale_x = 1.0f;

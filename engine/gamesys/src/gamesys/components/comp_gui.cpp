@@ -152,6 +152,7 @@ namespace dmGameSystem
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
                 {"color", 2, 4, dmGraphics::TYPE_FLOAT, true},
+                {"page_index", 3, 1, dmGraphics::TYPE_FLOAT, false},
         };
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
@@ -1129,9 +1130,10 @@ namespace dmGameSystem
         // Another way would be to use the vertex declaration, but that currently doesn't have an api
         // and the buffer is well suited for this.
         dmBuffer::StreamDeclaration boxvertex_stream_decl[] = {
-            {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
-            {dmHashString64("texcoord0"), dmBuffer::VALUE_TYPE_FLOAT32, 2},
-            {dmHashString64("color"), dmBuffer::VALUE_TYPE_FLOAT32, 4}
+            {dmHashString64("position"),   dmBuffer::VALUE_TYPE_FLOAT32, 3},
+            {dmHashString64("texcoord0"),  dmBuffer::VALUE_TYPE_FLOAT32, 2},
+            {dmHashString64("color"),      dmBuffer::VALUE_TYPE_FLOAT32, 4},
+            {dmHashString64("page_index"), dmBuffer::VALUE_TYPE_FLOAT32, 1}
         };
 
         uint32_t struct_size = 0;
@@ -1177,6 +1179,9 @@ namespace dmGameSystem
                 vertex.m_Color[1] = color.getY() * vertex.m_Color[1];
                 vertex.m_Color[2] = color.getZ() * vertex.m_Color[2];
                 vertex.m_Color[3] = color.getW() * vertex.m_Color[3];
+
+                // Do we need to support paged indices for custom nodes?
+                vertex.m_PageIndex = 0.0f;
             }
 
             if (gui_world->m_ClientVertexBuffer.Remaining() < node_vertex_count) {
@@ -1296,21 +1301,25 @@ namespace dmGameSystem
                 v00.SetColor(pm_color);
                 v00.SetPosition(node_transforms[i] * Point3(0, 0, 0));
                 v00.SetUV(0, 0);
+                v00.SetTexturePageIndex(0.0);
 
                 BoxVertex v10;
                 v10.SetColor(pm_color);
                 v10.SetPosition(node_transforms[i] * Point3(1, 0, 0));
                 v10.SetUV(1, 0);
+                v00.SetTexturePageIndex(0.0);
 
                 BoxVertex v01;
                 v01.SetColor(pm_color);
                 v01.SetPosition(node_transforms[i] * Point3(0, 1, 0));
                 v01.SetUV(0, 1);
+                v00.SetTexturePageIndex(0.0);
 
                 BoxVertex v11;
                 v11.SetColor(pm_color);
                 v11.SetPosition(node_transforms[i] * Point3(1, 1, 0));
                 v11.SetUV(1, 1);
+                v00.SetTexturePageIndex(0.0);
 
                 gui_world->m_ClientVertexBuffer.Push(v00);
                 gui_world->m_ClientVertexBuffer.Push(v10);
@@ -1327,16 +1336,22 @@ namespace dmGameSystem
             dmGameSystemDDF::TextureSet* texture_set_ddf = anim_desc ? (dmGameSystemDDF::TextureSet*)anim_desc->m_TextureSet : 0;
             bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
 
+            float page_index = 0.0;
             bool flip_u = false;
             bool flip_v = false;
             if (!manually_set_texture)
+            {
                 GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+            }
 
             // render using geometries without 9-slicing
             if (!use_slice_nine && use_geometries)
             {
                 int32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
                 frame_index = texture_set_ddf->m_FrameIndices[frame_index];
+
+                uint32_t page_indices_index = texture_set_ddf->m_FrameIndices[frame_index];
+                page_index                  = (float) texture_set_ddf->m_PageIndices[page_indices_index];
 
                 const dmGameSystemDDF::SpriteGeometry* geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
 
@@ -1370,7 +1385,7 @@ namespace dmGameSystem
                     float y = point[1] * scaleY + 0.5f;
 
                     Vector4 p = w * Point3(x, y, 0.0f);
-                    BoxVertex v(p, uv[0], uv[1], pm_color);
+                    BoxVertex v(p, uv[0], uv[1], pm_color, page_index);
                     gui_world->m_ClientVertexBuffer.Push(v);
                 }
 
@@ -1451,11 +1466,19 @@ namespace dmGameSystem
                 }
             }
 
+            page_index = (float) GetNodeTexturePageIndex(scene, node);
+
             BoxVertex v00, v10, v01, v11;
             v00.SetColor(pm_color);
             v10.SetColor(pm_color);
             v01.SetColor(pm_color);
             v11.SetColor(pm_color);
+
+            v00.SetTexturePageIndex(page_index);
+            v10.SetTexturePageIndex(page_index);
+            v01.SetTexturePageIndex(page_index);
+            v11.SetTexturePageIndex(page_index);
+
             for (int y=0;y<3;y++)
             {
                 for (int x=0;x<3;x++)
@@ -1610,6 +1633,8 @@ namespace dmGameSystem
             float u0,su,v0,sv;
             bool uv_rotated;
             const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+            float page_index = (float) dmGui::GetNodeTexturePageIndex(scene, node);
+
             if(tc)
             {
                 bool flip_u, flip_v;
@@ -1675,7 +1700,7 @@ namespace dmGameSystem
                 // make inner vertex
                 float u = 0.5f + innerMultiplier * c;
                 float v = 0.5f + innerMultiplier * s;
-                BoxVertex vInner(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
+                BoxVertex vInner(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color, page_index);
 
                 // make outer vertex
                 float d;
@@ -1686,7 +1711,7 @@ namespace dmGameSystem
 
                 u = 0.5f + d * c;
                 v = 0.5f + d * s;
-                BoxVertex vOuter(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color);
+                BoxVertex vOuter(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color, page_index);
 
                 // both inner & outer are doubled at first / last entry to generate degenerate triangles
                 // for the triangle strip, allowing more than one pie to be chained together in the same
@@ -1954,6 +1979,8 @@ namespace dmGameSystem
             out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
+            out_data->m_FrameIndices = (const uint32_t*) texture_set->m_FrameIndices.m_Data;
+            out_data->m_PageIndices = (const uint32_t*) texture_set->m_PageIndices.m_Data;
             out_data->m_TextureSet = (void*)texture_set;
             return dmGui::FETCH_ANIMATION_OK;
         }
