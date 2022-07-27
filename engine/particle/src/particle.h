@@ -101,6 +101,8 @@ namespace dmParticle
         void* m_Texture;
         float* m_TexCoords;
         float* m_TexDims;
+        uint32_t* m_PageIndices;
+        uint32_t* m_FrameIndices;
         AnimPlayback m_Playback;
         uint32_t m_TileWidth;
         uint32_t m_TileHeight;
@@ -218,6 +220,7 @@ namespace dmParticle
         // Offset 28
         float m_U, m_V;
         // Offset 36
+        float m_PageIndex;
     };
 
     /**
@@ -232,6 +235,7 @@ namespace dmParticle
         // Offset 20
         float    m_Color[4];
         // Offset 36
+        float m_PageIndex;
     };
 
     // For tests

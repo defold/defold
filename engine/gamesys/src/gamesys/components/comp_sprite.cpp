@@ -529,10 +529,9 @@ namespace dmGameSystem
 
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
 
-                uint32_t frame_index = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
-
-                uint32_t frame_index2 = frame_indices[frame_index];
-                uint32_t page_index  = page_indices[frame_index2]; // animation_ddf->m_PageIndex;
+                uint32_t frame_index        = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
+                uint32_t page_indices_index = frame_indices[frame_index];
+                uint32_t page_index         = page_indices[page_indices_index];
 
                 const float* tc = &tex_coords[frame_index * 4 * 2];
                 uint32_t flip_flag = 0;

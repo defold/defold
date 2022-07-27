@@ -111,11 +111,12 @@ namespace dmGameSystem
         world->m_EmitterCount = 0;
         dmGraphics::VertexElement ve[] =
         {
-            {"position",  0, 3, dmGraphics::TYPE_FLOAT, false},
-            {"color",     1, 4, dmGraphics::TYPE_FLOAT, true},
-            {"texcoord0", 2, 2, dmGraphics::TYPE_FLOAT, true},
+            {"position",   0, 3, dmGraphics::TYPE_FLOAT, false},
+            {"color",      1, 4, dmGraphics::TYPE_FLOAT, true},
+            {"texcoord0",  2, 2, dmGraphics::TYPE_FLOAT, true},
+            {"page_index", 3, 1, dmGraphics::TYPE_FLOAT, false},
         };
-        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
+        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 4);
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -572,6 +573,8 @@ namespace dmGameSystem
             out_data->m_Texture = texture_set_res->m_Texture;
             out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_TexDims = (float*) texture_set_res->m_TextureSet->m_TexDims.m_Data;
+            out_data->m_PageIndices = texture_set_res->m_TextureSet->m_PageIndices.m_Data;
+            out_data->m_FrameIndices = texture_set_res->m_TextureSet->m_FrameIndices.m_Data;
             dmGameSystemDDF::TextureSetAnimation* animation = &texture_set->m_Animations[*anim_index];
             out_data->m_FPS = animation->m_Fps;
             out_data->m_TileWidth = animation->m_Width;
