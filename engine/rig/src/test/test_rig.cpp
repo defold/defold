@@ -516,7 +516,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         ik_target.m_Mix      = 1.0f;
 
         // Calculate bind pose
-        dmRig::CreateBindPose(*skeleton, bind_pose);
+        dmRig::CopyBindPose(*skeleton, bind_pose);
 
         // Bone animations
         uint32_t animation_count = 11;

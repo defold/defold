@@ -103,7 +103,8 @@ struct BoneJNI
 struct NodeJNI
 {
     jclass      cls;
-    jfieldID    transform;
+    jfieldID    local;      // local transform
+    jfieldID    world;      // world transform
     jfieldID    name;
     jfieldID    index;
     jfieldID    parent;
@@ -243,7 +244,8 @@ static void InitializeJNITypes(JNIEnv* env)
         SETUP_CLASS(NodeJNI, "Node");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(index, "I");
-        GET_FLD(transform, "Transform");
+        GET_FLD(local, "Transform");
+        GET_FLD(world, "Transform");
         GET_FLD(parent, "Node");
         GET_FLD_ARRAY(children, "Node");
         GET_FLD(model, "Model");
@@ -384,7 +386,8 @@ static jobject CreateNode(JNIEnv* env, jclass cls, dmModelImporter::Node* node)
     jobject obj = env->AllocObject(g_NodeJNI.cls);
     SetFieldInt(env, obj, g_NodeJNI.index, node->m_Index);
     SetFieldString(env, obj, g_NodeJNI.name, node->m_Name);
-    SetFieldObject(env, obj, g_NodeJNI.transform, CreateTransform(env, &node->m_Transform));
+    SetFieldObject(env, obj, g_NodeJNI.local, CreateTransform(env, &node->m_Local));
+    SetFieldObject(env, obj, g_NodeJNI.world, CreateTransform(env, &node->m_World));
     return obj;
 }
 

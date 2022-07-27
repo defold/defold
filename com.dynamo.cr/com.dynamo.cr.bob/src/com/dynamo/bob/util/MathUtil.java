@@ -72,6 +72,11 @@ public class MathUtil {
         return b.build();
     }
 
+    public static Transform vecmathIdentityTransform() {
+        Transform.Builder b = Transform.newBuilder();
+        return b.setTranslation(vecmathToDDF(new Vector3d(0, 0, 0))).setRotation(vecmathToDDF(new Quat4d(0, 0, 0, 1))).setScale(vecmathToDDF(new Vector3d(1,1,1))).build();
+    }
+
     public static void rotate(Quat4d rotation, Point3d p) {
         Quat4d q = new Quat4d();
         // Needed to avoid normalization

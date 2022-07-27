@@ -30,6 +30,27 @@
 namespace dmModelImporter
 {
 
+// static void OutputTransform(const dmTransform::Transform& transform)
+// {
+//     printf("    t: %f, %f, %f\n", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
+//     printf("    r: %f, %f, %f, %f\n", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
+//     printf("    s: %f, %f, %f\n", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
+// }
+
+// static void printVector4(const dmVMath::Vector4& v)
+// {
+//     printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+// }
+
+// static void OutputMatrix(const dmTransform::Transform& transform)
+// {
+//     dmVMath::Matrix4 m = dmTransform::ToMatrix4(transform);
+//     printf("        "); printVector4(m.getRow(0));
+//     printf("        "); printVector4(m.getRow(1));
+//     printf("        "); printVector4(m.getRow(2));
+//     printf("        "); printVector4(m.getRow(3));
+// }
+
 static const char* getPrimitiveTypeStr(cgltf_primitive_type type)
 {
     switch(type)
@@ -232,6 +253,19 @@ static Skin* FindSkin(Scene* scene, const char* name)
     return 0;
 }
 
+static void UpdateWorldTransforms(Node* node)
+{
+    if (node->m_Parent)
+        node->m_World = dmTransform::Mul(node->m_Parent->m_World, node->m_Local);
+    else
+        node->m_World = node->m_Local;
+
+    for (uint32_t c = 0; c < node->m_ChildrenCount; ++c)
+    {
+        UpdateWorldTransforms(node->m_Children[c]);
+    }
+}
+
 static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 {
     scene->m_NodesCount = gltf_data->nodes_count;
@@ -249,8 +283,6 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         // We link them together later
         // node->m_Model = ...
 
-        //printf("node %s:  ", gltf_node->name);
-
         dmVMath::Vector3 scale = dmVMath::Vector3(1,1,1);
         dmVMath::Vector3 translation = dmVMath::Vector3(0,0,0);
         dmVMath::Quat rotation = dmVMath::Quat(0,0,0,1);
@@ -261,11 +293,6 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
             node->m_Skin = FindSkin(scene, gltf_node->skin->name);
         }
 
-        // if (gltf_node->weights)
-        //     printf("  Weights!");
-
-        //Transform(dmVMath::Vector3 translation, dmVMath::Quat rotation, dmVMath::Vector3 scale)
-
         if (gltf_node->has_translation)
             translation = dmVMath::Vector3(gltf_node->translation[0], gltf_node->translation[1], gltf_node->translation[2]);
         if (gltf_node->has_scale)
@@ -275,15 +302,11 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 
         if (gltf_node->has_matrix)
         {
-            node->m_Transform = ToTransform(gltf_node->matrix);
+            node->m_Local = ToTransform(gltf_node->matrix);
         }
         else {
-            node->m_Transform = dmTransform::Transform(translation, rotation, scale);
+            node->m_Local = dmTransform::Transform(translation, rotation, scale);
         }
-
-        //printf("\n");
-
-        //printf("    Node: %20s  mesh: %s  skin: %s\n", gltf_node->name, gltf_node->mesh?gltf_node->mesh->name:"-", gltf_node->skin?gltf_node->skin->name:"-");
     }
 
     // find all the parents and all the children
@@ -319,6 +342,8 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         if (node->m_Parent == 0)
         {
             scene->m_RootNodes[scene->m_RootNodesCount++] = node;
+
+            UpdateWorldTransforms(node);
         }
     }
 }
@@ -615,8 +640,8 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
         time_min = dmMath::Min(time_min, key_frames[i].m_Time);
         time_max = dmMath::Max(time_max, key_frames[i].m_Time);
     }
-    node_animation->m_StartTime = time_min;
-    node_animation->m_EndTime = time_max;
+    node_animation->m_StartTime = 0.0f;
+    node_animation->m_EndTime = time_max - time_min;
 
     uint32_t key_count = accessor->count;
     if (all_identical)
@@ -624,55 +649,23 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
         key_count = 1;
     }
 
-    const dmTransform::Transform node_transform = node_animation->m_Node->m_Transform;
+    for (uint32_t i = 0; i < key_count; ++i)
+    {
+        key_frames[i].m_Time -= time_min;
+    }
 
     if (channel->target_path == cgltf_animation_path_type_translation)
     {
-        float inv_px = node_transform.GetTranslation().getX();
-        float inv_py = node_transform.GetTranslation().getY();
-        float inv_pz = node_transform.GetTranslation().getZ();
-
-        for (uint32_t i = 0; i < key_count; ++i)
-        {
-            key_frames[i].m_Value[0] -= inv_px;
-            key_frames[i].m_Value[1] -= inv_py;
-            key_frames[i].m_Value[2] -= inv_pz;
-        }
-
         node_animation->m_TranslationKeys = key_frames;
         node_animation->m_TranslationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_rotation)
     {
-        const dmVMath::Quat& inv_rot = inverse_transform.GetRotation();
-
-        for (uint32_t i = 0; i < key_count; ++i)
-        {
-            dmVMath::Quat key_rot = dmVMath::Quat(key_frames[i].m_Value[0], key_frames[i].m_Value[1], key_frames[i].m_Value[2], key_frames[i].m_Value[3]);
-            key_rot = inv_rot * key_rot;
-
-            key_frames[i].m_Value[0] = key_rot.getX();
-            key_frames[i].m_Value[1] = key_rot.getY();
-            key_frames[i].m_Value[2] = key_rot.getZ();
-            key_frames[i].m_Value[3] = key_rot.getW();
-        }
-
         node_animation->m_RotationKeys = key_frames;
         node_animation->m_RotationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_scale)
     {
-        float inv_sx = node_transform.GetScale().getX();
-        float inv_sy = node_transform.GetScale().getY();
-        float inv_sz = node_transform.GetScale().getZ();
-
-        for (uint32_t i = 0; i < key_count; ++i)
-        {
-            key_frames[i].m_Value[0] /= inv_sx;
-            key_frames[i].m_Value[1] /= inv_sy;
-            key_frames[i].m_Value[2] /= inv_sz;
-        }
-
         node_animation->m_ScaleKeys = key_frames;
         node_animation->m_ScaleKeysCount = key_count;
     } else
@@ -786,8 +779,6 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     // Make sure the skins have only one root node
     GenerateBoneRoots(scene);
-
-    //DebugStructScene(scene);
 
     return scene;
 }

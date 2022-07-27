@@ -78,7 +78,8 @@ namespace dmModelImporter
 
     struct DM_ALIGNED(16) Node
     {
-        dmTransform::Transform  m_Transform;    // The local transform
+        dmTransform::Transform  m_Local;        // The local transform
+        dmTransform::Transform  m_World;        // The world transform
         const char*             m_Name;
         Model*                  m_Model;        // not all nodes have a mesh
         Skin*                   m_Skin;         // not all nodes have a skin

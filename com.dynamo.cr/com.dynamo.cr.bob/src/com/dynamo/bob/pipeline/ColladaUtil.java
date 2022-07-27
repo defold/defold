@@ -314,8 +314,6 @@ public class ColladaUtil {
             Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
             animTrackBuilder.setBoneIndex(boneIndex);
 
-            //System.out.printf("sampleScaleTrack: st: %f  dur: %f  sr: %f  spf: %f\n", (float)startTime, (float)duration, (float)sampleRate, (float)spf);
-
             RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
             RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true);
             animBuilder.addTracks(animTrackBuilder.build());
@@ -498,6 +496,10 @@ public class ColladaUtil {
             Iterator<Entry<String, XMLAnimation>> it = libraryAnimation.animations.entrySet().iterator();
             while (it.hasNext()) {
                 XMLAnimation animation = (XMLAnimation)it.next().getValue();
+                if (animation.channels.size() == 0) {
+                    continue;
+                }
+
                 String boneTarget = animation.getTargetBone();
                 if (!boneToAnimations.containsKey(animation.getTargetBone())) {
                     boneToAnimations.put(boneTarget, new ArrayList<XMLAnimation>());
@@ -813,7 +815,7 @@ public class ColladaUtil {
         MathUtil.decompose(transformd, tPos, tRot, tScale);
         Transform transform = MathUtil.vecmathToDDF(tPos, tRot, tScale);
 
-        modelBuilder.setTransform(transform);
+        modelBuilder.setLocal(transform);
 
         meshSetBuilder.addModels(modelBuilder);
         meshSetBuilder.setMaxBoneCount(max_bone_count);
@@ -1052,9 +1054,12 @@ public class ColladaUtil {
             return;
         }
 
+        Matrix4d identity = new Matrix4d();
+        identity.setIdentity();
+
         // Generate DDF representation of bones.
         ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones = new ArrayList<com.dynamo.rig.proto.Rig.Bone>();
-        toDDF(ddfBones, boneList.get(0), BONE_NO_PARENT);
+        toDDF(ddfBones, boneList.get(0), BONE_NO_PARENT, identity);
         skeletonBuilder.addAllBones(ddfBones);
     }
 
@@ -1104,14 +1109,19 @@ public class ColladaUtil {
 
     // Generate skeleton DDF data of bones.
     // It will extract the position, rotation and scale from the bone transform as needed by the runtime.
-    private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones, Bone bone, int parentIndex) {
+    private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones, Bone bone, int parentIndex, Matrix4d parentWorldTransform) {
         com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
         b.setName(bone.getName());
         b.setParent(parentIndex);
         b.setId(MurmurHash.hash64(bone.getSourceId()));
 
-        Matrix4d matrix = new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
+        // I don't know why they named the local matrix "bindMatrix" /MAWE
+        Matrix4d localMatrix = new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
+        Matrix4d worldMatrix = new Matrix4d();
+        worldMatrix.mul(parentWorldTransform, localMatrix);
+        Matrix4d invBindMatrix = new Matrix4d(worldMatrix);
+        invBindMatrix.invert();
 
         /*
          * Decompose pos, rot and scale from bone matrix.
@@ -1119,10 +1129,18 @@ public class ColladaUtil {
         Vector3d position = new Vector3d();
         Quat4d rotation = new Quat4d();
         Vector3d scale = new Vector3d();
-        MathUtil.decompose(matrix, position, rotation, scale);
+        MathUtil.decompose(localMatrix, position, rotation, scale);
 
-        Transform transform = MathUtil.vecmathToDDF(position, rotation, scale);
-        b.setTransform(transform);
+        Transform local = MathUtil.vecmathToDDF(position, rotation, scale);
+        b.setLocal(local);
+
+        MathUtil.decompose(worldMatrix, position, rotation, scale);
+        Transform world = MathUtil.vecmathToDDF(position, rotation, scale);
+        b.setWorld(world);
+
+        MathUtil.decompose(invBindMatrix, position, rotation, scale);
+        Transform inv_bind_pose = MathUtil.vecmathToDDF(position, rotation, scale);
+        b.setInverseBindPose(inv_bind_pose);
 
         /*
          * Collada "bones" are just joints and don't have any length.
@@ -1138,7 +1156,7 @@ public class ColladaUtil {
 
         for(int i = 0; i < bone.numChildren(); i++) {
             Bone childBone = bone.getChild(i);
-            toDDF(ddfBones, childBone, parentIndex);
+            toDDF(ddfBones, childBone, parentIndex, worldMatrix);
         }
     }
 
@@ -1227,38 +1245,12 @@ public class ColladaUtil {
         ArrayList<ModelImporter.Bone> bones = new ArrayList<>();
         for (Bone colladaBone : colladaBones)
         {
-
-            Vector3d translation = new Vector3d();
-            Quat4d rotation = new Quat4d();
-            Vector3d scale = new Vector3d();
-            //MathUtil.decompose(colladaBone.invBindMatrix, translation, rotation, scale);
-
-            Matrix4d mat = new Matrix4d(MathUtil.vecmath2ToVecmath1(colladaBone.invBindMatrix));
-            MathUtil.decompose(mat, translation, rotation, scale);
-
-            ModelImporter.Transform transform = new ModelImporter.Transform();
-            transform.translation = new ModelImporter.Vec4();
-            transform.translation.x = (float)translation.getX();
-            transform.translation.y = (float)translation.getY();
-            transform.translation.z = (float)translation.getZ();
-            transform.scale = new ModelImporter.Vec4();
-            transform.scale.x = (float)scale.getX();
-            transform.scale.y = (float)scale.getY();
-            transform.scale.z = (float)scale.getZ();
-            transform.rotation = new ModelImporter.Vec4();
-            transform.rotation.x = (float)rotation.getX();
-            transform.rotation.y = (float)rotation.getY();
-            transform.rotation.z = (float)rotation.getZ();
-            transform.rotation.z = (float)rotation.getW();
-
             ModelImporter.Bone bone = new ModelImporter.Bone();
             bone.name           = colladaBone.getSourceId();
             bone.parent         = null; // Do we need it in the editor?
             bone.node           = null;
             bone.index          = bones.size();
-
-            bone.invBindPose    = transform;
-            //bone.invBindPose    = MathUtil.vecmathToDDF(translation, rotation, scale);
+            bone.invBindPose    = null;
 
             bones.add(bone);
         }
@@ -1293,9 +1285,12 @@ public class ColladaUtil {
             return;
         }
 
+        Matrix4d identity = new Matrix4d();
+        identity.setIdentity();
+
         // Generate DDF representation of bones.
         ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones = new ArrayList<>();
-        toDDF(ddfBones, boneList.get(0), BONE_NO_PARENT);
+        toDDF(ddfBones, boneList.get(0), BONE_NO_PARENT, identity);
         skeletonBuilder.addAllBones(ddfBones);
     }
 

@@ -688,7 +688,7 @@ namespace dmGameSystem
         {
             MeshRenderItem& item = component->m_RenderItems[i];
             dmRigDDF::Model* model = item.m_Model;
-            item.m_World = world * dmTransform::ToMatrix4(model->m_Transform);
+            item.m_World = world * dmTransform::ToMatrix4(model->m_Local);
         }
     }
 

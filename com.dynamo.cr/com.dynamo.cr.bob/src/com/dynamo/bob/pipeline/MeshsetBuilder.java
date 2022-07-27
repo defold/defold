@@ -153,8 +153,11 @@ public class MeshsetBuilder extends Builder<Void>  {
         // Animationset
         {
             ArrayList<ModelImporter.Bone> skeleton = ModelUtil.loadSkeleton(scene);
+
             AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
-            ModelUtil.loadAnimations(scene, skeleton, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
+            if (skeleton.size() > 0) {
+                ModelUtil.loadAnimations(scene, skeleton, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
+            }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
             animationSetBuilder.build().writeTo(out);

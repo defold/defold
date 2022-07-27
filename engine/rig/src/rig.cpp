@@ -22,9 +22,49 @@
 #include <dmsdk/dlib/object_pool.h>
 #include <graphics/graphics.h>
 
+#include <stdio.h>
+
+static bool IS_COLLADA = getenv("COLLADA") != 0;
+static bool IS_GLTF = !IS_COLLADA;
+
 namespace dmRig
 {
     using namespace dmVMath;
+
+    static void printVector4(const Vector4& v)
+    {
+        printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+    }
+
+    static void printTransform(uint32_t index, const dmRigDDF::Bone* bone, const Matrix4& pose, const Matrix4& transform)
+    {
+        printf("Bone: %u: %s\n", index, bone->m_Name);
+        printf("    pose:\n");
+        printf("        "); printVector4(pose.getRow(0));
+        printf("        "); printVector4(pose.getRow(1));
+        printf("        "); printVector4(pose.getRow(2));
+        printf("        "); printVector4(pose.getRow(3));
+        printf("    out:\n");
+        printf("        "); printVector4(transform.getRow(0));
+        printf("        "); printVector4(transform.getRow(1));
+        printf("        "); printVector4(transform.getRow(2));
+        printf("        "); printVector4(transform.getRow(3));
+    }
+
+    static void printMatrix(const Matrix4& transform)
+    {
+        printf("    "); printVector4(transform.getRow(0));
+        printf("    "); printVector4(transform.getRow(1));
+        printf("    "); printVector4(transform.getRow(2));
+        printf("    "); printVector4(transform.getRow(3));
+    }
+    static void printTransform(const dmTransform::Transform& transform)
+    {
+        printf("    pos: %f, %f, %f\n",transform.GetTranslation().getX(),transform.GetTranslation().getY(),transform.GetTranslation().getZ());
+        printf("    rot: %f, %f, %f, %f\n",transform.GetRotation().getX(),transform.GetRotation().getY(),transform.GetRotation().getZ(),transform.GetRotation().getW());
+        printf("    scl: %f, %f, %f\n",transform.GetScale().getX(),transform.GetScale().getY(),transform.GetScale().getZ());
+        printf("\n");
+    }
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const float CURSOR_EPSILON = 0.0001f;
@@ -136,10 +176,10 @@ namespace dmRig
         } else {
             player->m_Backwards = 0;
         }
-
+offset = 0.0f;
         SetCursor(instance, offset, true);
         SetPlaybackRate(instance, playback_rate);
-
+//player->m_Playing = 0;
         return dmRig::RESULT_OK;
     }
 
@@ -178,47 +218,6 @@ namespace dmRig
         instance->m_Model = 0;
         instance->m_ModelId = 0;
         instance->m_DoRender = 0;
-        return dmRig::RESULT_ERROR;
-    }
-
-    Result SetMeshSlot(HRigInstance instance, dmhash_t mesh_id, dmhash_t slot_id)
-    {
-        // const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
-        // const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
-
-        // // Find slot
-        // for (uint32_t i = 0; i < mesh_entry->m_MeshSlots.m_Count; ++i)
-        // {
-        //     if (slot_id == mesh_entry->m_MeshSlots[i].m_Id)
-        //     {
-        //         // Find skin
-        //         for (uint32_t j = 0; j < mesh_set->m_MeshEntries.m_Count; ++j)
-        //         {
-        //             if (mesh_id == mesh_set->m_MeshEntries[j].m_Id)
-        //             {
-        //                 const dmRigDDF::MeshSlot* mesh_slot = &mesh_set->m_MeshEntries[j].m_MeshSlots[i];
-        //                 MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[i];
-
-        //                 // Update mesh pose
-        //                 mesh_slot_pose->m_ActiveAttachment = mesh_slot->m_ActiveIndex;
-        //                 mesh_slot_pose->m_MeshSlot = mesh_slot;
-
-        //                 // Get color for slot
-        //                 const float* slot_color = mesh_slot->m_SlotColor.m_Count ? mesh_slot->m_SlotColor.m_Data : white;
-
-        //                 mesh_slot_pose->m_SlotColor[0] = slot_color[0];
-        //                 mesh_slot_pose->m_SlotColor[1] = slot_color[1];
-        //                 mesh_slot_pose->m_SlotColor[2] = slot_color[2];
-        //                 mesh_slot_pose->m_SlotColor[3] = slot_color[3];
-
-        //                 return dmRig::RESULT_OK;
-        //             }
-        //         }
-
-        //         return dmRig::RESULT_ERROR;
-        //     }
-        // }
-
         return dmRig::RESULT_ERROR;
     }
 
@@ -542,6 +541,32 @@ namespace dmRig
         }
     }
 
+    static bool IsBoneAnimated(RigPlayer* player, uint32_t bone_index, bool* translation, bool* rotation, bool* scale)
+    {
+        const dmRigDDF::RigAnimation* animation = player->m_Animation;
+        if (animation == 0x0)
+            return false;
+
+        *translation = false;
+        *rotation = false;
+        *scale = false;
+
+        uint32_t track_count = animation->m_Tracks.m_Count;
+        for (uint32_t i = 0; i < track_count; ++i)
+        {
+            const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[i];
+            uint32_t bone_index = track->m_BoneIndex;
+            if (track->m_BoneIndex != bone_index)
+                continue;
+
+            *translation = *translation || track->m_Positions.m_Count > 0;
+            *rotation = *rotation || track->m_Rotations.m_Count > 0;
+            *scale = *scale || track->m_Scale.m_Count > 0;
+        }
+
+        return *translation || *rotation || *scale;
+    }
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
             // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
@@ -625,10 +650,57 @@ namespace dmRig
                         rotation = normalize(rotation);
                     t.SetRotation(rotation);
                 }
-                const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
-                t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
-                t.SetRotation(bind_t.GetRotation() * t.GetRotation());
-                t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
+
+                bool debug = false; //bi == 3 || bi == 4;
+
+                if (debug)
+                {
+                    dmLogWarning("Bone index: %u", bi);
+                    printTransform(t);
+                    dmLogWarning("  m_LocalToParent");
+                    printTransform(bind_pose[bi].m_LocalToParent);
+                }
+
+                if (IS_GLTF)
+                {
+                    bool anim_pos = false;
+                    bool anim_rot = false;
+                    bool anim_scl = false;
+                    IsBoneAnimated(player, bi, &anim_pos, &anim_rot, &anim_scl);
+
+                    const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
+                    if (!anim_pos)
+                    {
+                        t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
+                        printf("setting default translation\n");
+                    }
+                    if (!anim_rot)
+                    {
+                        t.SetRotation(bind_t.GetRotation() * t.GetRotation());
+                        printf("setting default rotation\n");
+                    }
+                    if (!anim_scl)
+                    {
+                        t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
+                        printf("setting default scale\n");
+                    }
+                }
+                //if (bi != 3 && IS_GLTF)
+                // if (IS_GLTF)
+                // {
+                //     const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
+                //     t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
+                //     t.SetRotation(bind_t.GetRotation() * t.GetRotation());
+                //     t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
+                // }
+
+                if (IS_COLLADA)
+                {
+                    const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
+                    t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
+                    t.SetRotation(bind_t.GetRotation() * t.GetRotation());
+                    t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
+                }
             }
 
             if (skeleton->m_Iks.m_Count > 0) {
@@ -725,13 +797,6 @@ namespace dmRig
 
         return PostUpdate(context);
     }
-
-    // static void AllocateMeshSlotPose(const dmRig::MeshSet* mesh_set, dmArray<MeshSlotPose>& mesh_slot_pose, dmArray<int32_t>& draw_order) {
-    //     mesh_slot_pose.SetCapacity(mesh_set->m_SlotCount);
-    //     mesh_slot_pose.SetSize(mesh_set->m_SlotCount);
-    //     draw_order.SetCapacity(mesh_set->m_SlotCount);
-    //     draw_order.SetSize(mesh_set->m_SlotCount);
-    // }
 
     static dmRig::Result CreatePose(HRigContext context, HRigInstance instance)
     {
@@ -1206,7 +1271,7 @@ namespace dmRig
             PoseToInfluence(*instance->m_PoseIdxToInfluence, pose_matrices, influence_matrices);
         }
 
-        dmVMath::Matrix4 mesh_matrix = dmTransform::ToMatrix4(model->m_Transform);
+        dmVMath::Matrix4 mesh_matrix = dmTransform::ToMatrix4(model->m_Local);
         dmVMath::Matrix4 world_matrix = instance_matrix * mesh_matrix;
 
         Matrix4 normal_matrix = Vectormath::Aos::inverse(world_matrix);
@@ -1443,7 +1508,7 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-    void CreateBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose)
+    void CopyBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose)
     {
         uint32_t bone_count = skeleton.m_Bones.m_Count;
         bind_pose.SetCapacity(bone_count);
@@ -1452,20 +1517,10 @@ namespace dmRig
         {
             dmRig::RigBone* bind_bone = &bind_pose[i];
             dmRigDDF::Bone* bone = &skeleton.m_Bones[i];
-            bind_bone->m_LocalToParent = bone->m_Transform;
-            if (i > 0)
-            {
-                bind_bone->m_LocalToModel = dmTransform::Mul(bind_pose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-                if (!bone->m_InheritScale)
-                {
-                    bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-                }
-            }
-            else
-            {
-                bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-            }
-            bind_bone->m_ModelToLocal = inverse(dmTransform::ToMatrix4(bind_bone->m_LocalToModel));
+            bind_bone->m_LocalToParent = bone->m_Local;
+            bind_bone->m_LocalToModel = bone->m_World;
+            bind_bone->m_ModelToLocal = dmTransform::ToMatrix4(bone->m_InverseBindPose);
+
             bind_bone->m_ParentIndex = bone->m_Parent;
             bind_bone->m_Length = bone->m_Length;
         }

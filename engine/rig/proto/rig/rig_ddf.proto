@@ -16,10 +16,12 @@ message Bone
     required uint32 parent = 1;
     required uint64 id = 2;
     required string name = 3; // For easier debugging at runtime
-    required dmMath.Transform transform = 4 [(field_align)=true];
+    required dmMath.Transform local = 4 [(field_align)=true];
+    required dmMath.Transform world = 5 [(field_align)=true];
+    required dmMath.Transform inverse_bind_pose = 6 [(field_align)=true];
 
-    optional bool inherit_scale = 5 [default = true];
-    optional float length = 6 [default = 0];
+    optional bool inherit_scale = 7 [default = true];
+    optional float length = 8 [default = 0];
 }
 
 message IK
@@ -137,7 +139,7 @@ message Model // E.g. the Node in the Scene
 {
     option (struct_align) = true;
 
-    required dmMath.Transform   transform   = 1 [(field_align)=true];
+    required dmMath.Transform   local       = 1 [(field_align)=true];
     required uint64             id          = 2;    // E.g. "torso", "head". Or simply "character"
     repeated Mesh               meshes      = 3;
 }

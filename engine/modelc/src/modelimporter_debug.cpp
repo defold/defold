@@ -88,8 +88,11 @@ static void OutputSkin(Skin* skin, int indent)
 
 static void OutputNode(Node* node)
 {
-    printf("Node: %s : ", node->m_Name);
-    OutputTransform(node->m_Transform);
+    printf("Node: %s : \n", node->m_Name);
+    printf("  local\n");
+    OutputTransform(node->m_Local);
+    printf("\n  world\n");
+    OutputTransform(node->m_World);
     printf("\n");
 }
 
@@ -236,7 +239,8 @@ static void DebugStructNode(Node* node, int indent)
 {
     OutputIndent(indent); printf("Node: %p\n", node);
     assert(node->m_Name);
-    OutputIndent(indent); printf("  m_Transform: .\n");
+    OutputIndent(indent); printf("  m_Local: .\n");
+    OutputIndent(indent); printf("  m_World: .\n");
     OutputIndent(indent); printf("  m_Name: %p (%s)\n", node->m_Name, node->m_Name);
     OutputIndent(indent); printf("  m_Model: %p\n", node->m_Model);
     OutputIndent(indent); printf("  m_Skin: %p\n", node->m_Skin);

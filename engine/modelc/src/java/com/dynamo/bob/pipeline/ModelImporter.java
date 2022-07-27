@@ -144,7 +144,8 @@ public class ModelImporter {
     }
 
     public static class Node {
-        public Transform    transform;
+        public Transform    local;
+        public Transform    world;
         public String       name;
         public int          index;
         public Node         parent;
@@ -222,7 +223,12 @@ public class ModelImporter {
     private static void DebugPrintNode(Node node, int indent) {
         PrintIndent(indent);
         System.out.printf("Node: %s  idx: %d   mesh: %s\n", node.name, node.index, node.model==null?"null":node.model.name);
-        DebugPrintTransform(node.transform, indent+1);
+
+        PrintIndent(indent+1); System.out.printf("local\n");
+        DebugPrintTransform(node.local, indent+1);
+
+        PrintIndent(indent+1); System.out.printf("world\n");
+        DebugPrintTransform(node.world, indent+1);
     }
 
     private static void DebugPrintTree(Node node, int indent) {

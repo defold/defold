@@ -501,18 +501,13 @@ dmLogWarning("Loading model %s", filename);
         resource->m_Materials.SetCapacity(mesh_set->m_Materials.m_Count);
         for (uint32_t i = 0; i < mesh_set->m_Materials.m_Count; ++i)
         {
-            printf("resource->m_Model->m_Material: %s\n", resource->m_Model->m_Material);
             // TODO: Map the model materials to the mesh materials!
             dmRender::HMaterial material;
             result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &material);
             if (result != dmResource::RESULT_OK)
             {
-
-            printf("Failed to load material: %d\n", result);
                 return result;
             }
-
-            printf("pushing material: %p\n", (void*)material);
 
             // TODO: Get the proper materials
             // Currently the Model only has support for one material
