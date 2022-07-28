@@ -551,6 +551,9 @@ static void GenerateBoneRoots(Scene* scene)
             bone->m_Index = 0;
             bone->m_ParentIndex = INVALID_INDEX;
             bone->m_Name = strdup("_generated_root");
+            bone->m_InvBindPose = dmTransform::Transform(dmVMath::Vector3(0,0,0),
+                                                         dmVMath::Quat(0,0,0,1),
+                                                         dmVMath::Vector3(1,1,1));
 
             Bone* prev_bones = skin->m_Bones;
             skin->m_Bones = new_bones;
