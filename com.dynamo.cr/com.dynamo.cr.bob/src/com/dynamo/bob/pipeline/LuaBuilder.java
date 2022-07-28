@@ -202,8 +202,47 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         Map<String, String> env = new HashMap<String, String>();
 
-        return constructBytecode(task, source, inputFile, outputFile, options, env);
+        byte[] bytecode = constructBytecode(task, source, inputFile, outputFile, options, env);
 
+        // we need to patch the bytecode with the proper filename for the chunk and not the
+        // temporary filename (outputFile created above)
+        //
+        // we do this by first reading the length of the tmp name from the bytecode
+        // next we create the actual name from the original filename, taken from the task
+        // finally we create the new bytecode
+
+        final int LUAC_HEADERSIZE = 12; // from lundump.c
+
+        // read length of tmp chunkname
+        final int tmpChunkNameLength = bytecode[LUAC_HEADERSIZE]
+            + (bytecode[LUAC_HEADERSIZE + 1] << 8)
+            + (bytecode[LUAC_HEADERSIZE + 2] << 16)
+            + (bytecode[LUAC_HEADERSIZE + 3] << 24);
+
+        // the new chunkname, created from the original filename
+        final String chunkName = "@" + task.input(0).getPath();
+        final byte[] chunkNameBytes = chunkName.getBytes();
+        final int chunkNameLength = chunkNameBytes.length;
+
+        // create new bytecode
+        // write Lua header
+        // write real chunkname length
+        // write real chunkname bytes + null termination
+        // write rest of bytecode
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(bytecode.length - tmpChunkNameLength + chunkNameLength + 1);
+        baos.write(bytecode, 0, LUAC_HEADERSIZE);
+        baos.write(chunkNameLength & 0xff);
+        baos.write((chunkNameLength >> 8) & 0xff);
+        baos.write((chunkNameLength >> 16) & 0xff);
+        baos.write((chunkNameLength >> 24) & 0xff);
+        baos.write(chunkNameBytes);
+        baos.write(0);
+        baos.write(bytecode, 12 + 4 + tmpChunkNameLength + 1, bytecode.length - LUAC_HEADERSIZE - 4 - tmpChunkNameLength - 1);
+
+        // get new bytes
+        bytecode = baos.toByteArray();
+        baos.close();
+        return bytecode;
     }
 
     public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
