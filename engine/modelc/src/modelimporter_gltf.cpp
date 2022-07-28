@@ -30,26 +30,26 @@
 namespace dmModelImporter
 {
 
-// static void OutputTransform(const dmTransform::Transform& transform)
-// {
-//     printf("    t: %f, %f, %f\n", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
-//     printf("    r: %f, %f, %f, %f\n", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
-//     printf("    s: %f, %f, %f\n", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
-// }
+static void OutputTransform(const dmTransform::Transform& transform)
+{
+    printf("    t: %f, %f, %f\n", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
+    printf("    r: %f, %f, %f, %f\n", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
+    printf("    s: %f, %f, %f\n", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
+}
 
-// static void printVector4(const dmVMath::Vector4& v)
-// {
-//     printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
-// }
+static void printVector4(const dmVMath::Vector4& v)
+{
+    printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+}
 
-// static void OutputMatrix(const dmTransform::Transform& transform)
-// {
-//     dmVMath::Matrix4 m = dmTransform::ToMatrix4(transform);
-//     printf("        "); printVector4(m.getRow(0));
-//     printf("        "); printVector4(m.getRow(1));
-//     printf("        "); printVector4(m.getRow(2));
-//     printf("        "); printVector4(m.getRow(3));
-// }
+static void OutputMatrix(const dmTransform::Transform& transform)
+{
+    dmVMath::Matrix4 m = dmTransform::ToMatrix4(transform);
+    printf("        "); printVector4(m.getRow(0));
+    printf("        "); printVector4(m.getRow(1));
+    printf("        "); printVector4(m.getRow(2));
+    printf("        "); printVector4(m.getRow(3));
+}
 
 static const char* getPrimitiveTypeStr(cgltf_primitive_type type)
 {
@@ -539,36 +539,55 @@ static void GenerateBoneRoots(Scene* scene)
                 ++num_root_nodes;
         }
 
-        if (num_root_nodes > 1)
+        if (num_root_nodes <= 1)
+            return;
+
+        // We require 1 root node
+
+        // Create the new array
+        Bone* new_bones = new Bone[skin->m_BonesCount+1];
+        memcpy(new_bones+1, skin->m_Bones, sizeof(Bone)*skin->m_BonesCount);
+
+        Bone* bone = &new_bones[0];
+        memset(bone, 0, sizeof(Bone));
+        bone->m_Index = 0;
+        bone->m_ParentIndex = INVALID_INDEX;
+        bone->m_Name = strdup("_generated_root");
+        bone->m_InvBindPose = dmTransform::Transform(dmVMath::Vector3(0,0,0),
+                                                     dmVMath::Quat(0,0,0,1),
+                                                     dmVMath::Vector3(1,1,1));
+
+        Bone* prev_bones = skin->m_Bones;
+        skin->m_Bones = new_bones;
+        skin->m_BonesCount++;
+        delete[] prev_bones;
+
+        // Update the indices
+        for (uint32_t j = 1; j < skin->m_BonesCount; ++j)
         {
-            // We require 1 root node
+            Bone* bone = &skin->m_Bones[j];
+            bone->m_Index++;
+            if (bone->m_ParentIndex == INVALID_INDEX)
+                bone->m_ParentIndex = 0;
+            else
+                bone->m_ParentIndex++;
+        }
 
-            // Create the new array
-            Bone* new_bones = new Bone[skin->m_BonesCount+1];
-            memcpy(new_bones+1, skin->m_Bones, sizeof(Bone)*skin->m_BonesCount);
-            Bone* bone = &new_bones[0];
-            memset(bone, 0, sizeof(Bone));
-            bone->m_Index = 0;
-            bone->m_ParentIndex = INVALID_INDEX;
-            bone->m_Name = strdup("_generated_root");
-            bone->m_InvBindPose = dmTransform::Transform(dmVMath::Vector3(0,0,0),
-                                                         dmVMath::Quat(0,0,0,1),
-                                                         dmVMath::Vector3(1,1,1));
-
-            Bone* prev_bones = skin->m_Bones;
-            skin->m_Bones = new_bones;
-            skin->m_BonesCount++;
-            delete[] prev_bones;
-
-            // Update the indices
-            for (uint32_t j = 1; j < skin->m_BonesCount; ++j)
+        // Update the vertex influences
+        for (uint32_t i = 0; i < scene->m_ModelsCount; ++i)
+        {
+            Model* model = &scene->m_Models[i];
+            for (uint32_t j = 0; j < model->m_MeshesCount; ++j)
             {
-                Bone* bone = &skin->m_Bones[j];
-                bone->m_Index++;
-                if (bone->m_ParentIndex == INVALID_INDEX)
-                    bone->m_ParentIndex = 0;
-                else
-                    bone->m_ParentIndex++;
+                Mesh* mesh = &model->m_Meshes[j];
+
+                for (uint32_t v = 0; v < mesh->m_VertexCount; ++v)
+                {
+                    mesh->m_Bones[v*4+0]++;
+                    mesh->m_Bones[v*4+1]++;
+                    mesh->m_Bones[v*4+2]++;
+                    mesh->m_Bones[v*4+3]++;
+                }
             }
         }
     }
@@ -659,18 +678,56 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
         key_frames[i].m_Time -= time_min;
     }
 
+    dmTransform::Transform local = node_animation->m_Node->m_Local;
+
     if (channel->target_path == cgltf_animation_path_type_translation)
     {
+        float inv_px = -local.GetTranslation().getX();
+        float inv_py = -local.GetTranslation().getY();
+        float inv_pz = -local.GetTranslation().getZ();
+
+        for (uint32_t i = 0; i < key_count; ++i)
+        {
+            key_frames[i].m_Value[0] += inv_px;
+            key_frames[i].m_Value[1] += inv_py;
+            key_frames[i].m_Value[2] += inv_pz;
+        }
+
         node_animation->m_TranslationKeys = key_frames;
         node_animation->m_TranslationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_rotation)
     {
+        const dmVMath::Quat& rot = local.GetRotation();
+        const dmVMath::Quat& inv_rot = dmVMath::Quat( -rot.getX(), -rot.getY(), -rot.getZ(), rot.getW() );
+
+        for (uint32_t i = 0; i < key_count; ++i)
+        {
+            dmVMath::Quat key_rot = dmVMath::Quat(key_frames[i].m_Value[0], key_frames[i].m_Value[1], key_frames[i].m_Value[2], key_frames[i].m_Value[3]);
+            key_rot = inv_rot * key_rot;
+
+            key_frames[i].m_Value[0] = key_rot.getX();
+            key_frames[i].m_Value[1] = key_rot.getY();
+            key_frames[i].m_Value[2] = key_rot.getZ();
+            key_frames[i].m_Value[3] = key_rot.getW();
+        }
+
         node_animation->m_RotationKeys = key_frames;
         node_animation->m_RotationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_scale)
     {
+        float sx = local.GetScale().getX();
+        float sy = local.GetScale().getY();
+        float sz = local.GetScale().getZ();
+
+        for (uint32_t i = 0; i < key_count; ++i)
+        {
+            key_frames[i].m_Value[0] /= sx;
+            key_frames[i].m_Value[1] /= sy;
+            key_frames[i].m_Value[2] /= sz;
+        }
+
         node_animation->m_ScaleKeys = key_frames;
         node_animation->m_ScaleKeysCount = key_count;
     } else

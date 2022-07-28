@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -176,11 +177,12 @@ public class ModelUtil {
     public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation, ModelImporter.Bone bone, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
+// TODO: Make these use the same target animation track! Currently we use one track for each type (pos/rot/scl)
+
         if (nodeAnimation.translationKeys.length > 0) {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
             copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
-
             samplePosTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
         }
 
@@ -221,7 +223,22 @@ public class ModelUtil {
         return null;
     }
 
+    private static class SortAnimations implements Comparator<ModelImporter.Animation> {
+        public int compare(ModelImporter.Animation a, ModelImporter.Animation b) {
+            if (a.duration == b.duration)
+                return 0;
+            return (a.duration - b.duration) < 0 ? 1 : -1;
+        }
+    }
+
     public static void loadAnimations(Scene scene, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+
+        Arrays.sort(scene.animations, new SortAnimations());
+
+        if (scene.animations.length > 1) {
+            System.out.printf("Scene contains more than one animation. Picking the the longest one ('%s')\n", scene.animations[0].name);
+        }
+
         for (ModelImporter.Animation animation : scene.animations) {
 
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
@@ -277,12 +294,17 @@ public class ModelUtil {
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
 
                 Bone bone = findBone(bones, nodeAnimation.node);
-                assert(bone != null);
+                if (bone == null) {
+                    System.out.printf("Warning: Animation uses bone '%s' that isn't present in the skeleton!\n", nodeAnimation.node.name);
+                    continue;
+                }
 
                 loadAnimationTracks(animBuilder, nodeAnimation, bone, animation.duration, startTime, sampleRate);
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
+
+            break; // we only support one animation per file
         }
 
         ModelUtil.setBoneList(animationSetBuilder, bones);
@@ -678,9 +700,16 @@ public class ModelUtil {
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         loadSkeleton(scene, skeletonBuilder);
 
+        System.out.printf("Animations:\n");
+
         Rig.AnimationSet.Builder animationSetBuilder = Rig.AnimationSet.newBuilder();
         ArrayList<String> animationIds = new ArrayList<>();
         loadAnimations(scene, bones, animationSetBuilder, file.getName(), animationIds);
+
+        for (ModelImporter.Animation animation : scene.animations) {
+            System.out.printf("  Animation: %s\n", animation.name);
+        }
+        System.out.printf("--------------------------------------------\n");
 
     }
 

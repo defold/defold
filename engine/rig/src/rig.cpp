@@ -24,8 +24,23 @@
 
 #include <stdio.h>
 
-static bool IS_COLLADA = getenv("COLLADA") != 0;
+static bool CheckSetting(const char* var, bool default_value)
+{
+    const char* value = getenv(var);
+    if (!value)
+        return default_value;
+    bool disabled = strcmp(value, "0") == 0;
+    dmLogInfo("Using %s = %s", var, value);
+    return !disabled;
+}
+
+static bool IS_COLLADA = CheckSetting("COLLADA", false);
 static bool IS_GLTF = !IS_COLLADA;
+
+static bool USE_BIND_POSE = CheckSetting("USE_BIND_POSE", false);
+static bool IS_PLAYING = CheckSetting("PLAYING", true);
+
+static bool g_Debug = false;
 
 namespace dmRig
 {
@@ -36,20 +51,20 @@ namespace dmRig
         printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
     }
 
-    static void printTransform(uint32_t index, const dmRigDDF::Bone* bone, const Matrix4& pose, const Matrix4& transform)
-    {
-        printf("Bone: %u: %s\n", index, bone->m_Name);
-        printf("    pose:\n");
-        printf("        "); printVector4(pose.getRow(0));
-        printf("        "); printVector4(pose.getRow(1));
-        printf("        "); printVector4(pose.getRow(2));
-        printf("        "); printVector4(pose.getRow(3));
-        printf("    out:\n");
-        printf("        "); printVector4(transform.getRow(0));
-        printf("        "); printVector4(transform.getRow(1));
-        printf("        "); printVector4(transform.getRow(2));
-        printf("        "); printVector4(transform.getRow(3));
-    }
+    // static void printTransform(uint32_t index, const dmRigDDF::Bone* bone, const Matrix4& pose, const Matrix4& transform)
+    // {
+    //     printf("Bone: %u: %s\n", index, bone->m_Name);
+    //     printf("    pose:\n");
+    //     printf("        "); printVector4(pose.getRow(0));
+    //     printf("        "); printVector4(pose.getRow(1));
+    //     printf("        "); printVector4(pose.getRow(2));
+    //     printf("        "); printVector4(pose.getRow(3));
+    //     printf("    out:\n");
+    //     printf("        "); printVector4(transform.getRow(0));
+    //     printf("        "); printVector4(transform.getRow(1));
+    //     printf("        "); printVector4(transform.getRow(2));
+    //     printf("        "); printVector4(transform.getRow(3));
+    // }
 
     static void printMatrix(const Matrix4& transform)
     {
@@ -57,6 +72,10 @@ namespace dmRig
         printf("    "); printVector4(transform.getRow(1));
         printf("    "); printVector4(transform.getRow(2));
         printf("    "); printVector4(transform.getRow(3));
+    }
+    static void printTransformAsMatrix(const dmTransform::Transform& transform)
+    {
+        printMatrix(dmTransform::ToMatrix4(transform));
     }
     static void printTransform(const dmTransform::Transform& transform)
     {
@@ -179,7 +198,7 @@ namespace dmRig
 offset = 0.0f;
         SetCursor(instance, offset, true);
         SetPlaybackRate(instance, playback_rate);
-//player->m_Playing = 0;
+player->m_Playing = IS_PLAYING;
         return dmRig::RESULT_OK;
     }
 
@@ -639,6 +658,15 @@ offset = 0.0f;
                 ApplyAnimation(player, pose, track_idx_to_pose, ik_animation, 1.0f);
             }
 
+static int first = 0;
+bool debug = false;
+if (first)
+{
+    first = 0;
+    debug = true;
+}
+g_Debug = debug;
+
             for (uint32_t bi = 0; bi < bone_count; ++bi)
             {
                 dmTransform::Transform& t = pose[bi];
@@ -651,55 +679,28 @@ offset = 0.0f;
                     t.SetRotation(rotation);
                 }
 
-                bool debug = false; //bi == 3 || bi == 4;
+                if (bi > 0)
+                {
+                    assert(skeleton->m_Bones[bi].m_Parent < bi);
+                }
 
                 if (debug)
                 {
-                    dmLogWarning("Bone index: %u", bi);
-                    printTransform(t);
-                    dmLogWarning("  m_LocalToParent");
-                    printTransform(bind_pose[bi].m_LocalToParent);
+                    printf("Bone index: %u %s   parent: %u\n", bi, skeleton->m_Bones[bi].m_Name, skeleton->m_Bones[bi].m_Parent);
+                    printf("  local\n");
+                    printTransformAsMatrix(bind_pose[bi].m_LocalToParent);
                 }
 
-                if (IS_GLTF)
-                {
-                    bool anim_pos = false;
-                    bool anim_rot = false;
-                    bool anim_scl = false;
-                    IsBoneAnimated(player, bi, &anim_pos, &anim_rot, &anim_scl);
+                const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
+                t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
+                t.SetRotation(bind_t.GetRotation() * t.GetRotation());
+                t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
 
-                    const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
-                    if (!anim_pos)
-                    {
-                        t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
-                        printf("setting default translation\n");
-                    }
-                    if (!anim_rot)
-                    {
-                        t.SetRotation(bind_t.GetRotation() * t.GetRotation());
-                        printf("setting default rotation\n");
-                    }
-                    if (!anim_scl)
-                    {
-                        t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
-                        printf("setting default scale\n");
-                    }
-                }
-                //if (bi != 3 && IS_GLTF)
-                // if (IS_GLTF)
-                // {
-                //     const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
-                //     t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
-                //     t.SetRotation(bind_t.GetRotation() * t.GetRotation());
-                //     t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
-                // }
-
-                if (IS_COLLADA)
+                if (debug)
                 {
-                    const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
-                    t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
-                    t.SetRotation(bind_t.GetRotation() * t.GetRotation());
-                    t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
+                    printf("  pose + local\n");
+                    printTransformAsMatrix(t);
+                    printf("\n");
                 }
             }
 
@@ -1119,18 +1120,39 @@ offset = 0.0f;
 
     static void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<Matrix4>& pose, dmArray<Matrix4>& out_pose)
     {
+if (g_Debug)
+{
+    printf("%s\n", __FUNCTION__);
+}
         const dmRigDDF::Bone* bones = skeleton->m_Bones.m_Data;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
         for (uint32_t bi = 0; bi < bone_count; ++bi)
         {
+
             const Matrix4& transform = pose[bi];
             Matrix4& out_transform = out_pose[bi];
             out_transform = transform;
+
+if (g_Debug)
+{
+    printf("Bone index: %u %s   parent: %u  %s\n", bi, bones[bi].m_Name, bones[bi].m_Parent, bones[bi].m_Parent == INVALID_BONE_INDEX ? "" : bones[bones[bi].m_Parent].m_Name);
+    printf("  pose\n");
+    printMatrix(transform);
+}
             if (bi > 0) {
                 const dmRigDDF::Bone* bone = &bones[bi];
+                assert(bone->m_Parent < bi);
+
                 if (bone->m_InheritScale)
                 {
+if (g_Debug)
+{
+    printf("  parent:\n");
+    printMatrix(out_pose[bone->m_Parent]);
+}
+
                     out_transform = out_pose[bone->m_Parent] * transform;
+
                 }
                 else
                 {
@@ -1139,6 +1161,11 @@ offset = 0.0f;
                     out_transform = out_pose[bone->m_Parent] * transform;
                 }
             }
+if (g_Debug)
+{
+    printf("  world_xform\n");
+    printMatrix(out_transform);
+}
         }
     }
 
@@ -1220,7 +1247,7 @@ offset = 0.0f;
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
         influence_matrices.SetSize(0);
-        if (bone_count && instance->m_PoseIdxToInfluence->Size() > 0) {
+        if (!USE_BIND_POSE && bone_count && instance->m_PoseIdxToInfluence->Size() > 0) {
 
             // Make sure pose scratch buffers have enough space
             if (pose_matrices.Capacity() < bone_count) {
@@ -1258,13 +1285,32 @@ offset = 0.0f;
                 PoseToModelSpace(skeleton, pose_matrices, pose_matrices);
             }
 
+            if (g_Debug)
+            {
+                printf("%s\n", __FUNCTION__);
+            }
+
             // Premultiply pose matrices with the bind pose inverse so they
             // can be directly be used to transform each vertex.
             const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
             for (uint32_t bi = 0; bi < pose_matrices.Size(); ++bi)
             {
                 Matrix4& pose_matrix = pose_matrices[bi];
+
+                if (g_Debug)
+                {
+                    printf("Bone index: %u %s   parent: %u\n", bi, skeleton->m_Bones[bi].m_Name, skeleton->m_Bones[bi].m_Parent);
+                }
+
                 pose_matrix = pose_matrix * bind_pose[bi].m_ModelToLocal;
+
+                if (g_Debug)
+                {
+                    printf("  inv_bind_pose\n");
+                    printMatrix(bind_pose[bi].m_ModelToLocal);
+                    printf("  final\n");
+                    printMatrix(pose_matrix);
+                }
             }
 
             // Rearrange pose matrices to indices that the mesh vertices understand.
