@@ -567,6 +567,8 @@ static void GenerateBoneRoots(Scene* scene)
                 bone->m_Index++;
                 if (bone->m_ParentIndex == INVALID_INDEX)
                     bone->m_ParentIndex = 0;
+                else
+                    bone->m_ParentIndex++;
             }
         }
     }
