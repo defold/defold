@@ -19,10 +19,12 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.script.proto.Lua.LuaSource;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 
@@ -92,5 +94,78 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         } catch (CompileExceptionError e) {
             assertEquals(2, e.getLineNumber());
         }
+    }
+
+    @Test
+    public void testUseLuaSource() throws Exception {
+        Project p = GetProject();
+        p.setOption("use-lua-source", "true");
+
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript() != null);
+        assertTrue(luaSource.getScript().size() > 0);
+        assertTrue(luaSource.getBytecode().size() == 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+    }
+
+    @Test
+    public void testVanillaLuaBytecode() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "js-web");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript().size() == 0);
+        assertTrue(luaSource.getBytecode().size() > 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+    }
+
+    @Test
+    public void testLuaJITBytecode64WithoutDelta() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "armv7-android");
+        p.setOption("architectures", "arm64-android");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript().size() == 0);
+        assertTrue(luaSource.getBytecode().size() > 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+    }
+
+    @Test
+    public void testLuaJITBytecode32WithoutDelta() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "armv7-android");
+        p.setOption("architectures", "armv7-android");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript().size() == 0);
+        assertTrue(luaSource.getBytecode().size() > 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+    }
+
+    @Test
+    public void testLuaJITBytecode64WithDelta() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "armv7-android");
+        p.setOption("architectures", "armv7-android,arm64-android");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript().size() == 0);
+        assertTrue(luaSource.getBytecode().size() > 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() > 0);
     }
 }
