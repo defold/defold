@@ -125,6 +125,18 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testVanillaLuaBytecodeChunkname() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "js-web");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        String chunkname = luaSource.getBytecode().substring(12+4, 12+4+12).toStringUtf8();
+        assertEquals("@test.script", chunkname);
+    }
+
+    @Test
     public void testLuaJITBytecode64WithoutDelta() throws Exception {
         Project p = GetProject();
         p.setOption("platform", "armv7-android");
