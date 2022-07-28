@@ -170,3 +170,9 @@
 
 (defn expand-connection! [node-id label]
   (update-in-view-data! [::gv/graph] expand-connection node-id label))
+
+(defn dev-test! []
+  (reset! view-data-atom {})
+  (ensure-node! (dev/workspace))
+  (expand-connection! (dev/workspace) :resource-map)
+  (expand-connection! (dev/project) :texture-profiles))

@@ -2,10 +2,10 @@
   (:require [cljfx.api :as fx]
             [cljfx.fx.circle :as fx.circle]
             [cljfx.fx.group :as fx.group]
+            [cljfx.fx.pane :as fx.pane]
             [cljfx.fx.polyline :as fx.polyline]
             [cljfx.fx.rectangle :as fx.rectangle]
             [cljfx.fx.scene :as fx.scene]
-            [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.spec.alpha :as s]
@@ -15,9 +15,13 @@
             [editor.ui :as ui]
             [internal.util :as util])
   (:import [java.util Base64]
+           [javafx.event ActionEvent]
            [javafx.geometry Point2D]
+           [javafx.scene Node Scene]
            [javafx.scene.layout Background]
-           [javafx.scene.paint Color]))
+           [javafx.scene.paint Color]
+           [javafx.scene.input ScrollEvent ZoomEvent]
+           [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -35,7 +39,9 @@
 (s/def ::connection (s/keys :req [::id ::from-position ::to-position] :opt [::color]))
 (s/def ::nodes (s/every ::node :kind vector?))
 (s/def ::connections (s/every ::connection :kind vector?))
-(s/def ::graph (s/keys :opt [::nodes ::connections]))
+(s/def ::scroll-offset ::fxui/point)
+(s/def ::zoom-factor (s/and double? pos?))
+(s/def ::graph (s/keys :opt [::nodes ::connections ::scroll-offset ::zoom-factor]))
 (s/def ::view-data (s/keys :opt [::graph]))
 
 (def ^{:tag 'double} node-width 200.0)
@@ -217,10 +223,17 @@
                :stroke-width connection-stroke-width
                :points [start-x start-y out-x out-y in-x in-y end-x end-y]))))
 
-(defn- graph [{::keys [connections nodes] :as props}]
+(defn- graph [{::keys [nodes connections scroll-offset zoom-factor]
+               :or {scroll-offset Point2D/ZERO
+                    zoom-factor 1.0}
+               :as props}]
   (-> props
-      (dissoc ::connections ::nodes)
+      (dissoc ::nodes ::connections ::scroll-offset ::zoom-factor)
       (assoc :fx/type fx.group/lifecycle
+             :translate-x (ui/point-x scroll-offset)
+             :translate-y (ui/point-y scroll-offset)
+             :scale-x zoom-factor
+             :scale-y zoom-factor
              :children [{:fx/type fx.group/lifecycle
                          :children (into []
                                          (map (partial data->fx-type-with-key connection))
@@ -237,27 +250,63 @@
                :children [{:fx/type fxui/button
                            :text "Close"
                            :cancel-button true
-                           :on-action {:event-type :close-window}}]}
-              {:fx/type fx.scroll-pane/lifecycle
+                           :on-action {:event/type ::close-button}}]}
+              {:fx/type fx.pane/lifecycle
                :background graph-background
                :v-box/vgrow :always
                :pref-width 800
                :pref-height 600
-               :pannable true
-               :content (assoc (::graph view-data) :fx/type graph)}]})
+               :on-scroll {:event/type ::scroll}
+               :on-zoom {:event/type ::zoom}
+               :children [(assoc (::graph view-data) :fx/type graph)]}]})
 
 (defn- window-map-desc [view-data]
   {:fx/type fxui/stage
    :title "Graph View"
    :modality :none
    :showing true
+   :on-hidden {:event/type ::window-closed}
    :scene {:fx/type fx.scene/lifecycle
            :stylesheets ["dialogs.css" inline-stylesheet-data-url]
            :root (view-map-desc view-data)}})
 
+(defn- handle-scroll-event! [view-data-atom ^ScrollEvent scroll-event]
+  (swap! view-data-atom update-in [::graph ::scroll-offset]
+         (fn [scroll-offset]
+           (let [^Point2D scroll-offset (or scroll-offset Point2D/ZERO)]
+             (.add scroll-offset
+                   (.getDeltaX scroll-event)
+                   (.getDeltaY scroll-event)))))
+  (.consume scroll-event))
+
+(defn- handle-zoom-event! [view-data-atom ^ZoomEvent zoom-event]
+  (swap! view-data-atom update-in [::graph ::zoom-factor]
+         (fn [zoom-factor]
+           (let [^double zoom-factor (or zoom-factor 1.0)]
+             (+ zoom-factor
+                (.getZoomFactor zoom-event)))))
+  (.consume zoom-event))
+
+(defn- view-event-handler [view-data-atom event]
+  (case (:event/type event)
+    ::scroll (handle-scroll-event! view-data-atom (:fx/event event))
+    ::zoom (handle-zoom-event! view-data-atom (:fx/event event))))
+
+(defn- handle-close-button-event! [^ActionEvent action-event]
+  (let [^Node event-source (.getSource action-event)
+        ^Scene scene (.getScene event-source)
+        ^Stage stage (.getWindow scene)]
+    (.close stage)
+    (.consume action-event)))
+
+(defn- handle-window-closed-event! [view-data-atom renderer]
+  (fx/unmount-renderer view-data-atom renderer))
+
 (defn- window-event-handler [view-data-atom renderer-ref event]
-  (case (:event-type event)
-    :close-window (fx/unmount-renderer view-data-atom @renderer-ref)))
+  (case (:event/type event)
+    ::close-button (handle-close-button-event! (:fx/event event))
+    ::window-closed (handle-window-closed-event! view-data-atom @renderer-ref)
+    (view-event-handler view-data-atom event)))
 
 (defn- mount-window! [view-data-atom error-handler]
   (let [renderer-ref (volatile! nil)
