@@ -1186,3 +1186,13 @@ void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
     float b = ((color >> 16) & 0xff) / 255.0f;
     [_glfwWin.window setBackgroundColor: [NSColor colorWithDeviceRed:r green:g blue:b alpha:1.0f]];
 }
+
+float _glfwPlatformGetDisplayScaleFactor()
+{
+    CGDirectDisplayID currentDisplayID = [[[[_glfwWin.window screen] deviceDescription] objectForKey:@"NSScreenNumber"] unsignedIntValue];
+    CGDisplayModeRef mode = CGDisplayCopyDisplayMode(currentDisplayID);
+    float scaling_factor = (float)CGDisplayModeGetPixelWidth(mode) / (float)CGDisplayModeGetWidth(mode);
+    CGDisplayModeRelease(mode);
+    return scaling_factor;
+}
+
