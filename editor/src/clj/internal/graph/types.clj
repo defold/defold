@@ -58,6 +58,10 @@
 (defn- read-endpoint [[node-id-expr label-expr]]
   `(->Endpoint ~node-id-expr ~label-expr))
 
+(defn pair->endpoint
+  ^Endpoint [[node-id label]]
+  (->Endpoint node-id label))
+
 (definline endpoint [node-id label]
   `(->Endpoint ~node-id ~label))
 
@@ -69,6 +73,13 @@
 
 (defn endpoint? [x]
   (instance? Endpoint x))
+
+(defn arc-from-endpoints
+  ^Arc [source-endpoint target-endpoint]
+  (->Arc (endpoint-node-id source-endpoint)
+         (endpoint-label source-endpoint)
+         (endpoint-node-id target-endpoint)
+         (endpoint-label target-endpoint)))
 
 (defn node-id? [v] (integer? v))
 

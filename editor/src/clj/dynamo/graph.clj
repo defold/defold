@@ -919,12 +919,17 @@
    (swap! *the-system* is/invalidate-outputs outputs)
    nil))
 
+(defn node-type-match?
+  "Returns true if node-type is derived from or equal to wanted-node-type."
+  [wanted-node-type node-type]
+  (isa? (:key @node-type) (:key @wanted-node-type)))
+
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
    supertypes."
   [type node]
   (if-let [nt (and type (gt/node-type node))]
-    (isa? (:key @nt) (:key @type))
+    (node-type-match? type nt)
     false))
 
 (defn node-instance?

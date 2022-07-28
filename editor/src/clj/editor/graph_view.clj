@@ -2,20 +2,60 @@
   (:require [cljfx.api :as fx]
             [cljfx.fx.circle :as fx.circle]
             [cljfx.fx.group :as fx.group]
+            [cljfx.fx.line :as fx.line]
             [cljfx.fx.rectangle :as fx.rectangle]
             [cljfx.fx.scene :as fx.scene]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.v-box :as fx.v-box]
-            [dynamo.graph :as g]
-            [editor.error-reporting :as error-reporting]
+            [clojure.spec.alpha :as s]
+            [clojure.spec.gen.alpha :as gen]
+            [editor.colors :as colors]
             [editor.fxui :as fxui]
             [editor.ui :as ui]
-            [internal.node :as in])
-  (:import [java.util Base64]))
+            [internal.util :as util])
+  (:import [java.util Base64]
+           [javafx.geometry Point2D]
+           [javafx.scene.layout Background]
+           [javafx.scene.paint Color]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(s/def ::id (s/with-gen some? gen/int))
+(s/def ::title string?)
+(s/def ::color ::fxui/color)
+(s/def ::position ::fxui/point)
+(s/def ::socket (s/keys :req [::id ::title] :opt [::color]))
+(s/def ::inputs (s/every ::socket :kind vector?))
+(s/def ::outputs (s/every ::socket :kind vector?))
+(s/def ::node (s/keys :req [::id ::title ::position] :opt [::color ::inputs ::outputs]))
+(s/def ::from-position ::position)
+(s/def ::to-position ::position)
+(s/def ::connection (s/keys :req [::id ::from-position ::to-position] :opt [::color]))
+(s/def ::nodes (s/every ::node :kind vector?))
+(s/def ::connections (s/every ::connection :kind vector?))
+(s/def ::graph (s/keys :opt [::nodes ::connections]))
+(s/def ::view-data (s/keys :opt [::graph]))
+
+(def ^{:tag 'double} node-width 200.0)
+(def ^:private ^{:tag 'double} node-margin-width 20.0)
+(def ^:private ^{:tag 'double} node-unit-height 20.0)
+(def ^:private ^{:tag 'double} node-unit-text-y 14.0)
+(def ^:private ^{:tag 'double} connection-stroke-width 3.0)
+
+(def ^:private default-node-color Color/DARKGREEN)
+(def ^:private default-input-color Color/YELLOW)
+(def ^:private default-output-color Color/CYAN)
+(def ^:private default-connection-color (Color/gray 0.4))
+
+(def ^:private graph-background (Background/fill (ui/clj->color colors/scene-background)))
+
+(defn- data->fx-type-with-key [fx-type data]
+  (-> data
+      (dissoc ::id)
+      (assoc :fx/type fx-type
+             :fx/key (::id data))))
 
 ;; TODO: Move to styling/stylesheets/graph-view.sass.
 (def ^:private ^String inline-stylesheet "
@@ -24,31 +64,20 @@
 }
 
 .graph-view-scroll-view {
-  -fx-background-color: -df-background;
 }
 
-.graph-view-node {
-  -fx-fill: -df-component;
+.graph-view-node-background {
+  -fx-fill: -df-component-darker;
+  -fx-opacity: 0.95;
 }
 
 .graph-view-node-title Rectangle {
-  -fx-fill: -df-defold-green;
 }
 
 .graph-view-node-title Text {
-  -fx-fill: white;
 }
 
-.graph-view-node-property Text {
-  -fx-fill: -df-text;
-}
-
-.graph-view-node-property Circle {
-  -fx-fill: -df-background;
-}
-
-.graph-view-node-input Text {
-  -fx-fill: -df-defold-yellow;
+.graph-view-node-input Text {;
 }
 
 .graph-view-node-input Circle {
@@ -56,7 +85,6 @@
 }
 
 .graph-view-node-output Text {
-  -fx-fill: -df-defold-blue;
 }
 
 .graph-view-node-output Circle {
@@ -69,191 +97,198 @@
        (.encodeToString (Base64/getUrlEncoder)
                         (.getBytes inline-stylesheet))))
 
-(def ^:private ^{:tag 'long} graph-view-node-width 200)
-(def ^:private ^{:tag 'long} graph-view-node-label-height 20)
-
-(def ^:private graph-view-node-label-clip
+(def ^:private node-unit-clip
   {:fx/type fx.rectangle/lifecycle
-   :width graph-view-node-width
-   :height graph-view-node-label-height})
+   :width node-width
+   :height node-unit-height})
 
-(defn- graph-view-node-title [node-type]
-  {:fx/type fx.group/lifecycle
-   :fx/key :node/title
-   :style-class "graph-view-node-title"
-   :layout-y (- graph-view-node-label-height)
-   :children [{:fx/type fx.rectangle/lifecycle
-               :width graph-view-node-width
-               :height graph-view-node-label-height}
-              {:fx/type fx.text/lifecycle
-               :x 20
-               :y 14
-               :text (-> node-type :k name)
-               :clip graph-view-node-label-clip}]})
+(defn- input [{::keys [title color] :as props}]
+  (-> props
+      (dissoc ::title ::color)
+      (assoc :fx/type fx.group/lifecycle
+             :style-class "graph-view-node-input"
+             :children [{:fx/type fx.text/lifecycle
+                         :x node-margin-width
+                         :y node-unit-text-y
+                         :text title
+                         :fill (or color default-input-color)
+                         :clip node-unit-clip}
+                        {:fx/type fx.circle/lifecycle
+                         :center-x 10.0
+                         :center-y (/ node-unit-height 2.0)
+                         :radius 5}])))
 
-(defn- graph-view-node-property [^long label-index property-label]
-  {:fx/type fx.group/lifecycle
-   :fx/key (keyword "property" (name property-label))
-   :style-class "graph-view-node-property"
-   :layout-y (* label-index graph-view-node-label-height)
-   :children [{:fx/type fx.text/lifecycle
-               :y 14
-               :wrapping-width (- graph-view-node-width 20)
-               :text-alignment :right
-               :text (name property-label)
-               :clip graph-view-node-label-clip}
-              {:fx/type fx.circle/lifecycle
-               :center-x (- graph-view-node-width 10)
-               :center-y (/ graph-view-node-label-height 2)
-               :radius 5}]})
+(defn- output [{::keys [title color] :as props}]
+  (-> props
+      (dissoc ::title ::color)
+      (assoc :fx/type fx.group/lifecycle
+             :style-class "graph-view-node-output"
+             :children [{:fx/type fx.text/lifecycle
+                         :y node-unit-text-y
+                         :wrapping-width (- node-width node-margin-width)
+                         :text-alignment :right
+                         :text title
+                         :fill (or color default-output-color)
+                         :clip node-unit-clip}
+                        {:fx/type fx.circle/lifecycle
+                         :center-x (- node-width (/ node-margin-width 2.0))
+                         :center-y (/ node-unit-height 2.0)
+                         :radius 5.0}])))
 
-(defn- graph-view-node-input [^long label-index [input-label input-info]]
-  {:fx/type fx.group/lifecycle
-   :fx/key (keyword "input" (name input-label))
-   :style-class "graph-view-node-input"
-   :layout-y (* label-index graph-view-node-label-height)
-   :children [{:fx/type fx.text/lifecycle
-               :x 20
-               :y 14
-               :text (name input-label)
-               :clip graph-view-node-label-clip}
-              {:fx/type fx.circle/lifecycle
-               :center-x 10
-               :center-y (/ graph-view-node-label-height 2)
-               :radius 5}]})
+(defn- socket-group [{:keys [sockets socket-fx-type] :as props}]
+  (-> props
+      (dissoc :sockets :socket-fx-type)
+      (assoc :fx/type fx.group/lifecycle
+             :children (into []
+                             (map-indexed (fn [^long index socket]
+                                            (-> socket
+                                                (dissoc ::id)
+                                                (assoc :fx/type socket-fx-type
+                                                       :fx/key (::id socket)
+                                                       :layout-y (* index node-unit-height)))))
+                             sockets))))
 
-(defn- graph-view-node-output [^long label-index [output-label output-info]]
-  {:fx/type fx.group/lifecycle
-   :fx/key (keyword "output" (name output-label))
-   :style-class "graph-view-node-output"
-   :layout-y (* label-index graph-view-node-label-height)
-   :children [{:fx/type fx.text/lifecycle
-               :y 14
-               :wrapping-width (- graph-view-node-width 20)
-               :text-alignment :right
-               :text (name output-label)
-               :clip graph-view-node-label-clip}
-              {:fx/type fx.circle/lifecycle
-               :center-x (- graph-view-node-width 10)
-               :center-y (/ graph-view-node-label-height 2)
-               :radius 5}]})
-
-(defn- graph-view-node [{:keys [node-type position] :as props}]
-  (let [declared-inputs (in/declared-inputs node-type)
-        declared-outputs (in/declared-outputs node-type)
-        declared-property-labels (in/declared-property-labels node-type)
-        fake-output? (comp (conj declared-property-labels :_output-jammers) key)
-        real-outputs (remove fake-output? declared-outputs)
-        inputs (sort-by key declared-inputs)
-        outputs (sort-by key real-outputs)
-        property-labels (sort declared-property-labels)
-        property-count (count property-labels)
-        input-count (count inputs)
+(defn- node [{::keys [title position color inputs outputs] :as props}]
+  ;; TODO: experiment with inputs-source, inputs-fn to query NodeType directly?
+  (let [input-count (count inputs)
         output-count (count outputs)
-        label-count (+ input-count output-count property-count)
-        height (* label-count graph-view-node-label-height)]
+        node-unit-count (+ 1 input-count output-count) ; One unit for the title and one per socket.
+        node-height (* node-unit-count node-unit-height)]
     (-> props
-        (dissoc :node-type :position)
+        (dissoc ::title ::position ::color ::inputs ::outputs)
         (assoc :fx/type fx.group/lifecycle
-               :layout-x (position 0)
-               :layout-y (position 1)
-               :children (into [{:fx/type fx.rectangle/lifecycle
-                                 :fx/key :node/background
-                                 :style-class "graph-view-node"
-                                 :width graph-view-node-width
-                                 :height height}
-                                (graph-view-node-title node-type)]
-                               (concat
-                                 (map graph-view-node-input
-                                      (range)
-                                      inputs)
-                                 (map graph-view-node-output
-                                      (range input-count Long/MAX_VALUE)
-                                      outputs)
-                                 (map graph-view-node-property
-                                      (range (+ input-count output-count) Long/MAX_VALUE)
-                                      property-labels)))))))
+               :layout-x (ui/point-x position)
+               :layout-y (ui/point-y position)
+               :children (cond-> [{:fx/type fx.group/lifecycle
+                                   :fx/key :node/title
+                                   :style-class "graph-view-node-title"
+                                   :children [{:fx/type fx.rectangle/lifecycle
+                                               :fill (or color default-node-color)
+                                               :width node-width
+                                               :height node-unit-height}
+                                              {:fx/type fx.text/lifecycle
+                                               :x node-margin-width
+                                               :y node-unit-text-y
+                                               :text title
+                                               :clip node-unit-clip}]}
+                                  {:fx/type fx.rectangle/lifecycle
+                                   :fx/key :node/background
+                                   :style-class "graph-view-node-background"
+                                   :layout-y node-unit-height ; Offset by one unit for the title.
+                                   :width node-width
+                                   :height (- node-height node-unit-height)}]
 
-(defn- graph-view-map-desc [graph-view-data]
+                                 (seq inputs)
+                                 (conj {:fx/type socket-group
+                                        :fx/key :node/inputs
+                                        :layout-y node-unit-height ; Offset by one unit for the title.
+                                        :sockets inputs
+                                        :socket-fx-type input})
+
+                                 (seq outputs)
+                                 (conj {:fx/type socket-group
+                                        :fx/key :node/outputs
+                                        :layout-y (* (inc input-count) node-unit-height) ; Offset by one unit for the title and one per input.
+                                        :sockets outputs
+                                        :socket-fx-type output}))))))
+
+(defn- connection [{::keys [^Point2D from-position ^Point2D to-position color] :as props}]
+  (let [from-x (.getX from-position)
+        from-y (.getY from-position)
+        to-x (.getX to-position)
+        to-y (.getY to-position)
+        start-x (Double/valueOf from-x)
+        start-y (Double/valueOf from-y)
+        end-x (Double/valueOf to-x)
+        end-y (Double/valueOf to-y)]
+    (-> props
+        (dissoc ::from-position ::to-position ::color)
+        (assoc :fx/type fx.line/lifecycle
+               :stroke (or color default-connection-color)
+               :stroke-width connection-stroke-width
+               :start-x start-x
+               :start-y start-y
+               :end-x end-x
+               :end-y end-y))))
+
+(defn- graph [{::keys [connections nodes] :as props}]
+  (-> props
+      (dissoc ::connections ::nodes)
+      (assoc :fx/type fx.group/lifecycle
+             :children [{:fx/type fx.group/lifecycle
+                         :children (into []
+                                         (map (partial data->fx-type-with-key connection))
+                                         connections)}
+                        {:fx/type fx.group/lifecycle
+                         :children (into []
+                                         (map (partial data->fx-type-with-key node))
+                                         nodes)}])))
+
+(defn- view-map-desc [view-data]
+  {:fx/type fx.v-box/lifecycle
+   :children [{:fx/type fx.v-box/lifecycle
+               :style-class "graph-view-toolbar"
+               :children [{:fx/type fxui/button
+                           :text "Close"
+                           :cancel-button true
+                           :on-action {:event-type :close-window}}]}
+              {:fx/type fx.scroll-pane/lifecycle
+               :style-class "graph-view-scroll-view"
+               :background graph-background
+               :v-box/vgrow :always
+               :pref-width 800
+               :pref-height 600
+               :pannable true
+               :content (assoc (::graph view-data) :fx/type graph)}]})
+
+(defn- window-map-desc [view-data]
   {:fx/type fxui/stage
    :title "Graph View"
    :modality :none
    :showing true
    :scene {:fx/type fx.scene/lifecycle
            :stylesheets ["dialogs.css" inline-stylesheet-data-url]
-           :root {:fx/type fx.v-box/lifecycle
-                  :children [{:fx/type fx.v-box/lifecycle
-                              :style-class "graph-view-toolbar"
-                              :children [{:fx/type fxui/button
-                                          :text "Close"
-                                          :cancel-button true
-                                          :on-action {:event-type :close-window}}]}
-                             {:fx/type fx.scroll-pane/lifecycle
-                              :style-class "graph-view-scroll-view"
-                              :v-box/vgrow :always
-                              :pref-width 800
-                              :pref-height 600
-                              :pannable true
-                              :content {:fx/type fx.group/lifecycle
-                                        :children (into []
-                                                        (map (fn [[node-id graph-view-node-props]]
-                                                               (assoc graph-view-node-props
-                                                                 :fx/type graph-view-node
-                                                                 :fx/key node-id)))
-                                                        graph-view-data)}}]}}})
+           :root (view-map-desc view-data)}})
 
-(defn- mount-graph-view-window! [graph-view-data-atom]
+(defn- window-event-handler [view-data-atom renderer-ref event]
+  (case (:event-type event)
+    :close-window (fx/unmount-renderer view-data-atom @renderer-ref)))
+
+(defn- mount-window! [view-data-atom error-handler]
   (let [renderer-ref (volatile! nil)
         renderer (fx/create-renderer
-                   :error-handler error-reporting/report-exception!
-                   :middleware (fx/wrap-map-desc graph-view-map-desc)
-                   :opts {:fx.opt/map-event-handler
-                          (fn [event]
-                            (case (:event-type event)
-                              :close-window (fx/unmount-renderer graph-view-data-atom @renderer-ref)))})]
+                   :error-handler error-handler
+                   :middleware (fx/wrap-map-desc window-map-desc)
+                   :opts {:fx.opt/map-event-handler (partial window-event-handler view-data-atom renderer-ref)})]
     (vreset! renderer-ref renderer)
-    (fx/mount-renderer graph-view-data-atom renderer)))
+    (fx/mount-renderer view-data-atom renderer)
+    renderer))
 
-(defn- graph-view-data-for-node [evaluation-context node-id]
-  (let [basis (:basis evaluation-context)
-        node-type (g/node-type* basis node-id)]
-    {:node-type node-type}))
+(defn make-view-data-atom [view-data]
+  (s/assert ::view-data view-data)
+  (doto (atom view-data)
+    (set-validator! (fn [view-data]
+                      (or (s/valid? ::view-data view-data)
+                          (s/explain ::view-data view-data))))))
 
-(defn- initial-position-for-node [graph-view-data node-data]
-  ;; TODO: Choose a suitable location based on topology and placement of existing nodes.
-  (let [column-width (+ graph-view-node-width 100)
-        x (* column-width (count graph-view-data))
-        y ^long (or (some-> (first graph-view-data) val :position second) 0)]
-    [x y]))
+(defn show-window! [view-data-atom error-handler]
+  (mount-window! view-data-atom error-handler))
 
-(defn- refresh-graph-view-data [graph-view-data evaluation-context]
-  ;; We don't want to use a transient here, since we want to return the
-  ;; identical graph-view-data if there are no changes.
-  (reduce (fn [graph-view-data [node-id node-info]]
-            (assoc graph-view-data node-id (merge node-info (graph-view-data-for-node evaluation-context node-id))))
-          graph-view-data
-          graph-view-data))
+(defn node-input-jack-position
+  ^Point2D [node-props input-id]
+  (when-some [input-index (util/first-index-where #(= input-id (::id %)) (::inputs node-props))]
+    (let [node-unit-index (+ 1 ^long input-index) ; Offset by one unit for the title.
+          node-position (::position node-props Point2D/ZERO)
+          jack-x (+ (ui/point-x node-position) (/ node-margin-width 2.0))
+          jack-y (+ (ui/point-y node-position) (* node-unit-index node-unit-height) (/ node-unit-height 2.0))]
+      (ui/point jack-x jack-y))))
 
-(defn- add-node [evaluation-context graph-view-data node-id]
-  (assert (g/node-id? node-id))
-  (let [graph-view-data (refresh-graph-view-data graph-view-data evaluation-context)]
-    (if (contains? graph-view-data node-id)
-      graph-view-data
-      (let [node-data (graph-view-data-for-node evaluation-context node-id)
-            node-position (initial-position-for-node graph-view-data node-data)
-            node-data-with-position (assoc node-data :position node-position)]
-        (assoc graph-view-data node-id node-data-with-position)))))
-
-(defonce graph-view-data-atom (atom (sorted-map)))
-
-(defn show-graph-view-window! []
-  (ui/run-later
-    (mount-graph-view-window! graph-view-data-atom)))
-
-(defn add-node! [node-id]
-  (ui/run-now
-    (let [old-graph-view-data @graph-view-data-atom
-          new-graph-view-data (g/with-auto-evaluation-context evaluation-context
-                                (add-node evaluation-context old-graph-view-data node-id))]
-      (when-not (identical? old-graph-view-data new-graph-view-data)
-        (reset! graph-view-data-atom new-graph-view-data)))))
+(defn node-output-jack-position
+  ^Point2D [node-props output-id]
+  (when-some [output-index (util/first-index-where #(= output-id (::id %)) (::outputs node-props))]
+    (let [input-count (count (::inputs node-props))
+          node-unit-index (+ 1 input-count ^long output-index) ; Offset by one unit for the title.
+          node-position (::position node-props Point2D/ZERO)
+          jack-x (- (+ (ui/point-x node-position) node-width) (/ node-margin-width 2.0))
+          jack-y (+ (ui/point-y node-position) (* node-unit-index node-unit-height) (/ node-unit-height 2.0))]
+      (ui/point jack-x jack-y))))

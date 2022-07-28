@@ -21,41 +21,41 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
-            [editor.progress :as progress]
             [editor.math :as math]
+            [editor.progress :as progress]
             [editor.util :as eutil]
             [internal.util :as util]
             [service.log :as log]
             [service.smoke-log :as slog]
             [util.profiler :as profiler])
-  (:import
-   [com.defold.control LongField]
-   [com.defold.control ListCell]
-   [com.defold.control TreeCell]
-   [com.sun.javafx.application PlatformImpl]
-   [com.sun.javafx.event DirectEvent]
-   [java.awt Desktop Desktop$Action]
-   [java.io File IOException]
-   [java.net URI]
-   [java.util Collection]
-   [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
-   [javafx.application Platform]
-   [javafx.beans InvalidationListener]
-   [javafx.beans.value ChangeListener ObservableValue]
-   [javafx.collections FXCollections ListChangeListener ObservableList]
-   [javafx.css Styleable]
-   [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
-   [javafx.fxml FXMLLoader]
-   [javafx.geometry Orientation]
-   [javafx.scene Group Node Parent Scene]
-   [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
-   [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
-   [javafx.scene.image Image ImageView]
-   [javafx.scene.layout AnchorPane Pane HBox]
-   [javafx.scene.shape SVGPath]
-   [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-   [javafx.stage Stage Modality Window PopupWindow StageStyle]
-   [javafx.util Callback Duration StringConverter]))
+  (:import [com.defold.control ListCell]
+           [com.defold.control LongField]
+           [com.defold.control TreeCell]
+           [com.sun.javafx.application PlatformImpl]
+           [com.sun.javafx.event DirectEvent]
+           [java.awt Desktop Desktop$Action]
+           [java.io File IOException]
+           [java.net URI]
+           [java.util Collection]
+           [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
+           [javafx.application Platform]
+           [javafx.beans InvalidationListener]
+           [javafx.beans.value ChangeListener ObservableValue]
+           [javafx.collections FXCollections ListChangeListener ObservableList]
+           [javafx.css Styleable]
+           [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
+           [javafx.fxml FXMLLoader]
+           [javafx.geometry Orientation Point2D]
+           [javafx.scene Group Node Parent Scene]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.image Image ImageView]
+           [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
+           [javafx.scene.layout AnchorPane HBox Pane]
+           [javafx.scene.paint Color]
+           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
+           [javafx.scene.shape SVGPath]
+           [javafx.stage Modality PopupWindow Stage StageStyle Window]
+           [javafx.util Callback Duration StringConverter]))
 
 (set! *warn-on-reflection* true)
 
@@ -76,6 +76,23 @@
 ;; threshold, we consider the application to have lost focus.
 (defonce ^:private application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
+
+(defn clj->color
+  ^Color [v]
+  (let [[r g b a] v]
+    (Color. ^double (or r 0.0)
+            ^double (or g 0.0)
+            ^double (or b 0.0)
+            ^double (or a 1.0))))
+
+(definline point [x y]
+  `(Point2D. ~x ~y))
+
+(definline point-x [point]
+  `(.getX ~(with-meta point {:tag `Point2D})))
+
+(definline point-y [point]
+  `(.getY ~(with-meta point {:tag `Point2D})))
 
 (def focus-change-listener
   (reify ChangeListener

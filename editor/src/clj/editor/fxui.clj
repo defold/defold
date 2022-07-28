@@ -29,19 +29,81 @@
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
+            [clojure.spec.alpha :as s]
+            [clojure.spec.gen.alpha :as gen]
+            [clojure.string :as string]
             [editor.error-reporting :as error-reporting]
             [editor.ui :as ui]
-            [editor.util :as eutil])
+            [editor.util :as eutil]
+            [util.coll :refer [pair]])
   (:import [clojure.lang Fn IFn IHashEq MultiFn]
            [com.defold.control ListCell]
+           [java.lang.reflect Field]
            [javafx.application Platform]
+           [javafx.geometry Point2D]
            [javafx.scene Node]
+           [javafx.scene.paint Color]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.scene.control TextInputControl ListView ScrollPane]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
+
+;; --------------------------------------------------
+;; Specs / validation
+;; --------------------------------------------------
+
+(defn color-parsable? [^String value]
+  (try
+    (Color/valueOf value)
+    true
+    (catch Exception _
+      false)))
+
+(defn color-coercible? [value]
+  (cond
+    (instance? Color value) true
+    (keyword? value) (color-parsable? (name value))
+    (string? value) (color-parsable? value)
+    :else false))
+
+(defn gen-color-coercible []
+  (let [uppercase-names+colors
+        (into []
+              (keep (fn [^Field field]
+                      (let [field-value (.get field nil)]
+                        (when (instance? Color field-value)
+                          (pair (.getName field)
+                                field-value)))))
+              (.getFields Color))
+        named-colors (into [] (map second) uppercase-names+colors)
+        uppercase-color-names (into [] (map first) uppercase-names+colors)
+        lowercase-color-names (into [] (map string/lower-case) uppercase-color-names)
+        lowercase-color-keywords (into [] (map keyword) lowercase-color-names)
+        color-hex-strings (into [] (map str) named-colors)]
+    (gen/one-of
+      [(gen/elements named-colors)
+       (gen/elements uppercase-color-names)
+       (gen/elements lowercase-color-names)
+       (gen/elements lowercase-color-keywords)
+       (gen/elements color-hex-strings)])))
+
+(def ^:private gen-point-component-double-opts
+  {:infinite? false :NaN? false :min -10000.0 :max 10000.0})
+
+(defn gen-point []
+  (gen/fmap (fn [[^double x ^double y]]
+              (Point2D. x y))
+            (gen/tuple (gen/double* gen-point-component-double-opts)
+                       (gen/double* gen-point-component-double-opts))))
+
+(s/def ::color (s/with-gen color-coercible? gen-color-coercible))
+(s/def ::point (s/with-gen #(instance? Point2D %) gen-point))
+
+;; --------------------------------------------------
+;; Helpers
+;; --------------------------------------------------
 
 (def ext-value
   "Extension lifecycle that returns value on `:value` key"
