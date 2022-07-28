@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -51,6 +51,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
+import com.dynamo.bob.pipeline.ShaderUtil.ES2Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -76,13 +77,12 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(os);
 
+        shaderSource = ES2Converter.transform(shaderSource);
+
         // Write directives from shader.
         String line = null;
         String firstNonDirectiveLine = null;
         int directiveLineCount = 0;
-
-        final String sampler2DArrayStr = "sampler2DArray";
-        boolean hasTextureArrays = shaderSource.contains(sampler2DArrayStr);
 
         Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
         Scanner scanner = new Scanner(shaderSource);
@@ -140,25 +140,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             writer.println();
         }
 
-        // TODO: Where to get this value from
-        int maxArraySliceCount = 4;
-        if (gles2Standard && hasTextureArrays)
-        {
-            // Array indices must be constant, so can't use texture[ix]
-            writer.println("vec4 texture2DArray(sampler2D dm_texture_arrays[" + maxArraySliceCount + "], vec3 dm_texture_array_args) {");
-            writer.println("    int page_index = int(dm_texture_array_args.z);");
-
-            for (int i=0; i < maxArraySliceCount; i++) {
-                if (i == 0) {
-                    writer.println("    if (page_index == 0) return texture2D(dm_texture_arrays[0], dm_texture_array_args.st);");
-                } else {
-                    writer.println(String.format("    else if (page_index == %d) return texture2D(dm_texture_arrays[%d], dm_texture_array_args.st);", i, i));
-                }
-            }
-            writer.println("    return vec4(0.0);");
-            writer.println("}");
-        }
-
         // Write the first non-directive line from above.
         if (firstNonDirectiveLine != null) {
             writer.println(firstNonDirectiveLine);
@@ -178,29 +159,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             int version = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 300 : 140;
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, false);
             source = es3Result.output;
-        }
-
-        // For texture array support, we need to convert texture2DArray functions
-        // JG: Move to shaderutil.java?
-        if (gles2Standard)
-        {
-            if (source.contains(sampler2DArrayStr))
-            {
-                final String sampler2DArrayRegex = "(.+)sampler2DArray\\s+(\\w+);";
-                source = source.replaceAll(sampler2DArrayRegex, "$1 sampler2D $2[" + maxArraySliceCount + "];");
-
-                ArrayList<String> output = new ArrayList<String>(source.length());
-
-                String[] lines = source.split(System.getProperty("line.separator"));
-                for(String sourceLine : lines) {
-                    if (!sourceLine.contains(sampler2DArrayStr))
-                    {
-                        output.add(sourceLine);
-                    }
-                }
-
-                source = String.join("\n", output);
-            }
         }
 
         return source;

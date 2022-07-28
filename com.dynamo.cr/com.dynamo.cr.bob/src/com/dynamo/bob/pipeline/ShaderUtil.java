@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -142,6 +142,54 @@ public class ShaderUtil {
             }
 
             return inputs;
+        }
+    }
+
+    public static class ES2Converter {
+        private static final String glSampler2DArrayStr   = "sampler2DArray";
+        private static final String glSampler2DArrayRegex = "(.+)sampler2DArray\\s+(\\w+);";
+
+        // TODO: Get this value from somewhere..
+        private static final int maxArraySliceCount = 4;
+
+        public static String transform(String shaderSource) {
+            String result = shaderSource;
+
+            // For texture array support, we need to convert texture2DArray functions
+            if (shaderSource.contains(glSampler2DArrayStr)) {
+                ArrayList<String> texture2DArrayFn = new ArrayList<>();
+                texture2DArrayFn.add(String.format("vec4 texture2DArray(sampler2D dm_texture_arrays[%d], vec3 dm_texture_array_args) {", maxArraySliceCount));
+                texture2DArrayFn.add("    int page_index = int(dm_texture_array_args.z);");
+
+                for (int i=0; i < maxArraySliceCount; i++) {
+                    if (i == 0) {
+                        texture2DArrayFn.add("    if (page_index == 0) return texture2D(dm_texture_arrays[0], dm_texture_array_args.st);");
+                    } else {
+                        texture2DArrayFn.add(String.format("    else if (page_index == %d) return texture2D(dm_texture_arrays[%d], dm_texture_array_args.st);", i, i));
+                    }
+                }
+                texture2DArrayFn.add("    return vec4(0.0);");
+                texture2DArrayFn.add( "}");
+
+                StringBuilder sb = new StringBuilder();
+                for (String line : texture2DArrayFn) {
+                    sb.append(line).append(System.lineSeparator());
+                }
+                shaderSource = sb.toString() + shaderSource;
+                shaderSource = shaderSource.replaceAll(glSampler2DArrayRegex, "$1 sampler2D $2[" + maxArraySliceCount + "];");
+
+                ArrayList<String> output = new ArrayList<String>(shaderSource.length());
+
+                String[] lines = shaderSource.split(System.getProperty("line.separator"));
+                for(String sourceLine : lines) {
+                    if (!sourceLine.contains(glSampler2DArrayStr)) {
+                        output.add(sourceLine);
+                    }
+                }
+
+                result = String.join("\n", output);
+            }
+            return result;
         }
     }
 

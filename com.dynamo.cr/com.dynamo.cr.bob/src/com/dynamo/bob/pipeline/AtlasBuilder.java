@@ -116,10 +116,9 @@ public class AtlasBuilder extends Builder<Void>  {
             textureImageBuilder.setAlternatives(i, imageBuilder);
         }
 
-        textureImageBuilder.setCount(numTextures);
-        textureImageBuilder.setType(numTextures > 1 ? Type.TYPE_2D_ARRAY : Type.TYPE_2D);
-
-        TextureImage texture = textureImageBuilder.build();
+        TextureImage texture = textureImageBuilder.setCount(numTextures)
+            .setType(numTextures > 1 ? Type.TYPE_2D_ARRAY : Type.TYPE_2D)
+            .build();
 
         task.output(0).setContent(textureSet.toByteArray());
         task.output(1).setContent(texture.toByteArray());
