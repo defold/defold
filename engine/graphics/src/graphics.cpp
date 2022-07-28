@@ -367,6 +367,8 @@ namespace dmGraphics
             return true;
         }
 
+        dmLogInfo("JHONNY IS THE BEST");
+
         AdapterType adapter_type;
         bool result = GetAdapterFromString(adapter_name_str, &adapter_type);
 

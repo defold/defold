@@ -129,24 +129,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             writer.println();
         }
 
-        // TODO: Where to get this value from
-        int maxArraySliceCount = 4;
-        if (gles2Standard && hasTextureArrays)
-        {
-            // Array indices must be constant, so can't use texture[ix]
-            writer.println("vec4 texture2DArray(sampler2D dm_texture_arrays[" + maxArraySliceCount + "], vec3 dm_texture_array_args) {");
-            writer.println("    int page_index = int(dm_texture_array_args.z);");
-            writer.println("    for (int i = 0; i < 4; ++i)");
-            writer.println("    {");
-            writer.println("        if (i == page_index)");
-            writer.println("        {");
-            writer.println("            return texture2D(dm_texture_arrays[i], dm_texture_array_args.st);");
-            writer.println("        }");
-            writer.println("    }");
-            writer.println("    return vec4(0.0);");
-            writer.println("}");
-        }
-
         // We want "correct" line numbers from the GLSL compiler.
         //
         // Some Android devices don't like setting #line to something below 1,
@@ -156,6 +138,25 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         if (isDebug) {
             writer.printf(Locale.ROOT, "#line %d", directiveLineCount);
             writer.println();
+        }
+
+        // TODO: Where to get this value from
+        int maxArraySliceCount = 4;
+        if (gles2Standard && hasTextureArrays)
+        {
+            // Array indices must be constant, so can't use texture[ix]
+            writer.println("vec4 texture2DArray(sampler2D dm_texture_arrays[" + maxArraySliceCount + "], vec3 dm_texture_array_args) {");
+            writer.println("    int page_index = int(dm_texture_array_args.z);");
+
+            for (int i=0; i < maxArraySliceCount; i++) {
+                if (i == 0) {
+                    writer.println("if (page_index == 0) return texture2D(dm_texture_arrays[0], dm_texture_array_args.st);");
+                } else {
+                    writer.println(String.format("else if (page_index == %d) return texture2D(dm_texture_arrays[%d], dm_texture_array_args.st);", i, i));
+                }
+            }
+            writer.println("    return vec4(0.0);");
+            writer.println("}");
         }
 
         // Write the first non-directive line from above.
@@ -200,7 +201,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 }
 
                 source = String.join("\n", output);
-                // System.out.println(source);
             }
         }
 

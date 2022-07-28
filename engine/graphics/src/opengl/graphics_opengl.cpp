@@ -462,8 +462,10 @@ static void LogFrameBufferError(GLenum status)
                 return TYPE_FLOAT_MAT4;
             case GL_SAMPLER_2D:
                 return TYPE_SAMPLER_2D;
+        #if !defined(ANDROID)
             case GL_SAMPLER_2D_ARRAY:
                 return TYPE_SAMPLER_2D_ARRAY;
+        #endif
             case GL_SAMPLER_CUBE:
                 return TYPE_SAMPLER_CUBE;
             default:break;
@@ -477,7 +479,11 @@ static void LogFrameBufferError(GLenum status)
         switch(type)
         {
             case TEXTURE_TYPE_2D:       return GL_TEXTURE_2D;
+        #if defined(ANDROID)
+            case TEXTURE_TYPE_2D_ARRAY: return GL_TEXTURE_2D;
+        #else
             case TEXTURE_TYPE_2D_ARRAY: return IsTextureArraySupported() ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D;
+        #endif
             case TEXTURE_TYPE_CUBE_MAP: return GL_TEXTURE_CUBE_MAP;
             default:break;
         }
@@ -2684,7 +2690,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     }
                     CHECK_GL_ERROR;
                 } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
-                    assert(texture->m_NumTextureIds == params.m_Depth);
+                #if !defined(ANDROID)
                     if (IsTextureArraySupported())
                     {
                         if (params.m_SubUpdate) {
@@ -2694,7 +2700,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                         }
                     }
                     else
+                #endif
                     {
+                        assert(texture->m_NumTextureIds == params.m_Depth);
                         const char* p = (const char*) params.m_Data;
                         if (params.m_SubUpdate) {
                             glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * i);
@@ -2761,12 +2769,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                         }
                         CHECK_GL_ERROR;
                     } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
+                        #if !defined(ANDROID)
                         if (params.m_SubUpdate) {
                             glCompressedTexSubImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
                         } else {
                             glCompressedTexImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
                         }
                         CHECK_GL_ERROR;
+                        #endif
                     } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                         const char* p = (const char*) params.m_Data;
                         if (params.m_SubUpdate) {
