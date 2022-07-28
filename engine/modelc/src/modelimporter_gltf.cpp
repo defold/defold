@@ -714,7 +714,10 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
         cgltf_animation* gltf_animation = &gltf_data->animations[i];
         Animation* animation = &scene->m_Animations[i];
 
-        animation->m_Name = strdup(gltf_animation->name);
+        const char* anim_name = "default";
+        if (gltf_animation->name != 0)
+            anim_name = gltf_animation->name;
+        animation->m_Name = strdup(anim_name);
 
         dmHashTable64<uint32_t> node_name_to_index;
         animation->m_NodeAnimationsCount = CountAnimatedNodes(gltf_animation, node_name_to_index);

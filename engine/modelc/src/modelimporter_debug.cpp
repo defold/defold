@@ -66,10 +66,24 @@ static void OutputTransform(const dmTransform::Transform& transform)
     printf("s: %f, %f, %f  ", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
 }
 
+static void OutputVector4(const dmVMath::Vector4& v)
+{
+    printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+}
+
+static void OutputMatrix(const dmTransform::Transform& transform)
+{
+    dmVMath::Matrix4 mat = dmTransform::ToMatrix4(transform);
+    printf("    "); OutputVector4(mat.getRow(0));
+    printf("    "); OutputVector4(mat.getRow(1));
+    printf("    "); OutputVector4(mat.getRow(2));
+    printf("    "); OutputVector4(mat.getRow(3));
+}
+
 static void OutputBone(Bone* bone, int indent)
 {
     OutputIndent(indent);
-    printf("%s  idx: %u parent: %u node: %s ", bone->m_Name, bone->m_Index, bone->m_ParentIndex, bone->m_Node?bone->m_Node->m_Name:"null");
+    printf("%s  idx: %u parent: %u node: %s inv_bind_pose:", bone->m_Name, bone->m_Index, bone->m_ParentIndex, bone->m_Node?bone->m_Node->m_Name:"null");
     OutputTransform(bone->m_InvBindPose);
     printf("\n");
 }
@@ -90,9 +104,9 @@ static void OutputNode(Node* node)
 {
     printf("Node: %s : \n", node->m_Name);
     printf("  local\n");
-    OutputTransform(node->m_Local);
+    OutputMatrix(node->m_Local);
     printf("\n  world\n");
-    OutputTransform(node->m_World);
+    OutputMatrix(node->m_World);
     printf("\n");
 }
 
