@@ -2,7 +2,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.fx.circle :as fx.circle]
             [cljfx.fx.group :as fx.group]
-            [cljfx.fx.line :as fx.line]
+            [cljfx.fx.polyline :as fx.polyline]
             [cljfx.fx.rectangle :as fx.rectangle]
             [cljfx.fx.scene :as fx.scene]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
@@ -26,9 +26,9 @@
 (s/def ::title string?)
 (s/def ::color ::fxui/color)
 (s/def ::position ::fxui/point)
-(s/def ::socket (s/keys :req [::id ::title] :opt [::color]))
-(s/def ::inputs (s/every ::socket :kind vector?))
-(s/def ::outputs (s/every ::socket :kind vector?))
+(s/def ::jack (s/keys :req [::id ::title] :opt [::text-color ::socket-color ::plug-color]))
+(s/def ::inputs (s/every ::jack :kind vector?))
+(s/def ::outputs (s/every ::jack :kind vector?))
 (s/def ::node (s/keys :req [::id ::title ::position] :opt [::color ::inputs ::outputs]))
 (s/def ::from-position ::position)
 (s/def ::to-position ::position)
@@ -42,14 +42,21 @@
 (def ^:private ^{:tag 'double} node-margin-width 20.0)
 (def ^:private ^{:tag 'double} node-unit-height 20.0)
 (def ^:private ^{:tag 'double} node-unit-text-y 14.0)
+(def ^:private ^{:tag 'double} socket-stroke-width 2.0)
+(def ^:private ^{:tag 'double} socket-radius 4.0)
 (def ^:private ^{:tag 'double} connection-stroke-width 3.0)
+(def ^:private ^{:tag 'double} connection-kink-width 20.0)
+
+(def ^:private graph-background-color (ui/clj->color colors/scene-background))
 
 (def ^:private default-node-color Color/DARKGREEN)
 (def ^:private default-input-color Color/YELLOW)
 (def ^:private default-output-color Color/CYAN)
-(def ^:private default-connection-color (Color/gray 0.4))
+(def ^:private default-connection-color (Color/valueOf "#464c55"))
+(def ^:private default-socket-color graph-background-color)
+(def default-plug-color default-connection-color)
 
-(def ^:private graph-background (Background/fill (ui/clj->color colors/scene-background)))
+(def ^:private graph-background (Background/fill graph-background-color))
 
 (defn- data->fx-type-with-key [fx-type data]
   (-> data
@@ -63,32 +70,24 @@
   -fx-background-color: -df-component
 }
 
-.graph-view-scroll-view {
-}
-
 .graph-view-node-background {
   -fx-fill: -df-component-darker;
-  -fx-opacity: 0.95;
+  -fx-opacity: 0.9;
 }
 
 .graph-view-node-title Rectangle {
 }
 
 .graph-view-node-title Text {
+  -fx-fill: -df-text-selected;
 }
 
-.graph-view-node-input Text {;
-}
-
-.graph-view-node-input Circle {
-  -fx-fill: -df-background;
+.graph-view-node-input Text {
+  -fx-font-size: 13px;
 }
 
 .graph-view-node-output Text {
-}
-
-.graph-view-node-output Circle {
-  -fx-fill: -df-background;
+  -fx-font-size: 13px;
 }
 ")
 
@@ -102,25 +101,28 @@
    :width node-width
    :height node-unit-height})
 
-(defn- input [{::keys [title color] :as props}]
+(defn- input [{::keys [title text-color socket-color plug-color] :as props}]
   (-> props
-      (dissoc ::title ::color)
+      (dissoc ::title ::text-color ::socket-color ::plug-color)
       (assoc :fx/type fx.group/lifecycle
              :style-class "graph-view-node-input"
              :children [{:fx/type fx.text/lifecycle
                          :x node-margin-width
                          :y node-unit-text-y
                          :text title
-                         :fill (or color default-input-color)
+                         :fill (or text-color default-input-color)
                          :clip node-unit-clip}
                         {:fx/type fx.circle/lifecycle
-                         :center-x 10.0
+                         :fill (or plug-color socket-color default-socket-color)
+                         :stroke (or socket-color default-socket-color)
+                         :stroke-width socket-stroke-width
+                         :center-x (/ node-margin-width 2.0)
                          :center-y (/ node-unit-height 2.0)
-                         :radius 5}])))
+                         :radius socket-radius}])))
 
-(defn- output [{::keys [title color] :as props}]
+(defn- output [{::keys [title text-color socket-color plug-color] :as props}]
   (-> props
-      (dissoc ::title ::color)
+      (dissoc ::title ::text-color ::socket-color ::plug-color)
       (assoc :fx/type fx.group/lifecycle
              :style-class "graph-view-node-output"
              :children [{:fx/type fx.text/lifecycle
@@ -128,31 +130,34 @@
                          :wrapping-width (- node-width node-margin-width)
                          :text-alignment :right
                          :text title
-                         :fill (or color default-output-color)
+                         :fill (or text-color default-output-color)
                          :clip node-unit-clip}
                         {:fx/type fx.circle/lifecycle
+                         :fill (or plug-color socket-color default-socket-color)
+                         :stroke (or socket-color default-socket-color)
+                         :stroke-width socket-stroke-width
                          :center-x (- node-width (/ node-margin-width 2.0))
                          :center-y (/ node-unit-height 2.0)
-                         :radius 5.0}])))
+                         :radius socket-radius}])))
 
-(defn- socket-group [{:keys [sockets socket-fx-type] :as props}]
+(defn- jack-group [{:keys [jacks jack-fx-type] :as props}]
   (-> props
-      (dissoc :sockets :socket-fx-type)
+      (dissoc :jacks :jack-fx-type)
       (assoc :fx/type fx.group/lifecycle
              :children (into []
-                             (map-indexed (fn [^long index socket]
-                                            (-> socket
+                             (map-indexed (fn [^long index jack]
+                                            (-> jack
                                                 (dissoc ::id)
-                                                (assoc :fx/type socket-fx-type
-                                                       :fx/key (::id socket)
+                                                (assoc :fx/type jack-fx-type
+                                                       :fx/key (::id jack)
                                                        :layout-y (* index node-unit-height)))))
-                             sockets))))
+                             jacks))))
 
 (defn- node [{::keys [title position color inputs outputs] :as props}]
   ;; TODO: experiment with inputs-source, inputs-fn to query NodeType directly?
   (let [input-count (count inputs)
         output-count (count outputs)
-        node-unit-count (+ 1 input-count output-count) ; One unit for the title and one per socket.
+        node-unit-count (+ 1 input-count output-count) ; One unit for the title and one per jack.
         node-height (* node-unit-count node-unit-height)]
     (-> props
         (dissoc ::title ::position ::color ::inputs ::outputs)
@@ -179,18 +184,18 @@
                                    :height (- node-height node-unit-height)}]
 
                                  (seq inputs)
-                                 (conj {:fx/type socket-group
+                                 (conj {:fx/type jack-group
                                         :fx/key :node/inputs
                                         :layout-y node-unit-height ; Offset by one unit for the title.
-                                        :sockets inputs
-                                        :socket-fx-type input})
+                                        :jacks inputs
+                                        :jack-fx-type input})
 
                                  (seq outputs)
-                                 (conj {:fx/type socket-group
+                                 (conj {:fx/type jack-group
                                         :fx/key :node/outputs
                                         :layout-y (* (inc input-count) node-unit-height) ; Offset by one unit for the title and one per input.
-                                        :sockets outputs
-                                        :socket-fx-type output}))))))
+                                        :jacks outputs
+                                        :jack-fx-type output}))))))
 
 (defn- connection [{::keys [^Point2D from-position ^Point2D to-position color] :as props}]
   (let [from-x (.getX from-position)
@@ -200,16 +205,17 @@
         start-x (Double/valueOf from-x)
         start-y (Double/valueOf from-y)
         end-x (Double/valueOf to-x)
-        end-y (Double/valueOf to-y)]
+        end-y (Double/valueOf to-y)
+        out-x (Double/valueOf (+ from-x connection-kink-width))
+        out-y start-y
+        in-x (Double/valueOf (- to-x connection-kink-width))
+        in-y end-y]
     (-> props
         (dissoc ::from-position ::to-position ::color)
-        (assoc :fx/type fx.line/lifecycle
+        (assoc :fx/type fx.polyline/lifecycle
                :stroke (or color default-connection-color)
                :stroke-width connection-stroke-width
-               :start-x start-x
-               :start-y start-y
-               :end-x end-x
-               :end-y end-y))))
+               :points [start-x start-y out-x out-y in-x in-y end-x end-y]))))
 
 (defn- graph [{::keys [connections nodes] :as props}]
   (-> props
@@ -233,7 +239,6 @@
                            :cancel-button true
                            :on-action {:event-type :close-window}}]}
               {:fx/type fx.scroll-pane/lifecycle
-               :style-class "graph-view-scroll-view"
                :background graph-background
                :v-box/vgrow :always
                :pref-width 800

@@ -7,6 +7,7 @@
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [internal.node :as in]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [util.coll :refer [pair]]))
 
@@ -19,22 +20,30 @@
 (defn- props-for-node [node-id basis]
   (let [node-type (g/node-type* basis node-id)
         declared-inputs (in/declared-inputs node-type)
-        declared-outputs (in/declared-outputs node-type)]
+        declared-outputs (in/declared-outputs node-type)
+        input-arcs (ig/inputs basis node-id)
+        output-arcs (ig/outputs basis node-id)
+        connected-input-label? (into #{} (map gt/target-label) input-arcs)
+        connected-output-label? (into #{} (map gt/source-label) output-arcs)]
     {::gv/id node-id
      ::gv/title (node-title node-type node-id basis)
      ::gv/color "#165d05"
      ::gv/inputs (into []
                        (map (fn [[input-label input-info]]
-                              {::gv/id input-label
-                               ::gv/title (name input-label)
-                               ::gv/color :red}))
+                              (cond-> {::gv/id input-label
+                                       ::gv/title (name input-label)
+                                       ::gv/text-color :red}
+                                      (connected-input-label? input-label)
+                                      (assoc ::gv/plug-color gv/default-plug-color))))
                        (sort-by key declared-inputs))
      ::gv/outputs (into []
                         (keep (fn [[output-label output-info]]
                                 (when (not= :_output-jammers output-label)
-                                  {::gv/id output-label
-                                   ::gv/title (name output-label)
-                                   ::gv/color :red})))
+                                  (cond-> {::gv/id output-label
+                                           ::gv/title (name output-label)
+                                           ::gv/text-color :red}
+                                          (connected-output-label? output-label)
+                                          (assoc ::gv/plug-color gv/default-plug-color)))))
                         (sort-by key declared-outputs))}))
 
 (defn- initial-position-for-node [existing-nodes node-props]
