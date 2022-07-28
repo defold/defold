@@ -150,9 +150,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
             for (int i=0; i < maxArraySliceCount; i++) {
                 if (i == 0) {
-                    writer.println("if (page_index == 0) return texture2D(dm_texture_arrays[0], dm_texture_array_args.st);");
+                    writer.println("    if (page_index == 0) return texture2D(dm_texture_arrays[0], dm_texture_array_args.st);");
                 } else {
-                    writer.println(String.format("else if (page_index == %d) return texture2D(dm_texture_arrays[%d], dm_texture_array_args.st);", i, i));
+                    writer.println(String.format("    else if (page_index == %d) return texture2D(dm_texture_arrays[%d], dm_texture_array_args.st);", i, i));
                 }
             }
             writer.println("    return vec4(0.0);");
@@ -187,7 +187,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             if (source.contains(sampler2DArrayStr))
             {
                 final String sampler2DArrayRegex = "(.+)sampler2DArray\\s+(\\w+);";
-                final String texture2DArrayRegex = "texture2DArray\\s?\\(([^,]*),(.+)";
                 source = source.replaceAll(sampler2DArrayRegex, "$1 sampler2D $2[" + maxArraySliceCount + "];");
 
                 ArrayList<String> output = new ArrayList<String>(source.length());
