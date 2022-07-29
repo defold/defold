@@ -99,10 +99,10 @@ protected:
 TEST_F(LuaTableTest, EmptyTable)
 {
     lua_newtable(L);
-    char buf[8 + 2];
+    char buf[8 + 4];
     uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
-    // 2 bytes for count
-    ASSERT_EQ(10U, buffer_used);
+    // 4 bytes for count
+    ASSERT_EQ(12U, buffer_used);
     lua_pop(L, 1);
 }
 
@@ -168,7 +168,7 @@ TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
     int result = lua_cpcall(L, ReadUnsupportedVersion, 0x0);
     ASSERT_NE(0, result);
     char str[256];
-    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 3);
+    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 4);
     ASSERT_STREQ(str, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);

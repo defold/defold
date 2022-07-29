@@ -45,7 +45,7 @@ typedef lua_Number lua_Number_4_align;
 namespace dmScript
 {
     const int TABLE_MAGIC = 0x42544448;
-    const uint32_t TABLE_VERSION_CURRENT = 3;
+    const uint32_t TABLE_VERSION_CURRENT = 4;
 
     /*
      * Original table serialization format:
@@ -92,6 +92,9 @@ namespace dmScript
      *
      *    Version 3:
      *    Adds support for negative numeric keys. Always writes four bytes.
+     *
+     *    Version 4:
+     *    Adds support for more than 65535 keys in a table.
      */
 
     struct TableHeader
@@ -189,6 +192,7 @@ namespace dmScript
         case 1:
         case 2:
         case 3:
+        case 4:
             supported = true;
             break;
         default:
@@ -306,16 +310,16 @@ namespace dmScript
         {
             luaL_error(L, "table too large");
         }
-        // Make room for count (2 bytes)
-        buffer += 2;
+        // Make room for count (4 bytes)
+        buffer += 4;
 
-        uint16_t count = 0;
+        uint32_t count = 0;
         while (lua_next(L, -2) != 0)
         {
             // Check overflow
-            if (count == (uint16_t)0xffff)
+            if (count == (uint32_t)0xffffffff)
             {
-                luaL_error(L, "too many values in table, %d is max", 0xffff);
+                luaL_error(L, "too many values in table, %d is max", 0xffffffff);
             }
 
             count++;
@@ -538,7 +542,7 @@ namespace dmScript
         }
         lua_pop(L, 1);
 
-        memcpy(buffer_start, &count, sizeof(uint16_t));
+        memcpy(buffer_start, &count, sizeof(uint32_t));
 
         assert(top == lua_gettop(L));
         return buffer - buffer_start;
@@ -692,9 +696,17 @@ namespace dmScript
         const char* buffer_end = buffer + buffer_size;
         CHECK_PUSHTABLE_OOB("table header", logger, buffer+2, buffer_end, 0, depth);
 
-        uint16_t count;
-        memcpy(&count, buffer, sizeof(uint16_t));
-        buffer += 2;
+        uint32_t count;
+        if (header.m_Version <= 3)
+        {
+            memcpy(&count, buffer, sizeof(uint16_t));
+            buffer += 2;
+        }
+        else
+        {
+            memcpy(&count, buffer, sizeof(uint32_t));
+            buffer += 4;
+        }
 
         PushTableLogFormat(logger, "{%d|", (uint32_t)count);
 
