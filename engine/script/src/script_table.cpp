@@ -86,6 +86,12 @@ namespace dmScript
      *    For the imagined use cases, we consider it likely that taking this approach with keys will lead to smaller files,
      *    since a typical key will fit within a single byte of data. Numerical values when used elsewhere are essentially random
      *    and so we cannot guarantee that this encoding method will yield smaller data in such cases.
+     *
+     *    Version 2:
+     *    Adds support for binary strings.
+     *
+     *    Version 3:
+     *    Adds support for negative numeric keys. Always writes four bytes.
      */
 
     struct TableHeader
