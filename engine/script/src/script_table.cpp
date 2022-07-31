@@ -295,6 +295,120 @@ namespace dmScript
         return total_size;
     }
 
+    uint32_t GetTableSize(lua_State* L, int index)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+
+
+        luaL_checktype(L, index, LUA_TTABLE);
+        lua_pushvalue(L, index);
+        lua_pushnil(L);
+
+        uint32_t size = 0;
+
+        // count
+        size += 4;
+        while (lua_next(L, -2) != 0)
+        {
+            int key_type = lua_type(L, -2);
+            int value_type = lua_type(L, -1);
+            if (key_type != LUA_TSTRING && key_type != LUA_TNUMBER)
+            {
+                luaL_error(L, "keys in table must be of type number or string (found %s)", lua_typename(L, key_type));
+            }
+
+            // key + value type
+            size += 2;
+            if (key_type == LUA_TSTRING)
+            {
+                size += lua_objlen(L, index);
+            }
+            else if (key_type == LUA_TNUMBER)
+            {
+                size += 4;
+            }
+
+            switch (value_type)
+            {
+                case LUA_TBOOLEAN:
+                {
+                    size += 1;
+                }
+                break;
+
+                case LUA_TNUMBER:
+                {
+                    // align
+                    size += sizeof(float) - (sizeof(float) - (size % sizeof(float)));
+                    // size += sizeof(float);
+
+                    size += sizeof(lua_Number);
+                }
+                break;
+
+                case LUA_TSTRING:
+                {
+                    size += lua_objlen(L, index);
+                }
+                break;
+
+                case LUA_TUSERDATA:
+                {
+                    // subtype
+                    size += 1;
+
+                    // align
+                    size += sizeof(float) - 1;
+
+                    if (IsVector3(L, -1))
+                    {
+                        size += sizeof(float) * 3;
+                    }
+                    else if (IsVector4(L, -1))
+                    {
+                        size += sizeof(float) * 4;
+                    }
+                    else if (IsQuat(L, -1))
+                    {
+                        size += sizeof(float) * 4;
+                    }
+                    else if (IsMatrix4(L, -1))
+                    {
+                        size += sizeof(float) * 16;
+                    }
+                    else if (IsHash(L, -1))
+                    {
+                        size += sizeof(dmhash_t);
+                    }
+                    else if (IsURL(L, -1))
+                    {
+                        size += sizeof(dmMessage::URL);
+                    }
+                    else
+                    {
+                        luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
+                    }
+                }
+                break;
+
+                case LUA_TTABLE:
+                {
+                    size += GetTableSize(L, -1);
+                }
+                break;
+
+                default:
+                    luaL_error(L, "unsupported value type in table: %s", lua_typename(L, value_type));
+                    break;
+            }
+
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+        return size;
+    }
+
     uint32_t DoCheckTable(lua_State* L, const TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
     {
         int top = lua_gettop(L);
