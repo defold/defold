@@ -213,7 +213,19 @@ namespace dmScript
             memcpy(buffer, &key, sizeof(uint16_t));
             buffer += sizeof(uint16_t);
         }
-        else if (3 == header.m_Version)
+        else if ((1 == header.m_Version) || (2 == header.m_Version))
+        {
+            if (index > 0xffffffff) {
+                luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
+            }
+            uint32_t key = (uint32_t)index;
+            bool encoded = EncodeMSB(key, buffer, buffer_end);
+            if (!encoded)
+            {
+                luaL_error(L, "table too large");
+            }
+        }
+        else if ((3 == header.m_Version) || (4 == header.m_Version))
         {
             if (buffer_end - buffer < 4)
                 luaL_error(L, "table too large");
@@ -229,15 +241,7 @@ namespace dmScript
         }
         else
         {
-            if (index > 0xffffffff) {
-                luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
-            }
-            uint32_t key = (uint32_t)index;
-            bool encoded = EncodeMSB(key, buffer, buffer_end);
-            if (!encoded)
-            {
-                luaL_error(L, "table too large");
-            }
+            assert(0);
         }
         return buffer;
     }
@@ -703,7 +707,23 @@ namespace dmScript
             lua_pushnumber(L, value);
             buffer += sizeof(uint16_t);
         }
-        else if (3 == header.m_Version)
+        else if ((1 == header.m_Version) || (2 == header.m_Version))
+        {
+            if (key_type != LUA_TNUMBER)
+            {
+                luaL_error(L, "Unknown key type %d", key_type);
+            }
+            uint32_t index;
+            if(DecodeMSB(index, buffer))
+            {
+                lua_pushnumber(L, index);
+            }
+            else
+            {
+                luaL_error(L, "Invalid number encoding");
+            }
+        }
+        else if ((3 == header.m_Version) || (4 == header.m_Version))
         {
             if (key_type != LUA_TNUMBER && key_type != LUA_TNEGATIVENUMBER)
             {
@@ -723,19 +743,7 @@ namespace dmScript
         }
         else
         {
-            if (key_type != LUA_TNUMBER)
-            {
-                luaL_error(L, "Unknown key type %d", key_type);
-            }
-            uint32_t index;
-            if(DecodeMSB(index, buffer))
-            {
-                lua_pushnumber(L, index);
-            }
-            else
-            {
-                luaL_error(L, "Invalid number encoding");
-            }
+            assert(0);
         }
         return buffer;
     }
