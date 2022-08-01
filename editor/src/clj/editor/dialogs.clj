@@ -519,13 +519,18 @@
 
 (defn- select-first-list-item-on-items-changed! [^ListView view]
   (let [items (.getItems view)
+        properties (.getProperties view)
         selection-model (.getSelectionModel view)]
     (when (pos? (count items))
       (.select selection-model 0))
     (.addListener items (reify ListChangeListener
                           (onChanged [_ _]
                             (when (pos? (count items))
-                              (.select selection-model 0)))))))
+                              (.select selection-model 0)
+                              ;; ListViewBehavior's selectedIndicesListener sets the selection anchor
+                              ;; to the end of the list on items change unless the list view has default anchor.
+                              ;; This keeps the anchor at the top so shift+click selects from the start instead of the end:
+                              (.put properties "isDefaultAnchor" true)))))))
 
 (defn- select-list-dialog
   [{:keys [filter-term filtered-items title ok-label prompt cell-fn selection]
