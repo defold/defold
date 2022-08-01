@@ -2722,9 +2722,13 @@ namespace dmRender
 
         REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR_BIT); // For backwards compatability
         REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR0_BIT);
-        REGISTER_BUFFER_CONSTANT(COLOR1_BIT,  COLOR1_BIT);
-        REGISTER_BUFFER_CONSTANT(COLOR2_BIT,  COLOR2_BIT);
-        REGISTER_BUFFER_CONSTANT(COLOR3_BIT,  COLOR3_BIT);
+        // These depend on driver and context support
+        if (dmGraphics::IsMultiTargetRenderingSupported(graphics_context))
+        {
+            REGISTER_BUFFER_CONSTANT(COLOR1_BIT,  COLOR1_BIT);
+            REGISTER_BUFFER_CONSTANT(COLOR2_BIT,  COLOR2_BIT);
+            REGISTER_BUFFER_CONSTANT(COLOR3_BIT,  COLOR3_BIT);
+        }
         REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
         REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
 

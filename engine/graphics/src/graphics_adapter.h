@@ -161,6 +161,7 @@ namespace dmGraphics
     typedef bool (*IsExtensionSupportedFn)(HContext context, const char* extension);
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
+    typedef bool (*IsMultiTargetRenderingSupportedFn)(HContext context);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -271,6 +272,7 @@ namespace dmGraphics
         IsExtensionSupportedFn m_IsExtensionSupported;
         GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
         GetSupportedExtensionFn m_GetSupportedExtension;
+        IsMultiTargetRenderingSupportedFn m_IsMultiTargetRenderingSupported;
     };
 }
 
