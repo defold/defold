@@ -36,6 +36,7 @@
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
+            [internal.cache :as c]
             [internal.graph.types :as gt]
             [schema.core :as s]
             [service.log :as log]
@@ -43,7 +44,7 @@
             [util.debug-util :as du]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import (java.util.concurrent.atomic AtomicLong)))
+  (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 
@@ -869,9 +870,24 @@
   (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
     (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
 
-(def update-system-cache-build-targets! (partial update-system-cache-from-pruned-evaluation-context! cached-build-target-output?))
+(defn- log-cache-statistics! [cache msg]
+  ;; Disabled during tests to minimize log spam.
+  (when-not (Boolean/getBoolean "defold.tests")
+    (let [cached-count (count cache)
+          retained-count (c/retained-count cache)
+          unretained-count (- cached-count retained-count)]
+      (log/info :msg msg
+                :total cached-count
+                :retained retained-count
+                :unretained unretained-count))))
 
-(def update-system-cache-save-data! (partial update-system-cache-from-pruned-evaluation-context! cached-save-data-output?))
+(defn update-system-cache-build-targets! [evaluation-context]
+  (update-system-cache-from-pruned-evaluation-context! cached-build-target-output? evaluation-context)
+  (log-cache-statistics! (g/cache) "Cached build targets in system cache."))
+
+(defn update-system-cache-save-data! [evaluation-context]
+  (update-system-cache-from-pruned-evaluation-context! cached-save-data-output? evaluation-context)
+  (log-cache-statistics! (g/cache) "Cached save data in system cache."))
 
 (defn- cache-save-data! [project]
   ;; Save data is required for the Search in Files feature, so we pull

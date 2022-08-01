@@ -185,3 +185,34 @@
           (let [cache (cc/hit cache (gt/endpoint 1 :retain/a))
                 lru-after (.lru cache)]
             (is (= lru-before lru-after))))))))
+
+(deftest retain-count
+  (letfn [(populate-cache [cache]
+            (cache-encache cache {(gt/endpoint 1 :a) 1
+                                  (gt/endpoint 1 :b) 2
+                                  (gt/endpoint 1 :retain/a) -1
+                                  (gt/endpoint 1 :retain/b) -2
+                                  (gt/endpoint 1 :c) 3
+                                  (gt/endpoint 1 :d) 4}))
+          (cache-retain? [endpoint]
+            (= "retain" (namespace (gt/endpoint-label endpoint))))]
+    (testing "positive cache limit with retain predicate"
+      (with-clean-system {:cache-size 3
+                          :cache-retain? cache-retain?}
+        (let [cache (populate-cache cache)]
+          (is (= 2 (retained-count cache))))))
+
+    (testing "positive cache limit without retain predicate"
+      (with-clean-system {:cache-size 3}
+        (let [cache (populate-cache cache)]
+          (is (= 0 (retained-count cache))))))
+
+    (testing "zero cache limit (no caching)"
+      (with-clean-system {:cache-size 0}
+        (let [cache (populate-cache cache)]
+          (is (= 0 (retained-count cache))))))
+
+    (testing "unlimited cache"
+      (with-clean-system {:cache-size -1}
+        (let [cache (populate-cache cache)]
+          (is (= 0 (retained-count cache))))))))

@@ -188,7 +188,8 @@
                                                  (javafx.application.Platform/startup
                                                    (fn []
                                                      (com.jogamp.opengl.GLProfile/initSingleton)))))]
-                                :resource-paths ["test/resources"]}
+                                :resource-paths ["test/resources"]
+                                :jvm-opts ["-Ddefold.tests=true"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
                                                  [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]

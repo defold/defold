@@ -15,11 +15,21 @@
 (ns internal.cache
   (:require [clojure.core.cache :as cc]
             [internal.graph.types :as gt])
-  (:import [clojure.core.cache BasicCache]))
+  (:import [clojure.core.cache BasicCache LRUCache]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:dynamic *cache-debug* nil)
+
+(defprotocol RetainingAwareCache
+  (retained-count [this]))
+
+(extend-protocol RetainingAwareCache
+  BasicCache
+  (retained-count [_this] 0)
+
+  LRUCache
+  (retained-count [_this] 0))
 
 ;; ----------------------------------------
 ;; Null cache for testing / uncached queries
@@ -32,7 +42,10 @@
   (hit [this item] this)
   (miss [this item result] this)
   (evict [this key] this)
-  (seed [this base] this))
+  (seed [this base] this)
+
+  RetainingAwareCache
+  (retained-count [_this] 0))
 
 (def null-cache (NullCache. {}))
 
@@ -40,6 +53,8 @@
 ;; Application-specialized LRU cache with the ability to selectively exclude
 ;; entries from the cache limit.
 ;; ----------------------------------------
+(def ^:private occupied-lru-entry? (comp pos? val))
+
 (cc/defcache RetainingLRUCache [cache lru tick limit retain?]
   cc/CacheProtocol
   (lookup [_ item]
@@ -95,6 +110,13 @@
                           0
                           limit
                           retain?)))
+
+  RetainingAwareCache
+  (retained-count [this]
+    ;; Note: Likely slow, don't call excessively.
+    (- (count this)
+       (count (filter occupied-lru-entry? lru))))
+
   Object
   (toString [_]
     (str cache \, \space lru \, \space tick \, \space limit)))
