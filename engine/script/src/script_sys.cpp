@@ -85,8 +85,7 @@ union SaveLoadBuffer
 
     void Sys_FreeTableSerializationBuffer(char* buffer)
     {
-        char* preallocated_buffer = g_saveload.m_buffer;
-        if ((buffer < preallocated_buffer) && (buffer > (preallocated_buffer + MAX_BUFFER_SIZE)))
+        if (buffer != g_saveload.m_buffer)
         {
             free(buffer);
         }
