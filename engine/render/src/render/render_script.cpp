@@ -105,9 +105,18 @@ namespace dmRender
         dmhash_t name_hash = dmHashString64(name);
         dmVMath::Vector4* values;
         uint32_t num_values = 0;
-        if (GetNamedConstant(*cb, name_hash, &values, &num_values))
+
+        dmRenderDDF::MaterialDesc::ConstantType constant_type;
+        if (GetNamedConstant(*cb, name_hash, &values, &num_values, &constant_type))
         {
-            dmScript::PushVector4(L, values[0]);
+            if (constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+            {
+                dmScript::PushMatrix4(L, ((dmVMath::Matrix4*) values)[0]);
+            }
+            else
+            {
+                dmScript::PushVector4(L, values[0]);
+            }
             return 1;
         }
         else
@@ -126,8 +135,22 @@ namespace dmRender
         const char* name = luaL_checkstring(L, 2);
         dmhash_t name_hash = dmHashString64(name);
 
-        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-        SetNamedConstant(*cb, name_hash, value, 1);
+        uint32_t num_values = 1;
+        dmVMath::Vector4* value_ptr = 0;
+
+        dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+
+        if (dmScript::IsMatrix4(L,3))
+        {
+            value_ptr     = (dmVMath::Vector4*) dmScript::CheckMatrix4(L, 3);
+            num_values   *= 4;
+            constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+        }
+        else
+        {
+            value_ptr = dmScript::CheckVector4(L, 3);
+        }
+        SetNamedConstant(*cb, name_hash, value_ptr, num_values, constant_type);
         assert(top == lua_gettop(L));
         return 0;
     }

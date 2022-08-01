@@ -119,6 +119,12 @@ namespace dmRender
                 HConstant render_constant = dmRender::NewConstant(name_hash);
                 dmRender::SetConstantLocation(render_constant, location);
 
+                if (type == dmGraphics::TYPE_FLOAT_MAT4)
+                {
+                    num_values *= 4;
+                    dmRender::SetConstantType(render_constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+                }
+
                 // Set correct size of the constant (Until the shader builder provides all the default values)
                 if (num_values > default_values_capacity)
                 {
@@ -199,6 +205,13 @@ namespace dmRender
                     uint32_t num_values;
                     dmVMath::Vector4* values = GetConstantValues(constant, &num_values);
                     dmGraphics::SetConstantV4(graphics_context, values, num_values, location);
+                    break;
+                }
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4:
+                {
+                    uint32_t num_values;
+                    dmVMath::Vector4* values = GetConstantValues(constant, &num_values);
+                    dmGraphics::SetConstantM4(graphics_context, values, location);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
