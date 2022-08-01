@@ -822,7 +822,7 @@ namespace dmScript
         const char* buffer_end = buffer + buffer_size;
         CHECK_PUSHTABLE_OOB("table header", logger, buffer+2, buffer_end, 0, depth);
 
-        uint32_t count;
+        uint32_t count = 0;
         if (header.m_Version <= 3)
         {
             memcpy(&count, buffer, sizeof(uint16_t));
