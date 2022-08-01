@@ -428,7 +428,7 @@ namespace dmScript
         lua_pushvalue(L, index);
         lua_pushnil(L);
 
-        if (buffer_size < 2)
+        if (buffer_size < 4)
         {
             luaL_error(L, "table too large");
         }
