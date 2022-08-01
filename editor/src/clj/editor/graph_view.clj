@@ -223,6 +223,24 @@
                :stroke-width connection-stroke-width
                :points [start-x start-y out-x out-y in-x in-y end-x end-y]))))
 
+(defn- node-group [{:keys [nodes] :as props}]
+  (prn 'node-group)
+  (-> props
+      (dissoc :nodes)
+      (assoc :fx/type fx.group/lifecycle
+             :children (into []
+                             (map (partial data->fx-type-with-key node))
+                             nodes))))
+
+(defn- connection-group [{:keys [connections] :as props}]
+  (prn 'connection-group)
+  (-> props
+      (dissoc :connections)
+      (assoc :fx/type fx.group/lifecycle
+             :children (into []
+                             (map (partial data->fx-type-with-key connection))
+                             connections))))
+
 (defn- graph [{::keys [nodes connections scroll-offset zoom-factor]
                :or {scroll-offset Point2D/ZERO
                     zoom-factor 1.0}
@@ -234,14 +252,10 @@
              :translate-y (ui/point-y scroll-offset)
              :scale-x zoom-factor
              :scale-y zoom-factor
-             :children [{:fx/type fx.group/lifecycle
-                         :children (into []
-                                         (map (partial data->fx-type-with-key connection))
-                                         connections)}
-                        {:fx/type fx.group/lifecycle
-                         :children (into []
-                                         (map (partial data->fx-type-with-key node))
-                                         nodes)}])))
+             :children [{:fx/type connection-group
+                         :connections connections}
+                        {:fx/type node-group
+                         :nodes nodes}])))
 
 (defn- view-map-desc [view-data]
   {:fx/type fx.v-box/lifecycle
@@ -258,7 +272,10 @@
                :pref-height 600
                :on-scroll {:event/type ::scroll}
                :on-zoom {:event/type ::zoom}
-               :children [(assoc (::graph view-data) :fx/type graph)]}]})
+               :children [(assoc (::graph view-data) :fx/type graph)]
+               :clip {:fx/type fx.rectangle/lifecycle
+                      :width 800
+                      :height 600}}]})
 
 (defn- window-map-desc [view-data]
   {:fx/type fxui/stage
@@ -293,6 +310,7 @@
     ::zoom (handle-zoom-event! view-data-atom (:fx/event event))))
 
 (defn- handle-close-button-event! [^ActionEvent action-event]
+  (prn 'handle-close-button-event!)
   (let [^Node event-source (.getSource action-event)
         ^Scene scene (.getScene event-source)
         ^Stage stage (.getWindow scene)]
