@@ -15,11 +15,11 @@ message TextureSetAnimation
     required uint32 height          = 3;
     required uint32 start           = 4;
     required uint32 end             = 5;
-    optional uint32 fps             = 7 [default = 30];
-    optional Playback playback      = 8 [default = PLAYBACK_ONCE_FORWARD];
-    optional uint32 flip_horizontal = 9 [default = 0];
-    optional uint32 flip_vertical   = 10 [default = 0];
-    optional uint32 is_animation    = 11 [default = 0]; // Deprecated
+    optional uint32 fps             = 6 [default = 30];
+    optional Playback playback      = 7 [default = PLAYBACK_ONCE_FORWARD];
+    optional uint32 flip_horizontal = 8 [default = 0];
+    optional uint32 flip_vertical   = 9 [default = 0];
+    optional uint32 is_animation    = 10 [default = 0]; // Deprecated
 }
 
 // * Vertices are relative to the center of the sprite
@@ -75,5 +75,6 @@ message TextureSet
     // Maps animation frames to geometry index
     repeated uint32 frame_indices           = 22;
 
+    // Maps animation frames to atlas page index
     repeated uint32 page_indices           = 23;
 }

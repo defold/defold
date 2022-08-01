@@ -336,7 +336,6 @@ namespace dmGameSystem
             component->m_Playing = 0;
             component->m_CurrentAnimation = 0x0;
             component->m_CurrentAnimationFrame = 0;
-            // TODO: Get correct texture path
             dmLogError("Unable to play animation '%s' from texture '%s' since it could not be found.",
                 dmHashReverseSafe64(animation), dmHashReverseSafe64(texture_set->m_TexturePath));
         }
@@ -430,6 +429,7 @@ namespace dmGameSystem
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         dmGameSystemDDF::TextureSetAnimation* animations = texture_set_ddf->m_Animations.m_Data;
         uint32_t* frame_indices = texture_set_ddf->m_FrameIndices.m_Data;
+        uint32_t* page_indices  = texture_set->m_TextureSet->m_PageIndices.m_Data;
 
         SpriteVertex*   vertices = *vb_where;
         uint8_t*        indices = *ib_where;
@@ -453,6 +453,7 @@ namespace dmGameSystem
                 const dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
 
                 uint32_t frame_index = frame_indices[animation_ddf->m_Start + component->m_CurrentAnimationFrame];
+                uint32_t page_index  = page_indices[frame_index];
 
                 const dmGameSystemDDF::SpriteGeometry* geometry = &geometries[frame_index];
 
@@ -489,6 +490,7 @@ namespace dmGameSystem
                     vertices[0].z = ((float*)&p0)[2];
                     vertices[0].u = u;
                     vertices[0].v = v;
+                    vertices[0].p = (float) page_index;
                 }
 
                 uint32_t index_count = geometry->m_Indices.m_Count;
@@ -521,7 +523,6 @@ namespace dmGameSystem
             };
 
             const float* tex_coords         = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
-            const uint32_t* page_indices    = (const uint32_t*) texture_set->m_TextureSet->m_PageIndices.m_Data;
             for (uint32_t *i = begin;i != end; ++i)
             {
                 uint32_t component_index = (uint32_t)buf[*i].m_UserData;

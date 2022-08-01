@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -348,6 +348,7 @@ public class TextureSetGenerator {
 
         layoutRects.sort(Comparator.comparing(o -> o.index));
 
+        /*
         int r_i = 0;
         for (Rect r : layoutRects)
         {
@@ -359,6 +360,7 @@ public class TextureSetGenerator {
             System.out.println("  w,h   : " + r.width + ", " + r.height);
             r_i++;
         }
+        */
 
         // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
         layoutRects = clipBorders(layoutRects, extrudeBorders);
@@ -437,63 +439,27 @@ public class TextureSetGenerator {
         TextureSetResult result = calculateLayout(imageRects, imageHulls, use_geometries, iterator,
             margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize, maxPageSize);
 
-        List<Layout> layouts = result.layoutResult.layouts;
-        List<List<BufferedImage>> layoutImages = new ArrayList<>();
-        List<List<Rect>> layoutRects = new ArrayList<>();
-        List<Rect> layoutRectsFlat = new ArrayList<>();
+        for (Layout layout : result.layoutResult.layouts) {
+            List<BufferedImage> layoutImages = new ArrayList<>();
+            List<Rect> layoutRects           = layout.getRectangles();
 
-        for (int i=0; i < layouts.size(); i++) {
-            layoutImages.add(new ArrayList<>());
-            layoutRects.add(new ArrayList<>());
-            layoutRectsFlat.addAll(layouts.get(i).getRectangles());
-        }
+            for (Rect rect : layoutRects) {
+                BufferedImage image = images.get(rect.index);
 
-        for (int i = 0; i < images.size(); ++i) {
-            Layout layout = null;
-
-            int layoutIndex = 0;
-            int layoutOffset = 0;
-
-            for (Layout l : layouts) {
-                int numRects = l.getRectangles().size();
-                if (i < (layoutOffset + numRects))
-                {
-                    layout = l;
-                    break;
-                } else {
-                    layoutIndex++;
-                    layoutOffset += numRects;
+                if (innerPadding > 0) {
+                    image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
                 }
+                if (extrudeBorders > 0) {
+                    image = TextureUtil.extrudeBorders(image, extrudeBorders);
+                }
+                if (rect.rotated) {
+                    image = rotateImage(image);
+                }
+
+                layoutImages.add(image);
             }
 
-            Rect rect = layout.getRectangles().get(i - layoutOffset);
-            BufferedImage image = images.get(rect.index);
-
-            if (innerPadding > 0) {
-                image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
-            }
-            if (extrudeBorders > 0) {
-                image = TextureUtil.extrudeBorders(image, extrudeBorders);
-            }
-            if (rect.rotated) {
-                image = rotateImage(image);
-            }
-
-            layoutImages.get(layoutIndex).add(image);
-            layoutRects.get(layoutIndex).add(rect);
-        }
-
-        for (Rect r : imageRects)
-        {
-            System.out.println("ImageRect: " + r.id);
-        }
-
-        int w = layouts.get(0).getWidth();
-        int h = layouts.get(0).getHeight();
-
-        for (int i = 0; i < layoutImages.size(); i++)
-        {
-            BufferedImage imgOut = composite(layoutImages.get(i), w, h, layoutRects.get(i));
+            BufferedImage imgOut = composite(layoutImages, layout.getWidth(), layout.getHeight(), layoutRects);
             result.images.add(imgOut);
 
             try {
@@ -632,10 +598,7 @@ public class TextureSetGenerator {
                     ref = r;
                 }
                 putRect(r, oneOverWidth, oneOverHeight, texCoordsBuffer, texDimsBuffer);
-
                 uvTransforms.add(genUVTransform(r, oneOverWidth, oneOverHeight));
-
-                System.out.println("iterator.Index, rect.index, page, id: " + index + ", " + r.index + ", " + r.page + ", " + r.id);
                 textureSet.addPageIndices(r.page);
 
                 ++quadIndex;
