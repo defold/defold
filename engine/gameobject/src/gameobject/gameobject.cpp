@@ -1141,6 +1141,10 @@ namespace dmGameObject
         return instance;
     }
 
+    static void Unlink(Collection* collection, Instance* instance);
+    static void ReparentChildNodes(Collection* collection, Instance* instance);
+    static void MoveAllUp(Collection* collection, Instance* instance);
+
     // Returns if successful or not
     static bool CollectionSpawnFromDescInternal(Collection* collection, dmGameObjectDDF::CollectionDesc* collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
     {
@@ -1412,6 +1416,10 @@ namespace dmGameObject
                         ++component_instance_data_index;
                 }
             } else {
+                ReparentChildNodes(collection, instance);
+                Unlink(collection, instance);
+                MoveAllUp(collection, instance);
+
                 ReleaseIdentifier(collection, instance);
                 UndoNewInstance(collection, instance);
                 success = false;
@@ -1831,34 +1839,8 @@ namespace dmGameObject
         instance->m_ToBeAdded = 0;
     }
 
-    static void DoDeleteInstance(Collection* collection, HInstance instance)
+    static void ReparentChildNodes(Collection* collection, HInstance instance)
     {
-        DM_PROFILE("DoDeleteInstance");
-        HCollection hcollection = collection->m_HCollection;
-        CancelAnimations(hcollection, instance);
-        if (instance->m_ToBeAdded) {
-            RemoveFromAddToUpdate(collection, instance);
-        }
-        dmResource::HFactory factory = collection->m_Factory;
-        Prototype* prototype = instance->m_Prototype;
-        DestroyComponents(collection, instance);
-
-        dmHashRelease64(&instance->m_CollectionPathHashState);
-        if(instance->m_Generated)
-        {
-            dmHashReverseErase64(instance->m_Identifier);
-        }
-
-        if (instance->m_IdentifierIndex < collection->m_MaxInstances)
-        {
-            // The identifier (hash) for this gameobject comes from the pool!
-            ReleaseInstanceIndex(instance->m_IdentifierIndex, hcollection);
-        }
-        ReleaseIdentifier(collection, instance);
-
-        assert(collection->m_LevelIndices[instance->m_Depth].Size() > 0);
-        assert(instance->m_LevelIndex < collection->m_LevelIndices[instance->m_Depth].Size());
-
         // Reparent child nodes
         uint32_t index = instance->m_FirstChildIndex;
         while (index != INVALID_INSTANCE_INDEX)
@@ -1893,7 +1875,38 @@ namespace dmGameObject
                 parent->m_FirstChildIndex = instance->m_FirstChildIndex;
             }
         }
+    }
 
+    static void DoDeleteInstance(Collection* collection, HInstance instance)
+    {
+        DM_PROFILE("DoDeleteInstance");
+        HCollection hcollection = collection->m_HCollection;
+        CancelAnimations(hcollection, instance);
+        if (instance->m_ToBeAdded) {
+            RemoveFromAddToUpdate(collection, instance);
+        }
+        dmResource::HFactory factory = collection->m_Factory;
+        Prototype* prototype = instance->m_Prototype;
+        DestroyComponents(collection, instance);
+
+        dmHashRelease64(&instance->m_CollectionPathHashState);
+        if(instance->m_Generated)
+        {
+            dmHashReverseErase64(instance->m_Identifier);
+        }
+
+        if (instance->m_IdentifierIndex < collection->m_MaxInstances)
+        {
+            // The identifier (hash) for this gameobject comes from the pool!
+            ReleaseInstanceIndex(instance->m_IdentifierIndex, hcollection);
+        }
+        ReleaseIdentifier(collection, instance);
+
+        assert(collection->m_LevelIndices[instance->m_Depth].Size() > 0);
+        assert(instance->m_LevelIndex < collection->m_LevelIndices[instance->m_Depth].Size());
+
+        ReparentChildNodes(collection, instance);
+        
         // Unlink "me" from parent
         Unlink(collection, instance);
         EraseSwapLevelIndex(collection, instance);
