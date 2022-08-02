@@ -1,33 +1,27 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2019 IBM Corporation and others.
- *
- * This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License 2.0
+ * Copyright (c) 2000, 2012 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * https://www.eclipse.org/legal/epl-2.0/
+ * http://www.eclipse.org/legal/epl-v10.html
  *
- * SPDX-License-Identifier: EPL-2.0
- * 
  * Contributors:
  *     IBM Corporation - initial API and implementation
- *     Christoph Läubrich - refactor to use a more consistent API that allows error propagation to the caller
  *******************************************************************************/
 package com.dynamo.bob.bundle;
 
 import java.io.*;
-import java.text.MessageFormat;
 import java.util.*;
-import java.util.function.Consumer;
 
 /**
  * Customize the icon of a Windows exe
- * 
+ *
  * WARNING! This class is not part of SWT API. It is NOT API. It is an internal
  * tool that may be changed or removed at anytime.
- * 
+ *
  * Based on MSDN "An In-Depth Look into the Win32 Portable Executable File Format".
- * 
- * Win x64 support (Bug #238001) based on MSDN "x64 Primer: Everything You Need To 
+ *
+ * Win x64 support (Bug #238001) based on MSDN "x64 Primer: Everything You Need To
  * Know To Start Programming 64-Bit Windows Systems".
  */
 public class IconExe {
@@ -42,17 +36,8 @@ public class IconExe {
 	*
 	* Note 1. Write access to the executable program is required. As a result, that
 	* program must not be currently running or edited elsewhere.
-	* 
-	* Note 2. The Eclipse 3.4 launcher requires an .ico file with the following 7 images (in any order).
-	* 1. 48x48, 32 bit (RGB / Alpha Channel)
-	* 2. 32x32, 32 bit (RGB / Alpha Channel)
-	* 3. 16x16, 32 bit (RGB / Alpha Channel)
-	* 4. 48x48, 8 bit (256 colors)
-	* 5. 32x32, 8 bit (256 colors)
-	* 6. 24x24, 8 bit (256 colors)
-	* 7. 16x16, 8 bit (256 colors)
 	*
-	* Note 3. The Eclipse 4.2 launcher requires an .ico file with the following 7 images (in any order).
+	* Note 2. The Eclipse 4.2 launcher requires an .ico file with the following 7 images (in any order).
 	* 1. 256x256, 32 bit (RGB / Alpha Channel)
 	* 2. 48x48, 32 bit (RGB / Alpha Channel)
 	* 3. 32x32, 32 bit (RGB / Alpha Channel)
@@ -60,12 +45,11 @@ public class IconExe {
 	* 5. 48x48, 8 bit (256 colors)
 	* 6. 32x32, 8 bit (256 colors)
 	* 7. 16x16, 8 bit (256 colors)
-	*
 	* A user icon matching exactly the width/height/depth of an executable icon will be written
 	* to the executable and will replace that executable icon. If an executable icon
 	* does not match a user icon, it is silently left as is.
 	*
-	* Note 4. This function modifies the content of the executable program and may cause
+	* Note 3. This function modifies the content of the executable program and may cause
 	* its corruption.
 	*/
 	public static void main(String[] args) throws Exception {
@@ -73,64 +57,63 @@ public class IconExe {
 			System.err.println("Usage: IconExe <windows executable> <ico file>"); //$NON-NLS-1$
 			return;
 		}
-		File[] iconFiles = new File[args.length - 1];
-		for (int i = 0; i < iconFiles.length; i++) {
-			iconFiles[i] = new File(args[i + 1]);
-
-		}
-		ImageData[] data = loadImages(iconFiles, System.err::println);
-
-		Collection<IconResInfo> unchangedIcons = replaceIcons(new File(args[0]), data, System.err::println);
-		if (unchangedIcons.size() != 0) {
-			System.err.println(String.format("[IconExe] Error - %d original icon(s) not replaced in %s:", unchangedIcons.size(), args[0])); //$NON-NLS-1$
-			for (IconResInfo icon : unchangedIcons) {
-				ImageData iconData = icon.data;
-				System.err.println(String.format("\t- %dx%d, %d bits, %d byte(s) @ %d", iconData.height, iconData.width, iconData.depth, icon.size, icon.offset)); //$NON-NLS-1$
-			}
-			System.err.println("[IconExe] For more details, see https://git.eclipse.org/c/equinox/rt.equinox.p2.git/tree/bundles/org.eclipse.equinox.p2.publisher.eclipse/src/org/eclipse/pde/internal/swt/tools/IconExe.java"); //$NON-NLS-1$
-		}
-	}
-
-	/**
-	 * Loads images from files so they are prepared for used in replacing icons in a
-	 * launcher executable
-	 * 
-	 * @param icons                the icons to loader
-	 * @param errorMessageConsumer a consumer that is informed about skipable errors
-	 *                             while loading icons
-	 * @return an array of image data that could be used to replace launcher icons
-	 * @throws IOException if reading of files fails on the I/O level
-	 */
-	public static ImageData[] loadImages(File[] icons, Consumer<String> errorMessageConsumer) throws IOException {
 		ImageLoader loader = new ImageLoader();
-		List<ImageData> images = new ArrayList<>();
-		for (File file : icons) {
-			if (!file.exists()) {
-				errorMessageConsumer.accept(MessageFormat.format("The specified icon file {0} does not exits", file)); //$NON-NLS-1$
-				continue;
-			}
-			try (FileInputStream stream = new FileInputStream(file)) {
-				try {
-					ImageData[] imageDatas = loader.load(stream);
-					images.addAll(Arrays.asList(imageDatas));
-				} catch (RuntimeException e) {
-					errorMessageConsumer
-							.accept(MessageFormat.format("Loading of image {0} failed: {1}", file, e.getMessage())); //$NON-NLS-1$
+
+		List<ImageData> images = new ArrayList<ImageData>();
+		for (int i = 1; i < args.length; i++) {
+			try {
+				//An ICO should contain 7 images, a BMP will contain 1
+				ImageData[] current = loader.load(args[i]);
+				for (int j = 0; j < current.length; j++) {
+					images.add(current[j]);
 				}
+			} catch (RuntimeException e) {
+				//ignore so that we process the other images
 			}
 		}
-		return images.toArray(new ImageData[0]);
+		ImageData[] data = new ImageData[images.size()];
+		data = images.toArray(data);
+
+		int nMissing = unloadIcons(args[0], data);
+		if (nMissing != 0)
+			System.err.println("Error - " + nMissing + " icon(s) not replaced in " + args[0] + " using " + args[1]); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 	}
 
 	/* Implementation */
 
-	/** 
+	/**
+	 * Retrieve the Desktop icons provided in the Windows executable program.
+	 * These icons are typically shown in various places of the Windows desktop.
+	 *
+	 * Note 2. The Eclipse 4.2 launcher requires an .ico file with the following 7 images (in any order).
+	 * 1. 256x256, 32 bit (RGB / Alpha Channel)
+	 * 2. 48x48, 32 bit (RGB / Alpha Channel)
+	 * 3. 32x32, 32 bit (RGB / Alpha Channel)
+	 * 4. 16x16, 32 bit (RGB / Alpha Channel)
+	 * 5. 48x48, 8 bit (256 colors)
+	 * 6. 32x32, 8 bit (256 colors)
+	 * 7. 16x16, 8 bit (256 colors)
+	 *
+	 * @param program the Windows executable e.g c:/eclipse/eclipse.exe
+	 */
+	static ImageData[] loadIcons(String program) throws FileNotFoundException, IOException {
+		RandomAccessFile raf = new RandomAccessFile(program, "r"); //$NON-NLS-1$
+		IconExe iconExe = new IconExe();
+		IconResInfo[] iconInfo = iconExe.getIcons(raf);
+		ImageData[] data = new ImageData[iconInfo.length];
+		for (int i = 0; i < data.length; i++)
+			data[i] = iconInfo[i].data;
+		raf.close();
+		return data;
+	}
+
+	/**
 	 * Replace the Desktop icons provided in the Windows executable program
 	 * with icons provided by the user.
-	 * 
+	 *
 	 * Note 1. Write access to the executable program is required. As a result, that
 	 * program must not be currently running or edited elsewhere.
-	 * 
+	 *
 	 * Note 2. Use loadIcons to determine which set of icons (width, height, depth)
 	 * is required to replace the icons in the executable program. A user icon
 	 * matching exactly the width/height/depth of an executable icon will be written
@@ -138,17 +121,8 @@ public class IconExe {
 	 * does not match a user icon, it is left as is. Verify the return value matches
 	 * the number of icons to write. Finally, use loadIcons after this operation
 	 * to verify the icons have changed as expected.
-	 * 
-	 * Note 3. The Eclipse 3.4 launcher requires the following 7 images (in any order).
-	 * 1. 48x48, 32 bit (RGB / Alpha Channel)
-	 * 2. 32x32, 32 bit (RGB / Alpha Channel)
-	 * 3. 16x16, 32 bit (RGB / Alpha Channel)
-	 * 4. 48x48, 8 bit (256 colors)
-	 * 5. 32x32, 8 bit (256 colors)
-	 * 6. 24x24, 8 bit (256 colors)
-	 * 7. 16x16, 8 bit (256 colors)
 	 *
-	 * Note 4. The Eclipse 4.2 launcher requires the following 7 images (in any order).
+	 * Note 3. The Eclipse 4.2 launcher requires the following 7 images (in any order).
 	 * 1. 256x256, 32 bit (RGB / Alpha Channel)
 	 * 2. 48x48, 32 bit (RGB / Alpha Channel)
 	 * 3. 32x32, 32 bit (RGB / Alpha Channel)
@@ -158,43 +132,37 @@ public class IconExe {
 	 * 7. 16x16, 8 bit (256 colors)
 	 *
 	 * Note 4. This function modifies the content of the executable program and may cause
-	 * its corruption. 
-	 * 
-	 * @param launcherFile the Windows executable e.g c:/eclipse/eclipse.exe
+	 * its corruption.
+	 *
+	 * @param program the Windows executable e.g c:/eclipse/eclipse.exe
 	 * @param icons to write to the given executable
-	 * @return the list of icons from the original program that were not successfully replaced (empty if success)
+	 * @return the number of icons from the original program that were not successfully replaced (0 if success)
 	 */
-	public static Collection<IconResInfo> replaceIcons(File launcherFile, ImageData[] icons,
-			Consumer<String> errorMessageConsumer)
-			throws FileNotFoundException, IOException {
-		Collection<IconResInfo> iconInfo;
-		try (RandomAccessFile raf = new RandomAccessFile(launcherFile, "rw") //$NON-NLS-1$
-				) {
-			iconInfo = getIcons(raf);
-			// Display an error if  no icons found in target executable.
-			if (iconInfo.isEmpty()) {
-				errorMessageConsumer
-						.accept(MessageFormat.format("no icons detected in {0}.", launcherFile.getAbsolutePath())); //$NON-NLS-1$
-				raf.close();
-				return Collections.emptyList();
-			}
-			Iterator<IconResInfo> originalIconsIterator = iconInfo.iterator();
-			while (originalIconsIterator.hasNext()) {
-				IconResInfo iconToReplace = originalIconsIterator.next();
-				for (ImageData iconToWrite : Arrays.asList(icons)) {
-					if (iconToWrite == null)
-						continue;
-
-					if (iconToReplace.data.width == iconToWrite.width && iconToReplace.data.height == iconToWrite.height && iconToReplace.data.depth == iconToWrite.depth) {
-						raf.seek(iconToReplace.offset);
-						unloadIcon(raf, iconToWrite);
-						originalIconsIterator.remove();
-						break;
-					}
+	static int unloadIcons(String program, ImageData[] icons) throws FileNotFoundException, IOException {
+		RandomAccessFile raf = new RandomAccessFile(program, "rw"); //$NON-NLS-1$
+		IconExe iconExe = new IconExe();
+		IconResInfo[] iconInfo = iconExe.getIcons(raf);
+		// Display an error if  no icons found in target executable.
+		if (iconInfo.length == 0) {
+			System.err.println("Warning - no icons detected in \"" + program + "\"."); //$NON-NLS-1$ //$NON-NLS-2$
+			raf.close();
+			return 0;
+		}
+		int cnt = 0;
+		for (int i = 0; i < iconInfo.length; i++) {
+			for (int j = 0; j < icons.length; j++) {
+				if (icons[j] == null)
+					continue;
+				if (iconInfo[i].data.width == icons[j].width && iconInfo[i].data.height == icons[j].height && iconInfo[i].data.depth == icons[j].depth) {
+					raf.seek(iconInfo[i].offset);
+					unloadIcon(raf, icons[j]);
+					cnt++;
+					break;
 				}
 			}
 		}
-		return iconInfo;
+		raf.close();
+		return iconInfo.length - cnt;
 	}
 
 	public static final String VERSION = "20050124"; //$NON-NLS-1$
@@ -207,46 +175,26 @@ public class IconExe {
 		int size;
 	}
 
-	/** 
-	 * Retrieve the Desktop icons provided in the Windows executable program.
-	 * These icons are typically shown in various places of the Windows desktop.
-	 * 
-	 * Note. The Eclipse 3.4 launcher returns the following 7 images (in any order).
-	 * 1. 48x48, 32 bit (RGB / Alpha Channel)
-	 * 2. 32x32, 32 bit (RGB / Alpha Channel)
-	 * 3. 16x16, 32 bit (RGB / Alpha Channel)
-	 * 4. 48x48, 8 bit (256 colors)
-	 * 5. 32x32, 8 bit (256 colors)
-	 * 6. 24x24, 8 bit (256 colors)
-	 * 7. 16x16, 8 bit (256 colors)
-	 *
-	 * Note 1. The Eclipse 4.2 launcher requires an .ico file with the following 7 images (in any order).
-	 * 1. 256x256, 32 bit (RGB / Alpha Channel)
-	 * 2. 48x48, 32 bit (RGB / Alpha Channel)
-	 * 3. 32x32, 32 bit (RGB / Alpha Channel)
-	 * 4. 16x16, 32 bit (RGB / Alpha Channel)
-	 * 5. 48x48, 8 bit (256 colors)
-	 * 6. 32x32, 8 bit (256 colors)
-	 * 7. 16x16, 8 bit (256 colors)
-	 *
-	 * @param raf RandomAccessFile for the the Windows executable e.g c:/eclipse/eclipse.exe
-	 */
-	static Collection<IconResInfo> getIcons(RandomAccessFile raf) throws IOException {
+	IconResInfo[] iconInfo = null;
+	int iconCnt;
 
+	IconResInfo[] getIcons(RandomAccessFile raf) throws IOException {
+		iconInfo = new IconResInfo[4];
+		iconCnt = 0;
 		IMAGE_DOS_HEADER imageDosHeader = new IMAGE_DOS_HEADER();
 		read(raf, imageDosHeader);
 		if (imageDosHeader.e_magic != IMAGE_DOS_SIGNATURE)
-			return Collections.emptyList();
+			return new IconResInfo[0];
 		int imageNtHeadersOffset = imageDosHeader.e_lfanew;
 		raf.seek(imageNtHeadersOffset);
 		IMAGE_NT_HEADERS imageNtHeaders = new IMAGE_NT_HEADERS();
 		read(raf, imageNtHeaders);
 		if (imageNtHeaders.Signature != IMAGE_NT_SIGNATURE)
-			return Collections.emptyList();
+			return new IconResInfo[0];
 		// DumpResources
 		int resourcesRVA = imageNtHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress;
 		if (resourcesRVA == 0)
-			return Collections.emptyList();
+			return new IconResInfo[0];
 		if (DEBUG)
 			System.out.println("* Resources (RVA= " + resourcesRVA + ")"); //$NON-NLS-1$ //$NON-NLS-2$
 		IMAGE_SECTION_HEADER imageSectionHeader = new IMAGE_SECTION_HEADER();
@@ -262,16 +210,19 @@ public class IconExe {
 			}
 		}
 		if (!found)
-			return Collections.emptyList();
+			return new IconResInfo[0];
 		int delta = imageSectionHeader.VirtualAddress - imageSectionHeader.PointerToRawData;
 		int imageResourceDirectoryOffset = resourcesRVA - delta;
-		return dumpResourceDirectory(raf, imageResourceDirectoryOffset, imageResourceDirectoryOffset, delta, 0, 0,
-				false);
+		dumpResourceDirectory(raf, imageResourceDirectoryOffset, imageResourceDirectoryOffset, delta, 0, 0, false);
+		if (iconCnt < iconInfo.length) {
+			IconResInfo[] newArray = new IconResInfo[iconCnt];
+			System.arraycopy(iconInfo, 0, newArray, 0, iconCnt);
+			iconInfo = newArray;
+		}
+		return iconInfo;
 	}
 
-	static Collection<IconResInfo> dumpResourceDirectory(RandomAccessFile raf, int imageResourceDirectoryOffset,
-			int resourceBase, int delta, int type, int level, boolean rt_icon_root) throws IOException {
-		Collection<IconResInfo> iconInfo = new ArrayList<>();
+	void dumpResourceDirectory(RandomAccessFile raf, int imageResourceDirectoryOffset, int resourceBase, int delta, int type, int level, boolean rt_icon_root) throws IOException {
 		if (DEBUG)
 			System.out.println("** LEVEL " + level); //$NON-NLS-1$
 
@@ -297,30 +248,34 @@ public class IconExe {
 			imageResourceDirectoryEntries[i] = new IMAGE_RESOURCE_DIRECTORY_ENTRY();
 			read(raf, imageResourceDirectoryEntries[i]);
 		}
-		for (IMAGE_RESOURCE_DIRECTORY_ENTRY imageResourceDirectoryEntry : imageResourceDirectoryEntries) {
-			if (imageResourceDirectoryEntry.DataIsDirectory) {
-				iconInfo.addAll(dumpResourceDirectory(raf, imageResourceDirectoryEntry.OffsetToDirectory + resourceBase,
-						resourceBase, delta, imageResourceDirectoryEntry.Id, level + 1,
-						rt_icon_root ? true : type == RT_ICON));
+		for (int i = 0; i < imageResourceDirectoryEntries.length; i++) {
+			if (imageResourceDirectoryEntries[i].DataIsDirectory) {
+				dumpResourceDirectory(raf, imageResourceDirectoryEntries[i].OffsetToDirectory + resourceBase, resourceBase, delta, imageResourceDirectoryEntries[i].Id, level + 1, rt_icon_root ? true : type == RT_ICON);
 			} else {
 				// Resource found
 				/// pResDirEntry->Name
-				IMAGE_RESOURCE_DIRECTORY_ENTRY irde = imageResourceDirectoryEntry;
+				IMAGE_RESOURCE_DIRECTORY_ENTRY irde = imageResourceDirectoryEntries[i];
 				IMAGE_RESOURCE_DATA_ENTRY data = new IMAGE_RESOURCE_DATA_ENTRY();
-				raf.seek(imageResourceDirectoryEntry.OffsetToData + resourceBase);
+				raf.seek(imageResourceDirectoryEntries[i].OffsetToData + resourceBase);
 				read(raf, data);
 				if (DEBUG)
 					System.out.println("Resource Id " + irde.Id + " Data Offset RVA " + data.OffsetToData + ", Size " + data.Size); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 				if (rt_icon_root) {
-					IconResInfo resInfo = new IconResInfo();
-					resInfo.data = parseIcon(raf, data.OffsetToData - delta, data.Size);
-					resInfo.offset = data.OffsetToData - delta;
-					resInfo.size = data.Size;
-					iconInfo.add(resInfo);
+					if (DEBUG)
+						System.out.println("iconcnt " + iconCnt + " |" + iconInfo.length); //$NON-NLS-1$ //$NON-NLS-2$
+					iconInfo[iconCnt] = new IconResInfo();
+					iconInfo[iconCnt].data = parseIcon(raf, data.OffsetToData - delta, data.Size);
+					iconInfo[iconCnt].offset = data.OffsetToData - delta;
+					iconInfo[iconCnt].size = data.Size;
+					iconCnt++;
+					if (iconCnt == iconInfo.length) {
+						IconResInfo[] newArray = new IconResInfo[iconInfo.length + 4];
+						System.arraycopy(iconInfo, 0, newArray, 0, iconInfo.length);
+						iconInfo = newArray;
+					}
 				}
 			}
 		}
-		return iconInfo;
 	}
 
 	static ImageData parseIcon(RandomAccessFile raf, int offset, int size) throws IOException {
@@ -522,12 +477,13 @@ public class IconExe {
 	static void copyFile(String src, String dst) throws FileNotFoundException, IOException {
 		File srcFile = new File(src);
 		File dstFile = new File(dst);
-		try (InputStream in = new BufferedInputStream(new FileInputStream(srcFile));
-			OutputStream out = new BufferedOutputStream(new FileOutputStream(dstFile))) {
-			int c;
-			while ((c = in.read()) != -1)
-				out.write(c);
-		}
+		InputStream in = new BufferedInputStream(new FileInputStream(srcFile));
+		OutputStream out = new BufferedOutputStream(new FileOutputStream(dstFile));
+		int c;
+		while ((c = in.read()) != -1)
+			out.write(c);
+		in.close();
+		out.close();
 	}
 
 	/* IO utilities to parse Windows executable */
@@ -750,14 +706,14 @@ public class IconExe {
 	}
 
 	static long read8(RandomAccessFile raf) throws IOException {
-		long b0 = raf.readByte() & 0xFF;
-		long b1 = raf.readByte() & 0xFF;
-		long b2 = raf.readByte() & 0xFF;
-		long b3 = raf.readByte() & 0xFF;
-		long b4 = raf.readByte() & 0xFF;
-		long b5 = raf.readByte() & 0xFF;
-		long b6 = raf.readByte() & 0xFF;
-		long b7 = raf.readByte() & 0xFF;
+		int b0 = raf.readByte() & 0xFF;
+		int b1 = raf.readByte() & 0xFF;
+		int b2 = raf.readByte() & 0xFF;
+		int b3 = raf.readByte() & 0xFF;
+		int b4 = raf.readByte() & 0xFF;
+		int b5 = raf.readByte() & 0xFF;
+		int b6 = raf.readByte() & 0xFF;
+		int b7 = raf.readByte() & 0xFF;
 		return b7 << 56 | b6 << 48 | b5 << 40 | b4 << 32 | b3 << 24 | b2 << 16 | b1 << 8 | b0;
 	}
 
@@ -945,7 +901,7 @@ public class IconExe {
 		rs.IconCursorId = readU2(raf);
 	}
 
-	/* ImageData and Image Decoder inlining to avoid dependency on SWT 
+	/* ImageData and Image Decoder inlining to avoid dependency on SWT
 	 * The following section can be entirely removed if SWT can be used.
 	 */
 
@@ -1009,8 +965,8 @@ public class IconExe {
 		}
 
 		/**
-		 * Returns an integer hash code for the receiver. Any two 
-		 * objects which return <code>true</code> when passed to 
+		 * Returns an integer hash code for the receiver. Any two
+		 * objects which return <code>true</code> when passed to
 		 * <code>equals</code> must return the same value for this
 		 * method.
 		 *
@@ -1031,7 +987,7 @@ public class IconExe {
 		 */
 		@Override
 		public String toString() {
-			return "RGB {" + red + ", " + green + ", " + blue + "}"; //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$ 
+			return "RGB {" + red + ", " + green + ", " + blue + "}"; //$NON-NLS-1$//$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
 
 			//$NON-NLS-4$
 		}
@@ -1041,7 +997,7 @@ public class IconExe {
 	static class PaletteData {
 
 		/**
-		 * true if the receiver is a direct palette, 
+		 * true if the receiver is a direct palette,
 		 * and false otherwise
 		 */
 		public boolean isDirect;
@@ -1120,7 +1076,7 @@ public class IconExe {
 		 *
 		 * @param rgb the RGB to get the pixel value for
 		 * @return the pixel value for the given RGB
-		 * 
+		 *
 		 * @exception IllegalArgumentException <ul>
 		 *    <li>ERROR_NULL_ARGUMENT - if the argument is null</li>
 		 *    <li>ERROR_INVALID_ARGUMENT - if the RGB is not found in the palette</li>
@@ -1225,10 +1181,10 @@ public class IconExe {
 		public int logicalScreenHeight;
 
 		/**
-		 * the background pixel for the logical screen (this 
+		 * the background pixel for the logical screen (this
 		 * corresponds to the GIF89a Background Color Index value).
 		 * The default is -1 which means 'unspecified background'
-		 * 
+		 *
 		 */
 		public int backgroundPixel;
 
@@ -1284,12 +1240,49 @@ public class IconExe {
 		 */
 		public ImageData[] load(InputStream stream) {
 			if (stream == null)
-				throw new NullPointerException("stream can't be null"); //$NON-NLS-1$
+				SWT.error(SWT.ERROR_NULL_ARGUMENT);
 			reset();
 			data = FileFormat.load(stream, this);
 			return data;
 		}
 
+		/**
+		 * Loads an array of <code>ImageData</code> objects from the
+		 * file with the specified name. Throws an error if either
+		 * an error occurs while loading the images, or if the images are
+		 * not of a supported type. Returns the loaded image data array.
+		 *
+		 * @param filename the name of the file to load the images from
+		 * @return an array of <code>ImageData</code> objects loaded from the specified file
+		 *
+		 * @exception IllegalArgumentException <ul>
+		 *    <li>ERROR_NULL_ARGUMENT - if the file name is null</li>
+		 * </ul>
+		 * @exception RuntimeException <ul>
+		 *    <li>ERROR_INVALID_IMAGE - if the image file contains invalid data</li>
+		 *    <li>ERROR_IO - if an IO error occurs while reading data</li>
+		 *    <li>ERROR_UNSUPPORTED_FORMAT - if the image file contains an unrecognized format</li>
+		 * </ul>
+		 */
+		public ImageData[] load(String filename) {
+			if (filename == null)
+				SWT.error(SWT.ERROR_NULL_ARGUMENT);
+			InputStream stream = null;
+			try {
+				stream = new BufferedInputStream(new FileInputStream(filename));
+				return load(stream);
+			} catch (IOException e) {
+				SWT.error(SWT.ERROR_IO, e);
+			} finally {
+				try {
+					if (stream != null)
+						stream.close();
+				} catch (IOException e) {
+					// Ignore error
+				}
+			}
+			return null;
+		}
 	}
 
 	static class ImageData {
@@ -1406,7 +1399,7 @@ public class IconExe {
 
 		/**
 		 * The type of file from which the image was read.
-		 * 
+		 *
 		 * It is expressed as one of the following values:
 		 * <dl>
 		 * <dt><code>IMAGE_BMP</code></dt>
@@ -1442,7 +1435,7 @@ public class IconExe {
 		/**
 		 * A description of how to dispose of the current image
 		 * before displaying the next.
-		 * 
+		 *
 		 * It is expressed as one of the following values:
 		 * <dl>
 		 * <dt><code>DM_UNSPECIFIED</code></dt>
@@ -1486,7 +1479,7 @@ public class IconExe {
 		/**
 		 * Scaled 8x8 Bayer dither matrix.
 		 */
-		static final int[][] DITHER_MATRIX = {{0xfc0000, 0x7c0000, 0xdc0000, 0x5c0000, 0xf40000, 0x740000, 0xd40000, 0x540000}, {0x3c0000, 0xbc0000, 0x1c0000, 0x9c0000, 0x340000, 0xb40000, 0x140000, 0x940000}, {0xcc0000, 0x4c0000, 0xec0000, 0x6c0000, 0xc40000, 0x440000, 0xe40000, 0x640000}, {0x0c0000, 0x8c0000, 0x2c0000, 0xac0000, 0x040000, 0x840000, 0x240000, 0xa40000}, {0xf00000, 0x700000, 0xd00000, 0x500000, 0xf80000, 0x780000, 0xd80000, 0x580000}, {0x300000, 0xb00000, 0x100000, 0x900000, 0x380000, 0xb80000, 0x180000, 0x980000}, {0xc00000, 0x400000, 0xe00000, 0x600000, 0xc80000, 0x480000, 0xe80000, 0x680000}, {0x000000, 0x800000, 0x200000, 0xa00000, 0x080000, 0x880000, 0x280000, 0xa80000}};
+		static final int[][] DITHER_MATRIX = { {0xfc0000, 0x7c0000, 0xdc0000, 0x5c0000, 0xf40000, 0x740000, 0xd40000, 0x540000}, {0x3c0000, 0xbc0000, 0x1c0000, 0x9c0000, 0x340000, 0xb40000, 0x140000, 0x940000}, {0xcc0000, 0x4c0000, 0xec0000, 0x6c0000, 0xc40000, 0x440000, 0xe40000, 0x640000}, {0x0c0000, 0x8c0000, 0x2c0000, 0xac0000, 0x040000, 0x840000, 0x240000, 0xa40000}, {0xf00000, 0x700000, 0xd00000, 0x500000, 0xf80000, 0x780000, 0xd80000, 0x580000}, {0x300000, 0xb00000, 0x100000, 0x900000, 0x380000, 0xb80000, 0x180000, 0x980000}, {0xc00000, 0x400000, 0xe00000, 0x600000, 0xc80000, 0x480000, 0xe80000, 0x680000}, {0x000000, 0x800000, 0x200000, 0xa00000, 0x080000, 0x880000, 0x280000, 0xa80000}};
 
 		/**
 		 * Constructs a new, empty ImageData with the given width, height,
@@ -1537,11 +1530,11 @@ public class IconExe {
 		 * <p>
 		 * This constructor is provided for convenience when loading a single
 		 * image only. If the file contains multiple images, only the first
-		 * one will be loaded. To load multiple images, use 
+		 * one will be loaded. To load multiple images, use
 		 * <code>ImageLoader.load()</code>.
 		 * </p>
 		 *
-		 * @param data the image data to use
+		 * @param filename the name of the file to load the image from (must not be null)
 		 *
 		 * @exception IllegalArgumentException <ul>
 		 *    <li>ERROR_NULL_ARGUMENT - if the file name is null</li>
@@ -1552,7 +1545,8 @@ public class IconExe {
 		 *    <li>ERROR_UNSUPPORTED_FORMAT - if the image file contains an unrecognized format</li>
 		 * </ul>
 		 */
-		public ImageData(ImageData[] data) {
+		public ImageData(String filename) {
+			ImageData[] data = new ImageLoader().load(filename);
 			if (data.length < 1)
 				SWT.error(SWT.ERROR_INVALID_IMAGE);
 			ImageData i = data[0];
@@ -1619,7 +1613,7 @@ public class IconExe {
 			this.delayTime = delayTime;
 		}
 
-		/**	 
+		/**
 		 * Invokes internal SWT functionality to create a new instance of
 		 * this class.
 		 * <p>
@@ -2066,7 +2060,7 @@ public class IconExe {
 
 		/**
 		 * Returns the byte order of the receiver.
-		 * 
+		 *
 		 * @return MSB_FIRST or LSB_FIRST
 		 */
 		int getByteOrder() {
@@ -2566,7 +2560,7 @@ public class IconExe {
 			return ANY_TO_EIGHT[getChannelWidth(mask, shift)][(data & mask) >>> shift];
 		}
 
-		/* 
+		/*
 		 * Fill in dithered gradated values for a color channel
 		 */
 		static final void buildDitheredGradientChannel(int from, int to, int steps, int bandWidth, int bandHeight, boolean vertical, byte[] bitmapData, int dp, int bytesPerLine, int bits) {
@@ -2691,11 +2685,11 @@ public class IconExe {
 		}
 
 		/**
-		 * Reads at most <code>length</code> bytes from this LEDataInputStream and 
+		 * Reads at most <code>length</code> bytes from this LEDataInputStream and
 		 * stores them in byte array <code>buffer</code> starting at <code>offset</code>.
 		 * <p>
-		 * Answer the number of bytes actually read or -1 if no bytes were read and 
-		 * end of stream was encountered.  This implementation reads bytes from 
+		 * Answer the number of bytes actually read or -1 if no bytes were read and
+		 * end of stream was encountered.  This implementation reads bytes from
 		 * the pushback buffer first, then the target stream if more bytes are required
 		 * to satisfy <code>count</code>.
 		 * </p>
@@ -2762,11 +2756,11 @@ public class IconExe {
 		/**
 		 * Push back the entire content of the given buffer <code>b</code>.
 		 * <p>
-		 * The bytes are pushed so that they would be read back b[0], b[1], etc. 
-		 * If the push back buffer cannot handle the bytes copied from <code>b</code>, 
+		 * The bytes are pushed so that they would be read back b[0], b[1], etc.
+		 * If the push back buffer cannot handle the bytes copied from <code>b</code>,
 		 * an IOException will be thrown and no byte will be pushed back.
 		 * </p>
-		 * 
+		 *
 		 * @param b the byte array containing bytes to push back into the stream
 		 *
 		 * @exception 	java.io.IOException if the pushback buffer is too small
@@ -2803,8 +2797,13 @@ public class IconExe {
 		abstract ImageData[] loadFromByteStream();
 
 		public ImageData[] loadFromStream(LEDataInputStream stream) {
-			inputStream = stream;
-			return loadFromByteStream();
+			try {
+				inputStream = stream;
+				return loadFromByteStream();
+			} catch (Exception e) {
+				SWT.error(SWT.ERROR_IO, e);
+				return null;
+			}
 		}
 
 		public static ImageData[] load(InputStream is, ImageLoader loader) {
@@ -2841,9 +2840,7 @@ public class IconExe {
 					SWT.error(SWT.ERROR_INVALID_IMAGE);
 				return;
 			}
-			throw new IllegalArgumentException(MessageFormat.format(
-					"only BMP_RLE8_COMPRESSION(cmp=1) or BMP_RLE4_COMPRESSION(cmp=2) compression is currently supported (given cmp={0})", //$NON-NLS-1$
-					cmp));
+			SWT.error(SWT.ERROR_INVALID_IMAGE);
 		}
 
 		int decompressRLE4Data(byte[] src, int numBytes, int stride, byte[] dest, int destSize) {
@@ -3315,8 +3312,8 @@ public class IconExe {
 			int infoHeight = (infoHeader[8] & 0xFF) | ((infoHeader[9] & 0xFF) << 8) | ((infoHeader[10] & 0xFF) << 16) | ((infoHeader[11] & 0xFF) << 24);
 			int bitCount = (infoHeader[14] & 0xFF) | ((infoHeader[15] & 0xFF) << 8);
 			/*
-			 * Feature in the ico spec. The spec says that a width/height of 0 represents 256, however, newer images can be created with even larger sizes. 
-			 * Images with a width/height >= 256 will have their width/height set to 0 in the icon header; the fix for this case is to read the width/height 
+			 * Feature in the ico spec. The spec says that a width/height of 0 represents 256, however, newer images can be created with even larger sizes.
+			 * Images with a width/height >= 256 will have their width/height set to 0 in the icon header; the fix for this case is to read the width/height
 			 * directly from the image header.
 			 */
 			if (width == 0)
