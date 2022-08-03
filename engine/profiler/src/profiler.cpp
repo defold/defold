@@ -696,11 +696,13 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 
 static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 {
+    dmLogInfo("FinalizeProfiler");
     if (gRenderProfile)
     {
         dmProfileRender::DeleteRenderProfile(gRenderProfile);
         gRenderProfile = 0;
     }
+    dmLogInfo("FinalizeProfiler - done");
     return dmExtension::RESULT_OK;
 }
 
@@ -737,24 +739,33 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
 static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 {
+    dmLogInfo("AppFinalizeProfiler");
     if (!dmProfile::IsInitialized()) // We might use the null implementation
     {
+        dmLogInfo("AppFinalizeProfiler - no initialized");
         return dmExtension::RESULT_OK;
     }
 
+    dmLogInfo("AppFinalizeProfiler - clear callbacks");
     dmProfile::SetSampleTreeCallback(0, 0);
     dmProfile::SetPropertyTreeCallback(0, 0);
+    dmLogInfo("AppFinalizeProfiler - calling Finalize");
     dmProfile::Finalize();
+    dmLogInfo("AppFinalizeProfiler - calling Finalize done");
 
     if (g_ProfilerCurrentFrame)
     {
+        dmLogInfo("AppFinalizeProfiler - delete profiler frame");
         DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
         DeleteProfilerFrame(g_ProfilerCurrentFrame);
         g_ProfilerCurrentFrame = 0;
+        dmLogInfo("AppFinalizeProfiler - deleted profiler frame");
     }
+    dmLogInfo("AppFinalizeProfiler - delete mutex");
     dmMutex::Delete(g_ProfilerMutex);
     g_ProfilerMutex = 0;
 
+    dmLogInfo("AppFinalizeProfiler - done");
     return dmExtension::RESULT_OK;
 }
 
