@@ -28,6 +28,7 @@
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
+    #include <emscripten/html5.h>
 #endif
 
 #include "graphics_opengl_defines.h"
@@ -878,17 +879,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_WindowFocusCallbackUserData    = params->m_FocusCallbackUserData;
         context->m_WindowIconifyCallback          = params->m_IconifyCallback;
         context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
-        context->m_WindowOpened = 1;
-        context->m_Width = params->m_Width;
-        context->m_Height = params->m_Height;
+        context->m_WindowOpened                   = 1;
+        context->m_Width                          = params->m_Width;
+        context->m_Height                         = params->m_Height;
+
         // read back actual window size
         int width, height;
         glfwGetWindowSize(&width, &height);
-        context->m_WindowWidth = (uint32_t)width;
-        context->m_WindowHeight = (uint32_t)height;
-        context->m_Dpi = 0;
-
-
+        context->m_WindowWidth    = (uint32_t) width;
+        context->m_WindowHeight   = (uint32_t) height;
+        context->m_Dpi            = 0;
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
@@ -909,6 +909,48 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_IsGles3Version = 1;
             context->m_IsShaderLanguageGles = 0;
         #endif
+#endif
+
+#if defined(__EMSCRIPTEN__)
+        EMSCRIPTEN_WEBGL_CONTEXT_HANDLE emscripten_ctx = emscripten_webgl_get_current_context();
+        assert(emscripten_ctx != 0 && "Unable to get GL context from emscripten.");
+
+        emscripten_webgl_enable_extension(emscripten_ctx, "ANGLE_instanced_arrays");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_blend_minmax");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_half_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_disjoint_timer_query");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_float_blend");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_frag_depth");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_shader_texture_lod");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_sRGB");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_bptc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_rgtc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_filter_anisotropic");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_norm16");
+        emscripten_webgl_enable_extension(emscripten_ctx, "KHR_parallel_shader_compile");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_element_index_uint");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_fbo_render_mipmap");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_standard_derivatives");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float_linear");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float_linear");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_vertex_array_object");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OVR_multiview2");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_color_buffer_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_astc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc1");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_pvrtc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc_srgb");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_renderer_info");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_shaders");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_depth_texture");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_draw_buffers");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
 
         if (params->m_PrintDeviceInfo)
