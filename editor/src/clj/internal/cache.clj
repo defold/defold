@@ -15,21 +15,94 @@
 (ns internal.cache
   (:require [clojure.core.cache :as cc]
             [internal.graph.types :as gt])
-  (:import [clojure.core.cache BasicCache LRUCache]))
+  (:import [clojure.core.cache BasicCache LRUCache]
+           [clojure.data.priority_map PersistentPriorityMap]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:dynamic *cache-debug* nil)
 
-(defprotocol RetainingAwareCache
-  (retained-count [this]))
+(defprotocol CacheExtensions
+  (limit [this] "Returns the cache capacity, or -1 if unlimited.")
+  (retained-count [this] "Returns the number of retained entries in the cache.")
+  (reconfigure [this new-limit new-retain?] "Returns a new cache, preserving as many entries as possible."))
 
-(extend-protocol RetainingAwareCache
+(declare cache? make-cache-internal)
+
+(defn- limit-cache-entries [base ^long new-limit]
+  {:pre [(map? base) (not (cache? base))
+         (<= -1 new-limit)]}
+  (if (or (= -1 new-limit)
+          (<= (count base) new-limit))
+    base
+    (into (empty base)
+          (take new-limit)
+          base)))
+
+(defn- limit-lru-cache-entries [base lru ^long new-limit]
+  {:pre [(map? base) (not (cache? base))
+         (instance? PersistentPriorityMap lru)
+         (<= -1 new-limit)]}
+  (if (= -1 new-limit)
+    [base lru]
+    (loop [base base
+           lru lru
+           lru-evicted-count (- (count lru) new-limit)]
+      (if (pos? lru-evicted-count)
+        (let [evicted-key (key (peek lru))]
+          (recur (dissoc base evicted-key)
+                 (dissoc lru evicted-key)
+                 (dec lru-evicted-count)))
+        [base lru]))))
+
+(defn- update-lru-retain-rules [lru tick base old-retain? new-retain?]
+  {:pre [(instance? PersistentPriorityMap lru)
+         (number? tick) (not (neg? tick))
+         (map? base) (not (cache? base))
+         (or (nil? old-retain?) (ifn? old-retain?))
+         (or (nil? new-retain?) (ifn? new-retain?))]}
+  (if (= old-retain? new-retain?)
+    [lru tick]
+    (reduce (fn [[lru tick :as unchanged] [cache-key]]
+              (if (and (some? new-retain?)
+                       (new-retain? cache-key))
+                ;; This is a retained key under the new retain rules. Remove it from the LRU.
+                [(dissoc lru cache-key) tick]
+
+                ;; This is not a retained key.
+                (if (contains? lru cache-key)
+                  ;; We have it. Keep the existing entry in the LRU.
+                  unchanged
+
+                  ;; We don't have it, because it was retained under the old rules. Add an entry to the LRU so that it is no longer a retained key.
+                  (let [tick (inc tick)
+                        lru (assoc lru cache-key tick)]
+                    [lru tick]))))
+            [lru tick]
+            base)))
+
+(extend-protocol CacheExtensions
   BasicCache
+  (limit [_this] -1)
   (retained-count [_this] 0)
+  (reconfigure [this new-limit new-retain?]
+    (if (= -1 new-limit)
+      this
+      (let [base (limit-cache-entries (.cache ^BasicCache this) new-limit)]
+        (make-cache-internal new-limit new-retain? base nil 0))))
 
   LRUCache
-  (retained-count [_this] 0))
+  (limit [this] (.limit ^LRUCache this))
+  (retained-count [_this] 0)
+  (reconfigure [this new-limit new-retain?]
+    (let [^LRUCache this this]
+      (if (and (nil? new-retain?)
+               (= (.limit this) new-limit))
+        this
+        (let [base (.cache this)
+              [lru tick] (update-lru-retain-rules (.lru this) (.tick this) base nil new-retain?)
+              [base lru] (limit-lru-cache-entries base lru new-limit)]
+          (make-cache-internal new-limit new-retain? base lru tick))))))
 
 ;; ----------------------------------------
 ;; Null cache for testing / uncached queries
@@ -44,8 +117,13 @@
   (evict [this key] this)
   (seed [this base] this)
 
-  RetainingAwareCache
-  (retained-count [_this] 0))
+  CacheExtensions
+  (limit [_this] 0)
+  (retained-count [_this] 0)
+  (reconfigure [this new-limit new-retain?]
+    (if (= 0 new-limit)
+      this
+      (make-cache-internal new-limit new-retain? {} nil 0))))
 
 (def null-cache (NullCache. {}))
 
@@ -53,7 +131,8 @@
 ;; Application-specialized LRU cache with the ability to selectively exclude
 ;; entries from the cache limit.
 ;; ----------------------------------------
-(def ^:private occupied-lru-entry? (comp pos? val))
+(defn- occupied-lru-entry? [entry]
+  (not (neg? (val entry))))
 
 (cc/defcache RetainingLRUCache [cache lru tick limit retain?]
   cc/CacheProtocol
@@ -111,11 +190,19 @@
                           limit
                           retain?)))
 
-  RetainingAwareCache
+  CacheExtensions
+  (limit [_this] limit)
   (retained-count [this]
     ;; Note: Likely slow, don't call excessively.
     (- (count this)
        (count (filter occupied-lru-entry? lru))))
+  (reconfigure [this new-limit new-retain?]
+    (if (and (= limit new-limit)
+             (= retain? new-retain?))
+      this
+      (let [[lru tick] (update-lru-retain-rules lru tick cache retain? new-retain?)
+            [base lru] (limit-lru-cache-entries cache lru new-limit)]
+        (make-cache-internal new-limit new-retain? base lru tick))))
 
   Object
   (toString [_]
@@ -127,6 +214,35 @@
          (number? threshold) (< 0 threshold)
          (ifn? retain?)]}
   (cc/seed (RetainingLRUCache. nil nil 0 threshold retain?) base))
+
+;; ----------------------------------------
+;; Internals
+;; ----------------------------------------
+(defn- make-cache-internal [limit retain? base lru tick]
+  {:pre [(number? limit) (<= -1 limit)
+         (or (nil? retain?) (ifn? retain?))
+         (map? base) (not (cache? base))
+         (or (nil? lru) (instance? PersistentPriorityMap lru))
+         (number? tick) (<= 0 tick)]}
+  (cond
+    (= -1 limit) ; Unlimited cache.
+    (cc/basic-cache-factory base)
+
+    (zero? limit) ; No cache.
+    null-cache
+
+    (pos? limit) ; Limited cache that evicts the least recently used entry when full.
+    (if (some? lru)
+      (if (some? retain?)
+        (RetainingLRUCache. base lru tick limit retain?)
+        (LRUCache. base lru tick limit))
+      (if (some? retain?)
+        (retaining-lru-cache-factory base :threshold limit :retain? retain?)
+        (cc/lru-cache-factory base :threshold limit)))
+
+    :else
+    (throw (ex-info (str "Invalid limit: " limit)
+                    {:limit limit}))))
 
 ;; ----------------------------------------
 ;; Mutators
@@ -166,21 +282,8 @@
   (instance? BasicCache value))
 
 (defn make-cache [limit retain?]
-  (cond
-    (= -1 limit) ; Unlimited cache.
-    (cc/basic-cache-factory {})
+  (make-cache-internal limit retain? {} nil 0))
 
-    (zero? limit)
-    null-cache ; No cache.
-
-    (pos? limit) ; Limited cache that evicts the least recently used entry when full.
-    (if (some? retain?)
-      (retaining-lru-cache-factory {} :threshold limit :retain? retain?)
-      (cc/lru-cache-factory {} :threshold limit))
-
-    :else
-    (throw (ex-info (str "Invalid limit: " limit)
-                    {:limit limit}))))
 (defn cache-clear
   [cache]
   (clear cache))

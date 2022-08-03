@@ -115,6 +115,28 @@
      (swap! sys-atom update :cache c/cache-invalidate entries)
      nil)))
 
+(defn reconfigure-system-cache!
+  "Reconfigures the cache limit of a cache (default *the-system* cache), if supported."
+  ([limit retain?] (reconfigure-system-cache! *the-system* limit retain?))
+  ([sys-atom limit retain?]
+   (let [current-cache (:cache @sys-atom)
+         reconfigured-cache (c/reconfigure current-cache limit retain?)]
+     (swap! sys-atom assoc :cache reconfigured-cache)
+     nil)))
+
+(defn cache-info
+  "Return a map detailing cache utilization."
+  ([] (cache-info (cache)))
+  ([cache]
+   (let [cached-count (count cache)
+         retained-count (c/retained-count cache)
+         unretained-count (- cached-count retained-count)
+         limit (c/limit cache)]
+     {:total cached-count
+      :retained retained-count
+      :unretained unretained-count
+      :limit limit})))
+
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
   (is/graph @*the-system* graph-id))

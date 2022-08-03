@@ -36,7 +36,6 @@
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
-            [internal.cache :as c]
             [internal.graph.types :as gt]
             [schema.core :as s]
             [service.log :as log]
@@ -870,24 +869,27 @@
   (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
     (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
 
-(defn- log-cache-statistics! [cache msg]
+(defn- log-cache-info! [cache msg]
   ;; Disabled during tests to minimize log spam.
   (when-not (Boolean/getBoolean "defold.tests")
-    (let [cached-count (count cache)
-          retained-count (c/retained-count cache)
-          unretained-count (- cached-count retained-count)]
+    (let [{:keys [total retained unretained limit]} (g/cache-info cache)]
       (log/info :msg msg
-                :total cached-count
-                :retained retained-count
-                :unretained unretained-count))))
+                :total total
+                :retained retained
+                :unretained unretained
+                :limit limit))))
 
 (defn update-system-cache-build-targets! [evaluation-context]
   (update-system-cache-from-pruned-evaluation-context! cached-build-target-output? evaluation-context)
-  (log-cache-statistics! (g/cache) "Cached build targets in system cache."))
+  (log-cache-info! (g/cache) "Cached build targets in system cache."))
 
 (defn update-system-cache-save-data! [evaluation-context]
   (update-system-cache-from-pruned-evaluation-context! cached-save-data-output? evaluation-context)
-  (log-cache-statistics! (g/cache) "Cached save data in system cache."))
+  (log-cache-info! (g/cache) "Cached save data in system cache."))
+
+(defn set-system-cache-limit! [limit]
+  (g/reconfigure-system-cache! limit cache-retain?)
+  (log-cache-info! (g/cache) "Adjusted system cache capacity."))
 
 (defn- cache-save-data! [project]
   ;; Save data is required for the Search in Files feature, so we pull
