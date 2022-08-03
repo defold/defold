@@ -325,11 +325,12 @@ namespace dmScript
             size += 2;
             if (key_type == LUA_TSTRING)
             {
-                size += lua_objlen(L, index);
+                size += sizeof(uint32_t) + lua_objlen(L, -2);
             }
             else if (key_type == LUA_TNUMBER)
             {
                 size += 4;
+                size += sizeof(lua_Number);
             }
 
             switch (value_type)
@@ -343,16 +344,14 @@ namespace dmScript
                 case LUA_TNUMBER:
                 {
                     // align
-                    size += sizeof(float) - (sizeof(float) - (size % sizeof(float)));
-                    // size += sizeof(float);
-
+                    size += 4;
                     size += sizeof(lua_Number);
                 }
                 break;
 
                 case LUA_TSTRING:
                 {
-                    size += lua_objlen(L, index);
+                    size += sizeof(uint32_t) + lua_objlen(L, -1);
                 }
                 break;
 
