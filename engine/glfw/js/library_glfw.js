@@ -1071,6 +1071,10 @@ var LibraryGLFW = {
   },
 
   glfwSetWindowBackgroundColor: function() {
+  },
+
+  glfwGetDisplayScaleFactor: function() {
+    return 1;
   }
 };
 

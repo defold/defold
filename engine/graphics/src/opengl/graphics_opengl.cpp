@@ -1252,6 +1252,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return context->m_WindowWidth;
     }
 
+    static float OpenGLGetDisplayScaleFactor(HContext context)
+    {
+        assert(context);
+        return glfwGetDisplayScaleFactor();
+    }
+
     static uint32_t OpenGLGetWindowHeight(HContext context)
     {
         assert(context);
@@ -3100,6 +3106,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_GetHeight = OpenGLGetHeight;
         fn_table.m_GetWindowWidth = OpenGLGetWindowWidth;
         fn_table.m_GetWindowHeight = OpenGLGetWindowHeight;
+        fn_table.m_GetDisplayScaleFactor = OpenGLGetDisplayScaleFactor;
         fn_table.m_SetWindowSize = OpenGLSetWindowSize;
         fn_table.m_ResizeWindow = OpenGLResizeWindow;
         fn_table.m_GetDefaultTextureFilters = OpenGLGetDefaultTextureFilters;

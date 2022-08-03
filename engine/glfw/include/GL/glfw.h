@@ -569,6 +569,7 @@ GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwSetViewType(int view_type);
 GLFWAPI void glfwSetWindowBackgroundColor(unsigned int color);
+GLFWAPI float glfwGetDisplayScaleFactor();
 
 // Defold extensions (Android)
 #if defined(ANDROID)
