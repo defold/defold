@@ -237,8 +237,7 @@ union SaveLoadBuffer
         }
         size_t nread = fread(buffer, 1, file_size, file);
         Sys_FreeTableSerializationBuffer(buffer);
-        bool file_size_ok = feof(file) != 0;
-        bool result = ferror(file) == 0 && file_size_ok;
+        bool result = ferror(file) == 0;
         fclose(file);
         if (!result)
         {
