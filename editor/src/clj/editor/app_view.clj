@@ -698,6 +698,11 @@
         (extensions/execute-hook! project :on-target-launched hook-options)
         (process/watchdog! process #(extensions/execute-hook! project :on-target-terminated hook-options))))))
 
+(defn- target-cannot-swap-engine? [target]
+  (and (some? target)
+       (targets/controllable-target? target)
+       (targets/remote-target? target)))
+
 (defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
@@ -720,7 +725,7 @@
           (assert (targets/launched-target? selected-target))
           (launch-new-engine!))
 
-        (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
+        (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
           (reset-console-stream! log-stream)
           (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
@@ -952,13 +957,14 @@
 (defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
   (let [project-directory (io/file (workspace/project-path workspace))
         main-scene (.getScene ^Stage main-stage)
-        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
+        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+        skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project prefs {:debug? false} (workspace/artifact-map workspace)
+    (async-build! project prefs {:debug? false :engine? (not skip-engine)} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (when (handle-build-results! workspace render-build-error! build-results)
-                      (when engine-descriptor
+                      (when (or engine-descriptor skip-engine)
                         (show-console! main-scene tool-tab-pane)
                         (launch-built-project! project engine-descriptor project-directory prefs web-server false))
                       (when build-engine-exception
@@ -988,12 +994,13 @@ If you do not specifically require different script states, consider changing th
         false)))
 
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
-  (let [project-directory (io/file (workspace/project-path workspace))]
-    (async-build! project prefs {:debug? true} (workspace/artifact-map workspace)
+  (let [project-directory (io/file (workspace/project-path workspace))
+        skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
+    (async-build! project prefs {:debug? true :engine? (not skip-engine)} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (when (handle-build-results! workspace render-build-error! build-results)
-                      (when engine-descriptor
+                      (when (or engine-descriptor skip-engine)
                         (when-let [target (launch-built-project! project engine-descriptor project-directory prefs web-server true)]
                           (when (nil? (debug-view/current-session debug-view))
                             (debug-view/start-debugger! debug-view project (:address target "localhost")))))
