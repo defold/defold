@@ -29,6 +29,7 @@
 #include "data/table_v818192.dat.embed.h"
 #include "data/table_tstring_v1.dat.embed.h"
 #include "data/table_tstring_v2.dat.embed.h"
+#include "data/table_tstring_v3.dat.embed.h"
 
 extern "C"
 {
@@ -479,6 +480,22 @@ TEST_F(LuaTableTest, Verify_TSTRING_V1) // old tostring/pushstring format
 TEST_F(LuaTableTest, Verify_TSTRING_V2) // tolstring / pushlstring
 {
     dmScript::PushTable(L, (const char*)TABLE_TSTRING_V2_DAT, TABLE_TSTRING_V2_DAT_SIZE);
+    lua_setglobal(L, "t");
+
+    ASSERT_TRUE(RunString(L, " \
+        assert( t['binary\\0string'] == 'payload\\1\\0\\2\\3' ) \
+        assert( t['vector3'] == vmath.vector3(1,2,3) ) \
+        assert( t['vector4'] == vmath.vector4(4, 5, 6, 7) ) \
+        assert( t['quat'] == vmath.quat(1,2,3,4) ) \
+        assert( t['number'] == 0.5 ) \
+        assert( t['hash'] == hash('hashed value') ) \
+        assert( t['url'] == msg.url('a', 'b', 'c') ) \
+    "));
+}
+
+TEST_F(LuaTableTest, Verify_TSTRING_V3) // tolstring / pushlstring
+{
+    dmScript::PushTable(L, (const char*)TABLE_TSTRING_V3_DAT, TABLE_TSTRING_V3_DAT_SIZE);
     lua_setglobal(L, "t");
 
     ASSERT_TRUE(RunString(L, " \
