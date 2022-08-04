@@ -231,7 +231,7 @@ union SaveLoadBuffer
         uint32_t file_size;
 #if defined(_WIN32)
         LARGE_INTEGER file_size_large;
-        auto file_handle = (HANDLE)_get_osfhandle(_fileno(f));
+        HANDLE file_handle = (HANDLE)_get_osfhandle(_fileno(file));
         BOOL success = GetFileSizeEx(file_handle, &file_size_large);
         file_size = (uint32_t)file_size_large;
 #else
