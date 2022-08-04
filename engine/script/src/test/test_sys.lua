@@ -63,14 +63,22 @@ function test_sys()
     end
 
     -- reload saved file
-    local data_prim = sys.load(file)
+    print("Reloading file")
+    local data_prim
+    ret, msg = pcall(function() data_prim = sys.load(file) end)
+    if not ret then
+        print(msg)
+        assert(false, "expected sys.load() to work")
+    end
 
+    print("Asserting loaded values")
     assert(data['high_score'] == data_prim['high_score'])
     assert(data['location'] == data_prim['location'])
     assert(data['xp'] == data_prim['xp'])
     assert(data['name'] == data_prim['name'])
 
     -- load file exceeding v3 max buffer size, it should now work
+    print("Loading file exceeding version 3 max buffer size")
     fh = io.open(file, "a+")
     for i=1,1+(max_table_size/8) do fh:write("deadbeef") end
     fh:close()
@@ -82,19 +90,23 @@ function test_sys()
     end
 
     -- get_config
+    print("Testing get_config")
     assert(sys.get_config("main.does_not_exists") == nil)
     assert(sys.get_config("main.does_not_exists", "foobar") == "foobar")
     assert(sys.get_config("foo.value") == "123")
     assert(sys.get_config("foo.value", 456) == "123")
 
     -- load_resource
+    print("Load existing resource")
     local test_resource = sys.load_resource("/src/test/test_resource.txt")
     assert(test_resource == "defold")
 
+    print("Load missing resource")
     local does_not_exists = sys.load_resource("/does_not_exists")
     assert(does_not_exists == nil)
 
     -- get_sys_info
+    print("Getting sys_info")
     local info = sys.get_sys_info()
     print("device_model: " .. info.device_model)
     print("system_name: " .. info.system_name)
@@ -105,6 +117,7 @@ function test_sys()
     print("device_ident" .. info.device_ident)
 
     -- get_ifaddrs
+    print("Getting ifaddrs")
     local addresses = sys.get_ifaddrs()
     for i, a in ipairs(addresses) do
         local s = string.format("%d ip:%16s mac:%20s up:%s running:%s name:%s", i, tostring(a.address), tostring(a.mac), tostring(a.up), tostring(a.running), a.name)
@@ -112,6 +125,7 @@ function test_sys()
     end
 
     -- serialize/deserialize
+    print("Testing serialize and deserialize")
     data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player", [1] = "lala" }
     local serialized = sys.serialize(data)
     local deserialized = sys.deserialize(serialized)
@@ -119,6 +133,7 @@ function test_sys()
         assert(deserialized[k] == v)
     end
 
+    print("Done")
 end
 
 functions = { test_sys = test_sys }
