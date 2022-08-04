@@ -28,7 +28,6 @@
 #ifdef _WIN32
 #include <direct.h>
 #include <malloc.h>
-#include <windows.h>
 #include <io.h>         // For _get_osfhandle
 #endif
 
