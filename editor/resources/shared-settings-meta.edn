@@ -1,6 +1,6 @@
 {:settings
  [{:type :integer
-   :help "Maximum number of temporary cache entries. Increase for large projects. Use -1 for unlimited, 20000 by default."
+   :help "Maximum number of temporary cache entries. Increase if you experience frequent editor slowdowns. Use -1 for unlimited, 20000 by default."
    :default 20000
    :label "Cache Size (Needs Restart)"
    :path ["editor" "cache_capacity"]}]
