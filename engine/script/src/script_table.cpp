@@ -330,7 +330,6 @@ namespace dmScript
             else if (key_type == LUA_TNUMBER)
             {
                 size += 4;
-                size += sizeof(lua_Number);
             }
 
             switch (value_type)
@@ -343,8 +342,8 @@ namespace dmScript
 
                 case LUA_TNUMBER:
                 {
-                    // align
-                    size += 4;
+                    int align = ((size + sizeof(float) - 1) & ~(sizeof(float) - 1)) - size;
+                    size += align;
                     size += sizeof(lua_Number);
                 }
                 break;
@@ -360,8 +359,8 @@ namespace dmScript
                     // subtype
                     size += 1;
 
-                    // align
-                    size += sizeof(float) - 1;
+                    int align = ((size + sizeof(float) - 1) & ~(sizeof(float) - 1)) - size;
+                    size += align;
 
                     if (IsVector3(L, -1))
                     {
