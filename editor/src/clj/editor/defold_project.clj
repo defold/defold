@@ -417,6 +417,9 @@
                 :command :fetch-libraries}
                {:label "Reload Editor Scripts"
                 :command :reload-extensions}
+               {:label :separator}
+               {:label "Shared Settings"
+                :command :shared-settings}
                {:label "Live Update Settings"
                 :command :live-update-settings}
                {:label :separator
@@ -869,11 +872,11 @@
   (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
     (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
 
-(defn- log-cache-info! [cache msg]
+(defn- log-cache-info! [cache message]
   ;; Disabled during tests to minimize log spam.
   (when-not (Boolean/getBoolean "defold.tests")
     (let [{:keys [total retained unretained limit]} (g/cache-info cache)]
-      (log/info :msg msg
+      (log/info :message message
                 :total total
                 :retained retained
                 :unretained unretained

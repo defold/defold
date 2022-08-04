@@ -59,19 +59,16 @@
             render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
             render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
             project-file (io/file project)]
+        (welcome/add-recent-project! prefs project-file)
         (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
 
         ;; Ensure that namespace loading has completed.
         @namespace-loader
 
         ;; Initialize the system and load the project.
-        (let [shared-settings-file (io/file (.getParentFile project-file) "project.shared_settings")
-              system-config (if (.isFile shared-settings-file)
-                              (apply (var-get (ns-resolve 'editor.shared-settings 'load-system-config)) [shared-settings-file])
-                              {})]
+        (let [system-config (apply (var-get (ns-resolve 'editor.shared-settings 'load-project-system-config)) [(.getParentFile project-file)])]
           (apply (var-get (ns-resolve 'editor.code.view 'initialize!)) [prefs])
           (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [system-config])
-          (welcome/add-recent-project! prefs project-file)
           (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! updater newly-created?])
           (reset! namespace-progress-reporter nil))))))
 

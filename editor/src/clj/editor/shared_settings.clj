@@ -25,6 +25,10 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private project-shared-settings-filename "project.shared_settings")
+
+(def project-shared-settings-proj-path (str \/ project-shared-settings-filename))
+
 (def ^:private shared-settings-icon "icons/32/Icons_05-Project-info.png")
 
 (def ^:private shared-settings-meta "shared-settings-meta.edn")
@@ -83,9 +87,8 @@
 
 (def ^:private default-system-config {})
 
-;; Called through reflection.
-(defn load-system-config [^File shared-settings-file]
-  (log/info :msg "Loading system config from Shared Settings file.")
+(defn- load-system-config [^File shared-settings-file]
+  (log/info :message "Loading system config from Shared Settings file.")
   (let [raw-settings-or-exception (read-raw-settings-or-exception shared-settings-file)]
     (or (if (ex-message raw-settings-or-exception)
           (report-load-error! shared-settings-file raw-settings-or-exception)
@@ -93,6 +96,13 @@
             (if (ex-message system-config-or-exception)
               (report-load-error! shared-settings-file system-config-or-exception)
               (when (not-empty system-config-or-exception)
-                (log/info :msg "Using system config from Shared Settings file." :config system-config-or-exception)
+                (log/info :message "Using system config from Shared Settings file." :config system-config-or-exception)
                 system-config-or-exception))))
         default-system-config)))
+
+;; Called through reflection.
+(defn load-project-system-config [project-directory]
+  (let [shared-settings-file (io/file project-directory project-shared-settings-filename)]
+    (if (.isFile shared-settings-file)
+      (load-system-config shared-settings-file)
+      {})))
