@@ -14,7 +14,7 @@
 
 function test_sys()
     local filename = "save001.save"
-    local max_table_size = 512 * 1024
+    local max_table_size_v3 = 512 * 1024
     local file = sys.get_save_file("my_game", filename)
     -- Get file again, test mkdir
     file = sys.get_save_file("my_game", filename)
@@ -24,13 +24,22 @@ function test_sys()
     local data = sys.load(file)
     assert(#data == 0)
 
-    -- save file exceeding max buffer size, expected to fail
-    for i=1,max_table_size+1 do data[i] = i end
+    -- save large table, it should not fail with v4+
+    print("Saving large table")
+    for i=1,65536 do data[i] = i end
     local ret, msg = pcall(function() sys.save(file, data) end)
     if not ret then
         print("An error occurred when calling sys.save()")
         print(msg)
-        assert(false, "expected sys.save to work with data table exceeding max size " .. max_table_size .. " bytes")
+        assert(false, "expected sys.save to work with data table exceeding max size " .. max_table_size_v3 .. " bytes")
+    end
+    -- load large table, it should not fail with v4+
+    print("Loading large table")
+    local ret, msg = pcall(function() sys.load(file) end)
+    if not ret then
+        print("An error occurred when calling sys.load()")
+        print(msg)
+        assert(false, "expected sys.load to work with data table exceeding max size " .. max_table_size_v3 .. " bytes")
     end
 
     -- save file with too long path (>1024 chars long), expected to fail
@@ -70,24 +79,12 @@ function test_sys()
         print(msg)
         assert(false, "expected sys.load() to work")
     end
-
     print("Asserting loaded values")
     assert(data['high_score'] == data_prim['high_score'])
     assert(data['location'] == data_prim['location'])
     assert(data['xp'] == data_prim['xp'])
     assert(data['name'] == data_prim['name'])
 
-    -- load file exceeding v3 max buffer size, it should now work
-    print("Loading file exceeding version 3 max buffer size")
-    fh = io.open(file, "a+")
-    for i=1,1+(max_table_size/8) do fh:write("deadbeef") end
-    fh:close()
-    local ret, msg = pcall(function() sys.load(file, data) end)
-    if not ret then
-        print("An error occurred when calling sys.load()")
-        print(msg)
-        assert(false, "expected sys.load to work with data table exceeding max size " .. max_table_size .. " bytes")
-    end
 
     -- get_config
     print("Testing get_config")
