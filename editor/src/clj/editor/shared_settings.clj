@@ -57,6 +57,7 @@
       (dialogs/make-info-dialog
         {:title "Error Loading Shared Settings"
          :icon :icon/triangle-error
+         :always-on-top true
          :header {:fx/type fx.v-box/lifecycle
                   :children [{:fx/type fxui/label
                               :variant :header
@@ -78,7 +79,7 @@
           settings (settings-core/sanitize-settings meta-settings raw-settings)
           editor-cache-capacity (settings-core/get-setting settings ["editor" "cache_capacity"])]
       (when (some? editor-cache-capacity)
-        (if (< -1 editor-cache-capacity)
+        (if (<= -1 editor-cache-capacity)
           {:cache-size editor-cache-capacity}
           (throw (ex-info "editor.cache_capacity must be -1 (unlimited), 0 (disabled), or positive."
                           {:editor-cache-capacity editor-cache-capacity})))))
@@ -105,4 +106,4 @@
   (let [shared-settings-file (io/file project-directory project-shared-settings-filename)]
     (if (.isFile shared-settings-file)
       (load-system-config shared-settings-file)
-      {})))
+      default-system-config)))

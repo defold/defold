@@ -114,7 +114,7 @@
                                      (DigestUtils/sha256Hex ^String content))))))
 
 (definline ^:private resource-node-resource [basis resource-node]
-  ;; This is a faster than g/node-value, and doesn't require creating an
+  ;; This is faster than g/node-value, and doesn't require creating an
   ;; evaluation-context. The resource property is unjammable and properties
   ;; aren't cached, so there is no need to do a full g/node-value.
   `(gt/get-property ~resource-node ~basis :resource))
