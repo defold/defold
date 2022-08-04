@@ -115,15 +115,6 @@
      (swap! sys-atom update :cache c/cache-invalidate entries)
      nil)))
 
-(defn reconfigure-system-cache!
-  "Reconfigures the cache limit of a cache (default *the-system* cache), if supported."
-  ([limit retain?] (reconfigure-system-cache! *the-system* limit retain?))
-  ([sys-atom limit retain?]
-   (let [current-cache (:cache @sys-atom)
-         reconfigured-cache (c/reconfigure current-cache limit retain?)]
-     (swap! sys-atom assoc :cache reconfigured-cache)
-     nil)))
-
 (defn cache-info
   "Return a map detailing cache utilization."
   ([] (cache-info (cache)))

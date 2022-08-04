@@ -890,10 +890,6 @@
   (update-system-cache-from-pruned-evaluation-context! cached-save-data-output? evaluation-context)
   (log-cache-info! (g/cache) "Cached save data in system cache."))
 
-(defn set-system-cache-limit! [limit]
-  (g/reconfigure-system-cache! limit cache-retain?)
-  (log-cache-info! (g/cache) "Adjusted system cache capacity."))
-
 (defn- cache-save-data! [project]
   ;; Save data is required for the Search in Files feature, so we pull
   ;; it in the background here to cache it.
