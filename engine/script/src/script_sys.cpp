@@ -232,7 +232,7 @@ union SaveLoadBuffer
         LARGE_INTEGER file_size_large;
         HANDLE file_handle = (HANDLE)_get_osfhandle(_fileno(file));
         BOOL success = GetFileSizeEx(file_handle, &file_size_large);
-        file_size = (uint32_t)file_size_large;
+        file_size = file_size_large.LowPart;
 #else
         fseek(file, 0L, SEEK_END);
         file_size = ftell(file);
