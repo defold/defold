@@ -2047,7 +2047,9 @@ namespace dmGameSystem
 
         gui_world->m_DT = params.m_UpdateContext->m_DT;
         dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
-        for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
+        const uint32_t count = gui_world->m_Components.Size();
+        DM_PROPERTY_ADD_U32(rmtp_Gui, count);
+        for (uint32_t i = 0; i < count; ++i)
         {
             GuiComponent* gui_component = gui_world->m_Components[i];
             if (gui_component->m_Enabled && gui_component->m_AddedToUpdate)

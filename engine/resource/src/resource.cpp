@@ -68,6 +68,8 @@
 
 extern dmDDF::Descriptor dmLiveUpdateDDF_ManifestFile_DESCRIPTOR;
 
+DM_PROPERTY_U32(rmtp_Resource, 0, FrameReset, "# resources");
+
 namespace dmResource
 {
 const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
@@ -747,6 +749,7 @@ void UpdateFactory(HFactory factory)
 {
     DM_PROFILE(__FUNCTION__);
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
+    DM_PROPERTY_ADD_U32(rmtp_Resource, factory->m_Resources->Size());
 }
 
 Result RegisterType(HFactory factory,
