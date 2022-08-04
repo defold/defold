@@ -27,7 +27,7 @@ function test_sys()
     -- save file exceeding max buffer size, expected to fail
     for i=1,max_table_size+1 do data[i] = i end
     local ret, msg = pcall(function() sys.save(file, data) end)
-    if not ret then assert(false, "expected sys.save to work with data table exceeding max size " .. max_table_size .. " bytes") end
+    if not ret then assert(false, "expected sys.save to work with data table exceeding max size " .. max_table_size .. " bytes. " .. msg) end
 
     -- save file with too long path (>1024 chars long), expected to fail
     local valid_data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
@@ -35,7 +35,7 @@ function test_sys()
     local long_file = sys.get_save_file("my_game", long_filename)
 
     ret, msg = pcall(function() sys.save(long_file, valid_data) end)
-    if ret then assert(false, "expected lua error for sys.save with too long path") end
+    if ret then assert(false, "expected lua error for sys.save with too long path. " .. msg) end
 
     -- save file
     print("SAVEFILE")
@@ -61,7 +61,7 @@ function test_sys()
     for i=1,1+(max_table_size/8) do fh:write("deadbeef") end
     fh:close()
     local ret, msg = pcall(function() sys.load(file, data) end)
-    if not ret then assert(false, "expected sys.load to work with data table exceeding max size " .. max_table_size .. " bytes") end
+    if not ret then assert(false, "expected sys.load to work with data table exceeding max size " .. max_table_size .. " bytes. " .. msg) end
 
     -- get_config
     assert(sys.get_config("main.does_not_exists") == nil)
