@@ -28,6 +28,8 @@
 #ifdef _WIN32
 #include <direct.h>
 #include <malloc.h>
+#include <windows.h>
+#include <io.h>         // For _get_osfhandle
 #endif
 
 #include <dlib/dstrings.h>
@@ -226,9 +228,17 @@ union SaveLoadBuffer
             return 1;
         }
 
+        uint32_t file_size;
+#if defined(_WIN32)
+        LARGE_INTEGER file_size_large;
+        auto file_handle = (HANDLE)_get_osfhandle(_fileno(f));
+        BOOL success = GetFileSizeEx(file_handle, &file_size_large);
+        file_size = (uint32_t)file_size_large;
+#else
         fseek(file, 0L, SEEK_END);
-        uint32_t file_size = ftell(file);
+        file_size = ftell(file);
         fseek(file, 0L, SEEK_SET);
+#endif
 
         char* buffer = Sys_SetupTableSerializationBuffer(file_size);
         if (!buffer)
