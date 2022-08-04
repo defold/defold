@@ -1,0 +1,10 @@
+{:settings
+ [{:type :integer,
+   :help "Maximum number of temporary cache entries. Increase for large projects. Use -1 for unlimited, 20000 by default.",
+   :default 20000,
+   :path ["editor" "cache_capacity"]}]
+ :group-order ["Shared Settings"]
+ :default-category "editor"
+ :categories
+ {"editor" {:help "Optimize the editor for use with your project."
+            :group "Shared Settings"}}}

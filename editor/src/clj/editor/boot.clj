@@ -65,9 +65,9 @@
         @namespace-loader
 
         ;; Initialize the system and load the project.
-        (let [editor-tweaks-file (io/file (.getParentFile project-file) "project.editor_tweaks")
-              system-config (if (.isFile editor-tweaks-file)
-                              (apply (var-get (ns-resolve 'editor.editor-tweaks 'load-system-config)) [editor-tweaks-file])
+        (let [shared-settings-file (io/file (.getParentFile project-file) "project.shared_settings")
+              system-config (if (.isFile shared-settings-file)
+                              (apply (var-get (ns-resolve 'editor.shared-settings 'load-system-config)) [shared-settings-file])
                               {})]
           (apply (var-get (ns-resolve 'editor.code.view 'initialize!)) [prefs])
           (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [system-config])

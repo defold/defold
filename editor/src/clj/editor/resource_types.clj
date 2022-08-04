@@ -28,7 +28,6 @@
             [editor.cubemap :as cubemap]
             [editor.display-profiles :as display-profiles]
             [editor.editor-script :as editor-script]
-            [editor.editor-tweaks :as editor-tweaks]
             [editor.factory :as factory]
             [editor.font :as font]
             [editor.game-object :as game-object]
@@ -48,6 +47,7 @@
             [editor.render-pb :as render-pb]
             [editor.rig :as rig]
             [editor.script-api :as script-api]
+            [editor.shared-settings :as shared-settings]
             [editor.sound :as sound]
             [editor.sprite :as sprite]
             [editor.tile-map :as tile-map]
@@ -67,7 +67,6 @@
       (cubemap/register-resource-types workspace)
       (display-profiles/register-resource-types workspace)
       (editor-script/register-resource-types workspace)
-      (editor-tweaks/register-resource-types workspace)
       (factory/register-resource-types workspace)
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)
@@ -86,6 +85,7 @@
       (protobuf-types/register-resource-types workspace)
       (render-pb/register-resource-types workspace)
       (rig/register-resource-types workspace)
+      (shared-settings/register-resource-types workspace)
       (sound/register-resource-types workspace)
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
