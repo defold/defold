@@ -271,7 +271,7 @@ namespace dmScript
      * @param index Index of the table
      * @return Number of bytes required for the serialized table
      */
-    uint32_t GetSerializedTableSize(lua_State* L, int index);
+    uint32_t CheckTableSize(lua_State* L, int index);
 
     /**
      * Push a serialized table to the supplied lua state, will increase the stack by 1.

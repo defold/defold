@@ -299,7 +299,7 @@ namespace dmScript
         return total_size;
     }
 
-    uint32_t DoGetSerializedTableSize(lua_State* L, int index)
+    uint32_t DoCheckTableSize(lua_State* L, int index)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -395,7 +395,7 @@ namespace dmScript
 
                 case LUA_TTABLE:
                 {
-                    size += DoGetSerializedTableSize(L, -1);
+                    size += DoCheckTableSize(L, -1);
                 }
                 break;
 
@@ -410,9 +410,9 @@ namespace dmScript
         return size;
     }
 
-    uint32_t GetSerializedTableSize(lua_State* L, int index)
+    uint32_t CheckTableSize(lua_State* L, int index)
     {
-        return sizeof(TableHeader) + DoGetSerializedTableSize(L, index);
+        return sizeof(TableHeader) + DoCheckTableSize(L, index);
     }
 
     uint32_t DoCheckTable(lua_State* L, const TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)

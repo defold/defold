@@ -127,7 +127,7 @@ union SaveLoadBuffer
 
         luaL_checktype(L, 2, LUA_TTABLE);
 
-        uint32_t table_size = GetSerializedTableSize(L, 2);
+        uint32_t table_size = CheckTableSize(L, 2);
 
         char* buffer = Sys_SetupTableSerializationBuffer(table_size);
         if (!buffer)
@@ -1203,7 +1203,7 @@ union SaveLoadBuffer
         DM_LUA_STACK_CHECK(L, 1);
         luaL_checktype(L, 1, LUA_TTABLE);
 
-        uint32_t table_size = GetSerializedTableSize(L, 1);
+        uint32_t table_size = CheckTableSize(L, 1);
         char* buffer = Sys_SetupTableSerializationBuffer(table_size);
         if (!buffer)
         {
