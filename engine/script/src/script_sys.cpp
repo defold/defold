@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,7 +28,6 @@
 #ifdef _WIN32
 #include <direct.h>
 #include <malloc.h>
-#include <io.h>         // For _get_osfhandle
 #endif
 
 #include <dlib/dstrings.h>
@@ -227,17 +226,9 @@ union SaveLoadBuffer
             return 1;
         }
 
-        uint32_t file_size;
-#if defined(_WIN32)
-        LARGE_INTEGER file_size_large;
-        HANDLE file_handle = (HANDLE)_get_osfhandle(_fileno(file));
-        BOOL success = GetFileSizeEx(file_handle, &file_size_large);
-        file_size = file_size_large.LowPart;
-#else
         fseek(file, 0L, SEEK_END);
-        file_size = ftell(file);
+        uint32_t file_size = ftell(file);
         fseek(file, 0L, SEEK_SET);
-#endif
 
         char* buffer = Sys_SetupTableSerializationBuffer(file_size);
         if (!buffer)
@@ -245,14 +236,15 @@ union SaveLoadBuffer
             return luaL_error(L, "Could not allocate %d bytes for table deserialization.", file_size);
         }
         size_t nread = fread(buffer, 1, file_size, file);
-        Sys_FreeTableSerializationBuffer(buffer);
         bool result = ferror(file) == 0;
         fclose(file);
         if (!result)
         {
+            Sys_FreeTableSerializationBuffer(buffer);
             return luaL_error(L, "Could not read from the file %s.", filename);
         }
         PushTable(L, buffer, nread);
+        Sys_FreeTableSerializationBuffer(buffer);
         return 1;
     }
 
