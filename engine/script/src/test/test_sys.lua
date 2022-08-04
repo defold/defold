@@ -40,21 +40,27 @@ function test_sys()
 
     ret, msg = pcall(function() sys.save(long_file, valid_data) end)
     if ret then
-        print("An error occurred when calling sys.save()")
-        print(msg)
         assert(false, "expected lua error for sys.save with too long path")
     end
 
     -- save file
     print("SAVEFILE")
     local data = { high_score = 1111, location = vmath.vector3(2,2,2), xp = 33, name = "First Save" }
-    local result = sys.save(file, data)
-    assert(result)
+    ret, msg = pcall(function() sys.save(file, data) end)
+    if not ret then
+        print("An error occurred when calling sys.save() on a small table")
+        print(msg)
+        assert(false, "expected sys.save to successfully save small table")
+    end
 
     -- resave file (checking the atomic move works)
     data = { high_score = 1234, location = vmath.vector3(1,2,3), xp = 99, name = "Mr Player" }
-    result = sys.save(file, data)
-    assert(result)
+    print("Resaving file")
+    ret, msg = pcall(function() sys.save(file, data) end)
+    if not ret then
+        print(msg)
+        assert(false, "expected sys.save() on an existing file to work")
+    end
 
     -- reload saved file
     local data_prim = sys.load(file)
