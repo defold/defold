@@ -16,8 +16,8 @@ message Bone
     required uint32 parent = 1;
     required uint64 id = 2;
     required string name = 3; // For easier debugging at runtime
-    required dmMath.Transform local = 4 [(field_align)=true];
-    required dmMath.Transform world = 5 [(field_align)=true];
+    required dmMath.Transform local = 4 [(field_align)=true]; // Deprecated/unused (only in unit test=)
+    required dmMath.Transform world = 5 [(field_align)=true]; // Deprecated/unused
     required dmMath.Transform inverse_bind_pose = 6 [(field_align)=true];
 
     optional float length = 7 [default = 0];

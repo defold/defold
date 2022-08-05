@@ -163,37 +163,28 @@ public class ModelUtil {
         f[3] = (float)v.getW();
     }
 
-    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
         if (track.keys.isEmpty())
             return;
 
-        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(boneIndex);
         RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
         RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), startTime, duration, sampleRate, spf, true);
-        animBuilder.addTracks(animTrackBuilder.build());
     }
 
-    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
         if (track.keys.isEmpty())
             return;
 
-        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(boneIndex);
         RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
         RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true);
-        animBuilder.addTracks(animTrackBuilder.build());
     }
 
-    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, RigUtil.AnimationTrack track, int boneIndex, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
         if (track.keys.isEmpty())
             return;
 
-        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneIndex(boneIndex);
         RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
         RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, interpolate);
-        animBuilder.addTracks(animTrackBuilder.build());
     }
 
     private static void copyKeys(ModelImporter.KeyFrame keys[], int componentSize, List<RigUtil.AnimationKey> outKeys) {
@@ -211,13 +202,14 @@ public class ModelUtil {
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation, int boneIndex, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
-// TODO: Make these use the same target animation track! Currently we use one track for each type (pos/rot/scl)
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        animTrackBuilder.setBoneIndex(boneIndex);
 
         if (nodeAnimation.translationKeys.length > 0) {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
             copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
-            samplePosTrack(animBuilder, sparseTrack, boneIndex, duration, startTime, sampleRate, spf, true);
+            samplePosTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
         }
 
         if (nodeAnimation.rotationKeys.length > 0) {
@@ -225,7 +217,7 @@ public class ModelUtil {
             sparseTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
             copyKeys(nodeAnimation.rotationKeys, 4, sparseTrack.keys);
 
-            sampleRotTrack(animBuilder, sparseTrack, boneIndex, duration, startTime, sampleRate, spf, true);
+            sampleRotTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
         }
 
         if (nodeAnimation.scaleKeys.length > 0) {
@@ -233,7 +225,13 @@ public class ModelUtil {
             sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
             copyKeys(nodeAnimation.scaleKeys, 3, sparseTrack.keys);
 
-            sampleScaleTrack(animBuilder, sparseTrack, boneIndex, duration, startTime, sampleRate, spf, true);
+            sampleScaleTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
+        }
+
+        if (nodeAnimation.translationKeys.length > 0 ||
+            nodeAnimation.rotationKeys.length > 0 ||
+            nodeAnimation.scaleKeys.length > 0) {
+            animBuilder.addTracks(animTrackBuilder.build());
         }
     }
 
