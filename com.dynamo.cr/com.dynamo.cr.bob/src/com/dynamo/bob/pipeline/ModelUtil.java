@@ -199,28 +199,65 @@ public class ModelUtil {
         }
     }
 
-    public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation, int boneIndex, double duration, double startTime, double sampleRate) {
+    public static void addDefaultKeys(ModelImporter.NodeAnimation nodeAnimation, ModelImporter.Transform local) {
+
+        // For the tracks that don't have keys, insert a default key
+        if (nodeAnimation.translationKeys.length == 0)
+        {
+            ModelImporter.KeyFrame keyFrames[] = new ModelImporter.KeyFrame[1];
+            keyFrames[0] = new ModelImporter.KeyFrame();
+            keyFrames[0].time = 0.0f;
+            keyFrames[0].value[0] = local.translation.x;
+            keyFrames[0].value[1] = local.translation.y;
+            keyFrames[0].value[2] = local.translation.z;
+            nodeAnimation.translationKeys = keyFrames;
+        }
+
+        if (nodeAnimation.rotationKeys.length == 0)
+        {
+            ModelImporter.KeyFrame keyFrames[] = new ModelImporter.KeyFrame[1];
+            keyFrames[0] = new ModelImporter.KeyFrame();
+            keyFrames[0].time = 0.0f;
+            keyFrames[0].value[0] = local.rotation.x;
+            keyFrames[0].value[1] = local.rotation.y;
+            keyFrames[0].value[2] = local.rotation.z;
+            keyFrames[0].value[3] = local.rotation.w;
+            nodeAnimation.rotationKeys = keyFrames;
+        }
+
+        if (nodeAnimation.scaleKeys.length == 0)
+        {
+            ModelImporter.KeyFrame keyFrames[] = new ModelImporter.KeyFrame[1];
+            keyFrames[0] = new ModelImporter.KeyFrame();
+            keyFrames[0].time = 0.0f;
+            keyFrames[0].value[0] = local.scale.x;
+            keyFrames[0].value[1] = local.scale.y;
+            keyFrames[0].value[2] = local.scale.z;
+            nodeAnimation.scaleKeys = keyFrames;
+        }
+    }
+
+    public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation,
+                                                    int boneIndex, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
         animTrackBuilder.setBoneIndex(boneIndex);
 
-        if (nodeAnimation.translationKeys.length > 0) {
+        {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
             copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
             samplePosTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
         }
-
-        if (nodeAnimation.rotationKeys.length > 0) {
+        {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
             copyKeys(nodeAnimation.rotationKeys, 4, sparseTrack.keys);
 
             sampleRotTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
         }
-
-        if (nodeAnimation.scaleKeys.length > 0) {
+        {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
             copyKeys(nodeAnimation.scaleKeys, 3, sparseTrack.keys);
@@ -228,11 +265,7 @@ public class ModelUtil {
             sampleScaleTrack(animBuilder, animTrackBuilder, sparseTrack, duration, startTime, sampleRate, spf, true);
         }
 
-        if (nodeAnimation.translationKeys.length > 0 ||
-            nodeAnimation.rotationKeys.length > 0 ||
-            nodeAnimation.scaleKeys.length > 0) {
-            animBuilder.addTracks(animTrackBuilder.build());
-        }
+        animBuilder.addTracks(animTrackBuilder.build());
     }
 
     public static void setBoneList(Rig.AnimationSet.Builder animationSetBuilder, ArrayList<Bone> bones) {
@@ -261,6 +294,18 @@ public class ModelUtil {
                 return 0;
             return (a.duration - b.duration) < 0 ? 1 : -1;
         }
+    }
+
+    private static class SortOnNodeIndex implements Comparator<ModelImporter.NodeAnimation> {
+        public SortOnNodeIndex(ArrayList<ModelImporter.Bone> bones) {
+            this.bones = bones;
+        }
+        public int compare(ModelImporter.NodeAnimation a, ModelImporter.NodeAnimation b) {
+            Bone bonea = findBoneByName(this.bones, a.node.name);
+            Bone boneb = findBoneByName(this.bones, b.node.name);
+            return bonea.index - boneb.index;
+        }
+        private ArrayList<ModelImporter.Bone> bones;
     }
 
     public static void loadAnimations(Scene scene, ArrayList<ModelImporter.Bone> fullSetBones, Rig.AnimationSet.Builder animationSetBuilder,
@@ -317,7 +362,47 @@ public class ModelUtil {
 
             animBuilder.setDuration(animation.duration);
 
+            // Make sure we have tracks for all bones
+            HashSet<String> nonAnimatedBones = new HashSet<String>();
+            for (ModelImporter.Bone bone : fullSetBones) {
+                nonAnimatedBones.add(bone.name);
+            }
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
+                nonAnimatedBones.remove(nodeAnimation.node.name);
+            }
+
+            List<ModelImporter.NodeAnimation> node_animations = new ArrayList<ModelImporter.NodeAnimation>();
+
+            for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
+                node_animations.add(nodeAnimation);
+            }
+
+            for (String bone_name : nonAnimatedBones) {
+
+                Bone skeleton_bone = findBoneByName(fullSetBones, bone_name);
+                Bone anim_bone = findBoneByName(bones, bone_name);
+                if (skeleton_bone == null) {
+                    System.out.printf("Warning: Animation uses bone '%s' that isn't present in the skeleton!\n", bone_name);
+                    continue;
+                }
+                if (anim_bone == null) {
+                    System.out.printf("Warning: Animation uses bone '%s' that isn't present in the animation file!\n", bone_name);
+                    continue;
+                }
+
+                ModelImporter.NodeAnimation nodeAnimation = new ModelImporter.NodeAnimation();
+                nodeAnimation.node = anim_bone.node;
+                nodeAnimation.translationKeys = new ModelImporter.KeyFrame[0];
+                nodeAnimation.rotationKeys = new ModelImporter.KeyFrame[0];
+                nodeAnimation.scaleKeys = new ModelImporter.KeyFrame[0];
+                nodeAnimation.startTime = 0.0f;
+                nodeAnimation.endTime = animation.duration;
+                node_animations.add(nodeAnimation);
+            }
+
+            node_animations.sort(new SortOnNodeIndex(fullSetBones));
+
+            for (ModelImporter.NodeAnimation nodeAnimation : node_animations) {
 
                 Bone skeleton_bone = findBoneByName(fullSetBones, nodeAnimation.node.name);
                 Bone anim_bone = findBoneByName(bones, nodeAnimation.node.name);
@@ -329,6 +414,9 @@ public class ModelUtil {
                     System.out.printf("Warning: Animation uses bone '%s' that isn't present in the animation file!\n", nodeAnimation.node.name);
                     continue;
                 }
+
+                // For the bones missing animations, we add default keys
+                addDefaultKeys(nodeAnimation, anim_bone.node.local);
 
                 createAnimationTracks(animBuilder, nodeAnimation, skeleton_bone.index, animation.duration, startTime, sampleRate);
             }
