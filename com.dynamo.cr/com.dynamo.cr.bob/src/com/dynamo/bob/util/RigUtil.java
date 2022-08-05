@@ -509,6 +509,12 @@ public class RigUtil {
             return;
         }
 
+        if (track.keys.size() == 1) {
+            T value = propertyBuilder.toComposite(track.keys.get(0));
+            propertyBuilder.addComposite(value);
+            return;
+        }
+
         // We add one extra frame (+1) to have a keyframe when t == duration, we also need
         // to duplicate the last keyframe (see end of function) so that the linear
         // interpolation works correctly in runtime.
