@@ -10,7 +10,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-//https://assimp-docs.readthedocs.io/en/latest/usage/use_the_lib.html#ai-data
+
+// Reference material:
+// https://github.com/OGRECave/ogre/blob/ce7e29fedaa37f3380af4660b3629653c2963cd9/OgreMain/src/OgreSkeleton.cpp
+// Retargeting: https://github.com/smix8/GodotAnimationRetargeting/blob/godot_3.x_gdscript/addons/animation_retargeting/AnimationRetargeting.gd
 
 package com.dynamo.bob.pipeline;
 
@@ -76,17 +79,6 @@ import com.google.protobuf.ByteString;
 
 public class ModelUtil {
 
-    static private class AssetSpace
-    {
-        public Matrix4d rotation;
-        public double unit;
-        AssetSpace() {
-            rotation = new Matrix4d();
-            rotation.setIdentity();
-            unit = 1.0;
-        }
-    }
-
     public static Scene loadScene(byte[] content, String path, Options options) {
         if (options == null)
             options = new Options();
@@ -107,6 +99,48 @@ public class ModelUtil {
         Quat4d rotation = new Quat4d(transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w);
         return MathUtil.vecmathToDDF(translation, rotation, scale);
     }
+
+    // private static Point3d toPoint3d(ModelImporter.Vec4 v) {
+    //     return new Point3d(v.x, v.y, v.z);
+    // }
+
+    // private static Vector3d toVector3d(ModelImporter.Vec4 v) {
+    //     return new Vector3d(v.x, v.y, v.z);
+    // }
+
+    // private static Quat4d toQuat4d(ModelImporter.Vec4 v) {
+    //     return new Quat4d(v.x, v.y, v.z, v.w);
+    // }
+
+    // private static Matrix4d toMatrix4d(ModelImporter.Transform transform) {
+    //     Matrix4d t = new Matrix4d();
+    //     t.setIdentity();
+    //     t.setTranslation(new Vector3d(transform.translation.x, transform.translation.y, transform.translation.z));
+    //     Matrix4d r = new Matrix4d();
+    //     r.setIdentity();
+    //     r.setRotation(new Quat4d(transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w));
+    //     Matrix4d s = new Matrix4d(transform.scale.x, 0, 0, 0,
+    //                               0, transform.scale.y, 0, 0,
+    //                               0, 0, transform.scale.z, 0,
+    //                               0, 0, 0, 1);
+
+    //     Matrix4d out = new Matrix4d();
+    //     out.mul(r, s);
+    //     out.mul(t);
+    //     return out;
+    // }
+
+    // private static void printVector4d(Vector4d v) {
+    //     System.out.printf("  %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+    // }
+
+    // private static void printMatrix4d(Matrix4d mat) {
+    //     Vector4d v = new Vector4d();
+    //     mat.getColumn(0, v); printVector4d(v);
+    //     mat.getColumn(1, v); printVector4d(v);
+    //     mat.getColumn(2, v); printVector4d(v);
+    //     mat.getColumn(3, v); printVector4d(v);
+    // }
 
     private static AnimationKey createKey(float t, boolean stepped, int componentSize) {
         AnimationKey key = new AnimationKey();
@@ -174,7 +208,7 @@ public class ModelUtil {
         }
     }
 
-    public static void loadAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation, ModelImporter.Bone bone, double duration, double startTime, double sampleRate) {
+    public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation, int boneIndex, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
 // TODO: Make these use the same target animation track! Currently we use one track for each type (pos/rot/scl)
@@ -183,7 +217,7 @@ public class ModelUtil {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
             sparseTrack.property = RigUtil.AnimationTrack.Property.POSITION;
             copyKeys(nodeAnimation.translationKeys, 3, sparseTrack.keys);
-            samplePosTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+            samplePosTrack(animBuilder, sparseTrack, boneIndex, duration, startTime, sampleRate, spf, true);
         }
 
         if (nodeAnimation.rotationKeys.length > 0) {
@@ -191,7 +225,7 @@ public class ModelUtil {
             sparseTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
             copyKeys(nodeAnimation.rotationKeys, 4, sparseTrack.keys);
 
-            sampleRotTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+            sampleRotTrack(animBuilder, sparseTrack, boneIndex, duration, startTime, sampleRate, spf, true);
         }
 
         if (nodeAnimation.scaleKeys.length > 0) {
@@ -199,7 +233,7 @@ public class ModelUtil {
             sparseTrack.property = RigUtil.AnimationTrack.Property.SCALE;
             copyKeys(nodeAnimation.scaleKeys, 3, sparseTrack.keys);
 
-            sampleScaleTrack(animBuilder, sparseTrack, bone.index, duration, startTime, sampleRate, spf, true);
+            sampleScaleTrack(animBuilder, sparseTrack, boneIndex, duration, startTime, sampleRate, spf, true);
         }
     }
 
@@ -214,9 +248,9 @@ public class ModelUtil {
         loadAnimations(scene, bones, animationSetBuilder, parentAnimationId, animationIds);
     }
 
-    private static Bone findBone(ArrayList<ModelImporter.Bone> bones, ModelImporter.Node node) {
+    private static Bone findBoneByName(ArrayList<ModelImporter.Bone> bones, String name) {
         for (ModelImporter.Bone bone : bones) {
-            if ( (bone.node != null && bone.node.name.equals(node.name)) || bone.name.equals(node.name)) {
+            if ( (bone.node != null && bone.node.name.equals(name)) || bone.name.equals(name)) {
                 return bone;
             }
         }
@@ -231,7 +265,8 @@ public class ModelUtil {
         }
     }
 
-    public static void loadAnimations(Scene scene, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+    public static void loadAnimations(Scene scene, ArrayList<ModelImporter.Bone> fullSetBones, Rig.AnimationSet.Builder animationSetBuilder,
+                                      String parentAnimationId, ArrayList<String> animationIds) {
 
         Arrays.sort(scene.animations, new SortAnimations());
 
@@ -239,13 +274,18 @@ public class ModelUtil {
             System.out.printf("Scene contains more than one animation. Picking the the longest one ('%s')\n", scene.animations[0].name);
         }
 
+        // We want to use the internal skeleton from this scene to calculate the relative
+        // animation keys
+        ArrayList<ModelImporter.Bone> bones = ModelUtil.loadSkeleton(scene);
+
         for (ModelImporter.Animation animation : scene.animations) {
 
             Rig.RigAnimation.Builder animBuilder = Rig.RigAnimation.newBuilder();
 
-            float sampleRate = 30.0f; // TODO: Retrieve this properly from either asset file or Options
+            // TODO: Retrieve this properly from either asset file or Options.
+            // TODO: Do we even need this?
+            float sampleRate = 30.0f;
             float startTime = 1000000.0f;
-            float endTime = 0.0f;
 
             animBuilder.setSampleRate(sampleRate);
 
@@ -262,44 +302,37 @@ public class ModelUtil {
             // TODO: add the start time to the Animation struct!
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
 
-                int count = 0;
-                ModelImporter.KeyFrame keys[] = null;
+                boolean has_keys =  nodeAnimation.translationKeys.length > 0 ||
+                                    nodeAnimation.rotationKeys.length > 0 ||
+                                    nodeAnimation.scaleKeys.length > 0;
 
-                if (nodeAnimation.translationKeys.length > 0) {
-                    keys = nodeAnimation.translationKeys;
-                    count = nodeAnimation.translationKeys.length;
-                }
-
-                if (nodeAnimation.rotationKeys.length > 0) {
-                    keys = nodeAnimation.rotationKeys;
-                    count = nodeAnimation.rotationKeys.length;
-                }
-
-                if (nodeAnimation.scaleKeys.length > 0) {
-                    keys = nodeAnimation.scaleKeys;
-                    count = nodeAnimation.scaleKeys.length;
-                }
-
-                if (keys == null) {
-                    System.err.printf("Animation contains no keys!");
-                    return;
+                if (!has_keys) {
+                    System.err.printf("Animation %s contains no keys for node %s\n", animation.name, nodeAnimation.node.name);
+                    continue;
                 }
 
                 if (nodeAnimation.startTime < startTime)
                     startTime = nodeAnimation.startTime;
+
+                break;
             }
 
             animBuilder.setDuration(animation.duration);
 
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
 
-                Bone bone = findBone(bones, nodeAnimation.node);
-                if (bone == null) {
+                Bone skeleton_bone = findBoneByName(fullSetBones, nodeAnimation.node.name);
+                Bone anim_bone = findBoneByName(bones, nodeAnimation.node.name);
+                if (skeleton_bone == null) {
                     System.out.printf("Warning: Animation uses bone '%s' that isn't present in the skeleton!\n", nodeAnimation.node.name);
                     continue;
                 }
+                if (anim_bone == null) {
+                    System.out.printf("Warning: Animation uses bone '%s' that isn't present in the animation file!\n", nodeAnimation.node.name);
+                    continue;
+                }
 
-                loadAnimationTracks(animBuilder, nodeAnimation, bone, animation.duration, startTime, sampleRate);
+                createAnimationTracks(animBuilder, nodeAnimation, skeleton_bone.index, animation.duration, startTime, sampleRate);
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
@@ -603,7 +636,6 @@ public class ModelUtil {
         b.setName(bone.name);
 
         b.setLength(0.0f);
-        b.setInheritScale(true);
 
         if (bone.node == null) {
             Transform identityTransform = MathUtil.vecmathIdentityTransform();
@@ -672,18 +704,41 @@ public class ModelUtil {
             return;
         }
 
-
-        // System.out.printf("Scene Root Transform:\n");
-        // printMatrix4x4(scene.mRootNode().mName().dataString(), scene.mRootNode().mTransformation());
-        // System.out.printf("\n");
-
         System.out.printf("--------------------------------------------\n");
+        System.out.printf("Scene Nodes:\n");
+
+        for (Node node : scene.nodes) {
+            System.out.printf("  Scene Node: %s  index: %d  id: %d  parent: %s\n", node.name, node.index, ModelImporter.AddressOf(node), node.parent != null ? node.parent.name : "");
+            System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(node.local));
+            ModelImporter.DebugPrintTransform(node.local, 3);
+        }
+
+
+        if (scene.skins.length > 0)
+        {
+            System.out.printf("--------------------------------------------\n");
+            System.out.printf("Scene Bones:\n");
+
+            for (Bone bone : scene.skins[0].bones) {
+                System.out.printf("  Scene Bone: %s  index: %d  id: %d  nodeid: %d  parent: %s\n", bone.name, bone.index,
+                                            ModelImporter.AddressOf(bone), ModelImporter.AddressOf(bone.node),
+                                            bone.parent != null ? bone.parent.name : "");
+                System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(bone.node.local));
+                ModelImporter.DebugPrintTransform(bone.node.local, 3);
+                System.out.printf("      inv_bind_poser:\n");
+                ModelImporter.DebugPrintTransform(bone.invBindPose, 3);
+            }
+
+            System.out.printf("--------------------------------------------\n");
+        }
 
         System.out.printf("Bones:\n");
 
         ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
         for (Bone bone : bones) {
             System.out.printf("  Bone: %s  index: %d  parent: %s\n", bone.name, bone.index, bone.parent != null ? bone.parent.name : "");
+            System.out.printf("      local:\n");
+            ModelImporter.DebugPrintTransform(bone.node.local, 3);
         }
         System.out.printf("--------------------------------------------\n");
 

@@ -1146,7 +1146,6 @@ public class ColladaUtil {
          * Collada "bones" are just joints and don't have any length.
          */
         b.setLength(0.0f);
-        b.setInheritScale(true);
 
         /*
          * Add bone to bone list and keep track of bone id (we use "sid"/"source id").

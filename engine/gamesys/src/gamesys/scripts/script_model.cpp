@@ -160,7 +160,7 @@ namespace dmGameSystem
      * ```
      */
 
-    int LuaModelComp_Play(lua_State* L)
+    int LuaModelComp_Play(lua_State* L) // Deprecated
     {
         int top = lua_gettop(L);
         // default values
@@ -531,7 +531,7 @@ namespace dmGameSystem
 
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
-            {"play",    LuaModelComp_Play},
+            {"play",    LuaModelComp_Play}, // Deprecated
             {"play_anim", LuaModelComp_PlayAnim},
             {"cancel",  LuaModelComp_Cancel},
             {"get_go",  LuaModelComp_GetGO},

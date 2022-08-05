@@ -20,8 +20,7 @@ message Bone
     required dmMath.Transform world = 5 [(field_align)=true];
     required dmMath.Transform inverse_bind_pose = 6 [(field_align)=true];
 
-    optional bool inherit_scale = 7 [default = true];
-    optional float length = 8 [default = 0];
+    optional float length = 7 [default = 0];
 }
 
 message IK
@@ -38,9 +37,6 @@ message Skeleton
 {
     repeated Bone bones = 1;
     repeated IK iks = 2;
-
-    // Spine 2.x specific feature.
-    optional bool local_bone_scaling = 3 [default = false];
 }
 
 message AnimationTrack

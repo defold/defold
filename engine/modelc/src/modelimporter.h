@@ -66,7 +66,7 @@ namespace dmModelImporter
         dmTransform::Transform  m_InvBindPose; // inverse(world_transform)
         const char*             m_Name;
         struct Node*            m_Node;
-        uint32_t                m_ParentIndex;  // Index into skin.bones. 0xFFFFFFFF if not set
+        uint32_t                m_ParentIndex;  // Index into skin.bones. INVALID_INDEX if not set
         uint32_t                m_Index;        // Index into skin.bones
     };
 

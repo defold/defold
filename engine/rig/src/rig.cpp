@@ -22,75 +22,39 @@
 #include <dmsdk/dlib/object_pool.h>
 #include <graphics/graphics.h>
 
+
 #include <stdio.h>
-
-static bool CheckSetting(const char* var, bool default_value)
-{
-    const char* value = getenv(var);
-    if (!value)
-        return default_value;
-    bool disabled = strcmp(value, "0") == 0;
-    dmLogInfo("Using %s = %s", var, value);
-    return !disabled;
-}
-
-static bool IS_COLLADA = CheckSetting("COLLADA", false);
-static bool IS_GLTF = !IS_COLLADA;
-
-static bool USE_BIND_POSE = CheckSetting("USE_BIND_POSE", false);
-static bool IS_PLAYING = CheckSetting("PLAYING", true);
-
-static bool g_Debug = false;
 
 namespace dmRig
 {
     using namespace dmVMath;
 
-    static void printVector4(const Vector4& v)
-    {
-        printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
-    }
-
-    // static void printTransform(uint32_t index, const dmRigDDF::Bone* bone, const Matrix4& pose, const Matrix4& transform)
+    // static void printVector4(const Vector4& v)
     // {
-    //     printf("Bone: %u: %s\n", index, bone->m_Name);
-    //     printf("    pose:\n");
-    //     printf("        "); printVector4(pose.getRow(0));
-    //     printf("        "); printVector4(pose.getRow(1));
-    //     printf("        "); printVector4(pose.getRow(2));
-    //     printf("        "); printVector4(pose.getRow(3));
-    //     printf("    out:\n");
-    //     printf("        "); printVector4(transform.getRow(0));
-    //     printf("        "); printVector4(transform.getRow(1));
-    //     printf("        "); printVector4(transform.getRow(2));
-    //     printf("        "); printVector4(transform.getRow(3));
+    //     printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
     // }
 
-    static void printMatrix(const Matrix4& transform)
-    {
-        printf("    "); printVector4(transform.getRow(0));
-        printf("    "); printVector4(transform.getRow(1));
-        printf("    "); printVector4(transform.getRow(2));
-        printf("    "); printVector4(transform.getRow(3));
-    }
-    static void printTransformAsMatrix(const dmTransform::Transform& transform)
-    {
-        printMatrix(dmTransform::ToMatrix4(transform));
-    }
-    static void printTransform(const dmTransform::Transform& transform)
-    {
-        printf("    pos: %f, %f, %f\n",transform.GetTranslation().getX(),transform.GetTranslation().getY(),transform.GetTranslation().getZ());
-        printf("    rot: %f, %f, %f, %f\n",transform.GetRotation().getX(),transform.GetRotation().getY(),transform.GetRotation().getZ(),transform.GetRotation().getW());
-        printf("    scl: %f, %f, %f\n",transform.GetScale().getX(),transform.GetScale().getY(),transform.GetScale().getZ());
-        printf("\n");
-    }
+    // static void printMatrix(const Matrix4& transform)
+    // {
+    //     printf("    "); printVector4(transform.getRow(0));
+    //     printf("    "); printVector4(transform.getRow(1));
+    //     printf("    "); printVector4(transform.getRow(2));
+    //     printf("    "); printVector4(transform.getRow(3));
+    // }
+    // static void printTransformAsMatrix(const dmTransform::Transform& transform)
+    // {
+    //     printMatrix(dmTransform::ToMatrix4(transform));
+    // }
+    // static void printTransform(const dmTransform::Transform& transform)
+    // {
+    //     printf("    pos: %f, %f, %f\n",transform.GetTranslation().getX(),transform.GetTranslation().getY(),transform.GetTranslation().getZ());
+    //     printf("    rot: %f, %f, %f, %f\n",transform.GetRotation().getX(),transform.GetRotation().getY(),transform.GetRotation().getZ(),transform.GetRotation().getW());
+    //     printf("    scl: %f, %f, %f\n",transform.GetScale().getX(),transform.GetScale().getY(),transform.GetScale().getZ());
+    //     printf("\n");
+    // }
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const float CURSOR_EPSILON = 0.0001f;
-    //static const int SIGNAL_DELTA_UNCHANGED = 0x10cced; // Used to indicate if a draw order was unchanged for a certain slot
-    //static const uint32_t INVALID_ATTACHMENT_INDEX = 0xffffffffu;
-
-    //static const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
 
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt);
     static bool DoPostUpdate(RigInstance* instance);
@@ -100,8 +64,6 @@ namespace dmRig
         dmObjectPool<HRigInstance>      m_Instances;
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
-        dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;
-        dmArray<dmVMath::Matrix4>       m_ScratchInfluenceMatrixBuffer;
         dmArray<dmVMath::Matrix4>       m_ScratchPoseMatrixBuffer;
         // Temporary scratch buffers used when transforming the vertex buffer,
         // used to creating primitives from indices.
@@ -118,7 +80,6 @@ namespace dmRig
         }
 
         context->m_Instances.SetCapacity(params.m_MaxRigInstanceCount);
-        context->m_ScratchPoseTransformBuffer.SetCapacity(0);
         context->m_ScratchPoseMatrixBuffer.SetCapacity(0);
         *out = context;
         return dmRig::RESULT_OK;
@@ -166,6 +127,8 @@ namespace dmRig
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
         if (anim == 0x0)
         {
+            RigPlayer* player = GetPlayer(instance);
+            player->m_Playing = 0;
             return dmRig::RESULT_ANIM_NOT_FOUND;
         }
 
@@ -182,7 +145,6 @@ namespace dmRig
         }
 
         RigPlayer* player = SwitchPlayer(instance);
-        player->m_Initial = 1;// DEPRECATED SPINE STUFF
         player->m_BlendFinished = blend_duration > 0.0f ? 0 : 1;// DEPRECATED SPINE STUFF
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
@@ -195,10 +157,9 @@ namespace dmRig
         } else {
             player->m_Backwards = 0;
         }
-offset = 0.0f;
+
         SetCursor(instance, offset, true);
         SetPlaybackRate(instance, playback_rate);
-player->m_Playing = IS_PLAYING;
         return dmRig::RESULT_OK;
     }
 
@@ -421,13 +382,6 @@ player->m_Playing = IS_PLAYING;
         return lerp(frac, Vector3(data[i0+0], data[i0+1], data[i0+2]), Vector3(data[i1+0], data[i1+1], data[i1+2]));
     }
 
-    // static Vector4 SampleVec4(uint32_t sample, float frac, float* data)
-    // {
-    //     uint32_t i0 = sample*4;
-    //     uint32_t i1 = i0+4;
-    //     return lerp(frac, Vector4(data[i0+0], data[i0+1], data[i0+2], data[i0+3]), Vector4(data[i1+0], data[i1+1], data[i1+2], data[i1+3]));
-    // }
-
     static Quat SampleQuat(uint32_t sample, float frac, float* data)
     {
         uint32_t i = sample*4;
@@ -446,75 +400,9 @@ player->m_Playing = IS_PLAYING;
         return t;
     }
 
-    static inline dmTransform::Transform GetPoseTransform(const dmArray<RigBone>& bind_pose, const dmArray<dmTransform::Transform>& pose, dmTransform::Transform transform, const uint32_t index) {
-        if(bind_pose[index].m_ParentIndex == INVALID_BONE_INDEX)
-            return transform;
-        transform = dmTransform::Mul(pose[bind_pose[index].m_ParentIndex], transform);
-        return GetPoseTransform(bind_pose, pose, transform, bind_pose[index].m_ParentIndex);
-    }
-
-    static inline float ToEulerZ(const dmTransform::Transform& t)
-    {
-        Quat q(t.GetRotation());
-        return dmVMath::QuatToEuler(q.getZ(), q.getY(), q.getX(), q.getW()).getZ() * (M_PI/180.0f);
-    }
-
-    static void ApplyOneBoneIKConstraint(const dmRigDDF::IK* ik, const dmArray<RigBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const float mix)
-    {
-        if (mix == 0.0f)
-            return;
-        const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
-        dmTransform::Transform& parent_t = pose[ik->m_Parent];
-        float parentRotation = ToEulerZ(parent_bt);
-        // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
-        float rotationIK = atan2(target_wp.getY() - parent_wp.getY(), target_wp.getX() - parent_wp.getX());
-        parentRotation = parentRotation + (rotationIK - parentRotation) * mix;
-        parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
-    }
-
-    // Based on http://www.ryanjuckett.com/programming/analytic-two-bone-ik-in-2d/
-    static void ApplyTwoBoneIKConstraint(const dmRigDDF::IK* ik, const dmArray<RigBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const bool bend_positive, const float mix)
-    {
-        if (mix == 0.0f)
-            return;
-        const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
-        const dmTransform::Transform& child_bt = bind_pose[ik->m_Child].m_LocalToParent;
-        dmTransform::Transform& parent_t = pose[ik->m_Parent];
-        dmTransform::Transform& child_t = pose[ik->m_Child];
-        float childRotation = ToEulerZ(child_bt), parentRotation = ToEulerZ(parent_bt);
-
-        // recalc target position to local (relative parent)
-        const Vector3 target(target_wp.getX() - parent_wp.getX(), target_wp.getY() - parent_wp.getY(), 0.0f);
-        const Vector3 child_p = child_bt.GetTranslation();
-        const float childX = child_p.getX(), childY = child_p.getY();
-        const float offset = atan2(childY, childX);
-        const float len1 = (float)sqrt(childX * childX + childY * childY);
-        const float len2 = bind_pose[ik->m_Child].m_Length;
-
-        // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
-        const float cosDenom = 2.0f * len1 * len2;
-        if (cosDenom < 0.0001f) {
-            childRotation = childRotation + ((float)atan2(target.getY(), target.getX()) - parentRotation - childRotation) * mix;
-            child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
-            return;
-        }
-        float cosValue = (target.getX() * target.getX() + target.getY() * target.getY() - len1 * len1 - len2 * len2) / cosDenom;
-        cosValue = dmMath::Max(-1.0f, dmMath::Min(1.0f, cosValue));
-        const float childAngle = (float)acos(cosValue) * (bend_positive ? 1.0f : -1.0f);
-        const float adjacent = len1 + len2 * cosValue;
-        const float opposite = len2 * sin(childAngle);
-        const float parentAngle = (float)atan2(target.getY() * adjacent - target.getX() * opposite, target.getX() * adjacent + target.getY() * opposite);
-        parentRotation = ((parentAngle - offset) - parentRotation) * mix;
-        childRotation = ((childAngle + offset) - childRotation) * mix;
-        parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
-        child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
-    }
-
-    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose, const dmArray<uint32_t>& track_idx_to_pose, dmArray<IKAnimation>& ik_animation, float blend_weight)
+    static void ApplyAnimation(RigPlayer* player, dmArray<BonePose>& pose, dmArray<IKAnimation>& ik_animation, float blend_weight)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
-        if (animation == 0x0)
-            return;
         float duration = GetCursorDuration(player, animation);
         float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
 
@@ -527,18 +415,43 @@ player->m_Playing = IS_PLAYING;
         {
             const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[ti];
             uint32_t bone_index = track->m_BoneIndex;
-            if (bone_index >= track_idx_to_pose.Size()) {
+            if (bone_index >= pose.Size()) {
                 continue;
             }
-            uint32_t pose_index = track_idx_to_pose[bone_index];
-            dmTransform::Transform& transform = pose[pose_index];
+
+            dmTransform::Transform& transform = pose[bone_index].m_Local;
+
+// printf("ApplyAnimation: track: %u %p  cursor: %f  bone index: %u sample/fraction: %u %f  blend: %f  duration: %f  id: %llx %s\n",
+//                                 ti, track,
+//                                 player->m_Cursor, bone_index, sample, fraction, blend_weight, duration,
+//                                 animation->m_Id, dmHashReverseSafe64(animation->m_Id));
+
+        // TODO: Handle case when key count == 1
+
             if (track->m_Positions.m_Count > 0)
             {
-                transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), SampleVec3(sample, fraction, track->m_Positions.m_Data)));
+                Vector3 v = SampleVec3(sample, fraction, track->m_Positions.m_Data);
+                //printf("    v: %f, %f, %f\n", v.getX(), v.getY(), v.getZ());
+
+                transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), v));
             }
             if (track->m_Rotations.m_Count > 0)
             {
-                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
+                Quat v = SampleQuat(sample, fraction, track->m_Rotations.m_Data);
+                //printf("    q: %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+
+                // if (track->m_BoneIndex == 0)
+                // {
+                //     for (uint32_t j = 0; j < track->m_Rotations.m_Count/4; ++j)
+                //     {
+                //         printf("  i: %u  %f, %f, %f, %f\n", j, track->m_Rotations.m_Data[j*4+0],
+                //                                                 track->m_Rotations.m_Data[j*4+1],
+                //                                                 track->m_Rotations.m_Data[j*4+2],
+                //                                                 track->m_Rotations.m_Data[j*4+3]);
+                //     }
+                // }
+
+                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), v));
             }
             if (track->m_Scale.m_Count > 0)
             {
@@ -560,202 +473,118 @@ player->m_Playing = IS_PLAYING;
         }
     }
 
-    static bool IsBoneAnimated(RigPlayer* player, uint32_t bone_index, bool* translation, bool* rotation, bool* scale)
+    static void ResetPose(const dmRigDDF::Skeleton* skeleton, dmArray<BonePose>& pose)
     {
-        const dmRigDDF::RigAnimation* animation = player->m_Animation;
-        if (animation == 0x0)
-            return false;
-
-        *translation = false;
-        *rotation = false;
-        *scale = false;
-
-        uint32_t track_count = animation->m_Tracks.m_Count;
-        for (uint32_t i = 0; i < track_count; ++i)
+        uint32_t bone_count = pose.Size();
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
         {
-            const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[i];
-            uint32_t bone_index = track->m_BoneIndex;
-            if (track->m_BoneIndex != bone_index)
-                continue;
-
-            *translation = *translation || track->m_Positions.m_Count > 0;
-            *rotation = *rotation || track->m_Rotations.m_Count > 0;
-            *scale = *scale || track->m_Scale.m_Count > 0;
+            pose[bi].m_Local.SetIdentity();
+            pose[bi].m_World.SetIdentity();
         }
+    }
 
-        return *translation || *rotation || *scale;
+    static void UpdatePoseTransforms(dmArray<BonePose>& pose)
+    {
+        uint32_t bone_count = pose.Size();
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        {
+            BonePose& bp = pose[bi];
+
+            if (bp.m_ParentIndex != INVALID_BONE_INDEX)
+                bp.m_World = dmTransform::Mul(pose[bp.m_ParentIndex].m_World, bp.m_Local);
+            else
+                bp.m_World = bp.m_Local;
+        }
+    }
+
+    static void PoseToMatrix(const dmArray<BonePose>& pose, dmArray<Matrix4>& out_matrices)
+    {
+        uint32_t bone_count = pose.Size();
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        {
+            out_matrices[bi] = dmTransform::ToMatrix4(pose[bi].m_World);
+        }
     }
 
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
-            // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
-            if (instance->m_Pose.Empty() || !instance->m_Enabled)
-                return;
+        // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
+        RigPlayer* player = GetPlayer(instance);
 
-            const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
-            const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
-            const dmArray<uint32_t>& track_idx_to_pose = *instance->m_TrackIdxToPose;
-            dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-            // Reset pose
+        if (!player->m_Playing || !instance->m_Enabled || !player->m_Animation)
+            return;
+
+        const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+
+        dmArray<BonePose>& pose = instance->m_Pose;
+        ResetPose(skeleton, pose);
+
+        // Reset IK animation
+        dmArray<IKAnimation>& ik_animation = instance->m_IKAnimation;
+        uint32_t ik_animation_count = ik_animation.Size();
+        for (uint32_t ii = 0; ii < ik_animation_count; ++ii)
+        {
+            const dmRigDDF::IK* ik = &skeleton->m_Iks[ii];
+            ik_animation[ii].m_Mix = ik->m_Mix;
+            ik_animation[ii].m_Positive = ik->m_Positive;
+        }
+
+        UpdateBlend(instance, dt);
+
+        if (instance->m_Blending)
+        {
+            float fade_rate = instance->m_BlendTimer / instance->m_BlendDuration;
+            // How much to blend the pose, 1 first time to overwrite the bind pose, either fade_rate or 1 - fade_rate second depending on which one is the current player
+            float alpha = 1.0f;
+            for (uint32_t pi = 0; pi < 2; ++pi)
+            {
+                RigPlayer* p = &instance->m_Players[pi];
+                // How much relative blending between the two players
+                float blend_weight = fade_rate;
+                if (player != p) {
+                    blend_weight = 1.0f - fade_rate;
+                }
+
+                // DEPRECATED SPINE STUFF
+                if (p->m_BlendFinished == 0 && blend_weight > 0.5) {
+                    p->m_BlendFinished = 1;
+                }
+
+                UpdatePlayer(instance, p, dt, blend_weight);
+                ApplyAnimation(p, pose, ik_animation, alpha);
+                if (player == p)
+                {
+                    alpha = 1.0f - fade_rate;
+                }
+                else
+                {
+                    alpha = fade_rate;
+                }
+            }
+        }
+        else
+        {
+            UpdatePlayer(instance, player, dt, 1.0f);
+            ApplyAnimation(player, pose, ik_animation, 1.0f);
+        }
+
+        // Normalize quaternions while we blend
+        if (instance->m_Blending)
+        {
             uint32_t bone_count = pose.Size();
             for (uint32_t bi = 0; bi < bone_count; ++bi)
             {
-                pose[bi].SetIdentity();
-            }
-            // Reset IK animation
-            dmArray<IKAnimation>& ik_animation = instance->m_IKAnimation;
-            uint32_t ik_animation_count = ik_animation.Size();
-            for (uint32_t ii = 0; ii < ik_animation_count; ++ii)
-            {
-                const dmRigDDF::IK* ik = &skeleton->m_Iks[ii];
-                ik_animation[ii].m_Mix = ik->m_Mix;
-                ik_animation[ii].m_Positive = ik->m_Positive;
-            }
-
-            UpdateBlend(instance, dt);
-
-            RigPlayer* player = GetPlayer(instance);
-
-            if (player->m_Initial) {
-                player->m_Initial = 0;
-                // DEPRECATED
-            }
-
-            if (instance->m_Blending)
-            {
-                float fade_rate = instance->m_BlendTimer / instance->m_BlendDuration;
-                // How much to blend the pose, 1 first time to overwrite the bind pose, either fade_rate or 1 - fade_rate second depending on which one is the current player
-                float alpha = 1.0f;
-                for (uint32_t pi = 0; pi < 2; ++pi)
+                BonePose& bp = pose[bi];
                 {
-                    RigPlayer* p = &instance->m_Players[pi];
-                    // How much relative blending between the two players
-                    float blend_weight = fade_rate;
-                    if (player != p) {
-                        blend_weight = 1.0f - fade_rate;
-                    }
-
-                    // DEPRECATED SPINE STUFF
-                    if (p->m_BlendFinished == 0 && blend_weight > 0.5) {
-                        p->m_BlendFinished = 1;
-                    }
-
-                    UpdatePlayer(instance, p, dt, blend_weight);
-                    ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, alpha);
-                    if (player == p)
-                    {
-                        alpha = 1.0f - fade_rate;
-                    }
-                    else
-                    {
-                        alpha = fade_rate;
-                    }
-                }
-            }
-            else
-            {
-                UpdatePlayer(instance, player, dt, 1.0f);
-                ApplyAnimation(player, pose, track_idx_to_pose, ik_animation, 1.0f);
-            }
-
-static int first = 0;
-bool debug = false;
-if (first)
-{
-    first = 0;
-    debug = true;
-}
-g_Debug = debug;
-
-            for (uint32_t bi = 0; bi < bone_count; ++bi)
-            {
-                dmTransform::Transform& t = pose[bi];
-                // Normalize quaternions while we blend
-                if (instance->m_Blending)
-                {
-                    Quat rotation = t.GetRotation();
+                    Quat rotation = bp.m_Local.GetRotation();
                     if (dot(rotation, rotation) > 0.001f)
                         rotation = normalize(rotation);
-                    t.SetRotation(rotation);
-                }
-
-                if (bi > 0)
-                {
-                    assert(skeleton->m_Bones[bi].m_Parent < bi);
-                }
-
-                if (debug)
-                {
-                    printf("Bone index: %u %s   parent: %u\n", bi, skeleton->m_Bones[bi].m_Name, skeleton->m_Bones[bi].m_Parent);
-                    printf("  local\n");
-                    printTransformAsMatrix(bind_pose[bi].m_LocalToParent);
-                }
-
-                const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
-                t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
-                t.SetRotation(bind_t.GetRotation() * t.GetRotation());
-                t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
-
-                if (debug)
-                {
-                    printf("  pose + local\n");
-                    printTransformAsMatrix(t);
-                    printf("\n");
+                    bp.m_Local.SetRotation(rotation);
                 }
             }
+        }
 
-            if (skeleton->m_Iks.m_Count > 0) {
-                DM_PROFILE("RigIK");
-                const uint32_t count = skeleton->m_Iks.m_Count;
-                dmArray<IKTarget>& ik_targets = instance->m_IKTargets;
-
-
-                for (uint32_t i = 0; i < count; ++i) {
-                    const dmRigDDF::IK* ik = &skeleton->m_Iks[i];
-
-                    // transform local space hiearchy for pose
-                    dmTransform::Transform parent_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Parent], ik->m_Parent);
-                    dmTransform::Transform target_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Target], ik->m_Target);
-                    const uint32_t parent_parent_index = skeleton->m_Bones[ik->m_Parent].m_Parent;
-                    dmTransform::Transform parent_parent_t;
-                    if(parent_parent_index != INVALID_BONE_INDEX)
-                    {
-                        parent_parent_t = dmTransform::Inv(GetPoseTransform(bind_pose, pose, pose[skeleton->m_Bones[ik->m_Parent].m_Parent], skeleton->m_Bones[ik->m_Parent].m_Parent));
-                        parent_t = dmTransform::Mul(parent_parent_t, parent_t);
-                        target_t = dmTransform::Mul(parent_parent_t, target_t);
-                    }
-                    Vector3 parent_position = parent_t.GetTranslation();
-                    Vector3 target_position = target_t.GetTranslation();
-
-                    if(ik_targets[i].m_Mix != 0.0f)
-                    {
-                        // get custom target position either from go or vector position
-                        Vector3 user_target_position = target_position;
-                        if(ik_targets[i].m_Callback != 0)
-                        {
-                            user_target_position = ik_targets[i].m_Callback(&ik_targets[i]);
-                        } else {
-                            // instance have been removed, disable animation
-                            ik_targets[i].m_UserHash = 0;
-                            ik_targets[i].m_Mix = 0.0f;
-                        }
-
-                        const float target_mix = ik_targets[i].m_Mix;
-
-                        if (parent_parent_index != INVALID_BONE_INDEX) {
-                            user_target_position = dmTransform::Apply(parent_parent_t, user_target_position);
-                        }
-
-                        // blend default target pose and target pose
-                        target_position = target_mix == 1.0f ? user_target_position : lerp(target_mix, target_position, user_target_position);
-                    }
-
-                    if(ik->m_Child == ik->m_Parent)
-                        ApplyOneBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Mix);
-                    else
-                        ApplyTwoBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Positive, ik_animation[i].m_Mix);
-                }
-            }
+        UpdatePoseTransforms(pose);
     }
 
     static Result PostUpdate(HRigContext context)
@@ -777,7 +606,7 @@ g_Debug = debug;
     static bool DoPostUpdate(RigInstance* instance)
     {
             // If pose is empty, there are no bones to update
-            dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+            dmArray<BonePose>& pose = instance->m_Pose;
             if (pose.Empty())
                 return false;
 
@@ -810,7 +639,12 @@ g_Debug = debug;
         instance->m_Pose.SetSize(bone_count);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            instance->m_Pose[i].SetIdentity();
+            const dmRigDDF::Bone* bone = &skeleton->m_Bones[i];
+            instance->m_Pose[i].m_Length = bone->m_Length;
+            instance->m_Pose[i].m_ParentIndex = bone->m_Parent;
+            // If we won't play an animation, then use the skeleton transforms
+            instance->m_Pose[i].m_Local = bone->m_Local;
+            instance->m_Pose[i].m_World = bone->m_World;
         }
 
         instance->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
@@ -823,7 +657,7 @@ g_Debug = debug;
         return dmRig::RESULT_OK;
     }
 
-    dmArray<dmTransform::Transform>* GetPose(HRigInstance instance)
+    dmArray<BonePose>* GetPose(HRigInstance instance)
     {
         return &instance->m_Pose;
     }
@@ -1011,7 +845,7 @@ g_Debug = debug;
                 }
             }
 
-            v = normal_matrix * Vector3(normal_out.getX(), normal_out.getY(), normal_out.getZ());
+            v = normal_matrix * normal_out.getXYZ();
             if (lengthSqr(v) > 0.0f) {
                 normalize(v);
             }
@@ -1084,100 +918,6 @@ g_Debug = debug;
         return out_buffer;
     }
 
-    static void PoseToMatrix(const dmArray<dmTransform::Transform>& pose, dmArray<Matrix4>& out_matrices)
-    {
-        uint32_t bone_count = pose.Size();
-        for (uint32_t bi = 0; bi < bone_count; ++bi)
-        {
-            out_matrices[bi] = dmTransform::ToMatrix4(pose[bi]);
-        }
-    }
-
-    static void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<dmTransform::Transform>& pose, dmArray<dmTransform::Transform>& out_pose)
-    {
-        const dmRigDDF::Bone* bones = skeleton->m_Bones.m_Data;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-        for (uint32_t bi = 0; bi < bone_count; ++bi)
-        {
-            const dmTransform::Transform& transform = pose[bi];
-            dmTransform::Transform& out_transform = out_pose[bi];
-            out_transform = transform;
-            if (bi > 0) {
-                const dmRigDDF::Bone* bone = &bones[bi];
-                if (bone->m_InheritScale)
-                {
-                    out_transform = dmTransform::Mul(out_pose[bone->m_Parent], transform);
-                }
-                else
-                {
-                    Vector3 scale = transform.GetScale();
-                    out_transform = dmTransform::Mul(out_pose[bone->m_Parent], transform);
-                    out_transform.SetScale(scale);
-                }
-            }
-        }
-    }
-
-    static void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<Matrix4>& pose, dmArray<Matrix4>& out_pose)
-    {
-if (g_Debug)
-{
-    printf("%s\n", __FUNCTION__);
-}
-        const dmRigDDF::Bone* bones = skeleton->m_Bones.m_Data;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-        for (uint32_t bi = 0; bi < bone_count; ++bi)
-        {
-
-            const Matrix4& transform = pose[bi];
-            Matrix4& out_transform = out_pose[bi];
-            out_transform = transform;
-
-if (g_Debug)
-{
-    printf("Bone index: %u %s   parent: %u  %s\n", bi, bones[bi].m_Name, bones[bi].m_Parent, bones[bi].m_Parent == INVALID_BONE_INDEX ? "" : bones[bones[bi].m_Parent].m_Name);
-    printf("  pose\n");
-    printMatrix(transform);
-}
-            if (bi > 0) {
-                const dmRigDDF::Bone* bone = &bones[bi];
-                assert(bone->m_Parent < bi);
-
-                if (bone->m_InheritScale)
-                {
-if (g_Debug)
-{
-    printf("  parent:\n");
-    printMatrix(out_pose[bone->m_Parent]);
-}
-
-                    out_transform = out_pose[bone->m_Parent] * transform;
-
-                }
-                else
-                {
-                    Vector3 scale = dmTransform::ExtractScale(out_pose[bone->m_Parent]);
-                    out_transform.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * transform.getUpper3x3());
-                    out_transform = out_pose[bone->m_Parent] * transform;
-                }
-            }
-if (g_Debug)
-{
-    printf("  world_xform\n");
-    printMatrix(out_transform);
-}
-        }
-    }
-
-    static void PoseToInfluence(const dmArray<uint32_t>& pose_idx_to_influence, const dmArray<Matrix4>& in_pose, dmArray<Matrix4>& out_pose)
-    {
-        for (uint32_t i = 0; i < pose_idx_to_influence.Size(); ++i)
-        {
-            uint32_t j = pose_idx_to_influence[i];
-            out_pose[j] = in_pose[i];
-        }
-    }
-
     static RigModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, RigModelVertex* out_write_ptr)
     {
         uint32_t indices_count = mesh->m_PositionIndices.m_Count;
@@ -1240,15 +980,13 @@ if (g_Debug)
         }
 
         dmArray<Matrix4>& pose_matrices      = context->m_ScratchPoseMatrixBuffer;
-        dmArray<Matrix4>& influence_matrices = context->m_ScratchInfluenceMatrixBuffer;
         dmArray<Vector3>& positions          = context->m_ScratchPositionBuffer;
         dmArray<Vector3>& normals            = context->m_ScratchNormalBuffer;
 
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
-        influence_matrices.SetSize(0);
-        if (!USE_BIND_POSE && bone_count && instance->m_PoseIdxToInfluence->Size() > 0) {
-
+        if (bone_count)
+        {
             // Make sure pose scratch buffers have enough space
             if (pose_matrices.Capacity() < bone_count) {
                 uint32_t size_offset = bone_count - pose_matrices.Capacity();
@@ -1256,39 +994,7 @@ if (g_Debug)
             }
             pose_matrices.SetSize(bone_count);
 
-            // Make sure influence scratch buffers have enough space sufficient for max bones to be indexed
-            uint32_t max_bone_count = instance->m_MaxBoneCount;
-            if (influence_matrices.Capacity() < max_bone_count) {
-                uint32_t capacity = influence_matrices.Capacity();
-                uint32_t size_offset = max_bone_count - capacity;
-                influence_matrices.OffsetCapacity(size_offset);
-                influence_matrices.SetSize(max_bone_count);
-                for(uint32_t i = capacity; i < capacity+size_offset; ++i)
-                    influence_matrices[i] = Matrix4::identity();
-            }
-            influence_matrices.SetSize(max_bone_count);
-
-            const dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-            const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
-            if (skeleton->m_LocalBoneScaling) {
-
-                dmArray<dmTransform::Transform>& pose_transforms = context->m_ScratchPoseTransformBuffer;
-                if (pose_transforms.Capacity() < bone_count) {
-                    pose_transforms.OffsetCapacity(bone_count - pose_transforms.Capacity());
-                }
-                pose_transforms.SetSize(bone_count);
-
-                PoseToModelSpace(skeleton, pose, pose_transforms);
-                PoseToMatrix(pose_transforms, pose_matrices);
-            } else {
-                PoseToMatrix(pose, pose_matrices);
-                PoseToModelSpace(skeleton, pose_matrices, pose_matrices);
-            }
-
-            if (g_Debug)
-            {
-                printf("%s\n", __FUNCTION__);
-            }
+            PoseToMatrix(instance->m_Pose, pose_matrices);
 
             // Premultiply pose matrices with the bind pose inverse so they
             // can be directly be used to transform each vertex.
@@ -1296,25 +1002,8 @@ if (g_Debug)
             for (uint32_t bi = 0; bi < pose_matrices.Size(); ++bi)
             {
                 Matrix4& pose_matrix = pose_matrices[bi];
-
-                if (g_Debug)
-                {
-                    printf("Bone index: %u %s   parent: %u\n", bi, skeleton->m_Bones[bi].m_Name, skeleton->m_Bones[bi].m_Parent);
-                }
-
                 pose_matrix = pose_matrix * bind_pose[bi].m_ModelToLocal;
-
-                if (g_Debug)
-                {
-                    printf("  inv_bind_pose\n");
-                    printMatrix(bind_pose[bi].m_ModelToLocal);
-                    printf("  final\n");
-                    printMatrix(pose_matrix);
-                }
             }
-
-            // Rearrange pose matrices to indices that the mesh vertices understand.
-            PoseToInfluence(*instance->m_PoseIdxToInfluence, pose_matrices, influence_matrices);
         }
 
         dmVMath::Matrix4 mesh_matrix = dmTransform::ToMatrix4(model->m_Local);
@@ -1327,8 +1016,7 @@ if (g_Debug)
         {
             const dmRigDDF::Mesh* mesh = &model->m_Meshes[i];
 
-            // TODO: Currently, we only have support for a single material
-            // so we bake all meshes into one
+            // TODO: Currently, we only have support for a single material so we bake all meshes into one
 
             uint32_t index_count = mesh->m_PositionIndices.m_Count;
 
@@ -1348,9 +1036,9 @@ if (g_Debug)
 
             // Transform the mesh data into world space
 
-            dmRig::GeneratePositionData(mesh, world_matrix, influence_matrices, positions_buffer);
+            dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer);
             if (mesh->m_NormalsIndices.m_Count) {
-                dmRig::GenerateNormalData(mesh, normal_matrix, influence_matrices, normals_buffer);
+                dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer);
             }
 
             vertex_data_out = WriteVertexData(mesh, positions_buffer, normals_buffer, vertex_data_out);
@@ -1482,18 +1170,15 @@ if (g_Debug)
         context->m_Instances.Free(index, true);
     }
 
-    Result InstanceCreate(const InstanceCreateParams& params)
+    Result InstanceCreate(HRigContext context, const InstanceCreateParams& params, HRigInstance* out_instance)
     {
-        RigContext* context = (RigContext*)params.m_Context;
-
         if (context->m_Instances.Full())
         {
             dmLogError("Rig instance could not be created since the buffer is full (%d).", context->m_Instances.Capacity());
             return dmRig::RESULT_ERROR_BUFFER_FULL;
         }
 
-        *params.m_Instance = new RigInstance;
-        RigInstance* instance = *params.m_Instance;
+        RigInstance* instance = new RigInstance;
 
         uint32_t index = context->m_Instances.Alloc();
         memset(instance, 0, sizeof(RigInstance));
@@ -1512,8 +1197,6 @@ if (g_Debug)
         instance->m_Skeleton           = params.m_Skeleton;
         instance->m_MeshSet            = params.m_MeshSet;
         instance->m_AnimationSet       = params.m_AnimationSet;
-        instance->m_PoseIdxToInfluence = params.m_PoseIdxToInfluence;
-        instance->m_TrackIdxToPose     = params.m_TrackIdxToPose;
 
         instance->m_Enabled = 1;
 
@@ -1541,16 +1224,18 @@ if (g_Debug)
             DoAnimate(context, instance, 0.0f);
         }
 
+        *out_instance = instance;
+
         return dmRig::RESULT_OK;
     }
 
-    Result InstanceDestroy(const InstanceDestroyParams& params)
+    Result InstanceDestroy(HRigContext context, HRigInstance instance)
     {
-        if (!params.m_Context || !params.m_Instance) {
+        if (!context || !instance) {
             return dmRig::RESULT_ERROR;
         }
 
-        DestroyInstance((RigContext*)params.m_Context, params.m_Instance->m_Index);
+        DestroyInstance(context, instance->m_Index);
         return dmRig::RESULT_OK;
     }
 
@@ -1563,72 +1248,10 @@ if (g_Debug)
         {
             dmRig::RigBone* bind_bone = &bind_pose[i];
             dmRigDDF::Bone* bone = &skeleton.m_Bones[i];
-            bind_bone->m_LocalToParent = bone->m_Local;
-            bind_bone->m_LocalToModel = bone->m_World;
             bind_bone->m_ModelToLocal = dmTransform::ToMatrix4(bone->m_InverseBindPose);
 
             bind_bone->m_ParentIndex = bone->m_Parent;
             bind_bone->m_Length = bone->m_Length;
         }
     }
-
-    static const uint32_t INVALID_BONE_IDX = 0xffffffff;
-    static uint32_t FindBoneInList(uint64_t* list, uint32_t count, uint64_t bone_id)
-    {
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            uint64_t entry = list[i];
-            if (bone_id == entry) {
-                return i;
-            }
-        }
-
-        return INVALID_BONE_IDX;
-    }
-
-    void FillBoneListArrays(const dmRigDDF::MeshSet& meshset, const dmRigDDF::AnimationSet& animationset, const dmRigDDF::Skeleton& skeleton, dmArray<uint32_t>& track_idx_to_pose, dmArray<uint32_t>& pose_idx_to_influence)
-    {
-        // Create lookup arrays
-        // - track-to-pose, used to convert animation track bonde index into correct pose transform index
-        // - pose-to-influence, used during vertex generation to convert pose transform index into influence index
-        uint32_t bone_count = skeleton.m_Bones.m_Count;
-
-        track_idx_to_pose.SetCapacity(bone_count);
-        track_idx_to_pose.SetSize(bone_count);
-        memset((void*)track_idx_to_pose.Begin(), 0x0, track_idx_to_pose.Size()*sizeof(uint32_t));
-        pose_idx_to_influence.SetCapacity(bone_count);
-        pose_idx_to_influence.SetSize(bone_count);
-
-        uint32_t anim_bone_list_count = animationset.m_BoneList.m_Count;
-        uint32_t mesh_bone_list_count = meshset.m_BoneList.m_Count;
-
-        for (uint32_t bi = 0; bi < bone_count; ++bi)
-        {
-            uint64_t bone_id = skeleton.m_Bones[bi].m_Id;
-
-            if (anim_bone_list_count) {
-                uint32_t track_idx = FindBoneInList(animationset.m_BoneList.m_Data, animationset.m_BoneList.m_Count, bone_id);
-                if (track_idx != INVALID_BONE_IDX) {
-                    track_idx_to_pose[track_idx] = bi;
-                }
-            } else {
-                track_idx_to_pose[bi] = bi;
-            }
-
-            if (mesh_bone_list_count) {
-                uint32_t influence_idx = FindBoneInList(meshset.m_BoneList.m_Data, meshset.m_BoneList.m_Count, bone_id);
-                if (influence_idx != INVALID_BONE_IDX) {
-                    pose_idx_to_influence[bi] = influence_idx;
-                } else {
-                    // If there is no influence index for the current bone
-                    // we still need to put the pose matrix somewhere during
-                    // pose-to-influence rearrangement so just put it last.
-                    pose_idx_to_influence[bi] = bone_count - 1;
-                }
-            } else {
-                pose_idx_to_influence[bi] = bi;
-            }
-        }
-    }
-
 }

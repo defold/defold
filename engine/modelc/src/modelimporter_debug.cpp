@@ -83,8 +83,8 @@ static void OutputMatrix(const dmTransform::Transform& transform)
 static void OutputBone(Bone* bone, int indent)
 {
     OutputIndent(indent);
-    printf("%s  idx: %u parent: %u node: %s inv_bind_pose:", bone->m_Name, bone->m_Index, bone->m_ParentIndex, bone->m_Node?bone->m_Node->m_Name:"null");
-    OutputTransform(bone->m_InvBindPose);
+    printf("%s  idx: %u parent: %u node: %s inv_bind_pose:\n", bone->m_Name, bone->m_Index, bone->m_ParentIndex, bone->m_Node?bone->m_Node->m_Name:"null");
+    OutputMatrix(bone->m_InvBindPose);
     printf("\n");
 }
 
@@ -247,6 +247,7 @@ void DebugScene(Scene* scene)
         OutputAnimation(&scene->m_Animations[i], 1);
         printf("------------------------------\n");
     }
+    printf("Output model importer scene done\n");
 }
 
 static void DebugStructNode(Node* node, int indent)

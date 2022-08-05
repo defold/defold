@@ -187,7 +187,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
         AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
 
         // Currently, by design choice, each file must only contain one animation.
-        // TODO: We should either fix that somehow, or make it a build error if it contains more than one animation
+        // Our current approach is to choose the longest animation (to eliminate target poses etc)
         ModelUtil.loadAnimations(scene, bones, animBuilder, animId, localAnimationIds);
 
         animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());

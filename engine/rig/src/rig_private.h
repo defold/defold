@@ -26,8 +26,7 @@ namespace dmRig
                       m_Cursor(0.0f),
                       m_Playback(dmRig::PLAYBACK_ONCE_FORWARD),
                       m_Playing(0x0),
-                      m_Backwards(0x0),
-                      m_Initial(0x1) {};
+                      m_Backwards(0x0) {};
         /// Currently playing animation
         const dmRigDDF::RigAnimation* m_Animation;
         dmhash_t                      m_AnimationId;
@@ -38,13 +37,12 @@ namespace dmRig
         /// Playback mode
         RigPlayback                   m_Playback;
         /// Whether the animation is currently playing
-        uint16_t                      m_Playing : 1;
+        uint8_t                       m_Playing : 1;
         /// Whether the animation is playing backwards (e.g. ping pong)
-        uint16_t                      m_Backwards : 1;
-        /// Flag used to handle initial setup, resetting pose with UpdateMeshProperties in DoAnimate
-        uint16_t                      m_Initial : 1;
+        uint8_t                       m_Backwards : 1;
         /// Flag used to handle blending players, resetting pose to avoid lingering slot attachment changes from previous animation.
-        uint16_t                      m_BlendFinished : 1;
+        uint8_t                       m_BlendFinished : 1;
+        uint8_t                       : 5;
     };
 
     struct IKAnimation
@@ -62,8 +60,7 @@ namespace dmRig
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
-        const dmArray<uint32_t>*      m_PoseIdxToInfluence;
-        const dmArray<uint32_t>*      m_TrackIdxToPose;
+
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;
         void*                         m_PoseCBUserData2;
@@ -73,7 +70,8 @@ namespace dmRig
         void*                         m_EventCBUserData1;
         void*                         m_EventCBUserData2;
         /// Animated pose, every transform is local-to-model-space and describes the delta between bind pose and animation
-        dmArray<dmTransform::Transform> m_Pose;
+        dmArray<BonePose>             m_Pose;
+
         /// Animated IK
         dmArray<IKAnimation>          m_IKAnimation;
         /// User IK constraint targets
@@ -92,6 +90,7 @@ namespace dmRig
         uint8_t                       m_Blending : 1;
         uint8_t                       m_Enabled : 1;
         uint8_t                       m_DoRender : 1;
+        uint8_t                       : 4;
     };
 }
 

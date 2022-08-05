@@ -269,8 +269,10 @@ static void UpdateWorldTransforms(Node* node)
 static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 {
     scene->m_NodesCount = gltf_data->nodes_count;
-    scene->m_Nodes = new Node[scene->m_NodesCount];
-    memset(scene->m_Nodes, 0, sizeof(Node)*scene->m_NodesCount);
+    // We allocate one extra node, in case we need it for later
+    // In the case we generate a root bone, we want a valid node for it.
+    scene->m_Nodes = new Node[scene->m_NodesCount+1];
+    memset(scene->m_Nodes, 0, sizeof(Node)*scene->m_NodesCount+1);
 
     for (size_t i = 0; i < gltf_data->nodes_count; ++i)
     {
@@ -523,8 +525,10 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
-static void GenerateBoneRoots(Scene* scene)
+static void GenerateRootBone(Scene* scene)
 {
+    Node* generated_node = 0;
+
     // For each skin, we must only have one root bone
     for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
     {
@@ -532,7 +536,7 @@ static void GenerateBoneRoots(Scene* scene)
 
         uint32_t num_root_nodes = 0;
 
-        for (uint32_t j = 1; j < skin->m_BonesCount; ++j)
+        for (uint32_t j = 0; j < skin->m_BonesCount; ++j)
         {
             dmModelImporter::Bone* bone = &skin->m_Bones[j];
             if (bone->m_ParentIndex == INVALID_INDEX)
@@ -540,9 +544,24 @@ static void GenerateBoneRoots(Scene* scene)
         }
 
         if (num_root_nodes <= 1)
-            return;
+            continue;
 
-        // We require 1 root node
+        // We require 1 root bone
+
+        // First, initialize the dummy node
+        if (!generated_node)
+        {
+            // We've already pre allocated in LoadNodes()
+            Node* node = &scene->m_Nodes[scene->m_NodesCount];
+            memset(node, 0, sizeof(Node));
+            node->m_Index = scene->m_NodesCount++;
+
+            node->m_Name = strdup("_generated_node");
+            node->m_Local.SetIdentity();
+            node->m_World.SetIdentity();
+
+            generated_node = node;
+        }
 
         // Create the new array
         Bone* new_bones = new Bone[skin->m_BonesCount+1];
@@ -553,6 +572,7 @@ static void GenerateBoneRoots(Scene* scene)
         bone->m_Index = 0;
         bone->m_ParentIndex = INVALID_INDEX;
         bone->m_Name = strdup("_generated_root");
+        bone->m_Node = generated_node;
         bone->m_InvBindPose = dmTransform::Transform(dmVMath::Vector3(0,0,0),
                                                      dmVMath::Quat(0,0,0,1),
                                                      dmVMath::Vector3(1,1,1));
@@ -678,56 +698,18 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
         key_frames[i].m_Time -= time_min;
     }
 
-    dmTransform::Transform local = node_animation->m_Node->m_Local;
-
     if (channel->target_path == cgltf_animation_path_type_translation)
     {
-        float inv_px = -local.GetTranslation().getX();
-        float inv_py = -local.GetTranslation().getY();
-        float inv_pz = -local.GetTranslation().getZ();
-
-        for (uint32_t i = 0; i < key_count; ++i)
-        {
-            key_frames[i].m_Value[0] += inv_px;
-            key_frames[i].m_Value[1] += inv_py;
-            key_frames[i].m_Value[2] += inv_pz;
-        }
-
         node_animation->m_TranslationKeys = key_frames;
         node_animation->m_TranslationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_rotation)
     {
-        const dmVMath::Quat& rot = local.GetRotation();
-        const dmVMath::Quat& inv_rot = dmVMath::Quat( -rot.getX(), -rot.getY(), -rot.getZ(), rot.getW() );
-
-        for (uint32_t i = 0; i < key_count; ++i)
-        {
-            dmVMath::Quat key_rot = dmVMath::Quat(key_frames[i].m_Value[0], key_frames[i].m_Value[1], key_frames[i].m_Value[2], key_frames[i].m_Value[3]);
-            key_rot = inv_rot * key_rot;
-
-            key_frames[i].m_Value[0] = key_rot.getX();
-            key_frames[i].m_Value[1] = key_rot.getY();
-            key_frames[i].m_Value[2] = key_rot.getZ();
-            key_frames[i].m_Value[3] = key_rot.getW();
-        }
-
         node_animation->m_RotationKeys = key_frames;
         node_animation->m_RotationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_scale)
     {
-        float sx = local.GetScale().getX();
-        float sy = local.GetScale().getY();
-        float sz = local.GetScale().getZ();
-
-        for (uint32_t i = 0; i < key_count; ++i)
-        {
-            key_frames[i].m_Value[0] /= sx;
-            key_frames[i].m_Value[1] /= sy;
-            key_frames[i].m_Value[2] /= sz;
-        }
-
         node_animation->m_ScaleKeys = key_frames;
         node_animation->m_ScaleKeysCount = key_count;
     } else
@@ -843,7 +825,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     // At this point, all the nodes reference each other
 
     // Make sure the skins have only one root node
-    GenerateBoneRoots(scene);
+    GenerateRootBone(scene);
 
     return scene;
 }

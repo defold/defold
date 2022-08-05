@@ -42,6 +42,12 @@ struct ScopedString
     }
 };
 
+static void OutputTransform(const dmTransform::Transform& transform)
+{
+    printf("    t: %f, %f, %f\n", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
+    printf("    r: %f, %f, %f, %f\n", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
+    printf("    s: %f, %f, %f\n", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
+}
 
 namespace dmModelImporter
 {
@@ -188,7 +194,6 @@ struct AnimationJNI
     jfieldID    duration;
 } g_AnimationJNI;
 
-
 static void InitializeJNITypes(JNIEnv* env)
 {
 #define SETUP_CLASS(TYPE, TYPE_NAME) \
@@ -305,6 +310,25 @@ static void InitializeJNITypes(JNIEnv* env)
 #undef GET_FLD_TYPESTR
 }
 
+
+static void FinalizeJNITypes(JNIEnv* env)
+{
+}
+
+static int AddressOf(jobject object)
+{
+    uint64_t a = *(uint64_t*)(uintptr_t)object;
+    return a;
+}
+
+static int GetAddressOfField(JNIEnv* env, jobject object, jfieldID field)
+{
+    jobject field_object = env->GetObjectField(object, field);
+    int id = AddressOf(field_object);
+    env->DeleteLocalRef(field_object);
+    return id;
+}
+
 // ******************************************************************************************************************
 
 
@@ -377,6 +401,37 @@ static jintArray CreateIntArray(JNIEnv* env, uint32_t count, const int* values)
     return arr;
 }
 
+// For debugging the set values
+static void GetVec4(JNIEnv* env, jobject object, float* vec4)
+{
+    vec4[0] = env->GetFloatField(object, g_Vec4JNI.x);
+    vec4[1] = env->GetFloatField(object, g_Vec4JNI.y);
+    vec4[2] = env->GetFloatField(object, g_Vec4JNI.z);
+    vec4[3] = env->GetFloatField(object, g_Vec4JNI.w);
+}
+
+static void GetTransform(JNIEnv* env, jobject object, jfieldID field, dmTransform::Transform* out)
+{
+    jobject xform = env->GetObjectField(object, field);
+    // TODO: check if it's a transform class!
+
+    jobject xform_pos = env->GetObjectField(xform, g_TransformJNI.translation);
+    jobject xform_rot = env->GetObjectField(xform, g_TransformJNI.rotation);
+    jobject xform_scl = env->GetObjectField(xform, g_TransformJNI.scale);
+
+    float v[4] = {};
+    GetVec4(env, xform_pos, v);
+    out->SetTranslation(dmVMath::Vector3(v[0], v[1], v[2]));
+    GetVec4(env, xform_rot, v);
+    out->SetRotation(dmVMath::Quat(v[0], v[1], v[2], v[3]));
+    GetVec4(env, xform_scl, v);
+    out->SetScale(dmVMath::Vector3(v[0], v[1], v[2]));
+
+    env->DeleteLocalRef(xform_pos);
+    env->DeleteLocalRef(xform_rot);
+    env->DeleteLocalRef(xform_scl);
+    env->DeleteLocalRef(xform);
+}
 
 // **************************************************
 // Nodes
@@ -500,7 +555,9 @@ static jobjectArray CreateMeshesArray(JNIEnv* env, uint32_t count, const dmModel
     jobjectArray arr = env->NewObjectArray(count, g_MeshJNI.cls, 0);
     for (uint32_t i = 0; i < count; ++i)
     {
-        env->SetObjectArrayElement(arr, i, CreateMesh(env, &meshes[i]));
+        jobject o = CreateMesh(env, &meshes[i]);
+        env->SetObjectArrayElement(arr, i, o);
+        env->DeleteLocalRef(o);
     }
     return arr;
 }
@@ -539,8 +596,8 @@ static jobject CreateKeyFrame(JNIEnv* env, const dmModelImporter::KeyFrame* key_
     jfloatArray arr = env->NewFloatArray(4);
     env->SetFloatArrayRegion(arr, 0, 4, key_frame->m_Value);
     env->SetObjectField(obj, g_KeyFrameJNI.value, arr);
-    env->DeleteLocalRef(arr);
     env->SetFloatField(obj, g_KeyFrameJNI.time, key_frame->m_Time);
+    env->DeleteLocalRef(arr);
     return obj;
 }
 
@@ -549,7 +606,9 @@ static jobjectArray CreateKeyFramesArray(JNIEnv* env, uint32_t count, const dmMo
     jobjectArray arr = env->NewObjectArray(count, g_KeyFrameJNI.cls, 0);
     for (uint32_t i = 0; i < count; ++i)
     {
-        env->SetObjectArrayElement(arr, i, CreateKeyFrame(env, &key_frames[i]));
+        jobject o = CreateKeyFrame(env, &key_frames[i]);
+        env->SetObjectArrayElement(arr, i, o);
+        env->DeleteLocalRef(o);
     }
     return arr;
 }
@@ -581,7 +640,9 @@ static jobjectArray CreateNodeAnimationsArray(JNIEnv* env, uint32_t count, const
     jobjectArray arr = env->NewObjectArray(count, g_NodeAnimationJNI.cls, 0);
     for (uint32_t i = 0; i < count; ++i)
     {
-        env->SetObjectArrayElement(arr, i, CreateNodeAnimation(env, &node_anim[i], nodes));
+        jobject o = CreateNodeAnimation(env, &node_anim[i], nodes);
+        env->SetObjectArrayElement(arr, i, o);
+        env->DeleteLocalRef(o);
     }
     return arr;
 }
@@ -643,9 +704,10 @@ static jobjectArray CreateBonesArray(JNIEnv* env, uint32_t count, dmModelImporte
     for (uint32_t i = 0; i < count; ++i)
     {
         dmModelImporter::Bone* bone = &bones[i];
-        if (bone->m_ParentIndex == INVALID_INDEX)
-            continue;
-        env->SetObjectField(tmp[bone->m_Index], g_BoneJNI.parent, tmp[bone->m_ParentIndex]);
+        if (bone->m_ParentIndex != INVALID_INDEX)
+            SetFieldObject(env, tmp[bone->m_Index], g_BoneJNI.parent, tmp[bone->m_ParentIndex]);
+        else
+            SetFieldObject(env, tmp[bone->m_Index], g_BoneJNI.parent, 0);
     }
 
     return arr;
@@ -761,10 +823,12 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
         env->DeleteLocalRef(models[i]);
     }
 
+    FinalizeJNITypes(env);
+
     return obj;
 }
 
-}
+} // namespace
 
 JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array)
 {
@@ -804,6 +868,11 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
     return jscene;
 }
 
+JNIEXPORT jint JNICALL Java_ModelImporter_AddressOf(JNIEnv* env, jclass cls, jobject object)
+{
+    return dmModelImporter::AddressOf(object);
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     dmLogDebug("JNI_OnLoad ->\n");
@@ -823,8 +892,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
     // Register your class' native methods.
     static const JNINativeMethod methods[] = {
         {"LoadFromBufferInternal", "(Ljava/lang/String;[B)L" CLASS_SCENE ";", reinterpret_cast<void*>(Java_ModelImporter_LoadFromBufferInternal)},
+        {"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporter_AddressOf)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
+    env->DeleteLocalRef(c);
+
     if (rc != JNI_OK) return rc;
 
     dmLogDebug("JNI_OnLoad return.\n");

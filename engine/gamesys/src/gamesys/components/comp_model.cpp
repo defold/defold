@@ -250,11 +250,20 @@ namespace dmGameSystem
         ModelComponent* component = (ModelComponent*)user_data1;
 
         // Include instance transform in the GO instance reflecting the root bone
-        dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
+        dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(component->m_RigInstance);
         //dmLogWarning("CompModelPoseCallback: %u", pose.Size());
 
         if (!pose.Empty()) {
-            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], component->m_Transform, pose.Begin(), pose.Size());
+            uint32_t bone_count = pose.Size();
+            dmArray<dmTransform::Transform> transforms;
+            transforms.SetCapacity(bone_count);
+            transforms.SetSize(bone_count);
+            for (uint32_t i = 0; i < bone_count; ++i)
+            {
+                transforms[i] = pose[i].m_Local;
+            }
+
+            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], component->m_Transform, transforms.Begin(), transforms.Size());
         }
     }
 
@@ -277,8 +286,8 @@ namespace dmGameSystem
         ModelResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
 // TODO: We need to create a hash for each mesh entry!
-// TODO: Each skinned instance has its own state of the skeleton!
-//  If they _do_ have the same state, we should probably use that fact so that they can batch together,
+// TODO: Each skinned instance has its own state (pose is determined by animation, play rate, blending, time)
+//  If they _do_ have the same state, we might use that fact so that they can batch together,
 //  and we can later use instancing?
         for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
         {
@@ -305,7 +314,6 @@ namespace dmGameSystem
         dmGameObject::HInstance instance = component->m_Instance;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
 
-        const dmArray<dmRig::RigBone>& bind_pose = component->m_Resource->m_RigScene->m_BindPose;
         const dmRigDDF::Skeleton* skeleton = component->m_Resource->m_RigScene->m_SkeletonRes->m_Skeleton;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
 
@@ -358,7 +366,8 @@ namespace dmGameSystem
                 component->m_NodeInstances[i] = bone_inst;
             }
 
-            dmTransform::Transform transform = bind_pose[i].m_LocalToParent;
+            dmTransform::Transform transform;
+            transform.SetIdentity(); // TODO: Get the first frame of the playing animation?
             if (i == 0)
             {
                 transform = dmTransform::Mul(component->m_Transform, transform);
@@ -366,6 +375,7 @@ namespace dmGameSystem
             dmGameObject::SetPosition(bone_inst, Point3(transform.GetTranslation()));
             dmGameObject::SetRotation(bone_inst, transform.GetRotation());
             dmGameObject::SetScale(bone_inst, transform.GetScale());
+
             world->m_ScratchInstances.Push(bone_inst);
         }
         // Set parents in reverse to account for child-prepending
@@ -406,8 +416,6 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_OK;
 
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = rig_context;
-        create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompModelPoseCallback;
         create_params.m_PoseCBUserData1 = component;
@@ -420,8 +428,6 @@ namespace dmGameSystem
         create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
         create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
-        create_params.m_PoseIdxToInfluence = &rig_resource->m_PoseIdxToInfluence;
-        create_params.m_TrackIdxToPose   = &rig_resource->m_TrackIdxToPose;
 
         dmRigDDF::MeshSet* mesh_set      = rig_resource->m_MeshSetRes->m_MeshSet;
         // Let's choose the first model for the animation
@@ -429,7 +435,7 @@ namespace dmGameSystem
         create_params.m_ModelId          = model ? model->m_Id : 0;
         create_params.m_DefaultAnimation = animation;
 
-        dmRig::Result res = dmRig::InstanceCreate(create_params);
+        dmRig::Result res = dmRig::InstanceCreate(rig_context, create_params, &component->m_RigInstance);
         if (res != dmRig::RESULT_OK) {
             dmLogError("Failed to create a rig instance needed by model: %d.", res);
             if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
@@ -502,10 +508,7 @@ namespace dmGameSystem
 
         if (component->m_RigInstance)
         {
-            dmRig::InstanceDestroyParams params = {0};
-            params.m_Context = world->m_RigContext;
-            params.m_Instance = component->m_RigInstance;
-            dmRig::InstanceDestroy(params);
+            dmRig::InstanceDestroy(world->m_RigContext, component->m_RigInstance);
         }
 
         if (component->m_RenderConstants) {
@@ -709,19 +712,17 @@ namespace dmGameSystem
             // NOTE: texture_set = c->m_Resource might be NULL so it's essential to "continue" here
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
-            //if (c->m_RigInstance && dmRig::IsValid(c->m_RigInstance))
-            {
-                const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
-                const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
 
-                if (dmGameObject::ScaleAlongZ(c->m_Instance))
-                {
-                    c->m_World = go_world * local;
-                }
-                else
-                {
-                    c->m_World = dmTransform::MulNoScaleZ(go_world, local);
-                }
+            const Matrix4& go_world = dmGameObject::GetWorldMatrix(c->m_Instance);
+            const Matrix4 local = dmTransform::ToMatrix4(c->m_Transform);
+
+            if (dmGameObject::ScaleAlongZ(c->m_Instance))
+            {
+                c->m_World = go_world * local;
+            }
+            else
+            {
+                c->m_World = dmTransform::MulNoScaleZ(go_world, local);
             }
 
             UpdateMeshTransforms(c);
@@ -924,8 +925,6 @@ namespace dmGameSystem
             {
                 dmModelDDF::ModelPlayAnimation* ddf = (dmModelDDF::ModelPlayAnimation*)params.m_Message->m_Data;
 
-dmLogWarning("PLAY ANIMATION: %llu %s", ddf->m_AnimationId, dmHashReverseSafe64(ddf->m_AnimationId));
-
                 dmRig::Result rig_result = dmRig::PlayAnimation(component->m_RigInstance, ddf->m_AnimationId, (dmRig::RigPlayback)ddf->m_Playback, ddf->m_BlendDuration, ddf->m_Offset, ddf->m_PlaybackRate);
                 if (dmRig::RESULT_OK == rig_result)
                 {
@@ -976,10 +975,7 @@ dmLogWarning("PLAY ANIMATION: %llu %s", ddf->m_AnimationId, dmHashReverseSafe64(
         // Destroy old rig
         if (component->m_RigInstance != 0)
         {
-            dmRig::InstanceDestroyParams destroy_params = {0};
-            destroy_params.m_Context = world->m_RigContext;
-            destroy_params.m_Instance = component->m_RigInstance;
-            dmRig::InstanceDestroy(destroy_params);
+            dmRig::InstanceDestroy(world->m_RigContext, component->m_RigInstance);
         }
 
         // Delete old bones, recreate with new data.

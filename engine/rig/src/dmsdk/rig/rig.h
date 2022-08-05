@@ -108,17 +108,24 @@ namespace dmRig
         float nz;
     };
 
+    // Can we not use the skeleton directly?
     struct RigBone
     {
-        /// Local space transform
-        dmTransform::Transform m_LocalToParent;
-        /// Model space transform
-        dmTransform::Transform m_LocalToModel;
         /// Inv model space transform
         dmVMath::Matrix4 m_ModelToLocal;
-        /// Index of parent bone, NOTE root bone has itself as parent
+
+        /// Index of parent bone
         uint32_t m_ParentIndex;
         /// Length of the bone
+        float m_Length;
+    };
+
+    struct BonePose
+    {
+        dmTransform::Transform  m_Local; // Local space transform
+        dmTransform::Transform  m_World; // Model space transform (local to model space)
+        dmVMath::Matrix4        m_Final; // m_World * InvBindPose
+        uint32_t m_ParentIndex;          // Index of parent bone
         float m_Length;
     };
 
@@ -131,9 +138,6 @@ namespace dmRig
 
     struct InstanceCreateParams
     {
-        HRigContext                   m_Context;
-        HRigInstance*                 m_Instance;
-
         dmhash_t                      m_ModelId;
         dmhash_t                      m_DefaultAnimation;
 
@@ -141,9 +145,6 @@ namespace dmRig
         const dmRigDDF::Skeleton*     m_Skeleton;
         const dmRigDDF::MeshSet*      m_MeshSet;
         const dmRigDDF::AnimationSet* m_AnimationSet;
-
-        const dmArray<uint32_t>*      m_PoseIdxToInfluence;
-        const dmArray<uint32_t>*      m_TrackIdxToPose;
 
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;
@@ -155,18 +156,12 @@ namespace dmRig
         bool                          m_ForceAnimatePose;
     };
 
-    struct InstanceDestroyParams
-    {
-        HRigContext  m_Context;
-        HRigInstance m_Instance;
-    };
-
     Result NewContext(const NewContextParams& params, HRigContext* context);
     void DeleteContext(HRigContext context);
     Result Update(HRigContext context, float dt);
 
-    Result InstanceCreate(const InstanceCreateParams& params);
-    Result InstanceDestroy(const InstanceDestroyParams& params);
+    Result InstanceCreate(HRigContext context, const InstanceCreateParams& params, HRigInstance* instance);
+    Result InstanceDestroy(HRigContext context, HRigInstance instance);
 
     Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
     Result CancelAnimation(HRigInstance instance);
@@ -183,7 +178,7 @@ namespace dmRig
     Result SetCursor(HRigInstance instance, float cursor, bool normalized);
     float GetPlaybackRate(HRigInstance instance);
     Result SetPlaybackRate(HRigInstance instance, float playback_rate);
-    dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
+    dmArray<BonePose>* GetPose(HRigInstance instance);
     IKTarget* GetIKTarget(HRigInstance instance, dmhash_t constraint_id);
     bool ResetIKTarget(HRigInstance instance, dmhash_t constraint_id);
     void SetEnabled(HRigInstance instance, bool enabled);
@@ -196,7 +191,6 @@ namespace dmRig
     // Util function used to fill a bind pose array from skeleton data
     // used in rig tests and loading rig resources.
     void CopyBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose);
-    void FillBoneListArrays(const dmRigDDF::MeshSet& meshset, const dmRigDDF::AnimationSet& animationset, const dmRigDDF::Skeleton& skeleton, dmArray<uint32_t>& track_idx_to_pose, dmArray<uint32_t>& pose_idx_to_influence);
 }
 
 #endif // DMSDK_RIG_H

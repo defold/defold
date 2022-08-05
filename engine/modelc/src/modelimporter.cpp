@@ -23,7 +23,7 @@
 
 static void SetLogLevel()
 {
-    const char* env_debug_level = getenv("DM_MODELIMPORTER_LOG_LEVEL");
+    const char* env_debug_level = getenv("DM_LOG_LEVEL");
     if (!env_debug_level)
         return;
 

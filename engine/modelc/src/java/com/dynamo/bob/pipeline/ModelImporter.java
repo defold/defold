@@ -51,6 +51,7 @@ public class ModelImporter {
 
     // The suffix of the path dictates which loader it will use
     public static native Scene LoadFromBufferInternal(String path, byte[] buffer);
+    public static native int AddressOf(Object o);
 
     public static class ModelException extends Exception {
         public ModelException(String errorMessage) {
@@ -84,6 +85,10 @@ public class ModelImporter {
         public Vec4 translation;
         public Vec4 rotation;
         public Vec4 scale;
+
+        public Transform() {
+            this.setIdentity();
+        }
 
         public Transform setIdentity() {
             this.translation = new Vec4(0,0,0,1); // i.e. a Point3(x,y,z,1)
@@ -211,11 +216,11 @@ public class ModelImporter {
         }
     }
 
-    private static void DebugPrintTransform(Transform transform, int indent) {
+    public static void DebugPrintTransform(Transform transform, int indent) {
         PrintIndent(indent);
         System.out.printf("t: %f, %f, %f\n", transform.translation.x, transform.translation.y, transform.translation.z);
         PrintIndent(indent);
-        System.out.printf("r: %f, %f, %f, %f\n", transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.z);
+        System.out.printf("r: %f, %f, %f, %f\n", transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w);
         PrintIndent(indent);
         System.out.printf("s: %f, %f, %f\n", transform.scale.x, transform.scale.y, transform.scale.z);
     }
