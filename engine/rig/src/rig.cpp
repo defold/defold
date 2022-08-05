@@ -421,41 +421,35 @@ namespace dmRig
 
             dmTransform::Transform& transform = pose[bone_index].m_Local;
 
-// printf("ApplyAnimation: track: %u %p  cursor: %f  bone index: %u sample/fraction: %u %f  blend: %f  duration: %f  id: %llx %s\n",
-//                                 ti, track,
-//                                 player->m_Cursor, bone_index, sample, fraction, blend_weight, duration,
-//                                 animation->m_Id, dmHashReverseSafe64(animation->m_Id));
-
-        // TODO: Handle case when key count == 1
-
             if (track->m_Positions.m_Count > 0)
             {
-                Vector3 v = SampleVec3(sample, fraction, track->m_Positions.m_Data);
-                //printf("    v: %f, %f, %f\n", v.getX(), v.getY(), v.getZ());
+                Vector3 v;
+                if (track->m_Positions.m_Count == 3)
+                    v = Vector3(track->m_Positions.m_Data[0], track->m_Positions.m_Data[1], track->m_Positions.m_Data[2]);
+                else
+                    v = SampleVec3(sample, fraction, track->m_Positions.m_Data);
 
                 transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), v));
             }
             if (track->m_Rotations.m_Count > 0)
             {
-                Quat v = SampleQuat(sample, fraction, track->m_Rotations.m_Data);
-                //printf("    q: %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+                Quat q;
+                if (track->m_Rotations.m_Count == 4)
+                    q = Quat(track->m_Rotations.m_Data[0], track->m_Rotations.m_Data[1], track->m_Rotations.m_Data[2], track->m_Rotations.m_Data[3]);
+                else
+                    q = SampleQuat(sample, fraction, track->m_Rotations.m_Data);
 
-                // if (track->m_BoneIndex == 0)
-                // {
-                //     for (uint32_t j = 0; j < track->m_Rotations.m_Count/4; ++j)
-                //     {
-                //         printf("  i: %u  %f, %f, %f, %f\n", j, track->m_Rotations.m_Data[j*4+0],
-                //                                                 track->m_Rotations.m_Data[j*4+1],
-                //                                                 track->m_Rotations.m_Data[j*4+2],
-                //                                                 track->m_Rotations.m_Data[j*4+3]);
-                //     }
-                // }
-
-                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), v));
+                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), q));
             }
             if (track->m_Scale.m_Count > 0)
             {
-                transform.SetScale(lerp(blend_weight, transform.GetScale(), SampleVec3(sample, fraction, track->m_Scale.m_Data)));
+                Vector3 s;
+                if (track->m_Scale.m_Count == 3)
+                    s = Vector3(track->m_Scale.m_Data[0], track->m_Scale.m_Data[1], track->m_Scale.m_Data[2]);
+                else
+                    s = SampleVec3(sample, fraction, track->m_Scale.m_Data);
+
+                transform.SetScale(lerp(blend_weight, transform.GetScale(), s));
             }
         }
     }

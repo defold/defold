@@ -334,16 +334,16 @@ static dmRigDDF::AnimationTrack* CreateAnimationTracks(const dmRigDDF::Bone* bon
 
         out_track->m_BoneIndex = i;
 
-        out_track->m_Positions.m_Count = num_samples*3;
+        out_track->m_Positions.m_Count = 3;
         out_track->m_Positions.m_Data = new float[out_track->m_Positions.m_Count];
 
-        out_track->m_Rotations.m_Count = num_samples*4;
+        out_track->m_Rotations.m_Count = 4;
         out_track->m_Rotations.m_Data = new float[out_track->m_Rotations.m_Count];
 
-        out_track->m_Scale.m_Count = num_samples*3;
+        out_track->m_Scale.m_Count = 3;
         out_track->m_Scale.m_Data = new float[out_track->m_Scale.m_Count];
 
-        for (uint32_t j = 0; j < num_samples; ++j)
+        for (uint32_t j = 0; j < 1; ++j)
         {
             out_track->m_Positions.m_Data[j*3+0] = bone->m_Local.GetTranslation().getX();
             out_track->m_Positions.m_Data[j*3+1] = bone->m_Local.GetTranslation().getY();
