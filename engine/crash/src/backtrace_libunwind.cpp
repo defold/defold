@@ -34,6 +34,7 @@ namespace dmCrash
 {
     static const int SIGNAL_MAX = 64;
     static bool g_CrashDumpEnabled = true;
+    static bool g_AlreadyHandled[SIGNAL_MAX];
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
@@ -197,13 +198,31 @@ namespace dmCrash
         OnCrash(0xDEAD);
     }
 
+    static void ResetToDefaultHandler(const int signum)
+    {
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sigemptyset(&sa.sa_mask);
+        sa.sa_handler = SIG_DFL;
+        sa.sa_flags = 0;
+        sigaction(signum, &sa, NULL);
+    }
+
     static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
+        // If after set of a handler from the previous (default)
+        // behavior from sigdfl we still enter this function
+        // we reset handler to default to prevent infinite loop
+        if (g_AlreadyHandled[signum]) {
+            ResetToDefaultHandler(signum);
+            return;
+        }
         // The previous (default) behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
         sigaction(signum, &sigdfl[signum], NULL);
         OnCrash(signum);
+        g_AlreadyHandled[signum] = true;
     }
 
     void InstallOnSignal(int signum)
