@@ -289,35 +289,45 @@ public class ColladaUtil {
         return new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
     }
 
-    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
-        if (!track.keys.isEmpty()) {
-            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneIndex(boneIndex);
-            RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), startTime, duration, sampleRate, spf, true);
-            animBuilder.addTracks(animTrackBuilder.build());
-        }
+    private static void samplePosTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+        if (track.keys.isEmpty())
+            return;
+
+        RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), startTime, duration, sampleRate, spf, true);
     }
 
-    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
-        if (!track.keys.isEmpty()) {
-            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneIndex(boneIndex);
-            RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true);
-            animBuilder.addTracks(animTrackBuilder.build());
-        }
+    private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+        if (track.keys.isEmpty())
+            return;
+
+        RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true);
     }
 
-    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, int boneIndex, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
-        if (!track.keys.isEmpty()) {
-            Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-            animTrackBuilder.setBoneIndex(boneIndex);
+    private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
+        if (track.keys.isEmpty())
+            return;
 
-            RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true);
-            animBuilder.addTracks(animTrackBuilder.build());
-        }
+        RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
+        RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true);
+    }
+
+    public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder,
+                                             RigUtil.AnimationTrack posTrack,
+                                             RigUtil.AnimationTrack rotTrack,
+                                             RigUtil.AnimationTrack sclTrack,
+                                            int boneIndex, double duration, double startTime, double sampleRate) {
+        double spf = 1.0 / sampleRate;
+
+        Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
+        animTrackBuilder.setBoneIndex(boneIndex);
+
+        samplePosTrack(animBuilder, animTrackBuilder, posTrack, duration, startTime, sampleRate, spf, true);
+        sampleRotTrack(animBuilder, animTrackBuilder, rotTrack, duration, startTime, sampleRate, spf, true);
+        sampleScaleTrack(animBuilder, animTrackBuilder, sclTrack, duration, startTime, sampleRate, spf, true);
+
+        animBuilder.addTracks(animTrackBuilder.build());
     }
 
     private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<Long, Integer> boneRefMap, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, double duration) throws LoaderException {
@@ -394,14 +404,12 @@ public class ColladaUtil {
                     posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
                     RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
                     rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
-                    RigUtil.AnimationTrack scaleTrack = new RigUtil.AnimationTrack();
-                    scaleTrack.property = RigUtil.AnimationTrack.Property.SCALE;
+                    RigUtil.AnimationTrack sclTrack = new RigUtil.AnimationTrack();
+                    sclTrack.property = RigUtil.AnimationTrack.Property.SCALE;
 
-                    ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, scaleTrack);
+                    ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, sclTrack);
 
-                    samplePosTrack(animBuilder, refIndex, posTrack, duration, sceneStartTime, sceneFrameRate, spf, true);
-                    sampleRotTrack(animBuilder, refIndex, rotTrack, duration, sceneStartTime, sceneFrameRate, spf, true);
-                    sampleScaleTrack(animBuilder, refIndex, scaleTrack, duration, sceneStartTime, sceneFrameRate, spf, true);
+                    createAnimationTracks(animBuilder, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
                 }
             }
         }
