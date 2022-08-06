@@ -4036,7 +4036,7 @@ namespace dmGui
         LuaCheckNodeInternal(L, 1, &hnode);
 
         int clear_particles = 0;
-        if (!lua_isnil(L, 2)) {
+        if (!lua_isnone(L, 2)) {
             luaL_checktype(L, 2, LUA_TTABLE);
             lua_pushvalue(L, 2);
             lua_pushnil(L);

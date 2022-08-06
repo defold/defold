@@ -470,6 +470,7 @@ void GamesysTest<T>::SetUp()
     dmBuffer::NewContext(); // ???
 
     m_SoundContext.m_MaxComponentCount = 32;
+    m_SoundContext.m_MaxSoundInstances = 256;
 
     m_PhysicsContext.m_MaxCollisionCount = 64;
     m_PhysicsContext.m_MaxContactPointCount = 128;

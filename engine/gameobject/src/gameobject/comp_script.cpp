@@ -30,6 +30,9 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+DM_PROPERTY_EXTERN(rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_ScriptCount, 0, FrameReset, "# components", &rmtp_GameObject);
+
 namespace dmGameObject
 {
     CreateResult CompScriptNewWorld(const ComponentNewWorldParams& params)
@@ -248,6 +251,7 @@ namespace dmGameObject
     {
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
+        DM_PROPERTY_ADD_U32(rmtp_ScriptCount, script_world->m_Instances.Size());
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_UPDATE, update_result);
     }
 

@@ -127,6 +127,55 @@
     (value-pred value)
     value))
 
+(defn deep-keep [value-selector value]
+  (cond
+    (map? value)
+    (not-empty
+      (into (if (record? value)
+              {}
+              (empty value))
+            (keep (fn [[k v]]
+                    (when-some [v' (deep-keep value-selector v)]
+                      [k v'])))
+            value))
+
+    (coll? value)
+    (not-empty
+      (into (sorted-map)
+            (keep-indexed (fn [i v]
+                            (when-some [v' (deep-keep value-selector v)]
+                              [i v'])))
+            value))
+
+    :else
+    (value-selector value)))
+
+(defn deep-keep-kv
+  ([value-selector value]
+   (deep-keep-kv value-selector nil value))
+  ([value-selector key value]
+   (cond
+     (map? value)
+     (not-empty
+       (into (if (record? value)
+               {}
+               (empty value))
+             (keep (fn [[k v]]
+                     (when-some [v' (deep-keep-kv value-selector k v)]
+                       [k v'])))
+             value))
+
+     (coll? value)
+     (not-empty
+       (into (sorted-map)
+             (keep-indexed (fn [i v]
+                             (when-some [v' (deep-keep-kv value-selector i v)]
+                               [i v'])))
+             value))
+
+     :else
+     (value-selector key value))))
+
 (defn views-of-type [node-type]
   (keep (fn [node-id]
           (when (g/node-instance? node-type node-id)
@@ -148,7 +197,7 @@
 (defn console-view []
   (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
 
-(def ^:private node-type-key (comp :k g/node-type*))
+(def node-type-key (comp :k g/node-type*))
 
 (defn- class-symbol [^Class class]
   (-> (.getSimpleName class)

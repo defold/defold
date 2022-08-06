@@ -10131,12 +10131,13 @@ static void PropertyFrameReset(Remotery* rmt, rmtProperty* first_property)
     rmtProperty* property;
     for (property = first_property; property != NULL; property = property->nextSibling)
     {
+        PropertyFrameReset(rmt, property->firstChild);
+
         // TODO(don): It might actually be quicker to sign-extend assignments but this gives me a nice debug hook for now
         rmtBool changed = RMT_FALSE;
         switch (property->type)
         {
             case RMT_PropertyType_rmtGroup:
-                PropertyFrameReset(rmt, property->firstChild);
                 break;
 
             case RMT_PropertyType_rmtBool:

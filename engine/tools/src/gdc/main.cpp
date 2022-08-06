@@ -109,6 +109,7 @@ int main(int argc, char *argv[])
     }
 
     dmGraphics::WindowParams window_params;
+    memset(&window_params, 0, sizeof(window_params));
     window_params.m_Width = 32;
     window_params.m_Height = 32;
     window_params.m_Samples = 0;
