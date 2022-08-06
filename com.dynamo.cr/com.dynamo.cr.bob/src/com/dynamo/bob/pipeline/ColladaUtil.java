@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -215,11 +216,7 @@ public class ColladaUtil {
 
     private static void ExtractMatrixKeys(Bone bone, Matrix4d localToParent, AssetSpace assetSpace, XMLAnimation animation, RigUtil.AnimationTrack posTrack, RigUtil.AnimationTrack rotTrack, RigUtil.AnimationTrack scaleTrack) {
 
-        Vector3d bindP = new Vector3d();
-        Quat4d bindR = new Quat4d();
-        Vector3d bindS = new Vector3d();
-        MathUtil.decompose(localToParent, bindP, bindR, bindS);
-        bindR.inverse();
+
         Vector4d lastR = new Vector4d(0.0, 0.0, 0.0, 0.0);
 
         int keyCount = animation.getInput().length;
@@ -251,11 +248,6 @@ public class ColladaUtil {
                 rv.scale(-1.0);
             }
             lastR = rv;
-
-            // Get pose relative transform
-            p.set(p.getX() - bindP.getX(), p.getY() - bindP.getY(), p.getZ() - bindP.getZ());
-            r.mul(bindR, r);
-            s.set(s.getX() / bindS.getX(), s.getY() / bindS.getY(), s.getZ() / bindS.getZ());
 
             float t = time[key];
             AnimationKey posKey = createKey(t, false, 3);
@@ -330,6 +322,50 @@ public class ColladaUtil {
         animBuilder.addTracks(animTrackBuilder.build());
     }
 
+
+    public static void addDefaultKeys(Matrix4d local,
+                                     RigUtil.AnimationTrack posTrack,
+                                     RigUtil.AnimationTrack rotTrack,
+                                     RigUtil.AnimationTrack sclTrack) {
+
+        Vector3d bindP = new Vector3d();
+        Quat4d bindR = new Quat4d();
+        Vector3d bindS = new Vector3d();
+        MathUtil.decompose(local, bindP, bindR, bindS);
+
+        if (posTrack.keys.isEmpty()) {
+            AnimationKey key = createKey(0.0f, false, 3);
+            toFloats(bindP, key.value);
+            posTrack.keys.add(key);
+        }
+
+        if (rotTrack.keys.isEmpty()) {
+            AnimationKey key = createKey(0.0f, false, 4);
+            toFloats(bindR, key.value);
+            rotTrack.keys.add(key);
+        }
+
+        if (sclTrack.keys.isEmpty()) {
+            AnimationKey key = createKey(0.0f, false, 3);
+            toFloats(bindS, key.value);
+            sclTrack.keys.add(key);
+        }
+    }
+
+    private static class SortOnBoneIndex implements Comparator<Bone> {
+        public SortOnBoneIndex(HashMap<Long, Integer> boneRefMap) {
+            this.boneRefMap = boneRefMap;
+        }
+        public int compare(Bone a, Bone b) {
+            Long boneHashA = MurmurHash.hash64(a.getSourceId());
+            Long boneHashB = MurmurHash.hash64(b.getSourceId());
+            Integer refIndexA = this.boneRefMap.getOrDefault(boneHashA, 100000);
+            Integer refIndexB = this.boneRefMap.getOrDefault(boneHashB, 100000);
+            return refIndexA - refIndexB;
+        }
+        private HashMap<Long, Integer> boneRefMap;
+    }
+
     private static void boneAnimToDDF(XMLCOLLADA collada, Rig.RigAnimation.Builder animBuilder, ArrayList<Bone> boneList, HashMap<Long, Integer> boneRefMap, HashMap<String, ArrayList<XMLAnimation>> boneToAnimations, double duration) throws LoaderException {
 
         // Get scene framerate, start and end times if available
@@ -370,6 +406,8 @@ public class ColladaUtil {
             return;
         }
 
+        boneList.sort(new SortOnBoneIndex(boneRefMap));
+
         // loop through each bone
         double spf = 1.0 / sceneFrameRate;
         for (int bi = 0; bi < boneList.size(); ++bi)
@@ -384,34 +422,43 @@ public class ColladaUtil {
             Long boneHash = MurmurHash.hash64(bone.getSourceId());
             Integer refIndex = boneRefMap.get(boneHash);
 
-            if (boneToAnimations.containsKey(boneId) && refIndex != null)
-            {
-                Matrix4d localToParent = getBoneLocalToParent(bone);
-                AssetSpace assetSpace = getAssetSpace(collada.asset);
-                if (bi != 0) {
-                    // Only apply up axis rotation for first bone.
-                    assetSpace.rotation.setIdentity();
-                }
+            if (refIndex == null)
+                continue;
 
+            Matrix4d localToParent = getBoneLocalToParent(bone);
+            AssetSpace assetSpace = getAssetSpace(collada.asset);
+            if (bi != 0) {
+                // Only apply up axis rotation for first bone.
+                assetSpace.rotation.setIdentity();
+            }
+
+
+            RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
+            posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
+            RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
+            rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
+            RigUtil.AnimationTrack sclTrack = new RigUtil.AnimationTrack();
+            sclTrack.property = RigUtil.AnimationTrack.Property.SCALE;
+
+            if (boneToAnimations.containsKey(boneId))
+            {
                 // search the animations for each bone
                 ArrayList<XMLAnimation> anims = boneToAnimations.get(boneId);
+
+                boolean anim_found = false;
                 for (XMLAnimation animation : anims) {
                     if (animation.getType() == null) {
                         continue;
                     }
 
-                    RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
-                    posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
-                    RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
-                    rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
-                    RigUtil.AnimationTrack sclTrack = new RigUtil.AnimationTrack();
-                    sclTrack.property = RigUtil.AnimationTrack.Property.SCALE;
-
                     ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, sclTrack);
-
-                    createAnimationTracks(animBuilder, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
+                    break; // we only support one animation per file/bone
                 }
             }
+
+            addDefaultKeys(localToParent, posTrack, rotTrack, sclTrack);
+
+            createAnimationTracks(animBuilder, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
         }
     }
 
@@ -476,16 +523,20 @@ public class ColladaUtil {
         if (boneRefArray == null || boneRefArray.isEmpty()) {
             return;
         }
-        HashMap<Long, Integer> boneRefMap = new HashMap<Long, Integer>();
-        for (int i = 0; i < boneRefArray.size(); i++) {
-            Long boneRef = MurmurHash.hash64(boneRefArray.get(i));
-            boneRefMap.put(boneRef, i);
-            animationSetBuilder.addBoneList(boneRef);
-        }
 
         // Load skeleton to get bone bind poses
         ArrayList<String> boneIds = new ArrayList<String>();
         ArrayList<Bone> boneList = loadSkeleton(collada, boneIds);
+
+        HashMap<Long, Integer> boneRefMap = new HashMap<Long, Integer>();
+        int boneIndex = 0;
+        for (String boneId : boneIds) {
+            Long boneRef = MurmurHash.hash64(boneId);
+            boneRefMap.put(boneRef, boneIndex);
+            ++boneIndex;
+
+            animationSetBuilder.addBoneList(boneRef);
+        }
 
         // Animation clips
         ArrayList<XMLLibraryAnimationClips> animClips = collada.libraryAnimationClips;
@@ -1124,8 +1175,7 @@ public class ColladaUtil {
         b.setParent(parentIndex);
         b.setId(MurmurHash.hash64(bone.getSourceId()));
 
-        // I don't know why they named the local matrix "bindMatrix" /MAWE
-        Matrix4d localMatrix = new Matrix4d(MathUtil.vecmath2ToVecmath1(bone.bindMatrix));
+        Matrix4d localMatrix = getBoneLocalToParent(bone);
         Matrix4d worldMatrix = new Matrix4d();
         worldMatrix.mul(parentWorldTransform, localMatrix);
         Matrix4d invBindMatrix = new Matrix4d(worldMatrix);
@@ -1232,6 +1282,41 @@ public class ColladaUtil {
                 boneWeightsList.add(w.weight);
             }
         }
+
+        XMLSource jointSource = skin.getJointsSource();
+
+        ArrayList<String> jointsArray = new ArrayList<>();
+        if(jointSource.nameArray != null)
+            jointsArray = new ArrayList<>(Arrays.asList(jointSource.nameArray.names));
+
+        HashMap<String, Integer> toJointIndex = new HashMap<String, Integer>();
+        for (int i = 0; i < jointsArray.size(); i++) {
+            toJointIndex.put(jointsArray.get(i), i);
+        }
+
+        // Load skeleton to get correct bone indices
+        ArrayList<String> boneIds = new ArrayList<String>();
+        ArrayList<Bone> boneList = loadSkeleton(collada, boneIds);
+
+        HashMap<Integer, Integer> toBoneIndex = new HashMap<Integer, Integer>();
+
+        int boneIndex = 0;
+        for (String boneId : boneIds) {
+            // The list of joints may be shorter than the actual skeleton
+            // It's ok, it just means that the bone influences won't reference the bone
+            int jointIndex = toJointIndex.getOrDefault(boneId, 10000);
+            toBoneIndex.put(jointIndex, boneIndex);
+            ++boneIndex;
+        }
+
+        // Convert to bone indices
+        for (int i = 0; i < boneIndicesList.size(); ++i)
+        {
+            int oldIndex = boneIndicesList.get(i);
+            int newIndex = toBoneIndex.get(oldIndex);
+            boneIndicesList.set(i, newIndex);
+        }
+
         return maxBoneCount;
     }
 

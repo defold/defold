@@ -130,74 +130,6 @@ public class RigUtil {
         public int index = -1;
     }
 
-    public static class MeshAttachment {
-        public String path;
-        public int index;
-        // format is: x0, y0, z0, u0, v0, ...
-        public float[] vertices;
-        public int[] triangles;
-        public float[] boneWeights;
-        public int[] boneIndices;
-
-        public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
-    }
-
-    public static class BaseSlot {
-        public String name;
-        public int index;
-        public Bone bone;
-        public String defaultAttachmentString;
-        public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
-
-        public List<String> attachments = new ArrayList<>();
-        public Map<String, Integer> attachmentsLut = new HashMap<>();
-        public int activeAttachment = -1;
-
-        public BaseSlot() {
-            name = null;
-            index = -1;
-            bone = null;
-            defaultAttachmentString = null;
-        }
-        public BaseSlot(String name, int index, Bone bone, String defaultAttachmentString) {
-            this.name = name;
-            this.index = index;
-            this.bone = bone;
-            this.defaultAttachmentString = defaultAttachmentString;
-
-            if (defaultAttachmentString != null && !defaultAttachmentString.isEmpty())
-            {
-                this.attachments.add(defaultAttachmentString);
-                this.attachmentsLut.put(defaultAttachmentString, 0);
-            }
-        }
-    }
-
-    public static class SkinSlot {
-        public BaseSlot baseSlot;
-        public int activeAttachment = -1;
-        public List<Integer> meshAttachments = new ArrayList<>();
-        public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
-
-        public SkinSlot(BaseSlot baseSlot) {
-            this.baseSlot = baseSlot;
-            this.activeAttachment = baseSlot.activeAttachment;
-            this.color = baseSlot.color;
-            for (int i = 0; i < baseSlot.attachments.size(); i++) {
-                this.meshAttachments.add(-1);
-            }
-        }
-
-        public SkinSlot(SkinSlot copy) {
-            this.baseSlot = copy.baseSlot;
-            this.activeAttachment = copy.activeAttachment;
-            this.color = copy.color;
-            for (int i = 0; i < copy.meshAttachments.size(); i++) {
-                this.meshAttachments.add(copy.meshAttachments.get(i));
-            }
-        }
-    }
-
     public static class AnimationCurve {
         public enum CurveIntepolation {
             BEZIER, LINEAR
@@ -236,19 +168,6 @@ public class RigUtil {
         public boolean positive;
     }
 
-    public static class SlotAnimationKey extends AnimationKey {
-        public int attachment;
-        public int orderOffset;
-    }
-
-    public static class SlotAnimationTrack extends AbstractAnimationTrack<SlotAnimationKey> {
-        public enum Property {
-            ATTACHMENT, COLOR, DRAW_ORDER
-        }
-        public int slot;
-        public Property property;
-    }
-
     public static class Event {
         public String name;
         public String stringPayload;
@@ -272,7 +191,6 @@ public class RigUtil {
         public String name;
         public double duration;
         public List<AnimationTrack> tracks = new ArrayList<AnimationTrack>();
-        public List<SlotAnimationTrack> slotTracks = new ArrayList<SlotAnimationTrack>();
         public List<EventTrack> eventTracks = new ArrayList<EventTrack>();
     }
 
