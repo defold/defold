@@ -13,6 +13,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+// SPEC:
+// https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html
+
 #include "modelimporter.h"
 
 #define CGLTF_IMPLEMENTATION
