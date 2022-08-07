@@ -19,7 +19,7 @@ def build(bld):
     java_includes = [os.path.join(os.environ['JAVA_HOME'], 'include')]
     if 'linux' in bld.env['PLATFORM']:
         java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'linux'))
-    if 'windows' in bld.env['PLATFORM']:
+    if 'win32' in bld.env['PLATFORM']:
         java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'windows'))
     if 'darwin' in bld.env['PLATFORM']:
         java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
