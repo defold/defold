@@ -29,30 +29,6 @@ namespace dmRig
 {
     using namespace dmVMath;
 
-    // static void printVector4(const Vector4& v)
-    // {
-    //     printf("%f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
-    // }
-
-    // static void printMatrix(const Matrix4& transform)
-    // {
-    //     printf("    "); printVector4(transform.getRow(0));
-    //     printf("    "); printVector4(transform.getRow(1));
-    //     printf("    "); printVector4(transform.getRow(2));
-    //     printf("    "); printVector4(transform.getRow(3));
-    // }
-    // static void printTransformAsMatrix(const dmTransform::Transform& transform)
-    // {
-    //     printMatrix(dmTransform::ToMatrix4(transform));
-    // }
-    // static void printTransform(const dmTransform::Transform& transform)
-    // {
-    //     printf("    pos: %f, %f, %f\n",transform.GetTranslation().getX(),transform.GetTranslation().getY(),transform.GetTranslation().getZ());
-    //     printf("    rot: %f, %f, %f, %f\n",transform.GetRotation().getX(),transform.GetRotation().getY(),transform.GetRotation().getZ(),transform.GetRotation().getW());
-    //     printf("    scl: %f, %f, %f\n",transform.GetScale().getX(),transform.GetScale().getY(),transform.GetScale().getZ());
-    //     printf("\n");
-    // }
-
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const float CURSOR_EPSILON = 0.0001f;
 
@@ -145,7 +121,6 @@ namespace dmRig
         }
 
         RigPlayer* player = SwitchPlayer(instance);
-        player->m_BlendFinished = blend_duration > 0.0f ? 0 : 1;// DEPRECATED SPINE STUFF
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
         player->m_Playing = 1;
@@ -539,11 +514,6 @@ namespace dmRig
                     blend_weight = 1.0f - fade_rate;
                 }
 
-                // DEPRECATED SPINE STUFF
-                if (p->m_BlendFinished == 0 && blend_weight > 0.5) {
-                    p->m_BlendFinished = 1;
-                }
-
                 UpdatePlayer(instance, p, dt, blend_weight);
                 ApplyAnimation(p, pose, ik_animation, alpha);
                 if (player == p)
@@ -919,7 +889,6 @@ namespace dmRig
         const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_PositionIndices.m_Data;
         const float* uv0 = mesh->m_Texcoord0.m_Data;
 
-        // TODO: I'm not sure what the use case is for having the index data available.
         // Preferably, I'd have the vertex buffer already packed after the build pipelibne /MAWE
 
         if (mesh->m_NormalsIndices.m_Count)

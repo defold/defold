@@ -77,7 +77,6 @@ namespace dmGameSystem
         // Sort the meshes by material
         std::sort(resource->m_Meshes.Begin(), resource->m_Meshes.End(), MeshSortPred());
 
-        printf("\n");
         for (int i = 0; i < resource->m_Meshes.Size(); ++i)
         {
             MeshInfo& info = resource->m_Meshes[i];

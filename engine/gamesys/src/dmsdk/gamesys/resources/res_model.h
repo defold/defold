@@ -35,20 +35,6 @@ namespace dmGameSystem
         uint32_t                    m_MaterialIndex; // Index into ModelResource::m_Materials
         dmGraphics::Type            m_IndexBufferElementType;
     };
-    // // Each instance represent all the meshes of a model with the same material
-    // struct ModelMeshGroup
-    // {
-    //     dmRigDDF::Model*            m_Model;        // Holds the transform
-    //     dmArray<dmRigDDF::Mesh*>    m_Meshes;
-    //     uint32_t                    m_MaterialIndex; // Index into ModelResource::m_Materials
-    // };
-
-
-    // struct ModelMeshRange
-    // {
-    //     uint32_t m_Start;
-    //     uint32_t m_Count;
-    // };
 
     struct MeshInfo
     {

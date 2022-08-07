@@ -40,9 +40,7 @@ namespace dmRig
         uint8_t                       m_Playing : 1;
         /// Whether the animation is playing backwards (e.g. ping pong)
         uint8_t                       m_Backwards : 1;
-        /// Flag used to handle blending players, resetting pose to avoid lingering slot attachment changes from previous animation.
-        uint8_t                       m_BlendFinished : 1;
-        uint8_t                       : 5;
+        uint8_t                       : 6;
     };
 
     struct IKAnimation

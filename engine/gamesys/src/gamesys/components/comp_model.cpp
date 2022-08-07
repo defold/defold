@@ -54,15 +54,6 @@ namespace dmGameSystem
     using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
-    // struct ModelRenderItem
-    // {
-    //     struct ModelComponent*      m_Component;
-    //     ModelResourceMesh*          m_MeshBuffers;
-    //     //dmRigDDF::MeshEntry*        m_MeshEntry;
-    //     //dmRigDDF::MeshSlot*         m_MeshSlot;
-    //     //ModelResourceMeshEntry*     m_MeshEntries;
-    // };
-
     struct MeshRenderItem
     {
         dmVMath::Matrix4            m_World;
@@ -252,7 +243,6 @@ namespace dmGameSystem
 
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(component->m_RigInstance);
-        //dmLogWarning("CompModelPoseCallback: %u", pose.Size());
 
         if (!pose.Empty()) {
             uint32_t bone_count = pose.Size();
@@ -563,7 +553,6 @@ namespace dmGameSystem
             ro.m_VertexStart = 0;
             ro.m_VertexCount = buffers->m_IndexCount;
 
-            //ro.m_WorldTransform = component->m_World;
             ro.m_WorldTransform = render_item->m_World;
 
             ro.m_IndexBuffer = buffers->m_IndexBuffer;              // May be 0
@@ -592,13 +581,10 @@ namespace dmGameSystem
 
         for (uint32_t *i=begin;i!=end;i++)
         {
-            //const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
             const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
 
             uint32_t count = render_item->m_Buffers->m_VertexCount;
             uint32_t icount = render_item->m_Buffers->m_IndexCount;
-            // const ModelComponent* c = render_item->m_Component;
-            // uint32_t count = dmRig::GetVertexCount(c->m_RigInstance);
 
             vertex_count += count;
             index_count += icount;
@@ -623,7 +609,6 @@ namespace dmGameSystem
         dmRig::RigModelVertex *vb_end = vb_begin;
         for (uint32_t *i=begin;i!=end;i++)
         {
-            //const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
             const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
             const ModelComponent* c = render_item->m_Component;
             dmRig::HRigContext rig_context = world->m_RigContext;
@@ -861,7 +846,6 @@ namespace dmGameSystem
             {
                 MeshRenderItem& render_item = component.m_RenderItems[j];
 
-                //uint32_t vertex_count = dmRig::GetVertexCount(component.m_RigInstance);
                 uint32_t vertex_count = render_item.m_Buffers->m_VertexCount;
                 if(vertex_count_total + vertex_count >= max_elements_vertices)
                 {
@@ -870,14 +854,11 @@ namespace dmGameSystem
                 }
                 vertex_count_total += vertex_count;
 
-// TODO: Create correct m_World for each item
                 const Vector4 trans = render_item.m_World.getCol(3);
                 write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
 
-                //printf("model %d: item %d:  %f, %f, %f\n", i, j, trans.getX(), trans.getY(), trans.getZ());
-
                 write_ptr->m_UserData = (uintptr_t) &render_item;
-// TODO: Currently assuming only one material for all meshes
+                // TODO: Currently assuming only one material for all meshes
                 write_ptr->m_BatchKey = component.m_MixedHash;
                 write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource, render_item.m_MaterialIndex));
                 write_ptr->m_Dispatch = dispatch;

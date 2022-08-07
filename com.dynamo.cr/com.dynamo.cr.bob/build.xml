@@ -92,10 +92,6 @@
         <exec dir="." executable="python">
             <arg line="${bob.dir}/engine_version_generator.py" />
         </exec>
-<!--
-        <copy todir="${bob.dir}/lib" overwrite="true" flatten="true" failonerror="false">
-            <fileset dir="${env.DYNAMO_HOME}/archive/${git.revision}/engine/share/java" includes="dlib.jar" erroronmissingdir="false" />
-        </copy> -->
         <copy todir="${bob.dir}/lib" overwrite="true" flatten="true" failonerror="false">
             <fileset dir="${env.DYNAMO_HOME}/share">
                 <include name="java/dlib.jar"/>
