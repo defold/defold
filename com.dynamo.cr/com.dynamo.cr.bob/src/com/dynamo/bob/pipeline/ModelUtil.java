@@ -618,7 +618,6 @@ public class ModelUtil {
         for (Mesh mesh : model.meshes) {
             modelBuilder.addMeshes(loadMesh(mesh, skeleton, materials));
         }
-        System.out.printf("  loadModel: %s num_meshes: %d\n", node.name, model.meshes.length);
 
         modelBuilder.setId(MurmurHash.hash64(model.name));
         modelBuilder.setLocal(toDDFTransform(node.local));
@@ -664,8 +663,6 @@ public class ModelUtil {
 
         ArrayList<String> materials = loadMaterialNames(scene);
         meshSetBuilder.addAllMaterials(materials);
-
-        System.out.printf("loadModels:\n");
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {

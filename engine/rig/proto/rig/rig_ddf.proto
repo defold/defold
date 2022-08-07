@@ -128,7 +128,7 @@ message Mesh
     repeated uint32 bone_indices = 16;
     repeated float  mesh_color   = 17; // single color value for the entire mesh
 
-    optional uint32 material_index = 18; // index in to the mesh set material list
+    optional uint32 material_index = 18; // index into the mesh set material list
 }
 
 message Model // E.g. the Node in the Scene

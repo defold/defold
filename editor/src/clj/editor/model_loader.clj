@@ -58,7 +58,6 @@
        :material-ids material-ids})))
 
 (defn load-scene [resource]
-  (prn "MAWE load-scene:" (resource/path resource))
   (with-open [stream (io/input-stream resource)]
     (let [ext (clojure.string/lower-case (resource/ext resource))]
       (if (= "dae" ext)
