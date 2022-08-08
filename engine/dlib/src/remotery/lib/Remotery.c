@@ -2866,6 +2866,7 @@ static void TCPSocket_Close(TCPSocket* tcp_socket);
 
 static rmtError InitialiseNetwork()
 {
+    printf("InitialiseNetwork\n");
 #ifdef RMT_PLATFORM_WINDOWS
 
     WSADATA wsa_data;
@@ -2896,6 +2897,7 @@ static void ShutdownNetwork()
 
 static rmtError TCPSocket_Constructor(TCPSocket* tcp_socket)
 {
+    printf("TCPSocket_Constructor\n");
     assert(tcp_socket != NULL);
     tcp_socket->socket = INVALID_SOCKET;
     return InitialiseNetwork();
@@ -2911,6 +2913,7 @@ static void TCPSocket_Destructor(TCPSocket* tcp_socket)
 static rmtError TCPSocket_RunServer(TCPSocket* tcp_socket, rmtU16 port, rmtBool reuse_open_port,
                                     rmtBool limit_connections_to_localhost)
 {
+    printf("TCPSocket_RunServer\n");
     SOCKET s = INVALID_SOCKET;
     struct sockaddr_in sin;
 #ifdef RMT_PLATFORM_WINDOWS
@@ -2921,7 +2924,9 @@ static rmtError TCPSocket_RunServer(TCPSocket* tcp_socket, rmtU16 port, rmtBool 
     assert(tcp_socket != NULL);
 
     // Try to create the socket
+    printf("TCPSocket_RunServer - creating socket\n");
     s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    printf("TCPSocket_RunServer - socket created\n");
     if (s == SOCKET_ERROR)
     {
         return rmtMakeError(RMT_ERROR_RESOURCE_CREATE_FAIL, "Can't create a socket for connection to the remote viewer");
@@ -2947,6 +2952,7 @@ static rmtError TCPSocket_RunServer(TCPSocket* tcp_socket, rmtU16 port, rmtBool 
     }
 
     // Bind the socket to the incoming port
+    printf("TCPSocket_RunServer - bind\n");
     sin.sin_family = AF_INET;
     sin.sin_addr.s_addr = htonl(limit_connections_to_localhost ? INADDR_LOOPBACK : INADDR_ANY);
     sin.sin_port = htons(port);
@@ -2954,17 +2960,21 @@ static rmtError TCPSocket_RunServer(TCPSocket* tcp_socket, rmtU16 port, rmtBool 
     {
         return rmtMakeError(RMT_ERROR_RESOURCE_ACCESS_FAIL, "Can't bind a socket for the server");
     }
+    printf("TCPSocket_RunServer - bind done\n");
 
     // Connection is valid, remaining code is socket state modification
     tcp_socket->socket = s;
 
     // Enter a listening state with a backlog of 1 connection
+    printf("TCPSocket_RunServer - listen\n");
     if (listen(s, 1) == SOCKET_ERROR)
     {
         return rmtMakeError(RMT_ERROR_RESOURCE_ACCESS_FAIL, "Created server socket failed to enter a listen state");
     }
+    printf("TCPSocket_RunServer - listen done\n");
 
 // Set as non-blocking
+    printf("TCPSocket_RunServer - set non blocking\n");
 #ifdef RMT_PLATFORM_WINDOWS
     if (ioctlsocket(tcp_socket->socket, FIONBIO, &nonblock) == SOCKET_ERROR)
     {
@@ -2976,6 +2986,7 @@ static rmtError TCPSocket_RunServer(TCPSocket* tcp_socket, rmtU16 port, rmtBool 
         return rmtMakeError(RMT_ERROR_RESOURCE_ACCESS_FAIL, "Created server socket failed to switch to a non-blocking state");
     }
 #endif
+    printf("TCPSocket_RunServer - set non blocking done\n");
 
     return RMT_ERROR_NONE;
 }
@@ -3008,6 +3019,7 @@ static void TCPSocket_Close(TCPSocket* tcp_socket)
 
 static SocketStatus TCPSocket_PollStatus(TCPSocket* tcp_socket)
 {
+    printf("TCPSocket_PollStatus\n");
     SocketStatus status;
     fd_set fd_read, fd_write, fd_errors;
     struct timeval tv;
@@ -3043,6 +3055,7 @@ static SocketStatus TCPSocket_PollStatus(TCPSocket* tcp_socket)
     tv.tv_usec = 0;
     if (select(((int)tcp_socket->socket) + 1, &fd_read, &fd_write, &fd_errors, &tv) == SOCKET_ERROR)
     {
+        printf("TCPSocket_PollStatus fail\n");
         status.error_state = RMT_ERROR_SOCKET_SELECT_FAIL;
         return status;
     }
@@ -3050,6 +3063,7 @@ static SocketStatus TCPSocket_PollStatus(TCPSocket* tcp_socket)
     status.can_read = FD_ISSET(tcp_socket->socket, &fd_read) != 0 ? RMT_TRUE : RMT_FALSE;
     status.can_write = FD_ISSET(tcp_socket->socket, &fd_write) != 0 ? RMT_TRUE : RMT_FALSE;
     status.error_state = FD_ISSET(tcp_socket->socket, &fd_errors) != 0 ? RMT_ERROR_SOCKET_POLL_ERRORS : RMT_ERROR_NONE;
+    printf("TCPSocket_PollStatus ok\n");
     return status;
 }
 
@@ -3065,6 +3079,7 @@ static rmtError TCPSocket_AcceptConnection(TCPSocket* tcp_socket, TCPSocket** cl
         return status.error_state;
 
     // Accept the connection
+    printf("TCPSocket_AcceptConnection - accepting new connection\n");
     s = accept(tcp_socket->socket, 0, 0);
     if (s == SOCKET_ERROR)
     {
@@ -3787,6 +3802,7 @@ static rmtError WebSocketHandshake(TCPSocket* tcp_socket, rmtPStr limit_host)
 
 static rmtError WebSocket_Constructor(WebSocket* web_socket, TCPSocket* tcp_socket)
 {
+    printf("WebSocket_Constructor\n");
     rmtError error = RMT_ERROR_NONE;
 
     assert(web_socket != NULL);
@@ -4294,6 +4310,7 @@ static rmtError Server_CreateListenSocket(Server* server, rmtU16 port, rmtBool r
 static rmtError Server_Constructor(Server* server, rmtU16 port, rmtBool reuse_open_port,
                                    rmtBool limit_connections_to_localhost)
 {
+    printf("Server_Constructor\n");
     assert(server != NULL);
     server->listen_socket = NULL;
     server->client_socket = NULL;
