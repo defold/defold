@@ -13,6 +13,7 @@
 /lib/android-res.zip
 /lib/luajit-share.zip
 /lib/dlib.jar
+/lib/modelimporter.jar
 /libexec/*/*.js
 /libexec/*/*.swf
 /libexec/*/*dmengine*
