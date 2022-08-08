@@ -222,3 +222,53 @@
       (with-clean-system {:cache-size -1}
         (let [cache (populate-cache cache)]
           (is (= 0 (retained-count cache))))))))
+
+(deftest unmodified-identical-test
+  (letfn [(populate-cache [cache]
+            (cache-encache cache {(gt/endpoint 1 :a) 1
+                                  (gt/endpoint 1 :b) 2
+                                  (gt/endpoint 1 :retain/a) -1
+                                  (gt/endpoint 1 :retain/b) -2
+                                  (gt/endpoint 1 :c) 3
+                                  (gt/endpoint 1 :d) 4}))
+          (cache-retain? [endpoint]
+            (= "retain" (namespace (gt/endpoint-label endpoint))))]
+    (testing "positive cache limit with retain predicate"
+      (with-clean-system {:cache-size 3
+                          :cache-retain? cache-retain?}
+        (let [cache (populate-cache cache)]
+          (is (identical? cache (cache-hit cache [])))
+          (is (identical? cache (cache-hit cache [(gt/endpoint 1 :missing)])))
+          (is (identical? cache (cache-hit cache [(gt/endpoint 1 :retain/a)])))
+          (is (identical? cache (cache-encache cache [])))
+          (is (identical? cache (cache-invalidate cache [])))
+          (is (identical? cache (cache-invalidate cache [(gt/endpoint 1 :missing)]))))))
+
+    (testing "positive cache limit without retain predicate"
+      (with-clean-system {:cache-size 3}
+        (let [cache (populate-cache cache)]
+          (is (identical? cache (cache-hit cache [])))
+          (is (identical? cache (cache-hit cache [(gt/endpoint 1 :missing)])))
+          (is (identical? cache (cache-encache cache [])))
+          (is (identical? cache (cache-invalidate cache [])))
+          (is (identical? cache (cache-invalidate cache [(gt/endpoint 1 :missing)]))))))
+
+    (testing "zero cache limit (no caching)"
+      (with-clean-system {:cache-size 0}
+        (let [cache (populate-cache cache)]
+          (is (identical? cache (cache-hit cache [])))
+          (is (identical? cache (cache-hit cache [(gt/endpoint 1 :missing)])))
+          (is (identical? cache (cache-hit cache [(gt/endpoint 1 :a)])))
+          (is (identical? cache (cache-encache cache [])))
+          (is (identical? cache (cache-invalidate cache [])))
+          (is (identical? cache (cache-invalidate cache [(gt/endpoint 1 :missing)]))))))
+
+    (testing "unlimited cache"
+      (with-clean-system {:cache-size -1}
+        (let [cache (populate-cache cache)]
+          (is (identical? cache (cache-hit cache [])))
+          (is (identical? cache (cache-hit cache [(gt/endpoint 1 :missing)])))
+          (is (identical? cache (cache-hit cache [(gt/endpoint 1 :a)])))
+          (is (identical? cache (cache-encache cache [])))
+          (is (identical? cache (cache-invalidate cache [])))
+          (is (identical? cache (cache-invalidate cache [(gt/endpoint 1 :missing)]))))))))

@@ -16,7 +16,7 @@
   (:require [clojure.core.cache :as cc]
             [internal.graph.types :as gt]
             [util.coll :refer [pair]])
-  (:import [clojure.core.cache BasicCache LRUCache]))
+  (:import [clojure.core.cache BasicCache]))
 
 (set! *warn-on-reflection* true)
 
@@ -29,14 +29,89 @@
   (miss-many [this kvs] "Encaches all the supplied keys. Potentially faster than calling one-by-one.")
   (evict-many [this ks] "Evicts all the supplied keys. Potentially faster than calling one-by-one."))
 
-(defn- hit-many-lru [base lru tick ks]
+;; ----------------------------------------
+;; Null cache for testing / uncached queries
+;; ----------------------------------------
+
+(cc/defcache NullCache [cache]
+  cc/CacheProtocol
+  (lookup [_ item])
+  (lookup [_ item not-found] not-found)
+  (has? [_ item] false)
+  (hit [this item] this)
+  (miss [this item result] this)
+  (evict [this key] this)
+  (seed [this base] this)
+
+  CacheExtensions
+  (limit [_this] 0)
+  (retained-count [_this] 0)
+  (hit-many [this _ks] this)
+  (miss-many [this _kvs] this)
+  (evict-many [this _ks] this))
+
+(def null-cache (NullCache. {}))
+
+;; ----------------------------------------
+;; Basic unlimited cache implementation
+;; ----------------------------------------
+
+(defn- miss-many-base [base kvs]
+  (if (empty? kvs)
+    base
+    (persistent!
+      (reduce (fn [base [added-key added-value]]
+                (assert (gt/endpoint? added-key))
+                (assoc! base added-key added-value))
+              (transient base)
+              kvs))))
+
+(defn- evict-many-base [base ks]
+  (if (empty? ks)
+    base
+    (let [did-change (volatile! false)
+          will-change #(or %1 (contains? base %2))
+          base-after (reduce (fn [base removed-key]
+                               (assert (gt/endpoint? removed-key))
+                               (vswap! did-change will-change removed-key)
+                               (dissoc! base removed-key))
+                             (transient base)
+                             ks)]
+      (if @did-change
+        (persistent! base-after)
+        base))))
+
+(defn- update-basic-cache [^BasicCache basic-cache update-fn arg]
+  (let [base (.cache basic-cache)
+        base-after (update-fn base arg)]
+    (if (identical? base base-after)
+      basic-cache
+      (BasicCache. base-after))))
+
+(extend-protocol CacheExtensions
+  BasicCache
+  (limit [_this] -1)
+  (retained-count [_this] 0)
+  (hit-many [this _ks] this)
+  (miss-many [this kvs] (update-basic-cache this miss-many-base kvs))
+  (evict-many [this ks] (update-basic-cache this evict-many-base ks)))
+
+;; ----------------------------------------
+;; Application-specialized LRU cache with the ability to selectively exclude
+;; entries from the cache limit.
+;; ----------------------------------------
+
+(defn- occupied-lru-entry? [entry]
+  (not (neg? (val entry))))
+
+(defn- hit-many-lru [lru tick ks]
   (let [[lru-after tick-after]
         (reduce (fn [result k]
                   (assert (gt/endpoint? k))
-                  (if (contains? base k)
-                    (let [new-tick (inc (second result))]
-                      (pair (assoc (first result) k new-tick)
-                            new-tick))
+                  (if (contains? lru k)
+                    (let [tick (inc (second result))]
+                      (pair (assoc (first result) k tick)
+                            tick))
                     result))
                 (pair lru
                       tick)
@@ -96,87 +171,6 @@
       (pair base
             lru))))
 
-(defn- basic-cache-reduce
-  ^BasicCache [f ^BasicCache basic-cache coll]
-  (BasicCache. (persistent! (reduce f
-                                    (transient (.cache basic-cache))
-                                    coll))))
-
-(extend-protocol CacheExtensions
-  BasicCache
-  (limit [_this] -1)
-  (retained-count [_this] 0)
-  (hit-many [this _ks] this)
-  (miss-many [this kvs] (basic-cache-reduce conj! this kvs))
-  (evict-many [this ks] (basic-cache-reduce dissoc! this ks))
-
-  LRUCache
-  (limit [this] (.limit ^LRUCache this))
-  (retained-count [_this] 0)
-  (hit-many [this ks]
-    (let [^LRUCache this this
-          tick (.tick this)
-          base (.cache this)
-          [lru-after tick-after] (hit-many-lru base (.lru this) tick ks)]
-      (if (= tick tick-after)
-        this
-        (LRUCache. base
-                   lru-after
-                   tick-after
-                   (.limit this)))))
-  (miss-many [this kvs]
-    (let [^LRUCache this this
-          tick (.tick this)
-          limit (.limit this)
-          [base-after lru-after tick-after] (miss-many-lru (.cache this) (.lru this) tick limit nil kvs)]
-      (if (= tick tick-after)
-        this
-        (LRUCache. base-after
-                   lru-after
-                   tick-after
-                   limit))))
-  (evict-many [this ks]
-    (let [^LRUCache this this
-          base (.cache this)
-          [base-after lru-after] (evict-many-lru base (.lru this) ks)]
-      (if (identical? base base-after)
-        this
-        (LRUCache. base-after
-                   lru-after
-                   (inc (.tick this))
-                   (.limit this))))))
-
-;; ----------------------------------------
-;; Null cache for testing / uncached queries
-;; ----------------------------------------
-
-(cc/defcache NullCache [cache]
-  cc/CacheProtocol
-  (lookup [_ item])
-  (lookup [_ item not-found] not-found)
-  (has? [_ item] false)
-  (hit [this item] this)
-  (miss [this item result] this)
-  (evict [this key] this)
-  (seed [this base] this)
-
-  CacheExtensions
-  (limit [_this] 0)
-  (retained-count [_this] 0)
-  (hit-many [this _ks] this)
-  (miss-many [this _kvs] this)
-  (evict-many [this _ks] this))
-
-(def null-cache (NullCache. {}))
-
-;; ----------------------------------------
-;; Application-specialized LRU cache with the ability to selectively exclude
-;; entries from the cache limit.
-;; ----------------------------------------
-
-(defn- occupied-lru-entry? [entry]
-  (not (neg? (val entry))))
-
 (cc/defcache RetainingLRUCache [cache lru tick limit retain?]
   cc/CacheProtocol
   (lookup [_ item]
@@ -186,18 +180,18 @@
   (has? [_ item]
     (contains? cache item))
   (hit [this item]
-    (if (or (not (contains? cache item))
-            (retain? item))
+    (if (not (contains? lru item))
       this
-      (let [tick+ (inc tick)]
+      (let [tick (inc tick)]
+        (assert (contains? cache item))
         (RetainingLRUCache. cache
-                            (assoc lru item tick+)
-                            tick+
+                            (assoc lru item tick)
+                            tick
                             limit
                             retain?))))
   (miss [_ item result]
     (let [tick (inc tick)
-          retain (retain? item)]
+          retain (and retain? (retain? item))]
       (if (and (not retain)
                (>= (count lru) limit))
         ;; We're at or over the limit.
@@ -226,9 +220,11 @@
                             limit
                             retain?))))
   (seed [_ base]
-    (let [unretained-base (into {}
-                                (remove (comp retain? key))
-                                base)
+    (let [unretained-base (if (nil? retain?)
+                            base
+                            (into (empty base)
+                                  (remove (comp retain? key))
+                                  base))
           lru (#'cc/build-leastness-queue unretained-base limit 0)]
       (RetainingLRUCache. base
                           lru
@@ -244,7 +240,7 @@
        (count (filter occupied-lru-entry? lru))))
   (hit-many [this ks]
     (let [^RetainingLRUCache this this
-          [lru-after tick-after] (hit-many-lru cache lru tick ks)]
+          [lru-after tick-after] (hit-many-lru lru tick ks)]
       (if (= tick tick-after)
         this
         (RetainingLRUCache. cache
@@ -279,7 +275,7 @@
   [base & {threshold :threshold retain? :retain?}]
   {:pre [(map? base)
          (number? threshold) (< 0 threshold)
-         (ifn? retain?)]}
+         (or (nil? retain?) (ifn? retain?))]}
   (cc/seed (RetainingLRUCache. nil nil 0 threshold retain?) base))
 
 ;; ----------------------------------------
@@ -300,9 +296,7 @@
     null-cache
 
     (pos? limit) ; Limited cache that evicts the least recently used entry when full.
-    (if (some? retain?)
-      (retaining-lru-cache-factory {} :threshold limit :retain? retain?)
-      (cc/lru-cache-factory {} :threshold limit))
+    (retaining-lru-cache-factory {} :threshold limit :retain? retain?)
 
     :else
     (throw (ex-info (str "Invalid limit: " limit)
