@@ -111,10 +111,10 @@ def build(bld):
         dlib.source.append(bld.path.make_node(source))
 
     # Create a separate library, in order to separate it from the ASAN builds
-    dlib_noasan = bld.stlib(features    = dlib.features + ['skip_asan'],
-                      includes    = dlib.includes,
-                      defines     = dlib.defines,
-                      target      = 'dlib_noasan')
+    dlib_noasan = bld.stlib(features = dlib.features + ['skip_asan'],
+                          includes    = dlib.includes,
+                          defines     = dlib.defines,
+                          target      = 'dlib_noasan')
     dlib_noasan.source = [x for x in dlib.source]
 
 
@@ -244,7 +244,7 @@ def build(bld):
                                 includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                use = ['PLATFORM_SOCKET', 'CARES', 'PROFILE_NULL', 'mbedtls_noasan', 'zip_noasan'])
+                                use = ['PLATFORM_SOCKET', 'CARES', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
 
