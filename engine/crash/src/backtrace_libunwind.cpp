@@ -34,12 +34,8 @@ namespace dmCrash
 {
     static const int SIGNAL_MAX = 64;
     static bool g_CrashDumpEnabled = true;
-    static bool g_AlreadyHandled[SIGNAL_MAX];
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
-
-    // This array contains the default behavior for each signal.
-    static struct sigaction sigdfl[SIGNAL_MAX];
 
     void EnableHandler(bool enable)
     {
@@ -210,19 +206,11 @@ namespace dmCrash
 
     static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
-        // If after set of a handler from the previous (default)
-        // behavior from sigdfl we still enter this function
-        // we reset handler to default to prevent infinite loop
-        if (g_AlreadyHandled[signum]) {
-            ResetToDefaultHandler(signum);
-            return;
-        }
-        // The previous (default) behavior is restored for the signal.
+        // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
-        sigaction(signum, &sigdfl[signum], NULL);
+        ResetToDefaultHandler(signum);
         OnCrash(signum);
-        g_AlreadyHandled[signum] = true;
     }
 
     void InstallOnSignal(int signum)
@@ -234,9 +222,8 @@ namespace dmCrash
         sigemptyset(&sa.sa_mask);
         sa.sa_sigaction = Handler;
         sa.sa_flags = SA_SIGINFO;
-
-        // The current (default) behavior is stored in sigdfl.
-        sigaction(signum, &sa, &sigdfl[signum]);
+        
+        sigaction(signum, &sa, NULL);
     }
 
     void SetCrashFilename(const char*)
