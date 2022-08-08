@@ -322,36 +322,6 @@ public class ColladaUtil {
         animBuilder.addTracks(animTrackBuilder.build());
     }
 
-
-    public static void addDefaultKeys(Matrix4d local,
-                                     RigUtil.AnimationTrack posTrack,
-                                     RigUtil.AnimationTrack rotTrack,
-                                     RigUtil.AnimationTrack sclTrack) {
-
-        Vector3d bindP = new Vector3d();
-        Quat4d bindR = new Quat4d();
-        Vector3d bindS = new Vector3d();
-        MathUtil.decompose(local, bindP, bindR, bindS);
-
-        if (posTrack.keys.isEmpty()) {
-            AnimationKey key = createKey(0.0f, false, 3);
-            toFloats(bindP, key.value);
-            posTrack.keys.add(key);
-        }
-
-        if (rotTrack.keys.isEmpty()) {
-            AnimationKey key = createKey(0.0f, false, 4);
-            toFloats(bindR, key.value);
-            rotTrack.keys.add(key);
-        }
-
-        if (sclTrack.keys.isEmpty()) {
-            AnimationKey key = createKey(0.0f, false, 3);
-            toFloats(bindS, key.value);
-            sclTrack.keys.add(key);
-        }
-    }
-
     private static class SortOnBoneIndex implements Comparator<Bone> {
         public SortOnBoneIndex(HashMap<Long, Integer> boneRefMap) {
             this.boneRefMap = boneRefMap;
@@ -432,14 +402,6 @@ public class ColladaUtil {
                 assetSpace.rotation.setIdentity();
             }
 
-
-            RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
-            posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
-            RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
-            rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
-            RigUtil.AnimationTrack sclTrack = new RigUtil.AnimationTrack();
-            sclTrack.property = RigUtil.AnimationTrack.Property.SCALE;
-
             if (boneToAnimations.containsKey(boneId))
             {
                 // search the animations for each bone
@@ -451,14 +413,20 @@ public class ColladaUtil {
                         continue;
                     }
 
+                    RigUtil.AnimationTrack posTrack = new RigUtil.AnimationTrack();
+                    posTrack.property = RigUtil.AnimationTrack.Property.POSITION;
+                    RigUtil.AnimationTrack rotTrack = new RigUtil.AnimationTrack();
+                    rotTrack.property = RigUtil.AnimationTrack.Property.ROTATION;
+                    RigUtil.AnimationTrack sclTrack = new RigUtil.AnimationTrack();
+                    sclTrack.property = RigUtil.AnimationTrack.Property.SCALE;
+
                     ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, sclTrack);
+
+                    createAnimationTracks(animBuilder, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
+
                     break; // we only support one animation per file/bone
                 }
             }
-
-            addDefaultKeys(localToParent, posTrack, rotTrack, sclTrack);
-
-            createAnimationTracks(animBuilder, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
         }
     }
 
