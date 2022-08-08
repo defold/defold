@@ -122,33 +122,42 @@
       (pair lru-after
             tick-after))))
 
-(defn- miss-many-lru [base lru tick limit retain? kvs]
-  (let [[base-after lru-after tick-after]
-        (reduce (fn [result [added-key added-value]]
-                  (assert (gt/endpoint? added-key))
-                  (let [[base lru tick] result
-                        tick (inc tick)
-                        retain (and retain? (retain? added-key))]
-                    (if (and (not retain)
-                             (>= (count lru) limit))
-                      ;; We're at or over the limit.
-                      (let [replaced-key (if (contains? lru added-key)
-                                           added-key
-                                           (first (peek lru))) ; The key with the lowest tick.
-                            base (-> base (dissoc! replaced-key) (assoc! added-key added-value))
-                            lru (-> lru (dissoc replaced-key) (assoc added-key tick))]
-                        [base lru tick])
+(defn- miss-update-lru [lru tick limit retain? added-key]
+  (assert (gt/endpoint? added-key))
+  (let [tick (inc tick)
+        retain (and retain? (retain? added-key))]
+    (if (and (not retain)
+             (>= (count lru) limit))
+      ;; We're at or over the limit.
+      (let [replaced-key (if (contains? lru added-key)
+                           added-key
+                           (first (peek lru))) ; The key with the lowest tick.
+            lru (cond-> lru
+                        (not= added-key replaced-key) (dissoc replaced-key)
+                        true (assoc added-key tick))]
+        [lru tick replaced-key])
 
-                      ;; We're below the limit.
-                      (let [base (assoc! base added-key added-value)
-                            lru (if retain
-                                  lru ; Retained keys do not enter the LRU.
-                                  (assoc lru added-key tick))]
-                        [base lru tick]))))
-                [(transient base) lru tick]
-                kvs)]
-    (if (= tick tick-after)
-      [base lru tick]
+      ;; We're below the limit.
+      (let [lru (if retain
+                  lru ; Retained keys do not enter the LRU.
+                  (assoc lru added-key tick))]
+        [lru tick nil]))))
+
+(defn- miss-many-lru [base lru tick limit retain? kvs]
+  (if (empty? kvs)
+    [base lru tick]
+    (let [[base-after lru-after tick-after]
+          (reduce (fn [result [added-key added-value]]
+                    (let [[base lru tick] result
+                          [lru tick replaced-key] (miss-update-lru lru tick limit retain? added-key)
+                          base (if (nil? replaced-key)
+                                 (assoc! base added-key added-value)
+                                 (cond-> base
+                                         (not= added-key replaced-key) (dissoc! replaced-key)
+                                         true (assoc! added-key added-value)))]
+                      [base lru tick]))
+                  [(transient base) lru tick]
+                  kvs)]
       [(persistent! base-after) lru-after tick-after])))
 
 (defn- evict-many-lru [base lru ks]
@@ -189,27 +198,14 @@
                             tick
                             limit
                             retain?))))
-  (miss [_ item result]
-    (let [tick (inc tick)
-          retain (and retain? (retain? item))]
-      (if (and (not retain)
-               (>= (count lru) limit))
-        ;; We're at or over the limit.
-        (let [replaced-key (if (contains? lru item)
-                             item
-                             (first (peek lru))) ; The key with the lowest tick.
-              base (-> cache (dissoc replaced-key) (assoc item result))
-              lru (-> lru (dissoc replaced-key) (assoc item tick))]
-          (RetainingLRUCache. base lru tick limit retain?))
-
-        ;; We're below the limit.
-        (RetainingLRUCache. (assoc cache item result)
-                            (if retain
-                              lru ; Retained keys do not enter the LRU.
-                              (assoc lru item tick))
-                            tick
-                            limit
-                            retain?))))
+  (miss [_ added-key added-value]
+    (let [[lru tick replaced-key] (miss-update-lru lru tick limit retain? added-key)
+          base (if (nil? replaced-key)
+                 (assoc cache added-key added-value)
+                 (cond-> cache
+                         (not= added-key replaced-key) (dissoc replaced-key)
+                         true (assoc added-key added-value)))]
+      (RetainingLRUCache. base lru tick limit retain?)))
   (evict [this item]
     (let [cache-without-item (dissoc cache item)]
       (if (identical? cache cache-without-item)
@@ -249,9 +245,9 @@
                             limit
                             retain?))))
   (miss-many [this kvs]
-    (let [[base-after lru-after tick-after] (miss-many-lru cache lru tick limit retain? kvs)]
-      (if (= tick tick-after)
-        this
+    (if (empty? kvs)
+      this
+      (let [[base-after lru-after tick-after] (miss-many-lru cache lru tick limit retain? kvs)]
         (RetainingLRUCache. base-after
                             lru-after
                             tick-after
