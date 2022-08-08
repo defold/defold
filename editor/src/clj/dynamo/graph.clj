@@ -117,16 +117,8 @@
 
 (defn cache-info
   "Return a map detailing cache utilization."
-  ([] (cache-info (cache)))
-  ([cache]
-   (let [cached-count (count cache)
-         retained-count (c/retained-count cache)
-         unretained-count (- cached-count retained-count)
-         limit (c/limit cache)]
-     {:total cached-count
-      :retained retained-count
-      :unretained unretained-count
-      :limit limit})))
+  ([] (c/cache-info (cache)))
+  ([cache] (c/cache-info cache)))
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]

@@ -117,12 +117,12 @@
 
     (testing "unlimited cache"
       (with-clean-system {:cache-size -1}
-        (is (unlimited-cache? cache))
+        (is (= -1 (limit cache)))
         (let [cache (populate-cache cache)]
           (is (= 4 (count cache)))
           (let [cache (cache-clear cache)]
             (is (= 0 (count cache)))
-            (is (unlimited-cache? cache))
+            (is (= -1 (limit cache)))
             (let [cache (populate-cache cache)]
               (is (= 4 (count cache))))))))))
 
