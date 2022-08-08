@@ -225,7 +225,7 @@ namespace dmGameSystem
         memset(component, 0, sizeof(LabelComponent));
         component->m_Instance = params.m_Instance;
         component->m_Size     = Vector3(ddf->m_Size[0], ddf->m_Size[1], ddf->m_Size[2]);
-        component->m_Scale    = Vector3(ddf->m_Scale[0], ddf->m_Scale[1], ddf->m_Scale[2]);
+        component->m_Scale    = params.m_Scale;
         component->m_Position = params.m_Position;
         component->m_Rotation = params.m_Rotation;
         component->m_Color    = Vector4(ddf->m_Color[0], ddf->m_Color[1], ddf->m_Color[2], ddf->m_Color[3]);
