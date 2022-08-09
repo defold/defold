@@ -47,7 +47,7 @@
             [editor.render-pb :as render-pb]
             [editor.rig :as rig]
             [editor.script-api :as script-api]
-            [editor.shared-settings :as shared-settings]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.sound :as sound]
             [editor.sprite :as sprite]
             [editor.tile-map :as tile-map]
@@ -85,7 +85,7 @@
       (protobuf-types/register-resource-types workspace)
       (render-pb/register-resource-types workspace)
       (rig/register-resource-types workspace)
-      (shared-settings/register-resource-types workspace)
+      (shared-editor-settings/register-resource-types workspace)
       (sound/register-resource-types workspace)
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)

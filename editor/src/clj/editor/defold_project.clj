@@ -418,8 +418,8 @@
                {:label "Reload Editor Scripts"
                 :command :reload-extensions}
                {:label :separator}
-               {:label "Shared Settings"
-                :command :shared-settings}
+               {:label "Shared Editor Settings"
+                :command :shared-editor-settings}
                {:label "Live Update Settings"
                 :command :live-update-settings}
                {:label :separator

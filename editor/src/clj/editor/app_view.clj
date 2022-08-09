@@ -63,7 +63,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
-            [editor.shared-settings :as shared-settings]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.system :as system]
             [editor.targets :as targets]
             [editor.types :as types]
@@ -2143,7 +2143,7 @@ If you do not specifically require different script states, consider changing th
        (let [live-update-settings-proj-path (live-update-settings/get-live-update-settings-path project)]
          (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs project))))
 
-(handler/defhandler :shared-settings :global
+(handler/defhandler :shared-editor-settings :global
   (enabled? [] (disk-availability/available?))
   (run [app-view changes-view prefs workspace project]
-       (ensure-exists-and-open-for-editing! shared-settings/project-shared-settings-proj-path app-view changes-view prefs project)))
+       (ensure-exists-and-open-for-editing! shared-editor-settings/project-shared-editor-settings-proj-path app-view changes-view prefs project)))

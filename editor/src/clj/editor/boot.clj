@@ -66,7 +66,7 @@
         @namespace-loader
 
         ;; Initialize the system and load the project.
-        (let [system-config (apply (var-get (ns-resolve 'editor.shared-settings 'load-project-system-config)) [(.getParentFile project-file)])]
+        (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [(.getParentFile project-file)])]
           (apply (var-get (ns-resolve 'editor.code.view 'initialize!)) [prefs])
           (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [system-config])
           (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! updater newly-created?])
