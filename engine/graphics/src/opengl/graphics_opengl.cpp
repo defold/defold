@@ -2234,7 +2234,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 }
             }
 
-            PFN_glDrawBuffers(num_buffers, buffers);
+            if (num_buffers > 1)
+            {
+                PFN_glDrawBuffers(num_buffers, buffers);
+            }
         }
 
         CHECK_GL_FRAMEBUFFER_ERROR;
