@@ -110,8 +110,6 @@ ANDROID_TARGET_API_LEVEL=31
 ANDROID_BUILD_TOOLS_VERSION="32.0.0"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
-PIP_VERSION = "22.2.2"
-
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "2.0.11"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
@@ -534,7 +532,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), ['python', './packages/get-pip.py', 'pip==%s' % PIP_VERSION, '--user'])
+        run.env_command(self._form_env(), ['python', './packages/get-pip.py', '--user'])
         run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
