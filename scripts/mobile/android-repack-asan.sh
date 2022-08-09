@@ -69,10 +69,15 @@ ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/z
 APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
 GDBSERVER=${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver
 
+OBJDUMP_32=arm-linux-androideabi-objdump
+OBJDUMP_64=aarch64-linux-android-objdump
+
 [ $(which "${ZIP}") ] || terminate "'${ZIP}' is not installed"
 [ $(which "${UNZIP}") ] || terminate "'${UNZIP}' is not installed"
 [ $(which "${ZIPALIGN}") ] || terminate "'${ZIPALIGN}' is not installed"
 [ $(which "${APKSIGNER}") ] || terminate "'${APKSIGNER}' is not installed"
+[ $(which "${OBJDUMP_32}") ] || terminate "'${OBJDUMP_32}' is not installed"
+[ $(which "${OBJDUMP_64}") ] || terminate "'${OBJDUMP_64}' is not installed"
 
 [ -f "${SOURCE}" ] || terminate "Source does not exist: ${SOURCE}"
 [ -f "${KEYSTORE}" ] || terminate "Keystore does not exist: ${KEYSTORE}"
@@ -104,40 +109,29 @@ WRAP_ASAN=${SCRIPT_PATH}/android-wrap-asan.sh
 (
     cd "${BUILD}"
 
-    EXENAME=
-    LIBPATH_32=
-    if [ -d "lib/armeabi-v7a" ]; then
-        EXENAME=`(cd lib/armeabi-v7a && ls lib*.so)`
-        LIBPATH_32=lib/armeabi-v7a/${EXENAME}
-    fi
+    for file in `ls ./lib/armeabi-v7a/*.so`; do
+        ASAN_DEPENDENCY=$(${OBJDUMP_32} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
+        if [ "$ASAN_DEPENDENCY" != "" ]; then
+            echo "Found ASAN dependency in $file"
+            cp -v ${ASAN_PATH_32} "lib/armeabi-v7a/"
+            echo "Copying wrapper script"
+            cp -v ${WRAP_ASAN} "lib/armeabi-v7a/wrap.sh"
+            break
+        fi
+    done
 
-    EXENAME_64=
-    LIBPATH_64=
-    if [ -d "lib/arm64-v8a" ]; then
-        EXENAME_64=`(cd lib/arm64-v8a && ls lib*.so)`
-        LIBPATH_64=lib/arm64-v8a/${EXENAME_64}
-    fi
+    for file in `ls ./lib/arm64-v8a/*.so`; do
+        ASAN_DEPENDENCY=$(${OBJDUMP_64} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
+        if [ "$ASAN_DEPENDENCY" != "" ]; then
+            echo "Found ASAN dependency in $file"
+            cp -v ${ASAN_PATH_64} "lib/arm64-v8a/"
+            echo "Copying wrapper script"
+            cp -v ${WRAP_ASAN} "lib/arm64-v8a/wrap.sh"
+            break
+        fi
+    done
 
     rm -rf "META-INF"
-
-    if [ -e "${LIBPATH_32}" ]; then
-        ASAN_DEPENDENCY_32=$(aarch64-linux-android-objdump -p ${LIBPATH_32} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
-        if [ "$ASAN_DEPENDENCY_32" != "" ]; then
-            echo "Found ASAN:" ${ASAN_DEPENDENCY_32}
-            cp -v ${ASAN_PATH_32} "lib/armeabi-v7a/"
-        fi
-        echo "Copying wrapper script"
-        cp -v ${WRAP_ASAN} "lib/armeabi-v7a/wrap.sh"
-    fi
-    if [ -e "${LIBPATH_64}" ]; then
-        ASAN_DEPENDENCY_64=$(aarch64-linux-android-objdump -p ${LIBPATH_64} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
-        if [ "$ASAN_DEPENDENCY_64" != "" ]; then
-            echo "Found ASAN:" ${ASAN_DEPENDENCY_64}
-            cp -v ${ASAN_PATH_64} "lib/arm64-v8a/"
-        fi
-        echo "Copying wrapper script"
-        cp -v ${WRAP_ASAN} "lib/arm64-v8a/wrap.sh"
-    fi
 
     if [ -e "$GDBSERVER" ]; then
         cp -v "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
