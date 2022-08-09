@@ -397,7 +397,7 @@ static jfloatArray CreateFloatArray(JNIEnv* env, uint32_t count, const float* va
 static jintArray CreateIntArray(JNIEnv* env, uint32_t count, const int* values)
 {
     jintArray arr = env->NewIntArray(count);
-    env->SetIntArrayRegion(arr, 0, count, values);
+    env->SetIntArrayRegion(arr, 0, count, (const jint*)values);
     return arr;
 }
 
