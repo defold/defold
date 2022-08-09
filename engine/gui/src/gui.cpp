@@ -40,7 +40,7 @@
 #include "gui_private.h"
 #include "gui_script.h"
 
-DM_PROPERTY_GROUP(rmtp_Gui, "Gui library");
+DM_PROPERTY_U32(rmtp_Gui, 0, FrameReset, "");
 DM_PROPERTY_U32(rmtp_GuiAnimations, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiActiveAnimations, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiNodes, 0, FrameReset, "", &rmtp_Gui);
