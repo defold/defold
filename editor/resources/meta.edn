@@ -815,10 +815,6 @@
    :help "Number of milliseconds to sleep between server updates"
    :default 0
    :path ["profiler" "sleep_between_server_updates"]}
-  {:type :boolean
-   :help "Automatically start the profiler when the engine starts (or call profiler.start() to manually start the profiler)."
-   :default false
-   :path ["profiler" "autostart"]}
   {:type :resource
    :filter "settings"
    :default "/liveupdate.settings"
