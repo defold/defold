@@ -574,7 +574,7 @@ def test_skip(self):
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @before('process_source')
-@after('skip_asan')
+@after('asan_skip')
 def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
@@ -900,7 +900,7 @@ def authenticode_sign(task):
 
 Task.task_factory('authenticode_sign',
                      func = authenticode_sign,
-                     after = 'link_task stlink_task msvc_manifest')
+                     after = 'link_task stlink_task')
 
 @task_gen
 @feature('authenticode')
@@ -1173,7 +1173,7 @@ unsigned char DM_ALIGNED(16) %s[] =
 
 Task.task_factory('dex', '${DX} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
-                      after='jar_create',
+                      after='jar_files',
                       shell=True)
 
 @task_gen
