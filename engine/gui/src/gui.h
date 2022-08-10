@@ -912,7 +912,7 @@ namespace dmGui
     void SetNodeAlpha(HScene scene, HNode node, float alpha);
 
     Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* data);
-    Result StopNodeParticlefx(HScene scene, HNode node);
+    Result StopNodeParticlefx(HScene scene, HNode node, bool clear_particles);
     Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, dmVMath::Vector4& value);
     Result ResetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id);
 

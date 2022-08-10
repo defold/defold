@@ -230,6 +230,8 @@ def dmsdk_add_files(bld, target, source):
     doc_files = []
     for root, dirs, files in os.walk(bld_sdk_files):
         for f in files:
+            if f.endswith('.DS_Store'):
+                continue;
             f = os.path.relpath(os.path.join(root, f), bld_path)
             doc_files.append(f)
             sdk_dir = os.path.dirname(os.path.relpath(f, source))
@@ -455,7 +457,8 @@ def default_flags(self):
 
         emflags = ['DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
                    'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]',
-                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2']
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2',
+                   'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0']
 
         if 'wasm' == build_util.get_target_architecture():
             emflags += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
@@ -489,6 +492,12 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', '/DEBUG')
         self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
+
+        # Make sure we prefix with lib*.lib on windows, since this is not done
+        # by waf anymore and several extensions rely on them being named that way
+        self.env.STLIB_ST         = 'lib%s.lib'
+        self.env.cstlib_PATTERN   = 'lib%s.lib'
+        self.env.cxxstlib_PATTERN = 'lib%s.lib'
 
     platform_setup_vars(self, build_util)
 
@@ -565,7 +574,7 @@ def test_skip(self):
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @before('process_source')
-@after('skip_asan')
+@after('asan_skip')
 def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
@@ -891,7 +900,7 @@ def authenticode_sign(task):
 
 Task.task_factory('authenticode_sign',
                      func = authenticode_sign,
-                     after = 'link_task stlink_task msvc_manifest')
+                     after = 'link_task stlink_task')
 
 @task_gen
 @feature('authenticode')
@@ -1112,6 +1121,7 @@ def create_copy_glue(self):
         return
 
     stub = self.path.get_bld().find_or_declare('android_stub.c')
+    self.source.append(stub)
     task = self.create_task('copy_stub')
     task.set_outputs([stub])
 
@@ -1163,7 +1173,7 @@ unsigned char DM_ALIGNED(16) %s[] =
 
 Task.task_factory('dex', '${DX} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
-                      after='jar_create',
+                      after='jar_files',
                       shell=True)
 
 @task_gen

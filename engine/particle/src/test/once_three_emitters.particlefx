@@ -21,6 +21,8 @@ emitters: {
     properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
         points: { x: 0 y: 0.5 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }
 emitters: {
     id: "emitter2"
@@ -45,6 +47,8 @@ emitters: {
     properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
         points: { x: 0 y: 0.4 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }
 emitters: {
     id: "emitter3"
@@ -69,4 +73,6 @@ emitters: {
     properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
         points: { x: 0 y: 0.3 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }

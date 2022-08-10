@@ -126,7 +126,6 @@ public class Project {
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
-    private final List<String> excludedCollectionProxies = new ArrayList<String>();
     private List<String> propertyFiles = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
@@ -311,7 +310,6 @@ public class Project {
         {".mesh", ".meshc"},
         {".collectionproxy", ".collectionproxyc"},
         {".collisionobject", ".collisionobjectc"},
-        {".emitter", ".emitterc"},
         {".particlefx", ".particlefxc"},
         {".gui", ".guic"},
         {".model", ".modelc"},
@@ -1855,11 +1853,11 @@ run:
     }
 
     public void excludeCollectionProxy(String path) {
-        this.excludedCollectionProxies.add(path);
+        state.addExcludedCollectionProxy(path);
     }
 
     public final List<String> getExcludedCollectionProxies() {
-        return this.excludedCollectionProxies;
+        return state.getExcludedCollectionProxies();
     }
 
 }

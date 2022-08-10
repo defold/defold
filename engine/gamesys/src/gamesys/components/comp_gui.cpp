@@ -47,9 +47,8 @@
 
 #include <dmsdk/gamesys/gui.h>
 
-DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_GROUP(rmtp_ComponentsGui, "Gui component");
-DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_ComponentsGui);
+DM_PROPERTY_EXTERN(rmtp_Gui);
+DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_Gui);
 
 namespace dmGameSystem
 {
@@ -2051,7 +2050,9 @@ namespace dmGameSystem
 
         gui_world->m_DT = params.m_UpdateContext->m_DT;
         dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
-        for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
+        const uint32_t count = gui_world->m_Components.Size();
+        DM_PROPERTY_ADD_U32(rmtp_Gui, count);
+        for (uint32_t i = 0; i < count; ++i)
         {
             GuiComponent* gui_component = gui_world->m_Components[i];
             if (gui_component->m_Enabled && gui_component->m_AddedToUpdate)

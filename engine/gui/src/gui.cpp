@@ -40,7 +40,7 @@
 #include "gui_private.h"
 #include "gui_script.h"
 
-DM_PROPERTY_GROUP(rmtp_Gui, "Gui library");
+DM_PROPERTY_U32(rmtp_Gui, 0, FrameReset, "");
 DM_PROPERTY_U32(rmtp_GuiAnimations, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiActiveAnimations, 0, FrameReset, "", &rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiNodes, 0, FrameReset, "", &rmtp_Gui);
@@ -2553,7 +2553,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                     else
                     {
-                        dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance);
+                        dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance, false);
                         n->m_Node.m_HasHeadlessPfx = 1;
                         ++i;
                     }
@@ -3223,7 +3223,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return RESULT_OK;
     }
 
-    Result StopNodeParticlefx(HScene scene, HNode node)
+    Result StopNodeParticlefx(HScene scene, HNode node, bool clear_particles)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
@@ -3236,7 +3236,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             ParticlefxComponent* component = &scene->m_AliveParticlefxs[i];
             if (component->m_Node == node)
             {
-                dmParticle::StopInstance(scene->m_ParticlefxContext, component->m_Instance);
+                dmParticle::StopInstance(scene->m_ParticlefxContext, component->m_Instance, clear_particles);
             }
         }
 

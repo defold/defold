@@ -5161,10 +5161,10 @@ TEST_F(dmGuiTest, StopNodeParticlefx)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx));
-    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_box));
-    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_pie));
-    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_text));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx, false));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_box, false));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_pie, false));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_text, false));
 
     dmGui::FinalScene(m_Scene);
     UnloadParticlefxPrototype(prototype);
@@ -5196,7 +5196,7 @@ TEST_F(dmGuiTest, StopNodeParticlefxMultiplePlaying)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx_1, 0));
     ASSERT_EQ(3U, dmGui::GetParticlefxCount(m_Scene));
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_1));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_1, false));
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     dmGui::UpdateScene(m_Scene, dt); // Prunes sleeping particlefx
@@ -5212,13 +5212,13 @@ TEST_F(dmGuiTest, StopNodeParticlefxMultiplePlaying)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx_2, 0));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx_2, 0));
     ASSERT_EQ(4U, dmGui::GetParticlefxCount(m_Scene));
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_1));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_1, false));
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0);
     dmGui::UpdateScene(m_Scene, dt);
 
     ASSERT_EQ(dmGui::GetParticlefxCount(m_Scene), 2);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_2));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_2, false));
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0);
     dmGui::UpdateScene(m_Scene, dt);

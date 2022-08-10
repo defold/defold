@@ -18,15 +18,16 @@ jobs:
     runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2 },
-      {
-        name: 'Install Python',
-        run: python --version
-      },
+      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
-        name: 'Build engine',
-        run: 'ci/ci.sh --platform=x86_64-darwin --with-asan --with-vanilla-lua --skip-builtins --skip-docs engine'
+        name: 'ASAN',
+        run: 'ci/ci.sh --platform=x86_64-darwin --with-asan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'UBSAN',
+        run: 'ci/ci.sh --platform=x86_64-darwin --with-ubsan --skip-builtins --skip-docs engine'
       },
       {
          name: 'Notify if build status changed',
@@ -44,7 +45,15 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
-        name: 'Build engine',
+        name: 'ASAN',
+        run: 'ci/ci.sh --platform=x86_64-linux --with-asan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'UBSAN',
+        run: 'ci/ci.sh --platform=x86_64-linux --with-ubsan --skip-builtins --skip-docs engine'
+      },
+      {
+        name: 'VALGRIND',
         run: 'ci/ci.sh --platform=x86_64-linux --with-valgrind --skip-builtins --skip-docs engine'
       },
       {

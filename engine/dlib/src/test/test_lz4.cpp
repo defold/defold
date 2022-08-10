@@ -52,11 +52,6 @@ TEST(dmLZ4, Decompress)
     ASSERT_EQ(dmLZ4::RESULT_OK, r);
     ASSERT_EQ(memcmp("foo", buf, 3), 0);
     ASSERT_EQ(3, decompressed_size);
-
-    memset(buf, 0, 3);
-    r = dmLZ4::DecompressBufferFast(FOO_LZ4, FOO_LZ4_SIZE, &buf, 3);
-    ASSERT_EQ(dmLZ4::RESULT_OK, r);
-    ASSERT_EQ(memcmp("foo", buf, 3), 0);
 }
 
 TEST(dmLZ4, Compress)
@@ -112,8 +107,10 @@ TEST(dmLZ4, Stress)
         r = dmLZ4::CompressBuffer(ref, ref_len, compressed, &compressed_size);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);
 
-        r = dmLZ4::DecompressBufferFast(compressed, compressed_size, decompressed, ref_len);
+        int decompressed_size;
+        r = dmLZ4::DecompressBuffer(compressed, compressed_size, decompressed, ref_len, &decompressed_size);
         ASSERT_EQ(dmLZ4::RESULT_OK, r);
+        ASSERT_EQ(ref_len, decompressed_size);
         ASSERT_ARRAY_EQ_LEN(ref, decompressed, ref_len);
 
         // NOTE: If an assert fails above, we will get a mem leak report as well as

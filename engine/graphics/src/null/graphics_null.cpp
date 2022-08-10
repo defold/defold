@@ -211,6 +211,11 @@ namespace dmGraphics
         return context->m_WindowWidth;
     }
 
+    static float NullGetDisplayScaleFactor(HContext context)
+    {
+        return 1.0f;
+    }
+
     static uint32_t NullGetWindowHeight(HContext context)
     {
         return context->m_WindowHeight;
@@ -1302,6 +1307,7 @@ namespace dmGraphics
         fn_table.m_GetHeight = NullGetHeight;
         fn_table.m_GetWindowWidth = NullGetWindowWidth;
         fn_table.m_GetWindowHeight = NullGetWindowHeight;
+        fn_table.m_GetDisplayScaleFactor = NullGetDisplayScaleFactor;
         fn_table.m_SetWindowSize = NullSetWindowSize;
         fn_table.m_ResizeWindow = NullResizeWindow;
         fn_table.m_GetDefaultTextureFilters = NullGetDefaultTextureFilters;

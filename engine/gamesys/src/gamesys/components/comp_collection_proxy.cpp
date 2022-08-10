@@ -22,6 +22,7 @@
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/index_pool.h>
+#include <dlib/profile.h>
 
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
@@ -32,6 +33,11 @@
 #include "../gamesys_private.h"
 
 #include <gamesys/gamesys_ddf.h>
+
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollectionProxy, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollectionProxyLoaded, 0, FrameReset, "# loaded collection proxies", &rmtp_CollectionProxy);
+DM_PROPERTY_U32(rmtp_CollectionProxyEnabled, 0, FrameReset, "# enabled collection proxies", &rmtp_CollectionProxy);
 
 namespace dmGameSystem
 {
@@ -234,6 +240,7 @@ namespace dmGameSystem
             if (!proxy->m_AddedToUpdate) {
                 continue;
             }
+            DM_PROPERTY_ADD_U32(rmtp_CollectionProxy, 1);
             if (proxy->m_Preloader != 0)
             {
                 CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
@@ -253,6 +260,7 @@ namespace dmGameSystem
             }
             if (proxy->m_Collection != 0)
             {
+                DM_PROPERTY_ADD_U32(rmtp_CollectionProxyLoaded, 1);
                 if (proxy->m_DelayedEnable != proxy->m_Enabled)
                 {
                     proxy->m_Enabled = proxy->m_DelayedEnable;
@@ -260,6 +268,7 @@ namespace dmGameSystem
 
                 if (proxy->m_Enabled)
                 {
+                    DM_PROPERTY_ADD_U32(rmtp_CollectionProxyEnabled, 1);
                     dmGameObject::UpdateContext uc = *params.m_UpdateContext;
                     // We might be inside a parent proxy, so the scale will propagate
                     uc.m_TimeScale = params.m_UpdateContext->m_TimeScale * proxy->m_TimeStepFactor;

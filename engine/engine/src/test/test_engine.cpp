@@ -374,6 +374,12 @@ TEST_F(EngineTest, ISSUE_4775)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, ISSUE_6597)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-6597/issue-6597.collectionc", "--config=dmengine.unload_builtins=0", "--config=factory.max_count=2", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, ModelComponent)
 {
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/model/main.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};

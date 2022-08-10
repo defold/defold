@@ -97,7 +97,7 @@ namespace dmProfile
         rmtError result = rmt_CreateGlobalInstance(&g_Remotery);
         if (result != RMT_ERROR_NONE)
         {
-            dmLogError("Failed to initialize profile library");
+            dmLogError("Failed to initialize profile library %d", result);
             return;
         }
 
