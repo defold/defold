@@ -915,6 +915,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         EMSCRIPTEN_WEBGL_CONTEXT_HANDLE emscripten_ctx = emscripten_webgl_get_current_context();
         assert(emscripten_ctx != 0 && "Unable to get GL context from emscripten.");
 
+        // These are all the available official webgl extensions, taken from this list:
+        // https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Using_Extensions
         emscripten_webgl_enable_extension(emscripten_ctx, "ANGLE_instanced_arrays");
         emscripten_webgl_enable_extension(emscripten_ctx, "EXT_blend_minmax");
         emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_float");
