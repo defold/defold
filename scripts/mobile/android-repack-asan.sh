@@ -69,20 +69,17 @@ ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/z
 APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
 GDBSERVER=${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver
 
-ENGINE_LIB="${DYNAMO_HOME}/bin/armv7-android/libdmengine.so"
-ENGINE_64_LIB="${DYNAMO_HOME}/bin/arm64-android/libdmengine.so"
-ENGINE_DEX="${DYNAMO_HOME}/share/java/classes.dex"
+OBJDUMP_32=arm-linux-androideabi-objdump
+OBJDUMP_64=aarch64-linux-android-objdump
 
 [ $(which "${ZIP}") ] || terminate "'${ZIP}' is not installed"
 [ $(which "${UNZIP}") ] || terminate "'${UNZIP}' is not installed"
 [ $(which "${ZIPALIGN}") ] || terminate "'${ZIPALIGN}' is not installed"
 [ $(which "${APKSIGNER}") ] || terminate "'${APKSIGNER}' is not installed"
+[ $(which "${OBJDUMP_32}") ] || terminate "'${OBJDUMP_32}' is not installed"
+[ $(which "${OBJDUMP_64}") ] || terminate "'${OBJDUMP_64}' is not installed"
 
-[ -f "${ENGINE_LIB}" ] || echo "Engine does not exist: ${ENGINE_LIB}"
-[ -f "${ENGINE_64_LIB}" ] || echo "Engine does not exist: ${ENGINE_64_LIB}"
 [ -f "${SOURCE}" ] || terminate "Source does not exist: ${SOURCE}"
-[ -f "${ENGINE_DEX}" ] || terminate "Engine does not exist: ${ENGINE_DEX}"
-
 [ -f "${KEYSTORE}" ] || terminate "Keystore does not exist: ${KEYSTORE}"
 [ -f "${KEYSTORE_PASS}" ] || terminate "Keystore password file does not exist: ${KEYSTORE_PASS}"
 
@@ -103,36 +100,43 @@ REPACKZIP_ALIGNED="${ROOT}/repack.aligned.zip"
 APPLICATION="$(basename "${SOURCE}" ".apk")"
 TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 
+ASAN_PATH_32=$(find ${ANDROID_NDK_ROOT} -iname "libclang_rt.asan-arm-android.so")
+ASAN_PATH_64=$(find ${ANDROID_NDK_ROOT} -iname "libclang_rt.asan-aarch64-android.so")
+
+WRAP_ASAN=${SCRIPT_PATH}/android-wrap-asan.sh
+
 "${UNZIP}" -q "${SOURCE}" -d "${BUILD}"
 (
     cd "${BUILD}"
 
-    EXENAME=
-    if [ -d "lib/armeabi-v7a" ]; then
-        EXENAME=`(cd lib/armeabi-v7a && ls lib*.so)`
-    fi
+    for file in `ls ./lib/armeabi-v7a/*.so`; do
+        ASAN_DEPENDENCY=$(${OBJDUMP_32} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
+        if [ "$ASAN_DEPENDENCY" != "" ]; then
+            echo "Found ASAN dependency in $file"
+            cp -v ${ASAN_PATH_32} "lib/armeabi-v7a/"
+            echo "Copying wrapper script"
+            cp -v ${WRAP_ASAN} "lib/armeabi-v7a/wrap.sh"
+            break
+        fi
+    done
 
-    EXENAME_64=
-    if [ -d "lib/arm64-v8a" ]; then
-        EXENAME_64=`(cd lib/arm64-v8a && ls lib*.so)`
-    fi
+    for file in `ls ./lib/arm64-v8a/*.so`; do
+        ASAN_DEPENDENCY=$(${OBJDUMP_64} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
+        if [ "$ASAN_DEPENDENCY" != "" ]; then
+            echo "Found ASAN dependency in $file"
+            cp -v ${ASAN_PATH_64} "lib/arm64-v8a/"
+            echo "Copying wrapper script"
+            cp -v ${WRAP_ASAN} "lib/arm64-v8a/wrap.sh"
+            break
+        fi
+    done
 
     rm -rf "META-INF"
-    if [ -e "${ENGINE_LIB}" ]; then
-        if [ "$EXENAME" != "" ]; then
-            cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
-        fi
-    fi
-    if [ -e "${ENGINE_64_LIB}" ]; then
-        if [ "$EXENAME_64" != "" ]; then
-            cp -v "${ENGINE_64_LIB}" "lib/arm64-v8a/${EXENAME_64}"
-        fi
-    fi
-    cp -v "${ENGINE_DEX}" "classes.dex"
 
     if [ -e "$GDBSERVER" ]; then
         cp -v "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
     fi
+
 
     ${ZIP} -qr "${REPACKZIP}" "." -x "resources.arsc"
     # Targeting R+ (version 30 and above) requires the resources.arsc of installed
