@@ -704,22 +704,11 @@ union SaveLoadBuffer
     // Android version 6 Marshmallow (API level 23) and up does not support getting hw adr programmatically (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
     bool IsAndroidMarshmallowOrAbove()
     {
-        const long android_marshmallow_api_level = 23;
-        bool is_android = false;
-        bool marshmallow_or_higher = false;
-        long api_level_android = 0;
-
-        dmSys::SystemInfo info;
-        dmSys::GetSystemInfo(&info);
-
-        is_android = strcmp("Android", info.m_SystemName) == 0;
-        if (is_android)
-        {
-            api_level_android = strtol(info.m_ApiVersion, 0, 10);
-            marshmallow_or_higher = (api_level_android >= android_marshmallow_api_level);
-        }
-
-        return is_android && marshmallow_or_higher;
+        #ifdef ANDROID
+            const long android_marshmallow_api_level = 23;
+            return android_get_device_api_level() >= android_marshmallow_api_level;
+        #endif
+        return false;
     }
 
     /*# enumerate network interfaces
