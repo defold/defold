@@ -42,6 +42,7 @@ import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
+import com.dynamo.proto.DdfMath.Vector3;
 import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
@@ -156,6 +157,8 @@ public class GameObjectBuilder extends Builder<Void> {
             BuilderUtil.checkResource(this.project, input, "component", component);
         }
 
+        final Vector3 defaultScale = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
+
         for (EmbeddedComponentDesc ec : protoBuilder.getEmbeddedComponentsList()) {
             if (ec.getId().length() == 0) {
                 throw new CompileExceptionError(input, 0, "missing required field 'id'");
@@ -176,6 +179,7 @@ public class GameObjectBuilder extends Builder<Void> {
                     .setId(ec.getId())
                     .setPosition(ec.getPosition())
                     .setRotation(ec.getRotation())
+                    .setScale(ec.hasScale() ? ec.getScale() : defaultScale)
                     .setComponent(path)
                     .build();
 
