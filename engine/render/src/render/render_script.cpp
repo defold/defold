@@ -182,7 +182,6 @@ namespace dmRender
 
     static int RenderScriptConstantBufferArray_index(lua_State *L)
     {
-        int top = lua_gettop(L);
         ConstantBufferTableEntry* table_entry = (ConstantBufferTableEntry*) lua_touserdata(L, 1);
         HNamedConstantBuffer  cb              = table_entry->m_ConstantBuffer;
         dmhash_t name_hash                    = table_entry->m_ConstantName;

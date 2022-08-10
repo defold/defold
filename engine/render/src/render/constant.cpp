@@ -174,25 +174,6 @@ void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
     buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
 }
 
-static void PrintConstantBufferEntry(void* context, const uint64_t* key, NamedConstantBuffer::Constant* value)
-{
-    dmLogInfo("Constant:");
-    dmLogInfo("  Name hash   - %llu", value->m_NameHash);
-    dmLogInfo("  Value Index - %d", value->m_ValueIndex);
-    dmLogInfo("  Num Values  - %d", value->m_NumValues);
-}
-
-static void PrintConstantBufferValues(HNamedConstantBuffer buffer)
-{
-    buffer->m_Constants.Iterate<void>(PrintConstantBufferEntry, 0x0);
-
-    for (int i = 0; i < buffer->m_Values.Size(); ++i)
-    {
-        dmVMath::Vector4* v = &buffer->m_Values[i];
-        dmLogInfo("Value[%d]: %f, %f, %f, %f", i, v->getX(), v->getY(), v->getZ(), v->getW());
-    }
-}
-
 void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4 value, uint32_t value_index)
 {
     dmHashTable64<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
@@ -261,8 +242,6 @@ void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dm
 
     dmVMath::Vector4* values_start = &buffer->m_Values[c->m_ValueIndex];
     values_start[value_index] = value;
-
-    PrintConstantBufferValues(buffer);
 }
 
 void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values)
@@ -273,7 +252,6 @@ void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
     if (c && c->m_NumValues != num_values)
     {
         RemoveNamedConstant(buffer, name_hash);
-        PrintConstantBufferValues(buffer);
         c = 0;
     }
 
@@ -304,8 +282,6 @@ void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
 
     dmVMath::Vector4* p = &buffer->m_Values[c->m_ValueIndex];
     memcpy(p, values, sizeof(values[0]) * num_values);
-
-    PrintConstantBufferValues(buffer);
 }
 
 void SetNamedConstants(HNamedConstantBuffer buffer, HConstant* constants, uint32_t num_constants)

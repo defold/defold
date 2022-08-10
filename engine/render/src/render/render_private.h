@@ -253,6 +253,8 @@ namespace dmRender
     void RenderTypeDebugBegin(HRenderContext rendercontext, void* user_context);
     void RenderTypeDebugDraw(HRenderContext rendercontext, void* user_context, RenderObject* ro, uint32_t count);
 
+    void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4 value, uint32_t value_index);
+
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
     // Return true if the predicate tags all exist in the material tag list
