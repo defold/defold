@@ -27,23 +27,20 @@
         connected-output-label? (into #{} (map gt/source-label) output-arcs)]
     {::gv/id node-id
      ::gv/title (node-title node-type node-id basis)
-     ::gv/color "#165d05"
      ::gv/inputs (into []
                        (map (fn [[input-label input-info]]
                               (cond-> {::gv/id input-label
-                                       ::gv/title (name input-label)
-                                       ::gv/text-color :red}
+                                       ::gv/title (name input-label)}
                                       (connected-input-label? input-label)
-                                      (assoc ::gv/plug-color gv/default-plug-color))))
+                                      (assoc ::gv/style-class "connected"))))
                        (sort-by key declared-inputs))
      ::gv/outputs (into []
                         (keep (fn [[output-label output-info]]
                                 (when (not= :_output-jammers output-label)
                                   (cond-> {::gv/id output-label
-                                           ::gv/title (name output-label)
-                                           ::gv/text-color :red}
+                                           ::gv/title (name output-label)}
                                           (connected-output-label? output-label)
-                                          (assoc ::gv/plug-color gv/default-plug-color)))))
+                                          (assoc ::gv/style-class "connected")))))
                         (sort-by key declared-outputs))}))
 
 (defn- initial-position-for-node [existing-nodes node-props]
@@ -171,6 +168,9 @@
 (defn expand-connection! [node-id label]
   (update-in-view-data! [::gv/graph] expand-connection node-id label))
 
+;; -----------------------------------------------------------------------------
+
+(require '[dev :as dev])
 (defn dev-test! []
   (reset! view-data-atom {})
   (ensure-node! (dev/workspace))

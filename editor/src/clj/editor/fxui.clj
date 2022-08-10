@@ -54,7 +54,7 @@
 ;; Specs / validation
 ;; --------------------------------------------------
 
-(defn color-parsable? [^String value]
+(defn- color-parsable? [^String value]
   (try
     (Color/valueOf value)
     true
@@ -68,7 +68,7 @@
     (string? value) (color-parsable? value)
     :else false))
 
-(defn gen-color-coercible []
+(defn make-color-coercible-gen []
   (let [uppercase-names+colors
         (into []
               (keep (fn [^Field field]
@@ -89,17 +89,32 @@
        (gen/elements lowercase-color-keywords)
        (gen/elements color-hex-strings)])))
 
-(def ^:private gen-point-component-double-opts
+(def ^:private point-gen-component-double-opts
   {:infinite? false :NaN? false :min -10000.0 :max 10000.0})
 
-(defn gen-point []
+(defn make-point-gen []
   (gen/fmap (fn [[^double x ^double y]]
               (Point2D. x y))
-            (gen/tuple (gen/double* gen-point-component-double-opts)
-                       (gen/double* gen-point-component-double-opts))))
+            (gen/tuple (gen/double* point-gen-component-double-opts)
+                       (gen/double* point-gen-component-double-opts))))
 
-(s/def ::color (s/with-gen color-coercible? gen-color-coercible))
-(s/def ::point (s/with-gen #(instance? Point2D %) gen-point))
+(defn style-class-coercible? [value]
+  (or (string? value)
+      (and (seqable? value)
+           (every? string? value))))
+
+(defn make-style-class-gen []
+  (let [name-gen (gen/fmap (clojure.core/partial string/join "-")
+                           (gen/vector-distinct (gen/elements ["anchor" "background" "bar" "border" "button" "cell" "column" "control" "decorator" "element" "flow" "grid" "group" "header" "input" "item" "label" "list" "pane" "region" "row" "spacer" "split" "table" "tree" "view" "window"])
+                                                {:min-elements 1 :max-elements 3}))]
+    (gen/one-of
+      [name-gen
+       (gen/vector-distinct name-gen
+                            {:min-elements 0 :max-elements 3})])))
+
+(s/def ::color (s/with-gen color-coercible? make-color-coercible-gen))
+(s/def ::point (s/with-gen #(instance? Point2D %) make-point-gen))
+(s/def ::style-class (s/with-gen style-class-coercible? make-style-class-gen))
 
 ;; --------------------------------------------------
 ;; Helpers

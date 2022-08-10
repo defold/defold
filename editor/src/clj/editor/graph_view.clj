@@ -1,5 +1,6 @@
 (ns editor.graph-view
   (:require [cljfx.api :as fx]
+            [cljfx.coerce :as fx.coerce]
             [cljfx.fx.circle :as fx.circle]
             [cljfx.fx.group :as fx.group]
             [cljfx.fx.pane :as fx.pane]
@@ -10,7 +11,6 @@
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as gen]
-            [editor.colors :as colors]
             [editor.fxui :as fxui]
             [editor.ui :as ui]
             [internal.util :as util])
@@ -18,8 +18,6 @@
            [javafx.event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Node Scene]
-           [javafx.scene.layout Background]
-           [javafx.scene.paint Color]
            [javafx.scene.input ScrollEvent ZoomEvent]
            [javafx.stage Stage]))
 
@@ -28,15 +26,15 @@
 
 (s/def ::id (s/with-gen some? gen/int))
 (s/def ::title string?)
-(s/def ::color ::fxui/color)
+(s/def ::style-class ::fxui/style-class)
 (s/def ::position ::fxui/point)
-(s/def ::jack (s/keys :req [::id ::title] :opt [::text-color ::socket-color ::plug-color]))
+(s/def ::jack (s/keys :req [::id ::title] :opt [::style-class]))
 (s/def ::inputs (s/every ::jack :kind vector?))
 (s/def ::outputs (s/every ::jack :kind vector?))
-(s/def ::node (s/keys :req [::id ::title ::position] :opt [::color ::inputs ::outputs]))
+(s/def ::node (s/keys :req [::id ::title ::position] :opt [::style-class ::inputs ::outputs]))
 (s/def ::from-position ::position)
 (s/def ::to-position ::position)
-(s/def ::connection (s/keys :req [::id ::from-position ::to-position] :opt [::color]))
+(s/def ::connection (s/keys :req [::id ::from-position ::to-position] :opt [::style-class]))
 (s/def ::nodes (s/every ::node :kind vector?))
 (s/def ::connections (s/every ::connection :kind vector?))
 (s/def ::scroll-offset ::fxui/point)
@@ -44,25 +42,12 @@
 (s/def ::graph (s/keys :opt [::nodes ::connections ::scroll-offset ::zoom-factor]))
 (s/def ::view-data (s/keys :opt [::graph]))
 
-(def ^{:tag 'double} node-width 200.0)
-(def ^:private ^{:tag 'double} node-margin-width 20.0)
-(def ^:private ^{:tag 'double} node-unit-height 20.0)
-(def ^:private ^{:tag 'double} node-unit-text-y 14.0)
-(def ^:private ^{:tag 'double} socket-stroke-width 2.0)
-(def ^:private ^{:tag 'double} socket-radius 4.0)
-(def ^:private ^{:tag 'double} connection-stroke-width 3.0)
-(def ^:private ^{:tag 'double} connection-kink-width 20.0)
-
-(def ^:private graph-background-color (ui/clj->color colors/scene-background))
-
-(def ^:private default-node-color Color/DARKGREEN)
-(def ^:private default-input-color Color/YELLOW)
-(def ^:private default-output-color Color/CYAN)
-(def ^:private default-connection-color (Color/valueOf "#464c55"))
-(def ^:private default-socket-color graph-background-color)
-(def default-plug-color default-connection-color)
-
-(def ^:private graph-background (Background/fill graph-background-color))
+(def ^:const ^{:tag 'double} node-width 200.0)
+(def ^:private ^:const ^{:tag 'double} node-margin-width 20.0)
+(def ^:private ^:const ^{:tag 'double} node-unit-height 20.0)
+(def ^:private ^:const ^{:tag 'double} node-unit-text-y 14.0)
+(def ^:private ^:const ^{:tag 'double} socket-radius 4.0)
+(def ^:private ^:const ^{:tag 'double} connection-kink-width 20.0)
 
 (defn- data->fx-type-with-key [fx-type data]
   (-> data
@@ -73,7 +58,11 @@
 ;; TODO: Move to styling/stylesheets/graph-view.sass.
 (def ^:private ^String inline-stylesheet "
 .graph-view-toolbar {
-  -fx-background-color: -df-component
+  -fx-background-color: -df-component;
+}
+
+.graph-view-pane {
+  -fx-background-color: #292a2f;
 }
 
 .graph-view-node-background {
@@ -82,18 +71,30 @@
 }
 
 .graph-view-node-title Rectangle {
+  -fx-fill: #464c55;
 }
 
 .graph-view-node-title Text {
   -fx-fill: -df-text-selected;
 }
 
-.graph-view-node-input Text {
+.graph-view-node-jack Circle {
+  -fx-fill: #292a2f;
+  -fx-stroke: #292a2f;
+  -fx-stroke-width: 2px;
+}
+
+.graph-view-node-jack.connected Circle {
+  -fx-fill: #464c55;
+}
+
+.graph-view-node-jack Text {
   -fx-font-size: 13px;
 }
 
-.graph-view-node-output Text {
-  -fx-font-size: 13px;
+.graph-view-connection {
+  -fx-stroke: #464c55;
+  -fx-stroke-width: 3px;
 }
 ")
 
@@ -107,41 +108,33 @@
    :width node-width
    :height node-unit-height})
 
-(defn- input [{::keys [title text-color socket-color plug-color] :as props}]
+(defn- input [{::keys [title style-class] :as props}]
   (-> props
-      (dissoc ::title ::text-color ::socket-color ::plug-color)
+      (dissoc ::title ::style-class)
       (assoc :fx/type fx.group/lifecycle
-             :style-class "graph-view-node-input"
+             :style-class (conj (fx.coerce/style-class style-class) "graph-view-node-jack")
              :children [{:fx/type fx.text/lifecycle
                          :x node-margin-width
                          :y node-unit-text-y
                          :text title
-                         :fill (or text-color default-input-color)
                          :clip node-unit-clip}
                         {:fx/type fx.circle/lifecycle
-                         :fill (or plug-color socket-color default-socket-color)
-                         :stroke (or socket-color default-socket-color)
-                         :stroke-width socket-stroke-width
                          :center-x (/ node-margin-width 2.0)
                          :center-y (/ node-unit-height 2.0)
                          :radius socket-radius}])))
 
-(defn- output [{::keys [title text-color socket-color plug-color] :as props}]
+(defn- output [{::keys [title style-class] :as props}]
   (-> props
-      (dissoc ::title ::text-color ::socket-color ::plug-color)
+      (dissoc ::title ::style-class)
       (assoc :fx/type fx.group/lifecycle
-             :style-class "graph-view-node-output"
+             :style-class (conj (fx.coerce/style-class style-class) "graph-view-node-jack")
              :children [{:fx/type fx.text/lifecycle
                          :y node-unit-text-y
                          :wrapping-width (- node-width node-margin-width)
                          :text-alignment :right
                          :text title
-                         :fill (or text-color default-output-color)
                          :clip node-unit-clip}
                         {:fx/type fx.circle/lifecycle
-                         :fill (or plug-color socket-color default-socket-color)
-                         :stroke (or socket-color default-socket-color)
-                         :stroke-width socket-stroke-width
                          :center-x (- node-width (/ node-margin-width 2.0))
                          :center-y (/ node-unit-height 2.0)
                          :radius socket-radius}])))
@@ -159,22 +152,21 @@
                                                        :layout-y (* index node-unit-height)))))
                              jacks))))
 
-(defn- node [{::keys [title position color inputs outputs] :as props}]
+(defn- node [{::keys [title position style-class inputs outputs] :as props}]
   ;; TODO: experiment with inputs-source, inputs-fn to query NodeType directly?
   (let [input-count (count inputs)
         output-count (count outputs)
         node-unit-count (+ 1 input-count output-count) ; One unit for the title and one per jack.
         node-height (* node-unit-count node-unit-height)]
     (-> props
-        (dissoc ::title ::position ::color ::inputs ::outputs)
+        (dissoc ::title ::position ::style-class ::inputs ::outputs)
         (assoc :fx/type fx.group/lifecycle
                :layout-x (ui/point-x position)
                :layout-y (ui/point-y position)
                :children (cond-> [{:fx/type fx.group/lifecycle
                                    :fx/key :node/title
-                                   :style-class "graph-view-node-title"
+                                   :style-class (conj (fx.coerce/style-class style-class) "graph-view-node-title")
                                    :children [{:fx/type fx.rectangle/lifecycle
-                                               :fill (or color default-node-color)
                                                :width node-width
                                                :height node-unit-height}
                                               {:fx/type fx.text/lifecycle
@@ -203,7 +195,7 @@
                                         :jacks outputs
                                         :jack-fx-type output}))))))
 
-(defn- connection [{::keys [^Point2D from-position ^Point2D to-position color] :as props}]
+(defn- connection [{::keys [^Point2D from-position ^Point2D to-position style-class] :as props}]
   (let [from-x (.getX from-position)
         from-y (.getY from-position)
         to-x (.getX to-position)
@@ -217,10 +209,9 @@
         in-x (Double/valueOf (- to-x connection-kink-width))
         in-y end-y]
     (-> props
-        (dissoc ::from-position ::to-position ::color)
+        (dissoc ::from-position ::to-position ::style-class)
         (assoc :fx/type fx.polyline/lifecycle
-               :stroke (or color default-connection-color)
-               :stroke-width connection-stroke-width
+               :style-class (conj (fx.coerce/style-class style-class) "graph-view-connection")
                :points [start-x start-y out-x out-y in-x in-y end-x end-y]))))
 
 (defn- node-group [{:keys [nodes] :as props}]
@@ -266,7 +257,7 @@
                            :cancel-button true
                            :on-action {:event/type ::close-button}}]}
               {:fx/type fx.pane/lifecycle
-               :background graph-background
+               :style-class "graph-view-pane"
                :v-box/vgrow :always
                :pref-width 800
                :pref-height 600
