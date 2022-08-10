@@ -170,6 +170,21 @@ namespace dmRender
             }
 
             cb_table->m_ConstantArrayEntries.Put(name_hash, *p_table_entry);
+
+            // If the table contains vectors, we add them directly
+            lua_pushvalue(L, 3);
+            lua_pushnil(L);
+            while (lua_next(L, -2) != 0)
+            {
+                dmVMath::Vector4* value = dmScript::CheckVector4(L, -1);
+                int32_t ix              = luaL_checknumber(L, -2) - 1;
+                assert(ix >= 0);
+
+                SetNamedConstantAtIndex(cb, name_hash, *value, ix);
+
+                lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
         }
         else
         {
@@ -185,13 +200,17 @@ namespace dmRender
         ConstantBufferTableEntry* table_entry = (ConstantBufferTableEntry*) lua_touserdata(L, 1);
         HNamedConstantBuffer  cb              = table_entry->m_ConstantBuffer;
         dmhash_t name_hash                    = table_entry->m_ConstantName;
-        const char* table_index_str           = luaL_checkstring(L, 2);
-        uint32_t table_index                  = (uint32_t) atoi(table_index_str) - 1;
+        uint32_t table_index_lua              = (uint32_t) luaL_checknumber(L, 2);
+        uint32_t table_index                  = table_index_lua - 1;
         dmVMath::Vector4* values;
         uint32_t num_values = 0;
 
         if (GetNamedConstant(cb, name_hash, &values, &num_values))
         {
+            if (table_index >= num_values)
+            {
+                return luaL_error(L, "Constant %s[%d] not set.", dmHashReverseSafe64(name_hash), table_index_lua);
+            }
             dmScript::PushVector4(L, values[table_index]);
             return 1;
         }
@@ -208,8 +227,14 @@ namespace dmRender
         ConstantBufferTableEntry* table_entry = (ConstantBufferTableEntry*) lua_touserdata(L, 1);
         HNamedConstantBuffer cb               = table_entry->m_ConstantBuffer;
         dmhash_t name_hash                    = table_entry->m_ConstantName;
-        const char* table_index_str           = luaL_checkstring(L, 2);
-        uint32_t table_index                  = (uint32_t) atoi(table_index_str) - 1;
+        int32_t table_index_lua               = luaL_checknumber(L, 2);
+
+        if (table_index_lua < 1)
+        {
+            return luaL_error(L, "Constant %s[%d] not set. Indices must start from 1", dmHashReverseSafe64(name_hash), table_index_lua);
+        }
+
+        uint32_t table_index                  = (uint32_t) table_index_lua - 1;
         dmVMath::Vector4* value               = dmScript::CheckVector4(L, 3);
 
         SetNamedConstantAtIndex(cb, name_hash, *value, table_index);
@@ -273,7 +298,8 @@ namespace dmRender
 
     /*# create a new constant buffer.
      *
-     * Constant buffers are used to set shader program variables and are optionally passed to the `render.draw()` function. The buffer's constant elements can be indexed like an ordinary Lua table, but you can't iterate over them with pairs() or ipairs().
+     * Constant buffers are used to set shader program variables and are optionally passed to the `render.draw()` function.
+     * The buffer's constant elements can be indexed like an ordinary Lua table, but you can't iterate over them with pairs() or ipairs().
      *
      * @name render.constant_buffer
      * @return buffer [type:constant_buffer] new constant buffer
@@ -290,6 +316,16 @@ namespace dmRender
      *
      * ```lua
      * render.draw(self.my_pred, constants)
+     * ```
+     *
+     * The constant buffer also supports array values by specifying constants in a table:
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.light_colors    = {}
+     * constants.light_colors[1] = vmath.vector4(1, 0, 0, 1)
+     * constants.light_colors[2] = vmath.vector4(0, 1, 0, 1)
+     * constants.light_colors[3] = vmath.vector4(0, 1, 0, 1)
      * ```
      */
     int RenderScript_ConstantBuffer(lua_State* L)
