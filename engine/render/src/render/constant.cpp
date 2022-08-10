@@ -162,7 +162,7 @@ void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
     uint32_t remaining = buffer->m_Values.Size() - (values_index + num_values);
 
     dmVMath::Vector4* p_next = p_current + num_values;
-    memmove(p_current, p_next, remaining); // if it's the last item, then "remaining" will be 0
+    memmove(p_current, p_next, remaining * sizeof(dmVMath::Vector4)); // if it's the last item, then "remaining" will be 0
 
     buffer->m_Constants.Erase(name_hash);
     buffer->m_Values.SetSize(buffer->m_Values.Size() - num_values);
@@ -174,11 +174,12 @@ void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
     buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
 }
 
-void PrintConstantBufferEntry(void* context, const uint64_t* key, NamedConstantBuffer::Constant* value)
+static void PrintConstantBufferEntry(void* context, const uint64_t* key, NamedConstantBuffer::Constant* value)
 {
     dmLogInfo("Constant:");
-    dmLogInfo("  Value Index %d", value->m_ValueIndex);
-    dmLogInfo("  Num Values %d", value->m_NumValues);
+    dmLogInfo("  Name hash   - %llu", value->m_NameHash);
+    dmLogInfo("  Value Index - %d", value->m_ValueIndex);
+    dmLogInfo("  Num Values  - %d", value->m_NumValues);
 }
 
 static void PrintConstantBufferValues(HNamedConstantBuffer buffer)
@@ -242,6 +243,10 @@ void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dm
         dmVMath::Vector4* p_src  = &buffer->m_Values[values_index] + num_values;
         dmVMath::Vector4* p_dest = p_src + num_values_expand;
 
+        // Clear all intermediate values to zero so we don't keep old data if
+        // the constant has grown more than one index
+        memset(p_src, 0, (p_dest - p_src) * sizeof(dmVMath::Vector4));
+
         memmove(p_dest, p_src, num_values_to_move * sizeof(dmVMath::Vector4));
 
         // update constant indices
@@ -268,6 +273,7 @@ void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
     if (c && c->m_NumValues != num_values)
     {
         RemoveNamedConstant(buffer, name_hash);
+        PrintConstantBufferValues(buffer);
         c = 0;
     }
 
