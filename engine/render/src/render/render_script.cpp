@@ -325,7 +325,21 @@ namespace dmRender
      * constants.light_colors    = {}
      * constants.light_colors[1] = vmath.vector4(1, 0, 0, 1)
      * constants.light_colors[2] = vmath.vector4(0, 1, 0, 1)
-     * constants.light_colors[3] = vmath.vector4(0, 1, 0, 1)
+     * constants.light_colors[3] = vmath.vector4(0, 0, 1, 1)
+     * ```
+     *
+     * You can also create the table by passing the vectors directly when creating the table:
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.light_colors    = {
+     *      vmath.vector4(1, 0, 0, 1)
+     *      vmath.vector4(0, 1, 0, 1)
+     *      vmath.vector4(0, 0, 1, 1)
+     * }
+     * 
+     * -- Add more constant to the array
+     * constants.light_colors[4] = vmath.vector4(1, 1, 1, 1)
      * ```
      */
     int RenderScript_ConstantBuffer(lua_State* L)
