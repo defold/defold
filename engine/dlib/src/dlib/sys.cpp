@@ -449,7 +449,7 @@ namespace dmSys
 
     Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
-        const char* dirs[] = {"HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
+        const char* dirs[] = {"XDG_DATA_HOME", "HOME", "TMPDIR", "TMP", "TEMP"}; // Added common temp directories since server instances usually don't have a HOME set
         size_t count = sizeof(dirs)/sizeof(dirs[0]);
         const char* home = 0;
         for (size_t i = 0; i < count; ++i)
