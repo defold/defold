@@ -2867,13 +2867,13 @@
                 sanitize-node-colors
                 sanitize-node-rotation)
 
-      (= :type-text (:type node))
+      (= :type-text node-type)
       ;; These properties are not applicable to text nodes, but might still be stored in files from editor1.
-      (dissoc node :clipping-inverted :clipping-mode :clipping-visible :size-mode)
+      (dissoc :clipping-inverted :clipping-mode :clipping-visible :size-mode)
 
-      (= :type-template (:type node))
+      (= :type-template node-type)
       ;; These properties are not applicable to template nodes, but might still be stored in files from editor1.
-      (dissoc node :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))))
+      (dissoc :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))))
 
 (def ^:private sanitize-nodes #(mapv sanitize-node %))
 

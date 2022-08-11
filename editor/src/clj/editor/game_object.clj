@@ -600,30 +600,27 @@
                 transform-properties (select-transform-properties resource-type embedded)]]
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
-(defn- sanitize-go-prop-entry [go-prop-entry]
-  (let [value (:value go-prop-entry)
-        type (:type go-prop-entry)]
-    (assert (string? value))
-    (assert (keyword? type))
-    (assoc go-prop-entry :value (-> value
-                                    (properties/str->go-prop type)
-                                    (properties/go-prop->str type)))))
-
-(defn sanitize-go-prop-entries [go-prop-entries-path instance]
-  (if-some [path-token (first go-prop-entries-path)]
+(defn sanitize-property-descs-at-path [property-descs-path instance]
+  (if-some [path-token (first property-descs-path)]
     (if-some [unsanitized-entries (not-empty (get instance path-token))]
-      (assoc instance path-token (mapv (partial sanitize-go-prop-entries (next go-prop-entries-path)) unsanitized-entries))
+      (assoc instance path-token (mapv (partial sanitize-property-descs-at-path (next property-descs-path)) unsanitized-entries))
       instance)
-    (sanitize-go-prop-entry instance)))
+    (properties/sanitize-property-desc instance)))
 
 (defn- sanitize-component [component]
-  (-> (sanitize-go-prop-entries [:properties] component)
+  (-> (sanitize-property-descs-at-path [:properties] component)
       (dissoc :property-decls))) ; Only used in built data by the runtime.
 
 (defn- sanitize-embedded-component [workspace embedded]
   (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace (:type embedded))]
-    (assoc embedded :data (with-open [reader (StringReader. (:data embedded))]
-                            (write-fn (read-fn reader))))))
+    (try
+      (let [data (:data embedded)
+            sanitized-data (with-open [reader (StringReader. data)]
+                             (write-fn (read-fn reader)))]
+        (assoc embedded :data sanitized-data))
+      (catch Exception _
+        ;; Leave unsanitary.
+        embedded))))
 
 (defn sanitize-game-object [workspace go]
   (-> go

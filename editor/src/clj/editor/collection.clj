@@ -853,15 +853,21 @@
       (assoc :scale3 (read-scale3-or-scale instance))
       (dissoc :scale)))
 
-(defn- sanitize-instance-data [instance go-prop-entries-path]
+(defn- sanitize-instance-data [instance property-descs-path]
   (->> instance
        uniform->non-uniform-scale
-       (game-object/sanitize-go-prop-entries go-prop-entries-path)))
+       (game-object/sanitize-property-descs-at-path property-descs-path)))
 
 (defn- sanitize-embedded-go-data [embedded key workspace]
   (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace "go")]
-    (assoc embedded key (with-open [reader (StringReader. (get embedded key))]
-                          (write-fn (read-fn reader))))))
+    (try
+      (let [data (get embedded key)
+            sanitized-data (with-open [reader (StringReader. data)]
+                             (write-fn (read-fn reader)))]
+        (assoc embedded key sanitized-data))
+      (catch Exception _
+        ;; Leave unsanitary.
+        embedded))))
 
 (defn- sanitize-instance [instance]
   (-> instance

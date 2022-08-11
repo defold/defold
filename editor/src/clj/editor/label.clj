@@ -39,7 +39,7 @@
   (:import [com.dynamo.gamesys.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [javax.vecmath Point3d Vector3d]))
+           [javax.vecmath Vector3d]))
 
 (set! *warn-on-reflection* true)
 
