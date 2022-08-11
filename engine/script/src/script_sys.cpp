@@ -495,6 +495,7 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
+     * @param ignore_secure_values [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
      * @return sys_info [type:table] table with system information in the following fields:
      *
      * `device_model`
@@ -525,7 +526,7 @@ union SaveLoadBuffer
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
-     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
+     * : [type:string] This value secured by OS. [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
      *
      * `user_agent`
      * : [type:string] [icon:html5] The HTTP user agent, i.e. "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/602.4.8 (KHTML, like Gecko) Version/10.0.3 Safari/602.4.8"
@@ -541,12 +542,25 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_GetSysInfo(lua_State* L)
+    static int Sys_GetSysInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
         dmSys::SystemInfo info;
         dmSys::GetSystemInfo(&info);
+
+        bool ignore_secure_values = false;
+
+        if ( top >= 1)
+        {
+            luaL_checktype(L, 1, LUA_TBOOLEAN);
+            ignore_secure_values = lua_toboolean(L, 1);
+        }
+
+        if (!ignore_secure_values)
+        {
+            dmSys::GetSecureInfo(&info);
+        } 
 
         lua_newtable(L);
         lua_pushliteral(L, "device_model");
