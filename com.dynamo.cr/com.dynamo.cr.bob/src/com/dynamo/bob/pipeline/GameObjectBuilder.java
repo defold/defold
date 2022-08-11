@@ -28,6 +28,9 @@ import java.util.HashSet;
 
 import org.apache.commons.io.FilenameUtils;
 
+import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector4;
+
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -195,7 +198,7 @@ public class GameObjectBuilder extends Builder<Void> {
             // #3981
             // copy the scale from the embedded component only if it has a scale to
             // avoid that the component gets the default value for v3 which is 0
-            if ((isComponentOfType(ec, "sprite") || isComponentOfType(ec, "label")) && ec.hasScale()) {
+            if (ec.hasScale()) {
                 b.setScale(ec.getScale());
             }
 
@@ -250,8 +253,11 @@ public class GameObjectBuilder extends Builder<Void> {
                     }
                     FileReader reader = new FileReader(labelResource.getAbsPath());
                     LabelDesc.Builder lb = LabelDesc.newBuilder();
+                    lb.merge(reader, lb);
                     if (lb.hasScale()) {
-                        compBuilder.setScale(lb.getScale());
+                        Vector4 labelScaleV4 = lb.getScale();
+                        Vector3 labelScaleV3 = Vector3.newBuilder().setX((labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
+                        compBuilder.setScale();
                     }
                 }
                 catch(IOException e) {
@@ -262,7 +268,7 @@ public class GameObjectBuilder extends Builder<Void> {
             // #3981
             // if the component doesn't have a scale we set a default of v3(1.0)
             // if we do not set a scale it will have a scale of v3(0.0) at runtime
-            if ((isComponentOfType(cd, "sprite") || isComponentOfType(cd, "label")) && !cd.hasScale()) {
+            if (!cd.hasScale()) {
                 compBuilder.setScale(defaultScale);
             }
 
