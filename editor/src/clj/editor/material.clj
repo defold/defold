@@ -167,7 +167,10 @@
                        :label "Filter Mag"
                        :type :choicebox
                        :options (protobuf-forms/make-options mag-options)
-                       :default (ffirst mag-options)}])}
+                       :default (ffirst mag-options)}
+                      {:path [:max-anisotropy]
+                       :label "Max Anisotropy"
+                       :type :number}])}
          {:path [:tags]
           :label "Tags"
           :type :list
@@ -223,7 +226,8 @@
 (def ^:private default-sampler {:wrap-u :wrap-mode-clamp-to-edge
                                 :wrap-v :wrap-mode-clamp-to-edge
                                 :filter-min :filter-mode-min-linear
-                                :filter-mag :filter-mode-mag-linear})
+                                :filter-mag :filter-mode-mag-linear
+                                :max-anisotropy 1})
 
 (defn sampler->tex-params
   ([sampler]
