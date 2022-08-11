@@ -253,11 +253,11 @@ public class GameObjectBuilder extends Builder<Void> {
                     }
                     FileReader reader = new FileReader(labelResource.getAbsPath());
                     LabelDesc.Builder lb = LabelDesc.newBuilder();
-                    lb.merge(reader, lb);
+                    TextFormat.merge(reader, lb);
                     if (lb.hasScale()) {
                         Vector4 labelScaleV4 = lb.getScale();
                         Vector3 labelScaleV3 = Vector3.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
-                        compBuilder.setScale();
+                        compBuilder.setScale(labelScaleV3);
                     }
                 }
                 catch(IOException e) {
