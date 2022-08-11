@@ -771,7 +771,7 @@
    :path ["html5" "archive_location_suffix"]}
   {:type :string,
    :help "comma separated list of engine arguments",
-   :default "",
+   :default "--verify-graphics-calls=false",
    :path ["html5" "engine_arguments"]}
   {:type :boolean,
    :help "set to true to enable streaming of the wasm file (faster and uses less memory, but requires MIME type 'application/wasm')",
@@ -811,6 +811,10 @@
    :help "enable CPU usage sampling in release"
    :default false
    :path ["profiler" "track_cpu"]}
+  {:type :integer
+   :help "Number of milliseconds to sleep between server updates"
+   :default 0
+   :path ["profiler" "sleep_between_server_updates"]}
   {:type :resource
    :filter "settings"
    :default "/liveupdate.settings"

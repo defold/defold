@@ -1141,3 +1141,11 @@ GLFWAPI void glfwSetWindowBackgroundColor(unsigned int color)
 {
     _glfwPlatformSetWindowBackgroundColor(color);
 }
+
+//========================================================================
+// Get display scale factor
+//========================================================================
+GLFWAPI float glfwGetDisplayScaleFactor()
+{
+    return _glfwPlatformGetDisplayScaleFactor();
+}

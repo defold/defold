@@ -457,7 +457,8 @@ def default_flags(self):
 
         emflags = ['DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
                    'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]',
-                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2']
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2',
+                   'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0']
 
         if 'wasm' == build_util.get_target_architecture():
             emflags += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
@@ -573,7 +574,7 @@ def test_skip(self):
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @before('process_source')
-@after('skip_asan')
+@after('asan_skip')
 def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
@@ -899,7 +900,7 @@ def authenticode_sign(task):
 
 Task.task_factory('authenticode_sign',
                      func = authenticode_sign,
-                     after = 'link_task stlink_task msvc_manifest')
+                     after = 'link_task stlink_task')
 
 @task_gen
 @feature('authenticode')
@@ -1172,7 +1173,7 @@ unsigned char DM_ALIGNED(16) %s[] =
 
 Task.task_factory('dex', '${DX} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
-                      after='jar_create',
+                      after='jar_files',
                       shell=True)
 
 @task_gen

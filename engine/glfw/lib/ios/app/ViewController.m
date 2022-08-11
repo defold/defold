@@ -197,6 +197,11 @@ void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
     viewController.view.backgroundColor = [[UIColor alloc]initWithRed:r green:g blue:b alpha:a];
 }
 
+float _glfwPlatformGetDisplayScaleFactor()
+{
+    return 1.0f;
+}
+
 void* _glfwPlatformAcquireAuxContext()
 {
     if (_glfwWin.clientAPI == GLFW_NO_API)
