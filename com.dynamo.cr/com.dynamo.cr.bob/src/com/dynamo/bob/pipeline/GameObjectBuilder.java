@@ -256,7 +256,7 @@ public class GameObjectBuilder extends Builder<Void> {
                     lb.merge(reader, lb);
                     if (lb.hasScale()) {
                         Vector4 labelScaleV4 = lb.getScale();
-                        Vector3 labelScaleV3 = Vector3.newBuilder().setX((labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
+                        Vector3 labelScaleV3 = Vector3.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
                         compBuilder.setScale();
                     }
                 }
