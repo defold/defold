@@ -49,7 +49,9 @@ namespace dmGraphics
 
     Context* g_VulkanContext = 0;
 
-    static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
+    static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params);
+    static void     VulkanSetTexture(HTexture texture, const TextureParams& params);
+    static void     CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
     static VkFormat GetVulkanFormatFromTextureFormat(TextureFormat format);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
@@ -223,7 +225,8 @@ namespace dmGraphics
         return address_mode_lut[wrap];
     }
 
-    static uint8_t CreateTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
+    static int16_t CreateVulkanTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers,
+        TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         VkFilter             vk_mag_filter;
         VkFilter             vk_min_filter;
@@ -283,12 +286,13 @@ namespace dmGraphics
             assert(0 && "Unsupported type for min filter");
         }
 
-        TextureSampler new_sampler;
-        new_sampler.m_MinFilter    = minfilter;
-        new_sampler.m_MagFilter    = magfilter;
-        new_sampler.m_AddressModeU = uwrap;
-        new_sampler.m_AddressModeV = vwrap;
-        new_sampler.m_MaxLod       = maxLod;
+        TextureSampler new_sampler  = {};
+        new_sampler.m_MinFilter     = minfilter;
+        new_sampler.m_MagFilter     = magfilter;
+        new_sampler.m_AddressModeU  = uwrap;
+        new_sampler.m_AddressModeV  = vwrap;
+        new_sampler.m_MaxLod        = maxLod;
+        new_sampler.m_MaxAnisotropy = max_anisotropy;
 
         uint32_t sampler_index = texture_samplers.Size();
 
@@ -299,14 +303,15 @@ namespace dmGraphics
 
         VkResult res = CreateTextureSampler(vk_device,
             vk_min_filter, vk_mag_filter, vk_mipmap_mode, vk_wrap_u, vk_wrap_v,
-            0.0, max_lod, &new_sampler.m_Sampler);
+            0.0, max_lod, max_anisotropy, &new_sampler.m_Sampler);
         CHECK_VK_ERROR(res);
 
         texture_samplers.Push(new_sampler);
-        return (uint8_t) sampler_index;
+        return (int16_t) sampler_index;
     }
 
-    static int8_t GetTextureSamplerIndex(dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
+    static int16_t GetTextureSamplerIndex(dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter,
+        TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         for (uint32_t i=0; i < texture_samplers.Size(); i++)
         {
@@ -315,7 +320,8 @@ namespace dmGraphics
                 sampler.m_MinFilter     == minfilter &&
                 sampler.m_AddressModeU  == uwrap     &&
                 sampler.m_AddressModeV  == vwrap     &&
-                sampler.m_MaxLod        == maxLod)
+                sampler.m_MaxLod        == maxLod    &&
+                sampler.m_MaxAnisotropy == max_anisotropy)
             {
                 return (uint8_t) i;
             }
@@ -628,7 +634,7 @@ namespace dmGraphics
         context->m_PipelineState = vk_default_pipeline;
 
         // Create default texture sampler
-        CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
+        CreateVulkanTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
         // Create default dummy texture
         TextureCreationParams default_texture_creation_params;
@@ -645,8 +651,8 @@ namespace dmGraphics
         default_texture_params.m_Data   = default_texture_data;
         default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
 
-        context->m_DefaultTexture = NewTexture(context, default_texture_creation_params);
-        SetTexture(context->m_DefaultTexture, default_texture_params);
+        context->m_DefaultTexture = VulkanNewTexture(context, default_texture_creation_params);
+        VulkanSetTexture(context->m_DefaultTexture, default_texture_params);
 
         for (int i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
         {
@@ -2913,7 +2919,6 @@ bail:
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, new_texture_color);
                 CHECK_VK_ERROR(res);
 
-                // TODO: Anisotropy
                 SetTextureParams(new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
 
                 texture_color[color_index] = new_texture_color;
@@ -3285,7 +3290,6 @@ bail:
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        // TODO: Anisotropy
         SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
         if (params.m_SubUpdate)
@@ -3358,23 +3362,30 @@ bail:
     static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params)
     {
         // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
-        SetTexture(texture, params);
+        VulkanSetTexture(texture, params);
+    }
+
+    static float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
+    {
+        return dmMath::Min(max_anisotropy_requested, g_VulkanContext->m_PhysicalDevice.m_Properties.limits.maxSamplerAnisotropy);
     }
 
     static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        TextureSampler sampler = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex];
+        TextureSampler sampler   = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex];
+        float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
 
-        if (sampler.m_MinFilter    != minfilter ||
-            sampler.m_MagFilter    != magfilter ||
-            sampler.m_AddressModeU != uwrap     ||
-            sampler.m_AddressModeV != vwrap     ||
-            sampler.m_MaxLod       != texture->m_MipMapCount)
+        if (sampler.m_MinFilter     != minfilter              ||
+            sampler.m_MagFilter     != magfilter              ||
+            sampler.m_AddressModeU  != uwrap                  ||
+            sampler.m_AddressModeV  != vwrap                  ||
+            sampler.m_MaxLod        != texture->m_MipMapCount ||
+            sampler.m_MaxAnisotropy != anisotropy_clamped)
         {
-            int8_t sampler_index = GetTextureSamplerIndex(g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+            int16_t sampler_index = GetTextureSamplerIndex(g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(g_VulkanContext->m_LogicalDevice.m_Device, g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+                sampler_index = CreateVulkanTextureSampler(g_VulkanContext->m_LogicalDevice.m_Device, g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
             }
 
             texture->m_TextureSamplerIndex = sampler_index;

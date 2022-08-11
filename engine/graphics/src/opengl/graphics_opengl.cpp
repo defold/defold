@@ -2476,7 +2476,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         if (g_Context->m_AnisotropySupport)
         {
-            glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, max_anisotropy > g_Context->m_MaxAnisotropy ? g_Context->m_MaxAnisotropy : max_anisotropy);
+            glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, g_Context->m_MaxAnisotropy));
             CHECK_GL_ERROR
         }
     }
