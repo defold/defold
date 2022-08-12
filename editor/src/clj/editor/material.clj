@@ -227,7 +227,7 @@
                                 :wrap-v :wrap-mode-clamp-to-edge
                                 :filter-min :filter-mode-min-linear
                                 :filter-mag :filter-mode-mag-linear
-                                :max-anisotropy 1})
+                                :max-anisotropy 1.0})
 
 (defn sampler->tex-params
   ([sampler]
