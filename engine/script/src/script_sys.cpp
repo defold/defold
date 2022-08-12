@@ -495,7 +495,8 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
-     * @param ignore_secure_values [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
+     * @param options [type:table] (optional) options table
+     * - ignore_secure [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
      * @return sys_info [type:table] table with system information in the following fields:
      *
      * `device_model`
@@ -553,8 +554,14 @@ union SaveLoadBuffer
 
         if ( top >= 1)
         {
-            luaL_checktype(L, 1, LUA_TBOOLEAN);
-            ignore_secure_values = lua_toboolean(L, 1);
+            luaL_checktype(L, 1, LUA_TTABLE);
+            lua_pushvalue(L, 1);
+
+            lua_getfield(L, -1, "ignore_secure");
+            ignore_secure_values = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
         }
 
         if (!ignore_secure_values)
