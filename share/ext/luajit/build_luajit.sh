@@ -13,13 +13,13 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+. ./version.sh
 
-
-readonly SHA1=3f9389edc6cdf3f78a6896d550c236860aed62b2
 readonly BASE_URL=https://github.com/LuaJIT/LuaJIT/archive/
 readonly FILE_URL=${SHA1}.zip
-readonly PRODUCT=luajit
-readonly VERSION=2.1.0-beta3
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 
 # Whether to skip including /bin/ in the package, since it's only needed for desktop platforms
 TAR_SKIP_BIN=0
@@ -41,6 +41,8 @@ function luajit_configure() {
 	# dual-number (2) mode. For clarity we explicitly use LUAJIT_NUMMODE=2
 	# for mobile architectures.
 
+	COMMON_XCFLAGS="-DLUA_USERDATA_ALIGNMENT=16 "
+
 	COMMON_FLAGS_32="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL -DLUAJIT_DISABLE_GC64 "
 	COMMON_FLAGS_64="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL "
 
@@ -54,7 +56,7 @@ function luajit_configure() {
 			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
 			export HOST_ALDFLAGS="-m64 -isysroot $OSX_SDK_ROOT"
 			export TARGET_FLAGS="$CFLAGS"
-			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64"
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${COMMON_XCFLAGS}"
 			;;
 		x86_64-ios)
 			TAR_SKIP_BIN=1
@@ -64,6 +66,7 @@ function luajit_configure() {
 			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
 			export HOST_ALDFLAGS="-m64 -isysroot $OSX_SDK_ROOT"
 			export TARGET_FLAGS="$CFLAGS"
+			export XCFLAGS="${COMMON_XCFLAGS}"
 			;;
 		armv7-android)
 			TAR_SKIP_BIN=1
@@ -72,7 +75,7 @@ function luajit_configure() {
 			export HOST_CC="clang"
 			export HOST_CFLAGS="$XFLAGS -m32 -I."
 			export HOST_ALDFLAGS="-m32"
-			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM"
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM ${COMMON_XCFLAGS}"
 			;;
 		arm64-android)
 			TAR_SKIP_BIN=1
@@ -82,7 +85,7 @@ function luajit_configure() {
 			export HOST_CFLAGS="$XFLAGS -m64 -I."
 			export HOST_ALDFLAGS="-m64"
 			export TARGET_FLAGS="$CFLAGS"
-			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64"
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${COMMON_XCFLAGS}"
 			;;
 		*)
 			return
@@ -120,11 +123,11 @@ export -f luajit_configure
 
 
 function cmi_unpack() {
-    echo cmi_unpack
-    # simulate the "--strip-components=1" of the tar unpack command
-    local dest=$(pwd)
-    local temp=$(mktemp -d)
-    unzip -q -d "$temp" $SCRIPTDIR/download/$FILE_URL
+	echo cmi_unpack
+	# simulate the "--strip-components=1" of the tar unpack command
+	local dest=$(pwd)
+	local temp=$(mktemp -d)
+	unzip -q -d "$temp" $SCRIPTDIR/download/$FILE_URL
 	mv "$temp"/*/* "$dest"
 	rm -rf "$temp"
 }
@@ -156,31 +159,29 @@ case $1 in
 		export TARGET_SYS=Linux
 		function cmi_make() {
 					export DEFOLD_ARCH="32"
-					export XCFLAGS="-DLUAJIT_DISABLE_GC64"
-					export TARGET_LDFLAGS="-static"
+					export XCFLAGS="-DLUAJIT_DISABLE_GC64 -DLUAJIT_TARGET=LUAJIT_ARCH_X86 ${COMMON_XCFLAGS}"
 					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
 					set -e
 					make -j8
 					make install
+					mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
 					make clean
 					set +e
 
 					export DEFOLD_ARCH="64"
-					export XCFLAGS=""
-					export TARGET_LDFLAGS="-static"
+					export XCFLAGS=" ${COMMON_XCFLAGS}"
 					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
 					set -e
 					make -j8
 					make install
+					mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
 					set +e
 		}
 		;;
 	x86_64-darwin)
 		export TARGET_SYS=Darwin
 		function cmi_make() {
-					# Note: Luajit sets this to 10.4, which is less than what we support.
-					#       This value is set to the same as MIN_OSX_SDK_VERSION in waf_dynamo.py
-					export MACOSX_DEPLOYMENT_TARGET="10.7"
+            		export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
 
 					# Since GC32 mode isn't supported on macOS, in the new version.
 					# We'll just use the old built executable from the previous package
@@ -188,10 +189,18 @@ case $1 in
 
 					export DEFOLD_ARCH="64"
 					export TARGET_CFLAGS=""
+					export XCFLAGS="${COMMON_XCFLAGS}"
 					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$TARGET_CFLAGS'"
 					set -e
 					make -j8
 					make install
+					mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+					set +e
+
+					# grab our old 32 bit executable and store it in the host package
+					set -e
+					tar xvf ${DIR}/luajit-2.1.0-beta3-darwin.tar.gz
+					cp -v bin/darwin/luajit-2.1.0-beta3- $PREFIX/bin/$CONF_TARGET/luajit-32
 					set +e
 		}
 		;;
@@ -235,7 +244,7 @@ case $1 in
 			mkdir -p $PREFIX/share/luajit/jit
 			mkdir -p $PREFIX/share/man/man1
 			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
-			cp luajit-${DEFOLD_ARCH}.exe $PREFIX/bin/$CONF_TARGET
+			cp luajit.exe $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}.exe
 			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
 			cp -r jit $PREFIX/share/luajit
 			cp ../etc/luajit.1 $PREFIX/share/man/man1
@@ -252,7 +261,7 @@ case $1 in
 			mkdir -p $PREFIX/share/luajit/jit
 			mkdir -p $PREFIX/share/man/man1
 			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
-			cp luajit-${DEFOLD_ARCH}.exe $PREFIX/bin/$CONF_TARGET
+			cp luajit.exe $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}.exe
 			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
 			cp -r jit $PREFIX/share/luajit
 			cp ../etc/luajit.1 $PREFIX/share/man/man1

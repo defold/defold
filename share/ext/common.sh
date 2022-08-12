@@ -333,7 +333,6 @@ function cmi() {
 
         darwin)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
             export CPPFLAGS="-m32"
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libc++ "
             export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32"
@@ -343,7 +342,6 @@ function cmi() {
 
         x86_64-darwin)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}

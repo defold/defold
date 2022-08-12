@@ -165,6 +165,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                             }
                         }
                     }
+                    else {
+                        System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
+                    }
                     // Since parsing out the actual error failed, as a backup just
                     // spit out whatever luajit/luac said.
                     inputFile.delete();
@@ -266,7 +269,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         List<String> options = new ArrayList<String>();
         options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
         options.add("-b");
-        options.add("-g");
+        options.add("-g"); // Keep debug info
         options.add("-f"); options.add(chunkName);
         options.add(inputFile.getAbsolutePath());
         options.add(outputFile.getAbsolutePath());
