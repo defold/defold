@@ -46,19 +46,21 @@
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn- gen-ref-ddf [id position rotation source-resource ddf-properties]
+(defn- gen-ref-ddf [id position rotation scale source-resource ddf-properties]
   {:id id
    :position position
    :rotation rotation
+   :scale scale
    :component (resource/resource->proj-path source-resource)
    :properties ddf-properties})
 
-(defn- gen-embed-ddf [id position rotation save-data]
+(defn- gen-embed-ddf [id position rotation scale save-data]
   {:id id
    :type (or (and (:resource save-data) (:ext (resource/resource-type (:resource save-data))))
              "unknown")
    :position position
    :rotation rotation
+   :scale scale
    :data (or (:content save-data) "")})
 
 (defn- build-raw-sound [resource dep-resources user-data]
@@ -245,8 +247,8 @@
 
   (input embedded-resource-id g/NodeID)
   (input save-data g/Any :cascade-delete)
-  (output ddf-message g/Any (g/fnk [id position rotation save-data]
-                              (gen-embed-ddf id position rotation save-data)))
+  (output ddf-message g/Any (g/fnk [id position rotation scale save-data]
+                              (gen-embed-ddf id position rotation scale save-data)))
   (output build-resource resource/Resource (g/fnk [source-resource save-data]
                                                   (some-> source-resource
                                                      (assoc :data (:content save-data))
@@ -343,8 +345,8 @@
                      (filter (fn [[_ p]] (contains? p :original-value)))
                      (sort-by (comp prop-order first))
                      (into [] (keep properties/property-entry->go-prop))))))
-  (output ddf-message g/Any (g/fnk [id position rotation source-resource ddf-properties]
-                              (gen-ref-ddf id position rotation source-resource ddf-properties))))
+  (output ddf-message g/Any (g/fnk [id position rotation scale source-resource ddf-properties]
+                              (gen-ref-ddf id position rotation scale source-resource ddf-properties))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
   {:components ref-ddf
@@ -601,18 +603,26 @@
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
 (defn sanitize-property-descs-at-path [property-descs-path instance]
-  (if-some [path-token (first property-descs-path)]
-    (if-some [unsanitized-entries (not-empty (get instance path-token))]
-      (assoc instance path-token (mapv (partial sanitize-property-descs-at-path (next property-descs-path)) unsanitized-entries))
-      instance)
-    (properties/sanitize-property-desc instance)))
+  (if-some [property-descs (not-empty (get-in instance property-descs-path))]
+    (assoc-in instance property-descs-path (mapv properties/sanitize-property-desc property-descs))
+    instance))
+
+(def default-scale-value [1.0 1.0 1.0])
+
+(defn- sanitize-default-scale [component]
+  (if-some [scale-map-entry (find component :scale)]
+    (if (protobuf/default-read-scale-value? (val scale-map-entry))
+      (assoc component :scale default-scale-value)
+      component)
+    component))
 
 (defn- sanitize-component [component]
   (-> (sanitize-property-descs-at-path [:properties] component)
+      (sanitize-default-scale)
       (dissoc :property-decls))) ; Only used in built data by the runtime.
 
-(defn- sanitize-embedded-component [workspace embedded]
-  (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace (:type embedded))]
+(defn- sanitize-embedded-component-data [resource-type-map embedded]
+  (let [{:keys [read-fn write-fn]} (resource-type-map (:type embedded))]
     (try
       (let [data (:data embedded)
             sanitized-data (with-open [reader (StringReader. data)]
@@ -622,10 +632,16 @@
         ;; Leave unsanitary.
         embedded))))
 
+(defn- sanitize-embedded-component [resource-type-map embedded]
+  (->> embedded
+       (sanitize-embedded-component-data resource-type-map)
+       (sanitize-default-scale)))
+
 (defn sanitize-game-object [workspace go]
-  (-> go
-      (update :components (partial mapv sanitize-component))
-      (update :embedded-components (partial mapv (partial sanitize-embedded-component workspace)))))
+  (let [resource-type-map (workspace/get-resource-type-map workspace)]
+    (-> go
+        (update :components (partial mapv sanitize-component))
+        (update :embedded-components (partial mapv (partial sanitize-embedded-component resource-type-map))))))
 
 (defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]
   (when-let [resource-type (resource-types type)]

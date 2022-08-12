@@ -611,3 +611,15 @@ Macros currently mean no foreseeable performance gain however."
 (defn map->sha1-hex
   ^String [^Class cls m]
   (digest/bytes->hex (pb->hash "SHA-1" (map->pb cls m))))
+
+(defn default-read-scale-value? [value]
+  ;; The default value of the Vector3 type is zero, and protobuf does not
+  ;; support custom default values for message-type fields. That means
+  ;; everything read from protobuf will be scaled down to zero. However, we
+  ;; might change the behavior of the protobuf reader in the future to have it
+  ;; return [1.0 1.0 1.0] or even nil for default scale fields. In some way, nil
+  ;; would make sense as a default for message-type fields as that is what
+  ;; protobuf does without our wrapper. We could then decide on sensible default
+  ;; values on a case-by-case basis. Related to all this, there has been some
+  ;; discussion around perhaps omitting default values from the project data.
+  (= [0.0 0.0 0.0] value))

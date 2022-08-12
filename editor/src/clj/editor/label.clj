@@ -374,7 +374,7 @@
 (defn- sanitize-label [label]
   (-> label
       (update :size sanitize-v4)
-      (update :scale sanitize-v4)))
+      (dissoc :scale))) ; Scale was moved to the ComponentDesc. Migrated in game-object.clj.
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -386,5 +386,5 @@
     :icon label-icon
     :view-types [:scene :text]
     :tags #{:component}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}
+    :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}
     :label "Label"))

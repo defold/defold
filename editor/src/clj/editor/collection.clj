@@ -844,7 +844,9 @@
   [{:keys [scale3 scale] :as pb-map}]
   ;; scale is the legacy uniform scale
   ;; check if scale3 has default value and if so, use legacy uniform scale
-  (if (and (= scale3 [0.0 0.0 0.0]) (some? scale) (not= scale 0.0))
+  (if (and (protobuf/default-read-scale-value? scale3)
+           (some? scale)
+           (not (zero? scale)))
     [scale scale scale]
     scale3))
 
@@ -858,8 +860,8 @@
        uniform->non-uniform-scale
        (game-object/sanitize-property-descs-at-path property-descs-path)))
 
-(defn- sanitize-embedded-go-data [embedded key workspace]
-  (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace "go")]
+(defn- sanitize-embedded-go-data [embedded key resource-type-map]
+  (let [{:keys [read-fn write-fn]} (resource-type-map "go")]
     (try
       (let [data (get embedded key)
             sanitized-data (with-open [reader (StringReader. data)]
@@ -873,20 +875,21 @@
   (-> instance
       (sanitize-instance-data [:component-properties :properties])))
 
-(defn- sanitize-embedded-instance [workspace embedded-instance]
+(defn- sanitize-embedded-instance [resource-type-map embedded-instance]
   (-> embedded-instance
       (sanitize-instance-data [:component-properties :properties])
-      (sanitize-embedded-go-data :data workspace)))
+      (sanitize-embedded-go-data :data resource-type-map)))
 
 (defn- sanitize-collection-instance [collection-instance]
   (-> collection-instance
       (sanitize-instance-data [:instance-properties :properties :properties])))
 
 (defn- sanitize-collection [workspace collection]
-  (-> collection
-      (update :instances (partial mapv sanitize-instance))
-      (update :embedded-instances (partial mapv (partial sanitize-embedded-instance workspace)))
-      (update :collection-instances (partial mapv sanitize-collection-instance))))
+  (let [resource-type-map (workspace/get-resource-type-map workspace)]
+    (-> collection
+        (update :instances (partial mapv sanitize-instance))
+        (update :embedded-instances (partial mapv (partial sanitize-embedded-instance resource-type-map)))
+        (update :collection-instances (partial mapv sanitize-collection-instance)))))
 
 (defn- make-dependencies-fn [workspace]
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]

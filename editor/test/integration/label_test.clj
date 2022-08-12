@@ -19,6 +19,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
+            [editor.game-object :as game-object]
             [editor.gl.pass :as pass]
             [editor.label :as label]
             [editor.math :as math]
@@ -27,7 +28,7 @@
             [integration.test-util :as test-util])
   (:import [editor.types Region]))
 
-(deftest label-validation
+(deftest label-validation-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
       (doseq [[prop cases] [[:font {"no font" ""
@@ -39,7 +40,7 @@
           (test-util/with-prop [node-id prop (workspace/resolve-workspace-resource workspace path)]
                                (is (g/error? (test-util/prop-error node-id prop)))))))))
 
-(deftest label-aabb
+(deftest label-aabb-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
       (let [aabb (g/node-value node-id :aabb)
@@ -48,7 +49,7 @@
         (is (< 0.0 y))
         (is (= 0.0 z))))))
 
-(deftest label-scene
+(deftest label-scene-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
       (let [scene (g/node-value node-id :scene)
@@ -90,7 +91,7 @@
                            calls-by-fn)]))
         render-calls-by-pass))
 
-(deftest label-batch-render
+(deftest label-batch-render-test
   (test-util/with-loaded-project
     (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           add-label-component! (partial test-util/add-embedded-component! app-view (fn [node-ids] (app-view/select app-view node-ids)) (workspace/get-resource-type workspace "label"))
@@ -157,10 +158,31 @@
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key))))))))
 
-(deftest label-scene
+(deftest label-scene-test
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/label/test.label")]
       (test-util/test-uses-assigned-material workspace project node-id
                                              :material
                                              [:renderable :user-data :material-shader]
                                              [:renderable :user-data :gpu-texture]))))
+
+(deftest label-migration-test
+  (test-util/with-loaded-project
+    (letfn [(verify-component [component-node-id]
+              (and (is (g/node-instance? game-object/ReferencedComponent component-node-id))
+                   (is (= [2.0 3.0 4.0] (g/node-value component-node-id :scale)))))
+            (verify-embedded-component [embedded-component-node-id]
+              (and (is (g/node-instance? game-object/EmbeddedComponent embedded-component-node-id))
+                   (is (= [3.0 4.0 5.0] (g/node-value embedded-component-node-id :scale)))))]
+      (testing "Scale value was moved from LabelDesc to ComponentDesc in game object"
+        (let [label-migration-game-object (project/get-resource-node project "/label/label_migration.go")
+              embedded-label-component (:node-id (test-util/outline label-migration-game-object [0]))
+              label-component (:node-id (test-util/outline label-migration-game-object [1]))]
+          (verify-embedded-component embedded-label-component)
+          (verify-component label-component)))
+      (testing "Scale value was moved from LabelDesc to ComponentDesc in collection"
+        (let [label-migration-collection (project/get-resource-node project "/label/label_migration.collection")
+              embedded-label-component (:node-id (test-util/outline label-migration-collection [0 0]))
+              label-component (:node-id (test-util/outline label-migration-collection [0 1]))]
+          (verify-component label-component)
+          (verify-embedded-component embedded-label-component))))))
