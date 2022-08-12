@@ -268,7 +268,7 @@ public class GameObjectBuilder extends Builder<Void> {
             // #3981
             // if the component doesn't have a scale we set a default of v3(1.0)
             // if we do not set a scale it will have a scale of v3(0.0) at runtime
-            if (!cd.hasScale()) {
+            if (!compBuilder.hasScale()) {
                 compBuilder.setScale(defaultScale);
             }
 
