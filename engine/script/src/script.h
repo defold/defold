@@ -73,6 +73,14 @@ namespace dmScript
     extern const char META_GET_INSTANCE_CONTEXT_TABLE_REF[];
 
     /**
+     * We keep a constant here, in order to easier make the messaging more uniform.
+     * (Also it reduces the number of unique strings in the executable).
+     * Use like so:
+     *    dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "module_name", "old_fn", "module_name", "new_fn");
+     */
+    static const char* DEPRECATION_FUNCTION_FMT = "Function '%s.%s' is deprecated. Please use '%s.%s' instead.";
+
+    /**
      * Create and return a new context.
      * @param config_file optional config file handle
      * @param factory resource factory
