@@ -20,6 +20,6 @@ Set the DYNAMO_HOME variable:
 Install linux tools.
 Note that you may need to remove the previous android sdk/ndk tools from DYNAMO_HOME.
 
-    $ ./scripts/build.py install_ext --platform=armv7-android
+    $ ./scripts/build.py install_sdk --platform=armv7-android
 
 Change directory to luajit and build as usual.
