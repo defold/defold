@@ -134,8 +134,8 @@ public class ColladaUtilTest {
      * Helper to test that a bone has the expected position and rotation.
      */
     private void assertBone(Rig.Bone bone, Vector3d expectedPosition, Quat4d expectedRotation) {
-        assertV(expectedPosition, MathUtil.ddfToVecmath(bone.getPosition()));
-        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getRotation()));
+        assertV(expectedPosition, MathUtil.ddfToVecmath(bone.getLocal().getTranslation()));
+        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation()));
     }
 
     /*
@@ -204,7 +204,8 @@ public class ColladaUtilTest {
     public void testMayaQuad() throws Exception {
         Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
         ColladaUtil.loadMesh(load("maya_quad.dae"), meshSet);
-        Rig.Mesh mesh = meshSet.getMeshAttachments(0);
+        Rig.Mesh mesh = meshSet.getModels(0).getMeshes(0);
+
         List<Float> pos = bake(mesh.getPositionIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
         List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
@@ -237,7 +238,7 @@ public class ColladaUtilTest {
     public void testBlenderPolylistQuad() throws Exception {
         Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
         ColladaUtil.loadMesh(load("blender_polylist_quad.dae"), meshSet);
-        Rig.Mesh mesh = meshSet.getMeshAttachments(0);
+        Rig.Mesh mesh = meshSet.getModels(0).getMeshes(0);
 
         List<Float> pos = bake(mesh.getPositionIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
@@ -278,7 +279,7 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(getClass().getResourceAsStream("quad_normals.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
-        Rig.Mesh mesh = meshSetBuilder.getMeshAttachments(0);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
         List<Float> pos = bake(mesh.getPositionIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
@@ -305,12 +306,16 @@ public class ColladaUtilTest {
      */
     @Test
     public void testScaledMeshNode() throws Exception {
-        Rig.MeshSet.Builder mesh = Rig.MeshSet.newBuilder();
-        ColladaUtil.loadMesh(load("chest_model.dae"), mesh);
-        Rig.MeshSet.Builder meshNoSkin = Rig.MeshSet.newBuilder();
-        ColladaUtil.loadMesh(load("chest_model_noskin.dae"), meshNoSkin);
-        List<Float> pos = mesh.getMeshAttachments(0).getPositionsList();
-        List<Float> posNoSkin = meshNoSkin.getMeshAttachments(0).getPositionsList();
+        Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
+        ColladaUtil.loadMesh(load("chest_model.dae"), meshSet);
+        Rig.MeshSet.Builder meshSetNoSkin = Rig.MeshSet.newBuilder();
+        ColladaUtil.loadMesh(load("chest_model_noskin.dae"), meshSetNoSkin);
+
+        Rig.Mesh mesh = meshSet.getModels(0).getMeshes(0);
+        Rig.Mesh meshNoSkin = meshSetNoSkin.getModels(0).getMeshes(0);
+
+        List<Float> pos = mesh.getPositionsList();
+        List<Float> posNoSkin = meshNoSkin.getPositionsList();
         for(int i = 0; i < pos.size(); ++i) {
             assertEquals(pos.get(i), posNoSkin.get(i));
         }
@@ -325,7 +330,7 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(load("bone_influences.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
-        Rig.Mesh mesh = meshSetBuilder.getMeshAttachments(0);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
         // Should have exactly 4 influences per vertex
         int vertCount = mesh.getPositionIndicesCount();
@@ -843,7 +848,7 @@ public class ColladaUtilTest {
                 if (track.getRotationsCount() > 0) {
 
                     // Rotation don't change, but is the inverse of the bind pose
-                    Quat bindPoseRot = skeletonBuilder.getBones(track.getBoneIndex()).getRotation();
+                    Quat bindPoseRot = skeletonBuilder.getBones(track.getBoneIndex()).getLocal().getRotation();
                     Quat4d bindPoseInverse = new Quat4d(bindPoseRot.getX(), bindPoseRot.getY(), bindPoseRot.getZ(), bindPoseRot.getW());
                     bindPoseInverse.inverse();
 
@@ -920,7 +925,7 @@ public class ColladaUtilTest {
 
         RigAnimation animation = animSetBuilder.getAnimations(0);
 
-        Vector3 boneScale = skeletonBuilder.getBones(0).getScale();
+        Vector3 boneScale = skeletonBuilder.getBones(0).getLocal().getScale();
         assertEquals(0.1, boneScale.getX(), EPSILON);
         assertEquals(0.1, boneScale.getY(), EPSILON);
         assertEquals(0.1, boneScale.getZ(), EPSILON);
@@ -984,21 +989,23 @@ public class ColladaUtilTest {
         double expectedUnit = 0.01;
 
         // Bone scale should be unaffected
-        Vector3 boneScale = skeletonBuilder.getBones(0).getScale();
+        Vector3 boneScale = skeletonBuilder.getBones(0).getLocal().getScale();
         assertEquals(1.0, boneScale.getX(), EPSILON);
         assertEquals(1.0, boneScale.getY(), EPSILON);
         assertEquals(1.0, boneScale.getZ(), EPSILON);
 
         // Bone positions should be orig_position * unit
-        Point3 bonePosition = skeletonBuilder.getBones(0).getPosition();
+        Vector3 bonePosition = skeletonBuilder.getBones(0).getLocal().getTranslation();
         assertEquals(0.0, bonePosition.getX(), EPSILON);
         assertEquals(1.0 * expectedUnit, bonePosition.getY(), EPSILON);
         assertEquals(0.0, bonePosition.getZ(), EPSILON);
 
         // Mesh vertex position should also be scaled with unit
-        float vertPosX = meshSetBuilder.getMeshAttachments(0).getPositions(0);
-        float vertPosY = meshSetBuilder.getMeshAttachments(0).getPositions(1);
-        float vertPosZ = meshSetBuilder.getMeshAttachments(0).getPositions(2);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
+
+        float vertPosX = mesh.getPositions(0);
+        float vertPosY = mesh.getPositions(1);
+        float vertPosZ = mesh.getPositions(2);
         assertEquals(0.0, vertPosX, EPSILON);
         assertEquals(1.0 * expectedUnit, vertPosY, EPSILON);
         assertEquals(0.0, vertPosZ, EPSILON);
@@ -1013,16 +1020,18 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(load("chest_open.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
         // Check that we get all the positions, since some have the "-1.#IND00" value in the Collada file.
         // Invalid <float_array> values will be replaced with 0.0.
         // (Without the fix in XMLFloatArray.java this would have thrown an exception.)
-        int positionsCount = meshSetBuilder.getMeshAttachments(0).getPositionsCount();
+
+        int positionsCount = mesh.getPositionsCount();
         assertEquals(414, positionsCount);
 
         // The test file has the first Z component of the positions array set to "-1.#IND00",
         // make sure it was parsed as 0.0 instead.
-        assertEquals(0.0, meshSetBuilder.getMeshAttachments(0).getPositions(2), EPSILON);
+        assertEquals(0.0, mesh.getPositions(2), EPSILON);
     }
 
     /*
@@ -1034,7 +1043,8 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(load("maya_quad.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
-        Rig.Mesh mesh = meshSetBuilder.getMeshAttachments(0);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
+
         assertEquals(4, mesh.getVerticesCount());
         assertEquals(6, mesh.getIndices().size()>>1);
         assertEquals(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16, mesh.getIndicesFormat());
