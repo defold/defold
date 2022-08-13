@@ -159,7 +159,13 @@ case $1 in
 		export TARGET_SYS=Linux
 		function cmi_make() {
 					export DEFOLD_ARCH="32"
-					export XCFLAGS="-DLUAJIT_DISABLE_GC64 -DLUAJIT_TARGET=LUAJIT_ARCH_X86 ${COMMON_XCFLAGS}"
+					export XCFLAGS="-DLUAJIT_DISABLE_GC64 -m32 ${COMMON_XCFLAGS}"
+
+					export HOST_CC="clang"
+					export HOST_CFLAGS="${COMMON_XCFLAGS} -m32 -I."
+					export HOST_ALDFLAGS="-m32"
+					export TARGET_LDFLAGS="-m32"
+
 					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
 					set -e
 					make -j8
@@ -170,6 +176,12 @@ case $1 in
 
 					export DEFOLD_ARCH="64"
 					export XCFLAGS=" ${COMMON_XCFLAGS}"
+
+					export HOST_CC="clang"
+					export HOST_CFLAGS="${COMMON_XCFLAGS} -m64 -I."
+					export HOST_ALDFLAGS="-m64"
+					export TARGET_LDFLAGS="-m64"
+
 					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
 					set -e
 					make -j8
