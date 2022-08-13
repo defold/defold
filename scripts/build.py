@@ -973,6 +973,7 @@ class Configuration(object):
         if self.target_platform == 'x86_64-linux':
             # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
+            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
             files = [
@@ -1160,6 +1161,7 @@ class Configuration(object):
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
+                                 'share/java/modelimporter.jar': 'lib/modelimporter.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
                                  'lib/%s/%s' % (self.host2, texc_name): 'lib/%s/%s' % (self.host2, texc_name),
                                  'lib/%s/%s' % (self.host2, modelc_name): 'lib/%s/%s' % (self.host2, modelc_name),},
