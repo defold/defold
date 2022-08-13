@@ -21,7 +21,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 
 import org.apache.commons.io.FilenameUtils;
@@ -118,11 +118,8 @@ public class AnimationSetBuilder extends Builder<Void>  {
             AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
             ArrayList<String> animationIds = new ArrayList<String>();
 
-            boolean isCollada = false;
             String suffix = BuilderUtil.getSuffix(animFile.getPath());
-            if (suffix.equals("dae")) {
-                isCollada = true;
-            }
+            boolean isCollada = suffix.equals("dae");
 
             try {
                 if (isCollada)
@@ -150,13 +147,8 @@ public class AnimationSetBuilder extends Builder<Void>  {
     }
 
     private static ArrayList<String> makeUnique(List<String> items) {
-        ArrayList<String> unique = new ArrayList<>();
-        for (String item : items) {
-            if (!unique.contains(item)) {
-                unique.add(item);
-            }
-        }
-        return unique;
+        LinkedHashSet<String> unique = new LinkedHashSet<>(items);
+        return new ArrayList<>(unique);
     }
 
     static public ArrayList<String> getAnimationsPaths(AnimationSetDesc desc) {
@@ -178,8 +170,6 @@ public class AnimationSetBuilder extends Builder<Void>  {
 
     static void loadModelAnimations(ArrayList<ModelImporter.Bone> bones, AnimationSet.Builder animationSetBuilder, InputStream is, String animId, String parentId,
                                                             String path, ArrayList<String> animationIds) throws IOException {
-
-        System.out.printf("  modelutil anim: %s  parent: %s\n", animId, parentId);
 
         ModelImporter.Scene scene = ModelUtil.loadScene(is, path, new ModelImporter.Options());
 
