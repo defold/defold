@@ -409,7 +409,7 @@ public class ColladaUtilTest {
             Rig.Bone bone = bones.get(index);
             long id = MurmurHash.hash64(boneIds[index]);
             assertEquals(id, bone.getId());
-            assertEquals(idToIndex.getOrDefault(parentIds[index], 65535).intValue(), bone.getParent());
+            assertEquals(idToIndex.getOrDefault(parentIds[index], -1).intValue(), bone.getParent());
         }
     }
 
@@ -453,12 +453,7 @@ public class ColladaUtilTest {
         assertEquals(1, skeletonBuilder.getBonesCount());
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
 
-        /*
-         *  The bone is animated with a matrix track in the DAE,
-         *  which expands into 3 separate tracks in our format;
-         *  position, rotation and scale.
-         */
-        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(1, animSetBuilder.getAnimations(0).getTracksCount());
 
         /*
          *  We go through all tracks and verify they behave as expected.
@@ -498,10 +493,9 @@ public class ColladaUtilTest {
 
         /*
          *  The file includes two bones with a matrix animation on each.
-         *  Each matrix animation expands into 3 different component animations; 2*3 = 6 animation tracks.
          */
         assertEquals(2, skeletonBuilder.getBonesCount());
-        assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(2, animSetBuilder.getAnimations(0).getTracksCount());
 
         // Bone 0 is located at origo an has no rotation (after up-axis has been applied).
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
@@ -565,10 +559,9 @@ public class ColladaUtilTest {
 
         /*
          *  The file includes two bones with a matrix animation on each.
-         *  Each matrix animation expands into 3 different component animations; 2*3 = 6 animation tracks.
          */
         assertEquals(2, skeletonBuilder.getBonesCount());
-        assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(2, animSetBuilder.getAnimations(0).getTracksCount());
 
         // Bone 0 is located at origo an has no rotation (after up-axis has been applied).
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
@@ -623,10 +616,10 @@ public class ColladaUtilTest {
         assertEquals(1, animSetBuilder.getAnimationsCount());
 
         /*
-         *  The file includes three bones, but only two of them have animations; 2*3 = 6 animation tracks.
+         *  The file includes three bones, but only two of them have animations
          */
         assertEquals(3, skeletonBuilder.getBonesCount());
-        assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(2, animSetBuilder.getAnimations(0).getTracksCount());
 
         // Bone 0 is located at origo an has no rotation (after up-axis has been applied).
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
@@ -650,12 +643,7 @@ public class ColladaUtilTest {
         assertEquals(1, skeletonBuilder.getBonesCount());
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
 
-        /*
-         *  The bone is animated with a matrix track in the DAE,
-         *  which expands into 3 separate tracks in our format;
-         *  position, rotation and scale.
-         */
-        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(1, animSetBuilder.getAnimations(0).getTracksCount());
 
         /*
          *  We go through all tracks and verify they behave as expected.
@@ -710,11 +698,7 @@ public class ColladaUtilTest {
 
         assertEquals(3, skeletonBuilder.getBonesCount());
 
-        /*
-         *  Each bone is animated with a matrix track in the DAE,
-         *  which expands into 3 separate tracks in our format.
-         */
-        assertEquals(9, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
 
         /*
          *  We go through all tracks and verify they behave as expected.
@@ -768,7 +752,7 @@ public class ColladaUtilTest {
         assertEquals(1, animSetBuilder.getAnimationsCount());
 
         assertEquals(2, skeletonBuilder.getBonesCount());
-        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(1, animSetBuilder.getAnimations(0).getTracksCount());
 
         /*
          *  We go through all tracks and verify they behave as expected.
@@ -813,10 +797,9 @@ public class ColladaUtilTest {
         assertEquals(3, meshBoneListCount);
         assertEquals(3, animBoneListCount);
 
-        // The bone lists are inverted between the meshset and animationset.
         for (int i = 0; i < meshBoneListCount; i++) {
             Long meshBone = meshSetBuilder.getBoneList(i);
-            Long animBone = animSetBuilder.getBoneList(meshBoneListCount-i-1);
+            Long animBone = animSetBuilder.getBoneList(i);
             assertEquals(meshBone, animBone);
         }
     }
