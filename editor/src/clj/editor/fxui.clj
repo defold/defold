@@ -40,7 +40,7 @@
            [com.defold.control ListCell]
            [java.lang.reflect Field]
            [javafx.application Platform]
-           [javafx.geometry Point2D]
+           [javafx.geometry BoundingBox Point2D]
            [javafx.scene Node]
            [javafx.scene.paint Color]
            [javafx.beans.property ReadOnlyProperty]
@@ -53,6 +53,23 @@
 ;; --------------------------------------------------
 ;; Specs / validation
 ;; --------------------------------------------------
+
+(def ^:private point-gen-component-double-opts
+  {:infinite? false :NaN? false :min -10000.0 :max 10000.0})
+
+(def ^:private size-gen-component-double-opts
+  {:infinite? false :NaN? false :min 0.0 :max 10000.0})
+
+(defn bounds-coercible? [value]
+  (instance? Bounds value))
+
+(defn make-bounds-gen []
+  (gen/fmap (fn [[^double x ^double y ^double width ^double height]]
+              (BoundingBox. x y width height))
+            (gen/tuple (gen/double* point-gen-component-double-opts)
+                       (gen/double* point-gen-component-double-opts)
+                       (gen/double* size-gen-component-double-opts)
+                       (gen/double* size-gen-component-double-opts))))
 
 (defn- color-parsable? [^String value]
   (try
@@ -89,9 +106,6 @@
        (gen/elements lowercase-color-keywords)
        (gen/elements color-hex-strings)])))
 
-(def ^:private point-gen-component-double-opts
-  {:infinite? false :NaN? false :min -10000.0 :max 10000.0})
-
 (defn make-point-gen []
   (gen/fmap (fn [[^double x ^double y]]
               (Point2D. x y))
@@ -112,6 +126,7 @@
        (gen/vector-distinct name-gen
                             {:min-elements 0 :max-elements 3})])))
 
+(s/def ::bounds (s/with-gen bounds-coercible? make-bounds-gen))
 (s/def ::color (s/with-gen color-coercible? make-color-coercible-gen))
 (s/def ::point (s/with-gen #(instance? Point2D %) make-point-gen))
 (s/def ::style-class (s/with-gen style-class-coercible? make-style-class-gen))

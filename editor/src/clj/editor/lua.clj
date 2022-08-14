@@ -140,6 +140,9 @@
                                                           "specified :types count equals :select count"))}]})
 
 (defn defold-documentation []
+  ;; HACK! RESTORE!
+  {}
+  #_
   (s/validate documentation-schema
     (reduce (fn [result [ns elements]]
               (let [global-results (get result "" [])

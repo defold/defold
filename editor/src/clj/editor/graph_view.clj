@@ -3,10 +3,10 @@
             [cljfx.coerce :as fx.coerce]
             [cljfx.fx.circle :as fx.circle]
             [cljfx.fx.group :as fx.group]
-            [cljfx.fx.pane :as fx.pane]
             [cljfx.fx.polyline :as fx.polyline]
             [cljfx.fx.rectangle :as fx.rectangle]
             [cljfx.fx.scene :as fx.scene]
+            [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.spec.alpha :as s]
@@ -18,7 +18,7 @@
            [javafx.event ActionEvent]
            [javafx.geometry Point2D]
            [javafx.scene Node Scene]
-           [javafx.scene.input ScrollEvent ZoomEvent]
+           [javafx.scene.input MouseEvent ScrollEvent ZoomEvent]
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
@@ -50,10 +50,9 @@
 (def ^:private ^:const ^{:tag 'double} connection-kink-width 20.0)
 
 (defn- data->fx-type-with-key [fx-type data]
-  (-> data
-      (dissoc ::id)
-      (assoc :fx/type fx-type
-             :fx/key (::id data))))
+  (assoc data
+    :fx/type fx-type
+    :fx/key (::id data)))
 
 ;; TODO: Move to styling/stylesheets/graph-view.sass.
 (def ^:private ^String inline-stylesheet "
@@ -143,6 +142,7 @@
   (-> props
       (dissoc :jacks :jack-fx-type)
       (assoc :fx/type fx.group/lifecycle
+             :mouse-transparent true
              :children (into []
                              (map-indexed (fn [^long index jack]
                                             (-> jack
@@ -152,14 +152,14 @@
                                                        :layout-y (* index node-unit-height)))))
                              jacks))))
 
-(defn- node [{::keys [title position style-class inputs outputs] :as props}]
+(defn- node [{::keys [id title position style-class inputs outputs] :as props}]
   ;; TODO: experiment with inputs-source, inputs-fn to query NodeType directly?
   (let [input-count (count inputs)
         output-count (count outputs)
         node-unit-count (+ 1 input-count output-count) ; One unit for the title and one per jack.
         node-height (* node-unit-count node-unit-height)]
     (-> props
-        (dissoc ::title ::position ::style-class ::inputs ::outputs)
+        (dissoc ::id ::title ::position ::style-class ::inputs ::outputs)
         (assoc :fx/type fx.group/lifecycle
                :layout-x (ui/point-x position)
                :layout-y (ui/point-y position)
@@ -168,7 +168,11 @@
                                    :style-class (conj (fx.coerce/style-class style-class) "graph-view-node-title")
                                    :children [{:fx/type fx.rectangle/lifecycle
                                                :width node-width
-                                               :height node-unit-height}
+                                               :height node-unit-height
+                                               :on-mouse-pressed {:event/type ::mouse-pressed-node
+                                                                  ::id id
+                                                                  ::element :node/title
+                                                                  ::element-type :node}}
                                               {:fx/type fx.text/lifecycle
                                                :x node-margin-width
                                                :y node-unit-text-y
@@ -179,7 +183,11 @@
                                    :style-class "graph-view-node-background"
                                    :layout-y node-unit-height ; Offset by one unit for the title.
                                    :width node-width
-                                   :height (- node-height node-unit-height)}]
+                                   :height (- node-height node-unit-height)
+                                   :on-mouse-pressed {:event/type ::mouse-pressed-node-unresolved
+                                                      ::id id
+                                                      ::inputs inputs
+                                                      ::outputs outputs}}]
 
                                  (seq inputs)
                                  (conj {:fx/type jack-group
@@ -195,7 +203,7 @@
                                         :jacks outputs
                                         :jack-fx-type output}))))))
 
-(defn- connection [{::keys [^Point2D from-position ^Point2D to-position style-class] :as props}]
+(defn- connection [{::keys [id ^Point2D from-position ^Point2D to-position style-class] :as props}]
   (let [from-x (.getX from-position)
         from-y (.getY from-position)
         to-x (.getX to-position)
@@ -209,10 +217,12 @@
         in-x (Double/valueOf (- to-x connection-kink-width))
         in-y end-y]
     (-> props
-        (dissoc ::from-position ::to-position ::style-class)
+        (dissoc ::id ::from-position ::to-position ::style-class)
         (assoc :fx/type fx.polyline/lifecycle
                :style-class (conj (fx.coerce/style-class style-class) "graph-view-connection")
-               :points [start-x start-y out-x out-y in-x in-y end-x end-y]))))
+               :points [start-x start-y out-x out-y in-x in-y end-x end-y]
+               :on-mouse-pressed {:event/type ::mouse-pressed-connection
+                                  ::id id}))))
 
 (defn- node-group [{:keys [nodes] :as props}]
   (prn 'node-group)
@@ -256,17 +266,20 @@
                            :text "Close"
                            :cancel-button true
                            :on-action {:event/type ::close-button}}]}
-              {:fx/type fx.pane/lifecycle
+              {:fx/type fx.scroll-pane/lifecycle
                :style-class "graph-view-pane"
                :v-box/vgrow :always
                :pref-width 800
                :pref-height 600
+               :hbar-policy :never
+               :vbar-policy :never
+               :hmin 0.0
+               :hmax 0.0
+               :vmin 0.0
+               :vmax 0.0
                :on-scroll {:event/type ::scroll}
                :on-zoom {:event/type ::zoom}
-               :children [(assoc (::graph view-data) :fx/type graph)]
-               :clip {:fx/type fx.rectangle/lifecycle
-                      :width 800
-                      :height 600}}]})
+               :content (assoc (::graph view-data) :fx/type graph)}]})
 
 (defn- window-map-desc [view-data]
   {:fx/type fxui/stage
@@ -277,6 +290,21 @@
    :scene {:fx/type fx.scene/lifecycle
            :stylesheets ["dialogs.css" inline-stylesheet-data-url]
            :root (view-map-desc view-data)}})
+
+(defn- handle-mouse-pressed-connection-event! [view-data-atom ^MouseEvent mouse-event connection-id]
+  (prn 'connection-pressed connection-id)
+  (.consume mouse-event))
+
+(defn- handle-mouse-pressed-node-event! [view-data-atom ^MouseEvent mouse-event node-id element-type element-id]
+  (prn 'node-pressed node-id element-type element-id)
+  (.consume mouse-event))
+
+(defn- handle-mouse-pressed-node-unresolved-event! [view-data-atom ^MouseEvent mouse-event node-id inputs outputs]
+  (let [input-count (count inputs)
+        element-index (long (/ (.getY mouse-event) node-unit-height))]
+    (if (< element-index input-count)
+      (handle-mouse-pressed-node-event! view-data-atom mouse-event node-id :input (::id (inputs element-index)))
+      (handle-mouse-pressed-node-event! view-data-atom mouse-event node-id :output (::id (outputs (- element-index input-count)))))))
 
 (defn- handle-scroll-event! [view-data-atom ^ScrollEvent scroll-event]
   (swap! view-data-atom update-in [::graph ::scroll-offset]
@@ -297,6 +325,9 @@
 
 (defn- view-event-handler [view-data-atom event]
   (case (:event/type event)
+    ::mouse-pressed-connection (handle-mouse-pressed-connection-event! view-data-atom (:fx/event event) (::id event))
+    ::mouse-pressed-node (handle-mouse-pressed-node-event! view-data-atom (:fx/event event) (::id event) (::element-type event) (::element event))
+    ::mouse-pressed-node-unresolved (handle-mouse-pressed-node-unresolved-event! view-data-atom (:fx/event event) (::id event) (::inputs event) (::outputs event))
     ::scroll (handle-scroll-event! view-data-atom (:fx/event event))
     ::zoom (handle-zoom-event! view-data-atom (:fx/event event))))
 
