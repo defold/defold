@@ -76,11 +76,6 @@ namespace dmGameSystem
 
         // Sort the meshes by material
         std::sort(resource->m_Meshes.Begin(), resource->m_Meshes.End(), MeshSortPred());
-
-        for (int i = 0; i < resource->m_Meshes.Size(); ++i)
-        {
-            MeshInfo& info = resource->m_Meshes[i];
-        }
     }
 
     static void WriteModelMeshVertices(const dmRigDDF::Mesh* ddf_mesh, dmRig::RigModelVertex* out)
@@ -339,10 +334,8 @@ namespace dmGameSystem
 
     static void ReleaseBuffers(ModelResourceBuffers* buffers)
     {
-        if (buffers->m_VertexBuffer != 0x0)
-            dmGraphics::DeleteVertexBuffer(buffers->m_VertexBuffer);
-        if (buffers->m_IndexBuffer != 0x0)
-            dmGraphics::DeleteIndexBuffer(buffers->m_IndexBuffer);
+        dmGraphics::DeleteVertexBuffer(buffers->m_VertexBuffer);
+        dmGraphics::DeleteIndexBuffer(buffers->m_IndexBuffer);
         delete buffers;
     }
 
