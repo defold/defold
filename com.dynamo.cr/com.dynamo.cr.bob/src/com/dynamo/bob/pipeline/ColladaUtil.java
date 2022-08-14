@@ -1251,7 +1251,8 @@ public class ColladaUtil {
             }
         }
 
-        XMLSource jointSource = skin.getJointsSource();
+        XMLInput jointInput = findInput(skin.jointsInputs, "JOINT", true);
+        XMLSource jointSource = sourcesMap.get(jointInput.source);
 
         ArrayList<String> jointsArray = new ArrayList<>();
         if(jointSource.nameArray != null)
