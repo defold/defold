@@ -1054,8 +1054,6 @@ class Configuration(object):
 
         env = self._form_env()
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-        env['DM_BOB_EXT_LIB_DIR'] = os.path.join(common_dir, 'ext')
-        env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
 
         s = run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
@@ -1214,17 +1212,10 @@ class Configuration(object):
         else:
             self.copy_local_bob_artefacts()
 
-
-        env = self._form_env()
-
         ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
-        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
-        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         env = self._form_env()
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-        env['DM_BOB_EXT_LIB_DIR'] = os.path.join(common_dir, 'ext')
-        env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
 
         run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
