@@ -25,25 +25,43 @@ public class ModelImporter {
     static final String LIBRARY_NAME = "modelc_shared";
 
     static {
+        Class<?> clsbob = null;
+
         try {
             ClassLoader clsloader = ClassLoader.getSystemClassLoader();
-            Class<?> clsbob = clsloader.loadClass("com.dynamo.bob.Bob");
-            if (clsbob != null)
-            {
+            clsbob = clsloader.loadClass("com.dynamo.bob.Bob");
+        } catch (Exception e) {
+            System.out.printf("Didn't find Bob class in default system class loader: %s\n", e);
+        }
+
+        if (clsbob == null) {
+            try {
+                // ClassLoader.getSystemClassLoader() doesn't work with junit
+                ClassLoader clsloader = ModelImporter.class.getClassLoader();
+                clsbob = clsloader.loadClass("com.dynamo.bob.Bob");
+            } catch (Exception e) {
+                System.out.printf("Didn't find Bob class in default test class loader: %s\n", e);
+            }
+        }
+
+        if (clsbob != null)
+        {
+            try {
                 Method getSharedLib = clsbob.getMethod("getSharedLib", String.class);
                 Method addToPaths = clsbob.getMethod("addToPaths", String.class);
                 File lib = (File)getSharedLib.invoke(null, LIBRARY_NAME);
                 System.load(lib.getAbsolutePath());
+            } catch (Exception e) {
+                System.err.printf("Failed to find functions in Bob: %s\n", e);
+                System.exit(1);
             }
-            else {
-            }
-        } catch (Exception e1) {
-            System.out.printf("Didn't find Bob class.\n" + e1);
+        }
+        else {
             try {
                 System.out.printf("Fallback to regular System.loadLibrary(%s)\n", LIBRARY_NAME);
                 System.loadLibrary(LIBRARY_NAME); // Requires the java.library.path to be set
-            } catch (Exception e2) {
-                System.err.println("Native code library failed to load.\n" + e2);
+            } catch (Exception e) {
+                System.err.println("Native code library failed to load: %s\n", e);
                 System.exit(1);
             }
         }
