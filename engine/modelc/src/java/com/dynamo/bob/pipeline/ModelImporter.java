@@ -61,7 +61,7 @@ public class ModelImporter {
                 System.out.printf("Fallback to regular System.loadLibrary(%s)\n", LIBRARY_NAME);
                 System.loadLibrary(LIBRARY_NAME); // Requires the java.library.path to be set
             } catch (Exception e) {
-                System.err.println("Native code library failed to load: %s\n", e);
+                System.err.printf("Native code library failed to load: %s\n", e);
                 System.exit(1);
             }
         }
