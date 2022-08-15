@@ -1,8 +1,8 @@
 diff --git a/editor/resources/engine-profiler/remotery/vis/index.html b/editor/resources/engine-profiler/remotery/vis/index.html
-index 7d095403b..56a59be49 100644
 --- a/editor/resources/engine-profiler/remotery/vis/index.html
 +++ b/editor/resources/engine-profiler/remotery/vis/index.html
-@@ -6,45 +6,45 @@
+index 53795c3..32bf07e 100644
+@@ -6,57 +6,57 @@
  		<title>Remotery Viewer</title>
  
  		<!-- Style Sheets -->
