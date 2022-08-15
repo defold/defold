@@ -1221,6 +1221,7 @@ class Configuration(object):
         if self.verbose:
             ant_args += ['-v']
 
+        ant_args += ['-v', '-debug']
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
