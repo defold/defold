@@ -1215,6 +1215,12 @@ class Configuration(object):
         ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
 
         env = self._form_env()
+
+        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
+        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
+        if self.verbose:
+            ant_args += ['-v']
+
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
