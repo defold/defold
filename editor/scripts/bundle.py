@@ -155,8 +155,15 @@ def git_sha1_from_version_file(options):
 
     try:
         return run.command(['git', 'rev-list', '-n', '1', tag_name])
+
+    except ExecException as e:
+        print("Unable to find git sha from tag=%s: ExecException: %d: '%s'" % (tag_name, e.retcode, str(e.output, encoding='utf-8')))
+
     except Exception as e:
         print("Unable to find git sha from tag=%s" % tag_name)
+        print("e:", e)
+
+    print("git_sha1_from_version_file returned None")
     return None
 
 def git_sha1(ref = 'HEAD'):
