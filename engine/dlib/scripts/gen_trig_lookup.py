@@ -52,18 +52,18 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hb", ["help", "bits="])
     except getopt.error, msg:
-        print msg
-        print "for help use --help"
+        print(msg)
+        print("for help use --help")
         sys.exit(2)
     bits = 16
     # process options
     for o, a in opts:
         if o in ("-h", "--help"):
-            print __doc__
+            print(__doc__)
             sys.exit(0)
         if o in ("-b", "--bits"):
             if bits > 16:
-                print __doc__
+                print(__doc__)
                 sys.exit(0)
             bits = int(a)
 

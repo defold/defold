@@ -18,13 +18,13 @@
 import os, sys, shutil, re, subprocess, time
 
 def _log(msg):
-    print msg
+    print(msg)
     sys.stdout.flush()
     sys.stderr.flush()
 
 def _exec_command(arg_list, **kwargs):
     arg_str = arg_list
-    if not isinstance(arg_str, basestring):
+    if not isinstance(arg_str, str):
         arg_str = ' '.join(arg_list)
     _log('[exec] %s' % arg_str)
 
@@ -45,7 +45,7 @@ def _exec_command(arg_list, **kwargs):
 
         output = ''
         while True:
-            line = process.stdout.readline()
+            line = process.stdout.readline().decode()
             if line != '':
                 output += line
                 _log(line.rstrip())

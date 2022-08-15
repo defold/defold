@@ -109,54 +109,55 @@
   }
 }
 
-@mixin floating-input() {
-  -fx-border-color: -df-component-light;
-  -fx-border-radius: 2px;
-  -fx-background-radius: 3px;
-  -fx-pref-width: 120px;
-  -fx-background-position: right 6px center;
-  -fx-background-repeat: no-repeat;
-  -fx-padding: 4px 22px 4px 8px;
-}
-
-.cljfx-form-floating-area {
-  -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 8, 0, 0, 4);
-  -fx-background-color: -df-component-darker;
-  -fx-background-radius: 6px;
-  -fx-padding: 12px;
-  -fx-spacing: 8px;
+.cljfx-form-contents {
+  -fx-background-color: derive(-df-background-light, 5%);
 
   .filter-text-field {
-    @include floating-input();
-    -fx-background-color: rgba(0, 0, 0, 0.1);
+    -fx-border-color: -df-component-light;
+    -fx-border-radius: 2px;
+    -fx-background-radius: 3px;
+    -fx-pref-width: 120px;
+    -fx-background-position: right 6px center;
+    -fx-background-repeat: no-repeat;
+    -fx-padding: 4px 22px 4px 8px;
+    -fx-background-color: -df-background-light;
     -fx-background-image: url("icons/32/Icons_M_09_search.png");
     -fx-background-size: 15px;
     -fx-cursor: text;
     &:focused {
       -fx-padding: 4px 22px 3px 8px;
-      -fx-background-color: -df-component-dark;
+      -fx-background-color: -df-background;
       -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
     }
   }
-
-  .jump-to-menu-button {
-    @include floating-input();
-    -fx-focus-traversable: false;
-    -fx-background-color: rgba(0, 0, 0, 0.1);
-    -fx-background-image: url("icons/32/Icons_S_05_arrowdown.png");
-
-    &:hover {
-      -fx-background-color: -df-component-light;
-    }
-    &:disabled {
-      .label {
-        -fx-opacity: 1;
+  & .scroll-bar {
+    -fx-background-color: derive(-df-background-light, 5%);
+  }
+}
+.cljfx-form-contents {
+  -fx-padding: 1px;
+  &-scroll-pane {
+    & > .viewport {-fx-background-color: transparent !important;}
+  }
+}
+.cljfx-form-section {
+  &-header {
+    -fx-padding: 2px 12px;
+    -fx-font-size: 90%;
+    -fx-text-fill: derive(-df-text, -20%);
+  }
+  &-button {
+    -fx-padding: 2px 12px;
+    -fx-text-fill: -df-text;
+    &:active {
+      -fx-text-fill: -df-text-selected;
+      -fx-background-color: -df-component;
+      &:hover {
+        -fx-background-color: -df-component;
       }
-      -fx-opacity: 0.4;
     }
-    .label {
-      -fx-alignment: center-left;
+    &:hover {
+      -fx-background-color: -df-component-dark;
     }
-
   }
 }

@@ -1,18 +1,17 @@
 #! /usr/bin/env python
-import os
-import Options
+import waflib.Options
 from waf_dynamo import dmsdk_add_files
 
 def configure(conf):
     pass
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                                includes = '. ../proto',
-                                protoc_includes = '../proto',
-                                proto_gen_py = True,
-                                target = 'resource')
-    resource.find_sources_in_dirs('.')
+    resource = bld.stlib(features = 'cxx ddf',
+                         includes = '. ../proto',
+                         source = bld.path.ant_glob('*.cpp'),
+                         protoc_includes = '../proto',
+                         proto_gen_py = True,
+                         target = 'resource')
 
     if 'web' in bld.env.PLATFORM:
          resource.source.append('async/load_queue_sync.cpp');
@@ -26,10 +25,10 @@ def build(bld):
     else:
         resource.source.append('mount/mount_generic.cpp');
 
-    resource.find_sources_in_dirs('../proto/resource')
+    resource.source += bld.path.parent.ant_glob('proto/resource/*')
 
-    if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')
 
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

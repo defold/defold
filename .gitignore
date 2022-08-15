@@ -2,6 +2,7 @@
 /tmp
 .DS_Store
 .lock-wscript
+.lock-waf*
 /share/ext/build
 /share/ext/download
 /share/extender/build

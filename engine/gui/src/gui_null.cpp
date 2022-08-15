@@ -645,7 +645,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result StopNodeParticlefx(HScene scene, HNode node)
+    Result StopNodeParticlefx(HScene scene, HNode node, bool clear_particles)
     {
         return RESULT_OK;
     }
@@ -873,6 +873,15 @@ namespace dmGui
     }
 
     void SetNodeEnabled(HScene scene, HNode node, bool enabled)
+    {
+    }
+
+    bool GetNodeVisible(HScene scene, HNode node)
+    {
+        return false;
+    }
+
+    void SetNodeVisible(HScene scene, HNode node, bool visible)
     {
     }
 

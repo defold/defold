@@ -77,15 +77,9 @@
 (defn- make-form-values-map [settings]
   (settings-core/make-settings-map settings))
 
-(defn- label [key]
-  (-> key
-      name
-      camel/->Camel_Snake_Case_String
-      (string/replace "_" " ")))
-
 (defn- make-form-field [setting]
   (cond-> (assoc setting
-                 :label (or (:label setting) (label (second (:path setting))))
+                 :label (or (:label setting) (settings-core/label (second (:path setting))))
                  :optional true
                  :hidden? (:hidden? setting false))
 
@@ -98,11 +92,13 @@
     (= :comma-separated-list (:type setting))
     (assoc :type :list :element {:type :string :default (or (first (:default setting)) "item")})))
 
+(defn- section-title [category-name category-info]
+  (or (:title category-info)
+      (settings-core/label category-name)))
+
 (defn- make-form-section [category-name category-info settings]
-  {:title (or (:title category-info)
-              (->> (string/split category-name #"(_|\s+)")
-                   (mapv string/capitalize)
-                   (string/join " ")))
+  {:title (section-title category-name category-info)
+   :group (:group category-info "Other")
    :help (:help category-info)
    :fields (mapv make-form-field settings)})
 
@@ -111,8 +107,18 @@
         categories (distinct (mapv settings-core/presentation-category meta-settings))
         category->settings (group-by settings-core/presentation-category meta-settings)
         sections (mapv #(make-form-section % (get-in meta-info [:categories %]) (category->settings %)) categories)
-        values (make-form-values-map settings)]
-    {:form-ops form-ops :sections sections :values values :meta-settings meta-settings}))
+        values (make-form-values-map settings)
+        group-order (into {}
+                          (map-indexed (fn [i v]
+                                         [v i]))
+                          (:group-order meta-info))]
+    {:form-ops form-ops
+     :sections sections
+     :values values
+     :meta-settings meta-settings
+     :group-order group-order
+     :default-section-name (when-let [category-name (:default-category meta-info)]
+                             (section-title category-name (get-in meta-info [:categories category-name])))}))
 
 (defn get-setting-error [setting-value meta-setting label]
   (cond

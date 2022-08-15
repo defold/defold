@@ -1,17 +1,19 @@
 #! /usr/bin/env python
 from waf_dynamo import copy_file_task
-import Options
+import waflib.Options
 
 def configure(conf):
     pass
 
 def build(bld):
 
+    texc_sources = bld.path.ant_glob("*.cpp")
+
     # The static library for the tests
-    texc = bld.new_task_gen(features = 'cxx cstaticlib',
-                            includes = ['.'],
-                            target = 'texc')
-    texc.find_sources_in_dirs(["."], ['.cpp'])
+    texc = bld(features = 'cxx cstaticlib',
+               source = texc_sources,
+               includes = ['.'],
+               target   = 'texc')
 
     remove_flags = {}
     remove_flags['CXXFLAGS'] = []
@@ -23,15 +25,15 @@ def build(bld):
         remove_flags['LINKFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
         extra_encoder_flags += ['-mmacosx-version-min=10.12']
 
-    texc_shared = bld.new_task_gen(features = 'cxx cshlib skip_asan remove_flags',
-                                   includes = ['.'],
-                                   remove_flags = remove_flags,
-                                   target = 'texc_shared',
-                                   uselib = 'BASIS_ENCODER DLIB_NOASAN PROFILE_NULL_NOASAN')
-    texc_shared.find_sources_in_dirs(["."], ['.cpp'])
+    texc_shared = bld.shlib(features     = 'cxx cshlib skip_asan remove_flags',
+                            source       = texc_sources,
+                            includes     = ['.'],
+                            remove_flags = remove_flags,
+                            target       = 'texc_shared',
+                            use          = 'BASIS_ENCODER DLIB_NOASAN PROFILE_NULL_NOASAN')
     texc_shared.env.append_unique('CXXFLAGS', extra_encoder_flags)
     texc_shared.env.append_unique('LINKFLAGS', extra_encoder_flags)
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 
-    bld.add_subdirs('test')
+    bld.recurse('test')

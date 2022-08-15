@@ -48,7 +48,7 @@
             [editor.particlefx :as particlefx]
             [editor.validation :as validation]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$Type Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
+  (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -366,11 +366,9 @@
                 (update :rotation (fn [rotation]
                                     (clj-quat->euler-v4 (or rotation [0.0 0.0 0.0 1.0])))))
         node-type-info (get-registered-node-type-info type custom-type)
-        convert-fn (:convert-fn node-type-info)
-        convert-fn (if (not= convert-fn nil)
-                     convert-fn
-                     (fn [info x] x))
-        msg (convert-fn node-type-info msg)]
+        msg (if-some [convert-fn (:convert-fn node-type-info)]
+              (convert-fn node-type-info msg)
+              msg)]
     msg))
 
 (def gui-node-parent-attachments
@@ -603,6 +601,7 @@
                                               :max 1.0
                                               :precision 0.01})))
   (property inherit-alpha g/Bool (default true))
+  (property enabled g/Bool (default true))
 
   (property layer g/Str
             (default "")
@@ -631,7 +630,7 @@
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
-  
+
   (input spine-scene-element-ids SpineSceneElementIds)
   (output spine-scene-element-ids SpineSceneElementIds (gu/passthrough spine-scene-element-ids))
   (input spine-scene-infos SpineSceneInfos)
@@ -651,17 +650,18 @@
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [child-outlines]
                                                                      (vec (sort-by :child-index child-outlines))))
   (output node-outline-reqs g/Any :cached (g/fnk []
-                                                 (mapv (fn [type-info] {:node-type (:node-cls type-info)
-                                                                        :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
-                                                       (get-registered-node-type-infos))))
-  
+                                            (mapv (fn [type-info]
+                                                    {:node-type (:node-cls type-info)
+                                                     :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
+                                                  (get-registered-node-type-infos))))
+
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type custom-type own-build-errors _overridden-properties]
             (cond-> {:node-id _node-id
                      :node-outline-key id
                      :label id
                      :child-index child-index
-                     :icon (or (:icon (get-registered-node-type-info type custom-type)) gui-icon)
+                     :icon (:icon (get-registered-node-type-info type custom-type))
                      :child-reqs node-outline-reqs
                      :copy-include-fn (fn [node]
                                         (let [node-id (g/node-id node)]
@@ -754,6 +754,8 @@
 (g/defnode VisualNode
   (inherits GuiNode)
 
+  (property visible g/Bool (default true))
+
   (property blend-mode g/Keyword (default :blend-mode-alpha)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
   (property adjust-mode g/Keyword (default :adjust-mode-fit)
@@ -770,7 +772,7 @@
 
   (output gui-scene g/Any (g/fnk [_node-id]
                                  (node->gui-scene _node-id)))
-  
+
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output aabb g/Any :cached (g/fnk [pivot size]
                                     (let [offset-fn (partial mapv + (pivot-offset pivot size))
@@ -781,7 +783,7 @@
 
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data]
+          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data visible enabled]
                  (let [clipping-state (:clipping-state scene-renderable-user-data)
                        gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
                        material-shader (get scene-renderable-user-data :override-material-shader material-shader)]
@@ -801,10 +803,12 @@
                     :child-index child-index
                     :layer-index layer-index
                     :topmost? true
+                    :visible-self? (and visible enabled)
+                    :visible-children? enabled
                     :pass-overrides {pass/outline {:batch-key ::outline}}})))
 
   (output scene-outline-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index scene-renderable-user-data]
+          (g/fnk [_node-id child-index layer-index scene-renderable-user-data visible enabled]
                  {:render-fn render-lines
                   :tags (set/union #{:gui :outline} (:renderable-tags scene-renderable-user-data))
                   :passes [pass/outline]
@@ -813,7 +817,9 @@
                   :select-batch-key _node-id
                   :child-index child-index
                   :layer-index layer-index
-                  :topmost? true}))
+                  :topmost? true
+                  :visible-self? (and visible enabled)
+                  :visible-children? enabled}))
 
   (output build-errors-visual-node g/Any (gu/passthrough build-errors-gui-node))
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
@@ -941,7 +947,7 @@
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
 
   (display-order (into base-display-order
-                       [:size-mode :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:size-mode :enabled :visible :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
@@ -1101,7 +1107,7 @@
   (property pie-fill-angle g/Num (default 360.0))
 
   (display-order (into base-display-order
-                       [:size-mode :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
+                       [:size-mode :enabled :visible :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
@@ -1202,7 +1208,7 @@
                                       :max 1.0
                                       :precision 0.01})))
 
-  (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:enabled :visible :text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [font-datas font]
                                     (or (font-datas font)
@@ -1294,6 +1300,9 @@
                      #(contains? % :renderable)
                      #(update-in % [:renderable :tags] (fn [tags] (set (map (fn [tag] (get replacements tag tag)) tags))))))
 
+(defn- andf [a b]
+  (and a b))
+
 (g/defnode TemplateNode
   (inherits GuiNode)
 
@@ -1359,7 +1368,7 @@
                                                                   [:font-shaders :aux-font-shaders]
                                                                   [:font-datas :aux-font-datas]
                                                                   [:font-names :aux-font-names]
-                                                                  
+
                                                                   [:spine-scene-element-ids :aux-spine-scene-element-ids]
                                                                   [:spine-scene-infos :aux-spine-scene-infos]
                                                                   [:spine-scene-names :aux-spine-scene-names]
@@ -1372,7 +1381,7 @@
                                                    (g/connect self from or-scene to)))))))))
                          []))))))
 
-  (display-order (into base-display-order [:template]))
+  (display-order (into base-display-order [:enabled :template]))
 
   (input scene-pb-msg g/Any :substitute (fn [_] {:nodes []}))
   (input scene-rt-pb-msg g/Any)
@@ -1403,6 +1412,7 @@
                                                                                (assoc :inherit-alpha (:inherit-alpha node-msg)))
                                                           (empty? (:parent %)) (->
                                                                                  (assoc :parent (:parent node-msg))
+                                                                                 (update :enabled andf (:enabled node-msg))
                                                                                  ;; In fact incorrect, but only possibility to retain rotation/scale separation
                                                                                  (update :scale (partial mapv * (:scale node-msg)))
                                                                                  (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
@@ -1415,14 +1425,18 @@
                        (if (some? template-scene)
                          (:aabb template-scene)
                          geom/empty-bounding-box)))
-  (output scene-children g/Any (g/fnk [_node-id id template-scene]
-                                 (if-let [child-scenes (:children (add-renderable-tags template-scene #{:gui}))]
-                                   (mapv (partial scene/claim-child-scene (:node-id template-scene) _node-id id) child-scenes)
-                                   [])))
-  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha]
+  (output scene-children g/Any :cached (g/fnk [_node-id id template-scene]
+                                         (when (seq (:children template-scene))
+                                           (-> template-scene
+                                               (scene/claim-scene _node-id id)
+                                               (add-renderable-tags #{:gui})
+                                               :children))))
+  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha enabled]
                                                 {:passes [pass/selection]
                                                  :child-index child-index
                                                  :layer-index layer-index
+                                                 :visible-self? enabled
+                                                 :visible-children? enabled
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-gui-node template-resource]
                                    (g/package-errors _node-id
@@ -1459,12 +1473,13 @@
     (dynamic visible (g/constantly false)))
 
   (display-order (into base-display-order
-                       [:particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:enabled :visible :particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (output source-scene g/Any :cached (g/fnk [particlefx-infos particlefx child-index layer-index material-shader color+alpha]
+  (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index material-shader color+alpha]
                                             (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
                                               (-> source-scene
+                                                  (scene/claim-scene _node-id id)
                                                   (move-topmost)
                                                   (add-renderable-tags #{:gui})
                                                   (replace-renderable-tags {:particlefx :gui-particlefx})
@@ -1480,24 +1495,25 @@
                                                                 (cond->
                                                                     layer-index (assoc :layer-index layer-index)))))))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output aabb g/Any :cached (g/fnk [source-scene]
-                               (if (some? source-scene)
-                                 (:aabb source-scene)
-                                 geom/empty-bounding-box)))
-  (output scene g/Any :cached (g/fnk [_node-id id aabb transform source-scene scene-children color+alpha inherit-alpha]
-                                     (let [scene (if source-scene
-                                                   (let [updatable (assoc (:updatable source-scene) :node-id _node-id)]
-                                                     (cond-> (scene/claim-scene source-scene _node-id id)
-                                                       updatable
-                                                       ((partial scene/map-scene #(assoc % :updatable updatable)))))
-                                                   {:renderable {:passes [pass/selection]
-                                                                 :user-data {:color color+alpha :inherit-alpha inherit-alpha}}})]
-                                       (-> scene
-                                           (assoc
-                                             :node-id _node-id
-                                             :aabb aabb
-                                             :transform transform)
-                                           (update :children (fnil into []) scene-children)))))
+  (output aabb g/Any (g/fnk [source-scene]
+                       (if (some? source-scene)
+                         (:aabb source-scene)
+                         geom/empty-bounding-box)))
+  (output scene g/Any :cached (g/fnk [_node-id aabb transform source-scene scene-children color+alpha inherit-alpha visible enabled]
+                                (let [scene (if source-scene
+                                              (if-some [updatable (some-> source-scene :updatable (assoc :node-id _node-id))]
+                                                (scene/map-scene #(assoc % :updatable updatable) source-scene)
+                                                source-scene)
+                                              {:renderable {:passes [pass/selection]
+                                                            :user-data {:color color+alpha :inherit-alpha inherit-alpha}}})]
+                                  (-> scene
+                                      (assoc
+                                        :node-id _node-id
+                                        :aabb aabb
+                                        :transform transform
+                                        :visible-self? (and visible enabled)
+                                        :visible-children? enabled)
+                                      (update :children (fnil into []) scene-children)))))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-visual-node particlefx particlefx-resource-names]
                                    (g/package-errors _node-id
                                                      build-errors-visual-node
@@ -2575,7 +2591,7 @@
                                  (map (fn [[parent menu-label menu-icon add-fn opts]]
                                         (let [parent (if (= node scene) parent node)]
                                           (make-add-handler scene parent menu-label menu-icon add-fn opts)))))))]
-      (filter some? (into node-options handler-options))))
+    (filter some? (into node-options handler-options))))
 
 (defn- add-layout-options [node user-data]
   (g/with-auto-evaluation-context evaluation-context
@@ -2625,6 +2641,10 @@
 ;; SDK api
 (defn register-gui-scene-loader! [loader]
   (swap! custom-gui-scene-loaders conj loader))
+
+;; Used by tests
+(defn clear-custom-gui-scene-loaders-for-tests! []
+  (reset! custom-gui-scene-loaders ()))
 
 (defn- get-registered-gui-scene-loaders []
   @custom-gui-scene-loaders)
@@ -2780,7 +2800,6 @@
                            child-index 0]
                       (if node-desc
                         (let [node-type (get-registered-node-type-cls (:type node-desc) (:custom-type node-desc))
-                              node-type-info (get-registered-node-type-info (:type node-desc) (:custom-type node-desc))
                               props (-> node-desc
                                         (assoc :child-index child-index)
                                         (select-keys (g/declared-property-labels node-type))
@@ -2841,19 +2860,17 @@
   (let [node-type (:type node-desc)
         custom-type (:custom-type node-desc 0)
         node-type-info (get-registered-node-type-info node-type custom-type)
-        convert-fn (:convert-fn node-type-info)
-        convert-fn (if (not= convert-fn nil)
-                     convert-fn
-                     (fn [info x] x))
-        node-desc (convert-fn node-type-info node-desc)]
+        node-desc (if-some [convert-fn (:convert-fn node-type-info)]
+                    (convert-fn node-type-info node-desc)
+                    node-desc)]
     (cond-> (-> node-desc
                 sanitize-node-colors
                 sanitize-node-rotation)
 
-          ;; Size mode is not applicable for text nodes, but might still be
-          ;; stored in the files from editor 1.
-      (= :type-text (:type node-desc))
-      (dissoc :size-mode))))
+            ;; Size mode is not applicable for text nodes, but might still be
+            ;; stored in the files from editor 1.
+            (= :type-text (:type node-desc))
+            (dissoc :size-mode))))
 
 (def ^:private sanitize-nodes #(mapv sanitize-node %))
 
@@ -3011,18 +3028,20 @@
   (concat base-node-type-infos @custom-node-type-infos))
 
 (defn- get-registered-node-type-info [node-type custom-type]
-  (let [infos (filter (fn [info] (and
-                                  (= (:node-type info) node-type)
-                                  (= (:custom-type info) custom-type))) (get-registered-node-type-infos))
-        info (first infos)]
-    info))
+  (or (some (fn [info]
+              (when (and (= node-type (:node-type info))
+                         (= custom-type (:custom-type info)))
+                info))
+            (get-registered-node-type-infos))
+      (throw (ex-info (format "Unable to locate GUI node type info. Extension not loaded? (node-type=%s, custom-type=%s)"
+                              node-type
+                              custom-type)
+                      {:node-type node-type
+                       :custom-type custom-type
+                       :custom-node-type-infos @custom-node-type-infos}))))
 
 (defn- get-registered-node-type-cls [node-type custom-type]
-  (let [info (get-registered-node-type-info node-type custom-type)
-        cls (if (nil? info)
-              GuiNode
-              (:node-cls info))]
-    cls))
+  (:node-cls (get-registered-node-type-info node-type custom-type)))
 
 ;; SDK api
 (defn register-node-type-info! [type-info]

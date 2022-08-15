@@ -10,6 +10,7 @@
         <map>
           <entry key="cljfx.composite/props" value="-1" />
           <entry key="clojure.core/defmulti" value="-1" />
+          <entry key="clojure.core/defonce" value="-1" />
           <entry key="dynamo.graph/make-nodes" value="-1" />
           <entry key="dynamo.graph/precluding-errors" value="-1" />
           <entry key="dynamo.graph/transact" value="-1" />

@@ -76,13 +76,6 @@ void LogFinalize();
  */
 uint16_t GetPort();
 
-
-/**
- * Set log level
- * @param severity Log severity
- */
-void Setlevel(Severity severity);
-
 /**
  * Set log file. The file will be created and truncated.
  * Subsequent invocations to this function will close previous opened file.
@@ -117,7 +110,7 @@ void SetCustomLogCallback(CustomLogCallback callback, void* user_data);
  * @param severity Log severity
  * @param str_buf String buffer to print
  */
-void __ios_log_print(Severity severity, const char* str_buf);
+void __ios_log_print(LogSeverity severity, const char* str_buf);
 
 
 } //namespace dmLog

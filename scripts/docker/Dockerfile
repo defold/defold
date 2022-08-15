@@ -1,5 +1,4 @@
-#FROM i386/ubuntu:18.04
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 # Base stuff
 RUN \
@@ -8,8 +7,6 @@ RUN \
   add-apt-repository ppa:openjdk-r/ppa && \
   apt-get update && \
   apt-get install -y openjdk-11-jdk
-
-# Using the vanilla GCC (7.5.0)
 
 RUN \
   dpkg --add-architecture i386 && \
@@ -30,36 +27,15 @@ RUN \
     libglw1-mesa-dev \
     freeglut3-dev \
     gcc-multilib \
-    g++-multilib
+    g++-multilib \
+    # for python+ctypes
+    libffi-dev
 
-RUN \
-  apt-get update && apt-get install -y \
-    xz-utils \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -SL https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz \
-    | tar -xJC . && \
-    mv clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04 clang_10.0.0
-
-ENV PATH=/clang_10.0.0/bin:$PATH
-ENV LD_LIBRARY_PATH=/clang_10.0.0/lib:$LD_LIBRARY_PATH
-
-RUN \
-  echo "PYTHON" && \
-  apt-get autoclean && \
-  apt-get update && \
-  apt-get install -y --no-install-recommends python2.7 python-setuptools && \
-  ln -s /usr/bin/python2.7 /usr/local/bin/python && \
-  ln -s /usr/bin/python2.7 /usr/local/bin/python2 && \
-  sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install" && \
-  sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install" && \
-  chmod +x /usr/local/bin/easy_install
 
 RUN \
   apt-get install -y --no-install-recommends \
     tofrodos \
     cmake \
-    curl \
     wget \
     zip \
     unzip \
@@ -67,6 +43,34 @@ RUN \
     silversearcher-ag \
     valgrind \
     git
+
+ENV CLANG_VERSION 13.0.1
+RUN \
+  apt-get update && apt-get install -y \
+    xz-utils \
+    curl \
+    libtinfo5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -SL https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-x86_64-linux-gnu-ubuntu-18.04.tar.xz \
+    | tar -xJC . && \
+    mv clang+llvm-${CLANG_VERSION}-x86_64-linux-gnu-ubuntu-18.04 clang_${CLANG_VERSION}
+
+ENV PATH=/clang_${CLANG_VERSION}/bin:$PATH
+ENV LD_LIBRARY_PATH=/clang_${CLANG_VERSION}/lib:$LD_LIBRARY_PATH
+
+ENV PYENV_ROOT /.pyenv
+ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
+
+ENV PYTHON3_VERSION 3.10.4
+
+RUN \
+    echo "PYENV" && \
+    set -ex \
+    && curl https://pyenv.run | bash \
+    && pyenv update \
+    && pyenv install $PYTHON3_VERSION \
+    && pyenv global $PYTHON3_VERSION \
+    && pyenv rehash
 
 RUN apt-get autoremove
 

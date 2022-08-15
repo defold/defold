@@ -88,16 +88,22 @@ namespace dmProfile
             {
                 settings->port = (rmtU16)options->m_Port;
             }
+            if (options->m_SleepBetweenServerUpdates > 0)
+            {
+                settings->msSleepBetweenServerUpdates = options->m_SleepBetweenServerUpdates;
+            }
         }
         settings->sampletree_handler = SampleTreeCallback;
         settings->sampletree_context = 0;
         settings->snapshot_callback = PropertyTreeCallback;
         settings->snapshot_context = 0;
+        settings->reuse_open_port = true;
+        settings->enableThreadSampler = false;
 
         rmtError result = rmt_CreateGlobalInstance(&g_Remotery);
         if (result != RMT_ERROR_NONE)
         {
-            dmLogError("Failed to initialize profile library");
+            dmLogError("Failed to initialize profile library %d", result);
             return;
         }
 

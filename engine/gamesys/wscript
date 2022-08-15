@@ -9,17 +9,23 @@ blddir = 'build'
 import sys, os, re
 import waf_ddf, waf_graphics, waf_dynamo, waf_physics, waf_render
 from waf_dynamo import platform_supports_feature
+import waflib.Options
+import TestContext
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.recurse('src')
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('java')
+    conf.load('waf_dynamo')
+    conf.load('java')
 
     waf_ddf.configure(conf)
     waf_graphics.configure(conf)
@@ -39,39 +45,38 @@ def configure(conf):
     elif "win32" in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib'])
 
-    conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_RESOURCE'] = 'resource'
-    conf.env['STATICLIB_GAMEOBJECT'] = 'gameobject'
-    conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_RENDER'] = 'render'
-    conf.env['STATICLIB_PARTICLE'] = 'particle'
-    conf.env['STATICLIB_RIG'] = 'rig'
-    conf.env['STATICLIB_GUI'] = 'gui'
-    conf.env['STATICLIB_SOUND_NULL'] = 'sound_null'
-    conf.env['STATICLIB_INPUT'] = 'input'
-    conf.env['STATICLIB_HID'] = 'hid'
-    conf.env['STATICLIB_HID_NULL'] = 'hid_null'
-    conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
+    conf.env.append_value('INCLUDES', "default/src")
+    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DDF'] = 'ddf'
+    conf.env['STLIB_RESOURCE'] = 'resource'
+    conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
+    conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_SCRIPT'] = 'script'
+    conf.env['STLIB_RENDER'] = 'render'
+    conf.env['STLIB_PARTICLE'] = 'particle'
+    conf.env['STLIB_RIG'] = 'rig'
+    conf.env['STLIB_GUI'] = 'gui'
+    conf.env['STLIB_SOUND_NULL'] = 'sound_null'
+    conf.env['STLIB_INPUT'] = 'input'
+    conf.env['STLIB_HID'] = 'hid'
+    conf.env['STLIB_HID_NULL'] = 'hid_null'
+    conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
-
-    conf.sub_config('src')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GAMESYS"')
+    conf.recurse('src')
 
 def build(bld):
+    global test_context
     sys.path.insert(0, bld.path.find_dir('src').abspath())
-    sys.path.insert(0, os.path.abspath('build/default/proto/gamesys'))
+    sys.path.insert(0, os.path.abspath('build/proto/gamesys'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gameobject'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/input'))
 
-    bld.add_subdirs('content')
+    bld.recurse('content')
     bld.add_group()
-    bld.add_subdirs('src')
+    bld.recurse('src')
 
-import Build, Options
-import os, subprocess
-def shutdown():
-    if not Options.commands['build']:
-        return
-    waf_dynamo.run_tests(valgrind = True)
+    TestContext.initialize_test_context(test_context, bld)
+
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)

@@ -132,8 +132,6 @@ struct SResourceFactory
     // Resource manifest
     Manifest*                                    m_Manifest;
     void*                                        m_ArchiveMountInfo;
-
-    uint8_t                                      m_UseLiveUpdate : 1;
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -457,7 +455,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     SResourceFactory* factory = new SResourceFactory;
     memset(factory, 0, sizeof(*factory));
     factory->m_Socket = socket;
-    factory->m_UseLiveUpdate = params->m_Flags & RESOURCE_FACTORY_FLAGS_LIVE_UPDATE ? 1 : 0;
 
     dmURI::Result uri_result = dmURI::Parse(uri, &factory->m_UriParts);
     if (uri_result != dmURI::RESULT_OK)

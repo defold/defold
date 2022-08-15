@@ -21,6 +21,7 @@ function test_http()
     local headers = {}
     headers['X-A'] = 'Defold'
     headers['X-B'] = '!'
+
     http.request("http://127.0.0.1:" .. PORT, "GET",
         function(response)
             assert(response.status == 200)

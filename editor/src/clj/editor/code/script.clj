@@ -462,21 +462,13 @@
       [bytecode-or-error]
       (let [go-props (properties/build-go-props dep-resources (:go-props user-data))
             modules (:modules user-data)
-            cleaned-lines (strip-go-property-declarations lines)
-            bytecode (if (identical? lines cleaned-lines)
-                       bytecode-or-error
-                       (script->bytecode cleaned-lines proj-path :32-bit))
-            bytecode-64 (script->bytecode cleaned-lines proj-path :64-bit)]
-        (assert (not (g/error? bytecode)))
-        (assert (not (g/error? bytecode-64)))
+            cleaned-lines (strip-go-property-declarations lines)]
         {:resource resource
          :content (protobuf/map->bytes
                     Lua$LuaModule
                     {:source {:script (ByteString/copyFromUtf8
                                         (slurp (data/lines-reader cleaned-lines)))
-                              :filename (resource/proj-path (:resource resource))
-                              :bytecode (ByteString/copyFrom ^bytes bytecode)
-                              :bytecode-64 (ByteString/copyFrom ^bytes bytecode-64)}
+                              :filename (resource/proj-path (:resource resource))}
                      :modules modules
                      :resources (mapv lua/lua-module->build-path modules)
                      :properties (properties/go-props->decls go-props true)

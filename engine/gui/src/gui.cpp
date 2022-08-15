@@ -1405,11 +1405,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         CollectRenderEntries(scene, scene->m_RenderHead, 0, 0x0, clippers, render_entries);
     }
 
-    static inline bool IsInvisible(InternalNode* n, float opacity)
+    static inline bool IsVisible(InternalNode* n, float opacity)
     {
-        bool no_clipping = n->m_ClipperIndex == INVALID_INDEX;
+        bool use_clipping = n->m_ClipperIndex != INVALID_INDEX;
 
-        return opacity == 0.0f && no_clipping;
+        return n->m_Node.m_IsVisible && (opacity != 0.0f || use_clipping);
     }
 
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context)
@@ -1478,7 +1478,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             // Ideally, we'd like to have this update step in the Update function (I'm not even sure why it isn't tbh)
             // But for now, let's prune the list here
-            if (IsInvisible(n, opacity) || n->m_Node.m_IsBone)
+            if (!IsVisible(n, opacity) || n->m_Node.m_IsBone)
             {
                 entry.m_Node = INVALID_HANDLE;
                 entry.m_RenderKey = INVALID_RENDER_KEY;
@@ -2333,6 +2333,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         node->m_Node.m_SizeMode = SIZE_MODE_MANUAL;
         node->m_Node.m_LineBreak = 0;
         node->m_Node.m_Enabled = 1;
+        node->m_Node.m_IsVisible = 1;
         node->m_Node.m_DirtyLocal = 1;
         node->m_Node.m_InheritAlpha = 0;
         node->m_Node.m_ClippingMode = CLIPPING_MODE_NONE;
@@ -2552,7 +2553,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                     else
                     {
-                        dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance);
+                        dmParticle::StopInstance(scene->m_ParticlefxContext, c->m_Instance, false);
                         n->m_Node.m_HasHeadlessPfx = 1;
                         ++i;
                     }
@@ -3222,7 +3223,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return RESULT_OK;
     }
 
-    Result StopNodeParticlefx(HScene scene, HNode node)
+    Result StopNodeParticlefx(HScene scene, HNode node, bool clear_particles)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) {
@@ -3235,7 +3236,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             ParticlefxComponent* component = &scene->m_AliveParticlefxs[i];
             if (component->m_Node == node)
             {
-                dmParticle::StopInstance(scene->m_ParticlefxContext, component->m_Instance);
+                dmParticle::StopInstance(scene->m_ParticlefxContext, component->m_Instance, clear_particles);
             }
         }
 
@@ -3872,6 +3873,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         {
             SetDirtyLocalRecursive(scene, node);
         }
+    }
+
+    bool GetNodeVisible(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_IsVisible;
+    }
+
+    void SetNodeVisible(HScene scene, HNode node, bool visible)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_IsVisible = visible;
     }
 
     void MoveNodeBelow(HScene scene, HNode node, HNode reference)

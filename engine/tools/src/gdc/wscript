@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import os
-import Options
+import waflib.Options
 
 def configure(conf):
     pass
@@ -12,15 +12,15 @@ def build(bld):
 
     graphics_lib = 'GRAPHICS'
     graphics_adapter = 'GraphicsAdapterOpenGL'
-    if Options.options.with_vulkan:
+    if waflib.Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN'
         graphics_adapter = 'GraphicsAdapterVulkan'
 
-    b = bld.new_task_gen(features = 'cc cxx cprogram',
-                        uselib = 'PLATFORM_SOCKET HID INPUT DDF DLIB PROFILE_NULL DMGLFW X ' + graphics_lib,
-                        exported_symbols = [graphics_adapter],
-                        source = 'main.cpp',
-                        target = 'gdc')
+    b = bld.program(features         = 'c cprogram cxx',
+                    use              = 'PLATFORM_SOCKET HID INPUT DDF DLIB PROFILE_NULL DMGLFW X CARES ' + graphics_lib,
+                    exported_symbols = [graphics_adapter],
+                    source           = 'main.cpp',
+                    target           = 'gdc')
 
     if bld.env.PLATFORM == 'x86_64-darwin':
         b.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
