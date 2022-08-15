@@ -31,23 +31,9 @@ Verify that Java is installed and working:
 ```
 
 
-### Required Software - Python 2
+### Required Software - Python 3
 
-You need a 64 bit Python 2 version to build the engine and tools. The latest tested on all platforms is Python 2.7.16. You also need `easy_install` to install additional packages. Install Python 2 using:
-
-```sh
-> sudo apt install python2-minimal python-setuptools
-```
-
-Since our scripts use `python`, you'll need to set it up somehow.
-One way is using an alias:
-
-```sh
-# in ~/.bashrc
-alias python='python2.7'
-```
-
-Another way is to use [update-alternatives](https://www.google.com/search?client=firefox-b-d&q=linux+update-alternatives+python) to select version.
+You need a 64 bit Python 3 version to build the engine and tools. The latest tested on all platforms is Python 3.10.5. You also need `easy_install` to install additional packages.
 
 
 ### Required Software - Additional tools
