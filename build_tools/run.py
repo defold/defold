@@ -34,7 +34,7 @@ def _exec_command(arg_list, **kwargs):
         process = subprocess.Popen(arg_list, **kwargs)
         output = process.communicate()[0]
         if process.returncode != 0:
-            log(output)
+            log(str(output, encoding='utf-8'))
     else:
         # On the CI machines, we make sure we produce a steady stream of output
         # However, this also makes us lose the color information
@@ -54,7 +54,9 @@ def _exec_command(arg_list, **kwargs):
     if process.wait() != 0:
         raise ExecException(process.returncode, output)
 
-    return str(output).strip()
+    if output is None:
+        return ''
+    return str(output, encoding='utf-8').strip()
 
 def command(args, **kwargs):
     if kwargs.get("shell") is None:
