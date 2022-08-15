@@ -868,7 +868,7 @@
                              (write-fn (read-fn reader)))]
         (assoc embedded key sanitized-data))
       (catch Exception _
-        ;; Leave unsanitary.
+        ;; Leave unsanitized.
         embedded))))
 
 (defn- sanitize-instance [instance]

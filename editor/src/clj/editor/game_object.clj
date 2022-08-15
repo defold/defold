@@ -39,7 +39,8 @@
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [java.io StringReader]
-           [javax.vecmath Matrix4d Vector3d]))
+           [javax.vecmath Matrix4d Vector3d]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -610,38 +611,63 @@
 (def default-scale-value [1.0 1.0 1.0])
 
 (defn- sanitize-default-scale [component]
-  (if-some [scale-map-entry (find component :scale)]
-    (if (protobuf/default-read-scale-value? (val scale-map-entry))
+  (let [scale (get component :scale ::not-found)]
+    (if (and (not= ::not-found scale)
+             (protobuf/default-read-scale-value? scale))
       (assoc component :scale default-scale-value)
-      component)
-    component))
+      component)))
 
-(defn- sanitize-component [component]
-  (-> (sanitize-property-descs-at-path [:properties] component)
-      (sanitize-default-scale)
-      (dissoc :property-decls))) ; Only used in built data by the runtime.
+(defn- sanitize-component [resource-type-map proj-path->resource-data component]
+  (let [^String component-path (:component component)
+        patch-component-fn (some-> component-path FilenameUtils/getExtension resource-type-map :tag-opts :component :patch-component-fn)]
+  (cond-> (-> (sanitize-property-descs-at-path [:properties] component)
+              (sanitize-default-scale)
+              (dissoc :property-decls)) ; Only used in built data by the runtime.
+          patch-component-fn (patch-component-fn nil proj-path->resource-data))))
 
-(defn- sanitize-embedded-component-data [resource-type-map embedded]
-  (let [{:keys [read-fn write-fn]} (resource-type-map (:type embedded))]
+(defn- sanitize-embedded-component-data [resource-type-map proj-path->resource-data embedded]
+  (let [component-type (:type embedded)
+        resource-type (resource-type-map component-type)
+        tag-opts (:tag-opts resource-type)
+        {:keys [patch-component-fn sanitize-embedded]} (:component tag-opts)]
     (try
-      (let [data (:data embedded)
-            sanitized-data (with-open [reader (StringReader. data)]
-                             (write-fn (read-fn reader)))]
-        (assoc embedded :data sanitized-data))
+      (let [unsanitized-data (when (or sanitize-embedded patch-component-fn)
+                               (with-open [reader (StringReader. (:data embedded))]
+                                 ((:read-fn resource-type) reader)))]
+        (cond-> embedded
+                sanitize-embedded (assoc :data ((:write-fn resource-type) unsanitized-data))
+                patch-component-fn (patch-component-fn unsanitized-data proj-path->resource-data)))
       (catch Exception _
-        ;; Leave unsanitary.
+        ;; Leave unsanitized.
         embedded))))
 
-(defn- sanitize-embedded-component [resource-type-map embedded]
+(defn- sanitize-embedded-component [resource-type-map proj-path->resource-data embedded]
   (->> embedded
-       (sanitize-embedded-component-data resource-type-map)
+       (sanitize-embedded-component-data resource-type-map proj-path->resource-data)
        (sanitize-default-scale)))
 
+(defn- try-read-resource-data [workspace proj-path]
+  (when (some? proj-path)
+    (when-some [resource (workspace/find-resource workspace proj-path)]
+      (let [resource-type (resource/resource-type resource)
+            read-fn (:read-fn resource-type)]
+        (try
+          (read-fn resource)
+          (catch Exception _
+            ;; IO errors are reported elsewhere. This is only used for
+            ;; sanitizing or patching data. Returning nil here simply means we
+            ;; won't attempt to sanitize or patch the data.
+            nil))))))
+
+(defn- make-proj-path->resource-data [workspace]
+  (memoize (partial try-read-resource-data workspace)))
+
 (defn sanitize-game-object [workspace go]
-  (let [resource-type-map (workspace/get-resource-type-map workspace)]
+  (let [resource-type-map (workspace/get-resource-type-map workspace)
+        proj-path->resource-data (make-proj-path->resource-data workspace)]
     (-> go
-        (update :components (partial mapv sanitize-component))
-        (update :embedded-components (partial mapv (partial sanitize-embedded-component resource-type-map))))))
+        (update :components (partial mapv (partial sanitize-component resource-type-map proj-path->resource-data)))
+        (update :embedded-components (partial mapv (partial sanitize-embedded-component resource-type-map proj-path->resource-data))))))
 
 (defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]
   (when-let [resource-type (resource-types type)]

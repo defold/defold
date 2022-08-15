@@ -604,7 +604,7 @@
         (assert (string? sanitized-go-prop-value))
         (assoc property-desc :value sanitized-go-prop-value))
       (catch Exception _
-        ;; Leave unsanitary.
+        ;; Leave unsanitized.
         property-desc))))
 
 (defn- apply-property-override [workspace id-mapping prop-kw prop property-desc]

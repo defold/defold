@@ -362,8 +362,23 @@
       (update :size sanitize-v4)
       (dissoc :scale))) ; Scale was moved to the ComponentDesc. Migrated in game-object.clj.
 
+(defn- patch-label-component [component embedded-data proj-path->resource-data]
+  (let [component-scale (:scale component)]
+    (if (or (nil? component-scale)
+            (protobuf/default-read-scale-value? component-scale))
+      (let [label (or embedded-data
+                      (proj-path->resource-data (:component component)))
+            label-scale (some-> label :scale v4->v3)]
+        (if (and (some? label-scale)
+                 (not (protobuf/default-read-scale-value? label-scale))
+                 (not= [1.0 1.0 1.0] label-scale))
+          (assoc component :scale label-scale)
+          component))
+      component)))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
+    :label "Label"
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
@@ -372,5 +387,5 @@
     :icon label-icon
     :view-types [:scene :text]
     :tags #{:component}
-    :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}
-    :label "Label"))
+    :tag-opts {:component {:transform-properties #{:position :rotation :scale}
+                           :patch-component-fn patch-label-component}}))

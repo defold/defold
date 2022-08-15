@@ -129,7 +129,6 @@
                 :test-fn (fn [pb targets]
                            (is (= {:color [1.0 1.0 1.0 1.0],
                                    :line-break false,
-                                   :scale [1.0 1.0 1.0 0.0],
                                    :blend-mode :blend-mode-alpha,
                                    :leading 1.0,
                                    :font "/builtins/fonts/system_font.fontc",

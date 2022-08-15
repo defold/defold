@@ -167,7 +167,12 @@
                             (load-fn project self resource source-value)))
                :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                :read-fn read-fn
-               :write-fn (partial protobuf/map->str ddf-type))]
+               :write-fn (partial protobuf/map->str ddf-type))
+        args (if (and (some? sanitize-fn)
+                      (contains? tags :component)
+                      (not (contains? tags :non-embeddable)))
+               (update-in args [:tag-opts :component :sanitize-embedded] #(if (some? %) % true))
+               args)]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn icon view-types tags tag-opts label] :as args}]
