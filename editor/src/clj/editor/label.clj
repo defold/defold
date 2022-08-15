@@ -26,20 +26,17 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.material :as material]
-            [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene-tools :as scene-tools]
             [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
            [com.jogamp.opengl GL GL2]
-           [editor.gl.shader ShaderLifecycle]
-           [javax.vecmath Vector3d]))
+           [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
 
@@ -180,17 +177,16 @@
     (mapv * size [xs ys 1])))
 
 (defn- v3->v4 [v]
-  ;; We use 1.0 as the W component for both the size
-  ;; and scale properties in the Label file format.
+  ;; We use 1.0 as the W component for the size
+  ;; property in the Label file format.
   (conj v 1.0))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
 
-(g/defnk produce-pb-msg [text size scale color outline shadow leading tracking pivot blend-mode line-break font material]
+(g/defnk produce-pb-msg [text size color outline shadow leading tracking pivot blend-mode line-break font material]
   {:text text
    :size (v3->v4 size)
-   :scale (v3->v4 scale)
    :color color
    :outline outline
    :shadow shadow
@@ -203,10 +199,9 @@
    :material (resource/resource->proj-path material)})
 
 (g/defnk produce-scene
-  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data scale]
+  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data]
   (let [scene {:node-id _node-id
-               :aabb aabb
-               :transform (math/->mat4-scale scale)}
+               :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
         texture-recip-uniform (font/get-texture-recip-uniform font-map)
         material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
@@ -262,7 +257,6 @@
   (property text g/Str
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
   (property size types/Vec3)
-  (property scale types/Vec3)
   (property color types/Color)
   (property outline types/Color)
   (property shadow types/Color)
@@ -342,22 +336,14 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
                                       (texture/set-params gpu-texture tex-params))))
 
-(defmethod scene-tools/manip-scalable? ::LabelNode [_node-id] true)
-
-(defmethod scene-tools/manip-scale ::LabelNode [evaluation-context node-id ^Vector3d delta]
-  (let [[sx sy sz] (g/node-value node-id :scale evaluation-context)
-        new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
-    (g/set-property node-id :scale (properties/round-vec new-scale))))
-
 (defn load-label [project self resource label]
-  (let [label (reduce (fn [label k] (update label k v4->v3)) label [:size :scale])
+  (let [size (v4->v3 (:size label))
         font (workspace/resolve-resource resource (:font label))
         material (workspace/resolve-resource resource (:material label))]
     (concat
       (g/set-property self
                       :text (:text label)
-                      :size (:size label)
-                      :scale (:scale label)
+                      :size size
                       :color (:color label)
                       :outline (:outline label)
                       :shadow (:shadow label)
