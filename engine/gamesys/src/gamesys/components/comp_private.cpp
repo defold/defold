@@ -454,6 +454,12 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
 
     uint32_t num_values = 0;
     dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+    bool is_matrix4_type = dmRender::GetConstantType(constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+
+    if (is_matrix4_type)
+    {
+        value_index *= 4;
+    }
 
     if (value_index >= num_values)
     {
@@ -462,7 +468,7 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
     }
     dmVMath::Vector4* v = &values[value_index];
 
-    if (dmRender::GetConstantType(constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+    if (is_matrix4_type)
     {
         // JG: What about element_index != 0x0 ?
         v[0] = Vector4(var.m_M4[0],  var.m_M4[1],  var.m_M4[2],  var.m_M4[3]);

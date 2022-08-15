@@ -542,7 +542,7 @@ namespace dmGraphics
     int32_t  GetUniformLocation(HProgram prog, const char* name);
 
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
-    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
+    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
     void SetSampler(HContext context, int32_t location, int32_t unit);
 
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);

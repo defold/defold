@@ -2016,10 +2016,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int base_register)
+    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
     {
         assert(context);
-        glUniformMatrix4fv(base_register, 1, 0, (const GLfloat*) data);
+        glUniformMatrix4fv(base_register, count, 0, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 

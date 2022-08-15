@@ -275,10 +275,7 @@ static inline void ApplyConstant(ApplyConstantContext* context, const uint64_t* 
             dmRenderDDF::MaterialDesc::ConstantType  constant_type = GetConstantType(material_constant);
             */
 
-            if (constant->m_NumValues >= 4)
-            {
-                dmGraphics::SetConstantM4(context->m_GraphicsContext, values, *location);
-            }
+            dmGraphics::SetConstantM4(context->m_GraphicsContext, values, constant->m_NumValues / 4, *location);
         }
         else
         {

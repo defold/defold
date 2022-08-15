@@ -75,9 +75,18 @@ namespace dmGameSystem
             uint32_t num_values;
             Vector4* value = 0x0;
             dmRender::HConstant comp_constant;
+            bool is_matrix4_type;
+
             if (callback(callback_user_data, constant_id, &comp_constant))
             {
                 value = dmRender::GetConstantValues(comp_constant, &num_values);
+
+                is_matrix4_type = dmRender::GetConstantType(comp_constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+                if (is_matrix4_type)
+                {
+                    value_index *= 4;
+                }
+
                 if (value_index >= num_values)
                 {
                     return dmGameObject::PROPERTY_RESULT_INVALID_INDEX;
@@ -100,7 +109,7 @@ namespace dmGameSystem
 
                 if (value != 0x0)
                 {
-                    if (dmRender::GetConstantType(comp_constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+                    if (is_matrix4_type)
                     {
                         out_desc.m_Variant = dmGameObject::PropertyVar(*((dmVMath::Matrix4*)value));
                     }
@@ -124,15 +133,21 @@ namespace dmGameSystem
                     dmRender::HConstant constant;
                     dmRender::GetMaterialProgramConstant(material, constant_id, constant);
 
+                    is_matrix4_type = dmRender::GetConstantType(constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
                     value = dmRender::GetConstantValues(constant, &num_values);
+
+                    if (is_matrix4_type)
+                    {
+                        value_index *= 4;
+                    }
+
                     if (value_index >= num_values)
                     {
                         return dmGameObject::PROPERTY_RESULT_INVALID_INDEX;
                     }
 
-                    if (dmRender::GetConstantType(constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+                    if (is_matrix4_type)
                     {
-                        // TODO: correct value index
                         out_desc.m_Variant = dmGameObject::PropertyVar(*((dmVMath::Matrix4*) &value[value_index]));
                     }
                     else
