@@ -56,7 +56,9 @@ def _exec_command(arg_list, **kwargs):
 
     if output is None:
         return ''
-    return str(output, encoding='utf-8').strip()
+    if isinstance(output, (bytes, bytearray))
+        output = str(output, encoding='utf-8')
+    return output.strip()
 
 def command(args, **kwargs):
     if kwargs.get("shell") is None:
