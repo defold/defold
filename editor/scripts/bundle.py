@@ -32,12 +32,10 @@ import fnmatch
 import urllib
 import urllib.parse
 
-# defold/build_tools
-import run
-
 # TODO: collect common functions in a more suitable reusable module
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
     sys.dont_write_bytecode = True
     import build_private
 except Exception as e:
@@ -47,6 +45,10 @@ except Exception as e:
             return ''
 finally:
     sys.dont_write_bytecode = False
+
+# defold/build_tools
+import run
+
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
