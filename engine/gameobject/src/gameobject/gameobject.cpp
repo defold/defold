@@ -159,6 +159,31 @@ namespace dmGameObject
         m_Bool = v;
     }
 
+    PropertyVar::PropertyVar(Matrix4 v)
+    {
+        m_Type   = PROPERTY_TYPE_MATRIX4;
+        // Column 1
+        m_M4[0]  = v.getElem(0, 0);
+        m_M4[1]  = v.getElem(0, 1);
+        m_M4[2]  = v.getElem(0, 2);
+        m_M4[3]  = v.getElem(0, 3);
+        // Column 2
+        m_M4[4]  = v.getElem(1, 0);
+        m_M4[5]  = v.getElem(1, 1);
+        m_M4[6]  = v.getElem(1, 2);
+        m_M4[7]  = v.getElem(1, 3);
+        // Column 3
+        m_M4[8]  = v.getElem(2, 0);
+        m_M4[9]  = v.getElem(2, 1);
+        m_M4[10] = v.getElem(2, 2);
+        m_M4[11] = v.getElem(2, 3);
+        // Column 4
+        m_M4[12] = v.getElem(3, 0);
+        m_M4[13] = v.getElem(3, 1);
+        m_M4[14] = v.getElem(3, 2);
+        m_M4[15] = v.getElem(3, 3);
+    }
+
     Register::Register()
     {
         m_ComponentTypeCount = 0;

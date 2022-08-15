@@ -220,7 +220,7 @@ void SetNamedConstants(HNamedConstantBuffer buffer, HConstant* constants, uint32
     for (uint32_t i = 0; i < num_constants; ++i)
     {
         Constant* c = constants[i];
-        SetNamedConstant(buffer, c->m_NameHash, c->m_Values, c->m_NumValues);
+        SetNamedConstant(buffer, c->m_NameHash, c->m_Values, c->m_NumValues, c->m_Type);
     }
 }
 

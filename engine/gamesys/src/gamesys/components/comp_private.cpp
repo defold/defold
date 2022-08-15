@@ -409,13 +409,23 @@ static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants consta
 
     uint32_t num_values;
     dmVMath::Vector4* values = dmRender::GetConstantValues(material_constant, &num_values);
+    dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRender::GetConstantType(material_constant);
 
     if (values)
     {
         dmRender::SetConstantValues(constant, values, num_values);
+        dmRender::SetConstantType(constant, constant_type);
     } else {
-        dmVMath::Vector4 zero(0,0,0,0);
-        dmRender::SetConstantValues(constant, &zero, 1);
+        if (constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            dmVMath::Matrix4 zero(0.0f);
+            dmRender::SetConstantValues(constant, (dmVMath::Vector4*) &zero, 4);
+        }
+        else
+        {
+            dmVMath::Vector4 zero(0,0,0,0);
+            dmRender::SetConstantValues(constant, &zero, 1);
+        }
     }
 
     return constant;
@@ -451,10 +461,22 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
         return; // We should really handle
     }
     dmVMath::Vector4* v = &values[value_index];
-    if (element_index == 0x0)
-        *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+
+    if (dmRender::GetConstantType(constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+    {
+        // JG: What about element_index != 0x0 ?
+        v[0] = Vector4(var.m_M4[0],  var.m_M4[1],  var.m_M4[2],  var.m_M4[3]);
+        v[1] = Vector4(var.m_M4[4],  var.m_M4[5],  var.m_M4[6],  var.m_M4[7]);
+        v[2] = Vector4(var.m_M4[8],  var.m_M4[9],  var.m_M4[10], var.m_M4[11]);
+        v[3] = Vector4(var.m_M4[12], var.m_M4[13], var.m_M4[14], var.m_M4[15]);
+    }
     else
-        v->setElem(*element_index, (float)var.m_Number);
+    {
+        if (element_index == 0x0)
+            *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+        else
+            v->setElem(*element_index, (float)var.m_Number);
+    }
 
     UpdateChecksums(constants, name_hash, values, num_values);
 }

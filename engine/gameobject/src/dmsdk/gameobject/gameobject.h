@@ -160,6 +160,7 @@ namespace dmGameObject
         PROPERTY_TYPE_VECTOR4 = 4,
         PROPERTY_TYPE_QUAT = 5,
         PROPERTY_TYPE_BOOLEAN = 6,
+        PROPERTY_TYPE_MATRIX4 = 7,
         PROPERTY_TYPE_COUNT
     };
 
@@ -305,6 +306,7 @@ namespace dmGameObject
         PropertyVar(dmVMath::Vector3 v);
         PropertyVar(dmVMath::Vector4 v);
         PropertyVar(dmVMath::Quat v);
+        PropertyVar(dmVMath::Matrix4 v);
         PropertyVar(bool v);
 
         PropertyType m_Type;
@@ -315,6 +317,7 @@ namespace dmGameObject
             // NOTE: We can't store an URL as is due to constructor
             char  m_URL[32]; // the same size as the dmMessage::URL
             float m_V4[4];
+            float m_M4[16];
             bool m_Bool;
         };
     };

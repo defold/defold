@@ -52,6 +52,10 @@ namespace dmGameObject
                 {
                     return PROPERTY_TYPE_QUAT;
                 }
+                else if ((*userdata = (void*)dmScript::ToMatrix4(L, index)))
+                {
+                    return PROPERTY_TYPE_MATRIX4;
+                }
                 else
                 {
                     dmLogError("Properties type can not be determined.");
@@ -111,6 +115,32 @@ namespace dmGameObject
             case PROPERTY_TYPE_BOOLEAN:
                 out_var.m_Bool = (bool) lua_toboolean(L, index);
                 return PROPERTY_RESULT_OK;
+            case PROPERTY_TYPE_MATRIX4:
+                {
+                    // JG: Can't we just use memcpy here instead?
+                    Matrix4* m = (Matrix4*) userdata;
+                    // Column 1
+                    out_var.m_M4[0]  = m->getElem(0, 0);
+                    out_var.m_M4[1]  = m->getElem(0, 1);
+                    out_var.m_M4[2]  = m->getElem(0, 2);
+                    out_var.m_M4[3]  = m->getElem(0, 3);
+                    // Column 2
+                    out_var.m_M4[4]  = m->getElem(1, 0);
+                    out_var.m_M4[5]  = m->getElem(1, 1);
+                    out_var.m_M4[6]  = m->getElem(1, 2);
+                    out_var.m_M4[7]  = m->getElem(1, 3);
+                    // Column 3
+                    out_var.m_M4[8]  = m->getElem(2, 0);
+                    out_var.m_M4[9]  = m->getElem(2, 1);
+                    out_var.m_M4[10] = m->getElem(2, 2);
+                    out_var.m_M4[11] = m->getElem(2, 3);
+                    // Column 4
+                    out_var.m_M4[12] = m->getElem(3, 0);
+                    out_var.m_M4[13] = m->getElem(3, 1);
+                    out_var.m_M4[14] = m->getElem(3, 2);
+                    out_var.m_M4[15] = m->getElem(3, 3);
+                }
+                return PROPERTY_RESULT_OK;
             default:
                 return PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
@@ -143,6 +173,13 @@ namespace dmGameObject
             break;
         case PROPERTY_TYPE_BOOLEAN:
             lua_pushboolean(L, var.m_Bool);
+            break;
+        case PROPERTY_TYPE_MATRIX4:
+            dmScript::PushMatrix4(L, dmVMath::Matrix4(
+                dmVMath::Vector4(var.m_M4[0],  var.m_M4[1],  var.m_M4[2],  var.m_M4[3]),
+                dmVMath::Vector4(var.m_M4[4],  var.m_M4[5],  var.m_M4[6],  var.m_M4[7]),
+                dmVMath::Vector4(var.m_M4[8],  var.m_M4[9],  var.m_M4[10], var.m_M4[11]),
+                dmVMath::Vector4(var.m_M4[12], var.m_M4[13], var.m_M4[14], var.m_M4[15])));
             break;
         default:
             break;
