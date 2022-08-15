@@ -152,14 +152,14 @@ def git_sha1_from_version_file(options):
     tag_name = _get_tag_name(version, options.channel)
 
     try:
-        return run.shell_command(['git', 'rev-list', '-n', '1', tag_name])
+        return run.command(['git', 'rev-list', '-n', '1', tag_name])
     except Exception as e:
         print("Unable to find git sha from tag=%s" % tag_name)
     return None
 
 def git_sha1(ref = 'HEAD'):
     try:
-        return run.shell_command(['git', 'rev-parse', ref])
+        return run.command(['git', 'rev-parse', ref])
     except Exception as e:
         sys.exit("Unable to find git sha from ref: %s" % (ref))
 
