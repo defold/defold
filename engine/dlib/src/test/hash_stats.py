@@ -35,7 +35,7 @@ def run(function):
                 hash_table[h] = sent
             tot_tested += 1
 
-    print "Collisions %d/%d (%f %%)" % (n_collisions, tot_tested, float(n_collisions) / tot_tested)
+    print ("Collisions %d/%d (%f %%)" % (n_collisions, tot_tested, float(n_collisions) / tot_tested))
 
 print('dmHashBuffer32')
 run(dlib.dmHashBuffer32)

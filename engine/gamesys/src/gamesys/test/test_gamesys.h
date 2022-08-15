@@ -379,7 +379,7 @@ void GamesysTest<T>::SetUp()
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-    m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
+    m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
     m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
@@ -470,6 +470,7 @@ void GamesysTest<T>::SetUp()
     dmBuffer::NewContext(); // ???
 
     m_SoundContext.m_MaxComponentCount = 32;
+    m_SoundContext.m_MaxSoundInstances = 256;
 
     m_PhysicsContext.m_MaxCollisionCount = 64;
     m_PhysicsContext.m_MaxContactPointCount = 128;

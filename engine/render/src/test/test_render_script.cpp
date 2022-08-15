@@ -474,7 +474,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     command = &commands[2];
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_TARGET, command->m_Type);
     ASSERT_EQ((void*)0, (void*)command->m_Operands[0]);
-    ASSERT_EQ(dmGraphics::BUFFER_TYPE_COLOR_BIT, (uint32_t)command->m_Operands[1]);
+    ASSERT_EQ(dmGraphics::BUFFER_TYPE_COLOR0_BIT, (uint32_t)command->m_Operands[1]);
 
     for(uint32_t i = 3; i < 7; ++i)
     {
@@ -643,7 +643,7 @@ TEST_F(dmRenderScriptTest, TestLuaClear)
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_CLEAR, command->m_Type);
     uint32_t flags = command->m_Operands[0];
-    ASSERT_NE(0u, flags & dmGraphics::BUFFER_TYPE_COLOR_BIT);
+    ASSERT_NE(0u, flags & dmGraphics::BUFFER_TYPE_COLOR0_BIT);
     ASSERT_NE(0u, flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT);
     ASSERT_EQ(0u, flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT);
     ASSERT_EQ(0u, command->m_Operands[1]);

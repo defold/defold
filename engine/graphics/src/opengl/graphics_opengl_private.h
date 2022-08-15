@@ -122,7 +122,7 @@ namespace dmGraphics
     struct RenderTarget
     {
         TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        HTexture        m_ColorBufferTexture;
+        HTexture        m_ColorBufferTexture[MAX_BUFFER_COLOR_ATTACHMENTS];
         GLuint          m_DepthBuffer;
         GLuint          m_StencilBuffer;
         GLuint          m_DepthStencilBuffer;

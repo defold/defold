@@ -12,14 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <assert.h>
 #include "lz4.h"
 #include "../lz4/lz4.h"
 #include "../lz4/lz4hc.h"
 
 namespace dmLZ4
 {
-    Result DecompressBuffer(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t max_output, int *decompressed_size)
+    Result DecompressBuffer(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t max_output, int* decompressed_size)
     {
         Result r;
         // When we set an output size larger than 1G (or closer to 2G) lz4 fails for some reason...
@@ -36,27 +35,6 @@ namespace dmLZ4
             *decompressed_size = -1;
             r = dmLZ4::RESULT_OUTPUT_SIZE_TOO_LARGE;
         }
-
-        return r;
-    }
-
-    Result DecompressBufferFast(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t decompressed_size)
-    {
-        Result r;
-        // When we set an output size larger than 1G (or closer to 2G) lz4 fails for some reason...
-        if(decompressed_size <= DMLZ4_MAX_OUTPUT_SIZE)
-        {
-            int result = LZ4_decompress_fast((const char*)buffer, (char *)decompressed_buffer, decompressed_size);
-            if(result < 0)
-                r = dmLZ4::RESULT_OUTBUFFER_TOO_SMALL;
-            else
-                r = dmLZ4::RESULT_OK;
-        }
-        else
-        {
-            r = dmLZ4::RESULT_OUTPUT_SIZE_TOO_LARGE;
-        }
-
         return r;
     }
 

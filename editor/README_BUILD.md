@@ -59,6 +59,7 @@ cd editor
 
 # Build and run
 lein init
+lein run
 ```
 
 

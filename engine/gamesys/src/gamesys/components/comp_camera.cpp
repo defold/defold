@@ -19,6 +19,7 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dlib/profile.h>
 
 #include <render/render.h>
 
@@ -26,6 +27,9 @@
 #include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
 #include "comp_private.h"
+
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_Camera, 0, FrameReset, "# components", &rmtp_Components);
 
 namespace dmGameSystem
 {
@@ -149,6 +153,7 @@ namespace dmGameSystem
         {
             camera = w->m_FocusStack[w->m_FocusStack.Size() - 1];
         }
+        DM_PROPERTY_ADD_U32(rmtp_Camera, w->m_Cameras.Size());
         if (camera != 0x0 && camera->m_AddedToUpdate)
         {
             dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;

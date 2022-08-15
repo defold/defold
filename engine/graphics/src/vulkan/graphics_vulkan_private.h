@@ -160,15 +160,17 @@ namespace dmGraphics
     struct RenderTarget
     {
     	RenderTarget(const uint32_t rtId);
-        Texture*       m_TextureColor;
+        Texture*       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         Texture*       m_TextureDepthStencil;
+        BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams  m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
         VkRenderPass   m_RenderPass;
         VkFramebuffer  m_Framebuffer;
         VkExtent2D     m_Extent;
         const uint16_t m_Id;
-        uint8_t        m_IsBound : 1;
-        uint8_t                  : 7; // unused
+        uint8_t        m_IsBound              : 1;
+        uint8_t        m_ColorAttachmentCount : 2;
+        uint8_t                               : 5; // unused
     };
 
     struct Viewport
@@ -487,7 +489,7 @@ namespace dmGraphics
         const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, Program* program, DeviceBuffer* vertexBuffer,
-        HVertexDeclaration vertexDeclaration, const VkRenderPass vk_render_pass, Pipeline* pipelineOut);
+        HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut);
     // Reset functions
     void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
     // Destroy funcions

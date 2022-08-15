@@ -1,9 +1,9 @@
 #! /usr/bin/env python
 import os
-from TaskGen import feature, before
+from waflib.TaskGen import feature, before
 
 @feature('sdk_include_filter')
-@before('cc')
+@before('c')
 def sdk_include_filter(self):
     dynamo_home = self.env['DYNAMO_HOME']
     new_cpppath = [os.path.join(self.env['DYNAMO_HOME'], 'sdk', 'include'),
@@ -11,20 +11,19 @@ def sdk_include_filter(self):
     for path in self.env['CPPPATH']:
         if dynamo_home not in path or 'SDKs' in path:
             new_cpppath.append(path)
-    self.env['CPPPATH'] = new_cpppath
+    self.env['CPPATH'] = new_cpppath
 
 def build(bld):
-    bld.new_task_gen(features = 'cxx cstaticlib test sdk_include_filter',
-                     includes = '.',
-                     source = 'test_sdk_lib.cpp',
-                     target = 'test_sdk_lib',
-                     always=True)
+    bld.stlib(features = 'cxx test sdk_include_filter',
+              includes = '. ../',
+              source   = 'test_sdk_lib.cpp',
+              target   = 'test_sdk_lib',
+              always   = True)
 
-    bld.new_task_gen(features = 'cc cxx cprogram embed test',
-                      includes = '.',
-                      uselib = 'TESTMAIN EXTENSION DLIB PROFILE_NULL LUA',
-                      uselib_local = 'test_sdk_lib',
-                      exported_symbols = ["TestSdk"],
-                      target = 'test_sdk',
-                      source = 'test_sdk.cpp',
-                      always=True)
+    bld.program(features         = 'c cxx embed test',
+                includes         = '.',
+                use              = 'TESTMAIN EXTENSION DLIB LUA PROFILE_NULL test_sdk_lib',
+                exported_symbols = ['TestSdk'],
+                target           = 'test_sdk',
+                source           = 'test_sdk.cpp',
+                always           = True)

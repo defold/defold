@@ -74,7 +74,7 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/reload");
+        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/reload");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();

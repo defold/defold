@@ -38,7 +38,7 @@ extern "C"
 }
 
 
-#define PATH_FORMAT "build/default/src/test/%s"
+#define PATH_FORMAT "build/src/test/%s"
 
 // See test TSTRING_GenerateData below
 // static bool RunFile(lua_State* L, const char* filename)

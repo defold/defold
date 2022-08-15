@@ -31,7 +31,7 @@
 #elif ANDROID
 	#define VK_USE_PLATFORM_ANDROID_KHR
 	#define VK_NO_PROTOTYPES
-#elif WIN32
+#elif _MSC_VER
 	#define VK_USE_PLATFORM_WIN32_KHR
 #elif __linux__
     #define VK_USE_PLATFORM_XCB_KHR

@@ -57,6 +57,7 @@ import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
@@ -77,7 +78,7 @@ import com.dynamo.rig.proto.Rig.RigScene;
 
 import com.google.protobuf.DescriptorProtos.FieldOptions;
 import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.GeneratedMessage;
+import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.Message;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
@@ -193,13 +194,11 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+        TimeProfiler.start("createArchive");
         Bob.verbose("GameProjectBuilder.createArchive\n");
         long tstart = System.currentTimeMillis();
 
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
-
-        // When passing use vanilla lua, we want the Lua code as clear text
-        boolean use_vanilla_lua = project.option("use-vanilla-lua", "false").equals("true");
 
         int resourcePadding = 4;
         String resourcePaddingStr = project.option("archive-resource-padding", null);
@@ -212,15 +211,19 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, use_vanilla_lua ? false : true, resourcePadding);
-        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, resourcePadding);
 
+        boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
         for (String s : resources) {
             EnumSet<Project.OutputFlags> flags = outputs.get(s);
             boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
-            archiveBuilder.add(s, compress);
+            boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
+            archiveBuilder.add(s, compress, encrypt);
         }
+
+        TimeProfiler.addData("resources", resources.size());
+        TimeProfiler.addData("excludedResources", excludedResources.size());
 
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
         manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
@@ -236,6 +239,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         long tend = System.currentTimeMillis();
         Bob.verbose("GameProjectBuilder.createArchive took %f\n", (tend-tstart)/1000.0);
+        TimeProfiler.stop();
     }
 
     private static void findResources(Project project, Message node, Collection<String> resources) throws CompileExceptionError {
@@ -285,7 +289,7 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
-        GeneratedMessage.Builder<?> builder = ProtoBuilder.newBuilder(ext);
+        GeneratedMessageV3.Builder<?> builder = ProtoBuilder.newBuilder(ext);
         try {
             final byte[] content = resource.output().getContent();
             if(content == null) {
@@ -355,7 +359,7 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
-        GeneratedMessage.Builder<?> builder = ProtoBuilder.newBuilder(ext);
+        GeneratedMessageV3.Builder<?> builder = ProtoBuilder.newBuilder(ext);
         try {
             final byte[] content = resource.output().getContent();
             if(content == null) {
@@ -534,8 +538,11 @@ public class GameProjectBuilder extends Builder<Void> {
                 HashSet<String> resources = findResources(project, rootNode);
 
                 List<String> excludedResources = new ArrayList<String>();
-                for (String excludedResource : project.getExcludedCollectionProxies()) {
-                    excludedResources.add(excludedResource);
+                boolean shouldPublish = project.option("liveupdate", "false").equals("true");
+                if (shouldPublish) {
+                    for (String excludedResource : project.getExcludedCollectionProxies()) {
+                        excludedResources.add(excludedResource);
+                    }
                 }
 
                 ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);

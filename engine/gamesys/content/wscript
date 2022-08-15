@@ -1,12 +1,11 @@
 #! /usr/bin/env python
 import os
 
-def set_options(opt):
+def options(opt):
     pass
 
 def build(bld):
-    obj = bld.new_task_gen(source = [])
-    obj.find_sources_in_dirs('materials')
+    obj = bld(source = bld.path.ant_glob('materials/*'))
 
 def configure(conf):
     pass

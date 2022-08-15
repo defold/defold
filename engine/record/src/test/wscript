@@ -13,12 +13,11 @@ def build(bld):
     if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
-    test_record = bld.new_task_gen(features='cxx cprogram test',
-                                   includes='../../../src .',
-                                   defines=extra_defines,
-                                   uselib='TESTMAIN DLIB PROFILE_NULL %s' % vpx,
-                                   uselib_local=record,
-                                   proto_gen_py=True,
-                                   target='test_record',
-                                   source='test_record.cpp')
+    test_record = bld.program(features='cxx test',
+                              includes='../../../src .',
+                              defines=extra_defines,
+                              use='TESTMAIN DLIB PROFILE_NULL %s %s' % (vpx, record),
+                              proto_gen_py=True,
+                              target='test_record',
+                              source='test_record.cpp')
     test_record.install_path = None

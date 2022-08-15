@@ -2,7 +2,7 @@
 import os
 from waf_dynamo import platform_supports_feature
 from BuildUtility import create_build_utility
-import Options
+import waflib.Options
 
 def _get_native_file(target_os, name):
     native_source = '%s/%s' % (target_os, name)
@@ -15,12 +15,11 @@ def build(bld):
 
     platform_folder = _get_native_file(build_util.get_target_os(), '../glfw')
 
-    obj = bld.new_task_gen(features = 'cxx cprogram test',
-                    includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-                    uselib = 'TESTMAIN DLIB PROFILE_NULL DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT',
-                    uselib_local = 'hid_null',
-                    target = 'test_hid',
-                    source = 'test_hid.cpp')
+    obj = bld.program(features = 'cxx test',
+                      includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
+                      use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW PLATFORM PLATFORM_SOCKET LUA SCRIPT hid_null',
+                      target   = 'test_hid',
+                      source   = 'test_hid.cpp')
 
     graphics_lib = ['GRAPHICS', 'DMGLFW']
     graphics_lib_symbols = 'GraphicsAdapterOpenGL'
@@ -40,11 +39,11 @@ def build(bld):
     exported_symbols = [graphics_lib_symbols]
 
     web_libs = ['library_glfw.js', 'library_sys.js']
-    bld.new_task_gen(features = 'cxx cprogram test skip_test',
-                    includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-                    uselib = 'TESTMAIN TESTAPP DLIB PROFILE_NULL PLATFORM PLATFORM_SOCKET LUA SCRIPT'.split() + graphics_lib,
-                    uselib_local = 'hid',
-                    web_libs = web_libs,
-                    exported_symbols = exported_symbols,
-                    target = 'test_app_hid',
-                    source = 'test_app_hid.cpp')
+
+    bld.program(features = 'cxx test skip_test',
+        includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
+        use = 'TESTMAIN TESTAPP DLIB PROFILE_NULL PLATFORM PLATFORM_SOCKET LUA SCRIPT hid'.split() + graphics_lib,
+        web_libs = web_libs,
+        exported_symbols = exported_symbols,
+        target = 'test_app_hid',
+        source = 'test_app_hid.cpp')

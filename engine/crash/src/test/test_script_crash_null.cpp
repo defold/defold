@@ -35,7 +35,7 @@ extern "C"
     #define MOUNTFS ""
 #endif
 
-#define PATH_FORMAT "build/default/src/test/%s"
+#define PATH_FORMAT "build/src/test/%s"
 
 class ScriptCrashTest : public jc_test_base_class
 {
