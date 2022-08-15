@@ -32,6 +32,9 @@ import fnmatch
 import urllib
 import urllib.parse
 
+# defold/build_tools
+import run
+
 # TODO: collect common functions in a more suitable reusable module
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
@@ -44,7 +47,6 @@ except Exception as e:
             return ''
 finally:
     sys.dont_write_bytecode = False
-
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
@@ -78,7 +80,7 @@ def extract_tar(file, path, is_mac):
         # others) on macOS has special handling of ._ files that
         # contain additional HFS+ attributes. See for example:
         # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
-        exec_command(['tar', '-C', path, '-xzf', file])
+        run.command(['tar', '-C', path, '-xzf', file])
     else:
         with tarfile.TarFile.open(file, 'r:gz') as tf:
             tf.extractall(path)
@@ -89,7 +91,7 @@ def extract_zip(file, path, is_mac):
         # others) on macOS has special handling of ._ files that
         # contain additional HFS+ attributes. See for example:
         # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
-        exec_command(['unzip', file, '-d', path])
+        run.command(['unzip', file, '-d', path])
     else:
         with zipfile.ZipFile(file, 'r') as zf:
             zf.extractall(path)
@@ -114,26 +116,6 @@ def download(url):
     if not path:
         log('Downloading %s failed' % (url))
     return path
-
-def exec_command(args):
-    print('[EXEC] %s' % args)
-    process = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = False)
-
-    output = ''
-    while True:
-        line = process.stdout.readline().decode()
-        if line != '':
-            output += line
-            print(line.rstrip())
-            sys.stdout.flush()
-            sys.stderr.flush()
-        else:
-            break
-
-    if process.wait() != 0:
-        sys.exit(process.returncode)
-
-    return output
 
 def ziptree(path, outfile, directory = None):
     # Directory is similar to -C in tar
@@ -164,24 +146,22 @@ def _get_tag_name(version, channel): # from build.py
 
 def git_sha1_from_version_file(options):
     """ Gets the version number and checks if that tag exists """
-    with open('../VERSION', 'r') as version_file:
+    with open('../VERSION', 'r', encoding='utf-8') as version_file:
         version = version_file.read().strip()
 
     tag_name = _get_tag_name(version, options.channel)
 
-    process = subprocess.Popen(['git', 'rev-list', '-n', '1', tag_name], stdout = subprocess.PIPE)
-    out, err = process.communicate()
-    if process.returncode != 0:
+    try:
+        return run.shell_command(['git', 'rev-list', '-n', '1', tag_name])
+    except Exception as e:
         print("Unable to find git sha from tag=%s" % tag_name)
-        return None
-    return out.strip()
+    return None
 
 def git_sha1(ref = 'HEAD'):
-    process = subprocess.Popen(['git', 'rev-parse', ref], stdout = subprocess.PIPE)
-    out, err = process.communicate()
-    if process.returncode != 0:
+    try:
+        return run.shell_command(['git', 'rev-parse', ref])
+    except Exception as e:
         sys.exit("Unable to find git sha from ref: %s" % (ref))
-    return out.strip().decode()
 
 def remove_readonly_retry(function, path, excinfo):
     try:
@@ -195,7 +175,7 @@ def rmtree(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
 
 def mac_certificate(codesigning_identity):
-    if exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0:
+    if run.command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0:
         return codesigning_identity
     else:
         return None
@@ -222,7 +202,7 @@ def sign_files(platform, options, dir):
         if not os.path.exists(signtool):
             print("signtool.exe file does not exist:", signtool)
             sys.exit(1)
-        exec_command([
+        run.command([
             signtool,
             'sign',
             '/fd', 'sha256',
@@ -238,7 +218,7 @@ def sign_files(platform, options, dir):
             print("Codesigning certificate not found for signing identity %s" % (codesigning_identity))
             sys.exit(1)
 
-        exec_command([
+        run.command([
             'codesign',
             '--deep',
             '--force',
@@ -296,7 +276,7 @@ def check_reflections(java_cmd_env):
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+headless', 'check-and-exit'])
+    output = run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+headless', 'check-and-exit'])
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
@@ -320,19 +300,19 @@ def build(options):
     if options.engine_sha1:
         init_command += [options.engine_sha1]
 
-    exec_command(init_command)
+    run.command(init_command)
 
     build_ns_batches_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'build-ns-batches']
-    exec_command(build_ns_batches_command)
+    run.command(build_ns_batches_command)
 
     check_reflections(java_cmd_env)
 
     if options.skip_tests:
         print('Skipping tests')
     else:
-        exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'test'])
+        run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'test'])
 
-    exec_command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
+    run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
 
 def get_exe_suffix(platform):
@@ -461,7 +441,7 @@ def create_bundle(options):
         defold_exe = '%s/Defold%s' % (exe_dir, get_exe_suffix(platform))
         shutil.copy(launcher, defold_exe)
         if not 'win32' in platform:
-            exec_command(['chmod', '+x', defold_exe])
+            run.command(['chmod', '+x', defold_exe])
 
         extract(jdk, tmp_dir, is_mac)
 
@@ -472,7 +452,7 @@ def create_bundle(options):
 
         # use jlink to generate a custom Java runtime to bundle with the editor
         packages_jdk = '%s/jdk-%s' % (packages_dir, java_version)
-        exec_command(['%s/bin/jlink' % extracted_build_jdk,
+        run.command(['%s/bin/jlink' % extracted_build_jdk,
                       '@jlink-options',
                       '--module-path=%s/jmods' % platform_jdk,
                       '--output=%s' % packages_jdk])
@@ -499,7 +479,7 @@ def sign(options):
 
         if not os.path.exists(bundle_file):
             print('Editor bundle %s does not exist' % bundle_file)
-            exec_command(['ls', '-la', options.bundle_dir])
+            run.command(['ls', '-la', options.bundle_dir])
             sys.exit(1)
 
         # setup
@@ -508,7 +488,7 @@ def sign(options):
         mkdirs(sign_dir)
 
         # unzip
-        exec_command(['unzip', bundle_file, '-d', sign_dir])
+        run.command(['unzip', bundle_file, '-d', sign_dir])
 
         # sign files
         if 'darwin' in platform:
@@ -548,7 +528,7 @@ def create_dmg(options):
     bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.zip")
     if not os.path.exists(bundle_file):
         print('Editor bundle %s does not exist' % bundle_file)
-        exec_command(['ls', '-la', options.bundle_dir])
+        run.command(['ls', '-la', options.bundle_dir])
         sys.exit(1)
 
     # setup
@@ -557,18 +537,18 @@ def create_dmg(options):
     mkdirs(dmg_dir)
 
     # unzip (.zip -> .app)
-    exec_command(['unzip', bundle_file, '-d', dmg_dir])
+    run.command(['unzip', bundle_file, '-d', dmg_dir])
 
     # create additional files for the .dmg
     shutil.copy('bundle-resources/dmg_ds_store', '%s/.DS_Store' % dmg_dir)
     shutil.copytree('bundle-resources/dmg_background', '%s/.background' % dmg_dir)
-    exec_command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
+    run.command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
 
     # create dmg
     dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.dmg")
     if os.path.exists(dmg_file):
         os.remove(dmg_file)
-    exec_command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
+    run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
     if not options.skip_codesign:
@@ -577,7 +557,7 @@ def create_dmg(options):
             error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
             sys.exit(1)
 
-        exec_command(['codesign', '-s', certificate, dmg_file])
+        run.command(['codesign', '-s', certificate, dmg_file])
 
 
 def create_installer(options):
