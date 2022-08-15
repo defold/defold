@@ -54,7 +54,7 @@ def _exec_command(arg_list, **kwargs):
     if process.wait() != 0:
         raise ExecException(process.returncode, output)
 
-    return str(output)
+    return str(output).strip()
 
 def command(args, **kwargs):
     if kwargs.get("shell") is None:
