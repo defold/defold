@@ -238,6 +238,9 @@ int dmStrCaseCmp(const char *s1, const char *s2)
     #else
         #define DM_STRERROR_USE_POSIX
     #endif
+#elif defined(__EMSCRIPTEN__)
+    // Emscripten wraps strerror_r as strerror anyway
+    #define DM_STRERROR_USE_UNSAFE
 #else
     #if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
         #define DM_STRERROR_USE_POSIX
@@ -293,15 +296,19 @@ void dmStrerror(char* dst, size_t size, int err)
         }
     }
 
-    err_msg_len = strlen(scratch) + 1;
     retstr = &scratch[0];
 #endif
 
 #ifdef DM_STRERROR_USE_GNU
     // GNU version, char* returned
     retstr = strerror_r(err, scratch, scratch_size);
-    err_msg_len = strlen(retstr) + 1;
 #endif
+
+#ifdef DM_STRERROR_USE_UNSAFE
+    retstr = strerror(err);
+#endif
+
+    err_msg_len = strlen(retstr) + 1;
 
     // Restore errno in case strerror variants raised error
     errno = old_errno;
