@@ -12,8 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-// #define __STDC_WANT_LIB_EXT1__ 1 // for strerror_s
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>

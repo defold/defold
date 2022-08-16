@@ -177,6 +177,7 @@ TEST(dmStrings, dmStrCaseCmp)
 TEST(dmStrings, dmStrerror)
 {
     char buf[128];
+    // Test with a ENOENT errno code
     dmStrerror(buf, sizeof(buf), ENOENT);
     ASSERT_STREQ("No such file or directory", buf);
 

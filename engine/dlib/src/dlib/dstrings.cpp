@@ -267,7 +267,6 @@ void dmStrerror(char* dst, size_t size, int err)
     int old_errno = errno;
     char* retstr = 0;
 
-    // JG: For darwin we could use __DARWIN_C_LEVEL >= 200112L I think
 #ifdef DM_STRERROR_USE_POSIX
     int ret = DM_STRERROR_FN(scratch, scratch_size, err);
 
