@@ -53,6 +53,12 @@ def _exec_command(arg_list, **kwargs):
 
     if process.wait() != 0:
         print("MAWE: Command failed: ", arg_list, "ret:", process.returncode)
+        import traceback
+
+        print("******************************************************")
+        traceback.print_stack()
+        print("******************************************************")
+
         raise ExecException(process.returncode, output)
 
     if 'git' in arg_list:

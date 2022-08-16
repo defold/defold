@@ -154,6 +154,7 @@ def git_sha1_from_version_file(options):
     tag_name = _get_tag_name(version, options.channel)
 
     try:
+        print("git_sha1_from_version_file: BEFORE COMMAND")
         return run.command(['git', 'rev-list', '-n', '1', tag_name])
 
     except run.ExecException as e:
