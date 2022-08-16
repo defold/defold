@@ -178,15 +178,15 @@ TEST(dmStrings, dmStrerror)
 {
     char buf[128];
     dmStrerror(buf, sizeof(buf), ENOENT);
-    ASSERT_EQ(0, dmStrCaseCmp(buf, "No such file or directory"));
+    ASSERT_STREQ("No such file or directory", buf);
 
     // Pass in a small buffer
     dmStrerror(buf, 4, ENOENT);
-    ASSERT_EQ(0, dmStrCaseCmp(buf, "No "));
+    ASSERT_STREQ("No ", buf);
 
     // Pass invalid errno
     dmStrerror(buf, sizeof(buf), -1);
-    ASSERT_EQ(0, dmStrCaseCmp(buf, "Failed getting error (error -1 not a valid number)"));
+    ASSERT_STREQ("Failed getting error (error -1 not a valid number)", buf);
 
     // Nothing set in buffer
     memset(buf, 1, sizeof(buf));
