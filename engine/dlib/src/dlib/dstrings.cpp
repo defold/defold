@@ -232,6 +232,28 @@ int dmStrCaseCmp(const char *s1, const char *s2)
 #endif
 }
 
+#if defined(ANDROID)
+    #if defined(__USE_GNU) && __ANDROID_API__ >= 23
+        #define DM_STRERROR_USE_GNU
+    #else
+        #define DM_STRERROR_USE_POSIX
+    #endif
+#else
+    #if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
+        #define DM_STRERROR_USE_POSIX
+    #else
+        #define DM_STRERROR_USE_GNU
+    #endif
+#endif
+
+#ifdef DM_STRERROR_USE_POSIX
+    #if defined(_WIN32)
+        #define DM_STRERROR_FN(buf, size, errval) (int) strerror_s(buf, size, errval)
+    #else
+        #define DM_STRERROR_FN(buf, size, errval) strerror_r(errval, buf, size)
+    #endif
+#endif
+
 void dmStrerror(char* dst, size_t size, int err)
 {
     if (dst == 0 || size == 0)
@@ -243,16 +265,12 @@ void dmStrerror(char* dst, size_t size, int err)
     const size_t scratch_size = sizeof(scratch);
     size_t err_msg_len = 0;
     int old_errno = errno;
-    char* ret = 0;
+    char* retstr = 0;
 
     // JG: For darwin we could use __DARWIN_C_LEVEL >= 200112L I think
-#if (_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
-    // Posix/win32/osx case: int is returned
-#if defined(_WIN32)
-    errno_t ret = strerror_s(scratch, scratch_size, err);
-#else
-    int ret = strerror_r(err, scratch, scratch_size);
-#endif
+#ifdef DM_STRERROR_USE_POSIX
+    int ret = DM_STRERROR_FN(scratch, scratch_size, err);
+
     if (ret == 0 || ret == ERANGE)
     {
     #if defined(_WIN32)
@@ -277,11 +295,13 @@ void dmStrerror(char* dst, size_t size, int err)
     }
 
     err_msg_len = strlen(scratch) + 1;
-    ret = &scratch[0];
-#else
+    retstr = &scratch[0];
+#endif
+
+#ifdef DM_STRERROR_USE_GNU
     // GNU version, char* returned
-    ret = strerror_r(err, scratch, scratch_size);
-    err_msg_len = strlen(ret) + 1;
+    retstr = strerror_r(err, scratch, scratch_size);
+    err_msg_len = strlen(retstr) + 1;
 #endif
 
     // Restore errno in case strerror variants raised error
@@ -292,7 +312,11 @@ void dmStrerror(char* dst, size_t size, int err)
         err_msg_len = size;
     }
 
-    memcpy(dst, ret, err_msg_len);
+    memcpy(dst, retstr, err_msg_len);
     dst[err_msg_len-1] = '\0';
 }
 
+
+#undef DM_STRERROR_USE_GNU
+#undef DM_STRERROR_USE_POSIX
+#undef DM_STRERROR_FN
