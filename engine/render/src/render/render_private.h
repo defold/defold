@@ -255,10 +255,6 @@ namespace dmRender
 
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
-    // JG: Should these be a dmsdk function?
-    void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, dmRenderDDF::MaterialDesc::ConstantType constant_type);
-    bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type);
-
     // Return true if the predicate tags all exist in the material tag list
     bool                            MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags);
     // Returns a hashkey that the material can use to get the list
