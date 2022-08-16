@@ -242,8 +242,8 @@ void dmStrerror(char* dst, size_t size, int err)
     char scratch[256];
     const size_t scratch_size = sizeof(scratch);
     size_t err_msg_len = 0;
-
     int old_errno = errno;
+    char* ret = 0;
 
     // JG: For darwin we could use __DARWIN_C_LEVEL >= 200112L I think
 #if (_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
@@ -256,10 +256,11 @@ void dmStrerror(char* dst, size_t size, int err)
     if (ret == 0 || ret == ERANGE)
     {
     #if defined(_WIN32)
-        // apparently windows returns a success ret value and a "Unknown error" string even if it's not a supported errno
+        // apparently windows returns a success ret value and a "Unknown error" string
+        // even if it's not a supported errno
         if (dmStrCaseCmp("Unknown error", scratch) == 0)
         {
-            dmSnPrintf(scratch, scratch_size, "Failed getting error (error %d not a valid number)", err);
+            dmSnPrintf(scratch, scratch_size, "Unknown error %s", err);
         }
     #endif
     }
@@ -267,7 +268,7 @@ void dmStrerror(char* dst, size_t size, int err)
     {
         if (ret == EINVAL)
         {
-            dmSnPrintf(scratch, scratch_size, "Failed getting error (error %d not a valid number)", err);
+            dmSnPrintf(scratch, scratch_size, "Unknown error %s", err);
         }
         else
         {
@@ -276,9 +277,10 @@ void dmStrerror(char* dst, size_t size, int err)
     }
 
     err_msg_len = strlen(scratch) + 1;
+    ret = &scratch[0];
 #else
     // GNU version, char* returned
-    char* ret = strerror_r(err, scratch, scratch_size);
+    ret = strerror_r(err, scratch, scratch_size);
     err_msg_len = strlen(ret) + 1;
 #endif
 
@@ -290,7 +292,7 @@ void dmStrerror(char* dst, size_t size, int err)
         err_msg_len = size;
     }
 
-    memcpy(dst, scratch, err_msg_len);
+    memcpy(dst, ret, err_msg_len);
     dst[err_msg_len-1] = '\0';
 }
 

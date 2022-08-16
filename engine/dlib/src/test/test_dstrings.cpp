@@ -186,7 +186,7 @@ TEST(dmStrings, dmStrerror)
 
     // Pass invalid errno
     dmStrerror(buf, sizeof(buf), -1);
-    ASSERT_STREQ("Failed getting error (error -1 not a valid number)", buf);
+    ASSERT_STREQ("Unknown error -1", buf);
 
     // Nothing set in buffer
     memset(buf, 1, sizeof(buf));
