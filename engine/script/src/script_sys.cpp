@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+// #define __STDC_WANT_LIB_EXT1__ 1 // for strerror_s
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -119,7 +121,9 @@ union SaveLoadBuffer
         FILE* file = fopen(tmp_filename, "wb");
         if (!file)
         {
-            return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, strerror(errno));
+            char errmsg[128];
+            dmStrerror(errmsg, sizeof(errmsg), errno);
+            return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
         }
 
         bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;

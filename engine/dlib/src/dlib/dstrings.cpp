@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <string.h>
+#include <errno.h>
 
 #include "dstrings.h"
 
@@ -229,5 +230,34 @@ int dmStrCaseCmp(const char *s1, const char *s2)
 #else
     return strcasecmp(s1, s2);
 #endif
+}
+
+void dmStrerror(char* dst, size_t size, int err)
+{
+    if (dst == 0 || size == 0)
+    {
+        return;
+    }
+
+    int old_errno = errno;
+
+    int ret = strerror_r(err, dst, size);
+    if (ret == 0 || ret == ERANGE)
+    {
+        dst[size - 1] = '\0';
+    }
+    else
+    {
+        if (ret == EINVAL)
+        {
+            dmSnPrintf(dst, size, "Failed getting error (error %d not a valid number)", err);
+        }
+        else
+        {
+            dmSnPrintf(dst, size, "Failed getting error (code %d)", ret);
+        }
+    }
+
+    errno = old_errno;
 }
 

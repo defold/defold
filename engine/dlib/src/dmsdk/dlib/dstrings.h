@@ -132,4 +132,6 @@ size_t dmStrlCat(char *dst, const char *src, size_t size);
  */
 int dmStrCaseCmp(const char *s1, const char *s2);
 
+void dmStrerror(char* dst, size_t size, int err);
+
 #endif //DMSDK_DSTRINGS_H
