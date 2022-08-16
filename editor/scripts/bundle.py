@@ -153,18 +153,15 @@ def git_sha1_from_version_file(options):
 
     tag_name = _get_tag_name(version, options.channel)
 
-    try:
-        print("git_sha1_from_version_file: BEFORE COMMAND")
-        result = run.command(['git', 'rev-list', '-n', '1', tag_name])
-        print("git_sha1_from_version_file: AFTER COMMAND")
-        return result
-
-    except Exception as e:
+    process = subprocess.Popen(['git', 'rev-list', '-n', '1', tag_name], stdout = subprocess.PIPE)
+    out, err = process.communicate()
+    if process.returncode != 0:
         print("Unable to find git sha from tag=%s" % tag_name)
-        print("e:", e)
+        return None
 
-    print("git_sha1_from_version_file returned None")
-    return None
+    if isinstance(out, (bytes, bytearray)):
+        out = str(out, encoding='utf-8')
+    return out.strip()
 
 def git_sha1(ref = 'HEAD'):
     try:
