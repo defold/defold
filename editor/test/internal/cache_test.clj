@@ -17,7 +17,7 @@
             [clojure.test :refer :all]
             [internal.cache :refer :all]
             [internal.graph.types :as gt]
-            [support.test-support :refer :all]))
+            [support.test-support :refer [with-clean-system]]))
 
 (defn- as-map [c] (select-keys c (keys c)))
 
@@ -25,9 +25,10 @@
   (testing "things put into cache appear in snapshot"
     (with-clean-system {:cache-size 1000}
       (let [snapshot (-> cache
-                       (cache-encache {(gt/endpoint 1 :a) 1
-                                       (gt/endpoint 1 :b) 2
-                                       (gt/endpoint 1 :c) 3}))]
+                         (cache-encache {(gt/endpoint 1 :a) 1
+                                         (gt/endpoint 1 :b) 2
+                                         (gt/endpoint 1 :c) 3}
+                                        ::retain-arg))]
         (are [k v] (= v (get snapshot k))
           (gt/endpoint 1 :a) 1
           (gt/endpoint 1 :b) 2
@@ -38,31 +39,35 @@
       (is (= {(gt/endpoint 1 :a) 1
               (gt/endpoint 1 :c) 3}
              (-> cache
-               (cache-encache {(gt/endpoint 1 :a) 1
-                               (gt/endpoint 1 :b) 2
-                               (gt/endpoint 1 :c) 3})
-               (cache-invalidate [(gt/endpoint 1 :b)])
-               (as-map))))))
+                 (cache-encache {(gt/endpoint 1 :a) 1
+                                 (gt/endpoint 1 :b) 2
+                                 (gt/endpoint 1 :c) 3}
+                                ::retain-arg)
+                 (cache-invalidate [(gt/endpoint 1 :b)])
+                 (as-map))))))
 
   (testing "multiple items can be decached"
     (with-clean-system
       (is (empty? (-> cache
-                    (cache-encache {(gt/endpoint 1 :a) 1
-                                    (gt/endpoint 1 :b) 2
-                                    (gt/endpoint 1 :c) 3})
-                    (cache-invalidate [(gt/endpoint 1 :b) (gt/endpoint 1 :c)])
-                    (cache-invalidate [(gt/endpoint 1 :a)])
-                    (as-map)))))))
+                      (cache-encache {(gt/endpoint 1 :a) 1
+                                      (gt/endpoint 1 :b) 2
+                                      (gt/endpoint 1 :c) 3}
+                                     ::retain-arg)
+                      (cache-invalidate [(gt/endpoint 1 :b) (gt/endpoint 1 :c)])
+                      (cache-invalidate [(gt/endpoint 1 :a)])
+                      (as-map)))))))
 
 (deftest limits-test
   (letfn [(populate-cache [cache]
             (-> cache
-              (cache-encache {(gt/endpoint 1 :a) 1
-                              (gt/endpoint 1 :b) 2
-                              (gt/endpoint 1 :c) 3})
-              (cache-hit [(gt/endpoint 1 :a)
-                          (gt/endpoint 1 :c)])
-              (cache-encache {(gt/endpoint 1 :d) 4})))]
+                (cache-encache {(gt/endpoint 1 :a) 1
+                                (gt/endpoint 1 :b) 2
+                                (gt/endpoint 1 :c) 3}
+                               ::retain-arg)
+                (cache-hit [(gt/endpoint 1 :a)
+                            (gt/endpoint 1 :c)])
+                (cache-encache {(gt/endpoint 1 :d) 4}
+                               ::retain-arg)))]
 
     (testing "positive cache limit"
       (with-clean-system {:cache-size 3}
@@ -90,10 +95,12 @@
 
 (deftest clear-test
   (letfn [(populate-cache [cache]
-            (cache-encache cache {(gt/endpoint 1 :a) 1
-                                  (gt/endpoint 1 :b) 2
-                                  (gt/endpoint 1 :c) 3
-                                  (gt/endpoint 1 :d) 4}))]
+            (cache-encache cache
+                           {(gt/endpoint 1 :a) 1
+                            (gt/endpoint 1 :b) 2
+                            (gt/endpoint 1 :c) 3
+                            (gt/endpoint 1 :d) 4}
+                           ::retain-arg))]
 
     (testing "positive cache limit"
       (with-clean-system {:cache-size 3}
@@ -126,16 +133,28 @@
             (let [cache (populate-cache cache)]
               (is (= 4 (count cache))))))))))
 
-(deftest retain-test
+(defn- make-helper-functions [base retain? expected-retain-arg]
   (letfn [(populate-cache [cache]
-            (cache-encache cache {(gt/endpoint 1 :a) 1
-                                  (gt/endpoint 1 :b) 2
-                                  (gt/endpoint 1 :retain/a) -1
-                                  (gt/endpoint 1 :retain/b) -2
-                                  (gt/endpoint 1 :c) 3
-                                  (gt/endpoint 1 :d) 4}))
-          (cache-retain? [endpoint]
-            (= "retain" (namespace (gt/endpoint-label endpoint))))]
+            (cache-encache cache base expected-retain-arg))
+          (cache-retain?
+            ([endpoint]
+             (retain? endpoint))
+            ([retain-arg endpoint]
+             (assert (= expected-retain-arg retain-arg))
+             (cache-retain? endpoint)))]
+    {:populate-cache populate-cache
+     :cache-retain? cache-retain?}))
+
+(deftest retain-test
+  (let [{:keys [populate-cache cache-retain?]}
+        (make-helper-functions {(gt/endpoint 1 :a) 1
+                                (gt/endpoint 1 :b) 2
+                                (gt/endpoint 1 :retain/a) -1
+                                (gt/endpoint 1 :retain/b) -2
+                                (gt/endpoint 1 :c) 3
+                                (gt/endpoint 1 :d) 4}
+                               #(= "retain" (namespace (gt/endpoint-label %)))
+                               ::retain-test-expected-retain-arg)]
     (with-clean-system {:cache-size 3
                         :cache-retain? cache-retain?}
 
@@ -193,15 +212,16 @@
   (is (= 2 (limit (make-cache 2 keyword?)))))
 
 (deftest retained-count-test
-  (letfn [(populate-cache [cache]
-            (cache-encache cache {(gt/endpoint 1 :a) 1
-                                  (gt/endpoint 1 :b) 2
-                                  (gt/endpoint 1 :retain/a) -1
-                                  (gt/endpoint 1 :retain/b) -2
-                                  (gt/endpoint 1 :c) 3
-                                  (gt/endpoint 1 :d) 4}))
-          (cache-retain? [endpoint]
-            (= "retain" (namespace (gt/endpoint-label endpoint))))]
+  (let [{:keys [populate-cache cache-retain?]}
+        (make-helper-functions {(gt/endpoint 1 :a) 1
+                                (gt/endpoint 1 :b) 2
+                                (gt/endpoint 1 :retain/a) -1
+                                (gt/endpoint 1 :retain/b) -2
+                                (gt/endpoint 1 :c) 3
+                                (gt/endpoint 1 :d) 4}
+                               #(= "retain" (namespace (gt/endpoint-label %)))
+                               ::retained-count-test-expected-retain-arg)]
+
     (testing "positive cache limit with retain predicate"
       (with-clean-system {:cache-size 3
                           :cache-retain? cache-retain?}
@@ -224,15 +244,17 @@
           (is (= 0 (retained-count cache))))))))
 
 (deftest unmodified-identical-test
-  (letfn [(populate-cache [cache]
-            (cache-encache cache {(gt/endpoint 1 :a) 1
-                                  (gt/endpoint 1 :b) 2
-                                  (gt/endpoint 1 :retain/a) -1
-                                  (gt/endpoint 1 :retain/b) -2
-                                  (gt/endpoint 1 :c) 3
-                                  (gt/endpoint 1 :d) 4}))
-          (cache-retain? [endpoint]
-            (= "retain" (namespace (gt/endpoint-label endpoint))))]
+  (let [expected-retain-arg ::unmodified-identical-test-expected-retain-arg
+        {:keys [populate-cache cache-retain?]}
+        (make-helper-functions {(gt/endpoint 1 :a) 1
+                                (gt/endpoint 1 :b) 2
+                                (gt/endpoint 1 :retain/a) -1
+                                (gt/endpoint 1 :retain/b) -2
+                                (gt/endpoint 1 :c) 3
+                                (gt/endpoint 1 :d) 4}
+                               #(= "retain" (namespace (gt/endpoint-label %)))
+                               expected-retain-arg)]
+
     (testing "positive cache limit with retain predicate"
       (with-clean-system {:cache-size 3
                           :cache-retain? cache-retain?}
@@ -240,7 +262,7 @@
           (is (identical? cache (cache-hit cache [])))
           (is (identical? cache (cache-hit cache [(gt/endpoint 1 :missing)])))
           (is (identical? cache (cache-hit cache [(gt/endpoint 1 :retain/a)])))
-          (is (identical? cache (cache-encache cache [])))
+          (is (identical? cache (cache-encache cache [] expected-retain-arg)))
           (is (identical? cache (cache-invalidate cache [])))
           (is (identical? cache (cache-invalidate cache [(gt/endpoint 1 :missing)]))))))
 
@@ -249,7 +271,7 @@
         (let [cache (populate-cache cache)]
           (is (identical? cache (cache-hit cache [])))
           (is (identical? cache (cache-hit cache [(gt/endpoint 1 :missing)])))
-          (is (identical? cache (cache-encache cache [])))
+          (is (identical? cache (cache-encache cache [] expected-retain-arg)))
           (is (identical? cache (cache-invalidate cache [])))
           (is (identical? cache (cache-invalidate cache [(gt/endpoint 1 :missing)]))))))
 
@@ -259,7 +281,7 @@
           (is (identical? cache (cache-hit cache [])))
           (is (identical? cache (cache-hit cache [(gt/endpoint 1 :missing)])))
           (is (identical? cache (cache-hit cache [(gt/endpoint 1 :a)])))
-          (is (identical? cache (cache-encache cache [])))
+          (is (identical? cache (cache-encache cache [] expected-retain-arg)))
           (is (identical? cache (cache-invalidate cache [])))
           (is (identical? cache (cache-invalidate cache [(gt/endpoint 1 :missing)]))))))
 
@@ -269,6 +291,6 @@
           (is (identical? cache (cache-hit cache [])))
           (is (identical? cache (cache-hit cache [(gt/endpoint 1 :missing)])))
           (is (identical? cache (cache-hit cache [(gt/endpoint 1 :a)])))
-          (is (identical? cache (cache-encache cache [])))
+          (is (identical? cache (cache-encache cache [] expected-retain-arg)))
           (is (identical? cache (cache-invalidate cache [])))
           (is (identical? cache (cache-invalidate cache [(gt/endpoint 1 :missing)]))))))))

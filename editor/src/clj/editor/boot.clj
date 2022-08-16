@@ -67,9 +67,9 @@
 
         ;; Initialize the system and load the project.
         (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [(.getParentFile project-file)])]
-          (apply (var-get (ns-resolve 'editor.code.view 'initialize!)) [prefs])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [system-config])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! updater newly-created?])
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [prefs])
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project!)) [system-config])
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file prefs render-project-progress! updater newly-created?])
           (reset! namespace-progress-reporter nil))))))
 
 (defn- select-project-from-welcome

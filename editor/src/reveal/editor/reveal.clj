@@ -5,7 +5,6 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [vlaaad.reveal :as r]
-            [internal.graph.types :as gt]
             [internal.system :as is])
   (:import [clojure.lang IRef]
            [editor.resource FileResource ZipResource]
@@ -119,9 +118,9 @@
 (r/defstream Endpoint [endpoint]
   (r/horizontal
     (r/raw-string "#g/endpoint [" {:fill :object})
-    (r/stream (gt/endpoint-node-id endpoint))
+    (r/stream (g/endpoint-node-id endpoint))
     r/separator
-    (r/stream (gt/endpoint-label endpoint))
+    (r/stream (g/endpoint-label endpoint))
     (r/raw-string "]" {:fill :object})))
 
 (r/defstream FileResource [resource]

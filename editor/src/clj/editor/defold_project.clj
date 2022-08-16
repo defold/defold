@@ -36,7 +36,6 @@
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
-            [internal.graph.types :as gt]
             [schema.core :as s]
             [service.log :as log]
             [util.coll :refer [pair]]
@@ -851,11 +850,17 @@
     (some? (resource/abs-path resource))
     false))
 
-(defn cache-retain? [endpoint]
-  (case (gt/endpoint-label endpoint)
-    (:build-targets) (project-resource-node? (g/now) (gt/endpoint-node-id endpoint))
-    (:save-data :source-value) (project-file-resource-node? (g/now) (gt/endpoint-node-id endpoint))
-    false))
+(defn cache-retain?
+  ([endpoint]
+   (case (g/endpoint-label endpoint)
+     (:build-targets) (project-resource-node? (g/now) (g/endpoint-node-id endpoint))
+     (:save-data :source-value) (project-file-resource-node? (g/now) (g/endpoint-node-id endpoint))
+     false))
+  ([basis endpoint]
+   (case (g/endpoint-label endpoint)
+     (:build-targets) (project-resource-node? basis (g/endpoint-node-id endpoint))
+     (:save-data :source-value) (project-file-resource-node? basis (g/endpoint-node-id endpoint))
+     false)))
 
 (defn- cached-build-target-output? [node-id label evaluation-context]
   (case label

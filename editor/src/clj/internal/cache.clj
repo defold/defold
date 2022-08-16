@@ -23,10 +23,11 @@
 (def ^:dynamic *cache-debug* nil)
 
 (defprotocol CacheExtensions
+  (seed [this base retain-arg] "Replace the contents of the cache with base. Potentially faster than calling one-by-one. The retain-arg will be supplied as the first argument to a present retain predicate for this run.")
   (limit [this] "Returns the cache capacity, or -1 if unlimited.")
   (retained-count [this] "Returns the number of retained entries in the cache.")
   (hit-many [this ks] "Hits all the supplied keys. Potentially faster than calling one-by-one.")
-  (miss-many [this kvs] "Encaches all the supplied keys. Potentially faster than calling one-by-one.")
+  (miss-many [this kvs retain-arg] "Encaches all the supplied keys. Potentially faster than calling one-by-one. The retain-arg will be supplied as the first argument to a present retain predicate for this run.")
   (evict-many [this ks] "Evicts all the supplied keys. Potentially faster than calling one-by-one."))
 
 ;; ----------------------------------------
@@ -44,10 +45,11 @@
   (seed [this base] this)
 
   CacheExtensions
+  (seed [this base retain-arg] this)
   (limit [_this] 0)
   (retained-count [_this] 0)
   (hit-many [this _ks] this)
-  (miss-many [this _kvs] this)
+  (miss-many [this _kvs _retain-arg] this)
   (evict-many [this _ks] this))
 
 (def null-cache (NullCache. {}))
@@ -90,10 +92,11 @@
 
 (extend-protocol CacheExtensions
   BasicCache
+  (seed [this base _retain-arg] (cc/seed this base))
   (limit [_this] -1)
   (retained-count [_this] 0)
   (hit-many [this _ks] this)
-  (miss-many [this kvs] (update-basic-cache this miss-many-base kvs))
+  (miss-many [this kvs _retain-arg] (update-basic-cache this miss-many-base kvs))
   (evict-many [this ks] (update-basic-cache this evict-many-base ks)))
 
 ;; ----------------------------------------
@@ -134,7 +137,7 @@
                            (first (peek lru))) ; The key with the lowest tick.
             lru (cond-> lru
                         (not= added-key replaced-key) (dissoc replaced-key)
-                        true (assoc added-key tick))]
+                        :always (assoc added-key tick))]
         [lru tick replaced-key])
 
       ;; We're below the limit.
@@ -154,7 +157,7 @@
                                  (assoc! base added-key added-value)
                                  (cond-> base
                                          (not= added-key replaced-key) (dissoc! replaced-key)
-                                         true (assoc! added-key added-value)))]
+                                         :always (assoc! added-key added-value)))]
                       [base lru tick]))
                   [(transient base) lru tick]
                   kvs)]
@@ -180,6 +183,14 @@
       (pair base
             lru))))
 
+(defn- seed-lru [base limit retain?]
+  (let [unretained-base (if (nil? retain?)
+                          base
+                          (into (empty base)
+                                (remove (comp retain? key))
+                                base))]
+    (#'cc/build-leastness-queue unretained-base limit 0)))
+
 (cc/defcache RetainingLRUCache [cache lru tick limit retain?]
   cc/CacheProtocol
   (lookup [_ item]
@@ -204,7 +215,7 @@
                  (assoc cache added-key added-value)
                  (cond-> cache
                          (not= added-key replaced-key) (dissoc replaced-key)
-                         true (assoc added-key added-value)))]
+                         :always (assoc added-key added-value)))]
       (RetainingLRUCache. base lru tick limit retain?)))
   (evict [this item]
     (let [cache-without-item (dissoc cache item)]
@@ -216,12 +227,7 @@
                             limit
                             retain?))))
   (seed [_ base]
-    (let [unretained-base (if (nil? retain?)
-                            base
-                            (into (empty base)
-                                  (remove (comp retain? key))
-                                  base))
-          lru (#'cc/build-leastness-queue unretained-base limit 0)]
+    (let [lru (seed-lru base limit retain?)]
       (RetainingLRUCache. base
                           lru
                           0
@@ -229,6 +235,14 @@
                           retain?)))
 
   CacheExtensions
+  (seed [_ base retain-arg]
+    (let [fast-retain? (some-> retain? (partial retain-arg))
+          lru (seed-lru base limit fast-retain?)]
+      (RetainingLRUCache. base
+                          lru
+                          0
+                          limit
+                          retain?)))
   (limit [_this] limit)
   (retained-count [this]
     ;; Note: Likely slow, don't call excessively.
@@ -244,10 +258,11 @@
                             tick-after
                             limit
                             retain?))))
-  (miss-many [this kvs]
+  (miss-many [this kvs retain-arg]
     (if (empty? kvs)
       this
-      (let [[base-after lru-after tick-after] (miss-many-lru cache lru tick limit retain? kvs)]
+      (let [fast-retain? (some-> retain? (partial retain-arg))
+            [base-after lru-after tick-after] (miss-many-lru cache lru tick limit fast-retain? kvs)]
         (RetainingLRUCache. base-after
                             lru-after
                             tick-after
@@ -307,8 +322,8 @@
   (hit-many cache ks))
 
 (defn cache-encache
-  [cache kvs]
-  (miss-many cache kvs))
+  [cache kvs retain-arg]
+  (miss-many cache kvs retain-arg))
 
 (defn cache-invalidate
   [cache ks]

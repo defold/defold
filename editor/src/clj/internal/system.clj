@@ -337,7 +337,7 @@
                 (update :cache c/cache-hit evaluation-context-hits)
 
                 (seq evaluation-context-misses)
-                (update :cache c/cache-encache evaluation-context-misses))
+                (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
         (let [invalidated-during-node-value? (fn [endpoint]
                                                (not= (get initial-invalidate-counters endpoint 0)
                                                      (get invalidate-counters endpoint 0)))
@@ -348,7 +348,7 @@
                   (update :cache c/cache-hit safe-cache-hits)
 
                   (seq safe-cache-misses)
-                  (update :cache c/cache-encache safe-cache-misses)))))
+                  (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))
     system))
 
 (defn node-value
