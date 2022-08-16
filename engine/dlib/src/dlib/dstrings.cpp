@@ -241,12 +241,14 @@ void dmStrerror(char* dst, size_t size, int err)
 
     int old_errno = errno;
 
-#ifdef _WIN32
+    // JG: For darwin we could use __DARWIN_C_LEVEL >= 200112L I think
+#if (_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
+    // Posix/win32/osx case: int is returned
+#if defined(_WIN32)
     errno_t ret = strerror_s(dst, size, err);
 #else
     int ret = strerror_r(err, dst, size);
 #endif
-
     if (ret == 0 || ret == ERANGE)
     {
         dst[size - 1] = '\0';
@@ -262,7 +264,21 @@ void dmStrerror(char* dst, size_t size, int err)
             dmSnPrintf(dst, size, "Failed getting error (code %d)", ret);
         }
     }
+#else
+    // GNU version, char* returned
+    char scratch[256];
+    char* ret = strerror_r(err, scratch, sizeof(scratch));
+    size_t err_msg_len = strlen(ret) + 1;
+    if (size < err_msg_len)
+    {
+        err_msg_len = size;
+    }
 
+    memcpy(dst, ret, err_msg_len);
+    dst[err_msg_len] = '\0';
+#endif
+
+    // Restore errno in case strerror variants raised error
     errno = old_errno;
 }
 
