@@ -286,7 +286,7 @@ void dmStrerror(char* dst, size_t size, int err)
     {
         if (ret == EINVAL)
         {
-            dmSnPrintf(scratch, scratch_size, "Unknown error %s", err);
+            dmSnPrintf(scratch, scratch_size, "Unknown error %d", err);
         }
         else
         {
