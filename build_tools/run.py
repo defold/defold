@@ -22,7 +22,9 @@ class ExecException(Exception):
         self.output = output
 
 def _to_str(x):
-    if isinstance(x, (bytes, bytearray)):
+    if x is None:
+        x = ''
+    elif isinstance(x, (bytes, bytearray)):
         x = str(x, encoding='utf-8')
     return x
 
