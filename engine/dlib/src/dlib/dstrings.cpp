@@ -241,7 +241,12 @@ void dmStrerror(char* dst, size_t size, int err)
 
     int old_errno = errno;
 
+#ifdef _WIN32
+    errno_t ret = strerror_s(dst, size, err);
+#else
     int ret = strerror_r(err, dst, size);
+#endif
+
     if (ret == 0 || ret == ERANGE)
     {
         dst[size - 1] = '\0';
