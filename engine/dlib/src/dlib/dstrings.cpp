@@ -239,46 +239,58 @@ void dmStrerror(char* dst, size_t size, int err)
         return;
     }
 
+    char scratch[256];
+    const size_t scratch_size = sizeof(scratch);
+    size_t err_msg_len = 0;
+
     int old_errno = errno;
 
     // JG: For darwin we could use __DARWIN_C_LEVEL >= 200112L I think
 #if (_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
     // Posix/win32/osx case: int is returned
 #if defined(_WIN32)
-    errno_t ret = strerror_s(dst, size, err);
+    errno_t ret = strerror_s(scratch, scratch_size, err);
 #else
-    int ret = strerror_r(err, dst, size);
+    int ret = strerror_r(err, scratch, scratch_size);
 #endif
     if (ret == 0 || ret == ERANGE)
     {
-        dst[size - 1] = '\0';
+    #if defined(_WIN32)
+        // apparently windows returns a success ret value and a "Unknown error" string even if it's not a supported errno
+        if (dmStrCaseCmp("Unknown error", scratch) == 0)
+        {
+            dmSnPrintf(scratch, scratch_size, "Failed getting error (error %d not a valid number)", err);
+        }
+    #endif
     }
     else
     {
         if (ret == EINVAL)
         {
-            dmSnPrintf(dst, size, "Failed getting error (error %d not a valid number)", err);
+            dmSnPrintf(scratch, scratch_size, "Failed getting error (error %d not a valid number)", err);
         }
         else
         {
-            dmSnPrintf(dst, size, "Failed getting error (code %d)", ret);
+            dmSnPrintf(scratch, scratch_size, "Failed getting error (code %d)", ret);
         }
     }
+
+    err_msg_len = strlen(scratch) + 1;
 #else
     // GNU version, char* returned
-    char scratch[256];
-    char* ret = strerror_r(err, scratch, sizeof(scratch));
-    size_t err_msg_len = strlen(ret) + 1;
+    char* ret = strerror_r(err, scratch, scratch_size);
+    err_msg_len = strlen(ret) + 1;
+#endif
+
+    // Restore errno in case strerror variants raised error
+    errno = old_errno;
+
     if (size < err_msg_len)
     {
         err_msg_len = size;
     }
 
-    memcpy(dst, ret, err_msg_len);
-    dst[err_msg_len] = '\0';
-#endif
-
-    // Restore errno in case strerror variants raised error
-    errno = old_errno;
+    memcpy(dst, scratch, err_msg_len);
+    dst[err_msg_len-1] = '\0';
 }
 
