@@ -52,7 +52,11 @@ def _exec_command(arg_list, **kwargs):
                 break
 
     if process.wait() != 0:
+        print("MAWE: Command failed: ", arg_list, "ret:", process.returncode)
         raise ExecException(process.returncode, output)
+
+    if 'git' in arg_list:
+        print("MAWE: Git command succeeded", arg_list)
 
     if output is None:
         return ''
