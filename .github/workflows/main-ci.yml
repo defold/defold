@@ -4,16 +4,19 @@ on:
   push:
      branches:
        - '*'
+       - '!skip-ci-*'
        - '!DEFEDIT-*'
        - '!editor-dev'
   pull_request:
      branches:
        - '*'
+       - '!skip-ci-*'
        - '!DEFEDIT-*'
        - '!editor-dev'
   pull_request_target:
      branches:
        - '*'
+       - '!skip-ci-*'
        - '!DEFEDIT-*'
        - '!editor-dev'
      types: [labeled]
