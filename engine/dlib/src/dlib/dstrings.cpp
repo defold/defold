@@ -278,7 +278,7 @@ void dmStrerror(char* dst, size_t size, int err)
         // even if it's not a supported errno
         if (dmStrCaseCmp("Unknown error", scratch) == 0)
         {
-            dmSnPrintf(scratch, scratch_size, "Unknown error %s", err);
+            dmSnPrintf(scratch, scratch_size, "Unknown error %d", err);
         }
     #endif
     }
