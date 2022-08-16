@@ -155,10 +155,8 @@ def git_sha1_from_version_file(options):
 
     try:
         print("git_sha1_from_version_file: BEFORE COMMAND")
-        return run.command(['git', 'rev-list', '-n', '1', tag_name])
-
-    except run.ExecException as e:
-        print("Unable to find git sha from tag=%s: ExecException: %d: '%s'" % (tag_name, e.retcode, e.output))
+        result = run.command(['git', 'rev-list', '-n', '1', tag_name])
+        print("git_sha1_from_version_file: AFTER COMMAND")
 
     except Exception as e:
         print("Unable to find git sha from tag=%s" % tag_name)
