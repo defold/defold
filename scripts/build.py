@@ -988,7 +988,7 @@ class Configuration(object):
             self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
         if self.is_desktop_target():
-            libs = ['dlib', 'texc', 'modelc', 'particle']
+            libs = ['dlib', 'texc', 'particle', 'modelc']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
@@ -1413,7 +1413,7 @@ class Configuration(object):
         if self.set_version:
             new_version = self.set_version
         else:
-            lst = map(int, current.split('.'))
+            lst = [int(x) for x in current.split('.')]
             lst[-1] += 1
             new_version = '.'.join(map(str, lst))
 

@@ -293,21 +293,12 @@ namespace dmProfileRender
 
     static Area GetPropertiesArea(DisplayMode display_mode, const Area& profiler_area, int counters_count, float scale)
     {
-        Size s(COUNTERS_NAME_WIDTH + CHARACTER_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + counters_count));
+        Size s(COUNTERS_NAME_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + counters_count));
         s.w *= scale;
         s.h *= scale;
 
-        if (display_mode == DISPLAYMODE_LANDSCAPE)
-        {
-            Position p(profiler_area.p.x + profiler_area.s.w - s.w, profiler_area.p.y + profiler_area.s.h * 0.5f - s.h * 0.5f);
-            return Area(p, s);
-        }
-        else if (display_mode == DISPLAYMODE_PORTRAIT)
-        {
-            Position p(profiler_area.p.x + profiler_area.s.w - s.w, profiler_area.p.y);
-            return Area(p, s);
-        }
-        return Area(Position(0, 0), Size(0, 0));
+        Position p(profiler_area.p.x + profiler_area.s.w - s.w, profiler_area.p.y + profiler_area.s.h - s.h);
+        return Area(p, s);
     }
 
     static Area GetSamplesArea(DisplayMode display_mode, const Area& details_area)
@@ -315,13 +306,13 @@ namespace dmProfileRender
         return details_area;
     }
 
-    static Area GetSampleFramesArea(DisplayMode display_mode, int sample_frames_name_width, const Area& samples_area)
+    static Area GetSampleFramesArea(DisplayMode display_mode, int sample_frames_name_width, const Area& samples_area, const Area& properties_area)
     {
         const int offset_y = LINE_SPACING;
         const int offset_x = sample_frames_name_width + CHARACTER_WIDTH + SAMPLE_FRAMES_TIME_WIDTH + CHARACTER_WIDTH + SAMPLE_FRAMES_COUNT_WIDTH + CHARACTER_WIDTH;
 
         Position p(samples_area.p.x + offset_x, samples_area.p.y);
-        Size s(samples_area.s.w - offset_x, samples_area.s.h - offset_y);
+        Size s(samples_area.s.w - offset_x - properties_area.s.w - CHARACTER_WIDTH, samples_area.s.h - offset_y);
 
         return Area(p, s);
     }
@@ -416,10 +407,10 @@ namespace dmProfileRender
 
         const uint32_t properties_count  = frame->m_Properties.Size();
 
-        float properties_scale        = 1.6f;
+        float properties_scale        = 1.0f;
         const Area properties_area    = GetPropertiesArea(display_mode, profiler_area, properties_count, properties_scale);
         const Area samples_area       = GetSamplesArea(display_mode, details_area);
-        const Area sample_frames_area = GetSampleFramesArea(display_mode, SAMPLE_FRAMES_NAME_WIDTH, samples_area);
+        const Area sample_frames_area = GetSampleFramesArea(display_mode, SAMPLE_FRAMES_NAME_WIDTH, samples_area, properties_area);
 
         FillArea(render_context, sample_frames_area, SAMPLES_BG_COLOR);
 
@@ -522,7 +513,7 @@ namespace dmProfileRender
 
         {
             // Properties
-            int y = properties_area.p.y + properties_area.s.h;
+            int y = properties_area.p.y + properties_area.s.h - LINE_SPACING * properties_scale;
 
             int name_x  = properties_area.p.x;
             int count_x = name_x + COUNTERS_NAME_WIDTH + CHARACTER_WIDTH;
@@ -537,7 +528,7 @@ namespace dmProfileRender
             {
                 const ProfilerProperty& property = frame->m_Properties[i];
 
-                y -= LINE_SPACING * properties_scale;
+                y -= LINE_SPACING;
 
                 if (y < (properties_area.p.y + LINE_SPACING))
                 {
