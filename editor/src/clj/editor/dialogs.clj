@@ -519,13 +519,18 @@
 
 (defn- select-first-list-item-on-items-changed! [^ListView view]
   (let [items (.getItems view)
+        properties (.getProperties view)
         selection-model (.getSelectionModel view)]
     (when (pos? (count items))
       (.select selection-model 0))
     (.addListener items (reify ListChangeListener
                           (onChanged [_ _]
                             (when (pos? (count items))
-                              (.select selection-model 0)))))))
+                              (.select selection-model 0)
+                              ;; ListViewBehavior's selectedIndicesListener sets the selection anchor
+                              ;; to the end of the list on items change unless the list view has default anchor.
+                              ;; This keeps the anchor at the top so shift+click selects from the start instead of the end:
+                              (.put properties "isDefaultAnchor" true)))))))
 
 (defn- select-list-dialog
   [{:keys [filter-term filtered-items title ok-label prompt cell-fn selection]
@@ -954,35 +959,24 @@
                                            (.getCanonicalFile)))))
     :description {:fx/type new-file-dialog}))
 
-(handler/defhandler ::rename-conflicting-files :dialog
-  (run [^Stage stage]
-    (ui/user-data! stage ::file-conflict-resolution-strategy :rename)
-    (ui/close! stage)))
-
-(handler/defhandler ::overwrite-conflicting-files :dialog
-  (run [^Stage stage]
-    (ui/user-data! stage ::file-conflict-resolution-strategy :overwrite)
-    (ui/close! stage)))
-
 (defn ^:dynamic make-resolve-file-conflicts-dialog
   [src-dest-pairs]
-  (let [^Parent root (ui/load-fxml "resolve-file-conflicts.fxml")
-        scene (Scene. root)
-        ^Stage stage (doto (ui/make-dialog-stage (ui/main-stage))
-                       (ui/title! "Name Conflict")
-                       (.setScene scene))
-        controls (ui/collect-controls root ["message" "rename" "overwrite" "cancel"])]
-    (ui/context! root :dialog {:stage stage} nil)
-    (ui/bind-action! (:rename controls) ::rename-conflicting-files)
-    (ui/bind-action! (:overwrite controls) ::overwrite-conflicting-files)
-    (ui/bind-action! (:cancel controls) ::close)
-    (.setCancelButton ^Button (:cancel controls) true)
-    (ui/text! (:message controls) (let [conflict-count (count src-dest-pairs)]
-                                    (if (= 1 conflict-count)
-                                      "The destination has an entry with the same name."
-                                      (format "The destination has %d entries with conflicting names." conflict-count))))
-    (ui/show-and-wait! stage)
-    (ui/user-data stage ::file-conflict-resolution-strategy)))
+  (make-confirmation-dialog
+    {:icon :icon/circle-question
+     :size :large
+     :title "Name Conflict"
+     :header (let [conflict-count (count src-dest-pairs)]
+               (if (= 1 conflict-count)
+                 "The destination has an entry with the same name."
+                 (format "The destination has %d entries with conflicting names." conflict-count)))
+     :buttons [{:text "Cancel"
+                :cancel-button true
+                :default-button true}
+               {:text "Name Differently"
+                :result :rename}
+               {:text "Overwrite Files"
+                :variant :danger
+                :result :overwrite}]}))
 
 (def ext-with-selection-props
   (fx/make-ext-with-props

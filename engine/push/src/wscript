@@ -1,7 +1,6 @@
 #! /usr/bin/env python
-import os, re
+import re
 from waf_dynamo import apidoc_extract_task
-
 
 def configure(conf):
     pass
@@ -15,10 +14,10 @@ def build(bld):
             source = 'push_stub.cpp'
             break
 
-    bld.new_task_gen(features = 'cxx cstaticlib',
-                    includes = '.',
-                    source = source,
-                    target = 'pushext')
+    bld.stlib(features = 'cxx',
+              includes = '.',
+              source = source,
+              target = 'pushext')
 
     apidoc_extract_task(bld, ['push_doc.h'])
 

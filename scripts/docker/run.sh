@@ -23,7 +23,11 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 if [ ! -z "${DYNAMO_HOME}" ]; then
-    USE_DYNAMO_HOME="-v ${DYNAMO_HOME}:/dynamo_home"
+    USE_PATH_MAPPINGS="-v ${DYNAMO_HOME}:/dynamo_home"
 fi
 
-docker run --rm --name ubuntu --hostname=ubuntu -t -i -v ${DIR}:/home/builder ${USE_DYNAMO_HOME} -v ${SCRIPT_DIR}/bashrc:/home/builder/.bashrc builder/ubuntu
+if [ ! -z "${DM_PACKAGES_URL}" ]; then
+    USE_ENV="--env DM_PACKAGES_URL=${DM_PACKAGES_URL}"
+fi
+
+docker run --rm --name ubuntu --hostname=ubuntu -t -i -v ${DIR}:/home/builder ${USE_PATH_MAPPINGS} ${USE_ENV} -v ${SCRIPT_DIR}/bashrc:/home/builder/.bashrc builder/ubuntu

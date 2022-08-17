@@ -173,7 +173,7 @@ uint32_t ParticleCount(dmParticle::Emitter* emitter)
 bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[128];
-    dmSnPrintf(path, 128, MOUNTFS "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 128, MOUNTFS "build/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
@@ -196,7 +196,7 @@ bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[64];
-    dmSnPrintf(path, 64, MOUNTFS "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 64, MOUNTFS "build/src/test/%s", filename);
 
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
@@ -227,7 +227,7 @@ bool LoadPrototypeFromDDF(const char* filename, dmParticle::HPrototype* prototyp
 bool ReloadPrototype(const char* filename, dmParticle::HPrototype prototype)
 {
     char path[64];
-    dmSnPrintf(path, 64, MOUNTFS "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 64, MOUNTFS "build/src/test/%s", filename);
 
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
@@ -557,6 +557,31 @@ TEST_F(ParticleTest, DurationSpread)
 }
 
 /**
+ * Verify that clear immediately removes all particles
+ */
+TEST_F(ParticleTest, Clear)
+{
+    ASSERT_TRUE(LoadPrototype("loop.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    ASSERT_TRUE(dmParticle::IsSleeping(m_Context, instance));
+
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    // start and ensure a particle is spawned
+    dmParticle::StartInstance(m_Context, instance);
+    ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
+    dmParticle::Update(m_Context, 1.0f, 0x0);
+    ASSERT_EQ(1u, ParticleCount(e));
+
+    // stop and clear and ensure that the particle is immediately removed
+    dmParticle::StopInstance(m_Context, instance, true);
+    dmParticle::Update(m_Context, 0.0f, 0x0);
+    ASSERT_EQ(0u, ParticleCount(e));
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
  * Verify loop emitters don't end
  */
 TEST_F(ParticleTest, Loop)
@@ -581,7 +606,7 @@ TEST_F(ParticleTest, Loop)
 
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
 
-    dmParticle::StopInstance(m_Context, instance);
+    dmParticle::StopInstance(m_Context, instance, false);
     dmParticle::Update(m_Context, dt, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
 
@@ -616,7 +641,7 @@ TEST_F(ParticleTest, LoopDelay)
 
     ASSERT_FALSE(dmParticle::IsSleeping(m_Context, instance));
 
-    dmParticle::StopInstance(m_Context, instance);
+    dmParticle::StopInstance(m_Context, instance, false);
     dmParticle::Update(m_Context, dt, 0x0);
     ASSERT_EQ(0u, ParticleCount(e));
 

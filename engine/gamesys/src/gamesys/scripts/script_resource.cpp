@@ -893,6 +893,19 @@ static int GetTextMetrics(lua_State* L)
     return 1;
 }
 
+#define DEPRECATE_LU_FUNCTION(LUA_NAME, CPP_NAME) \
+    static int Deprecated_ ## CPP_NAME(lua_State* L) \
+    { \
+        dmLogOnceWarning("Function `resource.%s` is deprecated. Please use `liveupdate.%s` instead.", LUA_NAME, LUA_NAME); \
+        return dmLiveUpdate:: CPP_NAME (L); \
+    }
+
+DEPRECATE_LU_FUNCTION("get_current_manifest", Resource_GetCurrentManifest);
+DEPRECATE_LU_FUNCTION("is_using_liveupdate_data", Resource_IsUsingLiveUpdateData);
+DEPRECATE_LU_FUNCTION("store_resource", Resource_StoreResource);
+DEPRECATE_LU_FUNCTION("store_manifest", Resource_StoreManifest);
+DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
+
 static const luaL_reg Module_methods[] =
 {
     {"set", Set},
@@ -904,11 +917,11 @@ static const luaL_reg Module_methods[] =
     {"get_text_metrics", GetTextMetrics},
 
     // LiveUpdate functionality in resource namespace
-    {"get_current_manifest", dmLiveUpdate::Resource_GetCurrentManifest},
-    {"is_using_liveupdate_data", dmLiveUpdate::Resource_IsUsingLiveUpdateData},
-    {"store_resource", dmLiveUpdate::Resource_StoreResource},
-    {"store_manifest", dmLiveUpdate::Resource_StoreManifest},
-    {"store_archive", dmLiveUpdate::Resource_StoreArchive},
+    {"get_current_manifest", Deprecated_Resource_GetCurrentManifest},
+    {"is_using_liveupdate_data", Deprecated_Resource_IsUsingLiveUpdateData},
+    {"store_resource", Deprecated_Resource_StoreResource},
+    {"store_manifest", Deprecated_Resource_StoreManifest},
+    {"store_archive", Deprecated_Resource_StoreArchive},
 
     {0, 0}
 };

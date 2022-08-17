@@ -33,7 +33,7 @@
                       :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
                      [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
-                     [com.google.protobuf/protobuf-java           "2.3.0"]
+                     [com.google.protobuf/protobuf-java           "3.20.1"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
                      [org.slf4j/jul-to-slf4j                      "1.7.22"]
                      [joda-time/joda-time                         "2.9.2"]

@@ -3,9 +3,9 @@
 import os, sys
 from waf_dynamo import dmsdk_add_files, platform_supports_feature
 from BuildUtility import create_build_utility
-import Options
+import waflib.Options
 
-def set_options(opt):
+def options(opt):
     pass
 
 def _get_native_source(target_os, feature):
@@ -19,33 +19,34 @@ def build(bld):
     build_util = create_build_utility(bld.env)
 
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
-        obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
-                               includes = ['. opengl', '../proto'],
-                               proto_gen_py = True,
-                               protoc_includes = '../proto',
-                               uselib = 'DDF DLIB',
-                               target = 'graphics')
+        obj = bld.stlib(features        = 'ddf cxx',
+                        includes        = ['. opengl', '../proto'],
+                        source          = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                        proto_gen_py    = True,
+                        protoc_includes = '../proto',
+                        use             = 'DDF DLIB',
+                        target          = 'graphics')
 
-        obj.find_sources_in_dirs('. opengl ../proto/graphics')
         if 'web' in bld.env.PLATFORM:
              obj.source.append('opengl/async/job_queue_sync.cpp');
         else:
              obj.source.append('opengl/async/job_queue_threaded.cpp');
 
-    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
-        obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
-                               includes = ['. vulkan', '../proto'],
-                               proto_gen_py = True,
-                               protoc_includes = '../proto',
-                               uselib = 'DDF DLIB',
-                               target = 'graphics_vulkan')
+    bld.add_group()
 
-        obj.find_sources_in_dirs('. vulkan ../proto/graphics')
+    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
+        obj = bld.stlib(features        = 'ddf cxx',
+                        includes        = ['. vulkan', '../proto'],
+                        proto_gen_py    = True,
+                        protoc_includes = '../proto',
+                        use             = 'DDF DLIB',
+                        source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                        target          = 'graphics_vulkan')
 
         if bld.env.PLATFORM == 'arm64-nx64':
           obj.source.remove(os.path.join('.','graphics_glfw_wrappers.cpp'))
 
-        obj.source.remove(os.path.join('vulkan','graphics_native.cpp'))
+        obj.source = [x for x in obj.source if not x.abspath().endswith(os.path.join('vulkan','graphics_native.cpp'))]
         obj.source.append(_get_native_source(build_util.get_target_os(), 'vulkan'))
 
         if bld.env.PLATFORM == 'x86_64-darwin':
@@ -60,27 +61,27 @@ def build(bld):
         elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
             obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
 
-    obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
-                           includes = ['. null', '../proto'],
-                           proto_gen_py = True,
-                           protoc_includes = '../proto',
-                           uselib = 'DDF DLIB',
-                           target = 'graphics_null')
+    obj = bld.stlib(features        = 'ddf cxx',
+                    includes        = ['. null', '../proto'],
+                    source          = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                    proto_gen_py    = True,
+                    protoc_includes = '../proto',
+                    use             = 'DDF DLIB',
+                    target          = 'graphics_null')
 
-    obj.find_sources_in_dirs('. null ../proto/graphics')
-    obj.source.remove(os.path.join('.','graphics_glfw_wrappers.cpp'))
+    obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
-    obj = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = ['.', '../proto'],
-                           uselib = 'DLIB',
-                           source = 'transcoder/graphics_transcoder_null.cpp',
-                           target = 'graphics_transcoder_null')
+    obj = bld.stlib(features     = 'cxx',
+                    includes     = ['.', '../proto'],
+                    use          = 'DLIB',
+                    source       = 'transcoder/graphics_transcoder_null.cpp',
+                    target       = 'graphics_transcoder_null')
 
-    obj = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = ['.', '../proto'],
-                           uselib = 'DLIB',
-                           source = 'transcoder/graphics_transcoder_basisu.cpp',
-                           target = 'graphics_transcoder_basisu')
+    obj = bld.stlib(features     = 'cxx',
+                    includes     = ['.', '../proto'],
+                    use          = 'DLIB',
+                    source       = 'transcoder/graphics_transcoder_basisu.cpp',
+                    target       = 'graphics_transcoder_basisu')
 
     bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
     bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')
@@ -95,8 +96,8 @@ def build(bld):
     bld.install_files('${PREFIX}/bin', 'texc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
-    if not Options.options.skip_build_tests:
-        bld.add_subdirs('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')
 
 def configure(conf):
     pass

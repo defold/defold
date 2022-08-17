@@ -159,4 +159,4 @@ This will trigger a build of the engines and editors for editor-alpha.
 
         $ cd defold
         $ git checkout master
-        $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github
+        $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github --channel=stable

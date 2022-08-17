@@ -50,7 +50,7 @@ static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid
     #define MOUNTFS ""
 #endif
 
-const char* ROOT = MOUNTFS "build/default/src/gamesys/test";
+const char* ROOT = MOUNTFS "build/src/gamesys/test";
 
 bool CopyResource(const char* src, const char* dst)
 {

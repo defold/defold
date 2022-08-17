@@ -297,6 +297,8 @@ function cmi() {
             export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
             export LDFLAGS="-isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
 
+            # TODO: for protobuf, we need to add -llog to LDFLAGS
+
             export CPP="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang -E"
             export CC="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang"
             export CXX="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang++"
@@ -323,6 +325,9 @@ function cmi() {
             export AS=${bin}/aarch64-linux-android-as
             export LD=${bin}/aarch64-linux-android-ld
             export RANLIB=${bin}/aarch64-linux-android-ranlib
+            # TODO: for protobuf, we need to add -llog to LDFLAGS
+            #export LDFLAGS="-llog"
+
             cmi_cross $1 arm-linux
             ;;
 

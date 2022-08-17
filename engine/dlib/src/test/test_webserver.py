@@ -15,7 +15,7 @@
 import os
 import sys
 import unittest
-import httplib
+import http.client
 import random
 import atexit
 
@@ -27,7 +27,7 @@ PORT = 8501
 class TestHttpServer(unittest.TestCase):
 
     def testMulNumbers(self):
-        c = httplib.HTTPConnection('localhost:%d' % PORT)
+        c = http.client.HTTPConnection('localhost:%d' % PORT)
         for i in range(40):
             a = random.randint(1, 1024)
             b = random.randint(1, 1024)
@@ -38,7 +38,7 @@ class TestHttpServer(unittest.TestCase):
             self.assertEqual(a + b, int(buf))
 
     def testMulHeadersNumbers(self):
-        c = httplib.HTTPConnection('localhost:%d' % PORT)
+        c = http.client.HTTPConnection('localhost:%d' % PORT)
         for i in range(40):
             a = random.randint(1, 1024)
             b = random.randint(1, 1024)
@@ -51,7 +51,7 @@ class TestHttpServer(unittest.TestCase):
 
 if __name__ == '__main__':
     def shutdown_server():
-        c = httplib.HTTPConnection('localhost:%d' % PORT)
+        c = http.client.HTTPConnection('localhost:%d' % PORT)
         c.request('GET', '/quit')
         r = c.getresponse()
         assert r.status == 200

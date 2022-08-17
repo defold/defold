@@ -15,6 +15,15 @@
 import sys
 
 def log(msg):
-    print msg
+    if type(msg) == bytes:
+        try:
+            print (msg.decode('utf-8'))
+        except:
+            try:
+                print (msg.decode('utf-16'))
+            except:
+                pass
+    else:
+        print(msg)
     sys.stdout.flush()
     sys.stderr.flush()

@@ -66,7 +66,7 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        m_Path = "build/default/src/gameobject/test/props";
+        m_Path = "build/src/gameobject/test/props";
         m_Factory = dmResource::NewFactory(&params, m_Path);
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);

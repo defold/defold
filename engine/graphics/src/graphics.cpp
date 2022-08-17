@@ -152,7 +152,7 @@ namespace dmGraphics
     AttachmentToBufferType::AttachmentToBufferType()
     {
         memset(m_AttachmentToBufferType, 0x0, sizeof(m_AttachmentToBufferType));
-        m_AttachmentToBufferType[ATTACHMENT_COLOR] = BUFFER_TYPE_COLOR_BIT;
+        m_AttachmentToBufferType[ATTACHMENT_COLOR] = BUFFER_TYPE_COLOR0_BIT;
         m_AttachmentToBufferType[ATTACHMENT_DEPTH] = BUFFER_TYPE_DEPTH_BIT;
         m_AttachmentToBufferType[ATTACHMENT_STENCIL] = BUFFER_TYPE_STENCIL_BIT;
     }

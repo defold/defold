@@ -75,6 +75,10 @@ def get_closing_pull_request(issue):
             if "merged_at" in issue["pull_request"]:
                 return issue
 
+def was_issue_pr_merged(issue):
+    pr = issue["pull_request"]
+    return pr["merged_at"] is not None
+
 
 def get_issue_type(issue):
     labels = get_issue_labels(issue)
@@ -130,6 +134,8 @@ def generate(version, hide_details = False):
         pr = get_closing_pull_request(issue)
 
         if pr:
+            if not was_issue_pr_merged(pr):
+                continue
             entry = {
                 "title": pr["title"],
                 "body": pr["body"],
