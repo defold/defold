@@ -33,6 +33,8 @@ static BaseView*            g_BaseView = 0;
 
 @implementation BaseView
 
+NSString *const FAKE_STRING = @"Abcd";
+
 + (Class)layerClass
 {
     [self doesNotRecognizeSelector:_cmd];
@@ -44,6 +46,8 @@ static BaseView*            g_BaseView = 0;
     if (self != nil) {
         [self setSwapInterval: 1];
         markedText = [[NSMutableString alloc] initWithCapacity:128];
+        // This hack needed to make sure backspace long press works fine.
+        fakeText = FAKE_STRING;
     }
 
     _glfwInput.MouseEmulationTouch = 0;
@@ -65,6 +69,7 @@ static BaseView*            g_BaseView = 0;
     }
 
     markedText = [[NSMutableString alloc] initWithCapacity:128];
+    fakeText = FAKE_STRING;
 
     _glfwInput.MouseEmulationTouch = 0;
     for (int i = 0; i < GLFW_MAX_TOUCH; ++i)
@@ -117,7 +122,7 @@ static BaseView*            g_BaseView = 0;
 - (NSString *)textInRange:(UITextRange *)range
 {
     IndexedRange* _range = (IndexedRange*)range;
-    NSString* sub_string = [markedText substringWithRange:_range.range];
+    NSString* sub_string = [markedText length] < _range.range.length ? [fakeText substringWithRange:_range.range] : [markedText substringWithRange:_range.range];
     return sub_string;
 }
 
@@ -142,7 +147,8 @@ static BaseView*            g_BaseView = 0;
 {
     IndexedPosition *pos = (IndexedPosition *)position;
     NSInteger end = pos.index + offset;
-    if (end > markedText.length || end < 0)
+    NSString* string = markedText.length != 0 ? markedText : fakeText;
+    if (end > [string length] || end < 0)
         return nil;
     return [IndexedPosition positionWithIndex:end];
 }
@@ -179,6 +185,12 @@ static BaseView*            g_BaseView = 0;
     return UITextSpellCheckingTypeNo;
 }
 
+- (UITextPosition *) endOfDocument {
+    IndexedPosition *pos = [[IndexedPosition alloc] init];
+    pos.index = [fakeText length];
+    return [pos autorelease];
+}
+
 
 //========================================================================
 // UITextInput protocol methods stubs
@@ -189,7 +201,6 @@ static BaseView*            g_BaseView = 0;
 //========================================================================
 
 - (void)setSelectedTextRange:(UITextRange *)range {}
-- (UITextPosition *) endOfDocument { return nil; }
 - (UITextPosition *) beginningOfDocument { return nil; }
 
 - (UITextPosition *)closestPositionToPoint:(CGPoint)point { return nil; }
@@ -477,6 +488,7 @@ static BaseView*            g_BaseView = 0;
         [markedText setString:@""];
         _glfwSetMarkedText("");
     } else {
+        _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_RELEASE );
         _glfwInputKey( GLFW_KEY_BACKSPACE, GLFW_PRESS );
         self.textkeyActive = TEXT_KEY_COOLDOWN;
     }
