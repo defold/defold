@@ -277,7 +277,8 @@
      [workspace project app-view])))
 
 (defn- load-system-and-project-raw [path]
-  (test-support/with-clean-system
+  (test-support/with-clean-system {:cache-size 1000
+                                   :cache-retain? project/cache-retain?}
     (let [workspace (setup-workspace! world path)]
       (fetch-libraries! workspace)
       (let [project (setup-project! workspace)]
