@@ -1452,7 +1452,7 @@ class Configuration(object):
         output = process.communicate()[0]
 
         if process.returncode != 0:
-            self._log(output)
+            self._log(str(output, encoding='utf-8'))
             sys.exit(process.returncode)
 
 # ------------------------------------------------------------
