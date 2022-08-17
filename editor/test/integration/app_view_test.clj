@@ -13,19 +13,22 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.app-view-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.set :as set]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.build :as build]
-            [editor.fs :as fs]
-            [editor.git :as git]
             [editor.defold-project :as project]
+            [editor.git :as git]
+            [editor.pipeline :as pipeline]
             [editor.progress :as progress]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [spit-until-new-mtime with-clean-system]])
-  (:import [java.io File]))
+            [internal.graph.types :as gt]
+            [internal.node :as in]
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]]))
 
 (deftest open-editor
   (testing "Opening editor only alters undo history by selection"
@@ -166,3 +169,55 @@
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results))))))
+
+(deftest build-targets-remain-in-cache-after-build
+  (let [project-path "test/resources/build_project/SideScroller"
+        cache-size 50
+        retained-labels #{:build-targets}]
+    (letfn [(cached-endpoints []
+              (into (sorted-set)
+                    (keys (g/cache))))
+            (node-cacheable-build-target-endpoints [node-id]
+              (let [node-type (g/node-type* node-id)
+                    cached-outputs (in/cached-outputs node-type)]
+                (map (partial gt/endpoint node-id)
+                     (set/intersection cached-outputs retained-labels))))]
+      (with-clean-system {:cache-size cache-size
+                          :cache-retain? project/cache-retain?}
+        (let [workspace (test-util/setup-workspace! world project-path)
+              project (test-util/setup-project! workspace)
+              prefs (test-util/make-test-prefs)
+              artifact-map (workspace/artifact-map workspace)
+              game-project (test-util/resource-node project "/game.project")
+              game-project-build-targets (g/node-value game-project :build-targets)
+              expected-cached-build-target-endpoints (into (sorted-set)
+                                                           (mapcat (fn [{build-resource :resource :as build-target}]
+                                                                     (let [source-resource (:resource build-resource)]
+                                                                       (when (and (some? (resource/proj-path source-resource))
+                                                                                  (not (some-> (:node-id build-target) g/override?)))
+                                                                         ;; This is a project (i.e. not embedded) resource node.
+                                                                         (when-some [source-node-id (test-util/resource-node project source-resource)]
+                                                                           (node-cacheable-build-target-endpoints source-node-id))))))
+                                                           (pipeline/flatten-build-targets game-project-build-targets))]
+          (test-util/run-event-loop!
+            (fn [exit-event-loop!]
+              (g/clear-system-cache!)
+              (app-view/async-build! project prefs {:debug false :engine? false} artifact-map progress/null-render-progress!
+                                     (fn [build-results _engine-descriptor build-engine-exception]
+                                       (when (and (is (nil? (:error build-results)))
+                                                  (is (nil? build-engine-exception)))
+
+                                         (testing "Build targets remain in cache even though we've exceeded the cache limit."
+                                           (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
+
+                                         (testing "Build targets are always evicted from the cache after their dependencies change."
+                                           (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
+                                             (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
+                                             (test-util/prop! background-atlas :margin 10)
+                                             (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
+
+                                         (testing "Build targets are always evicted from the cache when it is explicitly cleared."
+                                           (g/clear-system-cache!)
+                                           (is (empty? (g/cache)))))
+
+                                       (exit-event-loop!))))))))))

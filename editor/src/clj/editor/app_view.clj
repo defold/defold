@@ -63,6 +63,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.system :as system]
             [editor.targets :as targets]
             [editor.types :as types]
@@ -773,15 +774,6 @@
         (error-reporting/report-exception! error)
         nil))))
 
-(defn- cached-build-target-output? [node-id label evaluation-context]
-  (and (= :build-targets label)
-       (project/project-resource-node? node-id evaluation-context)))
-
-(defn- update-system-cache-build-targets! [evaluation-context]
-  ;; To avoid cache churn, we only transfer the most important entries to the system cache.
-  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-build-target-output?)]
-    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
-
 (defn async-build! [project prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
   (let [;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
@@ -897,7 +889,7 @@
                         (debug-view/build-targets project evaluation-context))]
                   (build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
-                (update-system-cache-build-targets! evaluation-context)
+                (project/update-system-cache-build-targets! evaluation-context)
                 (phase-4-run-post-build-hook! project-build-results)))))
 
         phase-2-start-engine-build!
@@ -2139,21 +2131,26 @@ If you do not specifically require different script states, consider changing th
   (run [project workspace changes-view prefs]
        (extensions/reload! project :all (make-extensions-ui workspace changes-view prefs))))
 
-(defn- create-and-open-live-update-settings! [app-view changes-view prefs project]
+(defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs project]
   (let [workspace (project/workspace project)
-        project-path (workspace/project-path workspace)
-        settings-file (io/file project-path "liveupdate.settings")
-        render-reload-progress! (make-render-task-progress :resource-sync)]
-    (spit settings-file "[liveupdate]\n")
-    (disk/async-reload! render-reload-progress! workspace [] changes-view
-                        (fn [successful?]
-                          (when successful?
-                            (when-some [created-resource (workspace/find-resource workspace "/liveupdate.settings")]
-                              (open-resource app-view prefs workspace project created-resource)))))))
+        resource (workspace/resolve-workspace-resource workspace proj-path)]
+    (if (resource/exists? resource)
+      (open-resource app-view prefs workspace project resource)
+      (let [render-reload-progress! (make-render-task-progress :resource-sync)]
+        (fs/touch-file! (io/as-file resource))
+        (disk/async-reload! render-reload-progress! workspace [] changes-view
+                            (fn [successful?]
+                              (when successful?
+                                (when-some [created-resource (workspace/find-resource workspace proj-path)]
+                                  (open-resource app-view prefs workspace project created-resource)))))))))
 
 (handler/defhandler :live-update-settings :global
   (enabled? [] (disk-availability/available?))
   (run [app-view changes-view prefs workspace project]
-       (if-some [existing-resource (workspace/find-resource workspace (live-update-settings/get-live-update-settings-path project))]
-         (open-resource app-view prefs workspace project existing-resource)
-         (create-and-open-live-update-settings! app-view changes-view prefs project))))
+       (let [live-update-settings-proj-path (live-update-settings/get-live-update-settings-path project)]
+         (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs project))))
+
+(handler/defhandler :shared-editor-settings :global
+  (enabled? [] (disk-availability/available?))
+  (run [app-view changes-view prefs workspace project]
+       (ensure-exists-and-open-for-editing! shared-editor-settings/project-shared-editor-settings-proj-path app-view changes-view prefs project)))

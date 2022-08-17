@@ -277,7 +277,6 @@ ordinary paths."
     resources))
 
 (defn- load-plugin! [workspace resource]
-  ; TODO Handle Exceptions!
   (log/info :msg (str "Loading plugin " (resource/path resource)))
   (try
     (if-let [plugin-fn (load-string (slurp resource))]
@@ -291,6 +290,7 @@ ordinary paths."
         (dialogs/make-info-dialog
           {:title "Unable to Load Plugin"
            :icon :icon/triangle-error
+           :always-on-top true
            :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
       false)))
 
