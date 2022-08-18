@@ -578,7 +578,11 @@ Macros currently mean no foreseeable performance gain however."
     (fn [^bytes bytes]
       (.invoke parse-method nil (into-array Object [bytes])))))
 
-(def ^:private parser-fn (memoize parser-fn-raw))
+(def parser-fn (memoize parser-fn-raw))
+
+(defmacro bytes->pb [^Class cls bytes]
+  (with-meta `((parser-fn ~cls) ~bytes)
+             {:tag cls}))
 
 (defn bytes->map [^Class cls bytes]
   (let [parser (parser-fn cls)]

@@ -39,8 +39,10 @@
             [service.log :as log]
             [support.test-support :as test-support]
             [util.http-server :as http-server]
-            [util.thread-util :as thread-util])
-  (:import [java.io ByteArrayOutputStream File FilenameFilter FileInputStream]
+            [util.thread-util :as thread-util]
+            [editor.protobuf :as protobuf])
+  (:import [com.google.protobuf TextFormat]
+           [java.io ByteArrayOutputStream File FilenameFilter FileInputStream]
            [java.util UUID]
            [java.util.concurrent LinkedBlockingQueue]
            [java.util.zip ZipEntry ZipOutputStream]
@@ -580,7 +582,7 @@
   "Returns an AutoCloseable that deletes the directory at the specified
   path when closed. Suitable for use with the (with-open) macro. The
   directory path must be a temp directory."
-  [directory-path]
+  ^java.lang.AutoCloseable [directory-path]
   (let [directory (io/file directory-path)]
     (assert (string/starts-with? (.getAbsolutePath directory)
                                  (temp-directory-path))
@@ -593,7 +595,7 @@
   "Returns an AutoCloseable that reverts the specified graph to
   the state it was at construction time when its close method
   is invoked. Suitable for use with the (with-open) macro."
-  [graph-id]
+  ^java.lang.AutoCloseable [graph-id]
   (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
     (reify java.lang.AutoCloseable
       (close [_]
@@ -602,13 +604,29 @@
             (g/undo! graph-id)
             (recur (g/undo-stack-count graph-id))))))))
 
+(defn add-referenced-component!
+  "Adds a new instance of a referenced component to the specified
+  game object node inside a transaction and makes it the current
+  selection. Returns the id of the added ReferencedComponent node."
+  [app-view resource go-id]
+  (let [selection-volatile (volatile! nil)
+        select-fn (fn [node-ids]
+                    (vreset! selection-volatile node-ids)
+                    (app-view/select app-view node-ids))]
+    (game-object/add-component-file go-id resource select-fn)
+    (first @selection-volatile)))
+
 (defn add-embedded-component!
   "Adds a new instance of an embedded component to the specified
   game object node inside a transaction and makes it the current
   selection. Returns the id of the added EmbeddedComponent node."
-  [app-view select-fn resource-type go-id]
-  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
-  (first (selection app-view)))
+  [app-view resource-type go-id]
+  (let [selection-volatile (volatile! nil)
+        select-fn (fn [node-ids]
+                    (vreset! selection-volatile node-ids)
+                    (app-view/select app-view node-ids))]
+    (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
+    (first @selection-volatile)))
 
 (defonce ^:private png-image-bytes
   ;; Bytes representing a single-color 256 by 256 pixel PNG file.
@@ -633,14 +651,24 @@
 
 (defn make-resource!
   "Adds a new file to the workspace. Returns the created FileResource."
-  [workspace proj-path]
-  (assert (integer? workspace))
-  (assert (.startsWith proj-path "/"))
-  (let [resource (resource workspace proj-path)
-        resource-type (resource/resource-type resource)
-        template (workspace/template workspace resource-type)]
-    (spit resource template)
-    resource))
+  ([workspace proj-path]
+   (assert (integer? workspace))
+   (assert (.startsWith proj-path "/"))
+   (let [resource (resource workspace proj-path)
+         resource-type (resource/resource-type resource)
+         template (workspace/template workspace resource-type)]
+     (spit resource template)
+     resource))
+  ([workspace proj-path pb-map]
+   (assert (integer? workspace))
+   (assert (.startsWith proj-path "/"))
+   (assert (map? pb-map))
+   (let [resource (resource workspace proj-path)
+         resource-type (resource/resource-type resource)
+         write-fn (:write-fn resource-type)
+         content (write-fn pb-map)]
+     (spit resource content)
+     resource)))
 
 (defn make-resource-node!
   "Adds a new file to the project. Returns the node-id of the created resource."
@@ -694,7 +722,8 @@
                        (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))]
     [build-path build-result]))
 
-(defn build! [resource-node]
+(defn build!
+  ^java.lang.AutoCloseable [resource-node]
   (let [[build-path] (build-node! resource-node)]
     (make-directory-deleter build-path)))
 
@@ -704,21 +733,32 @@
     (fs/delete-directory! (io/file build-path) {:fail :silently})
     error))
 
+(defn node-build-resource [node-id]
+  (:resource (first (g/node-value node-id :build-targets))))
+
 (defn build-resource [project path]
   (when-some [resource-node (resource-node project path)]
-    (:resource (first (g/node-value resource-node :build-targets)))))
+    (node-build-resource resource-node)))
 
-(defn build-output [project path]
+(defn build-output
+  ^bytes [project path]
   (with-open [in (io/input-stream (build-resource project path))
               out (ByteArrayOutputStream.)]
     (io/copy in out)
     (.toByteArray out)))
 
-(defn node-build-resource [node-id]
-  (:resource (first (g/node-value node-id :build-targets))))
-
-(defn node-build-output [node-id]
+(defn node-build-output
+  ^bytes [node-id]
   (with-open [in (io/input-stream (node-build-resource node-id))
               out (ByteArrayOutputStream.)]
     (io/copy in out)
     (.toByteArray out)))
+
+(defmacro saved-pb [node-id pb-class]
+  (with-meta `(TextFormat/parse (:content (g/node-value ~node-id :undecorated-save-data))
+                                ~pb-class)
+             {:tag pb-class}))
+
+(defmacro built-pb [node-id pb-class]
+  (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
+             {:tag pb-class}))

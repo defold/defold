@@ -353,6 +353,23 @@
   {:components ref-ddf
    :embedded-components embed-ddf})
 
+(def ^:private default-scale-value (:scale identity-transform-properties))
+
+(defn- strip-default-scale [component-ddf]
+  (let [scale (:scale component-ddf)]
+    (if (or (= default-scale-value scale)
+            (protobuf/default-read-scale-value? scale))
+      (dissoc component-ddf :scale)
+      component-ddf)))
+
+(defn strip-default-scales [component-ddfs]
+  (mapv strip-default-scale component-ddfs))
+
+(g/defnk produce-save-value [proto-msg]
+  (-> proto-msg
+      (update :components strip-default-scales)
+      (update :embedded-components strip-default-scales)))
+
 (defn- build-game-object [resource dep-resources user-data]
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
   ;; when reading this. It will clear up how the output binaries are structured.
@@ -468,7 +485,7 @@
   (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any produce-proto-msg)
-  (output save-value g/Any (gu/passthrough proto-msg))
+  (output save-value g/Any produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any :cached produce-scene)
@@ -608,20 +625,11 @@
     (assoc-in instance property-descs-path (mapv properties/sanitize-property-desc property-descs))
     instance))
 
-(def default-scale-value [1.0 1.0 1.0])
-
-(defn- sanitize-default-scale [component]
-  (let [scale (get component :scale ::not-found)]
-    (if (and (not= ::not-found scale)
-             (protobuf/default-read-scale-value? scale))
-      (assoc component :scale default-scale-value)
-      component)))
-
 (defn- sanitize-component [resource-type-map proj-path->resource-data component]
   (let [^String component-path (:component component)
         patch-component-fn (some-> component-path FilenameUtils/getExtension resource-type-map :tag-opts :component :patch-component-fn)]
   (cond-> (-> (sanitize-property-descs-at-path [:properties] component)
-              (sanitize-default-scale)
+              (strip-default-scale)
               (dissoc :property-decls)) ; Only used in built data by the runtime.
           patch-component-fn (patch-component-fn nil proj-path->resource-data))))
 
@@ -644,7 +652,7 @@
 (defn- sanitize-embedded-component [resource-type-map proj-path->resource-data embedded]
   (->> embedded
        (sanitize-embedded-component-data resource-type-map proj-path->resource-data)
-       (sanitize-default-scale)))
+       (strip-default-scale)))
 
 (defn- try-read-resource-data [workspace proj-path]
   (when (some? proj-path)
