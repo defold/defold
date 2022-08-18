@@ -313,15 +313,15 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
-        boolean use_lua_source = this.project.option("use-lua-source", "false").equals("true");
-        
+        boolean useLuaSource = this.project.option("use-lua-source", "false").equals("true");
+        boolean useCompressedLuaSource = this.project.option("use-compressed-lua-source", "false").equals("true");
         // set compression and encryption flags
         // if the use-lua-source flag is set the project will use uncompressed plain text Lua script files
         // if the use-lua-source flag is NOT set the project will use encrypted and possibly also compressed bytecode
         for(IResource res : task.getOutputs()) {
             String path = res.getAbsPath();
             if(path.endsWith("luac") || path.endsWith("scriptc") || path.endsWith("gui_scriptc") || path.endsWith("render_scriptc")) {
-                if (use_lua_source) {
+                if (useLuaSource) {
                     project.addOutputFlags(path, Project.OutputFlags.UNCOMPRESSED);
                 }
                 else {
@@ -333,7 +333,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         srcBuilder.setFilename(task.input(0).getPath());
 
-        if (use_lua_source) {
+        if (useLuaSource || useCompressedLuaSource) {
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         } else if (needsVanillaLua32.contains(project.getPlatform())) {
             byte[] bytecode = constructLuaBytecode(task, "luac-32", script);

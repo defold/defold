@@ -101,13 +101,33 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         Project p = GetProject();
         p.setOption("use-lua-source", "true");
 
-        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        final String path = "/test.script";
+        final String scriptSource = "function foo() print('foo') end";
+        LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
         LuaSource luaSource = luaModule.getSource();
         assertTrue(luaSource.getScript() != null);
         assertTrue(luaSource.getScript().size() > 0);
         assertTrue(luaSource.getBytecode().size() == 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() == 0);
+        p.getOutputFlags("build/" + path+ "c").contains(Project.OutputFlags.UNCOMPRESSED);
+    }
+
+    @Test
+    public void testUseCompressedLuaSource() throws Exception {
+        Project p = GetProject();
+        p.setOption("use-compressed-lua-source", "true");
+
+        final String path = "/test.script";
+        final String scriptSource = "function foo() print('foo') end";
+        LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript() != null);
+        assertTrue(luaSource.getScript().size() > 0);
+        assertTrue(luaSource.getBytecode().size() == 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+        p.getOutputFlags("build/" + path + "c").contains(Project.OutputFlags.ENCRYPTED);
     }
 
     @Test
