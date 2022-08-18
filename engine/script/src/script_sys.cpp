@@ -119,8 +119,8 @@ union SaveLoadBuffer
         FILE* file = fopen(tmp_filename, "wb");
         if (!file)
         {
-            char errmsg[128];
-            dmStrerror(errmsg, sizeof(errmsg), errno);
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
             return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
         }
 

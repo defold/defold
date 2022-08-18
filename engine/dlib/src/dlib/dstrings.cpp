@@ -257,7 +257,7 @@ int dmStrCaseCmp(const char *s1, const char *s2)
     #endif
 #endif
 
-void dmStrerror(char* dst, size_t size, int err)
+void dmStrError(char* dst, size_t size, int err)
 {
     if (dst == 0 || size == 0)
     {
@@ -325,4 +325,5 @@ void dmStrerror(char* dst, size_t size, int err)
 
 #undef DM_STRERROR_USE_GNU
 #undef DM_STRERROR_USE_POSIX
+#undef DM_STRERROR_USE_UNSAFE
 #undef DM_STRERROR_FN

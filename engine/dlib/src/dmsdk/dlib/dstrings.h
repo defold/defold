@@ -138,7 +138,7 @@ int dmStrCaseCmp(const char *s1, const char *s2);
  * If the size of the buffer is too small, the message will be truncated to fit the buffer.
  * If the buffer is null, or if size is zero, nothing will happen.
  *
- * @name dmStrerror
+ * @name dmStrError
  * @param dst Destination string that carries the error message
  * @param size Max size of destination string in bytes
  * @return a null-terminated error message
@@ -146,9 +146,9 @@ int dmStrCaseCmp(const char *s1, const char *s2);
  *
  * ```cpp
  * char buf[128];
- * dmStrerror(buf, sizeof(buf), ENOENT); // buf => "No such file or directory"
+ * dmStrError(buf, sizeof(buf), ENOENT); // buf => "No such file or directory"
  * ```
  */
-void dmStrerror(char* dst, size_t size, int err);
+void dmStrError(char* dst, size_t size, int err);
 
 #endif //DMSDK_DSTRINGS_H

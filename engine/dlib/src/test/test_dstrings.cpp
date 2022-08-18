@@ -174,24 +174,24 @@ TEST(dmStrings, dmStrCaseCmp)
     ASSERT_EQ(0, dmStrCaseCmp("a", "a"));
 }
 
-TEST(dmStrings, dmStrerror)
+TEST(dmStrings, dmStrError)
 {
     char buf[128];
     // Test with a ENOENT errno code
-    dmStrerror(buf, sizeof(buf), ENOENT);
+    dmStrError(buf, sizeof(buf), ENOENT);
     ASSERT_STREQ("No such file or directory", buf);
 
     // Pass in a small buffer
-    dmStrerror(buf, 4, ENOENT);
+    dmStrError(buf, 4, ENOENT);
     ASSERT_STREQ("No ", buf);
 
     // Pass invalid errno
-    dmStrerror(buf, sizeof(buf), -1);
+    dmStrError(buf, sizeof(buf), -1);
     ASSERT_STREQ("Unknown error -1", buf);
 
     // Nothing set in buffer
     memset(buf, 1, sizeof(buf));
-    dmStrerror(buf, 0, 0);
+    dmStrError(buf, 0, 0);
     ASSERT_EQ(1, buf[0]);
 }
 
