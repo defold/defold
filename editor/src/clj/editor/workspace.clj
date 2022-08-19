@@ -51,8 +51,11 @@ ordinary paths."
 (defn- skip-first-char [path]
   (subs path 1))
 
-(defn build-path [workspace]
-  (io/file (project-path workspace) (skip-first-char build-dir)))
+(defn build-path
+  (^File [workspace]
+   (io/file (project-path workspace) (skip-first-char build-dir)))
+  (^File [workspace build-resource-path]
+   (io/file (build-path workspace) (skip-first-char build-resource-path))))
 
 (defn plugin-path
   (^File [workspace]

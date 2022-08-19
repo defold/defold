@@ -694,7 +694,7 @@
                       (concat
                         (g/operation-label "Add Game Object")
                         (g/operation-sequence op-seq)
-                        (make-ref-go coll-node project resource id [0 0 0] [0 0 0 1] [1 1 1] parent []))))]
+                        (make-ref-go coll-node project resource id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent []))))]
     ;; Selection
     (g/transact
       (concat
@@ -748,7 +748,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Game Object")
-        (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0 1] [1 1 1] parent select-fn)))))
+        (make-embedded-go coll-node project ext template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent select-fn)))))
 
 (handler/defhandler :add :workbench
   (active? [selection] (selection->collection selection))
@@ -794,7 +794,7 @@
                                         (concat
                                           (g/operation-label "Add Collection")
                                           (g/operation-sequence op-seq)
-                                          (add-collection-instance coll-node resource id [0 0 0] [0 0 0 1] [1 1 1] []))))]
+                                          (add-collection-instance coll-node resource id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] []))))]
                ; Selection
                (g/transact
                  (concat

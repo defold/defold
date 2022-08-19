@@ -26,7 +26,6 @@
             [editor.git :as git]
             [editor.git-test :refer [with-git]]
             [editor.progress :as progress]
-            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -35,40 +34,15 @@
             [service.log :as log]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [util.text-util :as text-util])
-  (:import [com.dynamo.gamesys.proto AtlasProto$Atlas]
-           [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto Gui$SceneDesc]
-           [com.dynamo.gamesys.proto Label$LabelDesc]
-           [com.dynamo.gamesys.proto ModelProto$ModelDesc]
-           [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.render.proto Font$FontDesc]
-           [com.dynamo.gamesys.proto Tile$TileGrid Tile$TileSet]
-           [java.io StringReader File]
+  (:import [java.io StringReader File]
            [org.apache.commons.io FileUtils]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]))
-
-(def ^:private ext->proto {"atlas" AtlasProto$Atlas
-                           "font" Font$FontDesc
-                           "go" GameObject$PrototypeDesc
-                           "collection" GameObject$CollectionDesc
-                           "gui" Gui$SceneDesc
-                           "label" Label$LabelDesc
-                           "model" ModelProto$ModelDesc
-                           "particlefx" Particle$ParticleFX
-                           "tilegrid" Tile$TileGrid
-                           "tilemap" Tile$TileGrid
-                           "tileset" Tile$TileSet
-                           "tilesource" Tile$TileSet})
 
 (deftest save-all
   ;; These tests bypass the dirty check in order to verify that the information
   ;; saved is equivalent to the data loaded. Failures might signal that we've
   ;; forgotten to read data from the file, or somehow we're not writing all
-  ;; properties to disk. If you get failures after modifying a .proto file,
-  ;; first make sure your protobuf file extension maps to the corresponding
-  ;; class in the ext->proto map above. This ensures added fields will use
-  ;; defaults from the .proto file and not be reported as missing data in the
-  ;; on-disk reference files.
+  ;; properties to disk.
   (let [queries ["**/env.cubemap"
                  "**/switcher.atlas"
                  "**/atlas_sprite.collection"
@@ -119,21 +93,32 @@
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world)
             project (test-util/setup-project! workspace)
-            save-data (group-by :resource (project/all-save-data project))]
+            save-data-by-resource (into {}
+                                        (map (juxt :resource identity))
+                                        (project/all-save-data project))]
         (doseq [query queries]
           (testing (format "Saving %s" query)
-            (let [[resource _] (first (project/find-resources project query))
-                  save (first (get save-data resource))
-                  file (slurp resource)
-                  pb-class (-> resource resource/resource-type :ext ext->proto)]
-              (if pb-class
-                (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
-                      pb-disk (protobuf/read-text pb-class resource)
-                      path []
-                      [disk save both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
-                  (is (nil? disk))
-                  (is (nil? save)))
-                (is (= file (:content save)))))))))))
+            (let [resource (ffirst (project/find-resources project query))
+                  resource-type (resource/resource-type resource)
+                  save-string (:content (save-data-by-resource resource))]
+              (if-some [read-fn (:read-fn resource-type)]
+
+                ;; We have a read-fn. Compare the read data representations.
+                (let [disk-pb-msg (read-fn resource)
+                      save-pb-msg (with-open [reader (StringReader. save-string)]
+                                    (read-fn reader))
+                      [only-in-disk-pb-msg only-in-save-pb-msg] (data/diff disk-pb-msg save-pb-msg)]
+                  (is (nil? only-in-disk-pb-msg))
+                  (is (nil? only-in-save-pb-msg))
+                  (when (or (some? only-in-disk-pb-msg)
+                            (some? only-in-save-pb-msg))
+                    (println "When comparing" (resource/proj-path resource))
+                    (prn 'disk only-in-disk-pb-msg)
+                    (prn 'save only-in-save-pb-msg)))
+
+                ;; We don't have a read-fn. Compare the strings.
+                (let [disk-string (slurp resource)]
+                  (is (= disk-string save-string)))))))))))
 
 (deftest save-all-literal-equality
   (let [paths ["/collection/embedded_instances.collection"
@@ -150,23 +135,46 @@
         (testing (format "Saving %s" path)
           (let [node-id (test-util/resource-node project path)
                 resource (g/node-value node-id :resource)
-                save (g/node-value node-id :save-data)
-                file (slurp resource)
-                pb-class (-> resource resource/resource-type :ext ext->proto)]
-            (is (not (g/error? save)))
-            (when (and pb-class (not= file (:content save)))
-              (let [pb-save (protobuf/read-text pb-class (StringReader. (:content save)))
-                    pb-disk (protobuf/read-text pb-class resource)
-                    path []
-                    [disk-diff save-diff both] (data/diff (get-in pb-disk path) (get-in pb-save path))]
-                (is (nil? disk-diff))
-                (is (nil? save-diff))
-                (when (and (nil? disk-diff) (nil? save-diff))
-                  (let [diff-lines (keep (fn [[f s]] (when (not= f s) [f s])) (map vector (str/split-lines file) (str/split-lines (:content save))))]
-                    (doseq [[f s] diff-lines]
-                      (prn "f" f)
-                      (prn "s" s))))))
-            (is (= file (:content save)))))))))
+                save-data (g/node-value node-id :save-data)
+                save-string (:content save-data)
+                disk-string (slurp resource)
+                print-line-diff! (fn print-line-diff! []
+                                   (let [diff-lines
+                                         (keep (fn [[f s]]
+                                                 (when (not= f s)
+                                                   [f s]))
+                                               (map vector
+                                                    (str/split-lines disk-string)
+                                                    (str/split-lines save-string)))]
+                                     (println "When comparing" path)
+                                     (doseq [[disk-line save-line] diff-lines]
+                                       (prn 'disk disk-line)
+                                       (prn 'save save-line))))]
+            (is (not (g/error? save-data)))
+            (when-not (is (= disk-string save-string))
+              (if-some [read-raw-fn (:read-raw-fn (resource/resource-type resource))]
+
+                ;; We have a read-fn. Compare the read data representations.
+                (let [disk-pb-msg (read-raw-fn resource)
+                      save-pb-msg (with-open [reader (StringReader. save-string)]
+                                    (read-raw-fn reader))
+                      [only-in-disk-pb-msg only-in-save-pb-msg] (data/diff disk-pb-msg save-pb-msg)]
+                  (is (nil? only-in-disk-pb-msg))
+                  (is (nil? only-in-save-pb-msg))
+                  (if (and (nil? only-in-disk-pb-msg)
+                           (nil? only-in-save-pb-msg))
+
+                    ;; The strings differ, but the read data does not. Print a line diff.
+                    (print-line-diff!)
+
+                    ;; The read data differs. Print a data diff.
+                    (do
+                      (println "When comparing" path)
+                      (prn 'disk only-in-disk-pb-msg)
+                      (prn 'save only-in-save-pb-msg))))
+
+                ;; We don't have a read-fn. Print a line diff.
+                (print-line-diff!)))))))))
 
 (defn- save-all! [project]
   (let [save-data (project/dirty-save-data project)]

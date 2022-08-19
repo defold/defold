@@ -434,11 +434,15 @@ Macros currently mean no foreseeable performance gain however."
   (when-let [builder (pb-builder cls)]
     (builder m)))
 
+(defmacro str->pb [^Class cls str]
+  (with-meta `(TextFormat/parse ~str ~cls)
+             {:tag cls}))
+
 (defn- break-embedded-newlines
   [^String pb-str]
   (.replace pb-str "\\n" "\\n\"\n  \""))
 
-(defn- pb->str [^Message pb format-newlines?]
+(defn pb->str [^Message pb format-newlines?]
   (cond-> (.printToString (TextFormat/printer) pb)
     format-newlines?
     (break-embedded-newlines)))

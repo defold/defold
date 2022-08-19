@@ -19,6 +19,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build :as build]
+            [editor.collection :as collection]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.fs :as fs]
@@ -28,6 +29,7 @@
             [editor.material :as material]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
@@ -39,10 +41,8 @@
             [service.log :as log]
             [support.test-support :as test-support]
             [util.http-server :as http-server]
-            [util.thread-util :as thread-util]
-            [editor.protobuf :as protobuf])
-  (:import [com.google.protobuf TextFormat]
-           [java.io ByteArrayOutputStream File FilenameFilter FileInputStream]
+            [util.thread-util :as thread-util])
+  (:import [java.io ByteArrayOutputStream File FilenameFilter FileInputStream]
            [java.util UUID]
            [java.util.concurrent LinkedBlockingQueue]
            [java.util.zip ZipEntry ZipOutputStream]
@@ -604,15 +604,34 @@
             (g/undo! graph-id)
             (recur (g/undo-stack-count graph-id))))))))
 
+(defn- make-app-view-select-fn [app-view]
+  (assert (g/node-id? app-view))
+  (let [selection-volatile (volatile! nil)
+        select-fn (fn select-fn [node-ids]
+                    (vreset! selection-volatile node-ids)
+                    (app-view/select app-view node-ids))]
+    [select-fn selection-volatile]))
+
+(defn to-game-object-id [node-id]
+  (let [go-id (cond
+                (g/node-instance? game-object/GameObjectNode node-id)
+                node-id
+
+                (g/node-instance? collection/GameObjectInstanceNode node-id)
+                (g/node-value node-id :source-id))]
+    (assert (g/node-instance? game-object/GameObjectNode go-id)
+            (format "Invalid conversion from %s to %s."
+                    (:k (g/node-type* node-id))
+                    (:k game-object/GameObjectNode)))
+    go-id))
+
 (defn add-referenced-component!
   "Adds a new instance of a referenced component to the specified
   game object node inside a transaction and makes it the current
   selection. Returns the id of the added ReferencedComponent node."
   [app-view resource go-id]
-  (let [selection-volatile (volatile! nil)
-        select-fn (fn [node-ids]
-                    (vreset! selection-volatile node-ids)
-                    (app-view/select app-view node-ids))]
+  (let [go-id (to-game-object-id go-id)
+        [select-fn selection-volatile] (make-app-view-select-fn app-view)]
     (game-object/add-component-file go-id resource select-fn)
     (first @selection-volatile)))
 
@@ -621,12 +640,22 @@
   game object node inside a transaction and makes it the current
   selection. Returns the id of the added EmbeddedComponent node."
   [app-view resource-type go-id]
-  (let [selection-volatile (volatile! nil)
-        select-fn (fn [node-ids]
-                    (vreset! selection-volatile node-ids)
-                    (app-view/select app-view node-ids))]
+  (let [go-id (to-game-object-id go-id)
+        [select-fn selection-volatile] (make-app-view-select-fn app-view)]
     (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
     (first @selection-volatile)))
+
+(defn add-embedded-game-object!
+  "Adds a new embedded game object instance to the specified
+  collection node inside a transaction and makes it the current
+  selection. Returns the id of the added EmbeddedGOInstanceNode."
+  ([app-view project collection-id]
+   (add-embedded-game-object! app-view project collection-id collection-id))
+  ([app-view project collection-id parent-id]
+   (let [workspace (project/workspace project)
+         [select-fn selection-volatile] (make-app-view-select-fn app-view)]
+     (collection/add-game-object workspace project collection-id parent-id select-fn)
+     (first @selection-volatile))))
 
 (defonce ^:private png-image-bytes
   ;; Bytes representing a single-color 256 by 256 pixel PNG file.
@@ -755,8 +784,7 @@
     (.toByteArray out)))
 
 (defmacro saved-pb [node-id pb-class]
-  (with-meta `(TextFormat/parse (:content (g/node-value ~node-id :undecorated-save-data))
-                                ~pb-class)
+  (with-meta `(protobuf/str->pb ~pb-class (:content (g/node-value ~node-id :undecorated-save-data)))
              {:tag pb-class}))
 
 (defmacro built-pb [node-id pb-class]
