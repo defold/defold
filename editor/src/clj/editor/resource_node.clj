@@ -158,7 +158,8 @@
           ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
 
 (defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
-  (let [read-fn (cond->> (partial protobuf/read-text ddf-type)
+  (let [read-raw-fn (partial protobuf/read-text ddf-type)
+        read-fn (cond->> read-raw-fn
                          (some? sanitize-fn) (comp sanitize-fn))
         args (assoc args
                :textual? true
@@ -166,13 +167,9 @@
                           (let [source-value (read-fn resource)]
                             (load-fn project self resource source-value)))
                :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
+               :read-raw-fn read-raw-fn
                :read-fn read-fn
-               :write-fn (partial protobuf/map->str ddf-type))
-        args (if (and (some? sanitize-fn)
-                      (contains? tags :component)
-                      (not (contains? tags :non-embeddable)))
-               (update-in args [:tag-opts :component :sanitize-embedded] #(if (some? %) % true))
-               args)]
+               :write-fn (partial protobuf/map->str ddf-type))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn icon view-types tags tag-opts label] :as args}]

@@ -177,9 +177,8 @@
     (mapv * size [xs ys 1])))
 
 (defn- v3->v4 [v]
-  ;; We use 1.0 as the W component for the size
-  ;; property in the Label file format.
-  (conj v 1.0))
+  ;; DdfMath$Vector4 uses 0.0 as the default for the W component.
+  (conj v 0.0))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
@@ -362,12 +361,12 @@
       (update :size sanitize-v4)
       (dissoc :scale))) ; Scale was moved to the ComponentDesc. Migrated in game-object.clj.
 
-(defn- patch-label-component [component embedded-data proj-path->resource-data]
+(defn- patch-label-component [component embedded-unsanitized-data proj-path->unsanitized-data]
   (let [component-scale (:scale component)]
     (if (or (nil? component-scale)
             (protobuf/default-read-scale-value? component-scale))
-      (let [label (or embedded-data
-                      (proj-path->resource-data (:component component)))
+      (let [label (or embedded-unsanitized-data
+                      (proj-path->unsanitized-data (:component component)))
             label-scale (some-> label :scale v4->v3)]
         (if (and (some? label-scale)
                  (not (protobuf/default-read-scale-value? label-scale))
