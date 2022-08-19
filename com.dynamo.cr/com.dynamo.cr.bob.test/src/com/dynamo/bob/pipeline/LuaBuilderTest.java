@@ -110,13 +110,13 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(luaSource.getBytecode().size() == 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() == 0);
-        p.getOutputFlags("build/" + path+ "c").contains(Project.OutputFlags.UNCOMPRESSED);
+        p.getOutputFlags("build/" + path+ "c").contains(Project.OutputFlags.ENCRYPTED);
     }
 
     @Test
-    public void testUseCompressedLuaSource() throws Exception {
+    public void testUseUncompressedLuaSource() throws Exception {
         Project p = GetProject();
-        p.setOption("use-compressed-lua-source", "true");
+        p.setOption("use-lua-source", "true");
 
         final String path = "/test.script";
         final String scriptSource = "function foo() print('foo') end";
@@ -127,7 +127,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(luaSource.getBytecode().size() == 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() == 0);
-        p.getOutputFlags("build/" + path + "c").contains(Project.OutputFlags.ENCRYPTED);
+        p.getOutputFlags("build/" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED);
     }
 
     @Test
