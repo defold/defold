@@ -29,6 +29,8 @@ TEST(LuaTest, TestPatchBytesUpTo255)
     source.m_Delta.m_Data = delta;
     source.m_Delta.m_Count = sizeof(delta);
 
+    dmGameObject::PatchBytes(source.m_Bytecode.m_Data, source.m_Bytecode.m_Count, source.m_Delta.m_Data, source.m_Delta.m_Count);
+
     for(int i=0; i<source.m_Bytecode.m_Count; i++) {
         uint8_t a = source.m_Bytecode.m_Data[i];
         uint8_t b = bytecode32[i];
