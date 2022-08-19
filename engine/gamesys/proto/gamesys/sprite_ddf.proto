@@ -22,6 +22,9 @@ message SpriteDesc
     required string default_animation   = 2;
     optional string material            = 3 [(resource)=true, default="/builtins/materials/sprite.material"];
     optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
+    optional dmMath.Vector4 size        = 5;
+    optional dmMath.Vector4 slice9      = 6;
+    // optional SizeMode size_mode  = 38 [default = SIZE_MODE_MANUAL]; // maybe?
 }
 
 /*# Sprite API documentation

@@ -387,6 +387,7 @@ namespace dmGameSystem
 
         component->m_Size = Vector3(0.0f, 0.0f, 0.0f);
         component->m_AnimationID = 0;
+
         PlayAnimation(component, resource->m_DefaultAnimation, 0.0f, 1.0f);
 
         TextureSetResource* texture_set = GetTextureSet(component, resource);
@@ -544,39 +545,182 @@ namespace dmGameSystem
 
                 const Matrix4& w = component->m_World;
 
-                Vector4 p0 = w * Point3(-0.5f, -0.5f, 0.0f);
-                vertices[0].x = p0.getX();
-                vertices[0].y = p0.getY();
-                vertices[0].z = p0.getZ();
-                vertices[0].u = tc[tex_lookup[0] * 2];
-                vertices[0].v = tc[tex_lookup[0] * 2 + 1];
+                // Slice 9
+                const Vector4 slice9 = component->m_Resource->m_DDF->m_Slice9;
+                bool use_slice_nine = sum(slice9) != 0;
 
-                Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
-                vertices[1].x = p1.getX();
-                vertices[1].y = p1.getY();
-                vertices[1].z = p1.getZ();
-                vertices[1].u = tc[tex_lookup[1] * 2];
-                vertices[1].v = tc[tex_lookup[1] * 2 + 1];
+                // All of this is taken from comp_gui.cpp
+                // If we get this to work maybe we should merge this code somehow..
+                if (use_slice_nine)
+                {
+                    //const Vector4 size = component->m_Resource->m_DDF->m_Size;
 
-                Vector4 p2 = w * Point3(0.5f, 0.5f, 0.0f);
-                vertices[2].x = p2.getX();
-                vertices[2].y = p2.getY();
-                vertices[2].z = p2.getZ();
-                vertices[2].u = tc[tex_lookup[2] * 2];
-                vertices[2].v = tc[tex_lookup[2] * 2 + 1];
+                    // todo:
+                    bool flip_u = false, flip_v = false;
 
-                Vector4 p3 = w * Point3(0.5f, -0.5f, 0.0f);
-                vertices[3].x = p3.getX();
-                vertices[3].y = p3.getY();
-                vertices[3].z = p3.getZ();
-                vertices[3].u = tc[tex_lookup[4] * 2];
-                vertices[3].v = tc[tex_lookup[4] * 2 + 1];
+                    // render 9-sliced node
+                    //   0 1     2 3
+                    // 0 *-*-----*-*
+                    //   | |  y  | |
+                    // 1 *-*-----*-*
+                    //   | |     | |
+                    //   |x|     |z|
+                    //   | |     | |
+                    // 2 *-*-----*-*
+                    //   | |  w  | |
+                    // 3 *-*-----*-*
+                    float us[4], vs[4], xs[4], ys[4];
 
-                // for (int f = 0; f < 4; ++f)
-                //     printf("  %u: %.2f, %.2f\t%.2f, %.2f\n", f, vertices[f].x, vertices[f].y, vertices[f].u, vertices[f].v );
+                    // v are '1-v'
+                    xs[0] = ys[0] = 0;
+                    xs[3] = ys[3] = 1;
 
-                vertices += 4;
-                indices += 6 * index_type_size;
+                    // disable slice9 computation below a certain dimension
+                    // (avoid div by zero)
+                    const float s9_min_dim = 0.001f;
+                    const float su = 1.0f / dmGraphics::GetTextureWidth(texture_set->m_Texture);
+                    const float sv = 1.0f / dmGraphics::GetTextureHeight(texture_set->m_Texture);
+
+                    // Point3 size = dmGui::GetNodeSize(scene, node);
+                    const float sx = component->m_Size.getX() > s9_min_dim ? 1.0f / component->m_Size.getX() : 0;
+                    const float sy = component->m_Size.getY() > s9_min_dim ? 1.0f / component->m_Size.getY() : 0;
+
+                    static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
+                    bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+                    if(uv_rotated)
+                    {
+                        const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
+                        const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
+                        us[uI[0]] = tc[0];
+                        us[uI[1]] = tc[0] + (su * slice9.getW());
+                        us[uI[2]] = tc[2] - (su * slice9.getY());
+                        us[uI[3]] = tc[2];
+                        vs[vI[0]] = tc[1];
+                        vs[vI[1]] = tc[1] - (sv * slice9.getX());
+                        vs[vI[2]] = tc[5] + (sv * slice9.getZ());
+                        vs[vI[3]] = tc[5];
+                    }
+                    else
+                    {
+                        const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
+                        const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
+                        us[uI[0]] = tc[0];
+                        us[uI[1]] = tc[0] + (su * slice9.getX());
+                        us[uI[2]] = tc[4] - (su * slice9.getZ());
+                        us[uI[3]] = tc[4];
+                        vs[vI[0]] = tc[1];
+                        vs[vI[1]] = tc[1] + (sv * slice9.getW());
+                        vs[vI[2]] = tc[3] - (sv * slice9.getY());
+                        vs[vI[3]] = tc[3];
+                    }
+
+                    xs[1] = sx * slice9.getX();
+                    xs[2] = 1 - sx * slice9.getZ();
+                    ys[1] = sy * slice9.getW();
+                    ys[2] = 1 - sy * slice9.getY();
+
+                    // nah this isn't right.. but we need to use size somehow likely?
+                    Matrix4 transform(w);
+                    //transform.setUpper3x3(transform.getUpper3x3() * dmVMath::Matrix3::scale(dmVMath::Vector3(size.getX(), size.getY(), 1)));
+
+                    Vector4 pts[4][4];
+                    for (int y=0;y<4;y++)
+                    {
+                        for (int x=0;x<4;x++)
+                        {
+                            pts[y][x] = transform * Point3(xs[x], ys[y], 0);
+                        }
+                    }
+
+                    for (int y=0;y<3;y++)
+                    {
+                        for (int x=0;x<3;x++)
+                        {
+                            const int x0 = x;
+                            const int x1 = x+1;
+                            const int y0 = y;
+                            const int y1 = y+1;
+
+                            #define SET_VERTEX(vert,_p,_u,_v) \
+                                vert.x = _p.getX(); \
+                                vert.y = _p.getY(); \
+                                vert.z = _p.getZ(); \
+                                vert.u = uv_rotated ? _v : _u; \
+                                vert.v = uv_rotated ? _u : _v;
+
+                            // -, -
+                            // -, +
+                            // +, +
+                            // +, -
+                            SET_VERTEX(vertices[0], pts[y0][x0], us[x0], vs[y0]);
+                            SET_VERTEX(vertices[1], pts[y0][x1], us[x1], vs[y0]);
+                            SET_VERTEX(vertices[2], pts[y1][x1], us[x1], vs[y1]);
+                            SET_VERTEX(vertices[3], pts[y1][x0], us[x0], vs[y1]);
+
+                            vertices += 4;
+                            indices += 6 * index_type_size;
+
+                            #undef SET_VERTEX
+
+                            /*
+                            v00.SetPosition(pts[y0][x0]);
+                            v10.SetPosition(pts[y0][x1]);
+                            v01.SetPosition(pts[y1][x0]);
+                            v11.SetPosition(pts[y1][x1]);
+                            if(uv_rotated)
+                            {
+                                v00.SetUV(us[y0], vs[x0]);
+                                v10.SetUV(us[y0], vs[x1]);
+                                v01.SetUV(us[y1], vs[x0]);
+                                v11.SetUV(us[y1], vs[x1]);
+                            }
+                            else
+                            {
+                                v00.SetUV(us[x0], vs[y0]);
+                                v10.SetUV(us[x1], vs[y0]);
+                                v01.SetUV(us[x0], vs[y1]);
+                                v11.SetUV(us[x1], vs[y1]);
+                            }
+                            */
+                        }
+                    }
+                }
+                else
+                {
+                    Vector4 p0 = w * Point3(-0.5f, -0.5f, 0.0f);
+                    vertices[0].x = p0.getX();
+                    vertices[0].y = p0.getY();
+                    vertices[0].z = p0.getZ();
+                    vertices[0].u = tc[tex_lookup[0] * 2];
+                    vertices[0].v = tc[tex_lookup[0] * 2 + 1];
+
+                    Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
+                    vertices[1].x = p1.getX();
+                    vertices[1].y = p1.getY();
+                    vertices[1].z = p1.getZ();
+                    vertices[1].u = tc[tex_lookup[1] * 2];
+                    vertices[1].v = tc[tex_lookup[1] * 2 + 1];
+
+                    Vector4 p2 = w * Point3(0.5f, 0.5f, 0.0f);
+                    vertices[2].x = p2.getX();
+                    vertices[2].y = p2.getY();
+                    vertices[2].z = p2.getZ();
+                    vertices[2].u = tc[tex_lookup[2] * 2];
+                    vertices[2].v = tc[tex_lookup[2] * 2 + 1];
+
+                    Vector4 p3 = w * Point3(0.5f, -0.5f, 0.0f);
+                    vertices[3].x = p3.getX();
+                    vertices[3].y = p3.getY();
+                    vertices[3].z = p3.getZ();
+                    vertices[3].u = tc[tex_lookup[4] * 2];
+                    vertices[3].v = tc[tex_lookup[4] * 2 + 1];
+
+                    // for (int f = 0; f < 4; ++f)
+                    //     printf("  %u: %.2f, %.2f\t%.2f, %.2f\n", f, vertices[f].x, vertices[f].y, vertices[f].u, vertices[f].v );
+
+                    vertices += 4;
+                    indices += 6 * index_type_size;
+                }
             }
         }
 
