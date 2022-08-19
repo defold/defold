@@ -111,7 +111,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(luaSource.getBytecode().size() == 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() == 0);
-        assertTrue(p.getOutputFlags("build/" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
+        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
     }
 
     @Test
@@ -128,8 +128,8 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(luaSource.getBytecode().size() == 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() == 0);
-        assertTrue(p.getOutputFlags("build/" + path + "c").contains(Project.OutputFlags.ENCRYPTED));
-        assertFalse(p.getOutputFlags("build/" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
+        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.ENCRYPTED));
+        assertFalse(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
     }
 
     // Leaving these tests in case we decide to reintroduce bytecode generation for Lua 5.1.5
