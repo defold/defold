@@ -69,7 +69,7 @@ import com.google.protobuf.Message;
  */
 public abstract class LuaBuilder extends Builder<Void> {
 
-    private static ArrayList<Platform> needsVanillaLua32 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+    private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
     private static LuaBuilderPlugin luaBuilderPlugin = null;
 
@@ -313,7 +313,6 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
-        boolean useLuaSource = this.project.option("use-lua-source", "false").equals("true");
         boolean useUncompressedLuaSource = this.project.option("use-uncompressed-lua-source", "false").equals("true");
         // set compression and encryption flags
         // if the use-uncompressed-lua-source flag is set the project will use uncompressed plain text Lua script files
@@ -333,14 +332,21 @@ public abstract class LuaBuilder extends Builder<Void> {
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         srcBuilder.setFilename(task.input(0).getPath());
 
-        if (useLuaSource || useUncompressedLuaSource) {
+        // for platforms using Lua 5.1 we include Lua source code even though
+        // there is a constructLuaBytecode() function above
+        // tests have shown that Lua 5.1 bytecode becomes larger than source,
+        // even when compressed using lz4
+        // this is unacceptable for html5 games where size is a key factor
+        // see https://github.com/defold/defold/issues/6891 for more info
+        if (platformUsesLua51.contains(project.getPlatform())) {
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
-        } else if (needsVanillaLua32.contains(project.getPlatform())) {
-            byte[] bytecode = constructLuaBytecode(task, "luac-32", script);
-            if (bytecode != null) {
-                srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
-            }
-        } else {
+        }
+        // include uncompressed Lua source code instead of bytecode
+        // see https://forum.defold.com/t/urgent-need-help-i-have-huge-problem-with-game-submission-to-apple/68031
+        else if (useUncompressedLuaSource) {
+            srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
+        }
+        else {
             byte[] bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
             byte[] bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
 

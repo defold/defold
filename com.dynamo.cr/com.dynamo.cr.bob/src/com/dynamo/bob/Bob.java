@@ -465,7 +465,6 @@ public class Bob {
         addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
 
         addOption(options, null, "use-vanilla-lua", false, "DEPRECATED! Use --use-uncompressed-lua-source instead.", true);
-        addOption(options, null, "use-lua-source", false, "Use compressed and encrypted Lua source code instead of byte code", true);
         addOption(options, null, "use-uncompressed-lua-source", false, "Use uncompressed and unencrypted Lua source code instead of byte code", true);
         addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
 
