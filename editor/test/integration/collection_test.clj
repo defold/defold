@@ -322,19 +322,19 @@
           (game-object-built-pb [game-object]
             (test-util/built-pb game-object GameObject$PrototypeDesc))
 
-          (collection-game-object-saved-pb [collection]
+          (collection-game-object-saved-pb [collection game-object-index]
             (let [collection-saved-pb (test-util/saved-pb collection GameObject$CollectionDesc)]
-              (is (= 1 (.getEmbeddedInstancesCount collection-saved-pb)))
-              (let [game-object-embedded-instance-saved-pb (.getEmbeddedInstances collection-saved-pb 0)
+              (is (< game-object-index (.getEmbeddedInstancesCount collection-saved-pb)))
+              (let [game-object-embedded-instance-saved-pb (.getEmbeddedInstances collection-saved-pb game-object-index)
                     embedded-game-object-string (.getData game-object-embedded-instance-saved-pb)]
                 (protobuf/str->pb GameObject$PrototypeDesc embedded-game-object-string))))
 
-          (collection-game-object-built-pb [collection]
+          (collection-game-object-built-pb [collection game-object-index]
             (let [collection-resource (g/node-value collection :resource)
                   workspace (resource/workspace collection-resource)
                   collection-built-pb (test-util/built-pb collection GameObject$CollectionDesc)]
-              (is (= 1 (.getInstancesCount collection-built-pb)))
-              (let [game-object-instance-built-pb (.getInstances collection-built-pb 0)
+              (is (< game-object-index (.getInstancesCount collection-built-pb)))
+              (let [game-object-instance-built-pb (.getInstances collection-built-pb game-object-index)
                     game-object-build-output-file (workspace/build-path workspace (.getPrototype game-object-instance-built-pb))
                     game-object-build-output-bytes (fs/read-bytes game-object-build-output-file)]
                 (protobuf/bytes->pb GameObject$PrototypeDesc game-object-build-output-bytes))))]
@@ -361,16 +361,31 @@
               (with-open [_ (test-util/build! game-object)]
                 (test-scaled-built-pb (game-object-built-pb game-object)))))
 
-          (testing "Components in collection."
+          (testing "Components in game object embedded inside collection."
             (let [collection (project/get-resource-node project collection-resource)
                   game-object-instance (test-util/add-embedded-game-object! app-view project collection)
                   game-object (test-util/to-game-object-id game-object-instance)
                   [embedded-component referenced-component] (make-components! game-object sprite-resource atlas-resource app-view)]
               (test-unscaled embedded-component referenced-component)
-              (test-unscaled-saved-pb (collection-game-object-saved-pb collection))
+              (test-unscaled-saved-pb (collection-game-object-saved-pb collection 0))
               (with-open [_ (test-util/build! collection)]
-                (test-unscaled-built-pb (collection-game-object-built-pb collection)))
+                (test-unscaled-built-pb (collection-game-object-built-pb collection 0)))
               (scale-components! embedded-component referenced-component)
-              (test-scaled-saved-pb (collection-game-object-saved-pb collection))
+              (test-scaled-saved-pb (collection-game-object-saved-pb collection 0))
               (with-open [_ (test-util/build! collection)]
-                (test-scaled-built-pb (collection-game-object-built-pb collection))))))))))
+                (test-scaled-built-pb (collection-game-object-built-pb collection 0)))))
+
+          (testing "Components in child game object embedded inside collection."
+            (let [collection (project/get-resource-node project collection-resource)
+                  game-object-instance (:node-id (test-util/outline collection [0]))
+                  child-game-object-instance (test-util/add-embedded-game-object! app-view project collection game-object-instance)
+                  child-game-object (test-util/to-game-object-id child-game-object-instance)
+                  [embedded-component referenced-component] (make-components! child-game-object sprite-resource atlas-resource app-view)]
+              (test-unscaled embedded-component referenced-component)
+              (test-unscaled-saved-pb (collection-game-object-saved-pb collection 1))
+              (with-open [_ (test-util/build! collection)]
+                (test-unscaled-built-pb (collection-game-object-built-pb collection 1)))
+              (scale-components! embedded-component referenced-component)
+              (test-scaled-saved-pb (collection-game-object-saved-pb collection 1))
+              (with-open [_ (test-util/build! collection)]
+                (test-scaled-built-pb (collection-game-object-built-pb collection 1))))))))))

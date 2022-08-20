@@ -173,15 +173,21 @@
             (verify-embedded-component [embedded-component-node-id]
               (and (is (g/node-instance? game-object/EmbeddedComponent embedded-component-node-id))
                    (is (= [3.0 4.0 5.0] (g/node-value embedded-component-node-id :scale)))))]
-      (testing "Scale value was moved from LabelDesc to ComponentDesc in game object"
+      (testing "Scale value was moved from LabelDesc to ComponentDesc in game object."
         (let [label-migration-game-object (project/get-resource-node project "/label/label_migration.go")
               embedded-label-component (:node-id (test-util/outline label-migration-game-object [0]))
               label-component (:node-id (test-util/outline label-migration-game-object [1]))]
           (verify-embedded-component embedded-label-component)
           (verify-component label-component)))
-      (testing "Scale value was moved from LabelDesc to ComponentDesc in collection"
+      (testing "Scale value was moved from LabelDesc to ComponentDesc in game object embedded inside collection."
         (let [label-migration-collection (project/get-resource-node project "/label/label_migration.collection")
-              embedded-label-component (:node-id (test-util/outline label-migration-collection [0 0]))
-              label-component (:node-id (test-util/outline label-migration-collection [0 1]))]
+              embedded-label-component (:node-id (test-util/outline label-migration-collection [0 1]))
+              label-component (:node-id (test-util/outline label-migration-collection [0 2]))]
+          (verify-component label-component)
+          (verify-embedded-component embedded-label-component)))
+      (testing "Scale value was moved from LabelDesc to ComponentDesc in child game object embedded inside collection."
+        (let [label-migration-collection (project/get-resource-node project "/label/label_migration.collection")
+              embedded-label-component (:node-id (test-util/outline label-migration-collection [0 0 0]))
+              label-component (:node-id (test-util/outline label-migration-collection [0 0 1]))]
           (verify-component label-component)
           (verify-embedded-component embedded-label-component))))))
