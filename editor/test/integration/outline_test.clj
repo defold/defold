@@ -14,15 +14,15 @@
 
 (ns integration.outline-test
   (:require [clojure.test :refer :all]
-            [service.log :as log]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
             [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.outline :as outline]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [service.log :as log]
+            [support.test-support :refer [with-clean-system]]))
 
 (defn- outline
   ([node]
@@ -490,8 +490,7 @@
                 [1 :proto-msg 0 :proto-msg]
                 [1 :resource 0 :source-resource]
                 [1 :resource-property-build-targets 0 :resource-property-build-targets]
-                [1 :scene 0 :scene]
-                [1 :undecorated-save-data 0 :source-save-data]]
+                [1 :scene 0 :scene]]
                (sort arcs)))))))
 
 (deftest drag-drop-between-referenced-collections

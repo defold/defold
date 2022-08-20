@@ -104,7 +104,7 @@
             (let [migrated-game-project-save-data (g/node-value game-project :save-data)]
               (is (not (g/error? migrated-game-project-save-data)))
               (:content migrated-game-project-save-data))))]
-    (testing "Manual migration steps"
+    (testing "Manual migration steps."
       (test-support/with-clean-system
         (let [workspace (test-util/setup-scratch-workspace! world "test/resources/spine_migration_project")]
           ;; Add a dependency to extension-spine to game.project

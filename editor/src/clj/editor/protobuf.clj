@@ -31,7 +31,7 @@ Macros currently mean no foreseeable performance gain however."
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
            [java.lang.reflect Method]
-           [java.io ByteArrayOutputStream]
+           [java.io ByteArrayOutputStream StringReader]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -576,6 +576,10 @@ Macros currently mean no foreseeable performance gain however."
 
 (defn read-text [^Class cls input]
   (pb->map (.build (read-text-into! (new-builder cls) input))))
+
+(defn str->map [^Class cls ^String str]
+  (with-open [reader (StringReader. str)]
+    (read-text cls reader)))
 
 (defn- parser-fn-raw [^Class cls]
   (let [parse-method (.getMethod cls "parseFrom" (into-array Class [(.getClass (byte-array 0))]))]

@@ -355,20 +355,25 @@
 
 (def ^:private default-scale-value (:scale identity-transform-properties))
 
-(defn- strip-default-scale [component-ddf]
-  (let [scale (:scale component-ddf)]
+(defn- strip-default-scale-from-component-desc [component-desc]
+  ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
+  (let [scale (:scale component-desc)]
     (if (or (= default-scale-value scale)
             (protobuf/default-read-scale-value? scale))
-      (dissoc component-ddf :scale)
-      component-ddf)))
+      (dissoc component-desc :scale)
+      component-desc)))
 
-(defn strip-default-scales [component-ddfs]
-  (mapv strip-default-scale component-ddfs))
+(defn- strip-default-scale-from-component-descs [component-descs]
+  (mapv strip-default-scale-from-component-desc component-descs))
+
+(defn strip-default-scale-from-components-in-prototype-desc [prototype-desc]
+  ;; GameObject$PrototypeDesc in map format.
+  (-> prototype-desc
+      (update :components strip-default-scale-from-component-descs)
+      (update :embedded-components strip-default-scale-from-component-descs)))
 
 (g/defnk produce-save-value [proto-msg]
-  (-> proto-msg
-      (update :components strip-default-scales)
-      (update :embedded-components strip-default-scales)))
+  (strip-default-scale-from-components-in-prototype-desc proto-msg))
 
 (defn- build-game-object [resource dep-resources user-data]
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
@@ -631,7 +636,7 @@
     (cond-> (sanitize-property-descs-at-path [:properties] component)
             patch-component-fn (patch-component-fn nil proj-path->unsanitized-data)
             :always (dissoc :property-decls) ; Only used in built data by the runtime.
-            :always (strip-default-scale))))
+            :always (strip-default-scale-from-component-desc))))
 
 (defn- sanitize-embedded-component-data [resource-type-map proj-path->unsanitized-data embedded]
   (let [component-type (:type embedded)
@@ -654,7 +659,7 @@
 (defn- sanitize-embedded-component [resource-type-map proj-path->unsanitized-data embedded]
   (->> embedded
        (sanitize-embedded-component-data resource-type-map proj-path->unsanitized-data)
-       (strip-default-scale)))
+       (strip-default-scale-from-component-desc)))
 
 (defn- try-read-unsanitized-data [workspace proj-path]
   (when (some? proj-path)

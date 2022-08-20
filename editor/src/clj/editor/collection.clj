@@ -226,7 +226,7 @@
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
   (output node-outline-extras g/Any (g/constantly {}))
-  (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
+  (output build-resource resource/Resource :abstract)
   (output build-targets g/Any produce-go-build-targets)
   (output build-error g/Err (g/constantly nil))
 
@@ -245,12 +245,11 @@
   (display-order [:id :url scene/SceneNode])
 
   (input proto-msg g/Any)
-  (input source-save-data g/Any)
   (output node-outline-extras g/Any (g/fnk [source-outline]
                                            {:alt-outline source-outline}))
-  (output build-resource resource/Resource (g/fnk [source-resource source-save-data]
+  (output build-resource resource/Resource (g/fnk [source-resource proto-msg]
                                                   (some-> source-resource
-                                                     (assoc :data (:content source-save-data))
+                                                     (assoc :data proto-msg)
                                                      workspace/make-build-resource)))
   (output ddf-message g/Any (g/fnk [id child-ids position rotation scale proto-msg]
                               (gen-embed-ddf id child-ids position rotation scale proto-msg))))
@@ -336,7 +335,9 @@
   (output ddf-message g/Any (g/fnk [id child-ids source-resource position rotation scale ddf-component-properties]
                                    (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties)))
   (output build-error g/Err (g/fnk [_node-id source-resource]
-                                   (path-error _node-id source-resource))))
+                                   (path-error _node-id source-resource)))
+  (output build-resource resource/Resource (g/fnk [source-build-targets]
+                                             (:resource (first source-build-targets)))))
 
 (g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   {:name name
@@ -344,6 +345,18 @@
    :instances ref-inst-ddf
    :embedded-instances embed-inst-ddf
    :collection-instances ref-coll-ddf})
+
+(g/defnk produce-save-value [proto-msg]
+  (update proto-msg :embedded-instances
+          (fn [embedded-instance-descs]
+            (mapv (fn [embedded-instance-desc]
+                    (update embedded-instance-desc :data
+                            (fn [string-encoded-prototype-desc]
+                              (-> (protobuf/str->map GameObject$PrototypeDesc string-encoded-prototype-desc)
+                                  (game-object/strip-default-scale-from-components-in-prototype-desc)
+                                  (as-> prototype-desc
+                                        (protobuf/map->str GameObject$PrototypeDesc prototype-desc false))))))
+                  embedded-instance-descs))))
 
 (defn- build-transform [transform]
   (let [pos (Point3d.)
@@ -481,7 +494,7 @@
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output base-url g/Str (gu/passthrough base-url))
   (output proto-msg g/Any produce-proto-msg)
-  (output save-value g/Any (gu/passthrough proto-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output node-outline outline/OutlineData :cached produce-coll-outline)
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
@@ -727,7 +740,6 @@
                                               [:resource :source-resource]
                                               [:node-outline :source-outline]
                                               [:proto-msg :proto-msg]
-                                              [:undecorated-save-data :source-save-data]
                                               [:build-targets :source-build-targets]
                                               [:scene :scene]
                                               [:ddf-component-properties :ddf-component-properties]
