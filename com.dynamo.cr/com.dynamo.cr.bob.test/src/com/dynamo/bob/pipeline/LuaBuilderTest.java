@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 import org.junit.Test;
 
@@ -97,44 +98,67 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testUseLuaSource() throws Exception {
+    public void testUseUncompressedLuaSource() throws Exception {
         Project p = GetProject();
-        p.setOption("use-lua-source", "true");
+        p.setOption("use-uncompressed-lua-source", "true");
 
-        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        final String path = "/test.script";
+        final String scriptSource = "function foo() print('foo') end";
+        LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
         LuaSource luaSource = luaModule.getSource();
         assertTrue(luaSource.getScript() != null);
         assertTrue(luaSource.getScript().size() > 0);
         assertTrue(luaSource.getBytecode().size() == 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() == 0);
+        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
     }
 
     @Test
-    public void testVanillaLuaBytecode() throws Exception {
+    public void testCompressedLuaSourceForHTML5() throws Exception {
         Project p = GetProject();
         p.setOption("platform", "js-web");
 
-        StringBuilder src = new StringBuilder();
-        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        final String path = "/test.script";
+        final String scriptSource = "function foo() print('foo') end";
+        LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
         LuaSource luaSource = luaModule.getSource();
-        assertTrue(luaSource.getScript().size() == 0);
-        assertTrue(luaSource.getBytecode().size() > 0);
+        assertTrue(luaSource.getScript() != null);
+        assertTrue(luaSource.getScript().size() > 0);
+        assertTrue(luaSource.getBytecode().size() == 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() == 0);
+        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.ENCRYPTED));
+        assertFalse(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
     }
 
-    @Test
-    public void testVanillaLuaBytecodeChunkname() throws Exception {
-        Project p = GetProject();
-        p.setOption("platform", "js-web");
+    // Leaving these tests in case we decide to reintroduce bytecode generation for Lua 5.1.5
+    //
+    // @Test
+    // public void testVanillaLuaBytecode() throws Exception {
+    //     Project p = GetProject();
+    //     p.setOption("platform", "js-web");
 
-        StringBuilder src = new StringBuilder();
-        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
-        LuaSource luaSource = luaModule.getSource();
-        String chunkname = luaSource.getBytecode().substring(12+4, 12+4+12).toStringUtf8();
-        assertEquals("@test.script", chunkname);
-    }
+    //     StringBuilder src = new StringBuilder();
+    //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+    //     LuaSource luaSource = luaModule.getSource();
+    //     assertTrue(luaSource.getScript().size() == 0);
+    //     assertTrue(luaSource.getBytecode().size() > 0);
+    //     assertTrue(luaSource.getBytecode64().size() == 0);
+    //     assertTrue(luaSource.getDelta().size() == 0);
+    // }
+
+    // @Test
+    // public void testVanillaLuaBytecodeChunkname() throws Exception {
+    //     Project p = GetProject();
+    //     p.setOption("platform", "js-web");
+
+    //     StringBuilder src = new StringBuilder();
+    //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+    //     LuaSource luaSource = luaModule.getSource();
+    //     String chunkname = luaSource.getBytecode().substring(12+4, 12+4+12).toStringUtf8();
+    //     assertEquals("@test.script", chunkname);
+    // }
 
     @Test
     public void testLuaJITBytecode64WithoutDelta() throws Exception {
