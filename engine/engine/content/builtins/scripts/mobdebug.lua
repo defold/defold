@@ -330,7 +330,7 @@ local function stack(start)
     if not source then break end
 
     local src = source.source
-    if src:find("@") == 1 then
+    if src:find("[@=]") == 1 then
       src = src:sub(2):gsub("\\", "/")
       if src:find("%./") == 1 then src = src:sub(3) end
     end
@@ -633,8 +633,8 @@ local function debug_hook(event, line)
       -- Unfortunately, there is no reliable/quick way to figure out
       -- what is the filename and what is the source code.
       -- If the name doesn't start with `@`, assume it's a file name if it's all on one line.
-      if find(file, "^@") or not find(file, "[\r\n]") then
-        file = gsub(gsub(file, "^@", ""), "\\", "/")
+      if find(file, "^[@=]") or not find(file, "[\r\n]") then
+        file = gsub(gsub(file, "^[@=]", ""), "\\", "/")
         -- normalize paths that may include up-dir or same-dir references
         -- if the path starts from the up-dir or reference,
         -- prepend `basedir` to generate absolute path to keep breakpoints working.

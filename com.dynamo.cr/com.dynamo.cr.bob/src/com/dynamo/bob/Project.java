@@ -1486,6 +1486,10 @@ run:
         return outputs;
     }
 
+    public EnumSet<OutputFlags> getOutputFlags(String resourcePath) {
+        return outputs.get(resourcePath);
+    }
+
     /**
      * Add output flag to resource
      * @param resourcePath output resource absolute path

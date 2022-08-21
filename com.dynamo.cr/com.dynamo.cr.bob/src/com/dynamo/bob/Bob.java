@@ -464,8 +464,8 @@ public class Bob {
         addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
         addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
 
-        addOption(options, null, "use-vanilla-lua", false, "DEPRECATED! Use --use-lua-source instead.", true);
-        addOption(options, null, "use-lua-source", false, "Use uncompressed and unencrypted Lua source code instead of byte code", true);
+        addOption(options, null, "use-vanilla-lua", false, "DEPRECATED! Use --use-uncompressed-lua-source instead.", true);
+        addOption(options, null, "use-uncompressed-lua-source", false, "Use uncompressed and unencrypted Lua source code instead of byte code", true);
         addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
 
         addOption(options, "l", "liveupdate", true, "Yes if liveupdate content should be published", true);
@@ -658,8 +658,8 @@ public class Bob {
         }
 
         if (cmd.hasOption("use-vanilla-lua")) {
-            System.out.println("--use-vanilla-lua option is deprecated. Use --use-lua-source instead.");
-            project.setOption("use-lua-source", "true");
+            System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
+            project.setOption("use-uncompressed-lua-source", "true");
         }
 
         Option[] options = cmd.getOptions();
