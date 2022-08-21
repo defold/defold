@@ -22,7 +22,7 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/treasure_chest.animationset")
           {:keys [animations bone-list]} (g/node-value node-id :animation-set)]
-      (is (= 4 (count bone-list)))
+      (is (= 3 (count bone-list)))
       (is (= 3 (count animations)))
       (is (= #{(murmur/hash64 "treasure_chest")
                (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")
