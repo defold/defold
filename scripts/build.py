@@ -1601,13 +1601,14 @@ class Configuration(object):
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
 
         if not releases:
-            self.log('Unable to find any releases')
+            self._log('Unable to find any releases')
             sys.exit(1)
 
         release_sha1 = releases[0]['sha1']
 
         if sys.stdin.isatty():
             sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
+            sys.stdout.flush()
             response = sys.stdin.readline()
             if response[0] != 'y':
                 return
