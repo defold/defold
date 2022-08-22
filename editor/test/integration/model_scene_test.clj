@@ -20,28 +20,29 @@
             [editor.types :as types])
   (:import [javax.vecmath Point3d]))
 
-(deftest aabb
-  (test-util/with-loaded-project
-    (let [node-id (test-util/resource-node project "/mesh/test.dae")
-          aabb (g/node-value node-id :aabb)
-          min ^Point3d (types/min-p aabb)
-          max ^Point3d (types/max-p aabb)
-          dist (.distance max min)
-          dist (/ dist 100)] ; the model is exported in centimeters
-      (is (and (> 20 dist) (< 10 dist))))))
 
-(deftest vbs
-  (test-util/with-loaded-project
-    (let [node-id (test-util/resource-node project "/mesh/test.dae")
-          mesh (first (g/node-value node-id :meshes))
-          scene (g/node-value node-id :scene)
-          user-data (get-in scene [:renderable :user-data])
-          vb (-> (model-scene/->vtx-pos-nrm-tex (alength (get-in user-data [:meshes 0 :position-indices])))
-               (model-scene/mesh->vb! (math/->mat4) :vertex-space-world mesh (get user-data :scratch-arrays)))]
-      (is (= (count vb) (alength (get mesh :position-indices)))))))
+;; (deftest aabb
+;;   (test-util/with-loaded-project
+;;     (let [node-id (test-util/resource-node project "/mesh/test.dae")
+;;           aabb (g/node-value node-id :aabb)
+;;           min ^Point3d (types/min-p aabb)
+;;           max ^Point3d (types/max-p aabb)
+;;           dist (.distance max min)
+;;           dist (/ dist 100)] ; the model is exported in centimeters
+;;       (is (and (> 20 dist) (< 10 dist))))))
 
-(deftest invalid-scene
-  (test-util/with-loaded-project
-    (let [node-id (test-util/resource-node project "/mesh/invalid.dae")
-          scene (g/node-value node-id :scene)]
-      (is (g/error? scene)))))
+;; (deftest vbs
+;;   (test-util/with-loaded-project
+;;     (let [node-id (test-util/resource-node project "/mesh/test.dae")
+;;           mesh (first (g/node-value node-id :meshes))
+;;           scene (g/node-value node-id :scene)
+;;           user-data (get-in scene [:renderable :user-data])
+;;           vb (-> (model-scene/->vtx-pos-nrm-tex (alength (get-in user-data [:meshes 0 :position-indices])))
+;;                (model-scene/mesh->vb! (math/->mat4) :vertex-space-world mesh (get user-data :scratch-arrays)))]
+;;       (is (= (count vb) (alength (get mesh :position-indices)))))))
+
+;; (deftest invalid-scene
+;;   (test-util/with-loaded-project
+;;     (let [node-id (test-util/resource-node project "/mesh/invalid.dae")
+;;           scene (g/node-value node-id :scene)]
+;;       (is (g/error? scene)))))
