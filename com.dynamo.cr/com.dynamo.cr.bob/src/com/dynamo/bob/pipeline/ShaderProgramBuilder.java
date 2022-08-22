@@ -29,6 +29,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,6 +44,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
@@ -52,6 +54,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
+import com.dynamo.bob.pipeline.ShaderUtil.IncludeDirectiveCompiler;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
@@ -145,6 +148,23 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         writer.flush();
 
         String source = source = os.toString().replace("\r", "");
+
+        IncludeDirectiveCompiler.Result include_result = new IncludeDirectiveCompiler(source).Compile();
+
+        if (include_result.size() > 0)
+        {
+            System.out.println("\n");
+            System.out.println("Shader includes:");
+            System.out.println("================");
+            for (IncludeDirectiveCompiler.IncludeDirectiveMapping entry : include_result) {
+                System.out.println("Include at line " + entry.line + ", path: " + entry.path);
+                System.out.println("Data:");
+                System.out.println(entry.compiledData);
+            }
+            System.out.println("");
+
+            source = IncludeDirectiveCompiler.InsertIncludeDirective(source, include_result);
+        }
 
         if (gles3Standard) {
             int version = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 300 : 140;

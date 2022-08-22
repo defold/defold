@@ -14,20 +14,198 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.io.IOException;
+import java.io.FileInputStream;
 
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 
 import com.dynamo.bob.CompileExceptionError;
 
 
 public class ShaderUtil {
+
+    public static class Common {
+        private static final String  regexCommentRemovePattern = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
+        public static String stripComments(String source)
+        {
+            return source.replaceAll(regexCommentRemovePattern,"");
+        }
+    }
+
+    public static class IncludeDirectiveCompiler {
+
+        private static String shaderSource;
+        private static String includeDirectiveStr = "#include\\s+\"(?<path>.+)\"";
+        private static Pattern includeDirectivePattern = Pattern.compile(includeDirectiveStr);
+
+        private static class IncludeNode
+        {
+            public String path;
+            public String data;
+            public HashMap<String, IncludeNode> children = new HashMap<String, IncludeNode>();
+        };
+
+        public static class IncludeDirectiveMapping {
+            public String path;
+            public String compiledData;
+            public int    line;
+        }
+
+        public static class Result extends ArrayList<IncludeDirectiveMapping> {}
+
+        public IncludeDirectiveCompiler(String source) {
+            this.shaderSource = source;
+        }
+
+        public static Result Compile()
+        {
+            Result res = new Result();
+            IncludeNode root = BuildShaderIncludeGraph(shaderSource, "Root");
+
+            ArrayList<String> compiled_node_cache = new ArrayList<String>();
+
+            for (Map.Entry<String, IncludeNode> child : root.children.entrySet()) {
+                String key           = child.getKey();
+                IncludeNode value    = child.getValue();
+
+                StringBuilder compiled_data = new StringBuilder();
+                CompileNode(value, compiled_data, compiled_node_cache);
+
+                IncludeDirectiveMapping child_mapping = new IncludeDirectiveMapping();
+
+                child_mapping.path = key;
+                child_mapping.compiledData = compiled_data.toString();
+                res.add(child_mapping);
+
+                /*
+                System.out.println("Finished compiling include for " + key);
+                System.out.println(compiled_data.toString());
+                */
+            }
+
+            return res;
+        }
+
+        private static void CompileNode(IncludeNode node, StringBuilder compiled_data, ArrayList<String> nodeCache)
+        {
+            if (ArrayUtils.contains(nodeCache.toArray(), node.path))
+            {
+                System.out.println("Already processed " + node.path);
+            }
+            else
+            {
+                compiled_data.append(node.data);
+                nodeCache.add(node.path);
+            }
+
+            for (Map.Entry<String, IncludeNode> child : node.children.entrySet()) {
+                String key           = child.getKey();
+                IncludeNode value    = child.getValue();
+                CompileNode(value, compiled_data, nodeCache);
+            }
+        }
+
+        private static IncludeNode BuildShaderIncludeGraph(String fromData, String fromPath)
+        {
+            IncludeNode new_node = new IncludeNode();
+            new_node.path = fromPath;
+            new_node.data = fromData.replaceAll(includeDirectiveStr, "");
+
+            System.out.println("Adding node " + fromPath);
+
+            Matcher includeDirectiveMatcher = includeDirectivePattern.matcher(fromData);
+            while (includeDirectiveMatcher.find()) {
+                String shaderIncludePath = includeDirectiveMatcher.group("path");
+
+                if (shaderIncludePath != null)
+                {
+                    System.out.println("Found include: " + shaderIncludePath);
+
+                    String childData = null;
+                    try(FileInputStream inputStream = new FileInputStream(shaderIncludePath)) {     
+                        childData = IOUtils.toString(inputStream);
+                    } catch (Exception e) {
+                        System.out.println("Some kind of error");
+                    }
+
+                    if (childData != null)
+                    {
+                        IncludeNode childNode = BuildShaderIncludeGraph(childData, shaderIncludePath);
+                        new_node.children.put(shaderIncludePath, childNode);
+                    }
+                }
+            }
+
+            return new_node;
+        }
+
+        public static void PrintGraph(IncludeNode node, int depth)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            String prefix = "";
+            for (int i=0; i < depth; i++) {
+                prefix += "  ";
+            }
+
+            System.out.println(prefix + "Node " + node.path);
+            for (Map.Entry<String, IncludeNode> child : node.children.entrySet()) {
+                String key        = child.getKey();
+                IncludeNode value = child.getValue();
+                System.out.println(prefix + "  Child " + key);
+                PrintGraph(value, depth + 1);
+            }
+        }
+
+        public static String InsertIncludeDirective(String source, ArrayList<IncludeDirectiveMapping> fromMappings)
+        {
+            ArrayList<String> outputLines = new ArrayList<String>();
+            Scanner scanner = new Scanner(source);
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+
+                Matcher lineIncludeMatcher = includeDirectivePattern.matcher(line);
+
+                if (lineIncludeMatcher.find()) {
+                    String includePath = lineIncludeMatcher.group("path");
+
+                    boolean found_include = false;
+                    for (IncludeDirectiveMapping mapping : fromMappings) {
+                        if (mapping.path.equals(includePath))
+                        {
+                            line = mapping.compiledData;
+                            found_include = true;
+                            break;
+                        }
+                    }
+
+                    if (!found_include)
+                    {
+                        System.out.println("Could not find include node for " + includePath);
+                    }
+                }
+
+                outputLines.add(line);
+            }
+            scanner.close();
+
+            return String.join("\n", outputLines);
+        }
+    }
 
     public static class SPIRVReflector {
         private static JsonNode root;
@@ -187,8 +365,6 @@ public class ShaderUtil {
         };
 
         private static final String[] opaqueUniformTypesPrefix = { "sampler", "image", "atomic_uint" };
-
-        private static final String  regexCommentRemovePattern = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
         private static final Pattern regexLineBreakPattern = Pattern.compile("(?<=;)|(?<=\\{)|(?<=\\})|(?<=(#(.{0,1024}\\n)))");
         private static final Pattern regexVersionStringPattern = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
@@ -211,7 +387,9 @@ public class ShaderUtil {
             Result result = new Result();
 
             // Remove comments, early bail if zero code
-            input = input.replaceAll(regexCommentRemovePattern,"");
+            // input = input.replaceAll(regexCommentRemovePattern,"");
+            input = Common.stripComments(input);
+
             if(input.isEmpty()) {
                 return result;
             }
