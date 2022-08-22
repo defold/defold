@@ -118,5 +118,5 @@
 (deftest bones
   (test-util/with-loaded-project
     (let [{:keys [animation-set skeleton]} (load-scene workspace "/mesh/treasure_chest.dae")]
-      (is (= 4 (count (:bones skeleton))))
+      (is (= 3 (count (:bones skeleton))))
       (is (set/subset? (:bone-list animation-set) (set (map :id (:bones skeleton))))))))
