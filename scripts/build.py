@@ -984,7 +984,7 @@ class Configuration(object):
         # The base libs are the libs needed to build bob, i.e. contains compiler code.
 
         platform_dependencies = {'x86_64-macos': ['x86_64-macos'],
-                                 'arm64-macos': ['arm64-macos'],
+                                 #'arm64-macos': ['arm64-macos'],
                                  'x86_64-linux': [],
                                  'x86_64-win32': ['win32']}
 
