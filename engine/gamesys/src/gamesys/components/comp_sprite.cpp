@@ -43,6 +43,12 @@
 #include <dmsdk/gameobject/script.h>
 #include <dmsdk/gamesys/render_constants.h>
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_Sprite, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_SpriteVertexCount, 0, FrameReset, "# vertices", &rmtp_Sprite);
+DM_PROPERTY_U32(rmtp_SpriteVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Sprite);
+DM_PROPERTY_U32(rmtp_SpriteIndexSize, 0, FrameReset, "size of indices in bytes", &rmtp_Sprite);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -415,7 +421,7 @@ namespace dmGameSystem
 
     static void CreateVertexData(SpriteWorld* sprite_world, SpriteVertex** vb_where, uint8_t** ib_where, TextureSetResource* texture_set, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Sprite, "CreateVertexData");
+        DM_PROFILE("CreateVertexData");
 
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         dmGameSystemDDF::TextureSetAnimation* animations = texture_set_ddf->m_Animations.m_Data;
@@ -580,7 +586,7 @@ namespace dmGameSystem
 
     static void RenderBatch(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Sprite, "RenderBatch");
+        DM_PROFILE("SpriteRenderBatch");
 
         uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
         const SpriteComponent* first = (const SpriteComponent*) &sprite_world->m_Components.m_Objects[component_index];
@@ -672,7 +678,7 @@ namespace dmGameSystem
 
     static void UpdateTransforms(SpriteWorld* sprite_world, bool sub_pixels)
     {
-        DM_PROFILE(Sprite, "UpdateTransforms");
+        DM_PROFILE("UpdateTransforms");
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -738,7 +744,7 @@ namespace dmGameSystem
 
     static void PostMessages(SpriteWorld* sprite_world)
     {
-        DM_PROFILE(Sprite, "PostMessages");
+        DM_PROFILE("PostMessages");
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -795,7 +801,7 @@ namespace dmGameSystem
 
     static void Animate(SpriteWorld* sprite_world, float dt)
     {
-        DM_PROFILE(Sprite, "Animate");
+        DM_PROFILE("Animate");
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -840,7 +846,7 @@ namespace dmGameSystem
 
     static void CalcBoundingVolumes(SpriteWorld* sprite_world)
     {
-        DM_PROFILE(Sprite, "CalcBoundingVolumes");
+        DM_PROFILE("CalcBoundingVolumes");
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -882,7 +888,7 @@ namespace dmGameSystem
 
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
-        DM_PROFILE(Sprite, "FrustumCulling");
+        DM_PROFILE("FrustumCulling");
 
         const SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
         const float* radiuses = sprite_world->m_BoundingVolumes.Begin();
@@ -914,13 +920,16 @@ namespace dmGameSystem
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
                 {
-                    uint32_t vertex_size = sizeof(SpriteVertex) * (world->m_VertexBufferWritePtr - world->m_VertexBufferData);
+                    uint32_t vertex_count = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
+                    uint32_t vertex_size = sizeof(SpriteVertex) * vertex_count;
                     if (vertex_size)
                     {
                         dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_size,
                                                         world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
-                        DM_COUNTER("SpriteVertexBuffer", vertex_size);
+                        DM_PROPERTY_ADD_U32(rmtp_SpriteVertexCount, vertex_count);
+                        DM_PROPERTY_ADD_U32(rmtp_SpriteVertexSize, vertex_size);
+
                     }
                 }
 
@@ -930,7 +939,8 @@ namespace dmGameSystem
                     if (index_size)
                     {
                         dmGraphics::SetIndexBufferData(world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-                        DM_COUNTER("SpriteIndexBuffer", index_size);
+
+                        DM_PROPERTY_ADD_U32(rmtp_SpriteIndexSize, index_size);
                     }
                 }
                 break;
@@ -991,6 +1001,8 @@ namespace dmGameSystem
             write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
+
+            DM_PROPERTY_ADD_U32(rmtp_Sprite, 1);
         }
 
         dmRender::RenderListSubmit(render_context, render_list, write_ptr);

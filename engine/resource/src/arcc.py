@@ -41,7 +41,7 @@ class Entry(object):
             # We believe that the shorter load time will compensate in this case.
             comp_ratio = sys.float_info.max
             if size == 0:
-                print "Warning! Size of %s is 0" % (self.filename)
+                print("Warning! Size of %s is 0" % (self.filename))
             else:
                 comp_ratio = float(self.compressed_size)/float(size)
             if comp_ratio > 0.95:
@@ -88,7 +88,7 @@ class EntryData(object):
             # We believe that the shorter load time will compensate in this case.
             comp_ratio = sys.float_info.max
             if size == 0:
-                print "Warning! Size of %s is 0" % (self.path)
+                print("Warning! Size of %s is 0" % (self.path))
             else:
                 comp_ratio = float(self.compressed_size)/float(size)
             if comp_ratio > 0.95:

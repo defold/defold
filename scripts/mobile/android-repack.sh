@@ -29,10 +29,10 @@ function terminate() {
 }
 
 function terminate_usage() {
-    echo "Usage: ${SCRIPT_NAME} <source> [<certificate>, <key>]"
-    echo "  source       - absolute filepath to the source apk to repack"
-    echo "  certificate  - absolute filepath to the certificate file (pem)"
-    echo "  key          - absolute filepath to the keyfile (pk8)"
+    echo "Usage: ${SCRIPT_NAME} <source> <keystore> <keystore_pass>"
+    echo "  source        - absolute filepath to the source apk to repack"
+    echo "  keystore      - absolute filepath to the keystore"
+    echo "  keystore pass - absolute filepath to the keystore password"
     exit 1
 }
 
@@ -60,8 +60,8 @@ ANDROID_SDK_ROOT="${DYNAMO_HOME}/ext/SDKs/android-sdk"
 
 SOURCE="${1:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
 SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
-CERTIFICATE="${2:-}" && [ ! -z "${CERTIFICATE}" ] || terminate_usage
-KEYFILE="${3:-}" && [ ! -z "${KEYFILE}" ] || terminate_usage
+KEYSTORE="${2:-}" && [ ! -z "${KEYSTORE}" ] || terminate_usage
+KEYSTORE_PASS="${3:-}" && [ ! -z "${KEYSTORE_PASS}" ] || terminate_usage
 
 ZIP="zip"
 UNZIP="unzip"
@@ -83,11 +83,11 @@ ENGINE_DEX="${DYNAMO_HOME}/share/java/classes.dex"
 [ -f "${SOURCE}" ] || terminate "Source does not exist: ${SOURCE}"
 [ -f "${ENGINE_DEX}" ] || terminate "Engine does not exist: ${ENGINE_DEX}"
 
-[ -f "${CERTIFICATE}" ] || terminate "Certificate does not exist: ${CERTIFICATE}"
-[ -f "${KEYFILE}" ] || terminate "Keyfile does not exist: ${KEYFILE}"
+[ -f "${KEYSTORE}" ] || terminate "Keystore does not exist: ${KEYSTORE}"
+[ -f "${KEYSTORE_PASS}" ] || terminate "Keystore password file does not exist: ${KEYSTORE_PASS}"
 
-CERTIFICATE="$(cd "$(dirname "${CERTIFICATE}")"; pwd)/$(basename "${CERTIFICATE}")"
-KEYFILE="$(cd "$(dirname "${KEYFILE}")"; pwd)/$(basename "${KEYFILE}")"
+KEYSTORE="$(cd "$(dirname "${KEYSTORE}")"; pwd)/$(basename "${KEYSTORE}")"
+KEYSTORE_PASS="$(cd "$(dirname "${KEYSTORE_PASS}")"; pwd)/$(basename "${KEYSTORE_PASS}")"
 
 
 # ----------------------------------------------------------------------------
@@ -103,7 +103,7 @@ REPACKZIP_ALIGNED="${ROOT}/repack.aligned.zip"
 APPLICATION="$(basename "${SOURCE}" ".apk")"
 TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 
-"${UNZIP}" "${SOURCE}" -d "${BUILD}"
+"${UNZIP}" -q "${SOURCE}" -d "${BUILD}"
 (
     cd "${BUILD}"
 
@@ -134,9 +134,6 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
         cp -v "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
     fi
 
-    # Todo: Detect ASAN dependency
-    # ".../lib/arm64/libSoundTest.so": dlopen failed: library "libclang_rt.asan-aarch64-android.so" not found
-
     ${ZIP} -qr "${REPACKZIP}" "." -x "resources.arsc"
     # Targeting R+ (version 30 and above) requires the resources.arsc of installed
     # APKs to be stored uncompressed and aligned on a 4-byte boundary
@@ -145,7 +142,7 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 
 "${ZIPALIGN}" -v 4 "${REPACKZIP}" "${REPACKZIP_ALIGNED}" > /dev/null 2>&1
 
-"${APKSIGNER}" sign --verbose --in="${REPACKZIP_ALIGNED}" --out="${TARGET}.apk" --cert="${CERTIFICATE}" --key="${KEYFILE}" > /dev/null 2>&1
+"${APKSIGNER}" sign --verbose --in="${REPACKZIP_ALIGNED}" --out="${TARGET}.apk" --ks "${KEYSTORE}" --ks-pass file:"${KEYSTORE_PASS}"
 
 rm -rf "${ROOT}"
 

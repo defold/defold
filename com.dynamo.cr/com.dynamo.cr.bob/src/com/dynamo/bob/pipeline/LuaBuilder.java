@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.io.FileOutputStream;
 import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
@@ -31,6 +32,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.net.URLClassLoader;
 import java.net.URL;
+import java.lang.Math;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -67,7 +69,7 @@ import com.google.protobuf.Message;
  */
 public abstract class LuaBuilder extends Builder<Void> {
 
-    private static ArrayList<Platform> needsLuaSource = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+    private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
     private static LuaBuilderPlugin luaBuilderPlugin = null;
 
@@ -117,16 +119,12 @@ public abstract class LuaBuilder extends Builder<Void> {
         return taskBuilder.build();
     }
 
-    public byte[] constructBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
-
-        java.io.FileOutputStream fo = null;
+    public byte[] constructBytecode(Task<Void> task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
+        FileOutputStream fo = null;
         RandomAccessFile rdr = null;
 
         try {
             Bob.initLua(); // unpack the lua resources
-
-            File outputFile = File.createTempFile("script", ".raw");
-            File inputFile = File.createTempFile("script", ".lua");
 
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
@@ -134,30 +132,8 @@ public abstract class LuaBuilder extends Builder<Void> {
             fo.write(source.getBytes());
             fo.close();
 
-            // Doing a bit of custom set up here as the path is required.
-            //
-            // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
-            //       correct chunk name (the original source file) already here.
-            //
-            // See implementation of luaO_chunkid and why a prefix '@' is used; it is to show the last 60 characters of the name.
-            //
-            // If a script error occurs in runtime we want Lua to report the end of the filepath
-            // associated with the chunk, since this is where the filename is visible.
-            //
-            final String chunkName = "@" + task.input(0).getPath();
-            List<String> options = new ArrayList<String>();
-            options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
-            options.add("-b");
-            options.add("-g");
-            options.add("-f"); options.add(chunkName);
-            options.add(inputFile.getAbsolutePath());
-            options.add(outputFile.getAbsolutePath());
-
-
             ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
-
-            java.util.Map<String, String> env = pb.environment();
-            env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
+            pb.environment().putAll(env);
 
             Process p = pb.start();
             InputStream is = null;
@@ -173,7 +149,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
                 String cmdOutput = new String(buf);
                 if (ret != 0) {
-                    // first delimiter is the executable name "luajit:"
+                    // first delimiter is the executable name "luajit:" or "luac:"
                     int execSep = cmdOutput.indexOf(':');
                     if (execSep > 0) {
                         // then comes the filename and the line like this:
@@ -190,7 +166,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                         }
                     }
                     // Since parsing out the actual error failed, as a backup just
-                    // spit out whatever luajit said.
+                    // spit out whatever luajit/luac said.
                     inputFile.delete();
                     throw new CompileExceptionError(task.input(0), 1, cmdOutput);
                 }
@@ -213,6 +189,92 @@ public abstract class LuaBuilder extends Builder<Void> {
             IOUtils.closeQuietly(fo);
             IOUtils.closeQuietly(rdr);
         }
+    }
+
+    public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
+        File outputFile = File.createTempFile("script", ".raw");
+        File inputFile = File.createTempFile("script", ".lua");
+
+        List<String> options = new ArrayList<String>();
+        options.add(Bob.getExe(Platform.getHostPlatform(), luacExe));
+        options.add("-o"); options.add(outputFile.getAbsolutePath());
+        options.add(inputFile.getAbsolutePath());
+
+        Map<String, String> env = new HashMap<String, String>();
+
+        byte[] bytecode = constructBytecode(task, source, inputFile, outputFile, options, env);
+
+        // we need to patch the bytecode with the proper filename for the chunk and not the
+        // temporary filename (outputFile created above)
+        //
+        // we do this by first reading the length of the tmp name from the bytecode
+        // next we create the actual name from the original filename, taken from the task
+        // finally we create the new bytecode
+
+        final int LUAC_HEADERSIZE = 12; // from lundump.c
+
+        // read length of tmp chunkname
+        final int tmpChunkNameLength = bytecode[LUAC_HEADERSIZE]
+            + (bytecode[LUAC_HEADERSIZE + 1] << 8)
+            + (bytecode[LUAC_HEADERSIZE + 2] << 16)
+            + (bytecode[LUAC_HEADERSIZE + 3] << 24);
+
+        // the new chunkname, created from the original filename
+        final String chunkName = "@" + task.input(0).getPath();
+        final byte[] chunkNameBytes = chunkName.getBytes();
+        final int chunkNameLength = chunkNameBytes.length;
+
+        // create new bytecode
+        // write Lua header
+        // write real chunkname length
+        // write real chunkname bytes + null termination
+        // write rest of bytecode
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(bytecode.length - tmpChunkNameLength + chunkNameLength + 1);
+        baos.write(bytecode, 0, LUAC_HEADERSIZE);
+        baos.write(chunkNameLength & 0xff);
+        baos.write((chunkNameLength >> 8) & 0xff);
+        baos.write((chunkNameLength >> 16) & 0xff);
+        baos.write((chunkNameLength >> 24) & 0xff);
+        baos.write(chunkNameBytes);
+        baos.write(0);
+        baos.write(bytecode, 12 + 4 + tmpChunkNameLength + 1, bytecode.length - LUAC_HEADERSIZE - 4 - tmpChunkNameLength - 1);
+
+        // get new bytes
+        bytecode = baos.toByteArray();
+        baos.close();
+        return bytecode;
+    }
+
+    public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
+
+        Bob.initLua(); // unpack the lua resources
+
+        File outputFile = File.createTempFile("script", ".raw");
+        File inputFile = File.createTempFile("script", ".lua");
+
+        // Doing a bit of custom set up here as the path is required.
+        //
+        // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
+        //       correct chunk name (the original source file) already here.
+        //
+        // See implementation of luaO_chunkid and why a prefix '@' is used; it is to show the last 60 characters of the name.
+        //
+        // If a script error occurs in runtime we want Lua to report the end of the filepath
+        // associated with the chunk, since this is where the filename is visible.
+        //
+        final String chunkName = "@" + task.input(0).getPath();
+        List<String> options = new ArrayList<String>();
+        options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
+        options.add("-b");
+        options.add("-g");
+        options.add("-f"); options.add(chunkName);
+        options.add(inputFile.getAbsolutePath());
+        options.add(outputFile.getAbsolutePath());
+
+        Map<String, String> env = new HashMap<String, String>();
+        env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
+
+        return constructBytecode(task, source, inputFile, outputFile, options, env);
     }
 
     @Override
@@ -251,13 +313,18 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
-        // if for some reason, the project needs to be bundled with regular Lua files (e.g. on iOS)
-        boolean use_vanilla_lua = this.project.option("use-vanilla-lua", "false").equals("true");
-        if (use_vanilla_lua) {
-            for(IResource res : task.getOutputs()) {
-                String path = res.getAbsPath();
-                if(path.endsWith("luac") || path.endsWith("scriptc") || path.endsWith("gui_scriptc") || path.endsWith("render_scriptc")) {
+        boolean useUncompressedLuaSource = this.project.option("use-uncompressed-lua-source", "false").equals("true");
+        // set compression and encryption flags
+        // if the use-uncompressed-lua-source flag is set the project will use uncompressed plain text Lua script files
+        // if the use-uncompressed-lua-source flag is NOT set the project will use encrypted and possibly also compressed bytecode
+        for(IResource res : task.getOutputs()) {
+            String path = res.getAbsPath();
+            if(path.endsWith("luac") || path.endsWith("scriptc") || path.endsWith("gui_scriptc") || path.endsWith("render_scriptc")) {
+                if (useUncompressedLuaSource) {
                     project.addOutputFlags(path, Project.OutputFlags.UNCOMPRESSED);
+                }
+                else {
+                    project.addOutputFlags(path, Project.OutputFlags.ENCRYPTED);
                 }
             }
         }
@@ -265,16 +332,105 @@ public abstract class LuaBuilder extends Builder<Void> {
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         srcBuilder.setFilename(task.input(0).getPath());
 
-        if (needsLuaSource.contains(project.getPlatform()) || use_vanilla_lua) {
+        // for platforms using Lua 5.1 we include Lua source code even though
+        // there is a constructLuaBytecode() function above
+        // tests have shown that Lua 5.1 bytecode becomes larger than source,
+        // even when compressed using lz4
+        // this is unacceptable for html5 games where size is a key factor
+        // see https://github.com/defold/defold/issues/6891 for more info
+        if (platformUsesLua51.contains(project.getPlatform())) {
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
-        } else {
-            byte[] bytecode = constructBytecode(task, "luajit-32", script);
-            if (bytecode != null) {
-                srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
+        }
+        // include uncompressed Lua source code instead of bytecode
+        // see https://forum.defold.com/t/urgent-need-help-i-have-huge-problem-with-game-submission-to-apple/68031
+        else if (useUncompressedLuaSource) {
+            srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
+        }
+        else {
+            byte[] bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
+            byte[] bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
+
+            if (bytecode32.length != bytecode64.length) {
+                throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
             }
-            byte[] bytecode64 = constructBytecode(task, "luajit-64", script);
-            if (bytecode64 != null) {
-                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+
+            List<Platform> architectures = project.getArchitectures();
+            if (architectures.size() == 1) {
+                Platform p = architectures.get(0);
+                if (p.is64bit()) {
+                    srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
+                    Bob.verbose("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
+                }
+                else {
+                    srcBuilder.setBytecode(ByteString.copyFrom(bytecode32));
+                    Bob.verbose("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
+                }
+            }
+            else {
+                Bob.verbose("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
+                srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
+
+                /**
+                 * Calculate the difference/delta between the 64-bit and 32-bit
+                 * bytecode.
+                 * The delta is stored together with the 64-bit bytecode and when
+                 * the 32-bit bytecode is needed the delta is applied to the 64-bit
+                 * bytecode to transform it to the equivalent 32-bit version.
+                 * 
+                 * The delta is stored in the following format:
+                 * 
+                 * * index - The index where to apply the next change. 1-4 bytes.
+                 *           The size depends on the size of the entire bytecode:
+                 *           1 byte - Size less than 2^8
+                 *           2 bytes - Size less than 2^16
+                 *           3 bytes - Size less than 2^24
+                 *           4 bytes - Size more than or equal to 2^24
+                 * * count - The number of consecutive bytes to alter. 1 byte (ie max 255 changes)
+                 * * bytes - The 32-bit bytecode values to apply to the 64-bit bytecode starting
+                 *           at the index.
+                 */
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                int i = 0;
+                while(i < bytecode32.length) {
+                    // find sequences of consecutive bytes that differ
+                    // max 255 at a time
+                    int count = 0;
+                    while(count < 256 && (i + count) < bytecode32.length) {
+                        if (bytecode32[i + count] == bytecode64[i + count]) {
+                            break;
+                        }
+                        count++;
+                    }
+
+                    // found a sequence of bytes
+                    // write index, count and bytes
+                    if (count > 0) {
+
+                        // write index of diff
+                        bos.write(i);
+                        if (bytecode32.length >= (1 << 8)) {
+                            bos.write((i & 0xFF00) >> 8);
+                        }
+                        if (bytecode32.length >= (1 << 16)) {
+                            bos.write((i & 0xFF0000) >> 16);
+                        }
+                        if (bytecode32.length >= (1 << 24)) {
+                            bos.write((i & 0xFF000000) >> 24);
+                        }
+
+                        bos.write(count);
+
+                        // write consecutive bytes that differ
+                        bos.write(bytecode32, i, count);
+                        i += count;
+                    }
+                    else {
+                        i += 1;
+                    }
+                }
+
+                byte[] delta = bos.toByteArray();
+                srcBuilder.setDelta(ByteString.copyFrom(delta));
             }
         }
 

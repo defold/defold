@@ -19,6 +19,7 @@
 //#include <gamesys/gui_ddf.h>
 #include "../components/comp_gui_private.h"
 #include "gamesys.h"
+#include <gameobject/res_lua.h>
 #include <gameobject/lua_ddf.h>
 #include <gameobject/gameobject_script_util.h>
 
@@ -48,6 +49,8 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(params.m_Buffer, params.m_BufferSize, &lua_module);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
+
+        dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
 
         uint32_t n_modules = lua_module->m_Modules.m_Count;
         for (uint32_t i = 0; i < n_modules; ++i)
@@ -103,6 +106,8 @@ namespace dmGameSystem
         if ( e != dmDDF::RESULT_OK ) {
             return dmResource::RESULT_FORMAT_ERROR;
         }
+
+        dmGameObject::PatchLuaBytecode(&lua_module->m_Source);
 
         if (!dmGameObject::RegisterSubModules(params.m_Factory, gui_context->m_ScriptContext, lua_module))
         {

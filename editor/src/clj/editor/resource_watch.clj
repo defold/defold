@@ -96,29 +96,14 @@
 
 (def reserved-proj-paths #{"/builtins" "/build" "/.internal" "/.git"})
 
-(def ^:private ignored-proj-paths-atom (atom nil))
-
-(defn- ignored-proj-paths [^File root]
-  (assert (and (some? root)
-               (.isDirectory root)))
-  (swap! ignored-proj-paths-atom
-         (fn [ignored-proj-paths]
-           (if (some? ignored-proj-paths)
-             ignored-proj-paths
-             (let [defignore-file (io/file root ".defignore")]
-               (if (.isFile defignore-file)
-                 (set (str/split-lines (slurp defignore-file)))
-                 #{}))))))
-
-(defn ignored-proj-path? [^File root path]
-  (contains? (ignored-proj-paths root) path))
-
 (defn reserved-proj-path? [^File root path]
   (or (reserved-proj-paths path)
-      (ignored-proj-path? root path)))
+      (resource/ignored-project-path? root path)))
 
 (defn- file-resource-filter [^File root ^File f]
-  (not (or (= (.charAt (.getName f) 0) \.)
+  (not (or (let [file-name (.getName f)]
+             (and (str/starts-with? file-name ".")
+                  (not= file-name ".defignore")))
            (reserved-proj-path? root (resource/file->proj-path root f)))))
 
 (defn- make-file-tree

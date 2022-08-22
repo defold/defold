@@ -36,7 +36,7 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/collection");
+        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/collection");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -335,7 +335,7 @@ TEST_F(CollectionTest, PostCollection)
 
 TEST_F(CollectionTest, CollectionFail)
 {
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLogSetLevel(LOG_SEVERITY_FATAL);
     for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
@@ -351,12 +351,12 @@ TEST_F(CollectionTest, CollectionFail)
         ASSERT_NE(dmResource::RESULT_OK, r);
         dmGameObject::PostUpdate(m_Register);
     }
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
 }
 
 TEST_F(CollectionTest, CollectionComponentFail)
 {
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLogSetLevel(LOG_SEVERITY_FATAL);
     for (int i = 0; i < 4; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
@@ -371,7 +371,7 @@ TEST_F(CollectionTest, CollectionComponentFail)
         ASSERT_NE(dmResource::RESULT_OK, r);
         dmGameObject::PostUpdate(m_Register);
     }
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
 }
 
 TEST_F(CollectionTest, CollectionInCollection)
@@ -439,7 +439,7 @@ TEST_F(CollectionTest, CollectionInCollection)
 
 TEST_F(CollectionTest, CollectionInCollectionChildFail)
 {
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_FATAL);
+    dmLogSetLevel(LOG_SEVERITY_FATAL);
     for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
@@ -451,7 +451,7 @@ TEST_F(CollectionTest, CollectionInCollectionChildFail)
             r = PreloaderGet(m_Factory, "root2.collection", (void**) &coll);
         ASSERT_NE(dmResource::RESULT_OK, r);
     }
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
 }
 
 TEST_F(CollectionTest, DefaultValues)

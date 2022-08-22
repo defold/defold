@@ -21,9 +21,17 @@ class ExecException(Exception):
         self.retcode = retcode
         self.output = output
 
+def _to_str(x):
+    if x is None:
+        return ''
+    elif isinstance(x, (bytes, bytearray)):
+        x = str(x, encoding='utf-8')
+    return x
+
 def _exec_command(arg_list, **kwargs):
     arg_str = arg_list
-    if not isinstance(arg_str, basestring):
+    if not isinstance(arg_str, str):
+        arg_list = [_to_str(x) for x in arg_list]
         arg_str = ' '.join(arg_list)
     log('[exec] %s' % arg_str)
 
@@ -34,7 +42,7 @@ def _exec_command(arg_list, **kwargs):
         process = subprocess.Popen(arg_list, **kwargs)
         output = process.communicate()[0]
         if process.returncode != 0:
-            log(output)
+            log(_to_str(output))
     else:
         # On the CI machines, we make sure we produce a steady stream of output
         # However, this also makes us lose the color information
@@ -44,7 +52,7 @@ def _exec_command(arg_list, **kwargs):
 
         output = ''
         while True:
-            line = process.stdout.readline()
+            line = process.stdout.readline().decode()
             if line != '':
                 output += line
                 log(line.rstrip())
@@ -54,7 +62,8 @@ def _exec_command(arg_list, **kwargs):
     if process.wait() != 0:
         raise ExecException(process.returncode, output)
 
-    return output
+    output = _to_str(output)
+    return output.strip()
 
 def command(args, **kwargs):
     if kwargs.get("shell") is None:
@@ -62,14 +71,14 @@ def command(args, **kwargs):
     # Executes a command, and exits if it fails
     try:
         return _exec_command(args, **kwargs)
-    except ExecException, e:
+    except ExecException as e:
         sys.exit(e.retcode)
 
 def shell_command(args):
     # Executes a command, and exits if it fails
     try:
         return _exec_command(args, shell = True)
-    except ExecException, e:
+    except ExecException as e:
         sys.exit(e.retcode)
 
 

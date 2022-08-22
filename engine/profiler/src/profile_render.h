@@ -15,6 +15,10 @@
 #ifndef DM_PROFILE_RENDER_H
 #define DM_PROFILE_RENDER_H
 
+#include <dlib/array.h>
+#include <dlib/hash.h>
+#include <dlib/profile.h>
+
 namespace dmRender
 {
     typedef struct FontMap*         HFontMap;
@@ -23,7 +27,7 @@ namespace dmRender
 
 namespace dmProfile
 {
-    typedef struct Profile* HProfile;
+    typedef void* HProfile;
 }
 
 namespace dmProfileRender
@@ -43,8 +47,46 @@ namespace dmProfileRender
         PROFILER_VIEW_MODE_MINIMIZED = 2
     };
 
+    struct ProfilerSample
+    {
+        uint32_t m_NameHash;
+        uint64_t m_StartTime;
+        uint64_t m_Time;
+        uint64_t m_SelfTime;
+        uint32_t m_Count;
+        uint32_t m_Color;
+        uint8_t  m_Indent; // The stack depth
+    };
+
+    struct ProfilerProperty
+    {
+        uint32_t                    m_NameHash;
+        dmProfile::PropertyValue    m_Value;
+        dmProfile::PropertyType     m_Type;
+        uint8_t                     m_Indent; // The stack depth
+    };
+
+    struct ProfilerThread
+    {
+        dmArray<ProfilerSample>     m_Samples;
+        uint32_t                    m_NameHash;
+        uint64_t                    m_Time;             // The time of the last update for this thread
+        uint64_t                    m_SamplesTotalTime; // The elapsed time of the samples in the thread
+
+        ProfilerThread();
+    };
+
+    // The frame holds aggregated info about all threads
+    struct ProfilerFrame
+    {
+        dmArray<ProfilerThread*>    m_Threads;
+        dmArray<ProfilerProperty>   m_Properties;
+        uint64_t                    m_Time;           // The time of the last update for this frame
+    };
+
+
     HRenderProfile NewRenderProfile(float fps);
-    void UpdateRenderProfile(HRenderProfile render_profile, dmProfile::HProfile profile);
+    void UpdateRenderProfile(HRenderProfile render_profile, const ProfilerFrame* frame);
     void SetMode(HRenderProfile render_profile, ProfilerMode mode);
     void SetViewMode(HRenderProfile render_profile, ProfilerViewMode view_mode);
     void SetWaitTime(HRenderProfile render_profile, bool include_wait_time);
@@ -54,6 +96,14 @@ namespace dmProfileRender
     void DeleteRenderProfile(HRenderProfile render_profile);
 
     void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map);
+
+    //
+    void ClearProfilerThreadSamples(ProfilerThread* thread);
+    ProfilerThread* FindOrCreateProfilerThread(ProfilerFrame* ctx, uint32_t name_hash);
+    void DeleteProfilerFrame(ProfilerFrame* frame);
+    void PruneProfilerThreads(ProfilerFrame* ctx, uint64_t time);
+
+    void AddProperty(ProfilerFrame* frame, uint32_t name_hash, dmProfile::PropertyType type, dmProfile::PropertyValue value, int indent);
 }
 
 #endif

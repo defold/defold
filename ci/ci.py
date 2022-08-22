@@ -32,7 +32,7 @@ def call(args, failonerror = True):
 
     output = ''
     while True:
-        line = process.stdout.readline()
+        line = process.stdout.readline().decode()
         if line != '':
             output += line
             print(line.rstrip())
@@ -91,7 +91,7 @@ def setup_keychain(args):
     cert_path = os.path.join("ci", "cert.p12")
     cert_pass = args.keychain_cert_pass
     with open(cert_path, "wb") as file:
-        file.write(base64.decodestring(args.keychain_cert))
+        file.write(base64.decodebytes(args.keychain_cert.encode()))
     print("Importing certificate")
     # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
     call("security import {} -k {} -P {} -A".format(cert_path, keychain_name, cert_pass))
@@ -114,11 +114,11 @@ def setup_windows_cert(args):
     print("Setting up certificate")
     cert_path = os.path.abspath(os.path.join("ci", "windows_cert.pfx"))
     with open(cert_path, "wb") as file:
-        file.write(base64.decodestring(args.windows_cert_b64))
+        file.write(base64.decodebytes(args.windows_cert_b64.encode()))
     print("Wrote cert to", cert_path)
     cert_pass_path = os.path.abspath(os.path.join("ci", "windows_cert.pass"))
     with open(cert_pass_path, "wb") as file:
-        file.write(args.windows_cert_pass)
+        file.write(args.windows_cert_pass.encode())
     print("Wrote cert password to", cert_pass_path)
 
 
@@ -175,7 +175,7 @@ def install(args):
             setup_windows_cert(args)
 
 
-def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
+def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
     args = 'python scripts/build.py distclean install_sdk install_ext'.split()
 
     opts = []
@@ -202,12 +202,13 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         opts.append('--skip-builtins')
     if skip_tests:
         opts.append('--skip-tests')
-        waf_opts.append('--skip-build-tests')
 
     if with_valgrind:
         waf_opts.append('--with-valgrind')
     if with_asan:
         waf_opts.append('--with-asan')
+    if with_ubsan:
+        waf_opts.append('--with-ubsan')
     if with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
 
@@ -397,6 +398,7 @@ def main(argv):
     parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, notarize-editor, archive-editor, bob, sdk, install, smoke)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
+    parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
@@ -486,6 +488,7 @@ def main(argv):
                 engine_channel,
                 with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ]),
                 with_asan = args.with_asan,
+                with_ubsan = args.with_ubsan,
                 with_vanilla_lua = args.with_vanilla_lua,
                 archive = args.archive,
                 skip_tests = args.skip_tests,

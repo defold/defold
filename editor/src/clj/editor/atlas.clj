@@ -19,7 +19,6 @@
             [editor.colors :as colors]
             [editor.core :as core]
             [editor.defold-project :as project]
-            [editor.dialogs :as dialogs]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -38,6 +37,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
@@ -216,8 +216,9 @@
 
   (input animation-updatable g/Any)
 
-  (output atlas-image Image (g/fnk [image-resource maybe-image-size sprite-trim-mode]
-                              (Image. (resource/proj-path image-resource) nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)))
+  (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size sprite-trim-mode]
+                              (assoc (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)
+                                :digest-ignored/error-node-id _node-id)))
   (output atlas-images [Image] (g/fnk [atlas-image] [atlas-image]))
   (output animation Animation (g/fnk [atlas-image id]
                                 (make-animation id [atlas-image])))
@@ -488,8 +489,8 @@
                                     :passes [pass/outline]}}]
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders workspace]}]
-  (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders workspace))
+(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders]}]
+  (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
@@ -497,15 +498,15 @@
 (defn- generate-packed-image [{:keys [_node-id image-resources layout-data-generator]}]
   (let [buffered-images (mapv #(resource-io/with-error-translation % _node-id nil
                                  (image-util/read-image %))
-                              image-resources)
-        errors (filter g/error? buffered-images)]
-    (if (seq errors)
-      (g/error-aggregate errors)
-      (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
-        (texture-set-gen/layout-images (:layout (call-generator layout-data-generator)) id->image)))))
+                              image-resources)]
+    (g/precluding-errors buffered-images
+      (let [layout-data (call-generator layout-data-generator)]
+        (g/precluding-errors layout-data
+          (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
+            (texture-set-gen/layout-images (:layout layout-data) id->image)))))))
 
 (g/defnk produce-layout-data-generator
-  [_node-id animation-images all-atlas-images extrude-borders inner-padding margin resource :as args]
+  [_node-id animation-images all-atlas-images extrude-borders inner-padding margin :as args]
   ;; The TextureSetGenerator.calculateLayout() method inherited from Bob also
   ;; compiles a TextureSetProto$TextureSet including the animation data in
   ;; addition to generating the layout. This means that modifying a property on
@@ -521,8 +522,7 @@
                                  animation-images)
             augmented-args (-> args
                                (dissoc :animation-images)
-                               (assoc :animations fake-animations
-                                      :workspace (resource/workspace resource)))]
+                               (assoc :animations fake-animations))]
         {:f generate-texture-set-data
          :args augmented-args})))
 
@@ -790,7 +790,7 @@
   (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
 
 (defn- add-images-handler [app-view workspace project parent] ; parent = new parent of images
-  (when-some [image-resources (seq (dialogs/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
+  (when-some [image-resources (seq (resource-dialog/make workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
     (let [op-seq (gensym)
           image-msgs (map #(assoc default-image-msg :image %) image-resources)
           image-nodes (g/tx-nodes-added

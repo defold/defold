@@ -19,8 +19,10 @@
             [editor.core :as core]
             [editor.resource :as resource]
             [editor.util :as util]
+            [internal.cache :as c]
             [schema.core :as s]
-            [service.log :as log]))
+            [service.log :as log])
+  (:import [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
@@ -120,12 +122,15 @@
         (assoc :attachments attachments)
         (update :arcs (partial filterv #(not (contains? tx-attach-arcs %)))))))
 
-(defn- default-copy-traverse [basis [src-node src-label tgt-node tgt-label]]
-  (and (g/node-instance? OutlineNode tgt-node)
-       (or (= :child-outlines tgt-label)
-           (= :source-outline tgt-label))
-       (not (and (g/node-instance? basis resource/ResourceNode src-node)
-                 (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis}))))))))
+(defn- default-copy-traverse [basis ^Arc arc]
+  (let [src-node (.source-id arc)
+        tgt-node (.target-id arc)
+        tgt-label (.target-label arc)]
+    (and (or (= :child-outlines tgt-label)
+             (= :source-outline tgt-label))
+         (g/node-instance? basis OutlineNode tgt-node)
+         (not (and (g/node-instance? basis resource/ResourceNode src-node)
+                   (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis :cache c/null-cache})))))))))
 
 (defn copy
   ([src-item-iterators]

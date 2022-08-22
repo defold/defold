@@ -18,9 +18,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
-            [editor.code.script :as script]
             [editor.defold-project :as project]
-            [editor.dialogs :as dialogs]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
@@ -29,6 +27,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
@@ -98,9 +97,9 @@
      :label ""}))
 
 (def ^:private identity-transform-properties
-  {:position [0.0 0.0 0.0]
-   :rotation [0.0 0.0 0.0 1.0]
-   :scale [1.0 1.0 1.0]})
+  {:position [(float 0.0) (float 0.0) (float 0.0)]
+   :rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
+   :scale [(float 1.0) (float 1.0) (float 1.0)]})
 
 (defn- supported-transform-properties [component-resource-type]
   (assert (some? component-resource-type))
@@ -309,7 +308,7 @@
                            (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                              (concat
                                connect-tx-data
-                               (g/override comp-node {:traverse? (constantly true)}
+                               (g/override comp-node {:traverse-fn g/always-override-traverse-fn}
                                            (fn [evaluation-context id-mapping]
                                              (let [or-comp-node (get id-mapping comp-node)
                                                    comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
@@ -511,7 +510,7 @@
 (defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
                                          (workspace/get-resource-types workspace :embeddable)))]
-    (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext component-exts :title "Select Component File"}))]
+    (when-let [resource (first (resource-dialog/make workspace project {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource select-fn))))
 
 (defn- selection->game-object [selection]

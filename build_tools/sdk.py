@@ -217,7 +217,7 @@ def get_windows_local_sdk_info(platform):
         vswhere_path = './scripts/windows/vswhere2/vswhere2.exe'
         vswhere_path = path.normpath(vswhere_path)
         if not os.path.exists(vswhere_path):
-            print "Couldn't find executable '%s'" % vswhere_path
+            print ("Couldn't find executable '%s'" % vswhere_path)
             return None
 
     sdk_root = run.shell_command('%s --sdk_root' % vswhere_path).strip()
@@ -332,7 +332,7 @@ def _get_defold_path(sdkfolder, platform):
 
 def check_defold_sdk(sdkfolder, platform):
     folders = []
-    print "check_defold_sdk", sdkfolder, platform
+    print ("check_defold_sdk", sdkfolder, platform)
 
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
@@ -404,7 +404,7 @@ def _get_local_sdk_info(platform):
         info[platform] = {}
         info[platform]['version'] = get_local_darwin_sdk_version(platform)
         info[platform]['path'] = get_local_darwin_sdk_path(platform)
-    
+
     elif platform in ('x86_64-linux',):
         info[platform] = {}
         info[platform]['version'] = get_local_compiler_version()
@@ -448,7 +448,7 @@ def get_host_platform():
         machine = 'x86_64'
     is64bit = machine.endswith('64')
 
-    if sys.platform == 'linux2':
+    if sys.platform == 'linux':
         return '%s-linux' % machine
     elif sys.platform == 'win32':
         return '%s-win32' % machine
@@ -456,4 +456,3 @@ def get_host_platform():
         return '%s-macos' % machine
 
     raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))
-

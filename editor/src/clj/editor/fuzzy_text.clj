@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.fuzzy-text
-  (:require [clojure.string :as string])
-  (:import (clojure.lang MapEntry)))
+  (:require [clojure.string :as string]
+            [util.coll :refer [pair]]))
 
 ;; Sublime Text-style fuzzy text matching.
 ;;
@@ -61,9 +61,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- pair [a b]
-  (MapEntry. a b))
-
 (defn- case-insensitive-character-indices
   "Returns a vector of indices where the specified code point exists in the
   string. Both upper- and lower-case matches are returned."
@@ -106,7 +103,7 @@
           pattern-length (.length pattern)
           string-length (.length string)]
       (loop [pattern-index 1
-             matching-index-permutations (map vector (case-insensitive-character-indices string (.codePointAt pattern 0) from-index))]
+             matching-index-permutations (mapv vector (case-insensitive-character-indices string (.codePointAt pattern 0) from-index))]
         (if (= pattern-length pattern-index)
           matching-index-permutations
           (let [pattern-whitespace-length (whitespace-length pattern pattern-length pattern-index)
@@ -119,8 +116,8 @@
                                                       (+ 2 prev-matching-index)
                                                       (inc prev-matching-index))]
                                      (when (not= string-length from-index)
-                                       (map (partial conj matching-indices)
-                                            (case-insensitive-character-indices string (.codePointAt pattern pattern-index) from-index))))))
+                                       (mapv (partial conj matching-indices)
+                                             (case-insensitive-character-indices string (.codePointAt pattern pattern-index) from-index))))))
                          matching-index-permutations))))))))
 
 (defn- every-character-is-letter-or-digit?

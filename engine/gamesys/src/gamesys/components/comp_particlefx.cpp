@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,6 +34,11 @@
 
 #include "resources/res_particlefx.h"
 #include "resources/res_textureset.h"
+
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleFx, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, FrameReset, "# vertices", &rmtp_ParticleFx);
+DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_ParticleFx);
 
 namespace dmGameSystem
 {
@@ -245,6 +250,7 @@ namespace dmGameSystem
 
     static void RenderBatch(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
+        DM_PROFILE("ParticleRenderBatch");
         const dmParticle::EmitterRenderData* first = (dmParticle::EmitterRenderData*) buf[*begin].m_UserData;
         ParticleFXContext* pfx_context = pfx_world->m_Context;
         dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;
@@ -314,7 +320,10 @@ namespace dmGameSystem
         {
             dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(),
                                             pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-            DM_COUNTER("ParticleFXVertexBuffer", pfx_world->m_VertexBufferData.Size() * sizeof(dmParticle::Vertex));
+
+            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VertexBufferData.Size());
+            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Size() * sizeof(dmParticle::Vertex));
+
         }
     }
 
@@ -348,6 +357,8 @@ namespace dmGameSystem
             ParticleFXComponent& c = pfx_world->m_Components[i];
             if (c.m_AddedToUpdate)
             {
+                DM_PROPERTY_ADD_U32(rmtp_ParticleFx, 1);
+
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
                 for (uint32_t j = 0; j < emitter_count; ++j)
                 {
@@ -431,6 +442,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
+            dmGameSystemDDF::StopParticleFX* ddf = (dmGameSystemDDF::StopParticleFX*)params.m_Message->m_Data;
             uint32_t count = world->m_Components.Size();
             for (uint32_t i = 0; i < count; ++i)
             {
@@ -438,7 +450,7 @@ namespace dmGameSystem
                 dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
                 if (component->m_Instance == params.m_Instance && component->m_ComponentId == component_id)
                 {
-                    dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance);
+                    dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_ClearParticles);
                 }
             }
         }

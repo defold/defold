@@ -217,28 +217,9 @@
                                             "vec4" [1.0 2.0 3.0 4.0]}]
               (is (= prop-value (prop script-component prop-name))))))))))
 
-(defn- build-resource [project path]
-  (when-some [resource-node (tu/resource-node project path)]
-    (:resource (first (g/node-value resource-node :build-targets)))))
-
 (defn- texture-build-resource [project path]
   (when-some [resource-node (tu/resource-node project path)]
     (:resource (first (:deps (first (g/node-value resource-node :build-targets)))))))
-
-(defn- build-output [project path]
-  (with-open [in (io/input-stream (build-resource project path))
-              out (ByteArrayOutputStream.)]
-    (io/copy in out)
-    (.toByteArray out)))
-
-(defn- node-build-resource [node-id]
-  (:resource (first (g/node-value node-id :build-targets))))
-
-(defn- node-build-output [node-id]
-  (with-open [in (io/input-stream (node-build-resource node-id))
-              out (ByteArrayOutputStream.)]
-    (io/copy in out)
-    (.toByteArray out)))
 
 (defn- save-value [pb-class node-id]
   (with-open [reader (StringReader. (:content (g/node-value node-id :save-data)))]
@@ -269,7 +250,7 @@
   (tu/with-loaded-project
     (let [resource (partial tu/resource workspace)
           resource-node (partial tu/resource-node project)
-          build-resource (partial build-resource project)]
+          build-resource (partial tu/build-resource project)]
 
       (let [props-script (resource-node "/script/props.script")
             properties (properties props-script)]
@@ -375,26 +356,6 @@
         :vertex-program vertex-program-resource
         :fragment-program fragment-program-resource))))
 
-(defn- build-node! [resource-node]
-  (let [project (project/get-project resource-node)
-        workspace (project/workspace project)
-        evaluation-context (g/make-evaluation-context)
-        old-artifact-map (workspace/artifact-map workspace)
-        build-path (workspace/build-path workspace)
-        build-result (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
-    (g/update-cache-from-evaluation-context! evaluation-context)
-    [build-path build-result]))
-
-(defn- build! [resource-node]
-  (let [[build-path] (build-node! resource-node)]
-    (tu/make-directory-deleter build-path)))
-
-(defn- build-error! [resource-node]
-  (let [[build-path build-result] (build-node! resource-node)
-        error (:error build-result)]
-    (fs/delete-directory! (io/file build-path) {:fail :silently})
-    error))
-
 (defn- coalesced-property [node-id prop-kw]
   (get-in (properties/coalesce [(g/node-value node-id :_properties)])
           [:properties prop-kw]))
@@ -425,11 +386,11 @@
           project (tu/setup-project! workspace)
           project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
-          build-resource (partial build-resource project)
+          build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           texture-build-resource (partial texture-build-resource project)
-          build-output (partial build-output project)
+          build-output (partial tu/build-output project)
           make-atlas! (partial make-atlas! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -456,7 +417,7 @@
                        (build-resource         "/from-props-script.png")
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
-              (with-open [_ (build! props-script)]
+              (with-open [_ (tu/build! props-script)]
                 (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
                   (is (= (unpack-property-declarations (:properties built-props-script))
                          {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
@@ -478,7 +439,7 @@
                 (is (= (built-resources props-script)
                        #{(build-resource "/props.script")
                          (build-resource "/from-props-script.png")}))
-                (with-open [_ (build! props-script)]
+                (with-open [_ (tu/build! props-script)]
                   (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
                     (is (= (unpack-property-declarations (:properties built-props-script))
                            {"other" (build-resource-path-hash "/from-props-script.png")}))
@@ -493,7 +454,7 @@
                   (is (texture-resource-property? (:__texture properties) (resource "/missing-resource.png")))
                   (is (g/error? error-value))
                   (is (= "Texture '/missing-resource.png' could not be found" (:message error-value))))
-                (let [error-value (build-error! props-script)]
+                (let [error-value (tu/build-error! props-script)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
                           error-item-of-parent-resource (first (:children error-tree))
@@ -512,7 +473,7 @@
                   (is (texture-resource-property? (:__texture properties) (resource "/from-props-script.material")))
                   (is (g/error? error-value))
                   (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
-                (let [error-value (build-error! props-script)]
+                (let [error-value (tu/build-error! props-script)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
                           error-item-of-parent-resource (first (:children error-tree))
@@ -529,10 +490,10 @@
           project (tu/setup-project! workspace)
           project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
-          build-resource (partial build-resource project)
+          build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
-          build-output (partial build-output project)
+          build-output (partial tu/build-output project)
           texture-build-resource (partial texture-build-resource project)
           make-atlas! (partial make-atlas! project)
           make-material! (partial make-material! project)
@@ -580,7 +541,7 @@
                        (build-resource         "/from-props-script.png")
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
-              (with-open [_ (build! props-game-object)]
+              (with-open [_ (tu/build! props-game-object)]
                 (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
                       built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
                   (is (= {} (unpack-property-declarations (:property-decls built-props-script-component))))
@@ -604,7 +565,7 @@
                          (build-resource         "/from-props-script.png")
                          (build-resource         "/from-props-script.fp")
                          (build-resource         "/from-props-script.vp")}))
-                (with-open [_ (build! props-game-object)]
+                (with-open [_ (tu/build! props-game-object)]
                   (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
                     (is (= (unpack-property-declarations (:properties built-props-script))
                            {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
@@ -634,7 +595,7 @@
                            :value (resource/proj-path resource)
                            :type :property-type-hash}])))
 
-                (with-open [_ (build! props-game-object)]
+                (with-open [_ (tu/build! props-game-object)]
                   (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
                     (is (= [] (:properties built-props-script-component)))
@@ -653,7 +614,7 @@
                       saved-props-script-component (find-corresponding (:components saved-props-game-object) props-script-component)]
                   (is (= [] (:properties saved-props-script-component))))
 
-                (with-open [_ (build! props-game-object)]
+                (with-open [_ (tu/build! props-game-object)]
                   (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
                     (is (= {} (unpack-property-declarations (:property-decls built-props-script-component))))
@@ -667,7 +628,7 @@
                 (is (texture-resource-property? (:__texture properties) (resource "/missing-resource.png")))
                 (is (g/error? error-value))
                 (is (= "Texture '/missing-resource.png' could not be found" (:message error-value))))
-              (let [error-value (build-error! props-game-object)]
+              (let [error-value (tu/build-error! props-game-object)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
@@ -681,7 +642,7 @@
               (testing "Error goes away after clearing override"
                 (reset-property! props-script-component :__texture)
                 (is (not (g/error? (tu/prop-error props-script-component :__texture))))
-                (is (not (g/error? (build-error! props-game-object)))))))
+                (is (not (g/error? (tu/build-error! props-game-object)))))))
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -691,7 +652,7 @@
                 (is (texture-resource-property? (:__texture properties) (resource "/from-props-game-object.material")))
                 (is (g/error? error-value))
                 (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
-              (let [error-value (build-error! props-game-object)]
+              (let [error-value (tu/build-error! props-game-object)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
@@ -705,13 +666,13 @@
               (testing "Error goes away after clearing override"
                 (reset-property! props-script-component :__texture)
                 (is (not (g/error? (tu/prop-error props-script-component :__texture))))
-                (is (not (g/error? (build-error! props-game-object)))))))
+                (is (not (g/error? (tu/build-error! props-game-object)))))))
 
           (testing "Downstream error breaks build"
             (are [lines message]
               (with-open [_ (tu/make-graph-reverter project-graph)]
                 (edit-script! props-script lines)
-                (let [error-value (build-error! props-game-object)]
+                (let [error-value (tu/build-error! props-game-object)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
                           error-item-of-parent-resource (first (:children error-tree))
@@ -733,8 +694,8 @@
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
-          build-resource (partial build-resource project)
-          build-output (partial build-output project)
+          build-resource (partial tu/build-resource project)
+          build-output (partial tu/build-output project)
           make-atlas! (partial make-atlas! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
@@ -758,7 +719,7 @@
                      :value "/renamed-from-props-game-object.atlas"
                      :type :property-type-hash}])))
 
-          (with-open [_ (build! props-game-object)]
+          (with-open [_ (tu/build! props-game-object)]
             (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
                   built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)
                   renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-props-game-object.atlas"))]
@@ -774,10 +735,10 @@
           project (tu/setup-project! workspace)
           project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
-          build-resource (partial build-resource project)
+          build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
-          build-output (partial build-output project)
+          build-output (partial tu/build-output project)
           texture-build-resource (partial texture-build-resource project)
           make-atlas! (partial make-atlas! project)
           make-material! (partial make-material! project)
@@ -838,7 +799,7 @@
                        (build-resource         "/from-props-script.png")
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
-              (with-open [_ (build! props-collection)]
+              (with-open [_ (tu/build! props-collection)]
                 (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))
                       built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)]
                   (is (= [] (:component-properties built-props-game-object-instance)))
@@ -862,7 +823,7 @@
                          (build-resource         "/from-props-script.png")
                          (build-resource         "/from-props-script.fp")
                          (build-resource         "/from-props-script.vp")}))
-                (with-open [_ (build! props-collection)]
+                (with-open [_ (tu/build! props-collection)]
                   (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
                     (is (= (unpack-property-declarations (:properties built-props-script))
                            {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
@@ -897,7 +858,7 @@
                            :value (resource/proj-path resource)
                            :type :property-type-hash}])))
 
-                (with-open [_ (build! props-collection)]
+                (with-open [_ (tu/build! props-collection)]
                   (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))
                         built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)
                         built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)]
@@ -917,7 +878,7 @@
                       saved-props-game-object-instance (find-corresponding (:instances saved-props-collection) props-game-object-instance)]
                   (is (= [] (:component-properties saved-props-game-object-instance))))
 
-                (with-open [_ (build! props-collection)]
+                (with-open [_ (tu/build! props-collection)]
                   (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))
                         built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)]
                     (is (= [] (:component-properties built-props-game-object-instance)))
@@ -931,7 +892,7 @@
                 (is (texture-resource-property? (:__texture properties) (resource "/missing-resource.png")))
                 (is (g/error? error-value))
                 (is (= "Texture '/missing-resource.png' could not be found" (:message error-value))))
-              (let [error-value (build-error! props-collection)]
+              (let [error-value (tu/build-error! props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
@@ -945,7 +906,7 @@
               (testing "Error goes away after clearing override"
                 (reset-property! ov-props-script-component :__texture)
                 (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
-                (is (not (g/error? (build-error! props-collection)))))))
+                (is (not (g/error? (tu/build-error! props-collection)))))))
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -955,7 +916,7 @@
                 (is (texture-resource-property? (:__texture properties) (resource "/from-props-collection.material")))
                 (is (g/error? error-value))
                 (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
-              (let [error-value (build-error! props-collection)]
+              (let [error-value (tu/build-error! props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
@@ -969,13 +930,13 @@
               (testing "Error goes away after clearing override"
                 (reset-property! ov-props-script-component :__texture)
                 (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
-                (is (not (g/error? (build-error! props-collection)))))))
+                (is (not (g/error? (tu/build-error! props-collection)))))))
 
           (testing "Downstream error breaks build"
             (are [lines message]
               (with-open [_ (tu/make-graph-reverter project-graph)]
                 (edit-script! props-script lines)
-                (let [error-value (build-error! props-collection)]
+                (let [error-value (tu/build-error! props-collection)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
                           error-item-of-parent-resource (first (:children error-tree))
@@ -997,8 +958,8 @@
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
-          build-resource (partial build-resource project)
-          build-output (partial build-output project)
+          build-resource (partial tu/build-resource project)
+          build-output (partial tu/build-output project)
           make-atlas! (partial make-atlas! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
@@ -1027,7 +988,7 @@
                      :value "/renamed-from-props-collection.atlas"
                      :type :property-type-hash}])))
 
-          (with-open [_ (build! props-collection)]
+          (with-open [_ (tu/build! props-collection)]
             (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))
                   built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)
                   built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)
@@ -1044,10 +1005,10 @@
           project (tu/setup-project! workspace)
           project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
-          build-resource (partial build-resource project)
+          build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
-          build-output (partial build-output project)
+          build-output (partial tu/build-output project)
           texture-build-resource (partial texture-build-resource project)
           make-atlas! (partial make-atlas! project)
           make-material! (partial make-material! project)
@@ -1120,7 +1081,7 @@
                        (build-resource         "/from-props-script.png")
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
-              (with-open [_ (build! sub-props-collection)]
+              (with-open [_ (tu/build! sub-props-collection)]
                 (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
                       built-props-game-object-instance (first (:instances built-sub-props-collection))]
                   (is (= [] (:collection-instances built-sub-props-collection)))
@@ -1146,7 +1107,7 @@
                          (build-resource         "/from-props-script.png")
                          (build-resource         "/from-props-script.fp")
                          (build-resource         "/from-props-script.vp")}))
-                (with-open [_ (build! sub-props-collection)]
+                (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
                     (is (= (unpack-property-declarations (:properties built-props-script))
                            {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
@@ -1182,7 +1143,7 @@
                            :value (resource/proj-path resource)
                            :type :property-type-hash}])))
 
-                (with-open [_ (build! sub-props-collection)]
+                (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-props-game-object-instance (first (:instances built-sub-props-collection))
                         built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)]
@@ -1204,7 +1165,7 @@
                       saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
                   (is (= [] (:instance-properties saved-props-collection-instance))))
 
-                (with-open [_ (build! sub-props-collection)]
+                (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-props-game-object-instance (first (:instances built-sub-props-collection))]
                     (is (= [] (:component-properties built-props-game-object-instance)))
@@ -1218,7 +1179,7 @@
                 (is (texture-resource-property? (:__texture properties) (resource "/missing-resource.png")))
                 (is (g/error? error-value))
                 (is (= "Texture '/missing-resource.png' could not be found" (:message error-value))))
-              (let [error-value (build-error! sub-props-collection)]
+              (let [error-value (tu/build-error! sub-props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
@@ -1232,7 +1193,7 @@
             (testing "Error goes away after clearing override"
               (reset-property! ov-props-script-component :__texture)
               (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
-              (is (not (g/error? (build-error! sub-props-collection))))))
+              (is (not (g/error? (tu/build-error! sub-props-collection))))))
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -1242,7 +1203,7 @@
                 (is (texture-resource-property? (:__texture properties) (resource "/from-sub-props-collection.material")))
                 (is (g/error? error-value))
                 (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
-              (let [error-value (build-error! sub-props-collection)]
+              (let [error-value (tu/build-error! sub-props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
@@ -1256,13 +1217,13 @@
               (testing "Error goes away after clearing override"
                 (reset-property! ov-props-script-component :__texture)
                 (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
-                (is (not (g/error? (build-error! sub-props-collection)))))))
+                (is (not (g/error? (tu/build-error! sub-props-collection)))))))
 
           (testing "Downstream error breaks build"
             (are [lines message]
               (with-open [_ (tu/make-graph-reverter project-graph)]
                 (edit-script! props-script lines)
-                (let [error-value (build-error! sub-props-collection)]
+                (let [error-value (tu/build-error! sub-props-collection)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
                           error-item-of-parent-resource (first (:children error-tree))
@@ -1285,10 +1246,11 @@
           project (tu/setup-project! workspace)
           project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
-          build-resource (partial build-resource project)
+          build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
-          build-output (partial build-output project)
+          build-output (partial tu/build-output project)
+          node-build-resource tu/node-build-resource
           texture-build-resource (partial texture-build-resource project)
           make-atlas! (partial make-atlas! project)
           make-material! (partial make-material! project)
@@ -1363,7 +1325,7 @@
                        (build-resource         "/from-props-script.png")
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
-              (with-open [_ (build! sub-props-collection)]
+              (with-open [_ (tu/build! sub-props-collection)]
                 (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
                       built-embedded-game-object-instance (first (:instances built-sub-props-collection))]
                   (is (= [] (:collection-instances built-sub-props-collection)))
@@ -1389,7 +1351,7 @@
                          (build-resource         "/from-props-script.png")
                          (build-resource         "/from-props-script.fp")
                          (build-resource         "/from-props-script.vp")}))
-                (with-open [_ (build! sub-props-collection)]
+                (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
                     (is (= (unpack-property-declarations (:properties built-props-script))
                            {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
@@ -1399,7 +1361,7 @@
                            (sort [(build-resource-path "/from-props-script.atlas")
                                   (build-resource-path "/from-props-script.material")
                                   (build-resource-path "/from-props-script.png")]))))
-                  (let [built-embedded-game-object (protobuf/bytes->map GameObject$PrototypeDesc (node-build-output embedded-game-object-instance))
+                  (let [built-embedded-game-object (protobuf/bytes->map GameObject$PrototypeDesc (tu/node-build-output embedded-game-object-instance))
                         built-props-script-component (find-corresponding (:components built-embedded-game-object) ov-props-script-component)]
                     (is (= {} (unpack-property-declarations (:property-decls built-props-script-component))))
                     (is (= [] (:property-resources built-embedded-game-object))))))))
@@ -1425,7 +1387,7 @@
                            :value (resource/proj-path resource)
                            :type :property-type-hash}])))
 
-                (with-open [_ (build! sub-props-collection)]
+                (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-embedded-game-object-instance (first (:instances built-sub-props-collection))
                         built-props-script-component (find-corresponding (:component-properties built-embedded-game-object-instance) ov-props-script-component)]
@@ -1447,7 +1409,7 @@
                       saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
                   (is (= [] (:instance-properties saved-props-collection-instance))))
 
-                (with-open [_ (build! sub-props-collection)]
+                (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-embedded-game-object-instance (first (:instances built-sub-props-collection))]
                     (is (= [] (:component-properties built-embedded-game-object-instance)))
@@ -1461,7 +1423,7 @@
                 (is (texture-resource-property? (:__texture properties) (resource "/missing-resource.png")))
                 (is (g/error? error-value))
                 (is (= "Texture '/missing-resource.png' could not be found" (:message error-value))))
-              (let [error-value (build-error! sub-props-collection)]
+              (let [error-value (tu/build-error! sub-props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
@@ -1475,7 +1437,7 @@
             (testing "Error goes away after clearing override"
               (reset-property! ov-props-script-component :__texture)
               (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
-              (is (not (g/error? (build-error! sub-props-collection))))))
+              (is (not (g/error? (tu/build-error! sub-props-collection))))))
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -1485,7 +1447,7 @@
                 (is (texture-resource-property? (:__texture properties) (resource "/from-sub-props-collection.material")))
                 (is (g/error? error-value))
                 (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
-              (let [error-value (build-error! sub-props-collection)]
+              (let [error-value (tu/build-error! sub-props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
@@ -1499,13 +1461,13 @@
               (testing "Error goes away after clearing override"
                 (reset-property! ov-props-script-component :__texture)
                 (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
-                (is (not (g/error? (build-error! sub-props-collection)))))))
+                (is (not (g/error? (tu/build-error! sub-props-collection)))))))
 
           (testing "Downstream error breaks build"
             (are [lines message]
               (with-open [_ (tu/make-graph-reverter project-graph)]
                 (edit-script! props-script lines)
-                (let [error-value (build-error! sub-props-collection)]
+                (let [error-value (tu/build-error! sub-props-collection)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
                           error-item-of-parent-resource (first (:children error-tree))
@@ -1527,8 +1489,8 @@
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
-          build-resource (partial build-resource project)
-          build-output (partial build-output project)
+          build-resource (partial tu/build-resource project)
+          build-output (partial tu/build-output project)
           make-atlas! (partial make-atlas! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
@@ -1562,7 +1524,7 @@
                      :value "/renamed-from-sub-props-collection.atlas"
                      :type :property-type-hash}])))
 
-          (with-open [_ (build! sub-props-collection)]
+          (with-open [_ (tu/build! sub-props-collection)]
             (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
                   built-props-game-object-instance (first (:instances built-sub-props-collection))
                   built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)
@@ -1715,7 +1677,7 @@
                 (is (g/error? prop-error))
                 (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpg or .png" (:message prop-error))))
 
-              (let [build-error (build-error! props-game-object)]
+              (let [build-error (tu/build-error! props-game-object)]
                 (when (is (g/error? build-error))
                   (let [error-tree (build-errors-view/build-resource-tree build-error)
                         error-item-of-parent-resource (first (:children error-tree))

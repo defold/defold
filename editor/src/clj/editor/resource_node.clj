@@ -23,7 +23,8 @@
             [editor.resource-io :as resource-io]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
-            [editor.outline :as outline])
+            [editor.outline :as outline]
+            [internal.graph.types :as gt])
   (:import [org.apache.commons.codec.digest DigestUtils]
            [java.io StringReader]))
 
@@ -98,15 +99,50 @@
               :outline-error? (g/error-fatal? own-build-errors)
               :outline-overridden? (not (empty? _overridden-properties))})))
 
-  (output sha256 g/Str :cached (g/fnk [resource save-data]
+  (output sha256 g/Str :cached (g/fnk [resource undecorated-save-data]
                                  ;; Careful! This might throw if resource has been removed
                                  ;; outside the editor. Use from editor.engine.native-extensions seems
                                  ;; to catch any exceptions.
-                                 (let [content (get save-data :content ::no-content)]
+                                 ;; Also, be aware that resource-update/keep-existing-node?
+                                 ;; assumes this output will produce a sha256 hex hash string
+                                 ;; from the bytes we'll be writing to disk, so be careful
+                                 ;; if you decide to overload it.
+                                 (let [content (get undecorated-save-data :content ::no-content)]
                                    (if (= ::no-content content)
                                      (with-open [s (io/input-stream resource)]
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
+
+(definline ^:private resource-node-resource [basis resource-node]
+  ;; This is faster than g/node-value, and doesn't require creating an
+  ;; evaluation-context. The resource property is unjammable and properties
+  ;; aren't cached, so there is no need to do a full g/node-value.
+  `(gt/get-property ~resource-node ~basis :resource))
+
+(defn resource
+  ([resource-node-id]
+   (resource (g/now) resource-node-id))
+  ([basis resource-node-id]
+   (let [resource-node (g/node-by-id basis resource-node-id)]
+     (assert (g/node-instance*? resource/ResourceNode resource-node))
+     (resource-node-resource basis resource-node))))
+
+(defn as-resource
+  ([node-id]
+   (as-resource (g/now) node-id))
+  ([basis node-id]
+   (when-some [node (g/node-by-id basis node-id)]
+     (when (g/node-instance*? resource/ResourceNode node)
+       (resource-node-resource basis node)))))
+
+(defn as-resource-original
+  ([node-id]
+   (as-resource-original (g/now) node-id))
+  ([basis node-id]
+   (when-some [node (g/node-by-id basis node-id)]
+     (when (and (nil? (gt/original node))
+                (g/node-instance*? resource/ResourceNode node))
+       (resource-node-resource basis node)))))
 
 (defn defective? [resource-node]
   (let [value (g/node-value resource-node :valid-node-id+type+resource)]
@@ -122,7 +158,8 @@
           ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
 
 (defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
-  (let [read-fn (comp (or sanitize-fn identity) (partial protobuf/read-text ddf-type))
+  (let [read-fn (cond->> (partial protobuf/read-text ddf-type)
+                         (some? sanitize-fn) (comp sanitize-fn))
         args (assoc args
                :textual? true
                :load-fn (fn [project self resource]

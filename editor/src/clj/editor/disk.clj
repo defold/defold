@@ -22,6 +22,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
+            [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
             [editor.workspace :as workspace]))
@@ -135,19 +136,23 @@
           (let [evaluation-context (g/make-evaluation-context)
                 save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)]
             (project/write-save-data-to-disk! save-data {:render-progress! render-save-progress!})
-            (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
-            (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
-              (render-save-progress! progress/done)
-              (ui/run-later
-                (try
-                  (project/update-system-cache-save-data! evaluation-context)
-                  (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status updated-file-resource-status-map-entries)
-                  (project/invalidate-save-data-source-values! save-data)
-                  (when (some? changes-view)
-                    (changes-view/refresh! changes-view render-reload-progress!))
-                  (complete! true)
-                  (catch Throwable error
-                    (fail! error)))))))
+            (if (and (some #(= "/.defignore" (resource/proj-path (:resource %))) save-data)
+                     (not (blocking-reload! render-reload-progress! workspace [] nil)))
+              (complete! false)
+              (do
+                (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
+                (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
+                  (render-save-progress! progress/done)
+                  (ui/run-later
+                    (try
+                      (project/update-system-cache-save-data! evaluation-context)
+                      (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status updated-file-resource-status-map-entries)
+                      (project/invalidate-save-data-source-values! save-data)
+                      (when (some? changes-view)
+                        (changes-view/refresh! changes-view render-reload-progress!))
+                      (complete! true)
+                      (catch Throwable error
+                        (fail! error)))))))))
         (catch Throwable error
           (fail! error))))
     success-promise))

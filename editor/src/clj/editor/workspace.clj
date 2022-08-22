@@ -20,13 +20,16 @@ ordinary paths."
             [clojure.string :as string]
             [clojure.edn :as edn]
             [dynamo.graph :as g]
+            [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.library :as library]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
+            [editor.ui :as ui]
             [editor.url :as url]
+            [editor.util :as util]
             [service.log :as log])
   (:import [java.io File PushbackReader]
            [java.net URI]
@@ -78,13 +81,13 @@ ordinary paths."
   (openable? [this] false)
 
   io/IOFactory
-  (io/make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
-  (io/make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (io/make-output-stream [this opts] (let [file (File. (resource/abs-path this))] (io/make-output-stream file opts)))
-  (io/make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+  (make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
+  (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [this opts] (let [file (File. (resource/abs-path this))] (io/make-output-stream file opts)))
+  (make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
-  (io/as-file [this] (File. (resource/abs-path this))))
+  (as-file [this] (File. (resource/abs-path this))))
 
 (def build-resource? (partial instance? BuildResource))
 
@@ -96,20 +99,22 @@ ordinary paths."
    (BuildResource. resource prefix)))
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
-  (let [sorted-children (sort-by (fn [r]
-                                   [(resource/file-resource? r)
-                                    ({:folder 0 :file 1} (resource/source-type r))
-                                    (when-let [node-name (resource/resource-name r)]
-                                      (string/lower-case node-name))])
-                                 (map sort-resource-tree children))]
-    (assoc tree :children (vec sorted-children))))
+  (let [sorted-children (->> children
+                             (map sort-resource-tree)
+                             (sort
+                               (util/comparator-chain
+                                 (util/comparator-on editor.resource/file-resource?)
+                                 (util/comparator-on #({:folder 0 :file 1} (editor.resource/source-type %)))
+                                 (util/comparator-on util/natural-order editor.resource/resource-name)))
+                             vec)]
+    (assoc tree :children sorted-children)))
 
 (g/defnk produce-resource-tree [_node-id root resource-snapshot]
   (sort-resource-tree
     (resource/make-file-resource _node-id root (io/as-file root) (:resources resource-snapshot))))
 
 (g/defnk produce-resource-list [resource-tree]
-  (resource/resource-seq resource-tree))
+  (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree))))
 
 (g/defnk produce-resource-map [resource-list]
   (into {} (map #(do [(resource/proj-path %) %]) resource-list)))
@@ -272,13 +277,22 @@ ordinary paths."
     resources))
 
 (defn- load-plugin! [workspace resource]
-  ; TODO Handle Exceptions!
   (log/info :msg (str "Loading plugin " (resource/path resource)))
-  (if-let [plugin-fn (load-string (slurp resource))]
-    (do
-      (plugin-fn workspace)
-      (log/info :msg (str "Loaded plugin " (resource/path resource))))
-    (log/info :msg (str "Unable to load plugin " (resource/path resource)))))
+  (try
+    (if-let [plugin-fn (load-string (slurp resource))]
+      (do
+        (plugin-fn workspace)
+        (log/info :msg (str "Loaded plugin " (resource/path resource))))
+      (log/info :msg (str "Unable to load plugin " (resource/path resource))))
+    (catch Exception e
+      (log/error :msg (str "Exception while loading plugin: " (.getMessage e)))
+      (ui/run-later
+        (dialogs/make-info-dialog
+          {:title "Unable to Load Plugin"
+           :icon :icon/triangle-error
+           :always-on-top true
+           :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
+      false)))
 
 (defn- load-editor-plugins! [workspace added]
   (let [added-resources (set (map resource/proj-path added))

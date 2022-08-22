@@ -36,6 +36,11 @@
 
 #include "../proto/gameobject/gameobject_ddf.h"
 
+DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects");
+
+DM_PROPERTY_U32(rmtp_GOInstances, 0, FrameReset, "# alive go instances / frame", &rmtp_GameObject);
+DM_PROPERTY_U32(rmtp_GODeleted, 0, FrameReset, "# deleted instances / frame", &rmtp_GameObject);
+
 namespace dmGameObject
 {
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
@@ -220,7 +225,6 @@ namespace dmGameObject
         memset(&m_Instances[0], 0, sizeof(Instance*) * max_instances);
         memset(&m_WorldTransforms[0], 0xcc, sizeof(dmTransform::Transform) * max_instances);
         memset(&m_LevelIndices[0], 0, sizeof(m_LevelIndices));
-        memset(&m_ComponentInstanceCount[0], 0, sizeof(uint32_t) * MAX_COMPONENT_TYPES);
     }
 
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity)
@@ -311,12 +315,12 @@ namespace dmGameObject
 
     void DeallocCollection(Collection* collection)
     {
-        DM_PROFILE(GameObject, "DeallocCollection");
+        DM_PROFILE("DeallocCollection");
 
         HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
-            DM_PROFILE_DYN(GameObjectDeleteWorld, regist->m_ComponentTypes[i].m_Name, regist->m_ComponentTypes[i].m_NameHash);
+            DM_PROFILE_DYN(regist->m_ComponentTypes[i].m_Name, 0);
 
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
@@ -456,7 +460,7 @@ namespace dmGameObject
 
     void DeleteCollection(Collection* collection)
     {
-        DM_PROFILE(GameObject, "DeleteCollection");
+        DM_PROFILE("DeleteCollection");
 
         // We mark the collection as beeing deleted here to avoid component
         // triggered recursive deletes to add gameobjects to the delayed delete list.
@@ -575,7 +579,6 @@ namespace dmGameObject
         regist->m_ComponentTypes[regist->m_ComponentTypeCount] = type;
         regist->m_ComponentTypes[regist->m_ComponentTypeCount].m_NameHash = dmHashString64(type.m_Name);
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
-        regist->m_ComponentProfileCounterIndex[regist->m_ComponentTypeCount] = dmProfile::AllocateCounter(type.m_Name);
         regist->m_ComponentTypeCount++;
         return RESULT_OK;
     }
@@ -734,7 +737,7 @@ namespace dmGameObject
     }
 
     bool CreateComponents(Collection* collection, HInstance instance) {
-        DM_PROFILE(GameObject, "CreateComponents");
+        DM_PROFILE("CreateComponents");
 
         Prototype* proto = instance->m_Prototype;
         uint32_t components_created = 0;
@@ -750,7 +753,7 @@ namespace dmGameObject
             ComponentType* component_type = component->m_Type;
             assert(component_type);
 
-            DM_PROFILE_DYN(GameObjectCreateComponents, component_type->m_Name, component_type->m_NameHash);
+            DM_PROFILE_DYN(component_type->m_Name, 0);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -773,7 +776,6 @@ namespace dmGameObject
             CreateResult create_result =  component_type->m_CreateFunction(params);
             if (create_result == CREATE_RESULT_OK)
             {
-                collection->m_ComponentInstanceCount[component->m_TypeIndex]++;
                 components_created++;
             }
             else
@@ -798,7 +800,6 @@ namespace dmGameObject
                 }
                 assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-                collection->m_ComponentInstanceCount[component->m_TypeIndex]--;
                 ComponentDestroyParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_Instance = instance;
@@ -817,7 +818,7 @@ namespace dmGameObject
     }
 
     static void DestroyComponents(Collection* collection, HInstance instance) {
-        DM_PROFILE(GameObject, "DestroyComponents");
+        DM_PROFILE("DestroyComponents");
 
         HPrototype prototype = instance->m_Prototype;
         uint32_t next_component_instance_data = 0;
@@ -826,7 +827,7 @@ namespace dmGameObject
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = component->m_Type;
 
-            DM_PROFILE_DYN(GameObjectDestroyComponents, component_type->m_Name, component_type->m_NameHash);
+            DM_PROFILE_DYN(component_type->m_Name, 0);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -835,7 +836,6 @@ namespace dmGameObject
             }
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
-            collection->m_ComponentInstanceCount[component->m_TypeIndex]--;
             ComponentDestroyParams params;
             params.m_Collection = collection->m_HCollection;
             params.m_Instance = instance;
@@ -1141,6 +1141,107 @@ namespace dmGameObject
         return instance;
     }
 
+    static void Unlink(Collection* collection, Instance* instance)
+    {
+        // Unlink "me" from parent
+        if (instance->m_Parent != INVALID_INSTANCE_INDEX)
+        {
+            assert(instance->m_Depth > 0);
+            Instance* parent = collection->m_Instances[instance->m_Parent];
+            uint32_t index = parent->m_FirstChildIndex;
+            Instance* prev_child = 0;
+            while (index != INVALID_INSTANCE_INDEX)
+            {
+                Instance* child = collection->m_Instances[index];
+                if (child == instance)
+                {
+                    if (prev_child)
+                        prev_child->m_SiblingIndex = child->m_SiblingIndex;
+                    else
+                        parent->m_FirstChildIndex = child->m_SiblingIndex;
+
+                    break;
+                }
+
+                prev_child = child;
+                index = collection->m_Instances[index]->m_SiblingIndex;
+            }
+            instance->m_SiblingIndex = INVALID_INSTANCE_INDEX;
+            instance->m_Parent = INVALID_INSTANCE_INDEX;
+        }
+    }
+
+    static void MoveUp(Collection* collection, Instance* instance)
+    {
+        /*
+         * Move instance up in hierarchy
+         */
+
+        assert(instance->m_Depth > 0);
+        EraseSwapLevelIndex(collection, instance);
+        instance->m_Depth--;
+        InsertInstanceInLevelIndex(collection, instance);
+    }
+
+    static void MoveAllUp(Collection* collection, Instance* instance)
+    {
+        /*
+         * Move all children up in hierarchy
+         */
+
+        uint32_t index = instance->m_FirstChildIndex;
+        while (index != INVALID_INSTANCE_INDEX)
+        {
+            Instance* child = collection->m_Instances[index];
+            // NOTE: This assertion is only valid if we processes the tree depth first
+            // The order of MoveAllUp and MoveUp below is imperative
+            // NOTE: This assert is not possible when moving more than a single step. TODO: ?
+            //assert(child->m_Depth == instance->m_Depth + 1);
+            MoveAllUp(collection, child);
+            MoveUp(collection, child);
+            index = collection->m_Instances[index]->m_SiblingIndex;
+        }
+    }
+
+    static void ReparentChildNodes(Collection* collection, HInstance instance)
+    {
+        // Reparent child nodes
+        uint32_t index = instance->m_FirstChildIndex;
+        while (index != INVALID_INSTANCE_INDEX)
+        {
+            Instance* child = collection->m_Instances[index];
+            assert(child->m_Parent == instance->m_Index);
+            child->m_Parent = instance->m_Parent;
+            index = collection->m_Instances[index]->m_SiblingIndex;
+        }
+
+        // Add child nodes to parent
+        if (instance->m_Parent != INVALID_INSTANCE_INDEX)
+        {
+            Instance* parent = collection->m_Instances[instance->m_Parent];
+            uint32_t index = parent->m_FirstChildIndex;
+            Instance* child = 0;
+            while (index != INVALID_INSTANCE_INDEX)
+            {
+                child = collection->m_Instances[index];
+                index = collection->m_Instances[index]->m_SiblingIndex;
+            }
+
+            // Child is last child if present
+            if (child)
+            {
+                assert(child->m_SiblingIndex == INVALID_INSTANCE_INDEX);
+                child->m_SiblingIndex = instance->m_FirstChildIndex;
+            }
+            else
+            {
+                assert(parent->m_FirstChildIndex == INVALID_INSTANCE_INDEX);
+                parent->m_FirstChildIndex = instance->m_FirstChildIndex;
+            }
+        }
+    }
+
+
     // Returns if successful or not
     static bool CollectionSpawnFromDescInternal(Collection* collection, dmGameObjectDDF::CollectionDesc* collection_desc, InstancePropertyBuffers *property_buffers, InstanceIdMap *id_mapping, dmTransform::Transform const &transform)
     {
@@ -1412,6 +1513,10 @@ namespace dmGameObject
                         ++component_instance_data_index;
                 }
             } else {
+                ReparentChildNodes(collection, instance);
+                Unlink(collection, instance);
+                MoveAllUp(collection, instance);
+
                 ReleaseIdentifier(collection, instance);
                 UndoNewInstance(collection, instance);
                 success = false;
@@ -1475,68 +1580,6 @@ namespace dmGameObject
         }
 
         return instance;
-    }
-
-    static void Unlink(Collection* collection, Instance* instance)
-    {
-        // Unlink "me" from parent
-        if (instance->m_Parent != INVALID_INSTANCE_INDEX)
-        {
-            assert(instance->m_Depth > 0);
-            Instance* parent = collection->m_Instances[instance->m_Parent];
-            uint32_t index = parent->m_FirstChildIndex;
-            Instance* prev_child = 0;
-            while (index != INVALID_INSTANCE_INDEX)
-            {
-                Instance* child = collection->m_Instances[index];
-                if (child == instance)
-                {
-                    if (prev_child)
-                        prev_child->m_SiblingIndex = child->m_SiblingIndex;
-                    else
-                        parent->m_FirstChildIndex = child->m_SiblingIndex;
-
-                    break;
-                }
-
-                prev_child = child;
-                index = collection->m_Instances[index]->m_SiblingIndex;
-            }
-            instance->m_SiblingIndex = INVALID_INSTANCE_INDEX;
-            instance->m_Parent = INVALID_INSTANCE_INDEX;
-        }
-    }
-
-    static void MoveUp(Collection* collection, Instance* instance)
-    {
-        /*
-         * Move instance up in hierarchy
-         */
-
-        assert(instance->m_Depth > 0);
-        EraseSwapLevelIndex(collection, instance);
-        instance->m_Depth--;
-        InsertInstanceInLevelIndex(collection, instance);
-    }
-
-    static void MoveAllUp(Collection* collection, Instance* instance)
-    {
-        /*
-         * Move all children up in hierarchy
-         */
-
-        uint32_t index = instance->m_FirstChildIndex;
-        while (index != INVALID_INSTANCE_INDEX)
-        {
-            Instance* child = collection->m_Instances[index];
-            // NOTE: This assertion is only valid if we processes the tree depth first
-            // The order of MoveAllUp and MoveUp below is imperative
-            // NOTE: This assert is not possible when moving more than a single step. TODO: ?
-            //assert(child->m_Depth == instance->m_Depth + 1);
-            MoveAllUp(collection, child);
-            MoveUp(collection, child);
-            index = collection->m_Instances[index]->m_SiblingIndex;
-        }
     }
 
     static void MoveDown(Collection* collection, Instance* instance)
@@ -1654,7 +1697,7 @@ namespace dmGameObject
 
     static bool InitCollection(Collection* collection)
     {
-        DM_PROFILE(GameObject, "Init");
+        DM_PROFILE("Init");
         assert(collection->m_InUpdate == 0 && "Initializing instances during Update(.) is not permitted");
 
         // Update transform cache
@@ -1741,7 +1784,7 @@ namespace dmGameObject
 
     static bool FinalCollection(Collection* collection)
     {
-        DM_PROFILE(GameObject, "Final");
+        DM_PROFILE("Final");
         assert(collection->m_InUpdate == 0 && "Finalizing instances during Update(.) is not permitted");
 
         bool result = true;
@@ -1833,7 +1876,7 @@ namespace dmGameObject
 
     static void DoDeleteInstance(Collection* collection, HInstance instance)
     {
-        DM_PROFILE(GameObject, "DoDeleteInstance");
+        DM_PROFILE("DoDeleteInstance");
         HCollection hcollection = collection->m_HCollection;
         CancelAnimations(hcollection, instance);
         if (instance->m_ToBeAdded) {
@@ -1859,41 +1902,8 @@ namespace dmGameObject
         assert(collection->m_LevelIndices[instance->m_Depth].Size() > 0);
         assert(instance->m_LevelIndex < collection->m_LevelIndices[instance->m_Depth].Size());
 
-        // Reparent child nodes
-        uint32_t index = instance->m_FirstChildIndex;
-        while (index != INVALID_INSTANCE_INDEX)
-        {
-            Instance* child = collection->m_Instances[index];
-            assert(child->m_Parent == instance->m_Index);
-            child->m_Parent = instance->m_Parent;
-            index = collection->m_Instances[index]->m_SiblingIndex;
-        }
-
-        // Add child nodes to parent
-        if (instance->m_Parent != INVALID_INSTANCE_INDEX)
-        {
-            Instance* parent = collection->m_Instances[instance->m_Parent];
-            uint32_t index = parent->m_FirstChildIndex;
-            Instance* child = 0;
-            while (index != INVALID_INSTANCE_INDEX)
-            {
-                child = collection->m_Instances[index];
-                index = collection->m_Instances[index]->m_SiblingIndex;
-            }
-
-            // Child is last child if present
-            if (child)
-            {
-                assert(child->m_SiblingIndex == INVALID_INSTANCE_INDEX);
-                child->m_SiblingIndex = instance->m_FirstChildIndex;
-            }
-            else
-            {
-                assert(parent->m_FirstChildIndex == INVALID_INSTANCE_INDEX);
-                parent->m_FirstChildIndex = instance->m_FirstChildIndex;
-            }
-        }
-
+        ReparentChildNodes(collection, instance);
+        
         // Unlink "me" from parent
         Unlink(collection, instance);
         EraseSwapLevelIndex(collection, instance);
@@ -2266,7 +2276,7 @@ namespace dmGameObject
                     component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
                 }
                 {
-                    DM_PROFILE(GameObject, "OnMessageFunction");
+                    DM_PROFILE("OnMessageFunction");
                     ComponentOnMessageParams params;
                     params.m_Instance = instance;
                     params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
@@ -2301,7 +2311,7 @@ namespace dmGameObject
                         component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
                     }
                     {
-                        DM_PROFILE(GameObject, "OnMessageFunction");
+                        DM_PROFILE("OnMessageFunction");
                         ComponentOnMessageParams params;
                         params.m_Instance = instance;
                         params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
@@ -2326,7 +2336,7 @@ namespace dmGameObject
 
     static bool DispatchMessages(Collection* collection, dmMessage::HSocket* sockets, uint32_t socket_count)
     {
-        DM_PROFILE(GameObject, "DispatchMessages");
+        DM_PROFILE("DispatchMessages");
 
         DispatchMessagesContext ctx;
         ctx.m_Collection = collection;
@@ -2384,7 +2394,7 @@ namespace dmGameObject
 
     void UpdateTransforms(Collection* collection)
     {
-        DM_PROFILE(GameObject, "UpdateTransforms");
+        DM_PROFILE("UpdateTransforms");
 
         // Calculate world transforms
         // First root-level instances
@@ -2453,8 +2463,8 @@ namespace dmGameObject
 
     static bool Update(Collection* collection, const UpdateContext* update_context)
     {
-        DM_PROFILE(GameObject, "Update");
-        DM_COUNTER("Instances", collection->m_InstanceIndices.Size());
+        DM_PROFILE("Update");
+        DM_PROPERTY_ADD_U32(rmtp_GOInstances, collection->m_InstanceIndices.Size());
 
         assert(collection != 0x0);
 
@@ -2485,8 +2495,6 @@ namespace dmGameObject
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
 
-            DM_COUNTER_DYN(collection->m_Register->m_ComponentProfileCounterIndex[update_index], collection->m_ComponentInstanceCount[update_index]);
-
             // Avoid to call UpdateTransforms for each/all component types.
             if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
                 UpdateTransforms(collection);
@@ -2494,7 +2502,7 @@ namespace dmGameObject
 
             if (component_type->m_UpdateFunction)
             {
-                DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                DM_PROFILE_DYN(component_type->m_Name, 0);
                 ComponentsUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_UpdateContext = &dynamic_update_context;
@@ -2547,8 +2555,6 @@ namespace dmGameObject
                         uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
                         ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
 
-                        DM_COUNTER_DYN(collection->m_Register->m_ComponentProfileCounterIndex[update_index], collection->m_ComponentInstanceCount[update_index]);
-
                         // Avoid to call UpdateTransforms for each/all component types.
                         if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms) {
                             UpdateTransforms(collection);
@@ -2556,7 +2562,7 @@ namespace dmGameObject
 
                         if (component_type->m_FixedUpdateFunction)
                         {
-                            DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                            DM_PROFILE_DYN(component_type->m_Name, 0);
                             ComponentsUpdateParams params;
                             params.m_Collection = collection->m_HCollection;
                             params.m_UpdateContext = &fixed_update_context;
@@ -2599,7 +2605,7 @@ namespace dmGameObject
 
     bool Render(HCollection hcollection)
     {
-        DM_PROFILE(GameObject, "Render");
+        DM_PROFILE("Render");
 
         Collection* collection = hcollection->m_Collection;
         assert(collection != 0x0);
@@ -2612,7 +2618,7 @@ namespace dmGameObject
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
             if (component_type->m_RenderFunction)
             {
-                DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                DM_PROFILE_DYN(component_type->m_Name, 0);
                 ComponentsRenderParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -2641,7 +2647,7 @@ namespace dmGameObject
 
     static bool PostUpdate(Collection* collection)
     {
-        DM_PROFILE(GameObject, "PostUpdate");
+        DM_PROFILE("PostUpdate");
         assert(collection != 0x0);
         HRegister reg = collection->m_Register;
         assert(reg);
@@ -2656,7 +2662,7 @@ namespace dmGameObject
 
             if (component_type->m_PostUpdateFunction)
             {
-                DM_PROFILE_DYN(GameObject, component_type->m_Name, component_type->m_NameHash);
+                DM_PROFILE_DYN(component_type->m_Name, 0);
                 ComponentsPostUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -2719,7 +2725,8 @@ namespace dmGameObject
                 result = false;
             }
         }
-        DM_COUNTER("InstancesDeleted", instances_deleted);
+
+        DM_PROPERTY_ADD_U32(rmtp_GODeleted, instances_deleted);
 
         return result;
     }
@@ -2731,7 +2738,7 @@ namespace dmGameObject
 
     bool PostUpdate(HRegister reg)
     {
-        DM_PROFILE(GameObject, "PostUpdateRegister");
+        DM_PROFILE("PostUpdateRegister");
 
         assert(reg != 0x0);
 
@@ -2758,7 +2765,7 @@ namespace dmGameObject
 
     UpdateResult DispatchInput(Collection* collection, InputAction* input_actions, uint32_t input_action_count)
     {
-        DM_PROFILE(GameObject, "DispatchInput");
+        DM_PROFILE("DispatchInput");
 
         // iterate stacks from top to bottom
         for (uint32_t i = 0; i < input_action_count; ++i)

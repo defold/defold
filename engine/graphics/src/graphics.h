@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -64,15 +64,27 @@ namespace dmGraphics
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
 
+    enum AdapterType
+    {
+        ADAPTER_TYPE_NULL,
+        ADAPTER_TYPE_OPENGL,
+        ADAPTER_TYPE_VULKAN,
+    };
+
 
     // buffer clear types, each value is guaranteed to be separate bits
     enum BufferType
     {
-        BUFFER_TYPE_COLOR_BIT   = 0x1,
-        BUFFER_TYPE_DEPTH_BIT   = 0x2,
-        BUFFER_TYPE_STENCIL_BIT = 0x4,
+        BUFFER_TYPE_COLOR0_BIT  = 0x01,
+        BUFFER_TYPE_COLOR1_BIT  = 0x02,
+        BUFFER_TYPE_COLOR2_BIT  = 0x04,
+        BUFFER_TYPE_COLOR3_BIT  = 0x08,
+        BUFFER_TYPE_DEPTH_BIT   = 0x10,
+        BUFFER_TYPE_STENCIL_BIT = 0x20,
     };
-    static const uint8_t MAX_BUFFER_TYPE_COUNT = 3;
+
+    static const uint8_t MAX_BUFFER_COLOR_ATTACHMENTS = 4;
+    static const uint8_t MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
 
     // render states
     enum State
@@ -334,8 +346,10 @@ namespace dmGraphics
 
     /**
      * Initialize graphics system
+     * @params adapter_type_str String identifier for which adapter to use (vulkan/opengl/null)
+     * @return True if a graphics backend could be created, false otherwise.
      */
-    bool Initialize();
+    bool Initialize(const char* adapter_type_str = 0);
 
     /**
      * Finalize graphics system
@@ -437,6 +451,13 @@ namespace dmGraphics
      * @param height New height of the window
      */
     void ResizeWindow(HContext context, uint32_t width, uint32_t height);
+
+    /**
+     * Get the scale factor of the display.
+     * The display scale factor is usally 1.0 but will for instance be 2.0 on a macOS Retina display.
+     * @return Scale factor
+     */
+    float GetDisplayScaleFactor(HContext context);
 
     /**
      * Return the default texture filtering modes.
@@ -622,26 +643,32 @@ namespace dmGraphics
 
     const char* GetBufferTypeLiteral(BufferType buffer_type)
     {
-        if (buffer_type == BUFFER_TYPE_COLOR_BIT)
-            return "BUFFER_TYPE_COLOR_BIT";
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-            return "BUFFER_TYPE_DEPTH_BIT";
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-            return "BUFFER_TYPE_STENCIL_BIT";
-        else
-            return "<unknown buffer type>";
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR0_BIT:  return "BUFFER_TYPE_COLOR_BIT";
+            case BUFFER_TYPE_COLOR1_BIT:  return "BUFFER_TYPE_COLOR1_BIT";
+            case BUFFER_TYPE_COLOR2_BIT:  return "BUFFER_TYPE_COLOR2_BIT";
+            case BUFFER_TYPE_COLOR3_BIT:  return "BUFFER_TYPE_COLOR3_BIT";
+            case BUFFER_TYPE_DEPTH_BIT:   return "BUFFER_TYPE_DEPTH_BIT";
+            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
+            default:break;
+        }
+        return "<unknown buffer type>";
     }
 
     uint32_t GetBufferTypeIndex(BufferType buffer_type)
     {
-        if (buffer_type == BUFFER_TYPE_COLOR_BIT)
-            return 0;
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
-            return 1;
-        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
-            return 2;
-        else
-            return ~0u;
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR0_BIT:  return 0;
+            case BUFFER_TYPE_COLOR1_BIT:  return 1;
+            case BUFFER_TYPE_COLOR2_BIT:  return 2;
+            case BUFFER_TYPE_COLOR3_BIT:  return 3;
+            case BUFFER_TYPE_DEPTH_BIT:   return 4;
+            case BUFFER_TYPE_STENCIL_BIT: return 5;
+            default: break;
+        }
+        return ~0u;
     }
 }
 

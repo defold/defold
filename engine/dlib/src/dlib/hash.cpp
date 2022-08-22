@@ -668,3 +668,9 @@ DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash)
     return s != 0 ? s : "<unknown>";
 }
 
+DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
+{
+    const char* s = (const char*)dmHashReverse32(hash, 0);
+    return s != 0 ? s : "<unknown>";
+}
+

@@ -197,10 +197,15 @@ namespace dmSys
 
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
-        dmStrlCpy(info->m_DeviceIdentifier, [[d.identifierForVendor UUIDString] UTF8String], sizeof(info->m_DeviceIdentifier));
 
         NSString *device_language = [[NSLocale preferredLanguages]objectAtIndex:0];
         dmStrlCpy(info->m_DeviceLanguage, [device_language UTF8String], sizeof(info->m_DeviceLanguage));
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
+        UIDevice* d = [UIDevice currentDevice];
+        dmStrlCpy(info->m_DeviceIdentifier, [[d.identifierForVendor UUIDString] UTF8String], sizeof(info->m_DeviceIdentifier));
     }
 
     bool GetApplicationInfo(const char* id, ApplicationInfo* info)
@@ -258,6 +263,10 @@ namespace dmSys
 
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
     }
 
     bool GetApplicationInfo(const char* id, ApplicationInfo* info)
