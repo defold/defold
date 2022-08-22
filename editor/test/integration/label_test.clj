@@ -22,6 +22,7 @@
             [editor.gl.pass :as pass]
             [editor.label :as label]
             [editor.math :as math]
+            [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
@@ -166,32 +167,48 @@
                                              [:renderable :user-data :gpu-texture]))))
 
 (deftest label-migration-test
-  (test-util/with-loaded-project
-    (letfn [(verify-component [component-node-id]
-              (and (is (g/node-instance? game-object/ReferencedComponent component-node-id))
-                   (is (= [2.0 3.0 4.0] (g/node-value component-node-id :scale)))))
+  (test-util/with-loaded-project "test/resources/label_migration_project"
+    (let [resources-with-dirty-save-data (into #{}
+                                               (map :resource)
+                                               (project/dirty-save-data project))]
+      (letfn [(resource-has-dirty-save-data? [resource]
+                (assert (resource/file-resource? resource))
+                (contains? resources-with-dirty-save-data resource))
 
-            (verify-embedded-component [embedded-component-node-id]
-              (and (is (g/node-instance? game-object/EmbeddedComponent embedded-component-node-id))
-                   (is (= [3.0 4.0 5.0] (g/node-value embedded-component-node-id :scale)))))]
+              (verify-embedded-component [host-resource-proj-path embedded-component-outline-path expected-scale expected-dirty]
+                (let [host-resource (workspace/find-resource workspace host-resource-proj-path)]
+                  (is (resource/resource? host-resource))
+                  (let [host-resource-node-id (project/get-resource-node project host-resource)
+                        embedded-component-node-id (:node-id (test-util/outline host-resource-node-id embedded-component-outline-path))]
+                    (is (g/node-instance? game-object/EmbeddedComponent embedded-component-node-id))
+                    (is (= expected-scale (g/node-value embedded-component-node-id :scale)))
+                    (is (= expected-dirty (resource-has-dirty-save-data? host-resource))))))
 
-      (testing "Scale value was moved from LabelDesc to ComponentDesc in game object."
-        (let [label-migration-game-object (project/get-resource-node project "/label/label_migration.go")
-              embedded-label-component (:node-id (test-util/outline label-migration-game-object [0]))
-              label-component (:node-id (test-util/outline label-migration-game-object [1]))]
-          (verify-embedded-component embedded-label-component)
-          (verify-component label-component)))
+              (verify-referenced-component [host-resource-proj-path referenced-component-outline-path expected-scale expected-dirty]
+                (let [host-resource (workspace/find-resource workspace host-resource-proj-path)]
+                  (is (resource/resource? host-resource))
+                  (let [host-resource-node-id (project/get-resource-node project host-resource)
+                        referenced-component-node-id (:node-id (test-util/outline host-resource-node-id referenced-component-outline-path))]
+                    (is (g/node-instance? game-object/ReferencedComponent referenced-component-node-id))
+                    (is (= expected-scale (g/node-value referenced-component-node-id :scale)))
+                    (let [referenced-label-resource (g/node-value referenced-component-node-id :source-resource)]
+                      (is (resource/resource? referenced-label-resource))
+                      (is (= expected-dirty (resource-has-dirty-save-data? referenced-label-resource)))
+                      (is (= expected-dirty (resource-has-dirty-save-data? host-resource)))))))]
 
-      (testing "Scale value was moved from LabelDesc to ComponentDesc in game object embedded inside collection."
-        (let [label-migration-collection (project/get-resource-node project "/label/label_migration.collection")
-              embedded-label-component (:node-id (test-util/outline label-migration-collection [0 1]))
-              label-component (:node-id (test-util/outline label-migration-collection [0 2]))]
-          (verify-component label-component)
-          (verify-embedded-component embedded-label-component)))
+        (testing "Scale value was moved from LabelDesc to ComponentDesc in game object."
+          (verify-embedded-component "/scale_migration/embedded_scaled_label.go" [0] [3.0 4.0 5.0] false)
+          (verify-referenced-component "/scale_migration/referenced_scaled_label.go" [0] [2.0 3.0 4.0] true))
 
-      (testing "Scale value was moved from LabelDesc to ComponentDesc in child game object embedded inside collection."
-        (let [label-migration-collection (project/get-resource-node project "/label/label_migration.collection")
-              embedded-label-component (:node-id (test-util/outline label-migration-collection [0 0 0]))
-              label-component (:node-id (test-util/outline label-migration-collection [0 0 1]))]
-          (verify-component label-component)
-          (verify-embedded-component embedded-label-component))))))
+        (testing "Scale value was moved from LabelDesc to ComponentDesc in game object embedded inside collection."
+          (verify-embedded-component "/scale_migration/embedded_scaled_label.collection" [0 0] [3.0 4.0 5.0] false)
+          (verify-referenced-component "/scale_migration/referenced_scaled_label.collection" [0 0] [2.0 3.0 4.0] true))
+
+        (testing "Scale value was moved from LabelDesc to ComponentDesc in child game object embedded inside collection."
+          (verify-embedded-component "/scale_migration/embedded_scaled_label_child.collection" [0 0 0] [3.0 4.0 5.0] false)
+          (verify-referenced-component "/scale_migration/referenced_scaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] true))
+
+        (testing "When the ComponentDesc already has scaling, we should ignore scaling from the referenced LabelDesc."
+          (verify-referenced-component "/scale_migration/referenced_rescaled_label.go" [0] [20.0 30.0 40.0] false)
+          (verify-referenced-component "/scale_migration/referenced_rescaled_label.collection" [0 0] [20.0 30.0 40.0] false)
+          (verify-referenced-component "/scale_migration/referenced_rescaled_label_child.collection" [0 0 0] [20.0 30.0 40.0] false))))))
