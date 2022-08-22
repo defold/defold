@@ -189,30 +189,30 @@
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
                                     (ui/refresh-bound-action-enabled! revert-button)))]
+    (ui/user-data! list-view :refresh-pending (ref false))
+    (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
+    (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
+                 {:git [:changes-view :git]}
+                 {resource/Resource (fn [status] (status->resource workspace status))})
+    (ui/register-context-menu list-view ::changes-menu)
+    (ui/cell-factory! list-view vcs-status/render)
+    (ui/bind-action! diff-button :diff)
+    (ui/bind-action! revert-button :revert)
+    (ui/disable! diff-button true)
+    (ui/disable! revert-button true)
+    (ui/bind-double-click! list-view :open)
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
-      (ui/user-data! list-view :refresh-pending (ref false))
-      (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
-        {:git [:changes-view :git]}
-        {resource/Resource (fn [status] (status->resource workspace status))})
-      (ui/register-context-menu list-view ::changes-menu)
-      (ui/cell-factory! list-view vcs-status/render)
-      (ui/bind-action! diff-button :diff)
-      (ui/bind-action! revert-button :revert)
-      (ui/disable! diff-button true)
-      (ui/disable! revert-button true)
-      (ui/bind-double-click! list-view :open)
       (when git (refresh-list-view! list-view (git/unified-status git)))
-      (.addListener disk-availability/available-property disk-available-listener)
-      (ui/on-closed! (.. parent getScene getWindow)
-                     (fn [_]
-                       (.removeListener disk-availability/available-property disk-available-listener)))
-      (ui/observe-selection list-view
-                            (fn [_ _]
-                              (ui/refresh-bound-action-enabled! diff-button)
-                              (ui/refresh-bound-action-enabled! revert-button)))
-      view-id
       (catch Exception e
-        (log/error :exception e)))))
+        (log/error :exception e)))
+    (.addListener disk-availability/available-property disk-available-listener)
+    (ui/on-closed! (.. parent getScene getWindow)
+                   (fn [_]
+                     (.removeListener disk-availability/available-property disk-available-listener)))
+    (ui/observe-selection list-view
+                          (fn [_ _]
+                            (ui/refresh-bound-action-enabled! diff-button)
+                            (ui/refresh-bound-action-enabled! revert-button)))
+    view-id))

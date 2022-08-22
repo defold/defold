@@ -27,9 +27,13 @@ namespace dmGraphics
 
     struct GraphicsAdapter
     {
+        GraphicsAdapter(AdapterType adapter_type)
+        : m_AdapterType(adapter_type) {}
+
         struct GraphicsAdapter*            m_Next;
         GraphicsAdapterRegisterFunctionsCb m_RegisterCb;
         GraphicsAdapterIsSupportedCb       m_IsSupportedCb;
+        AdapterType                        m_AdapterType;
         int8_t                             m_Priority;
     };
 
@@ -64,6 +68,7 @@ namespace dmGraphics
     typedef uint32_t (*GetHeightFn)(HContext context);
     typedef uint32_t (*GetWindowWidthFn)(HContext context);
     typedef uint32_t (*GetWindowHeightFn)(HContext context);
+    typedef float (*GetDisplayScaleFactorFn)(HContext context);
     typedef void (*SetWindowSizeFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*ResizeWindowFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*GetDefaultTextureFiltersFn)(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
@@ -174,6 +179,7 @@ namespace dmGraphics
         GetHeightFn m_GetHeight;
         GetWindowWidthFn m_GetWindowWidth;
         GetWindowHeightFn m_GetWindowHeight;
+        GetDisplayScaleFactorFn m_GetDisplayScaleFactor;
         SetWindowSizeFn m_SetWindowSize;
         ResizeWindowFn m_ResizeWindow;
         GetDefaultTextureFiltersFn m_GetDefaultTextureFilters;

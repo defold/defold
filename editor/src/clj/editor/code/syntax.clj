@@ -14,7 +14,8 @@
 
 (ns editor.code.syntax
   (:require [clojure.string :as string]
-            [editor.code.util :as util])
+            [editor.code.util :as util]
+            [util.coll :refer [pair]])
   (:import (java.util.regex MatchResult Pattern)))
 
 (set! *warn-on-reflection* true)
@@ -63,7 +64,7 @@
 (defn- append-run! [transient-runs index scope]
   (let [last-coll-index (dec (count transient-runs))
         prev-run-index (first (get transient-runs last-coll-index))
-        run (util/pair index scope)]
+        run (pair index scope)]
     (if (= index prev-run-index)
       (assoc! transient-runs last-coll-index run)
       (conj! transient-runs run))))
@@ -120,10 +121,10 @@
   (let [root-scope (some find-parent-scope contexts)]
     ;; Skip very long lines since these might lock up the regex engine.
     (if (< 1024 (count line))
-      (util/pair contexts [(util/pair 0 root-scope)])
+      (pair contexts [(pair 0 root-scope)])
       (loop [start 0
              contexts contexts
-             runs (transient [(util/pair 0 root-scope)])]
+             runs (transient [(pair 0 root-scope)])]
         (if-some [match (first-match contexts line start)]
           (let [parent-scope (some find-parent-scope (.contexts match))
                 match-result ^MatchResult (.match-result match)]
@@ -133,4 +134,4 @@
                      :match (append-match! runs parent-scope match-result (.pattern match))
                      :begin (append-begin! runs parent-scope match-result (.pattern match))
                      :end (append-end! runs parent-scope match-result (.pattern match)))))
-          (util/pair contexts (persistent! runs)))))))
+          (pair contexts (persistent! runs)))))))

@@ -44,6 +44,9 @@
 #include <gamesys/gamesys_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_Label, 0, FrameReset, "# components", &rmtp_Components);
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -282,7 +285,7 @@ namespace dmGameSystem
 
     static void UpdateTransforms(LabelWorld* world, bool sub_pixels)
     {
-        DM_PROFILE(Label, "UpdateTransforms");
+        DM_PROFILE("UpdateTransforms");
 
         dmArray<LabelComponent>& components = world->m_Components.m_Objects;
         uint32_t n = components.Size();
@@ -424,12 +427,15 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompLabelRender(const dmGameObject::ComponentsRenderParams& params)
     {
+        DM_PROFILE("Render");
         LabelContext* label_context = (LabelContext*)params.m_Context;
         LabelWorld* world = (LabelWorld*)params.m_World;
         dmRender::HRenderContext render_context = label_context->m_RenderContext;
 
         dmArray<LabelComponent>& components = world->m_Components.m_Objects;
         uint32_t component_count = components.Size();
+
+        DM_PROPERTY_ADD_U32(rmtp_Label, component_count);
 
         if (!component_count)
             return dmGameObject::UPDATE_RESULT_OK;

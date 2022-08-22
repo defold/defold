@@ -31,6 +31,8 @@
 #include "debug_renderer.h"
 #include "font_renderer.h"
 
+DM_PROPERTY_GROUP(rmtp_Render, "Renderer");
+
 namespace dmRender
 {
     using namespace dmVMath;
@@ -373,7 +375,7 @@ namespace dmRender
     // Compute new sort values for everything that matches tag_mask
     static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags)
     {
-        DM_PROFILE(Render, "MakeSortBuffer");
+        DM_PROFILE("MakeSortBuffer");
 
         const uint32_t required_capacity = context->m_RenderListSortIndices.Capacity();
         // SetCapacity does early out if they are the same, so just call anyway.
@@ -513,7 +515,7 @@ namespace dmRender
 
     static void SortRenderList(HRenderContext context)
     {
-        DM_PROFILE(Render, "SortRenderList");
+        DM_PROFILE("SortRenderList");
 
         if (context->m_RenderList.Empty())
             return;
@@ -550,7 +552,7 @@ namespace dmRender
 
     static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum)
     {
-        DM_PROFILE(Render, "FrustumCulling");
+        DM_PROFILE("FrustumCulling");
 
         uint32_t num_entries = context->m_RenderList.Size();
         if (num_entries == 0)
@@ -579,7 +581,7 @@ namespace dmRender
 
     Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix)
     {
-        DM_PROFILE(Render, "DrawRenderList");
+        DM_PROFILE("DrawRenderList");
 
         // This will add new entries for the most recent debug draw render objects.
         // The internal dispatch functions knows to only actually use the latest ones.
@@ -617,7 +619,7 @@ namespace dmRender
             return RESULT_OK;
 
         {
-            DM_PROFILE(Render, "DrawRenderList_SORT");
+            DM_PROFILE("DrawRenderList_SORT");
             RenderListSorter sort;
             sort.values = context->m_RenderListSortValues.Begin();
             std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);

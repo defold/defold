@@ -215,7 +215,7 @@ namespace dmSoundCodec
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
 
-        DM_PROFILE(SoundCodec, "Wav")
+        DM_PROFILE(__FUNCTION__);
 
         assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
         uint32_t n = dmMath::Min(buffer_size, streamInfo->m_Info.m_Size - streamInfo->m_Cursor);

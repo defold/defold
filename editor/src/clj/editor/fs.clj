@@ -17,7 +17,7 @@
   (:import [java.util UUID]
            [java.io File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
-           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException Files FileVisitResult LinkOption NoSuchFileException Path SimpleFileVisitor StandardCopyOption]
+           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException Files FileVisitResult LinkOption NoSuchFileException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute]))
 
 (set! *warn-on-reflection* true)
@@ -241,10 +241,14 @@
   ^File [^File directory]
   (.toFile (Files/createDirectory (.toPath directory) empty-file-attrs)))
 
+(def ^:private ^"[Ljava.nio.file.OpenOption;" overwrite-open-options (into-array OpenOption [StandardOpenOption/WRITE StandardOpenOption/CREATE StandardOpenOption/TRUNCATE_EXISTING]))
+
 (def ^:private ^"[Ljava.nio.file.LinkOption;" no-follow-link-options (into-array LinkOption [LinkOption/NOFOLLOW_LINKS]))
 
 (defn create-file!
-  "Creates a file if it does not already exist and fills it with optional UTF-8 content.
+  "Creates a file if it does not already exist and fills it with optional content.
+  If the supplied content is a byte array, write the bytes as-is to the file,
+  otherwise, write a UTF-8 string representation of the content.
   Missing parent directories are created. Returns the file."
   (^File [^File target]
    (if (not (Files/exists (.toPath target) no-follow-link-options))
@@ -252,16 +256,19 @@
          (.toFile (Files/createFile (.toPath target) empty-file-attrs)))
      target))
   (^File [^File target content]
-   (create-file! target)
-   (spit target content)
-   target))
+   (let [path (.toPath target)]
+     (when (not (Files/exists path no-follow-link-options))
+       (create-parent-directories! target))
+     (if (bytes? content)
+       (Files/write path ^bytes content overwrite-open-options)
+       (spit target content))
+     target)))
 
 (defn touch-file!
   "Creates a file if it does not exist and updates its last modified time."
   ^File [^File target]
-  (create-file! target)
-  (.setLastModified target (System/currentTimeMillis))
-  target)
+  (doto (create-file! target)
+    (.setLastModified (System/currentTimeMillis))))
 
 ;; move
 
@@ -478,3 +485,10 @@
    (if (.isDirectory src)
      (copy-directory! src tgt opts)
      (copy-file! src tgt opts))))
+
+;; read
+
+(defn read-bytes
+  "Read all the bytes from a file and return a byte array."
+  ^bytes [^File src]
+  (Files/readAllBytes (.toPath src)))

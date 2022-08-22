@@ -52,7 +52,7 @@
 (def ^:private step-out-label "Step Out")
 (def ^:private step-over-label "Step Over")
 (def ^:private stop-debugger-label "Stop Debugger")
-(def ^:private open-web-profiler-label "Open Web Profiler")
+(def ^:private open-engine-profiler-label "Open Web Profiler")
 
 (defn- single [coll]
   (when (nil? (next coll)) (first coll)))
@@ -652,13 +652,6 @@
 (handler/defhandler :disabled-menu-label :global
   (enabled? [] false))
 
-(handler/defhandler :open-web-profiler :global
-  (enabled? [prefs]
-    (some? (targets/selected-target prefs)))
-  (run [prefs]
-    (let [address (:address (targets/selected-target prefs))]
-      (ui/open-url (format "http://%s:8002/" address)))))
-
 (handler/register-menu! ::menubar :editor.defold-project/project
   [{:label "Debug"
     :id ::debug
@@ -680,8 +673,8 @@
                {:label stop-debugger-label
                 :command :stop-debugger}
                {:label :separator}
-               {:label open-web-profiler-label
-                :command :open-web-profiler}
+               {:label open-engine-profiler-label
+                :command :engine-profile-show}
                {:label :separator}
                {:label "Simulate Resolution"
                 :children [{:label "Custom Resolution..."

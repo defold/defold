@@ -25,6 +25,8 @@ RUN \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
     freeglut3-dev \
+    gcc-multilib \
+    g++-multilib \
     # for python+ctypes
     libffi-dev
 

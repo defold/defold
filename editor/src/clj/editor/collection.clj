@@ -20,7 +20,6 @@
             [editor.code.script :as script]
             [editor.core :as core]
             [editor.defold-project :as project]
-            [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
@@ -31,13 +30,16 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.cache :as c]
             [internal.util :as util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+           [internal.graph.types Arc]
            [java.io StringReader]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
@@ -254,13 +256,8 @@
                               (gen-embed-ddf id child-ids position rotation scale proto-msg))))
 
 (defn- component-resource [comp-id basis]
-  (cond
-    (g/node-instance? basis game-object/ReferencedComponent comp-id)
-    (some-> (g/node-value comp-id :path (g/make-evaluation-context {:basis basis}))
-            :resource)
-
-    (g/node-instance? basis game-object/ComponentNode comp-id)
-    (g/node-value comp-id :source-resource (g/make-evaluation-context {:basis basis}))))
+  (when (g/node-instance? basis game-object/ComponentNode comp-id)
+    (g/node-value comp-id :source-resource (g/make-evaluation-context {:basis basis :cache c/null-cache}))))
 
 (defn- overridable-component? [basis node-id]
   (some-> node-id
@@ -269,11 +266,14 @@
     :tags
     (contains? :overridable-properties)))
 
-(defn- or-go-traverse? [basis [src-id src-label tgt-id tgt-label]]
-  (or
-    (overridable-component? basis src-id)
-    (g/node-instance? basis resource-node/ResourceNode src-id)
-    (g/node-instance? basis script/ScriptPropertyNode src-id)))
+(def ^:private or-go-traverse-fn
+  (g/make-override-traverse-fn
+    (fn or-go-traverse-fn [basis ^Arc arc]
+      (let [source-node-id (.source-id arc)]
+        (or (overridable-component? basis source-node-id)
+            (g/node-instance-of-any? basis source-node-id
+                                     [resource-node/ResourceNode
+                                      script/ScriptPropertyNode]))))))
 
 (defn- path-error [node-id resource]
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
@@ -308,7 +308,7 @@
                        (when-some [{connect-tx-data :tx-data go-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                          (concat
                            connect-tx-data
-                           (g/override go-node {:traverse? or-go-traverse?}
+                           (g/override go-node {:traverse-fn or-go-traverse-fn}
                                        (fn [evaluation-context id-mapping]
                                          (let [or-go-node (get id-mapping go-node)
                                                comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]
@@ -562,12 +562,15 @@
              :outline-reference? true
              :alt-outline source-outline))))
 
-(defn- or-coll-traverse? [basis [src-id src-label tgt-id tgt-label]]
-  (or
-    (overridable-component? basis src-id)
-    (g/node-instance? basis resource-node/ResourceNode src-id)
-    (g/node-instance? basis script/ScriptPropertyNode src-id)
-    (g/node-instance? basis InstanceNode src-id)))
+(def ^:private or-coll-traverse-fn
+  (g/make-override-traverse-fn
+    (fn or-coll-traverse-fn [basis ^Arc arc]
+      (let [source-node-id (.source-id arc)]
+        (or (overridable-component? basis source-node-id)
+            (g/node-instance-of-any? basis source-node-id
+                                     [resource-node/ResourceNode
+                                      script/ScriptPropertyNode
+                                      InstanceNode]))))))
 
 (g/defnode CollectionInstanceNode
   (inherits scene/SceneNode)
@@ -589,7 +592,7 @@
                (when-some [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                  (concat
                    connect-tx-data
-                   (g/override coll-node {:traverse? or-coll-traverse?}
+                   (g/override coll-node {:traverse-fn or-coll-traverse-fn}
                                (fn [evaluation-context id-mapping]
                                  (let [or-coll-node (get id-mapping coll-node)
                                        go-name->go-node (comp #(g/node-value % :source-id evaluation-context)
@@ -700,14 +703,14 @@
         (select-fn [go-node])))))
 
 (defn- select-go-file [workspace project]
-  (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"})))
+  (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"})))
 
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->collection selection))
   (label [selection] "Add Game Object File")
   (run [workspace project app-view selection]
     (let [collection (selection->collection selection)]
-      (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
+      (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"}))]
         (add-game-object-file collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
 (defn- make-embedded-go [self project type data id position rotation scale parent select-fn]
@@ -782,7 +785,7 @@
                resource-type (workspace/get-resource-type workspace ext)
                coll-node-path (resource/proj-path (g/node-value coll-node :resource))
                accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
-           (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
+           (when-let [resource (first (resource-dialog/make workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    op-seq (gensym)

@@ -1,0 +1,11 @@
+{:settings
+ [{:type :integer
+   :help "Maximum number of temporary cache entries. Increase if you experience frequent editor slowdowns. Use -1 for unlimited, 20000 by default."
+   :default 20000
+   :label "Cache Size (Needs Restart)"
+   :path ["performance" "cache_capacity"]}]
+ :group-order ["Shared Settings"]
+ :default-category "performance"
+ :categories
+ {"performance" {:help "Editor performance tweaks for your project."
+                 :group "Shared Settings"}}}

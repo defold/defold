@@ -39,15 +39,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.relName = fileName;
     }
 
-    public ArchiveEntry(String root, String fileName, boolean doCompress, boolean isLiveUpdate) throws IOException {
-        this(root, fileName, doCompress);
-
-        if (isLiveUpdate) {
-            this.flags = this.flags | FLAG_LIVEUPDATE;
-        }
-    }
-
-    public ArchiveEntry(String root, String fileName, boolean compress) throws IOException {
+    public ArchiveEntry(String root, String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
         File file = new File(fileName);
         if (!file.exists()) {
             throw new IOException(String.format("File %s doens't exists",
@@ -69,8 +61,20 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
             this.compressedSize = FLAG_UNCOMPRESSED;
         }
 
+        if (encrypt) {
+            this.flags = this.flags | FLAG_ENCRYPTED;
+        }
+
+        if (isLiveUpdate) {
+            this.flags = this.flags | FLAG_LIVEUPDATE;
+        }
+
         this.relName = FilenameUtils.separatorsToUnix(fileName.substring(root.length()));
         this.fileName = fileName;
+    }
+
+    public ArchiveEntry(String root, String fileName, boolean compress, boolean encrypt) throws IOException {
+        this(root, fileName, compress, encrypt, false);
     }
 
     // For checking duplicate when constructing archive

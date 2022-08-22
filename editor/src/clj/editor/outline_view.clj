@@ -95,7 +95,7 @@
                                                         (when expanded (.setExpanded item expanded))
                                                         (or selected expanded))) items)))
 
-(defn- sync-selection [^TreeView tree-view selection]
+(defn- sync-selection [^TreeView tree-view selection old-selected-ids]
   (let [root (.getRoot tree-view)
         selection-model (.getSelectionModel tree-view)]
     (.clearSelection selection-model)
@@ -107,8 +107,9 @@
               selected-indices (filter #(selected-ids (item->node-id (.getTreeItem tree-view %))) (range count))]
           (when (not (empty? selected-indices))
             (ui/select-indices! tree-view selected-indices))
-          (when-some [first-item (first (.getSelectedItems selection-model))]
-            (ui/scroll-to-item! tree-view first-item)))))))
+          (when-not (= old-selected-ids selected-ids)
+            (when-some [first-item (first (.getSelectedItems selection-model))]
+              (ui/scroll-to-item! tree-view first-item))))))))
 
 (defn- decorate
   ([hidden-node-outline-key-paths root]
@@ -153,27 +154,30 @@
     new-root))
 
 (defn- update-tree-view-selection!
-  [^TreeView tree-view selection]
+  [^TreeView tree-view selection old-selected-ids]
   (binding [*programmatic-selection* true]
-    (sync-selection tree-view selection)
+    (sync-selection tree-view selection old-selected-ids)
     tree-view))
 
 (defn- update-tree-view-root!
-  [^TreeView tree-view ^TreeItem root selection]
+  [^TreeView tree-view ^TreeItem root selection old-selected-ids]
   (binding [*programmatic-selection* true]
     (when (not (identical? (.getRoot tree-view) root))
       (when root
         (.setExpanded root true)
         (.setRoot tree-view root)))
-    (sync-selection tree-view selection)
+    (sync-selection tree-view selection old-selected-ids)
     tree-view))
 
 (g/defnk update-tree-view [^TreeView raw-tree-view ^TreeItem root selection]
-  (if (identical? (.getRoot raw-tree-view) root)
-    (if (= (set selection) (set (map :node-id (ui/selection raw-tree-view))))
-      raw-tree-view
-      (update-tree-view-selection! raw-tree-view selection))
-    (update-tree-view-root! raw-tree-view root selection)))
+  (let [tree-view-ids (into #{}
+                            (map item->node-id)
+                            (.getSelectedItems (.getSelectionModel raw-tree-view)))]
+    (if (identical? (.getRoot raw-tree-view) root)
+      (if (= (set selection) (set (map :node-id (ui/selection raw-tree-view))))
+        raw-tree-view
+        (update-tree-view-selection! raw-tree-view selection tree-view-ids))
+      (update-tree-view-root! raw-tree-view root selection tree-view-ids))))
 
 (defn- item->value [^TreeItem item]
   (.getValue item))

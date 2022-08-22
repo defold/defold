@@ -18,13 +18,16 @@
 #include "atomic.h"
 #include "hash.h"
 #include "hashtable.h"
-#include "profile.h"
 #include "array.h"
 #include "condition_variable.h"
 #include "dstrings.h"
 #include <dlib/mutex.h>
 #include <dlib/static_assert.h>
 #include <dlib/spinlock.h>
+#include <dlib/profile/profile.h>
+
+DM_PROPERTY_GROUP(rmtp_Message, "dmMessage");
+DM_PROPERTY_U32(rmtp_Messages, 0, FrameReset, "# messages/frame", &rmtp_Message);
 
 namespace dmMessage
 {
@@ -291,7 +294,7 @@ namespace dmMessage
 
     Result GetSocket(const char *name, HSocket* out_socket)
     {
-        DM_PROFILE(Message, "GetSocket")
+        DM_PROFILE("GetSocket");
 
         if (name == 0x0 || *name == 0 || strchr(name, '#') != 0x0 || strchr(name, ':') != 0x0)
         {
@@ -399,8 +402,8 @@ namespace dmMessage
     Result Post(const URL* sender, const URL* receiver, dmhash_t message_id, uintptr_t user_data1, uintptr_t user_data2,
                     uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
-        DM_PROFILE(Message, "Post")
-        DM_COUNTER("Messages", 1)
+        DM_PROFILE("Post");
+        DM_PROPERTY_ADD_U32(rmtp_Messages, 1);
 
         if (receiver == 0x0)
         {
@@ -480,23 +483,17 @@ namespace dmMessage
     }
 
     // Low level string concatenation to void the overhead of dmSnPrintf and having to call strlen
-    static const char* GetProfilerString(const char* socket_name, uint32_t* out_profiler_hash)
+    static const char* GetProfilerString(const char* socket_name, char* buffer, uint32_t buffer_size)
     {
-        const char* profiler_string = 0;
-        if (dmProfile::g_IsInitialized)
-        {
-            char buffer[128];
-            char* w_ptr = buffer;
-            const char* w_ptr_end = &buffer[sizeof(buffer) - 1];
-            w_ptr = ConcatString(w_ptr, w_ptr_end, "Dispatch ");
-            w_ptr = ConcatString(w_ptr, w_ptr_end, socket_name);
-            uint32_t str_len = (uint32_t)(w_ptr - buffer);
-            *w_ptr++ = 0;
-            uint32_t hash = dmProfile::GetNameHash(buffer, str_len);
-            profiler_string = dmProfile::Internalize(buffer, str_len, hash);
-            *out_profiler_hash = hash;
-        }
-        return profiler_string;
+        if (!dmProfile::IsInitialized())
+            return 0;
+
+        char* w_ptr = buffer;
+        const char* w_ptr_end = buffer + buffer_size - 1;
+        w_ptr = ConcatString(w_ptr, w_ptr_end, "Dispatch ");
+        w_ptr = ConcatString(w_ptr, w_ptr_end, socket_name);
+        *w_ptr++ = 0;
+        return buffer;
     }
 
     uint32_t InternalDispatch(HSocket socket, DispatchCallback dispatch_callback, void* user_ptr, bool blocking)
@@ -522,9 +519,10 @@ namespace dmMessage
             }
         }
 
-        uint32_t profiler_hash = 0;
-        const char* profiler_string = GetProfilerString(s->m_Name, &profiler_hash);
-        DM_PROFILE_DYN(Message, profiler_string, profiler_hash);
+
+        char buffer[128];
+        const char* profiler_string = GetProfilerString(s->m_Name, buffer, sizeof(buffer));
+        DM_PROFILE_DYN(profiler_string, 0);
 
         uint32_t dispatch_count = 0;
 

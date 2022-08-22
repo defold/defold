@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,6 +28,7 @@
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
+    #include <emscripten/html5.h>
 #endif
 
 #include "graphics_opengl_defines.h"
@@ -89,6 +90,9 @@ typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
 typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
 typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
 typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei, const GLenum*);
+typedef GLint (APIENTRY * PFNGLGETFRAGDATALOCATIONPROC) (GLuint, const char*);
+typedef void (APIENTRY * PFNGLBINDFRAGDATALOCATIONPROC) (GLuint, GLuint, const char*);
 
 PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
 PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
@@ -145,6 +149,9 @@ PFNGLUNIFORM1IPROC glUniform1i = NULL;
 PFNGLGETSTRINGIPROC glGetStringi = NULL;
 PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
 PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
+PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
+PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = NULL;
+PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
 #endif
 
 #elif defined(__EMSCRIPTEN__)
@@ -171,7 +178,7 @@ PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
 #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
 
-
+DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 
 namespace dmGraphics
 {
@@ -329,7 +336,7 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static int8_t          g_null_adapter_priority = 1;
-    static GraphicsAdapter g_opengl_adapter;
+    static GraphicsAdapter g_opengl_adapter(ADAPTER_TYPE_OPENGL);
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, g_null_adapter_priority);
 
@@ -472,11 +479,6 @@ static void LogFrameBufferError(GLenum status)
         return GL_FALSE;
     }
 
-    static bool OpenGLIsSupported()
-    {
-        return Initialize();
-    }
-
     static HContext OpenGLNewContext(const ContextParams& params)
     {
         if (g_Context == 0x0)
@@ -510,6 +512,11 @@ static void LogFrameBufferError(GLenum status)
     {
         // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
         return (glfwInit() == GL_TRUE);
+    }
+
+    static bool OpenGLIsSupported()
+    {
+        return OpenGLInitialize();
     }
 
     static void OpenGLFinalize()
@@ -843,6 +850,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
         GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
         GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
+        GET_PROC_ADDRESS(glDrawBuffers, "glDrawBuffers", PFNGLDRAWBUFFERSPROC);
+        GET_PROC_ADDRESS(glGetFragDataLocation, "glGetFragDataLocation", PFNGLGETFRAGDATALOCATIONPROC);
+        GET_PROC_ADDRESS(glBindFragDataLocation, "glBindFragDataLocation", PFNGLBINDFRAGDATALOCATIONPROC);
 #endif
 
 #undef GET_PROC_ADDRESS
@@ -869,17 +879,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_WindowFocusCallbackUserData    = params->m_FocusCallbackUserData;
         context->m_WindowIconifyCallback          = params->m_IconifyCallback;
         context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
-        context->m_WindowOpened = 1;
-        context->m_Width = params->m_Width;
-        context->m_Height = params->m_Height;
+        context->m_WindowOpened                   = 1;
+        context->m_Width                          = params->m_Width;
+        context->m_Height                         = params->m_Height;
+
         // read back actual window size
         int width, height;
         glfwGetWindowSize(&width, &height);
-        context->m_WindowWidth = (uint32_t)width;
-        context->m_WindowHeight = (uint32_t)height;
-        context->m_Dpi = 0;
-
-
+        context->m_WindowWidth    = (uint32_t) width;
+        context->m_WindowHeight   = (uint32_t) height;
+        context->m_Dpi            = 0;
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
@@ -900,6 +909,50 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_IsGles3Version = 1;
             context->m_IsShaderLanguageGles = 0;
         #endif
+#endif
+
+#if defined(__EMSCRIPTEN__)
+        EMSCRIPTEN_WEBGL_CONTEXT_HANDLE emscripten_ctx = emscripten_webgl_get_current_context();
+        assert(emscripten_ctx != 0 && "Unable to get GL context from emscripten.");
+
+        // These are all the available official webgl extensions, taken from this list:
+        // https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Using_Extensions
+        emscripten_webgl_enable_extension(emscripten_ctx, "ANGLE_instanced_arrays");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_blend_minmax");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_half_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_disjoint_timer_query");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_float_blend");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_frag_depth");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_shader_texture_lod");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_sRGB");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_bptc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_rgtc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_filter_anisotropic");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_norm16");
+        emscripten_webgl_enable_extension(emscripten_ctx, "KHR_parallel_shader_compile");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_element_index_uint");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_fbo_render_mipmap");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_standard_derivatives");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float_linear");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float_linear");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_vertex_array_object");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OVR_multiview2");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_color_buffer_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_astc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc1");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_pvrtc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc_srgb");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_renderer_info");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_shaders");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_depth_texture");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_draw_buffers");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
 
         if (params->m_PrintDeviceInfo)
@@ -1243,6 +1296,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return context->m_WindowWidth;
     }
 
+    static float OpenGLGetDisplayScaleFactor(HContext context)
+    {
+        assert(context);
+        return glfwGetDisplayScaleFactor();
+    }
+
     static uint32_t OpenGLGetWindowHeight(HContext context)
     {
         assert(context);
@@ -1287,7 +1346,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLClear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);
-        DM_PROFILE(Graphics, "Clear");
+        DM_PROFILE(__FUNCTION__);
 
         float r = ((float)red)/255.0f;
         float g = ((float)green)/255.0f;
@@ -1302,7 +1361,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glClearStencil(stencil);
         CHECK_GL_ERROR;
 
-        GLbitfield gl_flags = (flags & BUFFER_TYPE_COLOR_BIT)   ? GL_COLOR_BUFFER_BIT : 0;
+        GLbitfield gl_flags = (flags & BUFFER_TYPE_COLOR0_BIT)  ? GL_COLOR_BUFFER_BIT : 0;
         gl_flags           |= (flags & BUFFER_TYPE_DEPTH_BIT)   ? GL_DEPTH_BUFFER_BIT : 0;
         gl_flags           |= (flags & BUFFER_TYPE_STENCIL_BIT) ? GL_STENCIL_BUFFER_BIT : 0;
 
@@ -1319,7 +1378,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLFlip(HContext context)
     {
-        DM_PROFILE(VSync, "Wait");
+        DM_PROFILE(__FUNCTION__);
         PostDeleteTextures(false);
         glfwSwapBuffers();
         CHECK_GL_ERROR;
@@ -1367,7 +1426,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DM_PROFILE(Graphics, "SetVertexBufferData");
+        DM_PROFILE(__FUNCTION__);
         // NOTE: Android doesn't seem to like zero-sized vertex buffers
         if (size == 0) {
             return;
@@ -1382,7 +1441,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        DM_PROFILE(Graphics, "SetVertexBufferSubData");
+        DM_PROFILE(__FUNCTION__);
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
@@ -1398,7 +1457,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DM_PROFILE(Graphics, "SetIndexBufferData");
+        DM_PROFILE(__FUNCTION__);
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
@@ -1427,7 +1486,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        DM_PROFILE(Graphics, "SetIndexBufferSubData");
+        DM_PROFILE(__FUNCTION__);
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
@@ -1639,11 +1698,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
         assert(index_buffer);
-        DM_PROFILE(Graphics, "DrawElements");
-        DM_COUNTER("DrawCalls", 1);
-
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR;
 
@@ -1653,9 +1711,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
-        DM_PROFILE(Graphics, "Draw");
-        DM_COUNTER("DrawCalls", 1);
         glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
         CHECK_GL_ERROR
     }
@@ -1715,6 +1773,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
         glAttachShader(p, fragment_program);
         CHECK_GL_ERROR;
+
+        // For MRT bindings to work correctly on all platforms,
+        // we need to specify output locations manually
+#ifndef GL_ES_VERSION_2_0
+        const char* base_output_name = "_DMENGINE_GENERATED_gl_FragColor";
+        char buf[64] = {0};
+        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            snprintf(buf, sizeof(buf), "%s_%d", base_output_name, i);
+            glBindFragDataLocation(p, i, buf);
+        }
+#endif
+
         glLinkProgram(p);
 
         GLint status;
@@ -1893,7 +1964,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             return false;
         }
-
         glLinkProgram(program);
         CHECK_GL_ERROR;
         return true;
@@ -2042,15 +2112,37 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             rt->m_BufferTextureParams[i].m_Data = 0x0;
             rt->m_BufferTextureParams[i].m_DataSize = 0;
         }
-        if(buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
+
+    #ifdef GL_ES_VERSION_2_0
+        if(buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR0_BIT)
         {
-            uint32_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
-            rt->m_ColorBufferTexture = NewTexture(context, creation_params[color_buffer_index]);
-            SetTexture(rt->m_ColorBufferTexture, params[color_buffer_index]);
+            uint32_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR0_BIT);
+            rt->m_ColorBufferTexture[0] = NewTexture(context, creation_params[color_buffer_index]);
+            SetTexture(rt->m_ColorBufferTexture[0], params[color_buffer_index]);
             // attach the texture to FBO color attachment point
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture->m_Texture, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture[0]->m_Texture, 0);
             CHECK_GL_ERROR;
         }
+    #else
+        BufferType color_buffer_flags[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (buffer_type_flags & color_buffer_flags[i])
+            {
+                uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
+                rt->m_ColorBufferTexture[i] = NewTexture(context, creation_params[color_buffer_index]);
+                SetTexture(rt->m_ColorBufferTexture[i], params[color_buffer_index]);
+                // attach the texture to FBO color attachment point
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rt->m_ColorBufferTexture[i]->m_Texture, 0);
+                CHECK_GL_ERROR;
+            }
+        }
+    #endif
 
         if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
         {
@@ -2079,7 +2171,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         // Disable color buffer
-        if ((buffer_type_flags & BUFFER_TYPE_COLOR_BIT) == 0)
+        if ((buffer_type_flags & BUFFER_TYPE_COLOR0_BIT) == 0)
         {
 #if !defined(GL_ES_VERSION_2_0)
             // TODO: Not available in OpenGL ES.
@@ -2103,8 +2195,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static void OpenGLDeleteRenderTarget(HRenderTarget render_target)
     {
         glDeleteFramebuffers(1, &render_target->m_Id);
-        if (render_target->m_ColorBufferTexture)
-            DeleteTexture(render_target->m_ColorBufferTexture);
+
+        for (uint8_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
+        {
+            if (render_target->m_ColorBufferTexture[i])
+            {
+                DeleteTexture(render_target->m_ColorBufferTexture[i]);
+            }
+        }
+
         if (render_target->m_DepthStencilBuffer)
             glDeleteRenderbuffers(1, &render_target->m_DepthStencilBuffer);
         if (render_target->m_DepthBuffer)
@@ -2129,7 +2228,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 }
                 GLenum types[MAX_BUFFER_TYPE_COUNT];
                 uint32_t types_count = 0;
-                if(invalidate_bits & BUFFER_TYPE_COLOR_BIT)
+                if(invalidate_bits & BUFFER_TYPE_COLOR0_BIT)
                 {
                     types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_COLOR_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_COLOR;
                 }
@@ -2152,14 +2251,47 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR;
+
+#ifndef GL_ES_VERSION_2_0
+        if (render_target != NULL)
+        {
+            uint32_t num_buffers = 0;
+            GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
+
+            for (uint32_t i=0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
+            {
+                if (render_target->m_ColorBufferTexture[i])
+                {
+                    buffers[i] = GL_COLOR_ATTACHMENT0 + i;
+                    num_buffers++;
+                }
+                else
+                {
+                    buffers[i] = 0;
+                }
+            }
+
+            if (num_buffers > 1)
+            {
+                glDrawBuffers(num_buffers, buffers);
+            }
+        }
+#endif
+
         CHECK_GL_FRAMEBUFFER_ERROR;
     }
 
     static HTexture OpenGLGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-        if(buffer_type != BUFFER_TYPE_COLOR_BIT)
+        if(!(buffer_type == BUFFER_TYPE_COLOR0_BIT  ||
+           buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+           buffer_type == BUFFER_TYPE_COLOR1_BIT ||
+           buffer_type == BUFFER_TYPE_COLOR2_BIT ||
+           buffer_type == BUFFER_TYPE_COLOR3_BIT))
+        {
             return 0;
-        return render_target->m_ColorBufferTexture;
+        }
+        return render_target->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
     }
 
     static void OpenGLGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
@@ -2178,10 +2310,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             render_target->m_BufferTextureParams[i].m_Width = width;
             render_target->m_BufferTextureParams[i].m_Height = height;
-            if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT))
+
+            if (i < MAX_BUFFER_COLOR_ATTACHMENTS && render_target->m_ColorBufferTexture[i])
             {
-                if(render_target->m_ColorBufferTexture)
-                    SetTexture(render_target->m_ColorBufferTexture, render_target->m_BufferTextureParams[i]);
+                SetTexture(render_target->m_ColorBufferTexture[i], render_target->m_BufferTextureParams[i]);
             }
         }
         OpenGLSetDepthStencilRenderBuffer(render_target, true);
@@ -2243,7 +2375,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void PostDeleteTextures(bool force_delete)
     {
-        DM_PROFILE(Graphics, "PostDeleteTextures");
+        DM_PROFILE("OpenGLPostDeleteTextures");
 
         if (force_delete)
         {
@@ -2399,7 +2531,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetTexture(HTexture texture, const TextureParams& params)
     {
-        DM_PROFILE(Graphics, "SetTexture");
+        DM_PROFILE(__FUNCTION__);
 
         // validate write accessibility for format. Some format are not garuanteed to be writeable
         switch (params.m_Format)
@@ -2963,7 +3095,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
-    BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
+    BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR0_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
 
     GLenum TEXTURE_UNIT_NAMES[32] =
     {
@@ -3018,6 +3150,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_GetHeight = OpenGLGetHeight;
         fn_table.m_GetWindowWidth = OpenGLGetWindowWidth;
         fn_table.m_GetWindowHeight = OpenGLGetWindowHeight;
+        fn_table.m_GetDisplayScaleFactor = OpenGLGetDisplayScaleFactor;
         fn_table.m_SetWindowSize = OpenGLSetWindowSize;
         fn_table.m_ResizeWindow = OpenGLResizeWindow;
         fn_table.m_GetDefaultTextureFilters = OpenGLGetDefaultTextureFilters;

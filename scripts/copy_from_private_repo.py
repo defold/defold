@@ -57,7 +57,7 @@ def is_local_file(path):
 def is_private_file(path):
     for pattern in PLATFORMS+FILE_PATTERNS:
         if pattern in path:
-            print "Skipping", path
+            print("Skipping", path)
             return True
     return False
 

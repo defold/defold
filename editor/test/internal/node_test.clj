@@ -166,7 +166,7 @@
   (with-clean-system
     (let [[node-id] (tx-nodes (g/make-node world node-type :foo "one"))
           tx-result (g/transact (f node-id))]
-      (let [modified (into #{} (map second (:outputs-modified tx-result)))]
+      (let [modified (into #{} (map gt/endpoint-label) (:outputs-modified tx-result))]
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
@@ -187,7 +187,9 @@
                                                               target VisibilityTestNode]
                                                        (g/connect source :foo target :bar)))
           tx-result                     (g/set-property! source :foo "hi")
-          properties-modified-on-target (set (keep #(when (= (first %) target) (second %)) (:outputs-modified tx-result)))]
+          properties-modified-on-target (set (keep #(when (= (gt/endpoint-node-id %) target)
+                                                      (gt/endpoint-label %))
+                                                   (:outputs-modified tx-result)))]
       (is (= #{:_declared-properties :baz :_properties} properties-modified-on-target)))))
 
 (deftest visibility-properties
@@ -205,8 +207,8 @@
                                   (g/make-node world EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
-            enode-results (filter #(= (first %) enode) (:outputs-modified tx-result))
-            modified      (into #{} (map second enode-results))]
+            enode-results (filter #(= (gt/endpoint-node-id %) enode) (:outputs-modified tx-result))
+            modified      (into #{} (map gt/endpoint-label) enode-results)]
         (is (= #{:_declared-properties :baz :_properties} modified))))))
 
 (deftest enablement-properties
@@ -366,9 +368,9 @@
       (is (:string-property      (-> (g/construct BasicNode)         g/node-type g/declared-properties)))
       (is (:string-property      (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
       (is (:property-to-override (-> (g/construct InheritsBasicNode) g/node-type g/declared-properties)))
-      (is (= nil                 (-> (g/construct BasicNode)         :property-to-override  )))
-      (is (= "override"          (-> (g/construct InheritsBasicNode) :property-to-override   )))
-      (is (= "multiple"          (-> (g/construct InheritsBasicNode) :property-from-multiple )))))
+      (is (= nil                 (-> (g/construct BasicNode)         :property-to-override)))
+      (is (= "override"          (-> (g/construct InheritsBasicNode) :property-to-override)))
+      (is (= "multiple"          (-> (g/construct InheritsBasicNode) :property-from-multiple)))))
 
   (testing "transforms"
     (is (every? (-> (g/construct BasicNode) g/node-type g/output-labels)
@@ -607,3 +609,32 @@
         (reset! production-count 0)
         (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp false})) ""))
         (is (= @production-count 1))))))
+
+(g/defnode CachedDependencyTestNode
+  (input regular-input g/Any)
+  (input array-input g/Any :array)
+  (output internal-output g/Any :cached (g/fnk [_node-id] _node-id))
+  (output evaluated-output g/Any :cached (g/fnk [regular-input array-input internal-output] [regular-input array-input internal-output])))
+
+(deftest dependency-caching
+  (with-clean-system
+    (let [[regular-input-producer array-input-producer-one array-input-producer-two consumer]
+          (tx-nodes (g/make-node world CachedDependencyTestNode)
+                    (g/make-node world CachedDependencyTestNode)
+                    (g/make-node world CachedDependencyTestNode)
+                    (g/make-node world CachedDependencyTestNode))]
+      (g/transact
+        (concat
+          (g/connect regular-input-producer :evaluated-output consumer :regular-input)
+          (g/connect array-input-producer-one :evaluated-output consumer :array-input)
+          (g/connect array-input-producer-two :evaluated-output consumer :array-input)))
+      (g/node-value consumer :evaluated-output)
+      (is (= #{(gt/endpoint consumer :evaluated-output)
+               (gt/endpoint consumer :internal-output)
+               (gt/endpoint regular-input-producer :evaluated-output)
+               (gt/endpoint regular-input-producer :internal-output)
+               (gt/endpoint array-input-producer-one :evaluated-output)
+               (gt/endpoint array-input-producer-one :internal-output)
+               (gt/endpoint array-input-producer-two :evaluated-output)
+               (gt/endpoint array-input-producer-two :internal-output)}
+             (set (keys (g/cache))))))))

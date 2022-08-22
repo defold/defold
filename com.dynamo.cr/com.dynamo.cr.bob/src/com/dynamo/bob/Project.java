@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+import java.util.stream.Collectors;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -108,7 +109,8 @@ public class Project {
 
     public enum OutputFlags {
         NONE,
-        UNCOMPRESSED
+        UNCOMPRESSED,
+        ENCRYPTED
     }
 
     private ResourceCache resourceCache = new ResourceCache();
@@ -124,7 +126,6 @@ public class Project {
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
-    private final List<String> excludedCollectionProxies = new ArrayList<String>();
     private List<String> propertyFiles = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
@@ -309,7 +310,6 @@ public class Project {
         {".mesh", ".meshc"},
         {".collectionproxy", ".collectionproxyc"},
         {".collisionobject", ".collisionobjectc"},
-        {".emitter", ".emitterc"},
         {".particlefx", ".particlefxc"},
         {".gui", ".guic"},
         {".model", ".modelc"},
@@ -439,17 +439,19 @@ public class Project {
     }
 
     private List<String> loadDefoldIgnore() throws CompileExceptionError {
-        List<String> ignoredFolders = new ArrayList<String>();
         final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
         if (defIgnoreFile.isFile()) {
             try {
-                ignoredFolders = FileUtils.readLines(defIgnoreFile, "UTF-8");
+                return FileUtils.readLines(defIgnoreFile, "UTF-8")
+                        .stream()
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toList());
             }
             catch(IOException e) {
                 throw new CompileExceptionError("Unable to read .defignore", e);
             }
         }
-        return ignoredFolders;
+        return Collections.emptyList();
     }
 
     private void createTasks() throws CompileExceptionError {
@@ -793,6 +795,11 @@ public class Project {
         }
 
         return false;
+    }
+
+    public List<Platform> getArchitectures() throws CompileExceptionError {
+        Platform p = getPlatform();
+        return Platform.getArchitecturesFromString(option("architectures", ""), p);
     }
 
     public Platform getPlatform() throws CompileExceptionError {
@@ -1482,6 +1489,10 @@ run:
         return outputs;
     }
 
+    public EnumSet<OutputFlags> getOutputFlags(String resourcePath) {
+        return outputs.get(resourcePath);
+    }
+
     /**
      * Add output flag to resource
      * @param resourcePath output resource absolute path
@@ -1550,6 +1561,23 @@ run:
                     basicAuthData = uri.getUserInfo();
                 } catch (URISyntaxException e1) {
                     // Ignored, could not get URI and basic auth data from URL.
+                }
+
+                // Check if basic auth password is a token that should be replaced with
+                // an environment variable.
+                // The token should start and end with __ and exist as an environment
+                // variable.
+                if (basicAuthData != null) {
+                    String[] parts = basicAuthData.split(":");
+                    String username = parts[0];
+                    String password = parts.length > 1 ? parts[1] : "";
+                    if (password.startsWith("__") && password.endsWith("__")) {
+                        String envKey = password.substring(2, password.length() - 2);
+                        String envValue = System.getenv(envKey);
+                        if (envValue != null) {
+                            basicAuthData = username + ":" + envValue;
+                        }
+                    }
                 }
 
                 // Pass correct headers along to server depending on auth alternative.
@@ -1833,11 +1861,11 @@ run:
     }
 
     public void excludeCollectionProxy(String path) {
-        this.excludedCollectionProxies.add(path);
+        state.addExcludedCollectionProxy(path);
     }
 
     public final List<String> getExcludedCollectionProxies() {
-        return this.excludedCollectionProxies;
+        return state.getExcludedCollectionProxies();
     }
 
 }

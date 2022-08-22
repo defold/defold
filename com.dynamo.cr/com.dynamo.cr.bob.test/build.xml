@@ -19,6 +19,8 @@
         <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="aspectjtools-1.9.5.jar" />
         <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="jetty-all-7.0.2.v20100331.jar" />
         <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="servlet-api-2.5.jar" />
+        <fileset dir="../com.dynamo.cr.bob.test/lib/" includes="system-rules-1.19.0.jar" />
+
 
     </path>
     <target name="clean">

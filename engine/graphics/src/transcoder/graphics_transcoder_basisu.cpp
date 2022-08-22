@@ -120,7 +120,7 @@ namespace dmGraphics
     bool Transcode(const char* path, dmGraphics::TextureImage::Image* image, dmGraphics::TextureFormat format,
                     uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips)
     {
-        DM_PROFILE(Graphics, "TranscodeBasis");
+        DM_PROFILE(__FUNCTION__);
 
         static int first = 1;
         if (first)

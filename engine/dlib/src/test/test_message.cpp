@@ -22,7 +22,7 @@
 #include "../../src/dlib/dstrings.h"
 #include "../../src/dlib/thread.h"
 #include "../../src/dlib/time.h"
-#include "../../src/dlib/profile.h"
+#include "../../src/dlib/profile/profile.h"
 
 const dmhash_t m_HashMessage1 = 0x35d47694;
 const dmhash_t m_HashMessage2 = 0x35d47695;
@@ -467,7 +467,7 @@ TEST(dmMessage, MessagePostDispatch)
 
 int main(int argc, char **argv)
 {
-    dmProfile::Initialize(1024, 1024 * 1024, 64);
+    dmProfile::Initialize(0);
     jc_test_init(&argc, argv);
     int ret = jc_test_run_all();
     dmProfile::Finalize();

@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmSoundDDF;
 
 import "ddf/ddf_extensions.proto";

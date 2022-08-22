@@ -58,7 +58,7 @@ namespace dmSoundCodec
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
 
-        DM_PROFILE(SoundCodec, "StbVorbis")
+        DM_PROFILE(__FUNCTION__);
 
         int ret = 0;
         if (streamInfo->m_Info.m_Channels == 1) {

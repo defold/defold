@@ -1,3 +1,4 @@
+syntax = "proto2";
 package dmParticleDDF;
 
 import "ddf/ddf_extensions.proto";
@@ -172,6 +173,7 @@ message Emitter
     optional bool                   stretch_with_velocity  = 22 [default = false];
 
     optional float                  start_offset           = 23 [default = 0.0];
+    optional dmMath.Point3          pivot                  = 24;
 }
 
 message ParticleFX

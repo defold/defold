@@ -30,7 +30,7 @@ namespace dmGraphics
 
 namespace dmProfile
 {
-    typedef struct Profile* HProfile;
+    typedef void* HProfile;
 } // dmProfile
 
 namespace dmProfiler

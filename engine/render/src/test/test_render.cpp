@@ -136,7 +136,7 @@ TEST_F(dmRenderTest, TestRenderTarget)
     params[1].m_Width = WIDTH;
     params[1].m_Height = HEIGHT;
     params[1].m_Format = dmGraphics::TEXTURE_FORMAT_DEPTH;
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_GraphicsContext, flags, creation_params, params);
     dmGraphics::DeleteRenderTarget(target);
 }

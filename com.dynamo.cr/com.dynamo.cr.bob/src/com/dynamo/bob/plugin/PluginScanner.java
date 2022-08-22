@@ -60,8 +60,12 @@ public class PluginScanner {
 		// return null if we have searched for and not found a plugin
 		String pluginKey = packageName + pluginBaseClass;
 		if (pluginsCache.containsKey(pluginKey)) {
-			Bob.verbose("PluginScanner has cached plugin for key %s: %s", pluginKey, pluginsCache.get(pluginKey));
-			return (T)pluginsCache.get(pluginKey);
+			T plugin = (T)pluginsCache.get(pluginKey);
+			if (plugin != null)
+			{
+				Bob.verbose("PluginScanner has cached plugin for key %s: %s", pluginKey, plugin);
+			}
+			return plugin;
 		}
 
 		Bob.verbose("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);

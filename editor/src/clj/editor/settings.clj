@@ -13,18 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.settings
-  (:require [clojure.string :as string]
-            [clojure.java.io :as io]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.string :as string]
             [dynamo.graph :as g]
-            [util.murmur :as murmur]
-            [editor.graph-util :as gu]
             [editor.core :as core]
-            [editor.settings-core :as settings-core]
             [editor.defold-project :as project]
-            [camel-snake-kebab :as camel]
-            [editor.workspace :as workspace]
+            [editor.graph-util :as gu]
             [editor.resource :as resource]
-            [service.log :as log]))
+            [editor.resource-node :as resource-node]
+            [editor.settings-core :as settings-core]
+            [editor.workspace :as workspace]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]
@@ -77,15 +75,9 @@
 (defn- make-form-values-map [settings]
   (settings-core/make-settings-map settings))
 
-(defn- label [key]
-  (-> key
-      name
-      camel/->Camel_Snake_Case_String
-      (string/replace "_" " ")))
-
 (defn- make-form-field [setting]
   (cond-> (assoc setting
-                 :label (or (:label setting) (label (second (:path setting))))
+                 :label (or (:label setting) (settings-core/label (second (:path setting))))
                  :optional true
                  :hidden? (:hidden? setting false))
 
@@ -98,11 +90,13 @@
     (= :comma-separated-list (:type setting))
     (assoc :type :list :element {:type :string :default (or (first (:default setting)) "item")})))
 
+(defn- section-title [category-name category-info]
+  (or (:title category-info)
+      (settings-core/label category-name)))
+
 (defn- make-form-section [category-name category-info settings]
-  {:title (or (:title category-info)
-              (->> (string/split category-name #"(_|\s+)")
-                   (mapv string/capitalize)
-                   (string/join " ")))
+  {:title (section-title category-name category-info)
+   :group (:group category-info "Other")
    :help (:help category-info)
    :fields (mapv make-form-field settings)})
 
@@ -111,8 +105,18 @@
         categories (distinct (mapv settings-core/presentation-category meta-settings))
         category->settings (group-by settings-core/presentation-category meta-settings)
         sections (mapv #(make-form-section % (get-in meta-info [:categories %]) (category->settings %)) categories)
-        values (make-form-values-map settings)]
-    {:form-ops form-ops :sections sections :values values :meta-settings meta-settings}))
+        values (make-form-values-map settings)
+        group-order (into {}
+                          (map-indexed (fn [i v]
+                                         [v i]))
+                          (:group-order meta-info))]
+    {:form-ops form-ops
+     :sections sections
+     :values values
+     :meta-settings meta-settings
+     :group-order group-order
+     :default-section-name (when-let [category-name (:default-category meta-info)]
+                             (section-title category-name (get-in meta-info [:categories category-name])))}))
 
 (defn get-setting-error [setting-value meta-setting label]
   (cond
@@ -219,3 +223,30 @@
                         (when resource
                           (g/set-property resource-setting-node :value resource))
                         (g/connect resource-setting-node :resource-setting-reference self :resource-setting-references)))))))
+
+(g/defnode SimpleSettingsResourceNode
+  (inherits resource-node/ResourceNode)
+
+  (input form-data g/Any)
+  (output form-data g/Any (gu/passthrough form-data))
+
+  (input save-value g/Any)
+  (output save-value g/Any (gu/passthrough save-value)))
+
+(defn- load-simple-settings-resource-node [meta-info project self resource source-value]
+  (let [graph-id (g/node-id->graph-id self)]
+    (concat
+      (g/make-nodes graph-id [settings-node SettingsNode]
+        (g/connect settings-node :_node-id self :nodes)
+        (g/connect settings-node :save-value self :save-value)
+        (g/connect settings-node :form-data self :form-data)
+        (load-settings-node settings-node resource source-value meta-info nil)))))
+
+(defn register-simple-settings-resource-type [workspace & {:keys [ext label icon meta-info]}]
+  (resource-node/register-settings-resource-type workspace
+    :ext ext
+    :label label
+    :icon icon
+    :node-type SimpleSettingsResourceNode
+    :load-fn (partial load-simple-settings-resource-node meta-info)
+    :view-types [:cljfx-form-view :text]))

@@ -159,7 +159,7 @@ namespace dmDDF
 
     Result LoadMessage(const void* buffer, uint32_t buffer_size, const Descriptor* desc, void** out_message, uint32_t options, uint32_t* size)
     {
-        DM_PROFILE(DDF, "LoadMessage");
+        DM_PROFILE("DdfLoadMessage");
         assert(buffer);
         assert(desc);
         assert(out_message);

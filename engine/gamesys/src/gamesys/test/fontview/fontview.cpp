@@ -74,7 +74,7 @@ namespace dmFontView
             if (dmHID::GetKey(&keybdata, dmHID::KEY_ESC))
                 break;
 
-            dmGraphics::Clear(context->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
+            dmGraphics::Clear(context->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, 0, 0, 0, 0, 1.0, 0);
             dmGraphics::SetViewport(context->m_GraphicsContext, 0, 0, context->m_ScreenWidth, context->m_ScreenHeight);
 
             uint16_t x = 10;

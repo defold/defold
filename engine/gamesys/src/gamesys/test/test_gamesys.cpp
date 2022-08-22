@@ -50,7 +50,7 @@ static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid
     #define MOUNTFS ""
 #endif
 
-const char* ROOT = MOUNTFS "build/default/src/gamesys/test";
+const char* ROOT = MOUNTFS "build/src/gamesys/test";
 
 bool CopyResource(const char* src, const char* dst)
 {
@@ -1828,14 +1828,6 @@ ResourceFailParams invalid_cs_resources[] =
     {"/convex_shape/sphere.convexshapec", "/convex_shape/invalid_sphere.convexshapec"},
 };
 INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, jc_test_values_in(invalid_cs_resources));
-
-/* Emitter */
-
-const char* valid_emitter_resources[] = {"/emitter/valid.emitterc"};
-INSTANTIATE_TEST_CASE_P(Emitter, ResourceTest, jc_test_values_in(valid_emitter_resources));
-
-const char* valid_emitter_gos[] = {"/emitter/valid_emitter.goc"};
-INSTANTIATE_TEST_CASE_P(Emitter, ComponentTest, jc_test_values_in(valid_emitter_gos));
 
 /* Font map */
 

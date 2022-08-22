@@ -21,6 +21,7 @@
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
 #include <dlib/array.h>
+#include <dmsdk/dlib/profile.h>
 
 
 namespace dmLiveUpdate
@@ -92,6 +93,7 @@ namespace dmLiveUpdate
         AsyncResourceRequest request;
         while (m_Active)
         {
+            DM_PROFILE("Update");
             // Lock and sleep until signaled there is requests queued up
             {
                 dmMutex::ScopedLock lk(m_ConsumerThreadMutex);
