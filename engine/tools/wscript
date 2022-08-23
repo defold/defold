@@ -58,9 +58,6 @@ def configure(conf):
     if platform in ("x86_64-macos",):
         conf.env['STLIB_GRAPHICS_VULKAN'] += ['MoltenVK']
 
-    if platform == "x86_64-darwin":
-        conf.env['STLIB_GRAPHICS_VULKAN'] += ['MoltenVK']
-
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')
     conf.env.append_unique('DEFINES', 'DEFOLD_SHA1="%s"' % build_util.git_sha1())
 
