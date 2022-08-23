@@ -8,10 +8,10 @@ def build(bld):
 
     platform = bld.env.PLATFORM
 
-    if platform == 'darwin' or platform == 'x86_64-darwin':
+    if platform in ('x86_64-macos',):
         sources  = bld.path.ant_glob(['*.c', 'cocoa/*.m'])
         includes = '. cocoa'
-    elif platform in ('arm64-darwin', 'x86_64-ios'):
+    elif platform in ('arm64-ios', 'x86_64-ios'):
         sources  = bld.path.ant_glob(['*.c', 'ios/*.m', 'ios/app/*.m'])
         includes = '. ios'
     elif re.match('arm.*?android', platform):

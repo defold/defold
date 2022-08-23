@@ -1666,8 +1666,8 @@ def detect(conf):
 
     conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
 
-    if platform not in ('x86_64-darwin',):
-        conf.env['STATICLIB_UNWIND'] = 'unwind'
+    if platform not in ('x86_64-macos',):
+        conf.env['STLIB_UNWIND'] = 'unwind'
 
     if platform in ('x86_64-macos','arm64-macos'):
         conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']

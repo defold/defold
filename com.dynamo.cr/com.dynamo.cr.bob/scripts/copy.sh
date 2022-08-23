@@ -51,7 +51,7 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe libexec/x86_64-win32/spi
 
 # luac
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luac-32 libexec/x86_64-linux/luac-32
-cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/luac-32 libexec/x86_64-darwin/luac-32
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luac-32 libexec/x86_64-macos/luac-32
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/luac-32.exe libexec/x86_64-win32/luac-32.exe
 
 #
