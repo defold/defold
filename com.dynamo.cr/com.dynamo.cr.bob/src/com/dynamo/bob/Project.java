@@ -806,6 +806,8 @@ public class Project {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
         if (pair != null) {
+            // backwards compatibility.
+            // TODO: remove in some future update
             if (pair.equals("x86_64-darwin"))
             {
                 p = Platform.X86_64MacOS;
