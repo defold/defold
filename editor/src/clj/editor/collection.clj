@@ -862,46 +862,53 @@
     [scale scale scale]
     scale3))
 
-(defn- uniform->non-uniform-scale [instance]
-  (-> instance
-      (assoc :scale3 (read-scale3-or-scale instance))
+(defn- uniform->non-uniform-scale [any-instance-desc]
+  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  (-> any-instance-desc
+      (assoc :scale3 (read-scale3-or-scale any-instance-desc))
       (dissoc :scale)))
 
-(defn- sanitize-instance-data [instance property-descs-path]
-  (->> instance
-       uniform->non-uniform-scale
-       (game-object/sanitize-property-descs-at-path property-descs-path)))
+(defn- sanitize-instance-data [any-instance-desc property-descs-path]
+  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  (-> any-instance-desc
+      (uniform->non-uniform-scale)
+      (game-object/sanitize-property-descs-at-path property-descs-path)))
 
-(defn- sanitize-embedded-go-data [embedded key resource-type-map]
+(defn- sanitize-embedded-game-object-data [embedded-instance-desc resource-type-map]
+  ;; GameObject$EmbeddedInstanceDesc in map format.
   (let [{:keys [read-fn write-fn]} (resource-type-map "go")]
     (try
-      (let [data (get embedded key)
+      (let [data (get embedded-instance-desc :data)
             sanitized-data (with-open [reader (StringReader. data)]
                              (write-fn (read-fn reader)))]
-        (assoc embedded key sanitized-data))
+        (assoc embedded-instance-desc :data sanitized-data))
       (catch Exception _
         ;; Leave unsanitized.
-        embedded))))
+        embedded-instance-desc))))
 
-(defn- sanitize-instance [instance]
-  (-> instance
+(defn- sanitize-referenced-game-object-instance [instance-desc]
+  ;; GameObject$InstanceDesc in map format.
+  (-> instance-desc
       (sanitize-instance-data [:component-properties :properties])))
 
-(defn- sanitize-embedded-instance [resource-type-map embedded-instance]
-  (-> embedded-instance
+(defn- sanitize-embedded-game-object-instance [embedded-instance-desc resource-type-map]
+  ;; GameObject$EmbeddedInstanceDesc in map format.
+  (-> embedded-instance-desc
       (sanitize-instance-data [:component-properties :properties])
-      (sanitize-embedded-go-data :data resource-type-map)))
+      (sanitize-embedded-game-object-data resource-type-map)))
 
-(defn- sanitize-collection-instance [collection-instance]
-  (-> collection-instance
+(defn- sanitize-referenced-collection-instance [collection-instance-desc]
+  ;; GameObject$CollectionInstanceDesc in map format.
+  (-> collection-instance-desc
       (sanitize-instance-data [:instance-properties :properties :properties])))
 
-(defn- sanitize-collection [workspace collection]
+(defn- sanitize-collection [workspace collection-desc]
+  ;; GameObject$CollectionDesc in map format.
   (let [resource-type-map (workspace/get-resource-type-map workspace)]
-    (-> collection
-        (update :instances (partial mapv sanitize-instance))
-        (update :embedded-instances (partial mapv (partial sanitize-embedded-instance resource-type-map)))
-        (update :collection-instances (partial mapv sanitize-collection-instance)))))
+    (-> collection-desc
+        (update :instances (partial mapv sanitize-referenced-game-object-instance))
+        (update :embedded-instances (partial mapv #(sanitize-embedded-game-object-instance % resource-type-map)))
+        (update :collection-instances (partial mapv sanitize-referenced-collection-instance)))))
 
 (defn- make-dependencies-fn [workspace]
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]

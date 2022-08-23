@@ -359,7 +359,7 @@
 (defn- sanitize-label [label]
   (-> label
       (update :size sanitize-v4)
-      (dissoc :scale))) ; Scale was moved to the ComponentDesc. Migrated in game-object.clj.
+      (dissoc :scale))) ; Scale was moved to GameObject$ComponentDesc. Migrated in game-object.clj.
 
 (defn- patch-label-component [component embedded-unsanitized-data proj-path->unsanitized-data]
   (let [component-scale (:scale component)]

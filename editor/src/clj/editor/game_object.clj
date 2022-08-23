@@ -625,41 +625,44 @@
                 transform-properties (select-transform-properties resource-type embedded)]]
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
-(defn sanitize-property-descs-at-path [property-descs-path instance]
-  (if-some [property-descs (not-empty (get-in instance property-descs-path))]
-    (assoc-in instance property-descs-path (mapv properties/sanitize-property-desc property-descs))
-    instance))
+(defn sanitize-property-descs-at-path [desc property-descs-path]
+  ;; GameObject$ComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  ;; The supplied path should lead up to a seq of GameObject$PropertyDescs in map format.
+  (if-some [property-descs (not-empty (get-in desc property-descs-path))]
+    (assoc-in desc property-descs-path (mapv properties/sanitize-property-desc property-descs))
+    desc))
 
-(defn- sanitize-component [resource-type-map proj-path->unsanitized-data component]
-  (let [^String component-path (:component component)
-        patch-component-fn (some-> component-path FilenameUtils/getExtension resource-type-map :tag-opts :component :patch-component-fn)]
-    (cond-> (sanitize-property-descs-at-path [:properties] component)
-            patch-component-fn (patch-component-fn nil proj-path->unsanitized-data)
-            :always (dissoc :property-decls) ; Only used in built data by the runtime.
-            :always (strip-default-scale-from-component-desc))))
+(defn- sanitize-referenced-component [component-desc]
+  ;; GameObject$ComponentDesc in map format.
+  (-> component-desc
+      (sanitize-property-descs-at-path [:properties])
+      (dissoc :property-decls) ; Only used in built data by the runtime.
+      (strip-default-scale-from-component-desc)))
 
-(defn- sanitize-embedded-component-data [resource-type-map proj-path->unsanitized-data embedded]
-  (let [component-type (:type embedded)
-        resource-type (resource-type-map component-type)
+(defn- sanitize-embedded-component-data [embedded-component-desc resource-type-map]
+  ;; GameObject$EmbeddedComponentDesc in map format.
+  (let [component-ext (:type embedded-component-desc)
+        resource-type (resource-type-map component-ext)
         tag-opts (:tag-opts resource-type)
         sanitize-fn (:sanitize-fn resource-type)
-        patch-component-fn (:patch-component-fn (:component tag-opts))]
+        sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))]
     (try
-      (let [unsanitized-data (when (or sanitize-fn patch-component-fn)
+      (let [unsanitized-data (when (or sanitize-fn sanitize-embedded-component-fn)
                                (let [read-raw-fn (:read-raw-fn resource-type)]
-                                 (with-open [reader (StringReader. (:data embedded))]
+                                 (with-open [reader (StringReader. (:data embedded-component-desc))]
                                    (read-raw-fn reader))))]
-        (cond-> embedded
-                patch-component-fn (patch-component-fn unsanitized-data proj-path->unsanitized-data)
+        (cond-> embedded-component-desc
+                sanitize-embedded-component-fn (sanitize-embedded-component-fn unsanitized-data)
                 sanitize-fn (assoc :data ((:write-fn resource-type) (sanitize-fn unsanitized-data)))))
       (catch Exception _
         ;; Leave unsanitized.
-        embedded))))
+        embedded-component-desc))))
 
-(defn- sanitize-embedded-component [resource-type-map proj-path->unsanitized-data embedded]
-  (->> embedded
-       (sanitize-embedded-component-data resource-type-map proj-path->unsanitized-data)
-       (strip-default-scale-from-component-desc)))
+(defn- sanitize-embedded-component [resource-type-map embedded-component-desc]
+  ;; GameObject$EmbeddedComponentDesc in map format.
+  (-> embedded-component-desc
+      (sanitize-embedded-component-data resource-type-map)
+      (strip-default-scale-from-component-desc)))
 
 (defn- try-read-unsanitized-data [workspace proj-path]
   (when (some? proj-path)
@@ -677,12 +680,12 @@
 (defn- make-proj-path->unsanitized-data [workspace]
   (memoize (partial try-read-unsanitized-data workspace)))
 
-(defn sanitize-game-object [workspace go]
-  (let [resource-type-map (workspace/get-resource-type-map workspace)
-        proj-path->unsanitized-data (make-proj-path->unsanitized-data workspace)]
-    (-> go
-        (update :components (partial mapv (partial sanitize-component resource-type-map proj-path->unsanitized-data)))
-        (update :embedded-components (partial mapv (partial sanitize-embedded-component resource-type-map proj-path->unsanitized-data))))))
+(defn sanitize-game-object [workspace prototype-desc]
+  ;; GameObject$PrototypeDesc in map format.
+  (let [resource-type-map (workspace/get-resource-type-map workspace)]
+    (-> prototype-desc
+        (update :components (partial mapv sanitize-referenced-component))
+        (update :embedded-components (partial mapv (partial sanitize-embedded-component resource-type-map))))))
 
 (defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]
   (when-let [resource-type (resource-types type)]

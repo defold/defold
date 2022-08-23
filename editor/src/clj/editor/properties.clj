@@ -597,6 +597,7 @@
 (defmethod sanitize-go-prop-value :property-type-quat [go-prop-type go-prop-value] (clj-value->go-prop-value go-prop-type (go-prop-value->clj-value t/Vec3 :property-type-quat go-prop-value nil)))
 
 (defn sanitize-property-desc [property-desc]
+  ;; GameObject$PropertyDesc in map format.
   (let [go-prop-value (:value property-desc)
         go-prop-type (:type property-desc)]
     (try
