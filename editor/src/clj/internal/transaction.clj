@@ -94,6 +94,17 @@
     :fn f
     :args args}])
 
+(defn update-property-ec
+  "Same as update-property, but injects the in-transaction evaluation-context
+  as the first argument to the update-fn."
+  [node-id pr f args]
+  [{:type :update-property
+    :node-id node-id
+    :property pr
+    :fn f
+    :args args
+    :inject-evaluation-context true}])
+
 (defn clear-property
   [node-id pr]
   [{:type :clear-property
@@ -583,14 +594,17 @@
   [{:keys [node]}]
   (gt/node-id node))
 
-(defmethod perform :update-property [ctx {:keys [node-id property fn args] :as tx-step}]
+(defmethod perform :update-property [ctx {:keys [node-id property fn args inject-evaluation-context] :as tx-step}]
   (let [basis (:basis ctx)]
     (when (and *tx-debug* (nil? node-id)) (println "NIL NODE ID: update-property " tx-step))
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
-            old-value (in/node-property-value* node property (in/custom-evaluation-context {:basis basis}))
-            new-value (apply fn old-value args)
+            evaluation-context (in/custom-evaluation-context {:basis basis})
+            old-value (in/node-property-value* node property evaluation-context)
+            new-value (if inject-evaluation-context
+                        (apply fn evaluation-context old-value args)
+                        (apply fn old-value args))
             override-node? (some? (gt/original node))
             dynamic? (not (contains? (some-> (gt/node-type node) in/all-properties) property))]
         (invoke-setter ctx node-id node property old-value new-value override-node? dynamic?))

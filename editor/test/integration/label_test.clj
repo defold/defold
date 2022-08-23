@@ -208,7 +208,7 @@
           (verify-embedded-component "/scale_migration/embedded_scaled_label_child.collection" [0 0 0] [3.0 4.0 5.0] false)
           (verify-referenced-component "/scale_migration/referenced_scaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] true))
 
-        (testing "When the ComponentDesc already has scaling, we should ignore scaling from the referenced LabelDesc."
-          (verify-referenced-component "/scale_migration/referenced_rescaled_label.go" [0] [20.0 30.0 40.0] false)
-          (verify-referenced-component "/scale_migration/referenced_rescaled_label.collection" [0 0] [20.0 30.0 40.0] false)
-          (verify-referenced-component "/scale_migration/referenced_rescaled_label_child.collection" [0 0 0] [20.0 30.0 40.0] false))))))
+        (testing "After migration, the default scale read from the LabelDesc does not overwrite the migrated scale in the ComponentDesc."
+          (verify-referenced-component "/scale_migration/referenced_unscaled_label.go" [0] [2.0 3.0 4.0] false)
+          (verify-referenced-component "/scale_migration/referenced_unscaled_label.collection" [0 0] [2.0 3.0 4.0] false)
+          (verify-referenced-component "/scale_migration/referenced_unscaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] false))))))

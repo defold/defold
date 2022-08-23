@@ -299,39 +299,53 @@
                            :overrides ddf-properties}))
             (set (fn [evaluation-context self old-value new-value]
                    (concat
-                     (if-let [old-source (g/node-value self :source-id evaluation-context)]
-                       (g/delete-node old-source)
-                       [])
+                     (when-some [old-source (g/node-value self :source-id evaluation-context)]
+                       (g/delete-node old-source))
                      (let [new-resource (:resource new-value)
                            resource-type (and new-resource (resource/resource-type new-resource))
-                           override? (contains? (:tags resource-type) :overridable-properties)]
-                       (if override?
-                         (let [project (project/get-project self)
-                               workspace (project/workspace project)]
-                           (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
-                             (concat
-                               connect-tx-data
-                               (g/override comp-node {:traverse-fn g/always-override-traverse-fn}
-                                           (fn [evaluation-context id-mapping]
-                                             (let [or-comp-node (get id-mapping comp-node)
-                                                   comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
-                                               (concat
-                                                 (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                   (for [[from to] [[:_node-id :source-id]
-                                                                    [:resource :source-resource]
-                                                                    [:node-outline :source-outline]
-                                                                    [:_properties :source-properties]
-                                                                    [:scene :scene]
-                                                                    [:build-targets :source-build-targets]
-                                                                    [:resource-property-build-targets :resource-property-build-targets]]
-                                                         :when (contains? outputs from)]
-                                                     (g/connect or-comp-node from self to)))
-                                                 (properties/apply-property-overrides workspace id-mapping comp-props (:overrides new-value)))))))))
-                         (project/resource-setter evaluation-context self (:resource old-value) (:resource new-value)
-                                                  [:resource :source-resource]
-                                                  [:node-outline :source-outline]
-                                                  [:scene :scene]
-                                                  [:build-targets :source-build-targets]))))))
+                           project (project/get-project self)
+                           override? (contains? (:tags resource-type) :overridable-properties)
+
+                           [comp-node tx-data]
+                           (if override?
+                             (let [workspace (project/workspace project)]
+                               (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                                 [comp-node
+                                  (concat
+                                    connect-tx-data
+                                    (g/override comp-node {:traverse-fn g/always-override-traverse-fn}
+                                                (fn [evaluation-context id-mapping]
+                                                  (let [or-comp-node (get id-mapping comp-node)
+                                                        comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
+                                                    (concat
+                                                      (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                                                        (for [[from to] [[:_node-id :source-id]
+                                                                         [:resource :source-resource]
+                                                                         [:node-outline :source-outline]
+                                                                         [:_properties :source-properties]
+                                                                         [:scene :scene]
+                                                                         [:build-targets :source-build-targets]
+                                                                         [:resource-property-build-targets :resource-property-build-targets]]
+                                                              :when (contains? outputs from)]
+                                                          (g/connect or-comp-node from self to)))
+                                                      (properties/apply-property-overrides workspace id-mapping comp-props (:overrides new-value)))))))]))
+                             (let [old-resource (:resource old-value)
+                                   new-resource (:resource new-value)
+                                   connections [[:resource :source-resource]
+                                                [:node-outline :source-outline]
+                                                [:scene :scene]
+                                                [:build-targets :source-build-targets]]
+                                   disconnect-tx-data (when old-resource
+                                                        (project/disconnect-resource-node evaluation-context project old-resource self connections))
+                                   {connect-tx-data :tx-data comp-node :node-id} (when new-resource
+                                                                                   (project/connect-resource-node evaluation-context project new-resource self connections))]
+                               [comp-node
+                                (concat disconnect-tx-data
+                                        connect-tx-data)]))]
+                       (concat
+                         tx-data
+                         (when-some [alter-referenced-component-fn (some-> resource-type :tag-opts :component :alter-referenced-component-fn)]
+                           (alter-referenced-component-fn self comp-node)))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (or (validation/prop-error :info _node-id :path validation/prop-nil? source-resource "Path")
                                       (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
@@ -520,7 +534,8 @@
   (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
-                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :scale scale :path path]]
+                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :scale scale]]
+                  (g/set-property comp-node :path path)
                   (attach-ref-component self comp-node)
                   (when select-fn
                     (select-fn [comp-node])))))
@@ -648,12 +663,21 @@
         sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))]
     (try
       (let [unsanitized-data (when (or sanitize-fn sanitize-embedded-component-fn)
-                               (let [read-raw-fn (:read-raw-fn resource-type)]
-                                 (with-open [reader (StringReader. (:data embedded-component-desc))]
-                                   (read-raw-fn reader))))]
-        (cond-> embedded-component-desc
-                sanitize-embedded-component-fn (sanitize-embedded-component-fn unsanitized-data)
-                sanitize-fn (assoc :data ((:write-fn resource-type) (sanitize-fn unsanitized-data)))))
+                               (let [read-raw-fn (:read-raw-fn resource-type)
+                                     unsanitized-data-string (:data embedded-component-desc)]
+                                 (with-open [reader (StringReader. unsanitized-data-string)]
+                                   (read-raw-fn reader))))
+            sanitized-data (if sanitize-fn
+                             (sanitize-fn unsanitized-data)
+                             unsanitized-data)
+            [embedded-component-desc sanitized-data] (if sanitize-embedded-component-fn
+                                                       (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
+                                                       [embedded-component-desc sanitized-data])]
+        (if (= unsanitized-data sanitized-data)
+          embedded-component-desc
+          (let [write-fn (:write-fn resource-type)
+                sanitized-data-string (write-fn sanitized-data)]
+            (assoc embedded-component-desc :data sanitized-data-string))))
       (catch Exception _
         ;; Leave unsanitized.
         embedded-component-desc))))
@@ -663,22 +687,6 @@
   (-> embedded-component-desc
       (sanitize-embedded-component-data resource-type-map)
       (strip-default-scale-from-component-desc)))
-
-(defn- try-read-unsanitized-data [workspace proj-path]
-  (when (some? proj-path)
-    (when-some [resource (workspace/find-resource workspace proj-path)]
-      (let [resource-type (resource/resource-type resource)
-            read-raw-fn (:read-raw-fn resource-type)]
-        (try
-          (read-raw-fn resource)
-          (catch Exception _
-            ;; IO errors are reported elsewhere. This is only used for
-            ;; sanitizing or patching data. Returning nil here simply means we
-            ;; won't attempt to sanitize or patch the data.
-            nil))))))
-
-(defn- make-proj-path->unsanitized-data [workspace]
-  (memoize (partial try-read-unsanitized-data workspace)))
 
 (defn sanitize-game-object [workspace prototype-desc]
   ;; GameObject$PrototypeDesc in map format.

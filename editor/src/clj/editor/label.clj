@@ -178,10 +178,14 @@
 
 (defn- v3->v4 [v]
   ;; DdfMath$Vector4 uses 0.0 as the default for the W component.
-  (conj v 0.0))
+  (conj v (float 0.0)))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
+
+(def ^:private default-scale-value-v3 [(float 1.0) (float 1.0) (float 1.0)])
+
+(def ^:private default-scale-value-v4 (v3->v4 default-scale-value-v3))
 
 (g/defnk produce-pb-msg [text size color outline shadow leading tracking pivot blend-mode line-break font material]
   {:text text
@@ -256,6 +260,7 @@
   (property text g/Str
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
   (property size types/Vec3)
+  (property legacy-scale types/Vec3) ; Ignored, except data during migration. Scale was moved to GameObject$ComponentDesc.
   (property color types/Color)
   (property outline types/Color)
   (property shadow types/Color)
@@ -336,13 +341,15 @@
                                       (texture/set-params gpu-texture tex-params))))
 
 (defn load-label [project self resource label]
-  (let [size (v4->v3 (:size label))
+  (let [size-v3 (v4->v3 (:size label))
+        legacy-scale-v3 (some-> label :scale v4->v3) ; Stripped when saving.
         font (workspace/resolve-resource resource (:font label))
         material (workspace/resolve-resource resource (:material label))]
     (concat
       (g/set-property self
                       :text (:text label)
-                      :size size
+                      :size size-v3
+                      :legacy-scale legacy-scale-v3
                       :color (:color label)
                       :outline (:outline label)
                       :shadow (:shadow label)
@@ -356,24 +363,44 @@
 
 (def ^:private sanitize-v4 (comp v3->v4 v4->v3))
 
-(defn- sanitize-label [label]
-  (-> label
-      (update :size sanitize-v4)
-      (dissoc :scale))) ; Scale was moved to GameObject$ComponentDesc. Migrated in game-object.clj.
+(defn- significant-scale-value-v3? [value]
+  (and (vector? value)
+       (not (protobuf/default-read-scale-value? value))
+       (not= default-scale-value-v3 value)))
 
-(defn- patch-label-component [component embedded-unsanitized-data proj-path->unsanitized-data]
-  (let [component-scale (:scale component)]
-    (if (or (nil? component-scale)
-            (protobuf/default-read-scale-value? component-scale))
-      (let [label (or embedded-unsanitized-data
-                      (proj-path->unsanitized-data (:component component)))
-            label-scale (some-> label :scale v4->v3)]
-        (if (and (some? label-scale)
-                 (not (protobuf/default-read-scale-value? label-scale))
-                 (not= [1.0 1.0 1.0] label-scale))
-          (assoc component :scale label-scale)
-          component))
-      component)))
+(defn- sanitize-label [label]
+  (let [legacy-scale-v3 (v4->v3 (:scale label))
+        sanitized-label (update label :size sanitize-v4)
+        sanitized-label (if (significant-scale-value-v3? legacy-scale-v3)
+                          (assoc sanitized-label :scale (v3->v4 legacy-scale-v3))
+                          (dissoc sanitized-label :scale))]
+    sanitized-label))
+
+(defn- sanitize-embedded-label-component [embedded-component-desc label-desc]
+  (let [sanitized-embedded-component-desc
+        (if (significant-scale-value-v3? (:scale embedded-component-desc))
+          embedded-component-desc
+          (let [label-legacy-scale-v3 (v4->v3 (:scale label-desc))]
+            (if (significant-scale-value-v3? label-legacy-scale-v3)
+              (assoc embedded-component-desc :scale label-legacy-scale-v3)
+              (dissoc embedded-component-desc :scale))))
+        sanitized-label-desc (assoc label-desc :scale default-scale-value-v4)]
+    [sanitized-embedded-component-desc sanitized-label-desc]))
+
+(defn- replace-default-scale-with-label-legacy-scale [evaluation-context referenced-component-scale label-node-id]
+  ;; The scale used to be stored in the LabelDesc before we had scale on the
+  ;; ComponentDesc. Here we transfer the scale value from the LabelDesc to the
+  ;; ComponentDesc if the ComponentDesc does not already have a significant
+  ;; scale value, and the LabelDesc does.
+  (if (= default-scale-value-v3 referenced-component-scale)
+    (let [label-legacy-scale (g/node-value label-node-id :legacy-scale evaluation-context)]
+      (if (significant-scale-value-v3? label-legacy-scale)
+        label-legacy-scale
+        referenced-component-scale))
+    referenced-component-scale))
+
+(defn- alter-referenced-label-component [referenced-component-node-id label-node-id]
+  (g/update-property-ec referenced-component-node-id :scale replace-default-scale-with-label-legacy-scale label-node-id))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -387,4 +414,5 @@
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}
-                           :patch-component-fn patch-label-component}}))
+                           :alter-referenced-component-fn alter-referenced-label-component
+                           :sanitize-embedded-component-fn sanitize-embedded-label-component}}))

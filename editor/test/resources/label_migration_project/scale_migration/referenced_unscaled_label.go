@@ -1,6 +1,6 @@
 components {
-  id: "referenced_scaled_label"
-  component: "/scale_migration/scaled_label.label"
+  id: "referenced_unscaled_label"
+  component: "/scale_migration/unscaled_label.label"
   position {
     x: 0.0
     y: 0.0
@@ -13,8 +13,8 @@ components {
     w: 1.0
   }
   scale {
-    x: 20.0
-    y: 30.0
-    z: 40.0
+    x: 2.0
+    y: 3.0
+    z: 4.0
   }
 }
