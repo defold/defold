@@ -20,7 +20,7 @@ function usage() {
     echo "Supported platforms"
     echo " * darwin"
     echo " * x86_64-macos"
-    echo " * linux"
+    echo " * arm64-macos"
     echo " * x86_64-linux"
     echo " * arm64-ios"
     echo " * x86_64-ios"

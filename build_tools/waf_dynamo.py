@@ -1404,11 +1404,11 @@ def detect(conf):
         platform = build_platform
 
     if platform == "win32":
-        bob_build_platform = "x86-win32"
+        bob_build_platform = "x86_64-win32"
     elif platform == "linux":
-        bob_build_platform = "x86-linux"
+        bob_build_platform = "x86_64-linux"
     elif platform == "darwin":
-        bob_build_platform = "x86-darwin"
+        bob_build_platform = "x86_64-macos"
     else:
         bob_build_platform = platform
 
