@@ -245,11 +245,12 @@
   (display-order [:id :url scene/SceneNode])
 
   (input proto-msg g/Any)
+  (input source-save-data g/Any)
   (output node-outline-extras g/Any (g/fnk [source-outline]
                                            {:alt-outline source-outline}))
-  (output build-resource resource/Resource (g/fnk [source-resource proto-msg]
+  (output build-resource resource/Resource (g/fnk [source-resource source-save-data]
                                                   (some-> source-resource
-                                                     (assoc :data proto-msg)
+                                                     (assoc :data (:content source-save-data))
                                                      workspace/make-build-resource)))
   (output ddf-message g/Any (g/fnk [id child-ids position rotation scale proto-msg]
                               (gen-embed-ddf id child-ids position rotation scale proto-msg))))
@@ -740,6 +741,7 @@
                                               [:resource :source-resource]
                                               [:node-outline :source-outline]
                                               [:proto-msg :proto-msg]
+                                              [:undecorated-save-data :source-save-data]
                                               [:build-targets :source-build-targets]
                                               [:scene :scene]
                                               [:ddf-component-properties :ddf-component-properties]
