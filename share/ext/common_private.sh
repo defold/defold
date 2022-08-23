@@ -14,6 +14,10 @@
 
 # The existance of this
 
+function cmi_setup_cc_private() {
+    # pass
+}
+
 function cmi_private() {
     export PREFIX=`pwd`/build
     export PLATFORM=$1

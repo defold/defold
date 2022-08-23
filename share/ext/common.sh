@@ -238,10 +238,7 @@ function cmi_setup_vs2019_env() {
     export PATH="$TMPPATH${PATHSEP}${PATH}"
 }
 
-function cmi() {
-    export PREFIX=`pwd`/build
-    export PLATFORM=$1
-
+function cmi_setup_cc() {
     case $1 in
         arm64-ios)
             [ ! -e "${IOS_SDK_ROOT}" ] && echo "No SDK found at ${IOS_SDK_ROOT}" && exit 1
@@ -260,7 +257,6 @@ function cmi() {
             export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 arm-ios
             ;;
 
         x86_64-ios)
@@ -280,7 +276,6 @@ function cmi() {
             export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 x86_64-ios
             ;;
 
          armv7-android)
@@ -306,7 +301,6 @@ function cmi() {
             export AS=${bin}/arm-linux-androideabi-as
             export LD=${bin}/arm-linux-androideabi-ld
             export RANLIB=${bin}/arm-linux-androideabi-ranlib
-            cmi_cross $1 arm-linux
             ;;
 
         arm64-android)
@@ -325,10 +319,6 @@ function cmi() {
             export AS=${bin}/aarch64-linux-android-as
             export LD=${bin}/aarch64-linux-android-ld
             export RANLIB=${bin}/aarch64-linux-android-ranlib
-            # TODO: for protobuf, we need to add -llog to LDFLAGS
-            #export LDFLAGS="-llog"
-
-            cmi_cross $1 arm-linux
             ;;
 
         x86_64-macos)
@@ -337,9 +327,10 @@ function cmi() {
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
-            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
-            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
-            export LDFLAGS="${LDFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
+            export TARGET_ARCH=x86_64
+            export CFLAGS="${CFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export CXXFLAGS="${CXXFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export LDFLAGS="${LDFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
 
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -348,8 +339,27 @@ function cmi() {
             export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
+            ;;
 
-            cmi_buildplatform $1
+        arm64-macos)
+            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
+            # Force libstdc++ for now
+            export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
+            export SDKROOT="${OSX_SDK_ROOT}"
+            export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
+            export TARGET_ARCH=arm64
+            # export CFLAGS="${CFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ -isysroot ${OSX_SDK_ROOT} -isystem ${OSX_SDK_ROOT}/usr/include -isystem ${DARWIN_TOOLCHAIN_ROOT}/usr/include"
+            # export CXXFLAGS="${CXXFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ -isysroot ${OSX_SDK_ROOT} -isystem ${OSX_SDK_ROOT}/usr/include -isystem ${DARWIN_TOOLCHAIN_ROOT}/usr/include -isystem ${DARWIN_TOOLCHAIN_ROOT}/usr/include/c++/v1"
+            # export LDFLAGS="${LDFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
+            export CFLAGS="${CFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export CXXFLAGS="${CXXFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export LDFLAGS="${LDFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
+
+            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
 
         linux)
@@ -357,22 +367,18 @@ function cmi() {
             export CXXFLAGS="${CXXFLAGS} -m32 -fPIC"
             export CFLAGS="${CFLAGS} -m32 -fPIC"
             export LDFLAGS="-m32"
-            cmi_buildplatform $1
             ;;
 
         x86_64-linux)
             export CFLAGS="${CFLAGS} -fPIC"
             export CXXFLAGS="${CXXFLAGS} -fPIC"
             export CPPFLAGS="${CPPFLAGS} -fPIC"
-            cmi_buildplatform $1
             ;;
 
         win32)
-            cmi_buildplatform $1
             ;;
 
         x86_64-win32)
-            cmi_buildplatform $1
             ;;
 
         i586-mingw32msvc)
@@ -381,7 +387,6 @@ function cmi() {
             export CXX=i586-mingw32msvc-g++
             export AR=i586-mingw32msvc-ar
             export RANLIB=i586-mingw32msvc-ranlib
-            cmi_cross $1 $1
             ;;
 
         js-web)
@@ -393,7 +398,6 @@ function cmi() {
             export RANLIB=${EMSCRIPTEN}/emranlib
             export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
             export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
-            cmi_cross $1 $1
             ;;
 
         wasm-web)
@@ -405,7 +409,33 @@ function cmi() {
             export RANLIB=${EMSCRIPTEN}/emranlib
             export CFLAGS="${CFLAGS} -fPIC -fno-exceptions"
             export CXXFLAGS="${CXXFLAGS} -fPIC -fno-exceptions"
-            cmi_cross $1 $1
+            ;;
+
+        *)
+            if [ -f "$SCRIPTDIR/common_private.sh" ]; then
+                source $SCRIPTDIR/common_private.sh
+                cmi_setup_cc_private $@
+            else
+                echo "Unknown target $1" && exit 1
+            fi
+            ;;
+    esac
+}
+
+function cmi() {
+    export PREFIX=`pwd`/build
+    export PLATFORM=$1
+
+    cmi_setup_cc $1
+
+    case $1 in
+        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web)
+            cmi_cross $1 arm-ios
+            ;;
+
+        # desktop
+        arm64-macos|x86_64-linux|win32|x86_64-win32)
+            cmi_buildplatform $1
             ;;
 
         *)
