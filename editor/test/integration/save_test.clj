@@ -185,10 +185,13 @@
   (some-> (g/node-value node-id :save-data)
     :dirty?))
 
-(defn- set-prop-fn [k v]
-  (fn [node-id]
-    (g/transact
-      (g/set-property node-id k v))))
+(defn- set-prop-fn
+  ([prop-label value]
+   (set-prop-fn [] prop-label value))
+  ([outline-path prop-label value]
+   (fn [node-id]
+     (let [prop-node-id (:node-id (test-util/outline node-id outline-path))]
+       (test-util/prop! prop-node-id prop-label value)))))
 
 (defn- delete-first-child! [node-id]
   (g/transact (g/delete-node (:node-id (test-util/outline node-id [0])))))
@@ -232,6 +235,9 @@
                ["/collection/all_embedded.collection" delete-first-child!]
                ["/materials/test.material" (set-prop-fn :name "new-name")]
                ["/collection/components/test.label" (set-prop-fn :text "new-text")]
+               ["/label/test.label" (set-prop-fn :text "new-text")]
+               ["/label/embedded_label.go" (set-prop-fn [0] :text "new-text")]
+               ["/label/embedded_label.collection" (set-prop-fn [0 0] :text "new-text")]
                ["/editor1/test.atlas" (set-prop-fn :margin 500)]
                ["/collection/components/test.collisionobject" (set-prop-fn :mass 2.0)]
                ["/collision_object/embedded_shapes.collisionobject" (set-prop-fn :restitution 0.0)]
@@ -278,8 +284,23 @@
           (is (clean?))
           (doseq [[path f] paths]
             (testing (format "Verifying %s" path)
-              (let [node-id (test-util/resource-node project path)]
-                (is (false? (dirty? node-id))))))
+              (let [resource (test-util/resource workspace path)
+                    node-id (test-util/resource-node project resource)]
+                (when-not (is (false? (dirty? node-id)))
+                  (let [save-string (:content (g/node-value node-id :save-data))
+                        resource-type (resource/resource-type resource)
+                        read-fn (:read-fn resource-type)]
+                    (println "When comparing" path)
+                    (if (some? read-fn)
+                      (let [disk-pb-msg (read-fn resource)
+                            save-pb-msg (with-open [reader (StringReader. save-string)]
+                                          (read-fn reader))
+                            [only-in-disk-pb-msg only-in-save-pb-msg] (data/diff disk-pb-msg save-pb-msg)]
+                        (prn 'disk only-in-disk-pb-msg)
+                        (prn 'save only-in-save-pb-msg))
+                      (let [disk-string (slurp resource)]
+                        (prn 'disk disk-string)
+                        (prn 'save save-string))))))))
           (doseq [[path f] paths]
             (testing (format "Dirtyfying %s" path)
               (let [node-id (test-util/resource-node project path)]

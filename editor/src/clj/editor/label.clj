@@ -185,8 +185,6 @@
 
 (def ^:private default-scale-value-v3 [(float 1.0) (float 1.0) (float 1.0)])
 
-(def ^:private default-scale-value-v4 (v3->v4 default-scale-value-v3))
-
 (g/defnk produce-pb-msg [text size color outline shadow leading tracking pivot blend-mode line-break font material]
   {:text text
    :size (v3->v4 size)
@@ -257,10 +255,13 @@
 (g/defnode LabelNode
   (inherits resource-node/ResourceNode)
 
+  ;; Ignored, except data during migration. Scale was moved to GameObject$ComponentDesc.
+  (property legacy-scale types/Vec3
+            (dynamic visible (g/constantly false)))
+
   (property text g/Str
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
   (property size types/Vec3)
-  (property legacy-scale types/Vec3) ; Ignored, except data during migration. Scale was moved to GameObject$ComponentDesc.
   (property color types/Color)
   (property outline types/Color)
   (property shadow types/Color)
@@ -368,9 +369,9 @@
        (not (protobuf/default-read-scale-value? value))
        (not= default-scale-value-v3 value)))
 
-(defn- sanitize-label [label]
-  (let [legacy-scale-v3 (v4->v3 (:scale label))
-        sanitized-label (update label :size sanitize-v4)
+(defn- sanitize-label [label-desc]
+  (let [legacy-scale-v3 (some-> label-desc :scale v4->v3)
+        sanitized-label (update label-desc :size sanitize-v4)
         sanitized-label (if (significant-scale-value-v3? legacy-scale-v3)
                           (assoc sanitized-label :scale (v3->v4 legacy-scale-v3))
                           (dissoc sanitized-label :scale))]
@@ -380,11 +381,11 @@
   (let [sanitized-embedded-component-desc
         (if (significant-scale-value-v3? (:scale embedded-component-desc))
           embedded-component-desc
-          (let [label-legacy-scale-v3 (v4->v3 (:scale label-desc))]
+          (let [label-legacy-scale-v3 (some-> label-desc :scale v4->v3)]
             (if (significant-scale-value-v3? label-legacy-scale-v3)
               (assoc embedded-component-desc :scale label-legacy-scale-v3)
               (dissoc embedded-component-desc :scale))))
-        sanitized-label-desc (assoc label-desc :scale default-scale-value-v4)]
+        sanitized-label-desc (dissoc label-desc :scale)]
     [sanitized-embedded-component-desc sanitized-label-desc]))
 
 (defn- replace-default-scale-with-label-legacy-scale [evaluation-context referenced-component-scale label-node-id]

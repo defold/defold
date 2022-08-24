@@ -884,8 +884,9 @@
             sanitized-data (with-open [reader (StringReader. data)]
                              (write-fn (read-fn reader)))]
         (assoc embedded-instance-desc :data sanitized-data))
-      (catch Exception _
+      (catch Exception e
         ;; Leave unsanitized.
+        (log/warn :msg "Failed to sanitize embedded game object" :exception e)
         embedded-instance-desc))))
 
 (defn- sanitize-referenced-game-object-instance [instance-desc]

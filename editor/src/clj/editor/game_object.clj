@@ -678,8 +678,9 @@
           (let [write-fn (:write-fn resource-type)
                 sanitized-data-string (write-fn sanitized-data)]
             (assoc embedded-component-desc :data sanitized-data-string))))
-      (catch Exception _
+      (catch Exception e
         ;; Leave unsanitized.
+        (log/warn :msg (str "Failed to sanitize embedded component of type: " (or component-ext "nil")) :exception e)
         embedded-component-desc))))
 
 (defn- sanitize-embedded-component [resource-type-map embedded-component-desc]
