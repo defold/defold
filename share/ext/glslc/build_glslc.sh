@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 # License: MIT
 # Copyright 2022 The Defold Foundation
 
