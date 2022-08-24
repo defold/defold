@@ -60,7 +60,7 @@ CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 java_version = '11.0.15+10'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
-                    'x86_64-darwin': 'macos-x64',
+                    'x86_64-macos': 'macos-x64',
                     'x86_64-win32': 'windows-x64'}
 
 python_platform_to_java = {'linux': 'linux-x64',
@@ -217,7 +217,7 @@ def sign_files(platform, options, dir):
             '/p', certificate_pass,
             '/tr', 'http://timestamp.digicert.com',
             dir])
-    elif 'darwin' in platform:
+    elif 'macos' in platform:
         codesigning_identity = options.codesigning_identity
         certificate = mac_certificate(codesigning_identity)
         if certificate == None:
@@ -352,7 +352,7 @@ def remove_platform_files_from_archive(platform, jar):
     # find libs to remove in the root folder
     for file in files:
         if "/" not in file:
-            if platform == "x86_64-darwin" and (file.endswith(".so") or file.endswith(".dll")):
+            if platform == "x86_64-macos" and (file.endswith(".so") or file.endswith(".dll")):
                 files_to_remove.append(file)
             elif platform == "x86_64-win32" and (file.endswith(".so") or file.endswith(".dylib")):
                 files_to_remove.append(file)
@@ -394,7 +394,7 @@ def create_bundle(options):
 
         tmp_dir = "tmp"
 
-        is_mac = 'darwin' in platform
+        is_mac = 'macos' in platform
         if is_mac:
             resources_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources')
             packages_dir = os.path.join(tmp_dir, 'Defold.app/Contents/Resources/packages')
@@ -477,8 +477,8 @@ def sign(options):
         # check that we have an editor bundle to sign
         if 'win32' in platform:
             bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-win32.zip")
-        elif 'darwin' in platform:
-            bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.zip")
+        elif 'macos' in platform:
+            bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-macos.zip")
         else:
             print("No signing support for platform %s" % platform)
             continue
@@ -497,17 +497,17 @@ def sign(options):
         run.command(['unzip', bundle_file, '-d', sign_dir])
 
         # sign files
-        if 'darwin' in platform:
+        if 'macos' in platform:
             # we need to sign the binaries in Resources folder manually as codesign of
             # the *.app will not process files in Resources
             jdk_dir = "jdk-%s" % (java_version)
             jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", jdk_dir)
             for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-                sign_files('darwin', options, exe)
+                sign_files('macos', options, exe)
             for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-                sign_files('darwin', options, lib)
-            sign_files('darwin', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
-            sign_files('darwin', options, os.path.join(sign_dir, "Defold.app"))
+                sign_files('macos', options, lib)
+            sign_files('macos', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
+            sign_files('macos', options, os.path.join(sign_dir, "Defold.app"))
         elif 'win32' in platform:
             sign_files('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
 
@@ -531,7 +531,7 @@ def create_dmg(options):
     print("Creating .dmg from file in '%s'" % options.bundle_dir)
 
     # check that we have an editor bundle to create a dmg from
-    bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.zip")
+    bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-macos.zip")
     if not os.path.exists(bundle_file):
         print('Editor bundle %s does not exist' % bundle_file)
         run.command(['ls', '-la', options.bundle_dir])
@@ -551,7 +551,7 @@ def create_dmg(options):
     run.command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
 
     # create dmg
-    dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-darwin.dmg")
+    dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-macos.dmg")
     if os.path.exists(dmg_file):
         os.remove(dmg_file)
     run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
@@ -569,7 +569,7 @@ def create_dmg(options):
 def create_installer(options):
     print("Creating installers")
     for platform in options.target_platform:
-        if platform == "x86_64-darwin":
+        if platform == "x86_64-macos":
             print("Creating installer for platform %s" % platform)
             create_dmg(options)
         else:
@@ -590,7 +590,7 @@ Commands:
     parser.add_option('--platform', dest='target_platform',
                       default = None,
                       action = 'append',
-                      choices = ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32'],
+                      choices = ['x86_64-linux', 'x86_64-macos', 'x86_64-win32'],
                       help = 'Target platform to create editor bundle for. Specify multiple times for multiple platforms')
 
     parser.add_option('--version', dest='version',

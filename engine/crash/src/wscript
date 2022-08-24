@@ -35,10 +35,10 @@ def build(bld):
         sig_handler = 'backtrace_jsweb.cpp';
         file_handler = 'file_posix.cpp';
 
-    if 'darwin' in bld.env['PLATFORM']:
+    if 'macos' in bld.env['PLATFORM']:
         load_addrs = 'load_addrs_mach.cpp'
 
-    if bld.env['PLATFORM'] in ['x86_64-darwin']:
+    if bld.env['PLATFORM'] in ['x86_64-macos']:
         sig_handler = 'backtrace_libunwind.cpp'
 
     if 'win32' in bld.env['PLATFORM']:
