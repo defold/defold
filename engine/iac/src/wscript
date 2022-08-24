@@ -12,7 +12,7 @@ def configure(conf):
 def build(bld):
     source = 'iac_null.cpp'
 
-    platforms = ['arm.*?darwin', 'arm.*?android']
+    platforms = ['arm.*?ios', 'arm.*?android']
     for p in platforms:
         if re.match(p, bld.env.PLATFORM):
             source = 'iac_stub.cpp'

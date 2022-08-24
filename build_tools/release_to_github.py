@@ -141,7 +141,7 @@ def release(config, tag_name, release_sha, s3_release):
 
     def is_main_file(path):
         return os.path.basename(path) in ('bob.jar',
-                                          'Defold-x86_64-darwin.dmg',
+                                          'Defold-x86_64-macos.dmg',
                                           'Defold-x86_64-linux.zip',
                                           'Defold-x86_64-win32.zip')
 

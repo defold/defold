@@ -15,11 +15,12 @@
 package com.dynamo.bob;
 
 public enum PlatformArchitectures {
-    OSX(new String[] {"x86_64-darwin"}, new String[] {"x86_64-darwin"}),
+    //
+    MacOS(new String[] {"x86_64-macos"}, new String[] {"x86_64-macos"}),
     Windows32(new String[] {"x86-win32"}, new String[] {"x86-win32"}),
     Windows64(new String[] {"x86_64-win32"}, new String[] {"x86_64-win32"}),
     Linux(new String[] {"x86_64-linux"}, new String[] {"x86_64-linux"}),
-    iOS(new String[] {"arm64-darwin", "x86_64-ios"}, new String[] {"arm64-darwin"}),
+    iOS(new String[] {"arm64-ios", "x86_64-ios"}, new String[] {"arm64-ios"}),
     Android(new String[] {"arm64-android", "armv7-android"}, new String[] {"armv7-android","arm64-android"}),
     Web(new String[] {"js-web", "wasm-web"}, new String[] {"js-web", "wasm-web"}),
     NX64(new String[] {"arm64-nx64"}, new String[] {"arm64-nx64"});

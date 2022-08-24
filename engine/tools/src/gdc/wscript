@@ -7,7 +7,7 @@ def configure(conf):
 
 def build(bld):
     # if not desktop
-    if not bld.env.PLATFORM in ('x86_64-win32', 'x86_64-darwin', 'x86_64-linux'):
+    if not bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'x86_64-linux'):
         return
 
     graphics_lib = 'GRAPHICS'
@@ -22,5 +22,5 @@ def build(bld):
                     source           = 'main.cpp',
                     target           = 'gdc')
 
-    if bld.env.PLATFORM == 'x86_64-darwin':
+    if bld.env.PLATFORM in ('x86_64-macos',):
         b.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])

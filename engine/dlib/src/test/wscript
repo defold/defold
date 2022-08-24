@@ -96,7 +96,7 @@ def build(bld):
     bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
 
     extra_defines = []
-    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     skip_run = False
