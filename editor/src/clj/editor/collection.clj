@@ -880,7 +880,7 @@
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (let [{:keys [read-fn write-fn]} (resource-type-map "go")]
     (try
-      (let [data (get embedded-instance-desc :data)
+      (let [data (:data embedded-instance-desc)
             sanitized-data (with-open [reader (StringReader. data)]
                              (write-fn (read-fn reader)))]
         (assoc embedded-instance-desc :data sanitized-data))

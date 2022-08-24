@@ -255,7 +255,7 @@
 (g/defnode LabelNode
   (inherits resource-node/ResourceNode)
 
-  ;; Ignored, except data during migration. Scale was moved to GameObject$ComponentDesc.
+  ;; Ignored, except data during migration. See details below.
   (property legacy-scale types/Vec3
             (dynamic visible (g/constantly false)))
 
@@ -401,6 +401,29 @@
     referenced-component-scale))
 
 (defn- alter-referenced-label-component [referenced-component-node-id label-node-id]
+  ;; The Label scale value has been moved to the GameObject$ComponentDesc or
+  ;; GameObject$EmbeddedComponentDesc to reside alongside the existing position
+  ;; and rotation values.
+  ;;
+  ;; We still retain the legacy scale value in the legacy-scale property of the
+  ;; LabelNode so that it can be transferred to the ReferencedComponent node as
+  ;; it references a `.label` resource at load time, but we don't include the
+  ;; legacy scale value in the LabelNode save-data. This means that both the
+  ;; `.label` file that contained a legacy scale value and any `.go` or
+  ;; `.collection` files that refers to the `.label` will have unsaved changes
+  ;; immediately after the project has been loaded. This ensures both files will
+  ;; be saved.
+  ;;
+  ;; You might think we should use the established sanitation-mechanism to
+  ;; perform the migration - and we do for embedded components where all the
+  ;; migrated data is confined to a single file - but we can't do that for
+  ;; migrations that span multiple files.
+  ;;
+  ;; If we do not force all the files involved to be saved, we could end up in a
+  ;; "partial migration" scenario where we strip the legacy scale value from the
+  ;; `.label` resource but do not save it to the `.go` or `.collection` file
+  ;; that hosts the ComponentDesc. This can happen if the user edits the
+  ;; `.label` but not the `.go` or `.collection` file and saves the project.
   (g/update-property-ec referenced-component-node-id :scale replace-default-scale-with-label-legacy-scale label-node-id))
 
 (defn register-resource-types [workspace]
