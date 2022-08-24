@@ -6,20 +6,15 @@ blddir = 'build'
 APPNAME='bullet'
 VERSION='2.77'
 
-import os, sys, re
+import os, sys, shutil
 import waf_dynamo
-
-sys.path.append("..")
-import waf_package
-
-def init():
-    pass
+import run
 
 def options(opt):
-    opt.tool_options('waf_dynamo')
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
+    conf.load('waf_dynamo')
 
     conf.env.append_unique('DEFINES', 'NDEBUG')
 
@@ -28,80 +23,78 @@ def build(bld):
     name = '%s-%s' % (APPNAME, VERSION)
     packagedir = 'package/%s/src' % name
 
-    path = './%s/BulletCollision' % packagedir
+    path = '%s/BulletCollision' % packagedir
     bullet_collision = bld.stlib(features = 'cxx',
-                                        defines = ['NDEBUG'],
-                                        includes = '. .. ./package/%s/src' % name,
-                                        target = 'BulletCollision')
+                                defines = ['NDEBUG'],
+                                includes = '. .. ./package/%s/src' % name,
+                                target = 'BulletCollision',
+                                source = bld.path.ant_glob(['%s/BroadphaseCollision/**/*.cpp' % path,
+                                                            '%s/CollisionShapes/**/*.cpp' % path,
+                                                            '%s/CollisionDispatch/**/*.cpp' % path,
+                                                            '%s/Gimpact/**/*.cpp' % path,
+                                                            '%s/NarrowPhaseCollision/**/*.cpp' % path]))
 
-    bullet_collision.find_sources_in_dirs(['%s/BroadphaseCollision' % path,
-                                           '%s/CollisionShapes' % path,
-                                           '%s/CollisionDispatch' % path,
-                                           '%s/Gimpact' % path,
-                                           '%s/NarrowPhaseCollision' % path])
-    bullet_collision.install_path = None
-
-    path = './%s/BulletDynamics' % packagedir
+    path = '%s/BulletDynamics' % packagedir
     bullet_dynamics = bld.stlib(features = 'cxx',
-                                        defines = ['NDEBUG'],
-                                       includes = '. .. ./package/%s/src' % name,
-                                       target = 'BulletDynamics')
+                                defines = ['NDEBUG'],
+                                includes = '. .. ./package/%s/src' % name,
+                                target = 'BulletDynamics',
+                                source = bld.path.ant_glob(['%s/Character/*.cpp' % path,
+                                                            '%s/ConstraintSolver/*.cpp' % path,
+                                                            '%s/Dynamics/*.cpp' % path,
+                                                            '%s/Vehicle/*.cpp' % path]))
 
-    bullet_dynamics.find_sources_in_dirs([  '%s/Character' % path,
-                                            '%s/ConstraintSolver' % path,
-                                            '%s/Dynamics' % path,
-                                            '%s/Vehicle' % path])
-    bullet_dynamics.install_path = None
-
-    path = './%s/LinearMath' % packagedir
+    path = '%s/LinearMath' % packagedir
     linear_math = bld.stlib(features = 'cxx',
                                    defines = ['NDEBUG'],
                                    includes = '. .. ./package/%s/src' % name,
-                                   target = 'LinearMath')
-    linear_math.find_sources_in_dirs(path)
-    linear_math.install_path = None
+                                   target = 'LinearMath',
+                                   source = bld.path.ant_glob(['%s/*.cpp' % path]))
 
     # for android
     linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
 
-    bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'BulletCollision')
-    bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'BulletDynamics')
-    bld.install_files('${PREFIX}/%s-%s/lib/%s/' % (APPNAME, VERSION, bld.env.PLATFORM), bld.env.staticlib_PATTERN % 'LinearMath')
+    bld.add_group()
 
-    waf_package.package_install_files(bld,
-                        '${PREFIX}/%s-%s/include' % (APPNAME, VERSION),
-                        bld.path.ant_glob('**/*.h'),
-                        cwd=bld.path.find_dir(packagedir), relative_trick=True)
+    install_dir = bld.path.make_node('install')
+    install_dir.mkdir()
+    product_dir = install_dir.make_node('%s-%s' % (APPNAME, VERSION))
+    product_dir.mkdir()
+    lib_dir = product_dir.make_node('lib')
+    lib_dir.mkdir()
+    include_dir = product_dir.make_node('include')
+    include_dir.mkdir()
+    platform_dir = lib_dir.make_node(bld.env.PLATFORM)
+    platform_dir.mkdir()
 
-def package(conf):
-    # TODO: Check how much of this can be moved to waf_package.py
+    def copy(name, srcdir, dstdir):
+        src = os.path.join(srcdir, name)
+        dst = os.path.join(dstdir, name)
+        shutil.copy2(src, dst)
+        print("Copied %s to %s" % (src, dst))
 
-    env = waf_package.load_build_context(blddir)
+    copy(bld.env.cxxstlib_PATTERN % 'BulletCollision', 'build', platform_dir.abspath())
+    copy(bld.env.cxxstlib_PATTERN % 'BulletDynamics', 'build', platform_dir.abspath())
+    copy(bld.env.cxxstlib_PATTERN % 'LinearMath', 'build', platform_dir.abspath())
 
-    cwd = os.path.join(env.PREFIX, "%s-%s" % (APPNAME, VERSION)).replace('\\', '/')
+    tar_name = '%s/%s-%s-%s.tar.gz' % (install_dir.abspath(), APPNAME, VERSION, bld.env.PLATFORM)
+    run.command(['tar', 'czvf', tar_name, 'lib'], cwd=product_dir.abspath())
+    print("Wrote %s" % tar_name)
 
-    files = waf_package.glob_files("include/**/*", cwd=cwd)
-    files.extend(waf_package.glob_files("include/*", cwd=cwd))
-    target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, "common"))
-    waf_package.create_tar(files, cwd, target=target)
-    print("Wrote", target)
+    package_node = bld.path.make_node('package')
+    product_node = package_node.make_node('%s-%s' % (APPNAME, VERSION))
+    src_node = product_node.make_node('src')
 
-    files = waf_package.glob_files(["bin/%s/*" % env.PLATFORM,
-                                    "bin/%s/**/*" % env.PLATFORM,
-                                    "lib/%s/*" % env.PLATFORM,
-                                    "lib/%s/**/*" % env.PLATFORM],
-                                    cwd=cwd)
+    includes = src_node.ant_glob(['**/*.h'])
+    for x in includes:
+        relpath = os.path.relpath(x.abspath(), src_node.abspath())
+        dst = os.path.join(include_dir.abspath(), relpath)
+        dst_dir = os.path.dirname(dst)
+        if not os.path.exists(dst_dir):
+            os.makedirs(dst_dir)
+        
+        shutil.copy2(x.abspath(), dst)
 
-    target = os.path.join(env.PREFIX, "%s-%s-%s.tar.gz" % (APPNAME, VERSION, env.PLATFORM))
-    waf_package.create_tar(files, cwd, target=target)
-
-    print("Wrote", target)
-
-
-
-
-
-
-
-
-
+    tar_name = '%s/%s-%s-%s.tar.gz' % (install_dir.abspath(), APPNAME, VERSION, 'common')
+    run.command(['tar', 'czvf', tar_name, 'include'], cwd=product_dir.abspath())
+    print("Wrote %s" % tar_name)
