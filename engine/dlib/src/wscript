@@ -32,7 +32,7 @@ def build(bld):
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux/**/*.cpp')
-    elif 'darwin' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
+    elif 'macos' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
         source_dirs.append('dlib/darwin/**/*.cpp')
         source_dirs.append('dlib/*.mm')
     elif 'win32' in bld.env.PLATFORM:
@@ -92,7 +92,7 @@ def build(bld):
     # remove all null implementations
     dlib.source = [x for x in dlib.source if not x.abspath().endswith('_null.cpp')]
 
-    if 'darwin' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['osx', 'ios']:
+    if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
@@ -238,7 +238,7 @@ def build(bld):
 
     # ******************************************************************
 
-    desktop = bld.env['PLATFORM'] in ('x86_64-darwin', 'x86_64-linux', 'x86_64-win32')
+    desktop = bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos', 'x86_64-linux', 'x86_64-win32')
     if desktop:
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
                                 includes = '. ./mbedtls/include ./mbedtls/crypto/include',
@@ -270,14 +270,14 @@ def build(bld):
         new_opt_level = True
 
     extra_encoder_flags = []
-    if bld.env['PLATFORM'] == 'x86_64-darwin':
+    if bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos'):
         # SSE4.1 was added in 10.12
         remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
         extra_encoder_flags += ['-mmacosx-version-min=10.12']
 
     # For the texture compiler
     basis_flags = ['BASISD_SUPPORT_KTX2_ZSTD=0'] #+ ['BASISU_FORCE_DEVEL_MESSAGES=1']
-    if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-darwin'):
+    if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-macos'):
         basis_flags += ['BASISU_SUPPORT_SSE=1']
 
     basis_encoder = bld.stlib(features = 'c cxx skip_asan remove_flags',

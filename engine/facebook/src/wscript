@@ -12,7 +12,7 @@ def configure(conf):
 def build(bld):
     source = 'facebook_null.cpp'
 
-    platforms = ['arm.*?darwin', 'arm.*?android', '.*?web']
+    platforms = ['arm.*?ios', 'arm.*?android', '.*?web']
     for p in platforms:
         if re.match(p, bld.env.PLATFORM):
             source = 'facebook_stub.cpp'

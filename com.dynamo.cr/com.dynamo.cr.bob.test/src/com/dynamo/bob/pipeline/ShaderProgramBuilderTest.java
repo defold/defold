@@ -55,7 +55,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(ShaderDesc.Language.LANGUAGE_GLSL_SM140, shader.getShaders(0).getLanguage());
         switch(Platform.getHostPlatform())
         {
-            case X86_64Darwin:
+            case X86_64MacOS:
             case X86_64Linux:
             case X86_64Win32:
             if (expectSpirv)
@@ -77,7 +77,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(ShaderDesc.Language.LANGUAGE_GLSL_SM140, shader.getShaders(0).getLanguage());
         switch(Platform.getHostPlatform())
         {
-            case X86_64Darwin:
+            case X86_64MacOS:
             case X86_64Linux:
             case X86_64Win32:
             if (expectSpirv)
@@ -96,7 +96,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         shader = (ShaderDesc)outputs.get(0);
         switch(Platform.getHostPlatform())
         {
-            case X86_64Darwin:
+            case X86_64MacOS:
             case X86_64Linux:
             case X86_64Win32:
             if (expectSpirv)
@@ -115,7 +115,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         shader = (ShaderDesc)outputs.get(0);
         switch(Platform.getHostPlatform())
         {
-            case X86_64Darwin:
+            case X86_64MacOS:
             case X86_64Linux:
             case X86_64Win32:
             if (expectSpirv)
