@@ -34,7 +34,9 @@
             [editor.util :as eutil])
   (:import [clojure.lang Fn IFn IHashEq MultiFn]
            [com.defold.control ListCell]
+           [java.util Collection]
            [javafx.application Platform]
+           [javafx.collections ObservableList]
            [javafx.scene Node]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
@@ -51,6 +53,17 @@
     (advance [_ _ desc _]
       (:value desc))
     (delete [_ _ _])))
+
+(defn identity-aware-observable-list-mutator [get-list-fn]
+  (let [set-all! #(.setAll ^ObservableList (get-list-fn %1) ^Collection %2)]
+    (reify fx.mutator/Mutator
+      (assign! [_ instance coerce value]
+        (set-all! instance (coerce value)))
+      (replace! [_ instance coerce old-value new-value]
+        (when-not (identical? old-value new-value)
+          (set-all! instance (coerce new-value))))
+      (retract! [_ instance _ _]
+        (set-all! instance [])))))
 
 (extend-protocol fx.lifecycle/Lifecycle
   MultiFn

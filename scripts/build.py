@@ -532,7 +532,7 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), ['python', './packages/get-pip.py', 'pip==20.3.4', '--user'])
+        run.env_command(self._form_env(), ['python', './packages/get-pip.py', '--user'])
         run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
@@ -1410,7 +1410,7 @@ class Configuration(object):
         if self.set_version:
             new_version = self.set_version
         else:
-            lst = map(int, current.split('.'))
+            lst = [int(x) for x in current.split('.')]
             lst[-1] += 1
             new_version = '.'.join(map(str, lst))
 
@@ -1452,7 +1452,7 @@ class Configuration(object):
         output = process.communicate()[0]
 
         if process.returncode != 0:
-            self._log(output)
+            self._log(str(output, encoding='utf-8'))
             sys.exit(process.returncode)
 
 # ------------------------------------------------------------
@@ -1601,13 +1601,14 @@ class Configuration(object):
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
 
         if not releases:
-            self.log('Unable to find any releases')
+            self._log('Unable to find any releases')
             sys.exit(1)
 
         release_sha1 = releases[0]['sha1']
 
         if sys.stdin.isatty():
             sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
+            sys.stdout.flush()
             response = sys.stdin.readline()
             if response[0] != 'y':
                 return

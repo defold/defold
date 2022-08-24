@@ -31,7 +31,6 @@ scripts/android-v4/.settings/
 scripts/android-v4/build/
 
 # IntelliJ
-**/.idea
 editor/.gradle/
 
 # eastwood

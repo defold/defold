@@ -714,6 +714,7 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
     dmProfile::Options options;
     options.m_Port = g_ProfilerPort;
+    options.m_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.sleep_between_server_updates", 0);
     dmProfile::Initialize(&options);
 
     if (!dmProfile::IsInitialized()) // We might use the null implementation

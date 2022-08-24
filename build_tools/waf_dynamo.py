@@ -457,7 +457,8 @@ def default_flags(self):
 
         emflags = ['DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
                    'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]',
-                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2']
+                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2',
+                   'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0']
 
         if 'wasm' == build_util.get_target_architecture():
             emflags += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
