@@ -501,7 +501,6 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), [self.get_python(), './packages/get-pip.py', '--user'])
         run.env_command(self._form_env(), [self.get_python(), '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
