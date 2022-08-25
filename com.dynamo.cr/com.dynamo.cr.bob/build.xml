@@ -116,6 +116,13 @@
                 <include name="luac-32"/>
             </fileset>
         </copy>
+        <copy todir="${bob.dir}/libexec/arm64-macos" overwrite="true" flatten="true">
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/arm64-macos">
+                <include name="glslc"/>
+                <include name="spirv-cross"/>
+                <include name="luac-32"/>
+            </fileset>
+        </copy>
         <copy todir="${bob.dir}/libexec/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/x86_64-linux">
                 <include name="glslc"/>
@@ -146,8 +153,8 @@
                          the copy -->
                     <globmapper from="x86_64-macos/luajit-2.1.0-beta3-32" to="x86_64-macos/luajit-32"/>
                     <globmapper from="x86_64-macos/luajit-2.1.0-beta3-64" to="x86_64-macos/luajit-64"/>
-                    <!-- <globmapper from="arm64-macos/luajit-2.1.0-beta3-32" to="arm64-macos/luajit-32"/>
-                    <globmapper from="arm64-macos/luajit-2.1.0-beta3-64" to="arm64-macos/luajit-64"/> -->
+                    <globmapper from="arm64-macos/luajit-2.1.0-beta3-32" to="arm64-macos/luajit-32"/>
+                    <globmapper from="arm64-macos/luajit-2.1.0-beta3-64" to="arm64-macos/luajit-64"/>
                     <globmapper from="x86_64-linux/luajit-2.1.0-beta3-32" to="x86_64-linux/luajit-32"/>
                     <globmapper from="x86_64-linux/luajit-2.1.0-beta3-64" to="x86_64-linux/luajit-64"/>
                     <globmapper from="x86_64-win32/luajit-32.exe" to="x86_64-win32/luajit-32.exe"/>
@@ -213,11 +220,11 @@
                 <include name="x86_64-macos/*texc_shared*"/>
             </fileset>
         </copy>
-        <!-- <copy todir="${bob.dir}/lib/arm64-macos" overwrite="true" flatten="true">
+        <copy todir="${bob.dir}/lib/arm64-macos" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="arm64-macos/*texc_shared*"/>
             </fileset>
-        </copy> -->
+        </copy>
         <copy todir="${bob.dir}/lib/x86_64-linux" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="x86_64-linux/*texc_shared*"/>

@@ -96,7 +96,7 @@ public class IOSBundler implements IBundler {
         return (temp);
     }
 
-    private String getFileDescription(File file) {
+    public static String getFileDescription(File file) {
         if (file == null) {
             return "null";
         }
@@ -121,8 +121,7 @@ public class IOSBundler implements IBundler {
         return file.getPath();
     }
 
-    private void lipoBinaries(File resultFile, List<File> binaries)
-    throws IOException, CompileExceptionError {
+    public static void lipoBinaries(File resultFile, List<File> binaries) throws IOException, CompileExceptionError {
         if (binaries.size() == 1) {
             FileUtils.copyFile(binaries.get(0), resultFile);
             return;

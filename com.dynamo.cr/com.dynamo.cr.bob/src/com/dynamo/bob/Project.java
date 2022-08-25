@@ -746,6 +746,7 @@ public class Project {
     static {
         bundlers = new HashMap<>();
         bundlers.put(Platform.X86_64MacOS, OSXBundler.class);
+        bundlers.put(Platform.Arm64MacOS, OSXBundler.class);
         bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
         bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
@@ -810,13 +811,13 @@ public class Project {
             // TODO: remove in some future update
             if (pair.equals("x86_64-darwin"))
             {
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", pair, Platform.X86_64MacOS.getPair());
                 pair = Platform.X86_64MacOS.getPair();
-                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", pair);
             }
             else if (pair.equals("arm64-darwin"))
             {
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", pair, Platform.Arm64Ios.getPair());
                 pair = Platform.Arm64Ios.getPair();
-                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", pair);
             }
             p = Platform.get(pair);
         }

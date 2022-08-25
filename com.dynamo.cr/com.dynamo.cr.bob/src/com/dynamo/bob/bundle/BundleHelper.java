@@ -202,7 +202,7 @@ public class BundleHelper {
         if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             mainManifest = getResource("ios", "infoplist");
             properties = createIOSManifestProperties(exeName);
-        } else if (platform == Platform.X86_64MacOS) {
+        } else if (platform == Platform.X86_64MacOS || platform == Platform.Arm64MacOS) {
             mainManifest = getResource("osx", "infoplist");
             properties = createOSXManifestProperties(exeName);
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
@@ -246,7 +246,7 @@ public class BundleHelper {
     private File getAppManifestFile(Platform platform, File appDir) {
         if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             return new File(appDir, "Info.plist");
-        } else if (platform == Platform.X86_64MacOS) {
+        } else if (platform == Platform.X86_64MacOS || platform == Platform.Arm64MacOS) {
             return new File(appDir, "Contents/Info.plist");
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             return new File(appDir, "AndroidManifest.xml");
@@ -259,7 +259,7 @@ public class BundleHelper {
     private static String getMainManifestName(Platform platform) {
         if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             return MANIFEST_NAME_IOS;
-        } else if (platform == Platform.X86_64MacOS) {
+        } else if (platform == Platform.X86_64MacOS || platform == Platform.Arm64MacOS) {
             return MANIFEST_NAME_MACOS;
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             return MANIFEST_NAME_ANDROID;

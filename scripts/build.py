@@ -1110,7 +1110,8 @@ class Configuration(object):
         for plf in [['x86_64-win32', 'x86_64-win32'],
                     ['x86_64-linux', 'x86_64-linux'],
                     ['x86_64-macos', 'x86_64-macos'],
-                    ['arm64-macos', 'arm64-macos']]:
+                    #['arm64-macos', 'arm64-macos']
+                    ]:
             luajit_path = join(cwd, '../../packages/luajit-2.1.0-beta3-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
@@ -1175,13 +1176,11 @@ class Configuration(object):
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
 
-
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
         else:
             self.copy_local_bob_artefacts()
-
 
         env = self._form_env()
 

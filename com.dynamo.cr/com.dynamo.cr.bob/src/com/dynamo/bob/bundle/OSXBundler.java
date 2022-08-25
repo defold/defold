@@ -16,6 +16,7 @@ package com.dynamo.bob.bundle;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +54,7 @@ public class OSXBundler implements IBundler {
     public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
-        final Platform platform = Platform.X86_64MacOS;
+        final Platform platform = Platform.Arm64MacOS; // Default platform
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -73,14 +74,32 @@ public class OSXBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
-        if (bundleExes == null) {
-            bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
+        List<File> binaries = new ArrayList<File>();
+        for (Platform architecture : architectures) {
+            List<File> bins = Bob.getNativeExtensionEngineBinaries(architecture, extenderExeDir);
+            if (bins == null) {
+                bins = Bob.getDefaultDmengineFiles(architecture, variant);
+            } else {
+                logger.log(Level.INFO, "Using extender binary for " + architecture.getPair());
+            }
+
+            File binary = bins.get(0);
+            logger.log(Level.INFO, architecture.getPair() + " exe: " + IOSBundler.getFileDescription(binary));
+            binaries.add(binary);
+
+            BundleHelper.throwIfCanceled(canceled);
         }
-        if (bundleExes.size() > 1) {
-            throw new IOException("Invalid number of binaries for macOS when bundling: " + bundleExes.size());
-        }
-        File bundleExe = bundleExes.get(0);
+
+        BundleHelper.throwIfCanceled(canceled);
+        // Create fat/universal binary
+        File tmpFile = File.createTempFile("dmengine", "");
+        tmpFile.deleteOnExit();
+        String exe = tmpFile.getPath();
+
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Run lipo on supplied architecture binaries.
+        IOSBundler.lipoBinaries(tmpFile, binaries);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -120,7 +139,7 @@ public class OSXBundler implements IBundler {
 
         // Copy Executable
         File exeOut = new File(macosDir, exeName);
-        FileUtils.copyFile(bundleExe, exeOut);
+        FileUtils.copyFile(tmpFile, exeOut);
         exeOut.setExecutable(true);
 
         // Copy debug symbols
@@ -142,13 +161,13 @@ public class OSXBundler implements IBundler {
         if( strip_executable )
         {
             // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS) {
-                Result stripResult = Exec.execResult(Bob.getExe(platform, "strip_ios"), exeOut.getPath()); // Using the same executable
+            if (Platform.getHostPlatform() == Platform.X86_64MacOS || 
+                Platform.getHostPlatform() == Platform.Arm64MacOS) {
+                Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exeOut.getPath()); // Using the same executable
                 if (stripResult.ret != 0) {
                     logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
                 }
             }
         }
     }
-
 }
