@@ -599,6 +599,13 @@
   (assert node-id)
   (it/update-property node-id p f args))
 
+(defn update-property-ec
+  "Same as update-property, but injects the in-transaction evaluation-context
+  as the first argument to the update-fn."
+  [node-id p f & args]
+  (assert node-id)
+  (it/update-property-ec node-id p f args))
+
 (defn update-property!
   "Create the transaction step to apply a function to a node's property in a transaction. Then it applies the transaction.
    The function f will be invoked as if by (apply f current-value args).  The transaction results, (tx-result), are returned.

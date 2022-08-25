@@ -588,6 +588,26 @@
 (defmethod go-prop-value->clj-value [:property-type-hash resource/Resource] [_ _ go-prop-value workspace]
   (workspace/resolve-workspace-resource workspace go-prop-value))
 
+(defmulti sanitize-go-prop-value (fn [go-prop-type _go-prop-value] go-prop-type))
+(defmethod sanitize-go-prop-value :default [_go-prop-type go-prop-value]
+  go-prop-value)
+
+(defmethod sanitize-go-prop-value :property-type-vector3 [go-prop-type go-prop-value] (clj-value->go-prop-value go-prop-type (parse-vec go-prop-value 3)))
+(defmethod sanitize-go-prop-value :property-type-vector4 [go-prop-type go-prop-value] (clj-value->go-prop-value go-prop-type (parse-vec go-prop-value 4)))
+(defmethod sanitize-go-prop-value :property-type-quat [go-prop-type go-prop-value] (clj-value->go-prop-value go-prop-type (go-prop-value->clj-value t/Vec3 :property-type-quat go-prop-value nil)))
+
+(defn sanitize-property-desc [property-desc]
+  ;; GameObject$PropertyDesc in map format.
+  (let [go-prop-value (:value property-desc)
+        go-prop-type (:type property-desc)]
+    (try
+      (let [sanitized-go-prop-value (sanitize-go-prop-value go-prop-type go-prop-value)]
+        (assert (string? sanitized-go-prop-value))
+        (assoc property-desc :value sanitized-go-prop-value))
+      (catch Exception _
+        ;; Leave unsanitized.
+        property-desc))))
+
 (defn- apply-property-override [workspace id-mapping prop-kw prop property-desc]
   ;; This can be used with raw PropertyDescs in map format. However, we decorate
   ;; these with a :clj-value field when they enter the graph, so if that is
