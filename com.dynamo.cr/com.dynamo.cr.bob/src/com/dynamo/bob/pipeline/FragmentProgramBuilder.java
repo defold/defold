@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.List;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
@@ -24,6 +25,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
+import com.dynamo.bob.pipeline.ShaderUtil.IncludeDirectiveCompiler;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 @BuilderParams(name = "FragmentProgram", inExts = ".fp", outExt = ".fpc")
@@ -33,12 +35,20 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
     private boolean soft_fail = true;
 
     @Override
-    public void build(Task<Void> task) throws IOException, CompileExceptionError {
-        IResource in = task.getInputs().get(0);
+    public void build(Task<IncludeDirectiveCompiler.IncludeNode> task) throws IOException, CompileExceptionError {
+
+        List<IResource> inputs                            = task.getInputs();
+        List<IResource> includeResources                  = inputs.subList(1, inputs.size());
+        IResource in                                      = inputs.get(0);
+        IncludeDirectiveCompiler.IncludeNode includeGraph = task.getData();
+
         try (ByteArrayInputStream is = new ByteArrayInputStream(in.getContent())) {
-            boolean isDebug = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
-            boolean outputSpirv = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
-            ShaderDesc shaderDesc = compile(is, SHADER_TYPE, in, task.getOutputs().get(0).getPath(), project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
+            boolean isDebug       = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
+            boolean outputSpirv   = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
+            ShaderDesc shaderDesc = compile(is,
+                includeGraph, IncludeDirectiveCompiler.GetMappingFromResources(includeResources),
+                SHADER_TYPE, in, task.getOutputs().get(0).getPath(),
+                project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
             task.output(0).setContent(shaderDesc.toByteArray());
         }
     }

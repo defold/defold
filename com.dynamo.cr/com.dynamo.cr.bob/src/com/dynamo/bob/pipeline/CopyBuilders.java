@@ -25,4 +25,6 @@ public class CopyBuilders {
     @BuilderParams(name = "Gamepads", inExts = ".gamepads", outExt = ".gamepadsc")
     public static class GamepadsBuilder extends CopyBuilder {}
 
+    @BuilderParams(name = "Glsl", inExts = ".glsl", outExt = ".glslc")
+    public static class GlslBuilder extends CopyBuilder {}
 }

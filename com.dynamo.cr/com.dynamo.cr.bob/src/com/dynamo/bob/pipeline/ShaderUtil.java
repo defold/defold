@@ -19,10 +19,13 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Scanner;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.FileInputStream;
+import java.nio.charset.StandardCharsets;
 
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ArrayNode;
@@ -31,6 +34,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.IResource;
 
 
 public class ShaderUtil {
@@ -49,80 +53,58 @@ public class ShaderUtil {
         private static String includeDirectiveStr = "#include\\s+\"(?<path>.+)\"";
         private static Pattern includeDirectivePattern = Pattern.compile(includeDirectiveStr);
 
-        private static class IncludeNode
+        public static final String RootKey = "INCLUDE_ROOT";
+
+        public static class IncludeNode
         {
             public String path;
-            public String data;
             public HashMap<String, IncludeNode> children = new HashMap<String, IncludeNode>();
         };
 
-        public static class IncludeDirectiveMapping {
+        public static class Mapping {
             public String path;
-            public String compiledData;
-            public int    line;
+            public String data;
         }
 
-        public static class Result extends ArrayList<IncludeDirectiveMapping> {}
+        public static class Result extends ArrayList<Mapping> {}
 
         public IncludeDirectiveCompiler(String source) {
             this.shaderSource = source;
         }
 
-        public static Result Compile()
+        public static IncludeNode BuildGraph() {
+            return BuildShaderIncludeGraph(shaderSource, RootKey);
+        }
+
+        public static Result Compile(IncludeNode root)
         {
             Result res = new Result();
-            IncludeNode root = BuildShaderIncludeGraph(shaderSource, "Root");
-
-            ArrayList<String> compiled_node_cache = new ArrayList<String>();
-
             for (Map.Entry<String, IncludeNode> child : root.children.entrySet()) {
-                String key           = child.getKey();
-                IncludeNode value    = child.getValue();
-
-                StringBuilder compiled_data = new StringBuilder();
-                CompileNode(value, compiled_data, compiled_node_cache);
-
-                IncludeDirectiveMapping child_mapping = new IncludeDirectiveMapping();
-
-                child_mapping.path = key;
-                child_mapping.compiledData = compiled_data.toString();
-                res.add(child_mapping);
-
-                /*
-                System.out.println("Finished compiling include for " + key);
-                System.out.println(compiled_data.toString());
-                */
+                String key        = child.getKey();
+                IncludeNode value = child.getValue();
+                CompileNode(value, res);
             }
 
             return res;
         }
 
-        private static void CompileNode(IncludeNode node, StringBuilder compiled_data, ArrayList<String> nodeCache)
+        private static void CompileNode(IncludeNode node, ArrayList<Mapping> mappings)
         {
-            if (ArrayUtils.contains(nodeCache.toArray(), node.path))
-            {
-                System.out.println("Already processed " + node.path);
-            }
-            else
-            {
-                compiled_data.append(node.data);
-                nodeCache.add(node.path);
-            }
-
             for (Map.Entry<String, IncludeNode> child : node.children.entrySet()) {
                 String key           = child.getKey();
                 IncludeNode value    = child.getValue();
-                CompileNode(value, compiled_data, nodeCache);
+                CompileNode(value, mappings);
             }
+
+            Mapping child_mapping = new Mapping();
+            child_mapping.path = node.path;
+            mappings.add(child_mapping);
         }
 
         private static IncludeNode BuildShaderIncludeGraph(String fromData, String fromPath)
         {
             IncludeNode new_node = new IncludeNode();
             new_node.path = fromPath;
-            new_node.data = fromData.replaceAll(includeDirectiveStr, "");
-
-            System.out.println("Adding node " + fromPath);
 
             Matcher includeDirectiveMatcher = includeDirectivePattern.matcher(fromData);
             while (includeDirectiveMatcher.find()) {
@@ -130,8 +112,6 @@ public class ShaderUtil {
 
                 if (shaderIncludePath != null)
                 {
-                    System.out.println("Found include: " + shaderIncludePath);
-
                     String childData = null;
                     try(FileInputStream inputStream = new FileInputStream(shaderIncludePath)) {     
                         childData = IOUtils.toString(inputStream);
@@ -150,6 +130,7 @@ public class ShaderUtil {
             return new_node;
         }
 
+        /*
         public static void PrintGraph(IncludeNode node, int depth)
         {
             if (node == null)
@@ -170,40 +151,72 @@ public class ShaderUtil {
                 PrintGraph(value, depth + 1);
             }
         }
+        */
 
-        public static String InsertIncludeDirective(String source, ArrayList<IncludeDirectiveMapping> fromMappings)
+        private static void CompileIncludeDirective(IncludeNode node, Mapping[] pathToDataMapping, ArrayList<String> includeData)
         {
-            ArrayList<String> outputLines = new ArrayList<String>();
-            Scanner scanner = new Scanner(source);
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine();
-
-                Matcher lineIncludeMatcher = includeDirectivePattern.matcher(line);
-
-                if (lineIncludeMatcher.find()) {
-                    String includePath = lineIncludeMatcher.group("path");
-
-                    boolean found_include = false;
-                    for (IncludeDirectiveMapping mapping : fromMappings) {
-                        if (mapping.path.equals(includePath))
-                        {
-                            line = mapping.compiledData;
-                            found_include = true;
-                            break;
-                        }
-                    }
-
-                    if (!found_include)
-                    {
-                        System.out.println("Could not find include node for " + includePath);
-                    }
-                }
-
-                outputLines.add(line);
+            for (Map.Entry<String, IncludeNode> child : node.children.entrySet()) {
+                String key           = child.getKey();
+                IncludeNode value    = child.getValue();
+                CompileIncludeDirective(value, pathToDataMapping, includeData);
             }
-            scanner.close();
 
-            return String.join("\n", outputLines);
+            Mapping found_mapping = null;
+            for (Mapping mapping : pathToDataMapping) {
+                if (mapping.path.equals(node.path))
+                {
+                    found_mapping = mapping;
+                    break;
+                }
+            }
+
+            if (found_mapping != null) {
+                includeData.add(found_mapping.data);
+            } else {
+                System.out.println("Could not find include node for " + node.path);
+            }
+        }
+
+        public static String InsertIncludeDirective(String source, IncludeNode node, Mapping[] pathToDataMapping)
+        {
+            for (Map.Entry<String, IncludeNode> child : node.children.entrySet()) {
+                String includeNodePatternStr = String.format("#include\\s+\"%s\"", child.getKey());
+                Pattern includeNodePattern = Pattern.compile(includeNodePatternStr);
+
+                ArrayList<String> stringBuffer = new ArrayList<String>();
+                CompileIncludeDirective(child.getValue(), pathToDataMapping, stringBuffer);
+
+                String compiledNode = String.join("\n", stringBuffer);
+                source = source.replaceAll(includeNodePatternStr, compiledNode);
+            }
+
+            return source;
+        }
+
+        public static Mapping[] GetMappingFromResources(List<IResource> includeResources) throws IOException
+        {
+            Mapping[] includes = new Mapping[includeResources.size()];
+
+            for (int i=0; i < includeResources.size(); i++) {
+                IResource include_file = includeResources.get(i);
+                try (ByteArrayInputStream is = new ByteArrayInputStream(include_file.getContent())) {
+
+                    int n = is.available();
+                    byte[] bytes = new byte[n];
+                    is.read(bytes, 0, n);
+                    String include_source = new String(bytes, StandardCharsets.UTF_8);
+
+                    // Strip all include directives
+                    include_source = include_source.replaceAll(includeDirectiveStr, "");
+
+                    Mapping include_map_entry = new Mapping();
+                    include_map_entry.path = include_file.getPath();
+                    include_map_entry.data = include_source;
+
+                    includes[i] = include_map_entry;
+                }   
+            }
+            return includes;
         }
     }
 
