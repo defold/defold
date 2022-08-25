@@ -540,7 +540,7 @@ namespace dmGraphics
     /*# check if a specific texture format is supported
      * @name IsTextureFormatSupported
      * @param context [type:dmGraphics::HContext] the context
-     * @param extension [type:TextureFormat] the texture format.
+     * @param format [type:TextureFormat] the texture format.
      * @return result [type:bool] true if the texture format was supported
      */
     bool IsTextureFormatSupported(HContext context, TextureFormat format);
