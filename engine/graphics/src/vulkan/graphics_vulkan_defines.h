@@ -23,7 +23,7 @@
 
 	         #define VK_USE_PLATFORM_METAL_EXT
 	*/
-    #if (defined(__arm__) || defined(__arm64__))
+    #if defined(DM_PLATFORM_IOS)
         #define VK_USE_PLATFORM_IOS_MVK
     #else
         #define VK_USE_PLATFORM_MACOS_MVK

@@ -148,7 +148,7 @@ TEST(Simple, LoadWithTemplateFunction)
     }
 }
 
-#if !(defined(__APPLE__) && (defined(__arm__) || defined(__arm64__)))
+#if !defined(DM_PLATFORM_IOS)
 // TODO: Disabled on iOS
 // We have add functionality to located tmp-dir on iOS. See issue #624
 TEST(Simple, LoadFromFile)

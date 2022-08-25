@@ -24,7 +24,7 @@
 
 namespace dmSocket
 {
-#if defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+#if defined(DM_PLATFORM_IOS)
     Result GetLocalAddress(Address* address)
     {
         /*

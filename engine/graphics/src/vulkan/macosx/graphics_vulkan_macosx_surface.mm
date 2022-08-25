@@ -18,7 +18,7 @@
 #include <graphics/glfw/glfw_native.h>
 #include <objc/objc.h>
 
- #if !(defined(__arm__) || defined(__arm64__))
+#if defined(DM_PLATFORM_MACOS)
     #include <Carbon/Carbon.h>
 #endif
 

@@ -580,7 +580,7 @@ namespace dmSys
 #endif
     }
 
-#if ((defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)) && defined(__MACH__))
+#if defined(DM_PLATFORM_IOS)
     // NOTE: iOS implementation in sys_cocoa.mm
 
 #elif defined(__ANDROID__)

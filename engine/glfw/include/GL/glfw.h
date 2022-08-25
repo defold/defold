@@ -160,7 +160,7 @@ extern "C" {
  * (which is not a nice solution for portable programs).
  */
 #if defined(__APPLE_CC__)
-#if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
+#if defined(DM_PLATFORM_IOS)
 #include <OpenGLES/ES3/gl.h>
 #else
  #include <OpenGL/gl3.h>

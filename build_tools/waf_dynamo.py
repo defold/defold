@@ -61,7 +61,7 @@ if 'waf_dynamo_private' not in sys.modules:
 
 def platform_supports_feature(platform, feature, data):
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux']
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux', 'arm64-macos']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -381,6 +381,7 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, ['-DDM_PLATFORM_MACOS'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
@@ -389,11 +390,10 @@ def default_flags(self):
             self.env.append_value(f, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN)
 
             self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
-            if self.env['BUILD_PLATFORM'] in ('x86_64-linux', 'x86_64-macos', 'arm64-macos'):
-                arch = build_util.get_target_architecture()
-                self.env.append_value(f, ['-target', '%s-apple-darwin19' % arch])
+            self.env.append_value(f, ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
+        self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
         if 'linux' in self.env['BUILD_PLATFORM']:
@@ -1394,27 +1394,16 @@ def detect(conf):
     if Options.options.with_iwyu:
         conf.find_program('include-what-you-use', var='IWYU', mandatory = False)
 
-    build_platform = sdk.get_host_platform()
+    host_platform = sdk.get_host_platform()
 
-    platform = None
-    if getattr(Options.options, 'platform', None):
-        platform=getattr(Options.options, 'platform')
+    platform = getattr(Options.options, 'platform', None)
 
     if not platform:
-        platform = build_platform
+        platform = host_platform
 
-    if platform == "win32":
-        bob_build_platform = "x86_64-win32"
-    elif platform == "linux":
-        bob_build_platform = "x86_64-linux"
-    elif platform == "darwin":
-        bob_build_platform = "x86_64-macos"
-    else:
-        bob_build_platform = platform
-
-    conf.env['BOB_BUILD_PLATFORM'] = bob_build_platform # used in waf_gamesys.py TODO: Remove the need for BOB_BUILD_PLATFORM (weird names)
+    conf.env['BOB_BUILD_PLATFORM'] = host_platform # used in waf_gamesys.py TODO: Remove the need for BOB_BUILD_PLATFORM (weird names)
     conf.env['PLATFORM'] = platform
-    conf.env['BUILD_PLATFORM'] = build_platform
+    conf.env['BUILD_PLATFORM'] = host_platform
 
     if platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
         conf.find_program('node', var='NODEJS', mandatory = False)
@@ -1428,11 +1417,11 @@ def detect(conf):
     conf.env['DYNAMO_HOME'] = dynamo_home
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
-    sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, build_platform)
+    sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, host_platform)
 
-    if 'linux' in build_platform and build_util.get_target_platform() in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    if 'linux' in host_platform and build_util.get_target_platform() in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         conf.env['TESTS_UNSUPPORTED'] = True
-        print ("Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), build_platform))
+        print ("Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), host_platform))
 
         conf.env['CODESIGN_UNSUPPORTED'] = True
         print ("Codesign disabled", Options.options.skip_codesign)
@@ -1456,8 +1445,8 @@ def detect(conf):
 
     if build_util.get_target_os() in ('macos', 'ios'):
         path_list = None
-        if 'linux' in build_platform:
-            path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')]
+        if 'linux' in host_platform:
+            path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo_host, host_platform),'bin')]
         else:
             path_list=[os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'usr','bin')]
         conf.find_program('dsymutil', var='DSYMUTIL', mandatory = True, path_list=path_list) # or possibly llvm-dsymutil
@@ -1471,9 +1460,9 @@ def detect(conf):
 
         llvm_prefix = ''
         bin_dir = '%s/usr/bin' % (sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()))
-        if 'linux' in build_platform:
+        if 'linux' in host_platform:
             llvm_prefix = 'llvm-'
-            bin_dir = os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')
+            bin_dir = os.path.join(sdk.get_toolchain_root(sdkinfo_host, host_platform),'bin')
 
         conf.env['CC']      = '%s/clang' % bin_dir
         conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1486,8 +1475,8 @@ def detect(conf):
     elif 'ios' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
-        if 'linux' in build_platform:
-            bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo_host, build_platform),'bin')
+        if 'linux' in host_platform:
+            bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo_host, host_platform),'bin')
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
@@ -1515,7 +1504,7 @@ def detect(conf):
 
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
-        bp_arch, bp_os = build_platform.split('-')
+        bp_arch, bp_os = host_platform.split('-')
         target_arch = build_util.get_target_architecture()
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
@@ -1657,6 +1646,10 @@ def detect(conf):
 
     use_vanilla = getattr(Options.options, 'use_vanilla_lua', False)
     if build_util.get_target_os() == 'web' or not platform_supports_feature(build_util.get_target_platform(), 'luajit', {}):
+        use_vanilla = True
+
+    # Until we've built luajit for arm64-macos
+    if build_util.get_target_platform() == 'arm64-macos':
         use_vanilla = True
 
     if use_vanilla:

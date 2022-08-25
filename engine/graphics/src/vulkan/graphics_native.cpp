@@ -349,7 +349,7 @@ namespace dmGraphics
 
     void NativeSwapBuffers(HContext context)
     {
-    #if (defined(__arm__) || defined(__arm64__))
+    #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
         glfwSwapBuffers();
     #endif
     }

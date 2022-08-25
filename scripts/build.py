@@ -35,7 +35,7 @@ from queue import Queue
 from configparser import ConfigParser
 
 BASE_PLATFORMS = [  'x86_64-linux',
-                    'x86_64-macos', #'arm64-macos',
+                    'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
                     'armv7-android', 'arm64-android',
@@ -89,7 +89,7 @@ PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 Mo
 PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-197a273f glslc-96b1dd7 MoltenVK-1.0.41 luac-32-5.1.5".split()
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
 PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-197a273f glslc-96b1dd7 vulkan-1.1.108 luac-32-5.1.5".split()
-# luajit-2.1.0-beta3 bullet-2.77 MoltenVK-1.0.41
+# luajit-2.1.0-beta3 MoltenVK-1.0.41
 PACKAGES_MACOS_ARM64="protobuf-3.20.1 vpx-1.7.0 tremolo-0.0.8 bullet-2.77 glslc-96b1dd7 spirv-cross-197a273f".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-197a273f glslc-96b1dd7 vulkan-1.1.108 luac-32-5.1.5".split()
 PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
@@ -985,7 +985,7 @@ class Configuration(object):
         # The base libs are the libs needed to build bob, i.e. contains compiler code.
 
         platform_dependencies = {'x86_64-macos': ['x86_64-macos'],
-                                 #'arm64-macos': ['arm64-macos'],
+                                 'arm64-macos': ['arm64-macos'],
                                  'x86_64-linux': [],
                                  'x86_64-win32': ['win32']}
 

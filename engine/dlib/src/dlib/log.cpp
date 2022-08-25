@@ -579,7 +579,7 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", str_buf);
 
 // iOS
-#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
+#elif defined(DM_PLATFORM_IOS)
     dmLog::__ios_log_print(severity, str_buf);
 #endif
 

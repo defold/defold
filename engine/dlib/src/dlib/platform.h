@@ -15,30 +15,31 @@
 #ifndef DM_PLATFORM_H
 #define DM_PLATFORM_H
 
-#define DM_PLATFORM_LINUX   "linux"
-#define DM_PLATFORM_OSX     "osx"
-#define DM_PLATFORM_WINDOWS "windows"
-#define DM_PLATFORM_WEB     "web"
-#define DM_PLATFORM_ANDROID "android"
-#define DM_PLATFORM_IOS 	"ios"
-#define DM_PLATFORM_SWITCH 	"switch"
+#define DM_PLATFORM_NAME_LINUX   "linux"
+#define DM_PLATFORM_NAME_OSX     "osx"
+#define DM_PLATFORM_NAME_MACOS   "macos"
+#define DM_PLATFORM_NAME_WINDOWS "windows"
+#define DM_PLATFORM_NAME_WEB     "web"
+#define DM_PLATFORM_NAME_ANDROID "android"
+#define DM_PLATFORM_NAME_IOS 	 "ios"
+#define DM_PLATFORM_NAME_SWITCH  "switch"
 
 // Note: DM_PLATFORM is used as a key in data files, e.g. ".gamepads"
 
 #if defined(ANDROID)
-#define DM_PLATFORM DM_PLATFORM_ANDROID
+#define DM_PLATFORM DM_PLATFORM_NAME_ANDROID
 #elif defined(__linux__)
-#define DM_PLATFORM DM_PLATFORM_LINUX
-#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
-#define DM_PLATFORM DM_PLATFORM_IOS
-#elif defined(__MACH__)
-#define DM_PLATFORM DM_PLATFORM_OSX
+#define DM_PLATFORM DM_PLATFORM_NAME_LINUX
+#elif defined(DM_PLATFORM_IOS)
+#define DM_PLATFORM DM_PLATFORM_NAME_IOS
+#elif defined(DM_PLATFORM_MACOS)
+#define DM_PLATFORM DM_PLATFORM_NAME_MACOS
 #elif defined(_WIN32)
-#define DM_PLATFORM DM_PLATFORM_WINDOWS
+#define DM_PLATFORM DM_PLATFORM_NAME_WINDOWS
 #elif defined(__EMSCRIPTEN__)
-#define DM_PLATFORM DM_PLATFORM_WEB
+#define DM_PLATFORM DM_PLATFORM_NAME_WEB
 #elif defined(__NX__)
-#define DM_PLATFORM DM_PLATFORM_SWITCH
+#define DM_PLATFORM DM_PLATFORM_NAME_SWITCH
 #else
 #error "Unsupported platform"
 #endif

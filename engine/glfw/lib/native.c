@@ -28,7 +28,7 @@
     GLFW_EXPOSE_NATIVE_STUB(id, OSXNSView);
     GLFW_EXPOSE_NATIVE_STUB(id, OSXNSOpenGLContext);
 #else
-    #if defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)
+    #if defined(DM_PLATFORM_IOS)
     GLFW_EXPOSE_NATIVE_STUB(id, OSXNSWindow);
     GLFW_EXPOSE_NATIVE_STUB(id, OSXNSView);
     GLFW_EXPOSE_NATIVE_STUB(id, OSXNSOpenGLContext);

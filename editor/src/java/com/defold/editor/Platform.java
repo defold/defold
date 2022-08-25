@@ -17,6 +17,7 @@ package com.defold.editor;
 
 public enum Platform {
     X86_64MacOS("x86_64", "macos", "", "", "lib", ".dylib"),
+    Arm64MacOS("arm64", "macos", "", "", "lib", ".dylib"),
     X86Win32("x86", "win32", ".exe", "", "", ".dll"),
     X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll"),
     X86_64Linux("x86_64", "linux", "", "", "lib", ".so"),
