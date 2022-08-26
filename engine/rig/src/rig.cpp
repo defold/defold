@@ -447,7 +447,8 @@ namespace dmRig
         uint32_t bone_count = pose.Size();
         for (uint32_t bi = 0; bi < bone_count; ++bi)
         {
-            pose[bi].m_Local.SetIdentity();
+            const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
+            pose[bi].m_Local = bone->m_Local;
             pose[bi].m_World.SetIdentity();
         }
     }
