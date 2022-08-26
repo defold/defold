@@ -52,6 +52,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.pipeline.ShaderUtil.IncludeDirectiveCompiler;
@@ -60,24 +61,24 @@ import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
-public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompiler.IncludeNode> {
+public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompiler.Node> {
     @Override
-    public Task<IncludeDirectiveCompiler.IncludeNode> create(IResource input) throws IOException, CompileExceptionError {
+    public Task<IncludeDirectiveCompiler.Node> create(IResource input) throws IOException, CompileExceptionError {
 
-        Task.TaskBuilder<IncludeDirectiveCompiler.IncludeNode> taskBuilder = Task.<IncludeDirectiveCompiler.IncludeNode>newBuilder(this)
+        Task.TaskBuilder<IncludeDirectiveCompiler.Node> taskBuilder = Task.<IncludeDirectiveCompiler.Node>newBuilder(this)
             .setName(params.name())
             .addInput(input);
 
         // Parse source for includes and add the include nodes as inputs/dependancies to the shader
-        String source = new String(input.getContent(), StandardCharsets.UTF_8);
+        String source     = new String(input.getContent(), StandardCharsets.UTF_8);
+        String projectDir = this.project.getRootDirectory();
 
+        IncludeDirectiveCompiler sourceGraphCompiler = new IncludeDirectiveCompiler(projectDir, input.getPath(), source);
+        IncludeDirectiveCompiler.Node graph          = sourceGraphCompiler.buildGraph();
+        String[] includes                            = sourceGraphCompiler.getIncludes(graph);
 
-        IncludeDirectiveCompiler sourceGraphCompiler = new IncludeDirectiveCompiler(source);
-        IncludeDirectiveCompiler.IncludeNode graph   = sourceGraphCompiler.BuildGraph();
-        IncludeDirectiveCompiler.Result includes     = sourceGraphCompiler.Compile(graph);
-
-        for (IncludeDirectiveCompiler.Mapping entry : includes) {
-            taskBuilder.addInput(this.project.getResource(entry.path));
+        for (String path : includes) {
+            taskBuilder.addInput(this.project.getResource(path));
         }
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
@@ -86,8 +87,8 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
         return taskBuilder.build();
     }
 
-    static public String compileGLSL(String shaderSource, IncludeDirectiveCompiler.IncludeNode includeGraph,
-        IncludeDirectiveCompiler.Mapping[] includes, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
+    static public String compileGLSL(String shaderSource, IncludeDirectiveCompiler.Node includeGraph,
+        IncludeDirectiveCompiler.DataMapping[] includes, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
             String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
 
         ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -166,7 +167,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
         // "Compile" includes into the shader source
         if (includes.length > 0)
         {
-            source = IncludeDirectiveCompiler.InsertIncludeDirective(source, includeGraph, includes);
+            source = IncludeDirectiveCompiler.insertIncludeDirective(source, includeGraph, includes);
         }
 
         if (gles3Standard) {
@@ -177,7 +178,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
         return source;
     }
 
-    private ShaderDesc.Shader.Builder buildGLSL(ByteArrayInputStream is, IncludeDirectiveCompiler.IncludeNode includeGraph, IncludeDirectiveCompiler.Mapping[] includes, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
+    private ShaderDesc.Shader.Builder buildGLSL(ByteArrayInputStream is, IncludeDirectiveCompiler.Node includeGraph, IncludeDirectiveCompiler.DataMapping[] includes, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
                                 IResource resource, String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(shaderLanguage);
@@ -214,35 +215,6 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
                 throw new CompileExceptionError(resourceOutput + ":" + result_string, null);
             }
         }
-    }
-
-    static private ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString)
-    {
-        switch(typeAsString)
-        {
-            case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
-            case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
-            case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
-            case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
-            case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
-            case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
-            case "mat2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
-            case "mat3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
-            case "mat4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
-            case "sampler2D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
-            case "sampler3D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
-            case "samplerCube" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
-            default: break;
-        }
-
-        return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
-    }
-
-    static private boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
-    {
-        return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE ||
-               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D ||
-               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
     }
 
     static private class BindingEntry extends ArrayList<SPIRVReflector.Resource> {}
@@ -372,7 +344,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
                 uniform.set          = ubo.set;
                 bindingEntry.add(uniform);
 
-                ShaderDesc.ShaderDataType type = stringTypeToShaderType(uniform.type);
+                ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(uniform.type);
 
                 int issue_count = shaderIssues.size();
                 if (type == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
@@ -402,8 +374,8 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
                 setEntry.put(tex.binding, bindingEntry);
             }
 
-            ShaderDesc.ShaderDataType type = stringTypeToShaderType(tex.type);
-            if (!isShaderTypeTexture(type)) {
+            ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(tex.type);
+            if (!Common.isShaderTypeTexture(type)) {
                 shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
             } else {
                 resource_list.add(tex);
@@ -490,7 +462,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
         for (SPIRVReflector.Resource input : compile_res.attributes) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(input.name);
-            resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
+            resourceBindingBuilder.setType(Common.stringTypeToShaderType(input.type));
             resourceBindingBuilder.setSet(input.set);
             resourceBindingBuilder.setBinding(input.binding);
             builder.addAttributes(resourceBindingBuilder);
@@ -500,7 +472,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
         for (SPIRVReflector.Resource res : compile_res.resource_list) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(res.name);
-            resourceBindingBuilder.setType(stringTypeToShaderType(res.type));
+            resourceBindingBuilder.setType(Common.stringTypeToShaderType(res.type));
             resourceBindingBuilder.setElementCount(res.elementCount);
             resourceBindingBuilder.setSet(res.set);
             resourceBindingBuilder.setBinding(res.binding);
@@ -510,7 +482,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
         return builder;
     }
 
-    public ShaderDesc compile(ByteArrayInputStream is, IncludeDirectiveCompiler.IncludeNode includeGraph, IncludeDirectiveCompiler.Mapping[] includes,
+    public ShaderDesc compile(ByteArrayInputStream is, IncludeDirectiveCompiler.Node includeGraph, IncludeDirectiveCompiler.DataMapping[] includes,
         ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug, boolean outputSpirv, boolean soft_fail) throws IOException, CompileExceptionError {
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 

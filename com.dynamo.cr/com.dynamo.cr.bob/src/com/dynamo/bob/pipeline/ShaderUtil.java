@@ -35,185 +35,235 @@ import org.apache.commons.lang3.ArrayUtils;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
-
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderUtil {
 
     public static class Common {
-        private static final String  regexCommentRemovePattern = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
+        private static final String regexCommentRemovePattern = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
         public static String stripComments(String source)
         {
             return source.replaceAll(regexCommentRemovePattern,"");
         }
+
+        public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString)
+        {
+            switch(typeAsString)
+            {
+                case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
+                case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
+                case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
+                case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
+                case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
+                case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
+                case "mat2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
+                case "mat3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
+                case "mat4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
+                case "sampler2D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
+                case "sampler3D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                case "samplerCube" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
+                default: break;
+            }
+
+            return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
+        }
+
+        public static boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
+        {
+            return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+        }
     }
 
+    /* IncludeDirectiveCompiler
+     * ========================
+     * This class contains functionality to support #include ".." directives from shader files.
+     * During graph creation, the graph will be checked for cycles since we will end up in an endless loop otherwise
+     * when building the graph.
+     * 
+     * The process currently:
+     *   * A shader program builder creates a graph from a shader file by calling buildGraph(source)
+     *   * The builder gets a list of all include paths from the graph and marks these as inputs to the shader resource
+     *   * When the task is getting built, the graph is passed to the generator together with a list of path <-> data mapping
+     *     so the insertIncludeDirective function can replace all occurances of various #include statements with the include
+     *     files corresponding data.
+     */
     public static class IncludeDirectiveCompiler {
 
+        private static String projectPath;
         private static String shaderSource;
-        private static String includeDirectiveStr = "#include\\s+\"(?<path>.+)\"";
+        private static String shaderPath;
+        private static String includeDirectiveBaseStr  = "#include\\s+\"%s\"";
+        private static String includeDirectiveStr      = String.format(includeDirectiveBaseStr, "(?<path>.+)");
         private static Pattern includeDirectivePattern = Pattern.compile(includeDirectiveStr);
 
-        public static final String RootKey = "INCLUDE_ROOT";
-
-        public static class IncludeNode
-        {
-            public String path;
-            public HashMap<String, IncludeNode> children = new HashMap<String, IncludeNode>();
-        };
-
-        public static class Mapping {
+        public static class DataMapping {
             public String path;
             public String data;
         }
 
-        public static class Result extends ArrayList<Mapping> {}
+        public static class Node {
+            public String path;
+            public Node parent;
+            public HashMap<String, Node> children = new HashMap<String, Node>();
+        };
 
-        public IncludeDirectiveCompiler(String source) {
-            this.shaderSource = source;
-        }
+        private static class IncludeDirectiveGraphIterator implements Iterator<Node> {
+            private Node root;
+            private ArrayList<Node> nodeList = new ArrayList<Node>();
+            private int nodeIndex;
 
-        public static IncludeNode BuildGraph() {
-            return BuildShaderIncludeGraph(shaderSource, RootKey);
-        }
-
-        public static Result Compile(IncludeNode root)
-        {
-            Result res = new Result();
-            for (Map.Entry<String, IncludeNode> child : root.children.entrySet()) {
-                String key        = child.getKey();
-                IncludeNode value = child.getValue();
-                CompileNode(value, res);
+            public boolean hasNext() {
+                return ((nodeIndex + 1 ) < nodeList.size());
             }
 
-            return res;
-        }
-
-        private static void CompileNode(IncludeNode node, ArrayList<Mapping> mappings)
-        {
-            for (Map.Entry<String, IncludeNode> child : node.children.entrySet()) {
-                String key           = child.getKey();
-                IncludeNode value    = child.getValue();
-                CompileNode(value, mappings);
+            public Node next() {
+                return (nodeList.get(++nodeIndex));
             }
 
-            Mapping child_mapping = new Mapping();
-            child_mapping.path = node.path;
-            mappings.add(child_mapping);
+            public void remove() {
+                throw new UnsupportedOperationException("Can not remove a node");
+            }
+
+            private void fillNodeList(Node node, ArrayList<Node> nodeList) {
+                for (Map.Entry<String, Node> child : node.children.entrySet()) {
+                    fillNodeList(child.getValue(), nodeList);
+                }
+                nodeList.add(node);
+            }
+
+            private void reset() {
+                this.nodeIndex = -1;
+                this.nodeList.clear();
+                fillNodeList(this.root, this.nodeList);
+            }
+
+            public IncludeDirectiveGraphIterator(Node node) {
+                this.root = node;
+                reset();
+            }
         }
 
-        private static IncludeNode BuildShaderIncludeGraph(String fromData, String fromPath)
-        {
-            IncludeNode new_node = new IncludeNode();
-            new_node.path = fromPath;
+        public IncludeDirectiveCompiler(String projectRoot, String shaderPath, String shaderSource) {
+            this.projectPath  = projectRoot;
+            this.shaderSource = shaderSource;
+            this.shaderPath   = shaderPath;
+        }
+
+        private static String toProjectRelativePath(String rootPath, String path) {
+            return path;
+        }
+
+        public static Node buildGraph() throws IOException, CompileExceptionError {
+            HashMap<String, String> nodeDataCache = new HashMap<String, String>();
+            return buildShaderIncludeGraph(null, shaderSource, shaderPath, nodeDataCache);
+        }
+
+        public static String[] getIncludes(Node root) {
+            ArrayList<String> res = new ArrayList<String>();
+
+            for (Map.Entry<String, Node> child : root.children.entrySet()) {
+                IncludeDirectiveGraphIterator childIterator = new IncludeDirectiveGraphIterator(child.getValue());
+                while(childIterator.hasNext()) {
+                    res.add(childIterator.next().path);
+                }
+            }
+            return res.toArray(new String[0]);
+        }
+
+        private static Node buildShaderIncludeGraph(Node parent, String fromData, String fromPath, HashMap<String, String> nodeCache) throws IOException, CompileExceptionError {
+            Node newIncludeNode   = new Node();
+            newIncludeNode.path   = fromPath;
+            newIncludeNode.parent = parent;
 
             Matcher includeDirectiveMatcher = includeDirectivePattern.matcher(fromData);
             while (includeDirectiveMatcher.find()) {
                 String shaderIncludePath = includeDirectiveMatcher.group("path");
 
-                if (shaderIncludePath != null)
-                {
-                    String childData = null;
-                    try(FileInputStream inputStream = new FileInputStream(shaderIncludePath)) {     
-                        childData = IOUtils.toString(inputStream);
-                    } catch (Exception e) {
-                        System.out.println("Some kind of error");
-                    }
+                if (shaderIncludePath != null) {
+                    shaderIncludePath = toProjectRelativePath(fromPath, shaderIncludePath);
 
-                    if (childData != null)
+                    // Scan graph backwards to see if the path we want to add already is a parent to this node
+                    Node tmp = parent;
+                    while (tmp != null)
                     {
-                        IncludeNode childNode = BuildShaderIncludeGraph(childData, shaderIncludePath);
-                        new_node.children.put(shaderIncludePath, childNode);
+                        if (tmp.path.equals(shaderIncludePath))
+                        {
+                            throw new CompileExceptionError(tmp.path + " has a cyclic dependency with " + fromPath);
+                        }
+                        tmp = parent.parent;
                     }
+
+                    String childData = null;
+
+                    if (nodeCache.containsKey(shaderIncludePath))
+                    {
+                        childData = nodeCache.get(shaderIncludePath);
+                    } else {
+                        try(FileInputStream inputStream = new FileInputStream(shaderIncludePath)) {     
+                            childData = IOUtils.toString(inputStream);
+                        }
+                        nodeCache.put(shaderIncludePath, childData);
+                    }
+                    assert(childData != null);
+                    newIncludeNode.children.put(shaderIncludePath,
+                        buildShaderIncludeGraph(newIncludeNode, childData, shaderIncludePath, nodeCache));
                 }
             }
 
-            return new_node;
+            return newIncludeNode;
         }
 
-        /*
-        public static void PrintGraph(IncludeNode node, int depth)
-        {
-            if (node == null)
-            {
-                return;
-            }
-
-            String prefix = "";
-            for (int i=0; i < depth; i++) {
-                prefix += "  ";
-            }
-
-            System.out.println(prefix + "Node " + node.path);
-            for (Map.Entry<String, IncludeNode> child : node.children.entrySet()) {
-                String key        = child.getKey();
-                IncludeNode value = child.getValue();
-                System.out.println(prefix + "  Child " + key);
-                PrintGraph(value, depth + 1);
-            }
-        }
-        */
-
-        private static void CompileIncludeDirective(IncludeNode node, Mapping[] pathToDataMapping, ArrayList<String> includeData)
-        {
-            for (Map.Entry<String, IncludeNode> child : node.children.entrySet()) {
-                String key           = child.getKey();
-                IncludeNode value    = child.getValue();
-                CompileIncludeDirective(value, pathToDataMapping, includeData);
-            }
-
-            Mapping found_mapping = null;
-            for (Mapping mapping : pathToDataMapping) {
-                if (mapping.path.equals(node.path))
-                {
-                    found_mapping = mapping;
-                    break;
+        private static DataMapping getDataMappingFromPath(String path, DataMapping[] pathToDataMapping) throws CompileExceptionError {
+            for (DataMapping mapping : pathToDataMapping) {
+                if (mapping.path.equals(path)) {
+                    return mapping;
                 }
             }
-
-            if (found_mapping != null) {
-                includeData.add(found_mapping.data);
-            } else {
-                System.out.println("Could not find include node for " + node.path);
-            }
+            throw new CompileExceptionError("Could not find include file '%s' when parsing shader file");
         }
 
-        public static String InsertIncludeDirective(String source, IncludeNode node, Mapping[] pathToDataMapping)
-        {
-            for (Map.Entry<String, IncludeNode> child : node.children.entrySet()) {
-                String includeNodePatternStr = String.format("#include\\s+\"%s\"", child.getKey());
-                Pattern includeNodePattern = Pattern.compile(includeNodePatternStr);
+        public static String insertIncludeDirective(String source, Node node, DataMapping[] pathToDataMapping) throws CompileExceptionError {
+            for (Map.Entry<String, Node> child : node.children.entrySet()) {
+                String NodePatternStr = String.format(includeDirectiveBaseStr, child.getKey());
+                Pattern NodePattern = Pattern.compile(NodePatternStr);
 
                 ArrayList<String> stringBuffer = new ArrayList<String>();
-                CompileIncludeDirective(child.getValue(), pathToDataMapping, stringBuffer);
+
+                IncludeDirectiveGraphIterator iterator = new IncludeDirectiveGraphIterator(child.getValue());
+                while(iterator.hasNext()) {
+                    Node n = iterator.next();
+                    DataMapping mapping = getDataMappingFromPath(n.path, pathToDataMapping);
+                    stringBuffer.add(mapping.data);
+                }
 
                 String compiledNode = String.join("\n", stringBuffer);
-                source = source.replaceAll(includeNodePatternStr, compiledNode);
+                source = source.replaceAll(NodePatternStr, compiledNode);
             }
 
             return source;
         }
 
-        public static Mapping[] GetMappingFromResources(List<IResource> includeResources) throws IOException
-        {
-            Mapping[] includes = new Mapping[includeResources.size()];
+        public static DataMapping[] getDataMappingFromResources(List<IResource> includeResources) throws IOException {
+            DataMapping[] includes = new DataMapping[includeResources.size()];
 
             for (int i=0; i < includeResources.size(); i++) {
-                IResource include_file = includeResources.get(i);
-                try (ByteArrayInputStream is = new ByteArrayInputStream(include_file.getContent())) {
+                IResource includeResource = includeResources.get(i);
+                try (ByteArrayInputStream is = new ByteArrayInputStream(includeResource.getContent())) {
 
                     int n = is.available();
                     byte[] bytes = new byte[n];
                     is.read(bytes, 0, n);
-                    String include_source = new String(bytes, StandardCharsets.UTF_8);
+                    String includeSource = new String(bytes, StandardCharsets.UTF_8);
 
                     // Strip all include directives
-                    include_source = include_source.replaceAll(includeDirectiveStr, "");
+                    includeSource = includeSource.replaceAll(includeDirectiveStr, "");
 
-                    Mapping include_map_entry = new Mapping();
-                    include_map_entry.path = include_file.getPath();
-                    include_map_entry.data = include_source;
-
-                    includes[i] = include_map_entry;
+                    DataMapping includeDataMapEntry = new DataMapping();
+                    includeDataMapEntry.path        = includeResource.getPath();
+                    includeDataMapEntry.data        = includeSource;
+                    includes[i]                     = includeDataMapEntry;
                 }   
             }
             return includes;
