@@ -238,7 +238,7 @@
 (defn- install-file! [updater source-file target-file]
   (let [{:keys [^Platform platform editor-sha1]} updater]
     (case (.getOs platform)
-      ("linux" "darwin") (install-unix-file! source-file target-file)
+      ("linux" "macos") (install-unix-file! source-file target-file)
       "win32" (install-windows-file! source-file target-file editor-sha1))))
 
 (defn- in-protected-dir? [updater ^File file]
@@ -337,14 +337,14 @@
         install-dir (.getCanonicalFile
                       (if-let [path (system/defold-resourcespath)]
                         (case os
-                          "darwin" (io/file path "../../")
+                          "macos" (io/file path "../../")
                           ("linux" "win32") (io/file path))
                         (io/file "")))
         launcher-path (or (system/defold-launcherpath)
                           (case os
                             "win32" "./Defold.exe"
                             "linux" "./Defold"
-                            "darwin" "./Contents/MacOS/Defold"))
+                            "macos" "./Contents/MacOS/Defold"))
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
         initial-update-delay 1000

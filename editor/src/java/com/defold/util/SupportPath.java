@@ -27,7 +27,7 @@ public class SupportPath {
         switch(platform.getOs()) {
             case "win32":
                 return getWindowsSupportPath(applicationName);
-            case "darwin":
+            case "macos":
                 return getMacSupportPath(applicationName);
             case "linux":
                 return getLinuxSupportPath(applicationName);

@@ -133,14 +133,14 @@
        (.compare c (f a) (f b))))))
 
 (defn os-raw
-  "Returns :win32, :darwin or :linux"
+  "Returns :win32, :macos or :linux"
   []
   (keyword (.. Platform getHostPlatform getOs)))
 
 (def os (memoize os-raw))
 
 (defn is-mac-os? []
-  (= (os) :darwin))
+  (= (os) :macos))
 
 (defn is-linux? []
   (= (os) :linux))

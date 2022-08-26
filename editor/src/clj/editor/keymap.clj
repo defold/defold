@@ -30,7 +30,7 @@
   ;; of mistake.
   ;; Note that specifying Shortcut key (which is Meta on mac and Ctrl on windows
   ;; and linux) is not allowed.
-  {:darwin [["A" :add]
+  {:macos   [["A" :add]
             ["Alt+Backspace" :delete-prev-word]
             ["Alt+Delete" :delete-next-word]
             ["Alt+Down" :end-of-line]
@@ -487,7 +487,7 @@
   ([key-combo-data]
    (typable? key-combo-data (util/os)))
   ([{:keys [alt-down? control-down? meta-down?]} os]
-   (let [mac? (= os :darwin)]
+   (let [mac? (= os :macos)]
      (-> typable-truth-table
          (get (mapv boolean->kw [mac? control-down? alt-down? meta-down?]))
          (= :typable)))))
