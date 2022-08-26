@@ -422,7 +422,7 @@ public class RigUtil {
         builder.addComposite(builder.interpolate(t, builder.toComposite(v0), builder.toComposite(v1)));
     }
 
-    public static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double startTime, double duration, double sampleRate, double spf, boolean interpolate) {
+    public static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, double startTime, double duration, double sampleRate, double spf, boolean interpolate) {
         if (track.keys.isEmpty()) {
             return;
         }
@@ -476,8 +476,8 @@ public class RigUtil {
                     propertyBuilder.addComposite(endValue);
                 }
             } else {
-                // No valid key yet, use default value
-                propertyBuilder.addComposite(defaultValue);
+                // No valid key yet, use first value
+                propertyBuilder.addComposite(propertyBuilder.toComposite(next));
             }
         }
 

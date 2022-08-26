@@ -286,7 +286,7 @@ public class ColladaUtil {
             return;
 
         RigUtil.PositionBuilder positionBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
-        RigUtil.sampleTrack(track, positionBuilder, new Point3d(0.0, 0.0, 0.0), startTime, duration, sampleRate, spf, true);
+        RigUtil.sampleTrack(track, positionBuilder, startTime, duration, sampleRate, spf, true);
     }
 
     private static void sampleRotTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
@@ -294,7 +294,7 @@ public class ColladaUtil {
             return;
 
         RigUtil.QuatRotationBuilder rotationBuilder = new RigUtil.QuatRotationBuilder(animTrackBuilder);
-        RigUtil.sampleTrack(track, rotationBuilder, new Quat4d(0.0, 0.0, 0.0, 1.0), startTime, duration, sampleRate, spf, true);
+        RigUtil.sampleTrack(track, rotationBuilder, startTime, duration, sampleRate, spf, true);
     }
 
     private static void sampleScaleTrack(Rig.RigAnimation.Builder animBuilder, Rig.AnimationTrack.Builder animTrackBuilder, RigUtil.AnimationTrack track, double duration, double startTime, double sampleRate, double spf, boolean interpolate) {
@@ -302,7 +302,7 @@ public class ColladaUtil {
             return;
 
         RigUtil.ScaleBuilder scaleBuilder = new RigUtil.ScaleBuilder(animTrackBuilder);
-        RigUtil.sampleTrack(track, scaleBuilder, new Vector3d(1.0, 1.0, 1.0), startTime, duration, sampleRate, spf, true);
+        RigUtil.sampleTrack(track, scaleBuilder, startTime, duration, sampleRate, spf, true);
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder,
