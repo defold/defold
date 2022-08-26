@@ -17,11 +17,10 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.resource :as r]
-            [editor.gl.shader :as shader]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace])
-  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
+  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderIncludeCompiler ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
            (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language)
            (com.google.protobuf ByteString)))
 
@@ -48,7 +47,7 @@
                :name "keyword.operator.glsl"}
               {:match #"\b(break|case|continue|default|discard|do|else|for|if|return|switch|while)\b"
                :name "keyword.control.glsl"}
-              {:match #"^\s*#\s*(define|elif|else|endif|error|extension|if|ifdef|ifndef|line|pragma|undef|version)\b"
+              {:match #"^\s*#\s*(define|elif|else|endif|error|extension|if|ifdef|ifndef|line|pragma|undef|version|include)\b"
                :name "keyword.preprocessor.glsl"}
               {:match #"\b(bool|bvec[2-4]|dmat[2-4]|dmat[2-4]x[2-4]|double|dvec[2-4]|float|int|isampler2DMS|isampler2DMSArray|isampler2DRect|isamplerBuffer|isamplerCube|isampler[1-3]D|isampler[12]DArray|ivec[2-4]|mat[2-4]|mat[2-4]x[2-4]|sampler2DMS|sampler2DMSArray|sampler2DRect|sampler2DRectShadow|samplerBuffer|samplerCube|sampler[1-3]D|sampler[12]DArray|sampler[12]DArrayShadow|sampler[12]DShadow|struct|uint|usampler2DMS|usampler2DMSArray|usampler2DRect|usamplerBuffer|usamplerCube|usampler[1-3]D|usampler[12]DArray|uvec[2-4]|vec[2-4]|void)\b"
                :name "storage.type.glsl"}
@@ -137,7 +136,9 @@
   (let [shader-stage (shader-stage-from-ext resource-ext)
         shader-language (shader-language-from-str language)
         is-debug true
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
+        ^ShaderIncludeCompiler include-compiler (ShaderIncludeCompiler. "" resource-path glsl-source)
+        include-paths nil
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source include-compiler include-paths shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
     {:language shader-language
      :source (ByteString/copyFrom (.getBytes glsl-compile-result "UTF-8"))}))
 
@@ -184,8 +185,10 @@
         resource-path (resource/path resource)
         shader-stage (shader-stage-from-ext resource-ext)
         is-debug true
+        ^ShaderIncludeCompiler include-compiler (ShaderIncludeCompiler. "" resource-path source)
+        include-paths (.getIncludes include-compiler)
         shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL source include-compiler include-paths shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
     glsl-compile-result))
 
 (g/defnode ShaderNode

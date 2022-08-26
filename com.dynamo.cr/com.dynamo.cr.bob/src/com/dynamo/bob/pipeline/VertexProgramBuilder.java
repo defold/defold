@@ -24,8 +24,8 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ShaderIncludeCompiler;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
-import com.dynamo.bob.pipeline.ShaderUtil.IncludeDirective;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -36,11 +36,11 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
     private boolean soft_fail = true;
 
     @Override
-    public void build(Task<IncludeDirective> task) throws IOException, CompileExceptionError {
+    public void build(Task<ShaderIncludeCompiler> task) throws IOException, CompileExceptionError {
         List<IResource> inputs                    = task.getInputs();
         List<IResource> includeResources          = inputs.subList(1, inputs.size());
         IResource in                              = inputs.get(0);
-        IncludeDirective includeCompiler = task.getData();
+        ShaderIncludeCompiler includeCompiler = task.getData();
 
         try (ByteArrayInputStream is = new ByteArrayInputStream(in.getContent())) {
             boolean isDebug = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));

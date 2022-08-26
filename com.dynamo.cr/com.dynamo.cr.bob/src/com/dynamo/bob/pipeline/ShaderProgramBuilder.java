@@ -55,17 +55,16 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
-import com.dynamo.bob.pipeline.ShaderUtil.IncludeDirective;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
-public abstract class ShaderProgramBuilder extends Builder<IncludeDirective> {
+public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler> {
     @Override
-    public Task<IncludeDirective> create(IResource input) throws IOException, CompileExceptionError {
+    public Task<ShaderIncludeCompiler> create(IResource input) throws IOException, CompileExceptionError {
 
-        Task.TaskBuilder<IncludeDirective> taskBuilder = Task.<IncludeDirective>newBuilder(this)
+        Task.TaskBuilder<ShaderIncludeCompiler> taskBuilder = Task.<ShaderIncludeCompiler>newBuilder(this)
             .setName(params.name())
             .addInput(input);
 
@@ -73,9 +72,8 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirective> {
         String source     = new String(input.getContent(), StandardCharsets.UTF_8);
         String projectDir = this.project.getRootDirectory();
 
-        ShaderUtil utilInstance = new ShaderUtil();
-        IncludeDirective includeCompiler = utilInstance.new IncludeDirective(projectDir, input.getPath(), source);
-        String[] includes                = includeCompiler.getIncludes();
+        ShaderIncludeCompiler includeCompiler = new ShaderIncludeCompiler(projectDir, input.getPath(), source);
+        String[] includes = includeCompiler.getIncludes();
 
         for (String path : includes) {
             taskBuilder.addInput(this.project.getResource(path));
@@ -87,7 +85,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirective> {
         return taskBuilder.build();
     }
 
-    static public String compileGLSL(String shaderSource, IncludeDirective includeCompiler,
+    static public String compileGLSL(String shaderSource, ShaderIncludeCompiler includeCompiler,
         Common.DataMapping[] includes, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
             String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
 
@@ -164,7 +162,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirective> {
 
         String source = source = os.toString().replace("\r", "");
 
-        source = includeCompiler.insertIncludeDirective(source, includes);
+        source = includeCompiler.insertIncludes(source, includes);
 
         if (gles3Standard) {
             int version = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 300 : 140;
@@ -174,7 +172,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirective> {
         return source;
     }
 
-    private ShaderDesc.Shader.Builder buildGLSL(ByteArrayInputStream is, IncludeDirective includeCompiler, Common.DataMapping[] includes, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
+    private ShaderDesc.Shader.Builder buildGLSL(ByteArrayInputStream is, ShaderIncludeCompiler includeCompiler, Common.DataMapping[] includes, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
                                 IResource resource, String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(shaderLanguage);
@@ -478,7 +476,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirective> {
         return builder;
     }
 
-    public ShaderDesc compile(ByteArrayInputStream is, IncludeDirective includeCompiler, Common.DataMapping[] includes,
+    public ShaderDesc compile(ByteArrayInputStream is, ShaderIncludeCompiler includeCompiler, Common.DataMapping[] includes,
         ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug, boolean outputSpirv, boolean soft_fail) throws IOException, CompileExceptionError {
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 
@@ -623,8 +621,7 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirective> {
            ByteArrayInputStream bais = new ByteArrayInputStream(inBytes);
 
            String source = new String(inBytes, StandardCharsets.UTF_8);
-           ShaderUtil utilInstance = new ShaderUtil();
-           IncludeDirective includeCompiler = utilInstance.new IncludeDirective(null, args[0], source);
+           ShaderIncludeCompiler includeCompiler = new ShaderIncludeCompiler(null, args[0], source);
            String[] includes = includeCompiler.getIncludes();
 
            ShaderDesc shaderDesc = compile(bais,
