@@ -330,7 +330,7 @@ local function stack(start)
     if not source then break end
 
     local src = source.source
-    if src:find("[@=]") == 1 then
+    if src:find("@") == 1 then
       src = src:sub(2):gsub("\\", "/")
       if src:find("%./") == 1 then src = src:sub(3) end
     end
@@ -346,10 +346,40 @@ local function stack(start)
   return stack
 end
 
+--- DEFOLD
+local function fixfilename(filename)
+  -- strip initial @ or =
+  if filename:find("[@=]") == 1 then
+    filename = filename:sub(2)
+  end
+
+  -- strip initial ./
+  if filename:find("%./") == 1 then
+    filename = filename:sub(3)
+  end
+
+  -- strip initial ...
+  if filename:find("%.%.%.") == 1 then
+    filename = filename:sub(4)
+  end
+
+  -- convert \ to .
+  filename = filename:gsub("\\", ".")
+  -- convert / to .
+  filename = filename:gsub("/", ".")
+
+  if #filename > 59 then
+    filename = filename:sub(-59)
+  end
+  return filename
+end
+
+
 local function set_breakpoint(file, line)
   if file == '-' and lastfile then file = lastfile
   elseif iscasepreserving then file = string.lower(file) end
   if not breakpoints[line] then breakpoints[line] = {} end
+  file = fixfilename(file)
   breakpoints[line][file] = true
 end
 
@@ -357,12 +387,15 @@ local function remove_breakpoint(file, line)
   if file == '-' and lastfile then file = lastfile
   elseif file == '*' and line == 0 then breakpoints = {}
   elseif iscasepreserving then file = string.lower(file) end
+  file = fixfilename(file)
   if breakpoints[line] then breakpoints[line][file] = nil end
 end
 
 local function has_breakpoint(file, line)
-  return breakpoints[line]
-     and breakpoints[line][iscasepreserving and string.lower(file) or file]
+  local breakpoint = breakpoints[line]
+  if not breakpoint then return false end
+  file = fixfilename(iscasepreserving and string.lower(file) or file)
+  return breakpoint[file]
 end
 
 local function restore_vars(vars)
@@ -633,8 +666,8 @@ local function debug_hook(event, line)
       -- Unfortunately, there is no reliable/quick way to figure out
       -- what is the filename and what is the source code.
       -- If the name doesn't start with `@`, assume it's a file name if it's all on one line.
-      if find(file, "^[@=]") or not find(file, "[\r\n]") then
-        file = gsub(gsub(file, "^[@=]", ""), "\\", "/")
+      if find(file, "^@") or not find(file, "[\r\n]") then
+        file = gsub(gsub(file, "^@", ""), "\\", "/")
         -- normalize paths that may include up-dir or same-dir references
         -- if the path starts from the up-dir or reference,
         -- prepend `basedir` to generate absolute path to keep breakpoints working.
