@@ -682,9 +682,6 @@ public class ColladaUtilTest {
 
             if (track.getRotationsCount() > 0) {
 
-                // Verify that the first keyframe is not rotated.
-                assertAnimationRotation(track, 0, new Quat4d(0.0, 0.0, 0.0, 1.0));
-
                 // Assert that the rotation keyframes keeps decreasing rotation around Y
                 Quat4d rQ = new Quat4d(track.getRotations(8), track.getRotations(9), track.getRotations(10), track.getRotations(11));
                 double lastRot = rQ.getY();
