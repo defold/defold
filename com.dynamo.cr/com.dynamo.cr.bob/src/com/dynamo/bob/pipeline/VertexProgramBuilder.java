@@ -25,7 +25,8 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
-import com.dynamo.bob.pipeline.ShaderUtil.IncludeDirectiveCompiler;
+import com.dynamo.bob.pipeline.ShaderUtil.IncludeDirective;
+import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 @BuilderParams(name = "VertexProgram", inExts = ".vp", outExt = ".vpc")
@@ -35,16 +36,17 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
     private boolean soft_fail = true;
 
     @Override
-    public void build(Task<IncludeDirectiveCompiler.Node> task) throws IOException, CompileExceptionError {
-        List<IResource> inputs           = task.getInputs();
-        List<IResource> includeResources = inputs.subList(1, inputs.size());
-        IResource in                     = inputs.get(0);
-        IncludeDirectiveCompiler.Node includeGraph = task.getData();
+    public void build(Task<IncludeDirective> task) throws IOException, CompileExceptionError {
+        List<IResource> inputs                    = task.getInputs();
+        List<IResource> includeResources          = inputs.subList(1, inputs.size());
+        IResource in                              = inputs.get(0);
+        IncludeDirective includeCompiler = task.getData();
+
         try (ByteArrayInputStream is = new ByteArrayInputStream(in.getContent())) {
             boolean isDebug = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
             boolean outputSpirv = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
             ShaderDesc shaderDesc = compile(is,
-                includeGraph, IncludeDirectiveCompiler.getDataMappingFromResources(includeResources),
+                includeCompiler, Common.getDataMappingFromResources(includeResources),
                 SHADER_TYPE, in, task.getOutputs().get(0).getPath(),
                 project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
             task.output(0).setContent(shaderDesc.toByteArray());

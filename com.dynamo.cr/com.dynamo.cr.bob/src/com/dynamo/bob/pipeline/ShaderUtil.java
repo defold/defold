@@ -38,9 +38,12 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderUtil {
-
     public static class Common {
         private static final String regexCommentRemovePattern = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
+        private static String includeDirectiveBaseStr         = "#include\\s+\"%s\"";
+        private static final String includeDirectiveStr       = String.format(includeDirectiveBaseStr, "(?<path>.+)");
+        private static final Pattern includeDirectivePattern  = Pattern.compile(includeDirectiveStr);
+
         public static String stripComments(String source)
         {
             return source.replaceAll(regexCommentRemovePattern,"");
@@ -74,9 +77,50 @@ public class ShaderUtil {
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
         }
+
+        public static class DataMapping {
+            public String path;
+            public String data;
+        }
+
+        private static DataMapping makeDataMapping(String path, String data) {
+            // Strip all include directives
+            data = data.replaceAll(Common.includeDirectiveStr, "");
+            DataMapping includeDataMapEntry = new DataMapping();
+            includeDataMapEntry.path        = path;
+            includeDataMapEntry.data        = data;
+            return includeDataMapEntry;
+        }
+
+        public static DataMapping[] getDataMappingFromPaths(String[] includePaths) throws IOException {
+            DataMapping[] includes = new DataMapping[includePaths.length];
+            for (int i=0; i < includePaths.length; i++) {
+                try(FileInputStream inputStream = new FileInputStream(includePaths[i])) {
+                    includes[i] = makeDataMapping(includePaths[i], IOUtils.toString(inputStream));
+                }
+            }
+            return includes;
+        }
+
+        public static DataMapping[] getDataMappingFromResources(List<IResource> includeResources) throws IOException {
+            DataMapping[] includes = new DataMapping[includeResources.size()];
+
+            for (int i=0; i < includeResources.size(); i++) {
+                IResource includeResource = includeResources.get(i);
+                try (ByteArrayInputStream is = new ByteArrayInputStream(includeResource.getContent())) {
+
+                    int n = is.available();
+                    byte[] bytes = new byte[n];
+                    is.read(bytes, 0, n);
+                    String includeSource = new String(bytes, StandardCharsets.UTF_8);
+                    includes[i] = makeDataMapping(includeResource.getPath(), includeSource);
+                }   
+            }
+            return includes;
+        }
     }
 
-    /* IncludeDirectiveCompiler
+    /* IncludeDirective
      * ========================
      * This class contains functionality to support #include ".." directives from shader files.
      * During graph creation, the graph will be checked for cycles since we will end up in an endless loop otherwise
@@ -89,27 +133,14 @@ public class ShaderUtil {
      *     so the insertIncludeDirective function can replace all occurances of various #include statements with the include
      *     files corresponding data.
      */
-    public static class IncludeDirectiveCompiler {
-
-        private static String projectPath;
-        private static String shaderSource;
-        private static String shaderPath;
-        private static String includeDirectiveBaseStr  = "#include\\s+\"%s\"";
-        private static String includeDirectiveStr      = String.format(includeDirectiveBaseStr, "(?<path>.+)");
-        private static Pattern includeDirectivePattern = Pattern.compile(includeDirectiveStr);
-
-        public static class DataMapping {
-            public String path;
-            public String data;
-        }
-
-        public static class Node {
+    public class IncludeDirective {
+        private class Node {
             public String path;
             public Node parent;
             public HashMap<String, Node> children = new HashMap<String, Node>();
         };
 
-        private static class IncludeDirectiveGraphIterator implements Iterator<Node> {
+        private class IncludeDirectiveGraphIterator implements Iterator<Node> {
             private Node root;
             private ArrayList<Node> nodeList = new ArrayList<Node>();
             private int nodeIndex;
@@ -145,25 +176,25 @@ public class ShaderUtil {
             }
         }
 
-        public IncludeDirectiveCompiler(String projectRoot, String shaderPath, String shaderSource) {
+        private String projectPath;
+        private String shaderSource;
+        private String shaderPath;
+        private Node   root;
+
+        public IncludeDirective(String projectRoot, String shaderPath, String shaderSource) throws IOException, CompileExceptionError {
             this.projectPath  = projectRoot;
             this.shaderSource = shaderSource;
             this.shaderPath   = shaderPath;
+            this.root         = buildShaderIncludeGraph(null, shaderSource, shaderPath, new HashMap<String, String>());
         }
 
-        private static String toProjectRelativePath(String rootPath, String path) {
+        private String toProjectRelativePath(String rootPath, String path) {
             return path;
         }
 
-        public static Node buildGraph() throws IOException, CompileExceptionError {
-            HashMap<String, String> nodeDataCache = new HashMap<String, String>();
-            return buildShaderIncludeGraph(null, shaderSource, shaderPath, nodeDataCache);
-        }
-
-        public static String[] getIncludes(Node root) {
+        public String[] getIncludes() {
             ArrayList<String> res = new ArrayList<String>();
-
-            for (Map.Entry<String, Node> child : root.children.entrySet()) {
+            for (Map.Entry<String, Node> child : this.root.children.entrySet()) {
                 IncludeDirectiveGraphIterator childIterator = new IncludeDirectiveGraphIterator(child.getValue());
                 while(childIterator.hasNext()) {
                     res.add(childIterator.next().path);
@@ -172,12 +203,12 @@ public class ShaderUtil {
             return res.toArray(new String[0]);
         }
 
-        private static Node buildShaderIncludeGraph(Node parent, String fromData, String fromPath, HashMap<String, String> nodeCache) throws IOException, CompileExceptionError {
+        private Node buildShaderIncludeGraph(Node parent, String fromData, String fromPath, HashMap<String, String> nodeCache) throws IOException, CompileExceptionError {
             Node newIncludeNode   = new Node();
             newIncludeNode.path   = fromPath;
             newIncludeNode.parent = parent;
 
-            Matcher includeDirectiveMatcher = includeDirectivePattern.matcher(fromData);
+            Matcher includeDirectiveMatcher = Common.includeDirectivePattern.matcher(fromData);
             while (includeDirectiveMatcher.find()) {
                 String shaderIncludePath = includeDirectiveMatcher.group("path");
 
@@ -215,8 +246,8 @@ public class ShaderUtil {
             return newIncludeNode;
         }
 
-        private static DataMapping getDataMappingFromPath(String path, DataMapping[] pathToDataMapping) throws CompileExceptionError {
-            for (DataMapping mapping : pathToDataMapping) {
+        private Common.DataMapping getDataMappingFromPath(String path, Common.DataMapping[] pathToDataMapping) throws CompileExceptionError {
+            for (Common.DataMapping mapping : pathToDataMapping) {
                 if (mapping.path.equals(path)) {
                     return mapping;
                 }
@@ -224,9 +255,13 @@ public class ShaderUtil {
             throw new CompileExceptionError("Could not find include file '%s' when parsing shader file");
         }
 
-        public static String insertIncludeDirective(String source, Node node, DataMapping[] pathToDataMapping) throws CompileExceptionError {
-            for (Map.Entry<String, Node> child : node.children.entrySet()) {
-                String NodePatternStr = String.format(includeDirectiveBaseStr, child.getKey());
+        public String insertIncludeDirective(String source, Common.DataMapping[] pathToDataMapping) throws CompileExceptionError {
+            if (pathToDataMapping.length == 0) {
+                return source;
+            }
+
+            for (Map.Entry<String, Node> child : this.root.children.entrySet()) {
+                String NodePatternStr = String.format(Common.includeDirectiveBaseStr, child.getKey());
                 Pattern NodePattern = Pattern.compile(NodePatternStr);
 
                 ArrayList<String> stringBuffer = new ArrayList<String>();
@@ -234,7 +269,7 @@ public class ShaderUtil {
                 IncludeDirectiveGraphIterator iterator = new IncludeDirectiveGraphIterator(child.getValue());
                 while(iterator.hasNext()) {
                     Node n = iterator.next();
-                    DataMapping mapping = getDataMappingFromPath(n.path, pathToDataMapping);
+                    Common.DataMapping mapping = getDataMappingFromPath(n.path, pathToDataMapping);
                     stringBuffer.add(mapping.data);
                 }
 
@@ -243,42 +278,6 @@ public class ShaderUtil {
             }
 
             return source;
-        }
-
-        private static DataMapping makeDataMapping(String path, String data) {
-            // Strip all include directives
-            data = data.replaceAll(includeDirectiveStr, "");
-            DataMapping includeDataMapEntry = new DataMapping();
-            includeDataMapEntry.path        = path;
-            includeDataMapEntry.data        = data;
-            return includeDataMapEntry;
-        }
-
-        public static DataMapping[] getDataMappingFromPaths(String[] includePaths) throws IOException {
-            DataMapping[] includes = new DataMapping[includePaths.length];
-            for (int i=0; i < includePaths.length; i++) {
-                try(FileInputStream inputStream = new FileInputStream(includePaths[i])) {
-                    includes[i] = makeDataMapping(includePaths[i], IOUtils.toString(inputStream));
-                }
-            }
-            return includes;
-        }
-
-        public static DataMapping[] getDataMappingFromResources(List<IResource> includeResources) throws IOException {
-            DataMapping[] includes = new DataMapping[includeResources.size()];
-
-            for (int i=0; i < includeResources.size(); i++) {
-                IResource includeResource = includeResources.get(i);
-                try (ByteArrayInputStream is = new ByteArrayInputStream(includeResource.getContent())) {
-
-                    int n = is.available();
-                    byte[] bytes = new byte[n];
-                    is.read(bytes, 0, n);
-                    String includeSource = new String(bytes, StandardCharsets.UTF_8);
-                    includes[i] = makeDataMapping(includeResource.getPath(), includeSource);
-                }   
-            }
-            return includes;
         }
     }
 
