@@ -403,9 +403,6 @@ namespace dmGameSystem
 
     static dmGameObject::CreateResult SetupRigInstance(dmRig::HRigContext rig_context, ModelComponent* component, RigSceneResource* rig_resource, dmhash_t animation)
     {
-        if (rig_resource->m_AnimationSetRes == 0 || rig_resource->m_SkeletonRes == 0)
-            return dmGameObject::CREATE_RESULT_OK;
-
         dmRig::InstanceCreateParams create_params = {0};
 
         create_params.m_PoseCallback = CompModelPoseCallback;
