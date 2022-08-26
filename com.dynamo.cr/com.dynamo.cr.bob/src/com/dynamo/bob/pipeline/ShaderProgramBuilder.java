@@ -626,8 +626,15 @@ public abstract class ShaderProgramBuilder extends Builder<IncludeDirectiveCompi
            is.read(inBytes);
            ByteArrayInputStream bais = new ByteArrayInputStream(inBytes);
 
-           boolean outputSpirv = true;
-           ShaderDesc shaderDesc = compile(bais, null, null, shaderType, null, args[1], cmd.getOptionValue("platform", ""), cmd.getOptionValue("variant", "").equals("debug") ? true : false, outputSpirv, false);
+           String source                                = new String(inBytes, StandardCharsets.UTF_8);
+           IncludeDirectiveCompiler sourceGraphCompiler = new IncludeDirectiveCompiler(null, args[0], source);
+           IncludeDirectiveCompiler.Node graph          = sourceGraphCompiler.buildGraph();
+           String[] includes                            = sourceGraphCompiler.getIncludes(graph);
+
+           ShaderDesc shaderDesc = compile(bais,
+                graph, IncludeDirectiveCompiler.getDataMappingFromPaths(includes),
+                shaderType, null, args[1], cmd.getOptionValue("platform", ""),
+                cmd.getOptionValue("variant", "").equals("debug") ? true : false, true, false);
            shaderDesc.writeTo(os);
            os.close();
        }

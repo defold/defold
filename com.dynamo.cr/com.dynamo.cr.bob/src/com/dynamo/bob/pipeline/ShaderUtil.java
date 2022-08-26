@@ -201,7 +201,7 @@ public class ShaderUtil {
                     {
                         childData = nodeCache.get(shaderIncludePath);
                     } else {
-                        try(FileInputStream inputStream = new FileInputStream(shaderIncludePath)) {     
+                        try(FileInputStream inputStream = new FileInputStream(shaderIncludePath)) {
                             childData = IOUtils.toString(inputStream);
                         }
                         nodeCache.put(shaderIncludePath, childData);
@@ -245,6 +245,25 @@ public class ShaderUtil {
             return source;
         }
 
+        private static DataMapping makeDataMapping(String path, String data) {
+            // Strip all include directives
+            data = data.replaceAll(includeDirectiveStr, "");
+            DataMapping includeDataMapEntry = new DataMapping();
+            includeDataMapEntry.path        = path;
+            includeDataMapEntry.data        = data;
+            return includeDataMapEntry;
+        }
+
+        public static DataMapping[] getDataMappingFromPaths(String[] includePaths) throws IOException {
+            DataMapping[] includes = new DataMapping[includePaths.length];
+            for (int i=0; i < includePaths.length; i++) {
+                try(FileInputStream inputStream = new FileInputStream(includePaths[i])) {
+                    includes[i] = makeDataMapping(includePaths[i], IOUtils.toString(inputStream));
+                }
+            }
+            return includes;
+        }
+
         public static DataMapping[] getDataMappingFromResources(List<IResource> includeResources) throws IOException {
             DataMapping[] includes = new DataMapping[includeResources.size()];
 
@@ -256,14 +275,7 @@ public class ShaderUtil {
                     byte[] bytes = new byte[n];
                     is.read(bytes, 0, n);
                     String includeSource = new String(bytes, StandardCharsets.UTF_8);
-
-                    // Strip all include directives
-                    includeSource = includeSource.replaceAll(includeDirectiveStr, "");
-
-                    DataMapping includeDataMapEntry = new DataMapping();
-                    includeDataMapEntry.path        = includeResource.getPath();
-                    includeDataMapEntry.data        = includeSource;
-                    includes[i]                     = includeDataMapEntry;
+                    includes[i] = makeDataMapping(includeResource.getPath(), includeSource);
                 }   
             }
             return includes;
