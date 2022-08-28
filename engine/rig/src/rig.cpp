@@ -45,6 +45,7 @@ namespace dmRig
         // used to creating primitives from indices.
         dmArray<dmVMath::Vector3>       m_ScratchPositionBuffer;
         dmArray<dmVMath::Vector3>       m_ScratchNormalBuffer;
+        dmArray<dmVMath::Vector3>       m_ScratchTangentBuffer;
     };
 
 
@@ -750,84 +751,115 @@ namespace dmRig
         {
             const dmRigDDF::Mesh& mesh = instance->m_Model->m_Meshes[i];
 
-            vertex_count += mesh.m_PositionIndices.m_Count;
+            vertex_count += mesh.m_Positions.m_Count/3;
         }
 
         return vertex_count;
     }
 
-    static float* GenerateNormalData(const dmRigDDF::Mesh* mesh, const Matrix4& normal_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer)
+    static void GenerateNormalData(const dmRigDDF::Mesh* mesh, const Matrix4& normal_matrix, const dmArray<Matrix4>& pose_matrices, float* normals_buffer, float* tangents_buffer)
     {
         const float* normals_in = mesh->m_Normals.m_Data;
-        const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Data;
-        uint32_t index_count = mesh->m_PositionIndices.m_Count;
-        Vector4 v;
+        bool has_tangents = mesh->m_Tangents.m_Count > 0;
+        const float* tangents_in = has_tangents ? mesh->m_Tangents.m_Data : 0;
+        const uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
+        Vector4 normal;
+        Vector4 tangent;
 
+        // Non skinned data
         if (!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
-            for (uint32_t ii = 0; ii < index_count; ++ii)
+            for (uint32_t i = 0; i < vertex_count; ++i)
             {
-                uint32_t ni = normal_indices[ii];
-                Vector3 normal_in(normals_in[ni*3+0], normals_in[ni*3+1], normals_in[ni*3+2]);
-                v = normal_matrix * normal_in;
-                if (lengthSqr(v) > 0.0f) {
-                    normalize(v);
+                Vector3 normal_in(normals_in[i*3+0], normals_in[i*3+1], normals_in[i*3+2]);
+                normal = normal_matrix * normal_in;
+                if (lengthSqr(normal) > 0.0f) {
+                    normalize(normal);
                 }
-                *out_buffer++ = v[0];
-                *out_buffer++ = v[1];
-                *out_buffer++ = v[2];
+
+                *normals_buffer++ = normal[0];
+                *normals_buffer++ = normal[1];
+                *normals_buffer++ = normal[2];
+
+                if (has_tangents)
+                {
+                    Vector3 tangent_in(tangents_in[i*3+0], tangents_in[i*3+1], tangents_in[i*3+2]);
+                    tangent = normal_matrix * tangent_in;
+                    if (lengthSqr(tangent) > 0.0f) {
+                        normalize(tangent);
+                    }
+                    *tangents_buffer++ = tangent[0];
+                    *tangents_buffer++ = tangent[1];
+                    *tangents_buffer++ = tangent[2];
+                }
             }
-            return out_buffer;
+            return;
         }
 
+        // Skinned data
         const uint32_t* indices = mesh->m_BoneIndices.m_Data;
         const float* weights = mesh->m_Weights.m_Data;
-        const uint32_t* vertex_indices = mesh->m_PositionIndices.m_Data;
-        for (uint32_t ii = 0; ii < index_count; ++ii)
+        for (uint32_t i = 0; i < vertex_count; ++i)
         {
-            const uint32_t ni = normal_indices[ii]*3;
-            const Vector3 normal_in(normals_in[ni+0], normals_in[ni+1], normals_in[ni+2]);
+            const Vector3 normal_in(normals_in[i*3+0], normals_in[i*3+1], normals_in[i*3+2]);
             Vector4 normal_out(0.0f, 0.0f, 0.0f, 0.0f);
 
-            const uint32_t bi_offset = vertex_indices[ii] << 2;
+            const Vector3 tangent_in = has_tangents ? Vector3(tangents_in[i*3+0], tangents_in[i*3+1], tangents_in[i*3+2]) : Vector3(0,0,0);
+            Vector4 tangent_out(0.0f, 0.0f, 0.0f, 0.0f);
+
+            const uint32_t bi_offset = i * 4;
             const uint32_t* bone_indices = &indices[bi_offset];
             const float* bone_weights = &weights[bi_offset];
 
             if (bone_weights[0])
             {
                 normal_out += (pose_matrices[bone_indices[0]] * normal_in) * bone_weights[0];
+                tangent_out += (pose_matrices[bone_indices[0]] * tangent_in) * bone_weights[0];
                 if (bone_weights[1])
                 {
                     normal_out += (pose_matrices[bone_indices[1]] * normal_in) * bone_weights[1];
+                    tangent_out += (pose_matrices[bone_indices[1]] * tangent_in) * bone_weights[1];
                     if (bone_weights[2])
                     {
                         normal_out += (pose_matrices[bone_indices[2]] * normal_in) * bone_weights[2];
+                        tangent_out += (pose_matrices[bone_indices[2]] * tangent_in) * bone_weights[2];
                         if (bone_weights[3])
                         {
                             normal_out += (pose_matrices[bone_indices[3]] * normal_in) * bone_weights[3];
+                            tangent_out += (pose_matrices[bone_indices[3]] * tangent_in) * bone_weights[3];
                         }
                     }
                 }
             }
 
-            v = normal_matrix * normal_out.getXYZ();
-            if (lengthSqr(v) > 0.0f) {
-                normalize(v);
+            normal = normal_matrix * normal_out.getXYZ();
+            if (lengthSqr(normal) > 0.0f) {
+                normalize(normal);
             }
-            *out_buffer++ = v[0];
-            *out_buffer++ = v[1];
-            *out_buffer++ = v[2];
-        }
+            *normals_buffer++ = normal[0];
+            *normals_buffer++ = normal[1];
+            *normals_buffer++ = normal[2];
 
-        return out_buffer;
+            if (has_tangents)
+            {
+                tangent = normal_matrix * normal_out;
+                if (lengthSqr(tangent) > 0.0f) {
+                    normalize(tangent);
+                }
+                *tangents_buffer++ = tangent[0];
+                *tangents_buffer++ = tangent[1];
+                *tangents_buffer++ = tangent[2];
+            }
+        }
     }
 
     static float* GeneratePositionData(const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer)
     {
-        const float *positions = mesh->m_Positions.m_Data;
-        const size_t vertex_count = mesh->m_Positions.m_Count / 3;
+        const float* positions = mesh->m_Positions.m_Data;
+        const uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
         Point3 in_p;
         Vector4 v;
+
         if(!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
             for (uint32_t i = 0; i < vertex_count; ++i)
@@ -883,51 +915,76 @@ namespace dmRig
         return out_buffer;
     }
 
-    static RigModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, RigModelVertex* out_write_ptr)
+    static RigModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, RigModelVertex* out_write_ptr)
     {
-        uint32_t indices_count = mesh->m_PositionIndices.m_Count;
-        const uint32_t* indices = mesh->m_PositionIndices.m_Data;
-        const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_PositionIndices.m_Data;
-        const float* uv0 = mesh->m_Texcoord0.m_Data;
+        uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
-        // Preferably, I'd have the vertex buffer already packed after the build pipelibne /MAWE
+        const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
+        const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
+        const float* colors = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
 
-        if (mesh->m_NormalsIndices.m_Count)
+        if (mesh->m_Indices.m_Count == 0)
         {
-            for (uint32_t i = 0; i < indices_count; ++i)
+            for (uint32_t i = 0; i < vertex_count; ++i)
             {
-                uint32_t vi = indices[i];
-                uint32_t e = vi * 3;
-                out_write_ptr->x = positions[e];
-                out_write_ptr->y = positions[++e];
-                out_write_ptr->z = positions[++e];
-                vi = uv0_indices[i];
-                e = vi << 1;
-                out_write_ptr->u = uv0[e+0];
-                out_write_ptr->v = uv0[e+1];
-                e = i * 3;
-                out_write_ptr->nx = normals[e];
-                out_write_ptr->ny = normals[++e];
-                out_write_ptr->nz = normals[++e];
+                for (int c = 0; c < 3; ++c)
+                {
+                    out_write_ptr->pos[c] = *positions++;
+                    out_write_ptr->normal[c] = *normals++;
+                    out_write_ptr->tangent[c] = *tangents++;
+                }
+
+                for (int c = 0; c < 4; ++c)
+                {
+                    out_write_ptr->color[c] = colors ? *colors++ : 1.0f;
+                }
+
+                for (int c = 0; c < 2; ++c)
+                {
+                    out_write_ptr->uv0[c] = uv0 ? *uv0++ : 0.0f;
+                    out_write_ptr->uv1[c] = uv1 ? *uv1++ : 0.0f;
+                }
+
                 out_write_ptr++;
             }
         }
-        else
-        {
-            for (uint32_t i = 0; i < indices_count; ++i)
+        else { // Use the index buffer to write out all the vertices
+            uint32_t* indices32 = 0;
+            uint16_t* indices16 = 0;
+            uint32_t num_indices;
+            if (mesh->m_IndicesFormat == dmRigDDF::INDEXBUFFER_FORMAT_32)
             {
-                uint32_t vi = indices[i];
-                uint32_t e = vi * 3;
-                out_write_ptr->x = positions[e];
-                out_write_ptr->y = positions[++e];
-                out_write_ptr->z = positions[++e];
-                vi = uv0_indices[i];
-                e = vi << 1;
-                out_write_ptr->u = uv0[e+0];
-                out_write_ptr->v = uv0[e+1];
-                out_write_ptr->nx = 0.0f;
-                out_write_ptr->ny = 0.0f;
-                out_write_ptr->nz = 1.0f;
+                indices32 = (uint32_t*)mesh->m_Indices.m_Data;
+                num_indices = mesh->m_Indices.m_Count / 4;
+            }
+            else
+            {
+                indices16 = (uint16_t*)mesh->m_Indices.m_Data;
+                num_indices = mesh->m_Indices.m_Count / 2;
+            }
+
+            for (uint32_t i = 0; i < num_indices; ++i)
+            {
+                uint32_t idx = indices32?indices32[i]:indices16[i];
+
+                for (int c = 0; c < 3; ++c)
+                {
+                    out_write_ptr->pos[c] = positions[idx*3+c];
+                    out_write_ptr->normal[c] = normals[idx*3+c];
+                    out_write_ptr->tangent[c] = tangents[idx*3+c];
+                }
+
+                for (int c = 0; c < 4; ++c)
+                {
+                    out_write_ptr->color[c] = colors ? colors[idx*4+c] : 1.0f;
+                }
+
+                for (int c = 0; c < 2; ++c)
+                {
+                    out_write_ptr->uv0[c] = uv0 ? uv0[idx*2+c] : 0.0f;
+                    out_write_ptr->uv1[c] = uv1 ? uv1[idx*2+c] : 0.0f;
+                }
+
                 out_write_ptr++;
             }
         }
@@ -935,17 +992,28 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    RigModelVertex* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& instance_matrix, const Vector4 color, RigModelVertex* vertex_data_out)
+    static void EnsureSize(dmArray<Vector3>& array, uint32_t size)
     {
+        if (array.Capacity() < size) {
+            array.OffsetCapacity(size - array.Capacity());
+        }
+        array.SetSize(size);
+    }
+
+    RigModelVertex* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const Matrix4& world_matrix, RigModelVertex* vertex_data_out)
+    {
+        // TODO: Separate out the instance part.
+        // to do that we need to pass in the updated pose matrices
         const dmRigDDF::Model* model = instance->m_Model;
 
-        if (!model || !instance->m_DoRender) {
+        if (!model || !mesh || !instance->m_DoRender) {
             return vertex_data_out;
         }
 
         dmArray<Matrix4>& pose_matrices      = context->m_ScratchPoseMatrixBuffer;
         dmArray<Vector3>& positions          = context->m_ScratchPositionBuffer;
         dmArray<Vector3>& normals            = context->m_ScratchNormalBuffer;
+        dmArray<Vector3>& tangents           = context->m_ScratchTangentBuffer;
 
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
@@ -970,61 +1038,28 @@ namespace dmRig
             }
         }
 
-        dmVMath::Matrix4 mesh_matrix = dmTransform::ToMatrix4(model->m_Local);
-        dmVMath::Matrix4 world_matrix = instance_matrix * mesh_matrix;
-
         Matrix4 normal_matrix = Vectormath::Aos::inverse(world_matrix);
         normal_matrix = Vectormath::Aos::transpose(normal_matrix);
 
-        for (uint32_t i = 0; i < model->m_Meshes.m_Count; ++i)
-        {
-            const dmRigDDF::Mesh* mesh = &model->m_Meshes[i];
+        // TODO: Currently, we only have support for a single material so we bake all meshes into one
+        uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
-            // TODO: Currently, we only have support for a single material so we bake all meshes into one
+        // Bump scratch buffers capacity to handle current vertex count
+        EnsureSize(positions, vertex_count);
+        EnsureSize(normals, vertex_count);
+        EnsureSize(tangents, vertex_count);
 
-            uint32_t index_count = mesh->m_PositionIndices.m_Count;
+        float* positions_buffer = (float*)positions.Begin();
+        float* normals_buffer = (float*)normals.Begin();
+        float* tangents_buffer = (float*)tangents.Begin();
 
-            // Bump scratch buffer capacity to handle current vertex count
-            if (positions.Capacity() < index_count) {
-                positions.OffsetCapacity(index_count - positions.Capacity());
-            }
-            positions.SetSize(index_count);
-
-            if (normals.Capacity() < index_count) {
-                normals.OffsetCapacity(index_count - normals.Capacity());
-            }
-            normals.SetSize(index_count);
-
-            float* positions_buffer = (float*)positions.Begin();
-            float* normals_buffer = (float*)normals.Begin();
-
-            // Transform the mesh data into world space
-
-            dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer);
-            if (mesh->m_NormalsIndices.m_Count) {
-                dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer);
-            }
-
-            vertex_data_out = WriteVertexData(mesh, positions_buffer, normals_buffer, vertex_data_out);
+        // Transform the mesh data into world space
+        dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer);
+        if (mesh->m_Normals.m_Count) {
+            dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        // DEF-3610
-        // Using Wasm on Microsoft Edge this function returns NULL after a couple of runs.
-        // There is no code path that could result in NULL, leading us to suspect it has
-        // to do with some runtime optimization.
-        // If we add some logic that touches vertex_data_out the function keeps returning
-        // valid values, so we add an assert to verify vertex_data_out never is NULL.
-        // However this means we need assert on Emscripten, so for now we output a
-        // compile error if the engine is built with NDEBUG.
-#ifdef __EMSCRIPTEN__
-#ifdef NDEBUG
-        #error "DEF-3610 - Can't compile with NDEBUG since dmRig::GenerateVertexData currently depends on assert() to work on Emscripten builds."
-#else
-        assert(vertex_data_out != 0x0);
-#endif
-#endif
-
-        return vertex_data_out;
+        return WriteVertexData(mesh, positions_buffer, normals_buffer, tangents_buffer, vertex_data_out);
     }
 
     static uint32_t FindIKIndex(HRigInstance instance, dmhash_t ik_constraint_id)

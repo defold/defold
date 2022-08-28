@@ -26,21 +26,6 @@
 
 namespace dmGameSystem
 {
-    static inline void GetModelVertex(const dmRigDDF::Mesh& mesh, const dmRigDDF::MeshVertexIndices *in, dmRig::RigModelVertex* out)
-    {
-        const float* v = &mesh.m_Positions[in->m_Position*3];
-        out->x = v[0];
-        out->y = v[1];
-        out->z = v[2];
-        v = &mesh.m_Texcoord0[in->m_Texcoord0*2];
-        out->u = v[0];
-        out->v = v[1];
-        v = &mesh.m_Normals[in->m_Normal*3];
-        out->nx = v[0];
-        out->ny = v[1];
-        out->nz = v[2];
-    }
-
     struct MeshSortPred
     {
         inline bool operator() (const MeshInfo& p1, const MeshInfo& p2)
@@ -78,137 +63,73 @@ namespace dmGameSystem
         std::sort(resource->m_Meshes.Begin(), resource->m_Meshes.End(), MeshSortPred());
     }
 
-    static void WriteModelMeshVertices(const dmRigDDF::Mesh* ddf_mesh, dmRig::RigModelVertex* out)
+    static dmRig::RigModelVertex* CreateVertexData(const dmRigDDF::Mesh* mesh, dmRig::RigModelVertex* out_write_ptr)
     {
-        uint32_t num_vertices = ddf_mesh->m_Vertices.m_Count;
-        dmRigDDF::MeshVertexIndices* mvi =  ddf_mesh->m_Vertices.m_Data;
-        for(uint32_t i = 0; i < num_vertices; ++i, ++mvi, ++out)
+        uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
+
+        const float* positions = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
+        const float* normals = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
+        const float* tangents = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
+        const float* colors = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
+        const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
+        const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
+
+        for (uint32_t i = 0; i < vertex_count; ++i)
         {
-            GetModelVertex(*ddf_mesh, mvi, out);
+            for (int c = 0; c < 3; ++c)
+            {
+                out_write_ptr->pos[c] = *positions++;
+                out_write_ptr->normal[c] = normals ? *normals++ : 0.0f;
+                out_write_ptr->tangent[c] = tangents ? *tangents++ : 0.0f;
+            }
+
+            for (int c = 0; c < 4; ++c)
+            {
+                out_write_ptr->color[c] = colors ? *colors++ : 1.0f;
+            }
+
+            for (int c = 0; c < 2; ++c)
+            {
+                out_write_ptr->uv0[c] = uv0 ? *uv0++ : 0.0f;
+                out_write_ptr->uv1[c] = uv1 ? *uv1++ : 0.0f;
+            }
+
+            out_write_ptr++;
         }
+
+        return out_write_ptr;
     }
 
-    static void WriteModelMeshVerticesFromIndices(const dmRigDDF::Mesh* ddf_mesh, dmRig::RigModelVertex* out, uint32_t vertex_count)
-    {
-        // If not supporting 32-bit indices, create triangle list as a fallback
-        dmRigDDF::MeshVertexIndices* mvi =  ddf_mesh->m_Vertices.m_Data;
-        uint32_t *mi = (uint32_t*) ddf_mesh->m_Indices.m_Data;
-        for(uint32_t i = 0; i < vertex_count; ++i, ++out, ++mi)
-        {
-            GetModelVertex(*ddf_mesh, &mvi[*mi], out);
-        }
-    }
-
-    static uint32_t* WriteModelMeshIndices32(const dmRigDDF::Mesh* mesh, uint32_t start, uint32_t* out, uint32_t* num_written_indices)
-    {
-        if(mesh->m_IndicesFormat == dmRigDDF::INDEXBUFFER_FORMAT_32)
-        {
-            uint32_t icount = mesh->m_Indices.m_Count / 4;
-            uint32_t* idata = (uint32_t*)mesh->m_Indices.m_Data;
-            for(uint32_t i = 0; i < icount; ++i)
-            {
-                out[i] = start + idata[i];
-            }
-            *num_written_indices = icount;
-            return out + icount;
-        }
-        else
-        {
-            uint32_t icount = mesh->m_Indices.m_Count / 2;
-            uint16_t* idata = (uint16_t*)mesh->m_Indices.m_Data;
-            for(uint32_t i = 0; i < icount; ++i)
-            {
-                out[i] = start + (uint32_t)idata[i];
-            }
-            *num_written_indices = icount;
-            return out + icount;
-        }
-    }
-
-    static uint16_t* WriteModelMeshIndices16(const dmRigDDF::Mesh* mesh, uint16_t start, uint16_t* out, uint32_t* num_written_indices)
-    {
-        if(mesh->m_IndicesFormat == dmRigDDF::INDEXBUFFER_FORMAT_32)
-        {
-            uint32_t icount = mesh->m_Indices.m_Count / 4;
-            uint32_t* idata = (uint32_t*)mesh->m_Indices.m_Data;
-            for(uint32_t i = 0; i < icount; ++i)
-            {
-                out[i] = start + (uint16_t)idata[i];
-            }
-            *num_written_indices = icount;
-            return out + icount;
-        }
-        else
-        {
-            uint32_t icount = mesh->m_Indices.m_Count / 2;
-            uint16_t* idata = (uint16_t*)mesh->m_Indices.m_Data;
-            for(uint32_t i = 0; i < icount; ++i)
-            {
-                out[i] = start + idata[i];
-            }
-            *num_written_indices = icount;
-            return out + icount;
-        }
-    }
-
-    static ModelResourceBuffers* CreateBuffers(dmGraphics::HContext context, const dmRigDDF::Mesh* ddf_mesh, bool support_32bit_indices, dmArray<dmRig::RigModelVertex>& scratch_buffer)
+    static ModelResourceBuffers* CreateBuffers(dmGraphics::HContext context, const dmRigDDF::Mesh* ddf_mesh, dmArray<dmRig::RigModelVertex>& scratch_buffer)
     {
         ModelResourceBuffers* buffers = new ModelResourceBuffers;
         memset(buffers, 0, sizeof(ModelResourceBuffers));
 
         uint32_t num_vertices = ddf_mesh->m_Positions.m_Count / 3;
-        if (num_vertices < ddf_mesh->m_Vertices.m_Count)
-            num_vertices = ddf_mesh->m_Vertices.m_Count;
 
-        uint32_t num_indices = ddf_mesh->m_Indices.m_Count / 2;
-        if (ddf_mesh->m_IndicesFormat == dmRigDDF::INDEXBUFFER_FORMAT_32)
-            num_indices = ddf_mesh->m_Indices.m_Count / 4;
+        bool support_32bit_indices = dmGraphics::IsIndexBufferFormatSupported(context, dmGraphics::INDEXBUFFER_FORMAT_32);
 
         dmGraphics::Type index_element_type = dmGraphics::TYPE_UNSIGNED_SHORT;
+        void* index_buffer = ddf_mesh->m_Indices.m_Data;
+        uint32_t num_indices = ddf_mesh->m_Indices.m_Count / 2;
+        if (ddf_mesh->m_IndicesFormat == dmRigDDF::INDEXBUFFER_FORMAT_32)
+        {
+            num_indices = ddf_mesh->m_Indices.m_Count / 4;
+            index_element_type = dmGraphics::TYPE_UNSIGNED_INT;
 
-        void* index_buffer = 0;
+            // We've moved the runtime check to the build step instead
+            if (!support_32bit_indices)
+            {
+                dmLogError("The platform doesn't support 32 bit index buffers. See the setting 'model.split_large_meshes'");
+                return buffers;
+            }
+        }
 
         if (scratch_buffer.Capacity() < num_vertices)
             scratch_buffer.SetCapacity(num_vertices);
         scratch_buffer.SetSize(num_vertices);
 
-
-        // Fallback for older devices
-        if (!support_32bit_indices && ddf_mesh->m_IndicesFormat == dmRigDDF::INDEXBUFFER_FORMAT_32)
-        {
-            num_vertices = ddf_mesh->m_Indices.m_Count / 4; // the new mesh will have as many vertices as the current indices
-            if (scratch_buffer.Capacity() < num_vertices)
-                scratch_buffer.SetCapacity(num_vertices);
-            scratch_buffer.SetSize(num_vertices);
-
-            WriteModelMeshVerticesFromIndices(ddf_mesh, scratch_buffer.Begin(), num_vertices);
-        }
-        else
-        {
-            WriteModelMeshVertices(ddf_mesh, scratch_buffer.Begin());
-
-            index_buffer = malloc(num_indices * 4); // support both 16/32 bit indices depending on cases below
-
-            uint32_t num_written_indices = 0;
-            if (!support_32bit_indices)
-            {
-                WriteModelMeshIndices16(ddf_mesh, 0, (uint16_t*)index_buffer, &num_written_indices);
-                index_element_type = dmGraphics::TYPE_UNSIGNED_SHORT;
-            }
-            else
-            {
-                if (num_indices > 65536)
-                {
-                    WriteModelMeshIndices32(ddf_mesh, 0, (uint32_t*)index_buffer, &num_written_indices);
-                    index_element_type = dmGraphics::TYPE_UNSIGNED_INT;
-                }
-                else
-                {
-                    WriteModelMeshIndices16(ddf_mesh, 0, (uint16_t*)index_buffer, &num_written_indices);
-                    index_element_type = dmGraphics::TYPE_UNSIGNED_SHORT;
-                }
-            }
-        }
+        CreateVertexData(ddf_mesh, scratch_buffer.Begin());
 
         buffers->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, num_vertices * sizeof(dmRig::RigModelVertex), scratch_buffer.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
         buffers->m_VertexCount = num_vertices;
@@ -221,19 +142,18 @@ namespace dmGameSystem
             buffers->m_IndexBuffer = dmGraphics::NewIndexBuffer(context, num_indices * index_type_size, index_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
             buffers->m_IndexBufferElementType = index_element_type;
             buffers->m_IndexCount = num_indices;
-            free(index_buffer);
         }
 
         return buffers;
     }
 
-    static void CreateBuffers(dmGraphics::HContext context, ModelResource* resource, bool support_32bit_indices)
+    static void CreateBuffers(dmGraphics::HContext context, ModelResource* resource)
     {
         dmArray<dmRig::RigModelVertex> scratch_buffer;
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
             MeshInfo& info = resource->m_Meshes[i];
-            info.m_Buffers = CreateBuffers(context, info.m_Mesh, support_32bit_indices, scratch_buffer);
+            info.m_Buffers = CreateBuffers(context, info.m_Mesh, scratch_buffer);
         }
     }
 
@@ -254,11 +174,9 @@ namespace dmGameSystem
         if (result != dmResource::RESULT_OK)
             return result;
 
-        bool support_32bit_indices = dmGraphics::IsIndexBufferFormatSupported(context, dmGraphics::INDEXBUFFER_FORMAT_32);
-
         dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
         FlattenMeshes(resource, mesh_set);
-        CreateBuffers(context, resource, support_32bit_indices);
+        CreateBuffers(context, resource);
 
         resource->m_Materials.SetCapacity(mesh_set->m_Materials.m_Count);
         for (uint32_t i = 0; i < mesh_set->m_Materials.m_Count; ++i)

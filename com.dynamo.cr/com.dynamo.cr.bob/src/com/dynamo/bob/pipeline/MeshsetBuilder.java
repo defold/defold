@@ -125,6 +125,12 @@ public class MeshsetBuilder extends Builder<Void>  {
         // MeshSet
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
+
+            int split_meshes = this.project.getProjectProperties().getIntValue("model", "split_large_meshes", 0);
+            if (split_meshes != 0) {
+                ModelUtil.splitMeshes(scene);
+            }
+
             ModelUtil.loadModels(scene, meshSetBuilder);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

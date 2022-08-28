@@ -152,12 +152,10 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_Texcoord0[0]           = -1.0;
     mesh.m_Texcoord0[1]           = 2.0;
 
-    mesh.m_Texcoord0Indices.m_Data  = new uint32_t[vert_count];
-    mesh.m_Texcoord0Indices.m_Count = vert_count;
-    mesh.m_Texcoord0Indices[0]      = 0;
-    mesh.m_Texcoord0Indices[1]      = 0;
-    mesh.m_Texcoord0Indices[2]      = 0;
-    mesh.m_Texcoord0Indices[3]      = 0;
+    mesh.m_Texcoord1.m_Count      = vert_count*2;
+    mesh.m_Texcoord1.m_Data       = new float[mesh.m_Texcoord1.m_Count];
+    mesh.m_Texcoord1[0]           = -2.0;
+    mesh.m_Texcoord1[1]           = 4.0;
 
     mesh.m_Normals.m_Count        = vert_count*3;
     mesh.m_Normals.m_Data         = new float[mesh.m_Normals.m_Count];
@@ -174,12 +172,29 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_Normals[10]            = 1.0;
     mesh.m_Normals[11]            = 0.0;
 
-    mesh.m_NormalsIndices.m_Data    = new uint32_t[vert_count];
-    mesh.m_NormalsIndices.m_Count   = vert_count;
-    mesh.m_NormalsIndices.m_Data[0] = 0;
-    mesh.m_NormalsIndices.m_Data[1] = 1;
-    mesh.m_NormalsIndices.m_Data[2] = 2;
-    mesh.m_NormalsIndices.m_Data[3] = 3;
+    mesh.m_Tangents.m_Count       = vert_count*3;
+    mesh.m_Tangents.m_Data        = new float[mesh.m_Tangents.m_Count];
+    mesh.m_Tangents[0]            = 0.0;
+    mesh.m_Tangents[1]            = 0.0;
+    mesh.m_Tangents[2]            = 1.0;
+    mesh.m_Tangents[3]            = 0.0;
+    mesh.m_Tangents[4]            = 0.0;
+    mesh.m_Tangents[5]            = 1.0;
+    mesh.m_Tangents[6]            = 0.0;
+    mesh.m_Tangents[7]            = 0.0;
+    mesh.m_Tangents[8]            = 1.0;
+    mesh.m_Tangents[9]            = 0.0;
+    mesh.m_Tangents[10]           = 0.0;
+    mesh.m_Tangents[11]           = 1.0;
+
+    mesh.m_Colors.m_Count         = vert_count*4;
+    mesh.m_Colors.m_Data          = new float[mesh.m_Colors.m_Count];
+    for (int i = 0; i < vert_count; ++i) {
+        mesh.m_Colors.m_Data[i*4+0] = i / (float(vert_count-1));
+        mesh.m_Colors.m_Data[i*4+0] = 0.5f;
+        mesh.m_Colors.m_Data[i*4+0] = 1.0f;
+        mesh.m_Colors.m_Data[i*4+0] = 1.0f;
+    }
 
     mesh.m_MeshColor.m_Data       = new float[vert_count*4];
     mesh.m_MeshColor.m_Count      = vert_count*4;
@@ -199,12 +214,6 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_MeshColor[13]          = color.getY();
     mesh.m_MeshColor[14]          = color.getZ();
     mesh.m_MeshColor[15]          = color.getW();
-    mesh.m_PositionIndices.m_Data    = new uint32_t[vert_count];
-    mesh.m_PositionIndices.m_Count   = vert_count;
-    mesh.m_PositionIndices.m_Data[0] = 0;
-    mesh.m_PositionIndices.m_Data[1] = 1;
-    mesh.m_PositionIndices.m_Data[2] = 2;
-    mesh.m_PositionIndices.m_Data[3] = 3;
     mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
     mesh.m_BoneIndices.m_Count    = vert_count*4;
 
@@ -1392,10 +1401,10 @@ TEST_F(RigInstanceTest, GetVertexCount)
 }
 
 #define ASSERT_VERT_POS(exp, act)\
-    ASSERT_EQ(exp, Vector3(act.x, act.y, act.z));
+    ASSERT_EQ(exp, Vector3(act.pos[0], act.pos[1], act.pos[2]));
 
 #define ASSERT_VERT_NORM(exp, act)\
-    ASSERT_EQ(exp, Vector3(act.nx, act.ny, act.nz));
+    ASSERT_EQ(exp, Vector3(act.normal[0], act.normal[1], act.normal[2]));
 
 #define ASSERT_VERT_UV(exp_u, exp_v, act_u, act_v)\
     ASSERT_NEAR(exp_u, act_u, RIG_EPSILON_FLOAT);\
@@ -1459,7 +1468,7 @@ TEST_F(RigInstanceTest, GenerateTexcoordData)
 
     // sample 0
     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Vector4(1.0), data));
-    ASSERT_VERT_UV(-1.0f, 2.0f, data[0].u, data[0].v);
+    ASSERT_VERT_UV(-1.0f, 2.0f, data[0].uv0[0], data[0].uv0[1]);
 }
 
 // Test to verify that two rigs does not interfere with each others pose information,
