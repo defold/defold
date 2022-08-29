@@ -346,40 +346,10 @@ local function stack(start)
   return stack
 end
 
---- DEFOLD
-local function fixfilename(filename)
-  -- strip initial @ or =
-  if filename:find("[@=]") == 1 then
-    filename = filename:sub(2)
-  end
-
-  -- strip initial ./
-  if filename:find("%./") == 1 then
-    filename = filename:sub(3)
-  end
-
-  -- strip initial ...
-  if filename:find("%.%.%.") == 1 then
-    filename = filename:sub(4)
-  end
-
-  -- convert \ to .
-  filename = filename:gsub("\\", ".")
-  -- convert / to .
-  filename = filename:gsub("/", ".")
-
-  if #filename > 59 then
-    filename = filename:sub(-59)
-  end
-  return filename
-end
-
-
 local function set_breakpoint(file, line)
   if file == '-' and lastfile then file = lastfile
   elseif iscasepreserving then file = string.lower(file) end
   if not breakpoints[line] then breakpoints[line] = {} end
-  file = fixfilename(file)
   breakpoints[line][file] = true
 end
 
@@ -387,15 +357,12 @@ local function remove_breakpoint(file, line)
   if file == '-' and lastfile then file = lastfile
   elseif file == '*' and line == 0 then breakpoints = {}
   elseif iscasepreserving then file = string.lower(file) end
-  file = fixfilename(file)
   if breakpoints[line] then breakpoints[line][file] = nil end
 end
 
 local function has_breakpoint(file, line)
-  local breakpoint = breakpoints[line]
-  if not breakpoint then return false end
-  file = fixfilename(iscasepreserving and string.lower(file) or file)
-  return breakpoint[file]
+  return breakpoints[line]
+     and breakpoints[line][iscasepreserving and string.lower(file) or file]
 end
 
 local function restore_vars(vars)
