@@ -35,7 +35,8 @@
             [editor.resource-node :as resource-node]
             [editor.texture-set :as texture-set]
             [editor.gl.pass :as pass]
-            [editor.types :as types])
+            [editor.types :as types]
+            [editor.slice9 :as slice9])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
            [com.jogamp.opengl.util.awt TextRenderer]
@@ -59,7 +60,7 @@
 
 ; Render assets
 (vtx/defvertex texture-vtx
-  (vec4 position)
+  (vec3 position)
   (vec2 texcoord0 true))
 
 (shader/defshader vertex-shader
@@ -100,16 +101,19 @@
 (def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
 
 (defn- conj-animation-data!
-  [vbuf animation frame-index world-transform]
-  (reduce conj! vbuf (texture-set/vertex-data (get-in animation [:frames frame-index]) world-transform)))
+  [vbuf animation frame-index world-transform size-mode size slice9]
+  (let [animation-frame (get-in animation [:frames frame-index])]
+    (reduce conj! vbuf (if (= :size-mode-auto size-mode)
+                         (texture-set/vertex-data animation-frame world-transform)
+                         (slice9/vertex-data animation-frame size slice9 world-transform)))))
 
 (defn- gen-vertex-buffer
   [renderables count]
   (persistent! (reduce (fn [vbuf {:keys [world-transform updatable user-data]}]
-                         (let [{:keys [animation]} user-data
+                         (let [{:keys [animation size-mode size slice9]} user-data
                                frame (get-in updatable [:state :frame] 0)]
-                           (conj-animation-data! vbuf animation frame world-transform)))
-                       (->texture-vtx (* count 6))
+                           (conj-animation-data! vbuf animation frame world-transform size-mode size slice9)))
+                       (->texture-vtx (* count 100))
                        renderables)))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
@@ -140,8 +144,14 @@
               cb (get color 2)
               world-transform (:world-transform renderable)
               user-data (:user-data renderable)
-              anim-width (-> user-data :animation :width)
-              anim-height (-> user-data :animation :height)]
+              size (:size user-data)
+              size-mode (:size-mode user-data)
+              anim-width (if (= :size-mode-auto size-mode)
+                           (-> user-data :animation :width)
+                           (get size 0))
+              anim-height (if (= :size-mode-auto size-mode)
+                            (-> user-data :animation :height)
+                            (get size 1))]
           (recur (rest renderables) (conj-outline-quad! vbuf world-transform tmp-point anim-width anim-height cr cg cb)))
         (persistent! vbuf)))))
 
@@ -205,7 +215,7 @@
    :slice9 slice9})
 
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture material-shader animation blend-mode]
+  [_node-id aabb gpu-texture material-shader animation blend-mode size-mode size slice9]
   (cond-> {:node-id _node-id
            :aabb aabb
            :renderable {:passes [pass/selection]}}
@@ -217,7 +227,10 @@
                         :user-data {:gpu-texture gpu-texture
                                     :shader material-shader
                                     :animation animation
-                                    :blend-mode blend-mode}
+                                    :blend-mode blend-mode
+                                    :size-mode size-mode
+                                    :size size
+                                    :slice9 slice9}
                         :passes [pass/transparent pass/selection]})
 
     (and (:width animation) (:height animation))
@@ -227,7 +240,9 @@
                                     :batch-key [outline-shader]
                                     :tags #{:sprite :outline}
                                     :select-batch-key _node-id
-                                    :user-data {:animation animation}
+                                    :user-data {:animation animation
+                                                :size-mode size-mode
+                                                :size size}
                                     :passes [pass/outline]}}])
 
     (< 1 (count (:frames animation)))
