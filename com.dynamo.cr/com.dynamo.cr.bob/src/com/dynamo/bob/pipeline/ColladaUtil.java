@@ -168,7 +168,7 @@ public class ColladaUtil {
 
     public static boolean load(InputStream is, Rig.MeshSet.Builder meshSetBuilder, Rig.AnimationSet.Builder animationSetBuilder, Rig.Skeleton.Builder skeletonBuilder) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadMesh(collada, meshSetBuilder, true);
+        loadMesh(collada, meshSetBuilder, true, false);
         loadSkeleton(collada, skeletonBuilder, new ArrayList<String>());
         loadAnimations(collada, animationSetBuilder, "", new ArrayList<String>());
         return true;
@@ -551,12 +551,12 @@ public class ColladaUtil {
     }
 
     public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
-        loadMesh(is, meshSetBuilder, false);
+        loadMesh(is, meshSetBuilder, false, false);
     }
 
-    public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder, boolean optimize) throws IOException, XMLStreamException, LoaderException {
+    public static void loadMesh(InputStream is, Rig.MeshSet.Builder meshSetBuilder, boolean optimize, boolean splitMeshes) throws IOException, XMLStreamException, LoaderException {
         XMLCOLLADA collada = loadDAE(is);
-        loadMesh(collada, meshSetBuilder, optimize);
+        loadMesh(collada, meshSetBuilder, optimize, splitMeshes);
     }
 
     private static XMLNode getFirstNodeWithGeoemtry(Collection<XMLVisualScene> scenes) {
@@ -571,7 +571,56 @@ public class ColladaUtil {
         return null;
     }
 
-    public static void loadMesh(XMLCOLLADA collada, Rig.MeshSet.Builder meshSetBuilder, boolean optimize) throws IOException, XMLStreamException, LoaderException {
+    private static float[] toFloatArray(List<Float> a) {
+        float[] floatArray = new float[a.size()];
+        for (int i = 0 ; i < a.size(); i++) {
+            floatArray[i] = (float) a.get(i);
+        }
+        return floatArray;
+    }
+
+    private static int[] toIntArray(List<Integer> a) {
+        return a.stream().mapToInt(x -> x).toArray();
+    }
+
+    private static ModelImporter.Mesh createModelImporterMesh(List<Float> position_list,
+                                                              List<Float> normal_list,
+                                                              List<Float> texcoord_list,
+                                                              List<Float> bone_weights_list,
+                                                              List<Integer> bone_indices_list,
+                                                              List<Integer> mesh_index_list) {
+        ModelImporter.Mesh mesh = new ModelImporter.Mesh();
+        mesh.name = "";
+        mesh.material = "";
+
+        mesh.positions = toFloatArray(position_list);
+        if (normal_list.size() > 0)
+            mesh.normals = toFloatArray(normal_list);
+
+        mesh.tangents = null;
+        mesh.colors = null;
+
+        if (bone_weights_list.size() > 0)
+            mesh.weights = toFloatArray(bone_weights_list);
+        if (bone_indices_list.size() > 0)
+            mesh.bones = toIntArray(bone_indices_list);
+
+        mesh.texCoords0NumComponents = 2;
+        if (texcoord_list.size() > 0)
+            mesh.texCoords0 = toFloatArray(texcoord_list);
+        mesh.texCoords1NumComponents = 0; // 2 or 3
+        mesh.texCoords1 = null;
+
+        if (mesh_index_list.size() > 0)
+            mesh.indices = toIntArray(mesh_index_list);
+
+        mesh.vertexCount = position_list.size() / 3;
+        mesh.indexCount = mesh_index_list.size();
+
+        return mesh;
+    }
+
+    public static void loadMesh(XMLCOLLADA collada, Rig.MeshSet.Builder meshSetBuilder, boolean optimize, boolean splitMeshes) throws IOException, XMLStreamException, LoaderException {
         if (collada.libraryGeometries.size() != 1) {
             if (collada.libraryGeometries.isEmpty()) {
                 return;
@@ -580,8 +629,7 @@ public class ColladaUtil {
         }
 
         // Use first geometry entry as default
-        XMLGeometry geom = collada.libraryGeometries.get(0).geometries.values()
-                .iterator().next();
+        XMLGeometry geom = collada.libraryGeometries.get(0).geometries.values().iterator().next();
 
         // Find first node in visual scene tree that has a instance geometry
         XMLNode sceneNode = null;
@@ -777,60 +825,81 @@ public class ColladaUtil {
                 mesh_index_list.add(index);
             }
         }
-        List<Rig.MeshVertexIndices> mesh_vertex_indices = new ArrayList<Rig.MeshVertexIndices>(mesh.triangles.count*3);
-        for (int i = 0; i < shared_vertex_indices.size() ; ++i) {
-            Rig.MeshVertexIndices.Builder b = Rig.MeshVertexIndices.newBuilder();
-            MeshVertexIndex ci = shared_vertex_indices.get(i);
-            b.setPosition(ci.position);
-            b.setTexcoord0(ci.texcoord0);
-            b.setNormal(ci.normal);
-            mesh_vertex_indices.add(b.build());
-        }
 
-        Rig.IndexBufferFormat indices_format;
-        ByteBuffer indices_bytes;
-        if(shared_vertex_indices.size() <= 65536)
-        {
-            // if we only need 16-bit indices, use this primarily. Less data to upload to GPU and ES2.0 core functionality.
-            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16;
-            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 2);
-            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
-            for (int i = 0; i < mesh_index_list.size();) {
-                indices_bytes.putShort(mesh_index_list.get(i++).shortValue());
-            }
-        }
-        else
-        {
-            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32;
-            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 4);
-            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
-            for (int i = 0; i < mesh_index_list.size();) {
-                indices_bytes.putInt(mesh_index_list.get(i++));
-            }
-        }
-        indices_bytes.rewind();
+        int vertex_count = shared_vertex_indices.size();
 
-        List<Integer> bone_indices_list = new ArrayList<Integer>(position_list.size()*4);
-        List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
+        ArrayList<Integer> bone_indices_list = new ArrayList<Integer>(vertex_count*4);
+        ArrayList<Float> bone_weights_list = new ArrayList<Float>(vertex_count*4);
         int max_bone_count = loadVertexWeights(collada, bone_weights_list, bone_indices_list);
 
-        Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
-        meshBuilder.addAllVertices(mesh_vertex_indices);
-        meshBuilder.setIndices(ByteString.copyFrom(indices_bytes));
-        meshBuilder.setIndicesFormat(indices_format);
-        if(normals != null) {
-            meshBuilder.addAllNormals(normal_list);
-            meshBuilder.addAllNormalsIndices(normal_indices_list);
+        // Bake the values again into our format
+        Float baked_position_list[] = new Float[vertex_count*3];
+        Float baked_normal_list[] = new Float[0];
+        Float baked_texcoord_list[] = new Float[0];
+        Integer baked_bone_indices_list[] = new Integer[0];
+        Float baked_bone_weights_list[] = new Float[0];
+
+        if (normal_list.size() > 0) {
+            baked_normal_list = new Float[vertex_count*3];
         }
-        meshBuilder.addAllPositions(position_list);
-        meshBuilder.addAllTexcoord0(texcoord_list);
-        meshBuilder.addAllPositionIndices(position_indices_list);
-        meshBuilder.addAllTexcoord0Indices(texcoord_indices_list);
-        meshBuilder.addAllWeights(bone_weights_list);
-        meshBuilder.addAllBoneIndices(bone_indices_list);
+        if (texcoord_list.size() > 0) {
+            baked_texcoord_list = new Float[vertex_count*2];
+        }
+        if (bone_indices_list.size() > 0) {
+            baked_bone_indices_list = new Integer[vertex_count*4];
+            baked_bone_weights_list = new Float[vertex_count*4];
+        }
+
+        for (int index : mesh_index_list) {
+            MeshVertexIndex ci = shared_vertex_indices.get(index);
+
+            for (int c = 0; c < 3; ++c)
+            {
+                baked_position_list[index*3+c] = position_list.get(ci.position*3+c);
+                if (normal_list.size() > 0)
+                    baked_normal_list[index*3+c] = normal_list.get(ci.normal*3+c);
+            }
+
+            if (texcoord_list.size() > 0)
+            {
+                for (int c = 0; c < 2; ++c)
+                {
+                    baked_texcoord_list[index*2+c] = texcoord_list.get(ci.texcoord0*2+c);
+                }
+            }
+
+            if (bone_indices_list.size() > 0)
+            {
+                // For the bones we use the index of the position
+                for (int c = 0; c < 4; ++c)
+                {
+                    baked_bone_indices_list[index*4+c] = bone_indices_list.get(ci.position*4+c);
+                    baked_bone_weights_list[index*4+c] = bone_weights_list.get(ci.position*4+c);
+                }
+            }
+        }
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
-        modelBuilder.addMeshes(meshBuilder);
+
+        List<ModelImporter.Mesh> allMeshes = new ArrayList<>();
+        ModelImporter.Mesh miMesh = createModelImporterMesh(new ArrayList<>(Arrays.asList(baked_position_list)),
+                                                            new ArrayList<>(Arrays.asList(baked_normal_list)),
+                                                            new ArrayList<>(Arrays.asList(baked_texcoord_list)),
+                                                            new ArrayList<>(Arrays.asList(baked_bone_weights_list)),
+                                                            new ArrayList<>(Arrays.asList(baked_bone_indices_list)),
+                                                            mesh_index_list);
+
+        if (splitMeshes && vertex_count >= 65536) {
+            ModelUtil.splitMesh(miMesh, allMeshes);
+        } else {
+            allMeshes.add(miMesh);
+        }
+
+        for (ModelImporter.Mesh newMesh : allMeshes) {
+            ArrayList<String> materials = new ArrayList<String>();
+            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh, materials));
+        }
+
         modelBuilder.setId(0);
 
         Matrix4d transformd = new Matrix4d();
@@ -1356,6 +1425,6 @@ public class ColladaUtil {
     }
 
     public static void loadModels(XMLCOLLADA scene, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
-        loadMesh(scene, meshSetBuilder, true);
+        loadMesh(scene, meshSetBuilder, true, false);
     }
 }

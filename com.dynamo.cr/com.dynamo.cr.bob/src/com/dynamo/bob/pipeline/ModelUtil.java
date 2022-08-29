@@ -424,7 +424,7 @@ public class ModelUtil {
         }
     }
 
-    private static void splitMesh(ModelImporter.Mesh inMesh, List<ModelImporter.Mesh> outMeshes) {
+    public static void splitMesh(ModelImporter.Mesh inMesh, List<ModelImporter.Mesh> outMeshes) {
         int triangleCount = inMesh.indexCount / 3;
         int vertexCount = inMesh.vertexCount;
 
@@ -561,7 +561,7 @@ public class ModelUtil {
         return Arrays.asList(ArrayUtils.toObject(array));
     }
 
-    private static Rig.Mesh loadMesh(Mesh mesh, ArrayList<ModelImporter.Bone> skeleton, ArrayList<String> materials) {
+    public static Rig.Mesh loadMesh(Mesh mesh, ArrayList<String> materials) {
 
         String name = mesh.name;
 
@@ -632,7 +632,7 @@ public class ModelUtil {
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
         for (Mesh mesh : model.meshes) {
-            modelBuilder.addMeshes(loadMesh(mesh, skeleton, materials));
+            modelBuilder.addMeshes(loadMesh(mesh, materials));
         }
 
         modelBuilder.setId(MurmurHash.hash64(model.name));
