@@ -30,7 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.io.FileUtils;
 
-import com.dynamo.bob.Platform;
+import com.defold.editor.Platform;
 
 public class ResourceUnpacker {
 
