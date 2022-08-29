@@ -120,7 +120,7 @@ namespace dmGameSystem
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
-    DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, true);
+    DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, false);
 
     static const dmhash_t SPRITE_PROP_CURSOR = dmHashString64("cursor");
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
@@ -553,8 +553,6 @@ namespace dmGameSystem
                 // If we get this to work maybe we should merge this code somehow..
                 if (use_slice_nine)
                 {
-                    //const Vector4 size = component->m_Resource->m_DDF->m_Size;
-
                     // todo:
                     bool flip_u = false, flip_v = false;
 
@@ -619,16 +617,12 @@ namespace dmGameSystem
                     ys[1] = sy * slice9.getW();
                     ys[2] = 1 - sy * slice9.getY();
 
-                    // nah this isn't right.. but we need to use size somehow likely?
-                    Matrix4 transform(w);
-                    //transform.setUpper3x3(transform.getUpper3x3() * dmVMath::Matrix3::scale(dmVMath::Vector3(size.getX(), size.getY(), 1)));
-
                     Vector4 pts[4][4];
                     for (int y=0;y<4;y++)
                     {
                         for (int x=0;x<4;x++)
                         {
-                            pts[y][x] = transform * Point3(xs[x], ys[y], 0);
+                            pts[y][x] = w * Point3(xs[x], ys[y], 0);
                         }
                     }
 
@@ -648,10 +642,6 @@ namespace dmGameSystem
                                 vert.u = uv_rotated ? _v : _u; \
                                 vert.v = uv_rotated ? _u : _v;
 
-                            // -, -
-                            // -, +
-                            // +, +
-                            // +, -
                             SET_VERTEX(vertices[0], pts[y0][x0], us[x0], vs[y0]);
                             SET_VERTEX(vertices[1], pts[y0][x1], us[x1], vs[y0]);
                             SET_VERTEX(vertices[2], pts[y1][x1], us[x1], vs[y1]);
@@ -661,27 +651,6 @@ namespace dmGameSystem
                             indices += 6 * index_type_size;
 
                             #undef SET_VERTEX
-
-                            /*
-                            v00.SetPosition(pts[y0][x0]);
-                            v10.SetPosition(pts[y0][x1]);
-                            v01.SetPosition(pts[y1][x0]);
-                            v11.SetPosition(pts[y1][x1]);
-                            if(uv_rotated)
-                            {
-                                v00.SetUV(us[y0], vs[x0]);
-                                v10.SetUV(us[y0], vs[x1]);
-                                v01.SetUV(us[y1], vs[x0]);
-                                v11.SetUV(us[y1], vs[x1]);
-                            }
-                            else
-                            {
-                                v00.SetUV(us[x0], vs[y0]);
-                                v10.SetUV(us[x1], vs[y0]);
-                                v01.SetUV(us[x0], vs[y1]);
-                                v11.SetUV(us[x1], vs[y1]);
-                            }
-                            */
                         }
                     }
                 }

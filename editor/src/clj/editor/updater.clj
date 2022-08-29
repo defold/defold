@@ -344,7 +344,7 @@
                           (case os
                             "win32" "./Defold.exe"
                             "linux" "./Defold"
-                            "darwin" "./Contents/MacOS/Defold"))
+                            "macos" "./Contents/MacOS/Defold"))
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
         initial-update-delay 1000

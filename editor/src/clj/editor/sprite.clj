@@ -37,7 +37,7 @@
             [editor.gl.pass :as pass]
             [editor.types :as types])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
+           [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
            [com.jogamp.opengl.util.awt TextRenderer]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [editor.gl.shader ShaderLifecycle]
@@ -51,8 +51,13 @@
 
 (def sprite-icon "icons/32/Icons_14-Sprite.png")
 
-; Render assets
+(defn- v3->v4 [v]
+  (conj v 0.0))
 
+(defn- v4->v3 [v4]
+  (subvec v4 0 3))
+
+; Render assets
 (vtx/defvertex texture-vtx
   (vec4 position)
   (vec2 texcoord0 true))
@@ -190,11 +195,14 @@
 
 ; Node defs
 
-(g/defnk produce-save-value [image default-animation material blend-mode]
+(g/defnk produce-save-value [image default-animation material blend-mode size-mode size slice9]
   {:tile-set (resource/resource->proj-path image)
    :default-animation default-animation
    :material (resource/resource->proj-path material)
-   :blend-mode blend-mode})
+   :blend-mode blend-mode
+   :size-mode size-mode
+   :size (v3->v4 size)
+   :slice9 slice9})
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode]
@@ -225,7 +233,7 @@
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode size-mode size slice9 dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
                               (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
@@ -238,7 +246,10 @@
                                             {:tile-set          image
                                              :default-animation default-animation
                                              :material          material
-                                             :blend-mode        blend-mode}
+                                             :blend-mode        blend-mode
+                                             :size-mode         size-mode
+                                             :size              (v3->v4 size)
+                                             :slice9            slice9}
                                             [:tile-set :material])]))
 
 (defn- sort-anim-ids
@@ -287,6 +298,11 @@
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
+  (property size-mode g/Keyword (default :size-mode-auto)
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
+  (property size types/Vec3 (default [0 0 0])
+            (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
+  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))
@@ -322,7 +338,10 @@
       (g/set-property self :image image)
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)
-      (g/set-property self :blend-mode (:blend-mode sprite)))))
+      (g/set-property self :blend-mode (:blend-mode sprite))
+      (g/set-property self :size-mode (:size-mode sprite))
+      (g/set-property self :size (v4->v3 (:size sprite)))
+      (g/set-property self :slice9 (:slice9 sprite)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

@@ -444,7 +444,7 @@ def get_toolchain_root(sdkinfo, platform):
 
 def get_host_platform():
     machine = platform.machine()
-    if machine.lower() == 'amd64':
+    if machine.lower() == 'arm64':
         machine = 'x86_64'
     is64bit = machine.endswith('64')
 
