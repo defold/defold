@@ -29,7 +29,7 @@ def build(bld):
     bld.add_group()
 
     # We only need this library in the editor
-    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
+    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
 
     if is_host:
         o = bld.shlib(features = 'cxx ddf skip_asan',

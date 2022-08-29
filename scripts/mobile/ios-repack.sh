@@ -31,7 +31,7 @@ function terminate() {
 
 function terminate_usage() {
     echo "Usage: ${SCRIPT_NAME} <platform> <identity> <profile> <source>"
-    echo "  platform - 'arm64-darwin'"
+    echo "  platform - 'arm64-ios'"
     echo "  identity - name of the iPhone developer identity"
     echo "  profile  - absolute filepath to the provisioning profile"
     echo "  source   - absolute filepath to the source ipa to repack"
@@ -57,7 +57,7 @@ PLATFORM="${1:-}" && [ ! -z "${PLATFORM}" ] || terminate_usage
 IDENTITY="${2:-}" && [ ! -z "${IDENTITY}" ] || terminate_usage
 PROFILE="${3:-}" && [ ! -z "${PROFILE}" ] || terminate_usage
 SOURCE="${4:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
-[[ "arm64-darwin" =~ "${PLATFORM}" ]] || terminate_usage
+[[ "arm64-ios" =~ "${PLATFORM}" ]] || terminate_usage
 
 SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
 PROFILE="$(cd "$(dirname "${PROFILE}")"; pwd)/$(basename "${PROFILE}")"

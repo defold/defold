@@ -87,6 +87,13 @@ namespace dmGraphics
      */
     typedef struct VertexDeclaration* HVertexDeclaration;
 
+    /*#
+     * @enum
+     * @name HandleResult
+     * @member HANDLE_RESULT_OK
+     * @member HANDLE_RESULT_NOT_AVAILABLE
+     * @member HANDLE_RESULT_ERROR
+     */
     enum HandleResult
     {
         HANDLE_RESULT_OK = 0,
@@ -94,12 +101,93 @@ namespace dmGraphics
         HANDLE_RESULT_ERROR = -2
     };
 
+    /*#
+     * @enum
+     * @name RenderTargetAttachment
+     * @member ATTACHMENT_COLOR
+     * @member ATTACHMENT_DEPTH
+     * @member ATTACHMENT_STENCIL
+     * @member MAX_ATTACHMENT_COUNT
+     */
     enum RenderTargetAttachment
     {
         ATTACHMENT_COLOR     = 0,
         ATTACHMENT_DEPTH     = 1,
         ATTACHMENT_STENCIL   = 2,
         MAX_ATTACHMENT_COUNT = 3
+    };
+
+    /*#
+     * @enum
+     * @name TextureFormat
+     * @member TEXTURE_FORMAT_LUMINANCE
+     * @member TEXTURE_FORMAT_LUMINANCE_ALPHA
+     * @member TEXTURE_FORMAT_RGB
+     * @member TEXTURE_FORMAT_RGBA
+     * @member TEXTURE_FORMAT_RGB_16BPP
+     * @member TEXTURE_FORMAT_RGBA_16BPP
+     * @member TEXTURE_FORMAT_DEPTH
+     * @member TEXTURE_FORMAT_STENCIL
+     * @member TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
+     * @member TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
+     * @member TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
+     * @member TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
+     * @member TEXTURE_FORMAT_RGB_ETC1
+     * @member TEXTURE_FORMAT_R_ETC2
+     * @member TEXTURE_FORMAT_RG_ETC2
+     * @member TEXTURE_FORMAT_RGBA_ETC2
+     * @member TEXTURE_FORMAT_RGBA_ASTC_4x4
+     * @member TEXTURE_FORMAT_RGB_BC1
+     * @member TEXTURE_FORMAT_RGBA_BC3
+     * @member TEXTURE_FORMAT_R_BC4
+     * @member TEXTURE_FORMAT_RG_BC5
+     * @member TEXTURE_FORMAT_RGBA_BC7
+     * @member TEXTURE_FORMAT_RGB16F
+     * @member TEXTURE_FORMAT_RGB32F
+     * @member TEXTURE_FORMAT_RGBA16F
+     * @member TEXTURE_FORMAT_RGBA32F
+     * @member TEXTURE_FORMAT_R16F
+     * @member TEXTURE_FORMAT_RG16F
+     * @member TEXTURE_FORMAT_R32F
+     * @member TEXTURE_FORMAT_RG32F
+     * @member TEXTURE_FORMAT_COUNT
+     */
+    enum TextureFormat
+    {
+        TEXTURE_FORMAT_LUMINANCE            = 0,
+        TEXTURE_FORMAT_LUMINANCE_ALPHA      = 1,
+        TEXTURE_FORMAT_RGB                  = 2,
+        TEXTURE_FORMAT_RGBA                 = 3,
+        TEXTURE_FORMAT_RGB_16BPP            = 4,
+        TEXTURE_FORMAT_RGBA_16BPP           = 5,
+        TEXTURE_FORMAT_DEPTH                = 6,
+        TEXTURE_FORMAT_STENCIL              = 7,
+        // Compressed formats
+        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 8,
+        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 9,
+        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
+        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
+        TEXTURE_FORMAT_RGB_ETC1             = 12,
+        TEXTURE_FORMAT_R_ETC2               = 13,
+        TEXTURE_FORMAT_RG_ETC2              = 14,
+        TEXTURE_FORMAT_RGBA_ETC2            = 15,
+        TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
+        TEXTURE_FORMAT_RGB_BC1              = 17,
+        TEXTURE_FORMAT_RGBA_BC3             = 18,
+        TEXTURE_FORMAT_R_BC4                = 19,
+        TEXTURE_FORMAT_RG_BC5               = 20,
+        TEXTURE_FORMAT_RGBA_BC7             = 21,
+        // Floating point texture formats
+        TEXTURE_FORMAT_RGB16F               = 22,
+        TEXTURE_FORMAT_RGB32F               = 23,
+        TEXTURE_FORMAT_RGBA16F              = 24,
+        TEXTURE_FORMAT_RGBA32F              = 25,
+        TEXTURE_FORMAT_R16F                 = 26,
+        TEXTURE_FORMAT_RG16F                = 27,
+        TEXTURE_FORMAT_R32F                 = 28,
+        TEXTURE_FORMAT_RG32F                = 29,
+
+        TEXTURE_FORMAT_COUNT
     };
 
     HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment_type);
@@ -257,7 +345,7 @@ namespace dmGraphics
     /*#
      * Blend factor
      * @enum
-     * @name Type
+     * @name BlendFactor
      * @member BLEND_FACTOR_ZERO
      * @member BLEND_FACTOR_ONE
      * @member BLEND_FACTOR_SRC_COLOR
@@ -444,10 +532,18 @@ namespace dmGraphics
     /*# check if an extension is supported
      * @name IsExtensionSupported
      * @param context [type:dmGraphics::HContext] the context
-     * @param extension [type:const char*] the extension. Comparison is
+     * @param extension [type:const char*] the extension.
      * @return result [type:bool] true if the extension was supported
      */
     bool IsExtensionSupported(HContext context, const char* extension);
+
+    /*# check if a specific texture format is supported
+     * @name IsTextureFormatSupported
+     * @param context [type:dmGraphics::HContext] the context
+     * @param format [type:TextureFormat] the texture format.
+     * @return result [type:bool] true if the texture format was supported
+     */
+    bool IsTextureFormatSupported(HContext context, TextureFormat format);
 
     /*#
      * @name GetNumSupportedExtensions

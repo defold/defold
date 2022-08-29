@@ -84,7 +84,7 @@ def build(bld):
     exported_symbols += graphics_lib_symbols
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'WebViewExt']
-    if bld.env['PLATFORM'] in ('arm64-darwin', 'x86_64-ios'):
+    if bld.env['PLATFORM'] in ('arm64-ios', 'x86_64-ios'):
         exported_symbols.extend(mobile_service_symbols)
         exported_symbols.append('FacebookExt')
 
@@ -173,11 +173,11 @@ def build(bld):
         obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup', 'Psapi.lib'])
 
     additional_libs = []
-    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-darwin'):
+    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos'):
         additional_libs += ['UNWIND']
 
     graphics_lib = 'GRAPHICS_NULL'
-    if bld.env['PLATFORM'] in ('arm64-android','armv7-android', 'arm64-darwin', 'x86_64-ios'):
+    if bld.env['PLATFORM'] in ('arm64-android','armv7-android', 'arm64-ios', 'x86_64-ios'):
         graphics_lib = 'GRAPHICS_NULL DMGLFW' # g_AndroidApp is currently in glfw. UIApplicationMain is currently in glfw
 
     bld.add_group()

@@ -153,7 +153,7 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        final Platform platform = Platform.Arm64Darwin;
+        final Platform platform = Platform.Arm64Ios;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
@@ -294,7 +294,7 @@ public class IOSBundler implements IBundler {
             logger.log(Level.WARNING, "ios.icons_asset is not set");
         }
 
-        BundleHelper helper = new BundleHelper(project, Platform.Arm64Darwin, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant);
 
         helper.copyOrWriteManifestFile(architectures.get(0), appDir);
         helper.copyIosIcons();

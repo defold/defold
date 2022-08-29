@@ -615,9 +615,9 @@ namespace dmHttpCache
         int ret = rename(cache_creator->m_Filename, path);
         if (ret != 0)
         {
-            // TODO: strerror is not thread-safe.
-            char* error_msg = strerror(errno);
-            dmLogError("Unable to rename temporary cache file from '%s' to '%s'. %s (%d)", cache_creator->m_Filename, path, error_msg, errno);
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
+            dmLogError("Unable to rename temporary cache file from '%s' to '%s'. %s (%d)", cache_creator->m_Filename, path, errmsg, errno);
             FreeCacheCreator(cache, cache_creator);
             cache->m_CacheTable.Erase(uri_hash);
             return RESULT_IO_ERROR;

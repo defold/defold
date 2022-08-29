@@ -28,14 +28,13 @@ class BuildUtility:
     _binary_path = None
 
     _supported_platforms = [
-                            {'platform': 'linux', 'os': 'linux', 'arch': 'x86'},
                             {'platform': 'x86_64-linux', 'os': 'linux', 'arch': 'x86_64'},
-                            {'platform': 'darwin', 'os': 'osx', 'arch': 'x86'},
-                            {'platform': 'x86_64-darwin', 'os': 'osx', 'arch': 'x86_64'},
+                            {'platform': 'x86_64-macos', 'os': 'macos', 'arch': 'x86_64'},
+                            {'platform': 'arm64-macos', 'os': 'macos', 'arch': 'arm64'},
                             {'platform': 'win32', 'os': 'win', 'arch': 'x86'},
                             {'platform': 'x86_64-win32', 'os': 'win', 'arch': 'x86_64'},
                             {'platform': 'x86_64-ios', 'os': 'ios', 'arch': 'x86_64'},
-                            {'platform': 'arm64-darwin', 'os': 'ios', 'arch': 'arm64'},
+                            {'platform': 'arm64-ios', 'os': 'ios', 'arch': 'arm64'},
                             {'platform': 'armv7-android', 'os': 'android', 'arch': 'armv7'},
                             {'platform': 'arm64-android', 'os': 'android', 'arch': 'arm64'},
                             {'platform': 'js-web', 'os': 'web', 'arch': 'js'},
