@@ -62,7 +62,7 @@ REPACK_APP=${APP_DIR}/${PROJECTNAME}.repack.app
 REPACK_EXEPATH=${REPACK_APP}/Contents/MacOS/
 
 cp -vr ${APP} ${REPACK_APP}
-cp -v ${DYNAMO_HOME}/bin/x86_64-darwin/dmengine ${REPACK_EXEPATH}/${PROJECTNAME}
+cp -v ${DYNAMO_HOME}/bin/x86_64-macos/dmengine ${REPACK_EXEPATH}/${PROJECTNAME}
 
 
 # ----------------------------------------------------------------------------

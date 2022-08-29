@@ -98,5 +98,17 @@ particle_properties {
   key: PARTICLE_KEY_ROTATION
   points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 }
 }
+particle_properties {
+  key: PARTICLE_KEY_STRETCH_FACTOR_X
+  points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 }
+}
+particle_properties {
+  key: PARTICLE_KEY_STRETCH_FACTOR_Y
+  points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 }
+}
+particle_properties {
+  key: PARTICLE_KEY_ANGULAR_VELOCITY
+  points { x: 0.0 y: 0.0 t_x: 1.0 t_y: 0.0 }
+}
 pivot { x: 0.0 y: 0.0 z: 0.0 }
 

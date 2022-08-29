@@ -26,7 +26,7 @@
 
 (declare graphs)
 
-(def ^:private maximum-cached-items     40000)
+(def ^:private maximum-cached-items     20000)
 (def ^:private maximum-disposal-backlog 2500)
 (def ^:private history-size-max         60)
 
@@ -171,8 +171,8 @@
   graph)
 
 (defn make-cache
-  [{cache-size :cache-size :or {cache-size maximum-cached-items}}]
-  (c/make-cache cache-size))
+  [{:keys [cache-size cache-retain?] :or {cache-size maximum-cached-items}}]
+  (c/make-cache cache-size cache-retain?))
 
 (defn- next-available-graph-id
   [system]
@@ -337,7 +337,7 @@
                 (update :cache c/cache-hit evaluation-context-hits)
 
                 (seq evaluation-context-misses)
-                (update :cache c/cache-encache evaluation-context-misses))
+                (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
         (let [invalidated-during-node-value? (fn [endpoint]
                                                (not= (get initial-invalidate-counters endpoint 0)
                                                      (get invalidate-counters endpoint 0)))
@@ -348,7 +348,7 @@
                   (update :cache c/cache-hit safe-cache-hits)
 
                   (seq safe-cache-misses)
-                  (update :cache c/cache-encache safe-cache-misses)))))
+                  (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))
     system))
 
 (defn node-value

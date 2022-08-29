@@ -80,11 +80,11 @@ iOS + OSX:
 
 1. If you're not using Native Extensions, download the vanilla symbols:
 
-	$ wget http://d.defold.com/archive/<sha1>/engine/arm64-darwin/dmengine.dSYM
+	$ wget http://d.defold.com/archive/<sha1>/engine/arm64-ios/dmengine.dSYM
 
 1. If you are using Native Extensions, the server can provide those for you (pass "--with-symbols" to bob.jar)
 
-	$ unzip <project>/build/arm64-darwin/build.zip
+	$ unzip <project>/build/arm64-ios/build.zip
 
 	it will produce a Contents/Resources/DWARF/dmengine
 

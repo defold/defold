@@ -28,6 +28,13 @@
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
 
 (deftype Endpoint [^Long node-id ^Keyword label]
+  Comparable
+  (compareTo [_ that]
+    (let [^Endpoint that that
+          node-id-comparison (Long/compare node-id (.-node-id that))]
+      (if (zero? node-id-comparison)
+        (compare label (.-label that))
+        node-id-comparison)))
   IHashEq
   (hasheq [_]
     (unchecked-add-int

@@ -20,7 +20,7 @@ def build(bld):
 
     if bld.env.PLATFORM in ('armv7-android','arm64-android'):
         resource.source.append('mount/mount_android.cpp');
-    elif bld.env.PLATFORM in ('x86_64-linux','x86_64-darwin','arm64-darwin','x86_64-ios'):
+    elif bld.env.PLATFORM in ('x86_64-linux','x86_64-macos','arm64-ios','x86_64-ios'):
         resource.source.append('mount/mount_mmap.cpp');
     else:
         resource.source.append('mount/mount_generic.cpp');

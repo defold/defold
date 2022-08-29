@@ -1,14 +1,15 @@
 (ns editor.reveal
   (:require [clojure.main :as m]
+            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [vlaaad.reveal :as r]
-            [internal.graph.types :as gt]
             [internal.system :as is])
   (:import [clojure.lang IRef]
            [editor.resource FileResource ZipResource]
-           [internal.graph.types Endpoint]))
+           [internal.graph.types Endpoint]
+           [javafx.scene Parent]))
 
 (defn- node-value-or-err [ec node-id label]
   (try
@@ -117,9 +118,9 @@
 (r/defstream Endpoint [endpoint]
   (r/horizontal
     (r/raw-string "#g/endpoint [" {:fill :object})
-    (r/stream (gt/endpoint-node-id endpoint))
+    (r/stream (g/endpoint-node-id endpoint))
     r/separator
-    (r/stream (gt/endpoint-label endpoint))
+    (r/stream (g/endpoint-label endpoint))
     (r/raw-string "]" {:fill :object})))
 
 (r/defstream FileResource [resource]
@@ -133,3 +134,23 @@
     (r/raw-string "#resource/zip" {:fill :object})
     r/separator
     (r/stream (resource/proj-path resource))))
+
+(r/defaction ::javafx:children [x]
+  (when (instance? Parent x)
+    (constantly {:fx/type r/tree-view
+                 :render (fn [^Parent node]
+                           (r/horizontal
+                             (r/raw-string (.getName (class node)) {:fill :object})
+                             (r/raw-string (format "@%08x" (System/identityHashCode node))
+                                           {:fill :util})
+                             (r/raw-string (str (when-let [id (.getId node)]
+                                                  (str "#" id))
+                                                (when-let [style-classes (seq (.getStyleClass node))]
+                                                  (str/join (map #(str "." %) style-classes)))
+                                                (when-let [pseudo-classes (seq (.getPseudoClassStates node))]
+                                                  (str/join (map #(str ":" %) pseudo-classes))))
+                                           {:fill :string})))
+                 :root x
+                 :branch? #(and (instance? Parent %)
+                                (seq (.getChildrenUnmodifiable ^Parent %)))
+                 :children #(vec (.getChildrenUnmodifiable ^Parent %))})))

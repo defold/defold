@@ -299,12 +299,12 @@ public class BundleResourcesTest {
 
         // Test data
         Map<Platform, String[]> expected = new HashMap<Platform, String[]>();
-        expected.put(Platform.X86_64Darwin, new String[] { "osx.txt", "x86_64-osx.txt" });
+        expected.put(Platform.X86_64MacOS, new String[] { "osx.txt", "x86_64-osx.txt" });
         expected.put(Platform.X86_64Linux, new String[] { "linux.txt", "x86_64-linux.txt" });
         expected.put(Platform.X86Win32, new String[] { "win32.txt", "x86-win32.txt" });
         expected.put(Platform.X86_64Win32, new String[] { "win32.txt", "x86_64-win32.txt" });
         expected.put(Platform.Armv7Android, new String[] { "android.txt" });
-        expected.put(Platform.Arm64Darwin, new String[] { "ios.txt", "arm64-ios.txt" });
+        expected.put(Platform.Arm64Ios, new String[] { "ios.txt", "arm64-ios.txt" });
         expected.put(Platform.JsWeb, new String[] { "web.txt" });
 
         // Should find bundle resources inside the extension1 folder
@@ -346,7 +346,7 @@ public class BundleResourcesTest {
     // Extension source collecting
     @Test
     public void testExtensionSources() throws Exception {
-        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, null);
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64MacOS, null);
         assertEquals(7, resources.size());
 
         assertTrue(findInResourceList(resources, "_app/app.manifest") != null);
@@ -359,7 +359,7 @@ public class BundleResourcesTest {
 
         Map<String, String> appmanifestOptions = new HashMap<String,String>();
         appmanifestOptions.put("baseVariant", "release");
-        resources = ExtenderUtil.getExtensionSources(project, Platform.Arm64Darwin, appmanifestOptions);
+        resources = ExtenderUtil.getExtensionSources(project, Platform.Arm64Ios, appmanifestOptions);
         assertEquals(6, resources.size());
 
         assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
@@ -381,7 +381,7 @@ public class BundleResourcesTest {
         appmanifestOptions.put("baseVariant", "debug");
 
         project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
-        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, appmanifestOptions);
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64MacOS, appmanifestOptions);
         assertEquals(7, resources.size());
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String patchedManifest = new String(appManifest.getContent());

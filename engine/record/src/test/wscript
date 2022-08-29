@@ -2,7 +2,7 @@
 
 def build(bld):
 
-    if bld.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'x86_64-darwin'):
+    if bld.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'x86_64-macos'):
         vpx = 'VPX'
         record = 'record'
     else:
@@ -10,7 +10,7 @@ def build(bld):
         record = 'record_null'
 
     extra_defines = []
-    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     test_record = bld.program(features='cxx test',

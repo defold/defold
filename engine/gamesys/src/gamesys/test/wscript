@@ -65,5 +65,5 @@ def build(bld):
                                 source = bld.path.ant_glob('*.cpp') + bld.path.ant_glob(dirs, excl=['**/*.ttf']), 
                                 target = 'test_gamesys')
 
-    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-darwin', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:
+    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:
         bld.recurse('fontview')

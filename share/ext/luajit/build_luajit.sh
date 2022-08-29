@@ -47,7 +47,7 @@ function luajit_configure() {
 	COMMON_FLAGS_64="-DLUAJIT_DISABLE_JIT -DLUAJIT_NUMMODE=LJ_NUMMODE_DUAL "
 
 	case $CONF_TARGET in
-		arm64-darwin)
+		arm64-ios)
 			TAR_SKIP_BIN=1
 			XFLAGS="$COMMON_FLAGS_64"
 			export CROSS=""
@@ -143,7 +143,7 @@ function cmi_patch() {
 export CONF_TARGET=$1
 
 case $1 in
-	arm64-darwin)
+	arm64-ios)
 		export TARGET_SYS=iOS
 		;;
 	x86_64-ios)
@@ -190,7 +190,7 @@ case $1 in
 					set +e
 		}
 		;;
-	x86_64-darwin)
+	x86_64-macos)
 		export TARGET_SYS=Darwin
 		function cmi_make() {
             		export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
