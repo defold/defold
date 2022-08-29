@@ -23,7 +23,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.system :as system])
-  (:import [com.defold.editor Platform]
+  (:import [com.dynamo.bob Platform]
            [com.dynamo.resource.proto Resource$Reload]
            [com.dynamo.render.proto Render$Resize]
            [java.io BufferedReader File InputStream IOException]

@@ -14,7 +14,7 @@
 
 (ns editor.util
   (:require [clojure.string :as string])
-  (:import [com.defold.editor Platform]
+  (:import [com.dynamo.bob Platform]
            [java.util Locale Comparator]))
 
 (set! *warn-on-reflection* true)
