@@ -22,7 +22,8 @@
             [editor.system :as system]
             [service.log :as log]
             [util.net :as net])
-  (:import [com.defold.editor Editor Platform]
+  (:import [com.defold.editor Editor]
+           [com.defold.editor Platform]
            [java.io File IOException]
            [java.nio.file Files CopyOption StandardCopyOption]
            [java.nio.file.attribute FileAttribute]
