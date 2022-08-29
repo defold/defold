@@ -62,6 +62,7 @@ namespace dmScript
         uint32_t    m_ScriptSize;
         char*       m_Name;
         void*       m_Resource;
+        char*       m_Filename;
     };
 
     typedef struct ScriptExtension* HScriptExtension;
@@ -92,10 +93,6 @@ namespace dmScript
      * @param context script context
      */
     void ClearModules(HContext context);
-
-    // Exposed here for tests in test_script_module.cpp
-    const char* FindSuitableChunkname(const char* input);
-    const char* PrefixFilename(const char *input, char prefix, char *buf, uint32_t size);
 }
 
 #endif // SCRIPT_PRIVATE_H
