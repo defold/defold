@@ -12,16 +12,18 @@
 
 (ns editor.model-loader
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource])
   (:import [com.dynamo.bob.pipeline ColladaUtil]
            [com.dynamo.bob.pipeline ModelUtil]
-           [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$Skeleton]
-           [java.util ArrayList]))
+           [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
+           [java.util ArrayList]
+           [java.io InputStream]))
 
-(set! *warn-on-reflection* false)
+(set! *warn-on-reflection* true)
 
-(defn- load-collada-scene [stream]
+(defn- load-collada-scene [^InputStream stream]
   (let [mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         scene (ColladaUtil/loadScene stream)
@@ -38,7 +40,7 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn- load-model-scene [stream path]
+(defn- load-model-scene [^InputStream stream ^String path]
   (let [mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         options nil
@@ -59,9 +61,7 @@
 
 (defn load-scene [resource]
   (with-open [stream (io/input-stream resource)]
-    (let [ext (clojure.string/lower-case (resource/ext resource))]
+    (let [ext (string/lower-case (resource/ext resource))]
       (if (= "dae" ext)
         (load-collada-scene stream)
         (load-model-scene stream (resource/path resource))))))
-
-(set! *warn-on-reflection* true)

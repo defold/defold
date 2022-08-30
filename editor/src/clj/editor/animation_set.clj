@@ -14,12 +14,10 @@
 
 (ns editor.animation-set
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
-            [editor.model-loader :as model-loader]
             [editor.model-scene :as model-scene]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -27,9 +25,8 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.murmur :as murmur])
-  (:import [clojure.lang ExceptionInfo]
+  (:import [com.dynamo.bob.pipeline AnimationSetBuilder LoaderException]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$AnimationSetDesc]
-           [com.dynamo.bob.pipeline AnimationSetBuilder LoaderException]
            [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
@@ -47,7 +44,7 @@
             :animations (mapv animation-instance-desc-pb-msg animation-resources)}]
     pb))
 
-; animations-resource is nil when resource is an animation set
+;; animations-resource is nil when resource is an animation set
 (defn- get-animation-set-resource [resource animations-resource]
   (cond
     (nil? animations-resource)
@@ -59,15 +56,14 @@
 (defn- update-animation-info [resource animations-resource info]
   (let [parent-resource (:parent-resource info)
         animation-set-resource (get-animation-set-resource resource animations-resource)
-        ; If we're at the top level, the parent id should be ""
+        ;; If we're at the top level, the parent id should be ""
         parent-id (if (or (nil? parent-resource)
-                          (= parent-resource animation-set-resource)) "" (resource/base-name parent-resource))
-        ]
+                          (= parent-resource animation-set-resource)) "" (resource/base-name parent-resource))]
     (-> info
         (assoc :parent-id parent-id)
         (assoc :parent-resource (if (nil? parent-resource) resource parent-resource)))))
   
-; Also used by model.clj
+;; Also used by model.clj
 (g/defnk produce-animation-info [resource animations-resource animation-infos]
   (let [infos (reduce into [] animation-infos)
         resolved-infos (mapv (partial update-animation-info resource animations-resource) infos)]
@@ -77,7 +73,7 @@
   (let [animations-resource (if (nil? animations-resource) resource animations-resource)
         paths (map (fn [x] (:path x)) animation-info)
         streams (map (fn [x] (io/input-stream (:resource x))) animation-info)
-        ; clean up the parent-id if it's the current resource
+        ;; clean up the parent-id if it's the current resource
         parent-ids (map (fn [x] (:parent-id x)) animation-info)
         parent-resources (map (fn [x] (:parent-resource x)) animation-info)
 
@@ -89,10 +85,10 @@
       {:animation-set animation-set
        :animation-ids animation-ids})))
 
-; Also used by model.clj
+;; Also used by model.clj
 (g/defnk produce-animation-set-info [_node-id bones resource animations-resource skeleton-resource animation-info]
   (try
-    (if (or (= 0 (count animation-info))
+    (if (or (empty? animation-info)
             (nil? bones))
       {:animation-set []
        :animation-ids []}
@@ -183,7 +179,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext model-scene/model-file-types})))
 
   (property animations resource/ResourceVec
-            (value (gu/passthrough animations-resource))
+            (value (gu/passthrough animation-resources))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :animation-resources]

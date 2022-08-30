@@ -39,7 +39,7 @@
   (update mesh-set :mesh-entries #(mapv sequence-vertices-in-mesh-entry %)))
 
 (defn- load-scene [workspace file-path]
-    (model-loader/load-scene (workspace/file-resource workspace file-path)))
+  (model-loader/load-scene (workspace/file-resource workspace file-path)))
 
 (deftest mesh-normals
   (test-util/with-loaded-project
