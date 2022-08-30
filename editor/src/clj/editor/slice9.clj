@@ -109,7 +109,7 @@
   (map box box-triangles-vertex-order))
 
 (defn vertex-data
-  [{:keys [width height tex-coords] :as frame} size slice9 world-transform]
+  [{:keys [width height tex-coords] :as frame} size slice9]
   (let [texture-width width
         texture-height height
         ;; Sample tex-coords if anim from tile source:
@@ -234,7 +234,8 @@
         uv-lst (into [] (comp
                           (map second)
                           (mapcat box->triangle-vertices))
-                     non-empty-xy-box-coords+uv-boxes)]
-    (println "UV" uv-lst)
-    (println "POS" position-lst)
-    (into [] (map into position-lst uv-lst))))
+                     non-empty-xy-box-coords+uv-boxes)
+        line-lst (into [] (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices))))) non-empty-xy-boxes)]
+    {:position-data position-lst
+      :uv-data uv-lst
+      :line-data line-lst}))

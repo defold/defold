@@ -68,7 +68,7 @@
   (attribute vec2 texcoord0)
   (varying vec2 var_texcoord0)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position.xyz 1.0)))
     (setq var_texcoord0 texcoord0)))
 
 (shader/defshader fragment-shader
@@ -105,7 +105,10 @@
   (let [animation-frame (get-in animation [:frames frame-index])]
     (reduce conj! vbuf (if (= :size-mode-auto size-mode)
                          (texture-set/vertex-data animation-frame world-transform)
-                         (slice9/vertex-data animation-frame size slice9 world-transform)))))
+                         (let [slice9-data (slice9/vertex-data animation-frame size slice9)
+                               positions (:position-data slice9-data)
+                               uvs (:uv-data slice9-data)]
+                           (into [] (map into positions uvs)))))))
 
 (defn- gen-vertex-buffer
   [renderables count]
@@ -113,7 +116,7 @@
                          (let [{:keys [animation size-mode size slice9]} user-data
                                frame (get-in updatable [:state :frame] 0)]
                            (conj-animation-data! vbuf animation frame world-transform size-mode size slice9)))
-                       (->texture-vtx (* count 100))
+                       (->texture-vtx (* count 6))
                        renderables)))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
@@ -132,6 +135,10 @@
         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
     (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
 
+(defn- conj-outline-slice9-quad! [vbuf line-data ^Matrix4d world-transform tmp-point cr cg cb]
+  (let [line-data-points (map (fn [item] (gen-outline-vertex world-transform tmp-point (get item 0) (get item 1) cr cg cb))  line-data)]
+    (reduce conj! vbuf line-data-points)))
+
 (defn- gen-outline-vertex-buffer
   [renderables count]
   (let [tmp-point (Point3d.)]
@@ -146,13 +153,20 @@
               user-data (:user-data renderable)
               size (:size user-data)
               size-mode (:size-mode user-data)
+              slice9 (:slice9 user-data)
               anim-width (if (= :size-mode-auto size-mode)
                            (-> user-data :animation :width)
                            (get size 0))
               anim-height (if (= :size-mode-auto size-mode)
                             (-> user-data :animation :height)
-                            (get size 1))]
-          (recur (rest renderables) (conj-outline-quad! vbuf world-transform tmp-point anim-width anim-height cr cg cb)))
+                            (get size 1))
+              animation (:animation user-data)
+              animation-frame (get-in animation [:frames 0])] ; frame index??
+          (recur (rest renderables) (if (= :size-mode-auto size-mode)
+                                      (conj-outline-quad! vbuf world-transform tmp-point anim-width anim-height cr cg cb)
+                                      (let [slice9-data (slice9/vertex-data animation-frame size slice9)
+                                            line-data (:line-data slice9-data)]
+                                        (conj-outline-slice9-quad! vbuf line-data world-transform tmp-point cr cg cb)))))
         (persistent! vbuf)))))
 
 ; Rendering
@@ -178,30 +192,46 @@
 
 (def id-shader (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader sprite-id-fragment-shader {"view_proj" :view-proj "id" :id}))
 
+(defn- quad-count [size-mode slice9]
+  (let [x0 (get slice9 0)
+        x1 (get slice9 2)
+        y0 (get slice9 1)
+        y1 (get slice9 3)
+        columns (cond-> 1 (pos? x0) inc (pos? x1) inc)
+        rows (cond-> 1 (pos? y0) inc (pos? y1) inc)]
+    (if (= :size-mode-auto size-mode)
+      1
+      (* columns rows))))
+
+(defn- count-quads [renderables]
+  (reduce + (map :quad-count (map :user-data renderables))))
+
 (defn render-sprites [^GL2 gl render-args renderables count]
   (let [user-data (:user-data (first renderables))
         gpu-texture (:gpu-texture user-data)
-        pass (:pass render-args)]
+        pass (:pass render-args)
+        num-quads (count-quads renderables)]
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
-            vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables count) shader)
+            vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables num-quads) shader)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (gl/set-blend-mode gl blend-mode)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
       pass/selection
-      (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) id-shader)]
+      (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables num-quads) id-shader)]
         (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6)))))))
 
 (defn- render-sprite-outlines [^GL2 gl render-args renderables count]
   (assert (= pass/outline (:pass render-args)))
-  (let [outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
+  (let [num-quads (count-quads renderables)
+        outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables num-quads) outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8)))))
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* num-quads 8)))))
 
 ; Node defs
 
@@ -230,7 +260,8 @@
                                     :blend-mode blend-mode
                                     :size-mode size-mode
                                     :size size
-                                    :slice9 slice9}
+                                    :slice9 slice9
+                                    :quad-count (quad-count size-mode slice9)}
                         :passes [pass/transparent pass/selection]})
 
     (and (:width animation) (:height animation))
@@ -242,7 +273,9 @@
                                     :select-batch-key _node-id
                                     :user-data {:animation animation
                                                 :size-mode size-mode
-                                                :size size}
+                                                :size size
+                                                :slice9 slice9
+                                                :quad-count (quad-count size-mode slice9)}
                                     :passes [pass/outline]}}])
 
     (< 1 (count (:frames animation)))
@@ -315,7 +348,7 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default :size-mode-auto)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
-  (property size types/Vec3 (default [0 0 0])
+  (property size types/Vec3 (default [0.0 0.0 0.0])
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
 
