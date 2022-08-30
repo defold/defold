@@ -194,7 +194,7 @@ public abstract class LuaBuilder extends Builder<Void> {
     // we use the same chunk name across the board
     // we always use @ + full path
     // if the path is shorter than 60 characters the runtime will show the full path
-    // if the path is longer than 60 characrers the runtime will show ... and the last portion of the path
+    // if the path is longer than 60 characters the runtime will show ... and the last portion of the path
     private String getChunkName(Task<Void> task) {
         String chunkName = "@" + task.input(0).getPath();
         return chunkName;
