@@ -1108,7 +1108,8 @@ class Configuration(object):
             txts = missing.setdefault(plf, txts)
             txts = txts.append(txt)
 
-        for plf in [['x86_64-win32', 'x86_64-win32'],
+        for plf in [['win32', 'x86_64-win32'],
+                    ['x86_64-win32', 'x86_64-win32'],
                     ['x86_64-linux', 'x86_64-linux'],
                     ['x86_64-macos', 'x86_64-macos'],
                     ['arm64-macos', 'arm64-macos']]:
@@ -1117,10 +1118,13 @@ class Configuration(object):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
                 self._extract(luajit_path, luajit_dir)
-                luajit_exe = format_exes('luajit-32', plf[1])[0]
-                luajit_exe_64 = format_exes('luajit-64', plf[1])[0]
-                self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
-                self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe_64)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe_64)))
+                for name in ('luajit-32', 'luajit-64'):
+                    luajit_exe = format_exes(name, plf[0])[0]
+                    src = join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe))
+                    if not os.path.exists(src):
+                        continue
+                    self._copy(src, join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
+
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         macos_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
