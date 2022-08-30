@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.ui
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.fx.image-view :as fx.image-view]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
             [clojure.xml :as xml]
@@ -1178,16 +1179,37 @@
 (defn- select-items [items options command-contexts]
   (execute-command command-contexts :select-items {:items items :options options}))
 
+(defn image-icon
+  "Cljfx image view with image loaded from classpath or workspace
+
+  Required props:
+
+    :path    image path
+
+  Optional props (in addition to image-view props):
+
+    :size    image size, a double"
+  [{:keys [path size] :as props}]
+  (let [desc (-> props
+                 (assoc :fx/type fx.image-view/lifecycle)
+                 (dissoc :path :size))]
+    (if size
+      (assoc desc :image (icons/get-image path size) :fit-width size :fit-height size)
+      (assoc desc :image (icons/get-image path)))))
+
 (defn invoke-handler
   ([command-contexts command]
    (invoke-handler command-contexts command nil))
   ([command-contexts command user-data]
    (if-let [handler-ctx (handler/active command command-contexts user-data)]
      (if-let [options (and (nil? user-data) (handler/options handler-ctx))]
-       (when-let [user-data (some-> (select-items options {:title   (handler/label handler-ctx)
+       (when-let [user-data (some-> (select-items options {:title (handler/label handler-ctx)
+                                                           :filter-on :label
                                                            :cell-fn (fn [item]
                                                                       {:text (:label item)
-                                                                       :icon (:icon item)})}
+                                                                       :graphic {:fx/type image-icon
+                                                                                 :path (:icon item)
+                                                                                 :size 16.0}})}
                                                   command-contexts)
                                     first
                                     :user-data)]

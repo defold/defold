@@ -46,6 +46,15 @@ def build(bld):
         protoc_includes = '..',
         target = 'ddf')
 
+    bld.add_group() # depend on the pro
+
+    bld.stlib(features = 'cxx ddf skip_asan',
+        includes = '../.. ..',
+        source = 'ddf_extensions.proto ddf_math.proto ddf.cpp ddf_load.cpp ddf_save.cpp ddf_inputbuffer.cpp ddf_util.cpp ddf_message.cpp ddf_loadcontext.cpp ddf_outputstream.cpp',
+        proto_compile_cc = True,
+        protoc_includes = '..',
+        target = 'ddf_noasan')
+
     bld.install_files('${PREFIX}/include/ddf', 'ddf.h')
 
 def configure(conf):

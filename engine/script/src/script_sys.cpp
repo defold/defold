@@ -152,7 +152,9 @@ union SaveLoadBuffer
         if (!file)
         {
             Sys_FreeTableSerializationBuffer(buffer);
-            return luaL_error(L, "Could not open the file %s.", tmp_filename);
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
+            return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
         }
 
         bool result = fwrite(buffer, 1, n_used, file) == n_used;
@@ -534,6 +536,8 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
+     * @param options [type:table] (optional) options table
+     * - ignore_secure [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
      * @return sys_info [type:table] table with system information in the following fields:
      *
      * `device_model`
@@ -564,7 +568,7 @@ union SaveLoadBuffer
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
-     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
+     * : [type:string] This value secured by OS. [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
      *
      * `user_agent`
      * : [type:string] [icon:html5] The HTTP user agent, i.e. "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/602.4.8 (KHTML, like Gecko) Version/10.0.3 Safari/602.4.8"
@@ -580,12 +584,31 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_GetSysInfo(lua_State* L)
+    static int Sys_GetSysInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
         dmSys::SystemInfo info;
         dmSys::GetSystemInfo(&info);
+
+        bool ignore_secure_values = false;
+
+        if ( top >= 1)
+        {
+            luaL_checktype(L, 1, LUA_TTABLE);
+            lua_pushvalue(L, 1);
+
+            lua_getfield(L, -1, "ignore_secure");
+            ignore_secure_values = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (!ignore_secure_values)
+        {
+            dmSys::GetSecureInfo(&info);
+        } 
 
         lua_newtable(L);
         lua_pushliteral(L, "device_model");
@@ -741,24 +764,13 @@ union SaveLoadBuffer
     }
 
     // Android version 6 Marshmallow (API level 23) and up does not support getting hw adr programmatically (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
-    bool IsAndroidMarshmallowOrAbove()
+    static bool IsAndroidMarshmallowOrAbove()
     {
-        const long android_marshmallow_api_level = 23;
-        bool is_android = false;
-        bool marshmallow_or_higher = false;
-        long api_level_android = 0;
-
-        dmSys::SystemInfo info;
-        dmSys::GetSystemInfo(&info);
-
-        is_android = strcmp("Android", info.m_SystemName) == 0;
-        if (is_android)
-        {
-            api_level_android = strtol(info.m_ApiVersion, 0, 10);
-            marshmallow_or_higher = (api_level_android >= android_marshmallow_api_level);
-        }
-
-        return is_android && marshmallow_or_higher;
+        #ifdef ANDROID
+            const long android_marshmallow_api_level = 23;
+            return android_get_device_api_level() >= android_marshmallow_api_level;
+        #endif
+        return false;
     }
 
     /*# enumerate network interfaces

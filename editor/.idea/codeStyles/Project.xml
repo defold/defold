@@ -9,8 +9,10 @@
       <option name="indentCustomisations">
         <map>
           <entry key="cljfx.composite/props" value="-1" />
+          <entry key="clojure.core.cache/defcache" value="-1" />
           <entry key="clojure.core/defmulti" value="-1" />
           <entry key="clojure.core/defonce" value="-1" />
+          <entry key="clojure.test/are" value="-1" />
           <entry key="dynamo.graph/make-nodes" value="-1" />
           <entry key="dynamo.graph/precluding-errors" value="-1" />
           <entry key="dynamo.graph/transact" value="-1" />
@@ -34,6 +36,8 @@
           <entry key="editor.handler/register-menu!" value="-1" />
           <entry key="editor.resource-io/with-error-translation" value="-1" />
           <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
+          <entry key="editor.resource-node/register-settings-resource-type" value="-1" />
+          <entry key="editor.settings/register-simple-settings-resource-type" value="-1" />
           <entry key="editor.ui.bindings/-if" value="-1" />
           <entry key="editor.ui.bindings/when" value="-1" />
           <entry key="editor.ui.bindings/when-not" value="-1" />
@@ -50,6 +54,7 @@
           <entry key="integration.test-util/with-prop" value="-1" />
           <entry key="integration.test-util/with-temp-dir!" value="-1" />
           <entry key="org.httpkit.server/with-channel" value="-1" />
+          <entry key="support.test-support/with-clean-system" value="-1" />
           <entry key="util.debug-util/measuring" value="-1" />
           <entry key="util.debug-util/metrics-time" value="-1" />
           <entry key="util.profiler/profile" value="-1" />

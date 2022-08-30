@@ -30,8 +30,8 @@ def configure(conf):
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "default/src")
-    conf.env['STLIB_DLIB'] = 'dlib'
-    conf.env['STLIB_DDF'] = 'ddf'
+    conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
+    conf.env['STLIB_DDF_NOASAN'] = ['ddf_noasan']
 
     platform = conf.env['PLATFORM']
 
