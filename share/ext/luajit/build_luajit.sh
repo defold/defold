@@ -211,8 +211,8 @@ case $1 in
 
 					# grab our old 32 bit executable and store it in the host package
 					set -e
-					tar xvf ${DIR}/luajit-2.1.0-beta3-darwin.tar.gz
-					cp -v bin/darwin/luajit-2.1.0-beta3- $PREFIX/bin/$CONF_TARGET/luajit-32
+					tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
+					cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
 					set +e
 		}
 		;;
