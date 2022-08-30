@@ -127,6 +127,9 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     dmRigDDF::Model& model = mesh_set->m_Models.m_Data[model_index];
     dmRigDDF::Mesh& mesh = model.m_Meshes.m_Data[mesh_index];
 
+    mesh.m_Indices.m_Count = 0;
+    mesh.m_Indices.m_Data = 0;
+
     uint32_t vert_count = 4;
     // set vertice position so they match bone positions
     mesh.m_Positions.m_Data = new float[vert_count*3];
