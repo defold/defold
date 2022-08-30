@@ -443,8 +443,8 @@ def get_toolchain_root(sdkinfo, platform):
     return None
 
 def get_host_platform():
-    machine = platform.machine()
-    if machine.lower() == 'arm64':
+    machine = platform.machine().lower()
+    if machine == 'amd64':
         machine = 'x86_64'
     is64bit = machine.endswith('64')
 
@@ -453,6 +453,9 @@ def get_host_platform():
     elif sys.platform == 'win32':
         return '%s-win32' % machine
     elif sys.platform == 'darwin':
+        # Force x86_64 on M1 Macs for now.
+        if machine == 'arm64':
+            machine = 'x86_64'
         return '%s-macos' % machine
 
     raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))

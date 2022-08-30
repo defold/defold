@@ -114,6 +114,10 @@ public enum Platform {
         return String.format("%s-%s", this.arch, this.os);
     }
 
+    public String getOs() {
+        return this.os;
+    }
+
     public String getExtenderPair() {
         return extenderPair;
     }

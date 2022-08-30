@@ -52,7 +52,7 @@ def _exec_command(arg_list, **kwargs):
 
         output = ''
         while True:
-            line = process.stdout.readline().decode()
+            line = process.stdout.readline().decode(errors='replace')
             if line != '':
                 output += line
                 log(line.rstrip())
