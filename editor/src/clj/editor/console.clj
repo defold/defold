@@ -353,6 +353,7 @@
 
 (def ^:const line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
 (def ^:private ^:const line-sub-regions-pattern-partial #"([^\s<>:]+):(\d+)")
+(def ^:private ^:const sub-region-strip-ellipsis-prefix-pattern #"^(?>\.{3})?(.*)")
 
 (defn- make-resource-reference-region
   ([row start-col end-col resource-proj-path on-click!]
@@ -369,11 +370,15 @@
    (assoc (make-resource-reference-region row start-col end-col resource-proj-path on-click!)
      :row resource-row)))
 
+(defn- strip-ellipsis-prefix [partial-path]
+  (second (re-matches sub-region-strip-ellipsis-prefix-pattern partial-path)))
+
 (defn- find-project-resource-from-potential-match
   [resource-map partial-path]
   (if (contains? resource-map partial-path)
     partial-path ;; Already a valid path
-    (let [partial-matches (filter #(.endsWith ^String % partial-path) (keys resource-map))]
+    (let [partial-path (strip-ellipsis-prefix partial-path)
+          partial-matches (filter #(string/ends-with? % partial-path) (keys resource-map))]
       (when (= 1 (bounded-count 2 partial-matches))
         (first partial-matches)))))
 
