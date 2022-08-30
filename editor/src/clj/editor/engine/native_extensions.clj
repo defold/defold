@@ -35,7 +35,7 @@
    (org.apache.commons.codec.binary Hex)
    (org.apache.commons.codec.digest DigestUtils)
    (org.apache.commons.io IOUtils)
-   (com.defold.editor Platform)
+   (com.dynamo.bob Platform)
    (com.sun.jersey.api.client.config DefaultClientConfig)
    (com.sun.jersey.api.client Client ClientResponse WebResource$Builder)
    (com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider)
