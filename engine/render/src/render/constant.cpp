@@ -133,12 +133,12 @@ struct ShiftConstantsContext
 {
     uint32_t m_Index;
     uint32_t m_NumValues : 31;
-    uint32_t m_Direction : 1;
+    uint32_t m_Direction : 1; // 0: left, 1: right
 };
 
 static inline void ShiftConstantIndices(ShiftConstantsContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
 {
-    if (context->m_Direction == -1 && constant->m_ValueIndex > context->m_Index)
+    if (context->m_Direction == 0 && constant->m_ValueIndex > context->m_Index)
     {
         constant->m_ValueIndex -= context->m_NumValues;
     }
@@ -170,7 +170,7 @@ void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
     ShiftConstantsContext shift_context;
     shift_context.m_Index     = values_index;
     shift_context.m_NumValues = num_values;
-    shift_context.m_Direction = -1;
+    shift_context.m_Direction = 0;
     buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
 }
 
