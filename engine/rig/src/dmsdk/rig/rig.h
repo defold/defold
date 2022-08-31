@@ -98,14 +98,12 @@ namespace dmRig
 
     struct RigModelVertex
     {
-        float x;
-        float y;
-        float z;
-        float u;
-        float v;
-        float nx;
-        float ny;
-        float nz;
+        float pos[3];
+        float normal[3];
+        float tangent[3];
+        float color[4];
+        float uv0[2];
+        float uv1[2];
     };
 
     // Can we not use the skeleton directly?
@@ -168,7 +166,7 @@ namespace dmRig
     dmhash_t GetAnimation(HRigInstance instance);
 
     // Returns the new position in the array
-    RigModelVertex* GenerateVertexData(HRigContext context, HRigInstance instance, const dmVMath::Matrix4& instance_matrix, const dmVMath::Vector4 color, RigModelVertex* vertex_data_out);
+    RigModelVertex* GenerateVertexData(HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, RigModelVertex* vertex_data_out);
     uint32_t GetVertexCount(HRigInstance instance);
 
     Result SetModel(HRigInstance instance, dmhash_t model_id);

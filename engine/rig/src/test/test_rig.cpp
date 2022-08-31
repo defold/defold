@@ -127,6 +127,9 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     dmRigDDF::Model& model = mesh_set->m_Models.m_Data[model_index];
     dmRigDDF::Mesh& mesh = model.m_Meshes.m_Data[mesh_index];
 
+    mesh.m_Indices.m_Count = 0;
+    mesh.m_Indices.m_Data = 0;
+
     uint32_t vert_count = 4;
     // set vertice position so they match bone positions
     mesh.m_Positions.m_Data = new float[vert_count*3];
@@ -152,12 +155,10 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_Texcoord0[0]           = -1.0;
     mesh.m_Texcoord0[1]           = 2.0;
 
-    mesh.m_Texcoord0Indices.m_Data  = new uint32_t[vert_count];
-    mesh.m_Texcoord0Indices.m_Count = vert_count;
-    mesh.m_Texcoord0Indices[0]      = 0;
-    mesh.m_Texcoord0Indices[1]      = 0;
-    mesh.m_Texcoord0Indices[2]      = 0;
-    mesh.m_Texcoord0Indices[3]      = 0;
+    mesh.m_Texcoord1.m_Count      = vert_count*2;
+    mesh.m_Texcoord1.m_Data       = new float[mesh.m_Texcoord1.m_Count];
+    mesh.m_Texcoord1[0]           = -2.0;
+    mesh.m_Texcoord1[1]           = 4.0;
 
     mesh.m_Normals.m_Count        = vert_count*3;
     mesh.m_Normals.m_Data         = new float[mesh.m_Normals.m_Count];
@@ -174,37 +175,49 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_Normals[10]            = 1.0;
     mesh.m_Normals[11]            = 0.0;
 
-    mesh.m_NormalsIndices.m_Data    = new uint32_t[vert_count];
-    mesh.m_NormalsIndices.m_Count   = vert_count;
-    mesh.m_NormalsIndices.m_Data[0] = 0;
-    mesh.m_NormalsIndices.m_Data[1] = 1;
-    mesh.m_NormalsIndices.m_Data[2] = 2;
-    mesh.m_NormalsIndices.m_Data[3] = 3;
+    mesh.m_Tangents.m_Count       = vert_count*3;
+    mesh.m_Tangents.m_Data        = new float[mesh.m_Tangents.m_Count];
+    mesh.m_Tangents[0]            = 0.0;
+    mesh.m_Tangents[1]            = 0.0;
+    mesh.m_Tangents[2]            = 1.0;
+    mesh.m_Tangents[3]            = 0.0;
+    mesh.m_Tangents[4]            = 0.0;
+    mesh.m_Tangents[5]            = 1.0;
+    mesh.m_Tangents[6]            = 0.0;
+    mesh.m_Tangents[7]            = 0.0;
+    mesh.m_Tangents[8]            = 1.0;
+    mesh.m_Tangents[9]            = 0.0;
+    mesh.m_Tangents[10]           = 0.0;
+    mesh.m_Tangents[11]           = 1.0;
 
-    mesh.m_MeshColor.m_Data       = new float[vert_count*4];
-    mesh.m_MeshColor.m_Count      = vert_count*4;
-    mesh.m_MeshColor[0]           = color.getX();
-    mesh.m_MeshColor[1]           = color.getY();
-    mesh.m_MeshColor[2]           = color.getZ();
-    mesh.m_MeshColor[3]           = color.getW();
-    mesh.m_MeshColor[4]           = color.getX();
-    mesh.m_MeshColor[5]           = color.getY();
-    mesh.m_MeshColor[6]           = color.getZ();
-    mesh.m_MeshColor[7]           = color.getW();
-    mesh.m_MeshColor[8]           = color.getX();
-    mesh.m_MeshColor[9]           = color.getY();
-    mesh.m_MeshColor[10]          = color.getZ();
-    mesh.m_MeshColor[11]          = color.getW();
-    mesh.m_MeshColor[12]          = color.getX();
-    mesh.m_MeshColor[13]          = color.getY();
-    mesh.m_MeshColor[14]          = color.getZ();
-    mesh.m_MeshColor[15]          = color.getW();
-    mesh.m_PositionIndices.m_Data    = new uint32_t[vert_count];
-    mesh.m_PositionIndices.m_Count   = vert_count;
-    mesh.m_PositionIndices.m_Data[0] = 0;
-    mesh.m_PositionIndices.m_Data[1] = 1;
-    mesh.m_PositionIndices.m_Data[2] = 2;
-    mesh.m_PositionIndices.m_Data[3] = 3;
+    mesh.m_Colors.m_Count         = vert_count*4;
+    mesh.m_Colors.m_Data          = new float[mesh.m_Colors.m_Count];
+    for (int i = 0; i < vert_count; ++i) {
+        mesh.m_Colors.m_Data[i*4+0] = i / (float(vert_count-1));
+        mesh.m_Colors.m_Data[i*4+0] = 0.5f;
+        mesh.m_Colors.m_Data[i*4+0] = 1.0f;
+        mesh.m_Colors.m_Data[i*4+0] = 1.0f;
+    }
+
+    mesh.m_Colors.m_Data       = new float[vert_count*4];
+    mesh.m_Colors.m_Count      = vert_count*4;
+    mesh.m_Colors[0]           = color.getX();
+    mesh.m_Colors[1]           = color.getY();
+    mesh.m_Colors[2]           = color.getZ();
+    mesh.m_Colors[3]           = color.getW();
+    mesh.m_Colors[4]           = color.getX();
+    mesh.m_Colors[5]           = color.getY();
+    mesh.m_Colors[6]           = color.getZ();
+    mesh.m_Colors[7]           = color.getW();
+    mesh.m_Colors[8]           = color.getX();
+    mesh.m_Colors[9]           = color.getY();
+    mesh.m_Colors[10]          = color.getZ();
+    mesh.m_Colors[11]          = color.getW();
+    mesh.m_Colors[12]          = color.getX();
+    mesh.m_Colors[13]          = color.getY();
+    mesh.m_Colors[14]          = color.getZ();
+    mesh.m_Colors[15]          = color.getW();
+
     mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
     mesh.m_BoneIndices.m_Count    = vert_count*4;
 
@@ -1126,6 +1139,7 @@ public:
     dmArray<dmRig::RigBone> m_BindPose;
     dmRigDDF::Skeleton*     m_Skeleton;
     dmRigDDF::MeshSet*      m_MeshSet;
+    dmRigDDF::Mesh*         m_FirstMesh;
     dmRigDDF::AnimationSet* m_AnimationSet;
 
 protected:
@@ -1138,6 +1152,8 @@ protected:
         m_MeshSet      = new dmRigDDF::MeshSet();
         m_AnimationSet = new dmRigDDF::AnimationSet();
         SetUpSimpleRig(m_BindPose, m_Skeleton, m_MeshSet, m_AnimationSet);
+
+        m_FirstMesh = &m_MeshSet->m_Models.m_Data[0].m_Meshes.m_Data[0];
 
         // Data
         dmRig::InstanceCreateParams create_params = {0};
@@ -1258,7 +1274,7 @@ TEST_F(RigInstanceTest, PlayValidAnimation)
 //     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
 //     dmRig::RigModelVertex data[4];
 //     dmRig::RigModelVertex* data_end = data + 4;
-//     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Vector4(1.0), data));
+//     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, m_FirstMesh, Matrix4::identity(), data));
 
 //     // m_ScratchInfluenceMatrixBuffer should be able to contain the instance max bone count, which is the max of the used skeleton and meshset
 //     // MaxBoneCount is set to BoneCount + 1 for testing.
@@ -1392,10 +1408,10 @@ TEST_F(RigInstanceTest, GetVertexCount)
 }
 
 #define ASSERT_VERT_POS(exp, act)\
-    ASSERT_EQ(exp, Vector3(act.x, act.y, act.z));
+    ASSERT_EQ(exp, Vector3(act.pos[0], act.pos[1], act.pos[2]));
 
 #define ASSERT_VERT_NORM(exp, act)\
-    ASSERT_EQ(exp, Vector3(act.nx, act.ny, act.nz));
+    ASSERT_EQ(exp, Vector3(act.normal[0], act.normal[1], act.normal[2]));
 
 #define ASSERT_VERT_UV(exp_u, exp_v, act_u, act_v)\
     ASSERT_NEAR(exp_u, act_u, RIG_EPSILON_FLOAT);\
@@ -1414,21 +1430,21 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     Vector3 n_neg_left(-1.0f, 0.0f, 0.0f);
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Vector4(1.0), data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, m_FirstMesh, Matrix4::identity(), data));
     ASSERT_VERT_NORM(n_up, data[0]); // v0
     ASSERT_VERT_NORM(n_up, data[1]); // v1
     ASSERT_VERT_NORM(n_neg_left, data[2]); // v2
 
     // sample 1
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Vector4(1.0), data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, m_FirstMesh, Matrix4::identity(), data));
     ASSERT_VERT_NORM(n_up,        data[0]); // v0
     ASSERT_VERT_NORM(n_neg_left, data[1]); // v1
     ASSERT_VERT_NORM(n_neg_left, data[2]); // v2
 
     // sample 2
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Vector4(1.0), data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, m_FirstMesh, Matrix4::identity(), data));
     ASSERT_VERT_NORM(n_neg_left, data[0]); // v0
     ASSERT_VERT_NORM(n_neg_left, data[1]); // v1
     ASSERT_VERT_NORM(n_down, data[2]); // v2
@@ -1458,8 +1474,8 @@ TEST_F(RigInstanceTest, GenerateTexcoordData)
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Vector4(1.0), data));
-    ASSERT_VERT_UV(-1.0f, 2.0f, data[0].u, data[0].v);
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, m_FirstMesh, Matrix4::identity(), data));
+    ASSERT_VERT_UV(-1.0f, 2.0f, data[0].uv0[0], data[0].uv0[1]);
 }
 
 // Test to verify that two rigs does not interfere with each others pose information,
@@ -1505,24 +1521,24 @@ TEST_F(RigInstanceTest, MultipleRigInfluences)
     Vector3 n_neg_left(-1.0f, 0.0f, 0.0f);
 
     // sample 0 - Both rigs are in their bind pose.
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Vector4(1.0), data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, m_FirstMesh, Matrix4::identity(), data));
     ASSERT_VERT_NORM(n_up, data[0]);
     ASSERT_VERT_NORM(n_up, data[1]);
     ASSERT_VERT_NORM(n_neg_left, data[2]);
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, Matrix4::identity(), Vector4(1.0), data));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, m_FirstMesh, Matrix4::identity(), data));
     ASSERT_VERT_NORM(n_up, data[0]);
     ASSERT_VERT_NORM(n_up, data[1]);
     ASSERT_VERT_NORM(n_neg_left, data[2]);
 
     // sample 1 - First rig instance should be animating, while the second one should still be in its bind pose.
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Vector4(1.0), data));
-    ASSERT_VERT_NORM(n_up,        data[0]); // v0
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, m_FirstMesh, Matrix4::identity(), data));
+    ASSERT_VERT_NORM(n_up,       data[0]); // v0
     ASSERT_VERT_NORM(n_neg_left, data[1]); // v1
     ASSERT_VERT_NORM(n_neg_left, data[2]); // v2
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, Matrix4::identity(), Vector4(1.0), data));
-    ASSERT_VERT_NORM(n_up, data[0]); // v0
-    ASSERT_VERT_NORM(n_up, data[1]); // v1
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, m_FirstMesh, Matrix4::identity(), data));
+    ASSERT_VERT_NORM(n_up,       data[0]); // v0
+    ASSERT_VERT_NORM(n_up,       data[1]); // v1
     ASSERT_VERT_NORM(n_neg_left, data[2]); // v2
 
     // Cleanup after second rig instance

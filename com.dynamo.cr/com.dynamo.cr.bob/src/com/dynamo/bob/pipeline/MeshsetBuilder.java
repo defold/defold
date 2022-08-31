@@ -64,8 +64,10 @@ public class MeshsetBuilder extends Builder<Void>  {
         // MeshSet
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
         MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
+
+        boolean split_meshes = this.project.getProjectProperties().getIntValue("model", "split_large_meshes", 0) != 0;
         try {
-            ColladaUtil.loadMesh(collada_is, meshSetBuilder, true);
+            ColladaUtil.loadMesh(collada_is, meshSetBuilder, true, split_meshes);
         } catch (XMLStreamException e) {
             throw new CompileExceptionError(task.input(0), e.getLocation().getLineNumber(), "Failed to compile mesh: " + e.getLocalizedMessage(), e);
         } catch (LoaderException e) {
@@ -125,6 +127,12 @@ public class MeshsetBuilder extends Builder<Void>  {
         // MeshSet
         {
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
+
+            int split_meshes = this.project.getProjectProperties().getIntValue("model", "split_large_meshes", 0);
+            if (split_meshes != 0) {
+                ModelUtil.splitMeshes(scene);
+            }
+
             ModelUtil.loadModels(scene, meshSetBuilder);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

@@ -60,6 +60,7 @@ namespace dmGameSystem
         struct ModelComponent*      m_Component;
         ModelResourceBuffers*       m_Buffers;
         dmRigDDF::Model*            m_Model;
+        dmRigDDF::Mesh*             m_Mesh;
         uint32_t                    m_MaterialIndex : 4; // current max 16 materials per model
         uint32_t                    m_Enabled : 1;
         uint32_t                    : 27;
@@ -139,9 +140,14 @@ namespace dmGameSystem
         dmGraphics::VertexElement ve[] =
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-                {"normal", 2, 3, dmGraphics::TYPE_FLOAT, false},
+                {"normal", 1, 3, dmGraphics::TYPE_FLOAT, false},
+                {"tangent", 2, 3, dmGraphics::TYPE_FLOAT, false},
+                {"color", 3, 4, dmGraphics::TYPE_FLOAT, false},
+                {"texcoord0", 4, 2, dmGraphics::TYPE_FLOAT, false},
+                {"texcoord1", 5, 2, dmGraphics::TYPE_FLOAT, false},
         };
+        DM_STATIC_ASSERT( sizeof(dmRig::RigModelVertex) == ((3+3+3+4+2+2)*4), Invalid_Struct_Size);
+
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
         world->m_MaxElementsVertices = dmGraphics::GetMaxElementsVertices(graphics_context);
@@ -395,6 +401,7 @@ namespace dmGameSystem
             item.m_Buffers = resource->m_Meshes[i].m_Buffers;
             item.m_Component = component;
             item.m_Model = resource->m_Meshes[i].m_Model;
+            item.m_Mesh = resource->m_Meshes[i].m_Mesh;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_Enabled = 1;
             component->m_RenderItems.Push(item);
@@ -610,7 +617,12 @@ namespace dmGameSystem
             const ModelComponent* c = render_item->m_Component;
             dmRig::HRigContext rig_context = world->m_RigContext;
             if (c->m_RigInstance)
-                vb_end = dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, Vector4(1.0), vb_end);
+            {
+                dmVMath::Matrix4 model_matrix = dmTransform::ToMatrix4(render_item->m_Model->m_Local);
+                dmVMath::Matrix4 world_matrix = c->m_World * model_matrix;
+
+                vb_end = dmRig::GenerateVertexData(rig_context, c->m_RigInstance, render_item->m_Mesh, world_matrix, vb_end);
+            }
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 

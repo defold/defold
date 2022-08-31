@@ -79,6 +79,8 @@ import com.google.protobuf.ByteString;
 
 public class ModelUtil {
 
+    private static final int MAX_SPLIT_VCOUNT = 65535;
+
     public static Scene loadScene(byte[] content, String path, Options options) {
         if (options == null)
             options = new Options();
@@ -361,79 +363,194 @@ public class ModelUtil {
         return materials;
     }
 
-    private static void createMeshIndices(Rig.Mesh.Builder meshBuilder,
-                                        int triangle_count,
-                                        boolean optimize,
-                                        List<Integer> position_indices_list,
-                                        List<Integer> normal_indices_list,
-                                        List<Integer> texcoord0_indices_list) {
-        class MeshVertexIndex {
-            public int position, texcoord0, normal;
-            public boolean equals(Object o) {
-                MeshVertexIndex m = (MeshVertexIndex) o;
-                return (this.position == m.position && this.texcoord0 == m.texcoord0 && this.normal == m.normal);
-            }
-        }
-
-        // Build an optimized list of triangles from indices and instance (make unique) any vertices common attributes (position, normal etc.).
-        // We can then use this to quickly build an optimized indexed vertex buffer of any selected vertex elements in run-time without any sorting.
-        boolean mesh_has_normals = normal_indices_list.size() > 0;
-        List<MeshVertexIndex> shared_vertex_indices = new ArrayList<MeshVertexIndex>(triangle_count*3);
-        List<Integer> mesh_index_list = new ArrayList<Integer>(triangle_count*3);
-        for (int i = 0; i < triangle_count*3; ++i) {
-            MeshVertexIndex ci = new MeshVertexIndex();
-            ci.position = position_indices_list.get(i);
-            ci.texcoord0 = texcoord0_indices_list.get(i);
-            ci.normal = mesh_has_normals ? normal_indices_list.get(i) : 0;
-            int index = optimize ? shared_vertex_indices.indexOf(ci) : -1;
-            if(index == -1) {
-                // create new vertex as this is not equal to any existing in generated list
-                mesh_index_list.add(shared_vertex_indices.size());
-                shared_vertex_indices.add(ci);
-            } else {
-                // shared vertex, add index to existing vertex in generating list instead of adding new
-                mesh_index_list.add(index);
-            }
-        }
-
-        // We use this list to recreate a vertex buffer, in those cases that the index buffer is 32-bit,
-        // but the platform doesn't support 32-bit index buffers. See res_model.cpp
-        List<Rig.MeshVertexIndices> mesh_vertex_indices = new ArrayList<Rig.MeshVertexIndices>(triangle_count*3);
-        for (int i = 0; i < shared_vertex_indices.size() ; ++i) {
-            Rig.MeshVertexIndices.Builder b = Rig.MeshVertexIndices.newBuilder();
-            MeshVertexIndex ci = shared_vertex_indices.get(i);
-            b.setPosition(ci.position);
-            b.setTexcoord0(ci.texcoord0);
-            b.setNormal(ci.normal);
-            mesh_vertex_indices.add(b.build());
-        }
-
-        Rig.IndexBufferFormat indices_format;
+    public static ByteBuffer create16BitIndices(int[] indices) {
         ByteBuffer indices_bytes;
-        if(shared_vertex_indices.size() <= 65536)
-        {
-            // if we only need 16-bit indices, use this primarily. Less data to upload to GPU and ES2.0 core functionality.
-            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16;
-            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 2);
-            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
-            for (int i = 0; i < mesh_index_list.size();) {
-                indices_bytes.putShort(mesh_index_list.get(i++).shortValue());
-            }
-        }
-        else
-        {
-            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32;
-            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 4);
-            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
-            for (int i = 0; i < mesh_index_list.size();) {
-                indices_bytes.putInt(mesh_index_list.get(i++));
-            }
+        indices_bytes = ByteBuffer.allocateDirect(indices.length * 2);
+        indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+        for (int i = 0; i < indices.length; ++i) {
+            indices_bytes.putShort((short)indices[i]);
         }
         indices_bytes.rewind();
+        return indices_bytes;
+    }
 
-        meshBuilder.addAllVertices(mesh_vertex_indices);
-        meshBuilder.setIndices(ByteString.copyFrom(indices_bytes));
-        meshBuilder.setIndicesFormat(indices_format);
+    public static ByteBuffer create32BitIndices(int[] indices) {
+        ByteBuffer indices_bytes;
+        indices_bytes = ByteBuffer.allocateDirect(indices.length * 4);
+        indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+        for (int i = 0; i < indices.length; ++i) {
+            indices_bytes.putInt(indices[i]);
+        }
+        indices_bytes.rewind();
+        return indices_bytes;
+    }
+
+    private static void copyFloatArray(float[] src, int srcIndex, float[] dst, int dstIndex, int num_components) {
+        for (int i = 0; i < num_components; ++i) {
+            dst[dstIndex*num_components+i] = src[srcIndex*num_components+i];
+        }
+    }
+
+    private static void copyIntArray(int[] src, int srcIndex, int[] dst, int dstIndex, int num_components) {
+        for (int i = 0; i < num_components; ++i) {
+            dst[dstIndex*num_components+i] = src[srcIndex*num_components+i];
+        }
+    }
+
+    private static void copyVertex(ModelImporter.Mesh inMesh, int inIndex, ModelImporter.Mesh outMesh, int outIndex) {
+        if (inMesh.positions != null) {
+            copyFloatArray(inMesh.positions, inIndex, outMesh.positions, outIndex, 3);
+        }
+        if (inMesh.normals != null) {
+            copyFloatArray(inMesh.normals, inIndex, outMesh.normals, outIndex, 3);
+        }
+        if (inMesh.tangents != null) {
+            copyFloatArray(inMesh.tangents, inIndex, outMesh.tangents, outIndex, 3);
+        }
+        if (inMesh.colors != null) {
+            copyFloatArray(inMesh.colors, inIndex, outMesh.colors, outIndex, 4);
+        }
+        if (inMesh.weights != null) {
+            copyFloatArray(inMesh.weights, inIndex, outMesh.weights, outIndex, 4);
+        }
+        if (inMesh.bones != null) {
+            copyIntArray(inMesh.bones, inIndex, outMesh.bones, outIndex, 4);
+        }
+        if (inMesh.texCoords0 != null) {
+            copyFloatArray(inMesh.texCoords0, inIndex, outMesh.texCoords0, outIndex, inMesh.texCoords0NumComponents);
+        }
+        if (inMesh.texCoords1 != null) {
+            copyFloatArray(inMesh.texCoords1, inIndex, outMesh.texCoords1, outIndex, inMesh.texCoords1NumComponents);
+        }
+    }
+
+    public static void splitMesh(ModelImporter.Mesh inMesh, List<ModelImporter.Mesh> outMeshes) {
+        int triangleCount = inMesh.indexCount / 3;
+        int vertexCount = inMesh.vertexCount;
+
+        int vcount = 0;
+        ModelImporter.Mesh newMesh = null;
+        HashMap<Integer, Integer> oldToNewIndex = null;
+        ArrayList<Integer> newIndices = null;
+
+        for (int i = 0; i < triangleCount; ++i) {
+
+            if (newMesh == null) {
+                oldToNewIndex = new HashMap<Integer, Integer>();
+                newIndices = new ArrayList<Integer>();
+
+                newMesh = new Mesh();
+                newMesh.material = inMesh.material;
+                newMesh.name = String.format("%s_%d", inMesh.name, outMeshes.size());
+
+                newMesh.texCoords0NumComponents = inMesh.texCoords0NumComponents;
+                newMesh.texCoords1NumComponents = inMesh.texCoords1NumComponents;
+
+                if (inMesh.positions != null)
+                    newMesh.positions = new float[MAX_SPLIT_VCOUNT*3];
+                if (inMesh.normals != null)
+                    newMesh.normals = new float[MAX_SPLIT_VCOUNT*3];
+                if (inMesh.tangents != null)
+                    newMesh.tangents = new float[MAX_SPLIT_VCOUNT*3];
+                if (inMesh.colors != null)
+                    newMesh.colors = new float[MAX_SPLIT_VCOUNT * 4];
+                if (inMesh.weights != null)
+                    newMesh.weights = new float[MAX_SPLIT_VCOUNT * 4];
+                if (inMesh.bones != null)
+                    newMesh.bones = new int[MAX_SPLIT_VCOUNT * 4];
+                if (inMesh.texCoords0 != null)
+                    newMesh.texCoords0 = new float[MAX_SPLIT_VCOUNT*3];
+                if (inMesh.texCoords1 != null)
+                    newMesh.texCoords1 = new float[MAX_SPLIT_VCOUNT*3];
+            }
+
+            int index0 = inMesh.indices[i*3+0];
+            int index1 = inMesh.indices[i*3+1];
+            int index2 = inMesh.indices[i*3+2];
+
+            int newIndex0 = oldToNewIndex.getOrDefault(index0, -1);
+            int newIndex1 = oldToNewIndex.getOrDefault(index1, -1);
+            int newIndex2 = oldToNewIndex.getOrDefault(index2, -1);
+
+            if (newIndex0 == -1) {
+                newIndex0 = vcount++;
+                oldToNewIndex.put(index0, newIndex0);
+                copyVertex(inMesh, index0, newMesh, newIndex0);
+            }
+
+            if (newIndex1 == -1) {
+                newIndex1 = vcount++;
+                oldToNewIndex.put(index1, newIndex1);
+                copyVertex(inMesh, index1, newMesh, newIndex1);
+            }
+
+            if (newIndex2 == -1) {
+                newIndex2 = vcount++;
+                oldToNewIndex.put(index2, newIndex2);
+                copyVertex(inMesh, index2, newMesh, newIndex2);
+            }
+
+            newIndices.add(newIndex0);
+            newIndices.add(newIndex1);
+            newIndices.add(newIndex2);
+
+            // We need to make sure that we don't split a triangle into two different buffers
+            boolean flush = (vcount+3) >= MAX_SPLIT_VCOUNT || ((i+1) == triangleCount);
+
+            if (flush) {
+
+                newMesh.indices = newIndices.stream().mapToInt(idx->idx).toArray();
+                newMesh.indexCount = newIndices.size();
+                newMesh.vertexCount = vcount;
+
+                // Resize to actual size
+                if (newMesh.positions != null)
+                    newMesh.positions = Arrays.copyOf(newMesh.positions, vcount * 3);
+                if (newMesh.normals != null)
+                    newMesh.normals = Arrays.copyOf(newMesh.normals, vcount * 3);
+                if (newMesh.tangents != null)
+                    newMesh.tangents = Arrays.copyOf(newMesh.tangents, vcount * 3);
+                if (newMesh.colors != null)
+                    newMesh.colors = Arrays.copyOf(newMesh.colors, vcount * 4);
+                if (newMesh.weights != null)
+                    newMesh.weights = Arrays.copyOf(newMesh.weights, vcount * 4);
+                if (newMesh.bones != null)
+                    newMesh.bones = Arrays.copyOf(newMesh.bones, vcount * 4);
+                if (newMesh.texCoords0 != null)
+                    newMesh.texCoords0 = Arrays.copyOf(newMesh.texCoords0, vcount * newMesh.texCoords0NumComponents);
+                if (newMesh.texCoords1 != null)
+                    newMesh.texCoords1 = Arrays.copyOf(newMesh.texCoords1, vcount * newMesh.texCoords1NumComponents);
+
+                outMeshes.add(newMesh);
+                newMesh = null;
+                vcount = 0;
+            }
+        }
+    }
+
+    private static void splitMeshes(Model model) {
+        List<Mesh> outMeshes = new ArrayList<>();
+        for (Mesh mesh : model.meshes) {
+            if ((mesh.positions.length / 3) < MAX_SPLIT_VCOUNT) {
+                outMeshes.add(mesh);
+                continue;
+            }
+
+            List<Mesh> newMeshes = new ArrayList<>();
+            splitMesh(mesh, newMeshes);
+            outMeshes.addAll(newMeshes);
+        }
+
+        if (outMeshes.size() != model.meshes.length) {
+            model.meshes = outMeshes.toArray(new ModelImporter.Mesh[0]);
+        }
+    }
+
+    // Splits meshes that are have more than 65K+ vertices
+    public static void splitMeshes(Scene scene) {
+        for (Model model : scene.models) {
+            splitMeshes(model);
+        }
     }
 
     public static List<Integer> toList(int[] array) {
@@ -444,7 +561,7 @@ public class ModelUtil {
         return Arrays.asList(ArrayUtils.toObject(array));
     }
 
-    public static Rig.Mesh loadMesh(Mesh mesh, ArrayList<ModelImporter.Bone> skeleton, ArrayList<String> materials) {
+    public static Rig.Mesh loadMesh(Mesh mesh, ArrayList<String> materials) {
 
         String name = mesh.name;
 
@@ -452,61 +569,50 @@ public class ModelUtil {
 
         float[] positions = mesh.positions;
         float[] normals = mesh.normals;
-        float[] tangents = mesh.tangents;
-        float[] colors = mesh.colors;
         float[] texCoords0 = mesh.getTexCoords(0);
         float[] texCoords1 = mesh.getTexCoords(1);
 
-        if (positions != null)
-            meshBuilder.addAllPositions(toList(positions));
+        if (mesh.positions != null)
+            meshBuilder.addAllPositions(toList(mesh.positions));
 
-        if (normals != null)
-            meshBuilder.addAllNormals(toList(normals));
+        if (mesh.normals != null)
+            meshBuilder.addAllNormals(toList(mesh.normals));
 
-        if (tangents != null)
-            meshBuilder.addAllTangents(toList(tangents));
+        if (mesh.tangents != null)
+            meshBuilder.addAllTangents(toList(mesh.tangents));
 
-        if (texCoords0 != null) {
-            meshBuilder.addAllTexcoord0(toList(texCoords0));
+        if (mesh.colors != null)
+            meshBuilder.addAllColors(toList(mesh.colors));
+
+        if (mesh.weights != null) {
+            List<Float> weights_list = new ArrayList<Float>(mesh.weights.length);
+            for (int i = 0; i < mesh.weights.length; ++i) {
+                weights_list.add(mesh.weights[i]);
+            }
+            meshBuilder.addAllWeights(weights_list);
+        }
+
+        if (mesh.bones != null) {
+            meshBuilder.addAllBoneIndices(()->Arrays.stream(mesh.bones).iterator());
+        }
+
+        if (mesh.getTexCoords(0) != null) {
+            meshBuilder.addAllTexcoord0(toList(mesh.getTexCoords(0)));
             meshBuilder.setNumTexcoord0Components(mesh.texCoords0NumComponents);
         }
-        if (texCoords1 != null) {
-            meshBuilder.addAllTexcoord1(toList(texCoords1));
+        if (mesh.getTexCoords(1) != null) {
+            meshBuilder.addAllTexcoord1(toList(mesh.getTexCoords(1)));
             meshBuilder.setNumTexcoord0Components(mesh.texCoords1NumComponents);
         }
 
-        int[] indices = mesh.indices;
-        int num_indices = mesh.indexCount;
-
-        List<Integer> position_indices_list = new ArrayList<Integer>(num_indices);
-        List<Integer> normal_indices_list = new ArrayList<Integer>(num_indices);
-        List<Integer> texcoord0_indices_list = new ArrayList<Integer>(num_indices);
-
-        for (int i = 0; i < num_indices; ++i) {
-            int vertex_index = indices[i];
-
-            position_indices_list.add(vertex_index);
-
-            if (normals != null) {
-                normal_indices_list.add(vertex_index);
-            }
-
-            if (texCoords0 != null) {
-                texcoord0_indices_list.add(vertex_index);
-            } else {
-                texcoord0_indices_list.add(0);
-            }
+        if (mesh.vertexCount >= 65536) {
+            meshBuilder.setIndicesFormat(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32);
+            meshBuilder.setIndices(ByteString.copyFrom(create32BitIndices(mesh.indices)));
         }
-
-        if(normals != null) {
-            meshBuilder.addAllNormalsIndices(normal_indices_list);
+        else {
+            meshBuilder.setIndicesFormat(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16);
+            meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
         }
-        meshBuilder.addAllPositionIndices(position_indices_list);
-        meshBuilder.addAllTexcoord0Indices(texcoord0_indices_list);
-
-        int triangle_count = num_indices / 3;
-
-        createMeshIndices(meshBuilder, triangle_count, true, position_indices_list, normal_indices_list, texcoord0_indices_list);
 
         int material_index = 0;
         for (int i = 0; i < materials.size(); ++i) {
@@ -518,17 +624,6 @@ public class ModelUtil {
         }
         meshBuilder.setMaterialIndex(material_index);
 
-        if (mesh.weights != null) {
-            List<Float> weights_list = new ArrayList<Float>(mesh.weights.length);
-            for (int i = 0; i < mesh.weights.length; ++i) {
-                weights_list.add(mesh.weights[i]);
-            }
-            meshBuilder.addAllWeights(weights_list);
-        }
-        if (mesh.bones != null) {
-            meshBuilder.addAllBoneIndices(()->Arrays.stream(mesh.bones).iterator());
-        }
-
         return meshBuilder.build();
     }
 
@@ -537,7 +632,7 @@ public class ModelUtil {
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
         for (Mesh mesh : model.meshes) {
-            modelBuilder.addMeshes(loadMesh(mesh, skeleton, materials));
+            modelBuilder.addMeshes(loadMesh(mesh, materials));
         }
 
         modelBuilder.setId(MurmurHash.hash64(model.name));
@@ -575,11 +670,6 @@ public class ModelUtil {
     }
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
-// TODO: Compare with the skeleton that is set as the "skeleton" !
-// Report error if
-// * this internal skeleton contains nodes that are not part of the external skeleton
-// Remap indices if the layout is different?
-
         ArrayList<ModelImporter.Bone> skeleton = loadSkeleton(scene);
 
         ArrayList<String> materials = loadMaterialNames(scene);
