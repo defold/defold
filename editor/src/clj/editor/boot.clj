@@ -17,7 +17,6 @@
             [clojure.stacktrace :as stack]
             [clojure.tools.cli :as cli]
             [editor.analytics :as analytics]
-            [editor.code.view :as code-view]
             [editor.connection-properties :refer [connection-properties]]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
@@ -60,14 +59,18 @@
             render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
             render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
             project-file (io/file project)]
-        (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
-        ;; ensure that namespace loading has completed
-        @namespace-loader
-        (code-view/initialize! prefs)
-        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
         (welcome/add-recent-project! prefs project-file)
-        (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! updater newly-created?])
-        (reset! namespace-progress-reporter nil)))))
+        (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
+
+        ;; Ensure that namespace loading has completed.
+        @namespace-loader
+
+        ;; Initialize the system and load the project.
+        (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [(.getParentFile project-file)])]
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [prefs])
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project!)) [system-config])
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file prefs render-project-progress! updater newly-created?])
+          (reset! namespace-progress-reporter nil))))))
 
 (defn- select-project-from-welcome
   [namespace-loader prefs updater]

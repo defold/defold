@@ -8,7 +8,7 @@ def configure(conf):
 def build(bld):
     source = 'push_null.cpp'
 
-    platforms = ['arm.*?darwin', 'arm.*?android', 'x86_64-ios']
+    platforms = ['arm.*?ios', 'arm.*?android', 'x86_64-ios']
     for p in platforms:
         if re.match(p, bld.env.PLATFORM):
             source = 'push_stub.cpp'

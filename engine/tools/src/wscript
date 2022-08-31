@@ -5,7 +5,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-linux', 'x86_64-darwin'):
+    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-linux', 'x86_64-macos'):
         if not waflib.Options.options.with_vulkan:
             bld.recurse('gdc')
 

@@ -76,14 +76,17 @@
 (defn load-namespaces []
   (println "loaded namespaces"))
 
-(defn initialize-project []
+(defn initialize-systems! [prefs]
+  (code-view/initialize! prefs))
+
+(defn initialize-project! [system-config]
   (when (nil? @the-root)
-    (g/initialize! {})
+    (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))
     (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(defn setup-workspace [project-path build-settings]
+(defn- setup-workspace! [project-path build-settings]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings)]
     (g/transact
       (concat
@@ -159,7 +162,7 @@
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
-(defn- load-stage [workspace project prefs updater newly-created?]
+(defn- load-stage! [workspace project prefs updater newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
@@ -400,17 +403,17 @@
                                          "The project might not work without them. "
                                          "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
 
-(defn open-project
+(defn open-project!
   [^File game-project-file prefs render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
-        workspace (setup-workspace project-path build-settings)
+        workspace (setup-workspace! project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         extensions (extensions/make *project-graph*)
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (icons/initialize! workspace)
-      (load-stage workspace project prefs updater newly-created?)
+      (load-stage! workspace project prefs updater newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (g/reset-undo! *project-graph*)

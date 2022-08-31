@@ -35,7 +35,7 @@
    (org.apache.commons.codec.binary Hex)
    (org.apache.commons.codec.digest DigestUtils)
    (org.apache.commons.io IOUtils)
-   (com.defold.editor Platform)
+   (com.dynamo.bob Platform)
    (com.sun.jersey.api.client.config DefaultClientConfig)
    (com.sun.jersey.api.client Client ClientResponse WebResource$Builder)
    (com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider)
@@ -102,9 +102,9 @@
 ;;; Extension discovery/processing
 
 (def ^:private extender-platforms
-  {(.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
+  {(.getPair Platform/X86_64MacOS)  {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
-   (.getPair Platform/Arm64Darwin)  {:platform      "arm64-ios"
+   (.getPair Platform/Arm64Ios)     {:platform      "arm64-ios"
                                      :library-paths #{"ios" "arm64-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
                                      :library-paths #{"android" "armv7-android"}}
@@ -288,8 +288,7 @@
 
 (defn- get-ne-platform [platform]
   (case platform
-    "arm64-darwin"  "arm64-ios"
-    "x86_64-darwin" "x86_64-osx"
+    "x86_64-macos" "x86_64-osx"
     platform))
 
 (defn- get-main-manifest-section-and-key [platform]

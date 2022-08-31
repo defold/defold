@@ -20,7 +20,7 @@ def build(bld):
 
     if 'android' in bld.env.PLATFORM:
         source += ['sound_android.cpp']
-    elif bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    elif bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         source += ['sound_ios.mm']
     else:
         source += ['sound_generic.cpp']

@@ -20,12 +20,14 @@ ordinary paths."
             [clojure.string :as string]
             [clojure.edn :as edn]
             [dynamo.graph :as g]
+            [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.library :as library]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
+            [editor.ui :as ui]
             [editor.url :as url]
             [editor.util :as util]
             [service.log :as log])
@@ -97,12 +99,15 @@ ordinary paths."
    (BuildResource. resource prefix)))
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
-  (let [sorted-children (sort-by (fn [r]
-                                   [(resource/file-resource? r)
-                                    ({:folder 0 :file 1} (resource/source-type r))
-                                    (some-> (resource/resource-name r) util/natural-order-key)])
-                                 (map sort-resource-tree children))]
-    (assoc tree :children (vec sorted-children))))
+  (let [sorted-children (->> children
+                             (map sort-resource-tree)
+                             (sort
+                               (util/comparator-chain
+                                 (util/comparator-on editor.resource/file-resource?)
+                                 (util/comparator-on #({:folder 0 :file 1} (editor.resource/source-type %)))
+                                 (util/comparator-on util/natural-order editor.resource/resource-name)))
+                             vec)]
+    (assoc tree :children sorted-children)))
 
 (g/defnk produce-resource-tree [_node-id root resource-snapshot]
   (sort-resource-tree
@@ -272,13 +277,22 @@ ordinary paths."
     resources))
 
 (defn- load-plugin! [workspace resource]
-  ; TODO Handle Exceptions!
   (log/info :msg (str "Loading plugin " (resource/path resource)))
-  (if-let [plugin-fn (load-string (slurp resource))]
-    (do
-      (plugin-fn workspace)
-      (log/info :msg (str "Loaded plugin " (resource/path resource))))
-    (log/info :msg (str "Unable to load plugin " (resource/path resource)))))
+  (try
+    (if-let [plugin-fn (load-string (slurp resource))]
+      (do
+        (plugin-fn workspace)
+        (log/info :msg (str "Loaded plugin " (resource/path resource))))
+      (log/info :msg (str "Unable to load plugin " (resource/path resource))))
+    (catch Exception e
+      (log/error :msg (str "Exception while loading plugin: " (.getMessage e)))
+      (ui/run-later
+        (dialogs/make-info-dialog
+          {:title "Unable to Load Plugin"
+           :icon :icon/triangle-error
+           :always-on-top true
+           :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
+      false)))
 
 (defn- load-editor-plugins! [workspace added]
   (let [added-resources (set (map resource/proj-path added))

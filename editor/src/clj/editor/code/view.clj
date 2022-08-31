@@ -1511,7 +1511,7 @@
 (defn handle-mouse-released! [view-node ^MouseEvent event]
   (.consume event)
   (when-some [{:keys [on-click!] :as hovered-region} (:region (get-property view-node :hovered-element))]
-    (on-click! hovered-region))
+    (on-click! hovered-region event))
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
                    (data/mouse-released (get-property view-node :lines)

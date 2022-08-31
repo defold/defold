@@ -55,7 +55,7 @@ class PixelTimeRange
 
 	SetAsUniform(gl, program)
 	{
-		glSetUniform(gl, program, "inTimeRange.usStart", this.Start_us);
-		glSetUniform(gl, program, "inTimeRange.usPerPixel", this.usPerPixel);
+		glSetUniform(gl, program, "inTimeRange.msStart", this.Start_us / 1000.0);
+		glSetUniform(gl, program, "inTimeRange.msPerPixel", this.usPerPixel * 1000.0);
 	}
 }

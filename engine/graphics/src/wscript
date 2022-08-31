@@ -49,9 +49,9 @@ def build(bld):
         obj.source = [x for x in obj.source if not x.abspath().endswith(os.path.join('vulkan','graphics_native.cpp'))]
         obj.source.append(_get_native_source(build_util.get_target_os(), 'vulkan'))
 
-        if bld.env.PLATFORM == 'x86_64-darwin':
+        if bld.env.PLATFORM in ('x86_64-macos','x86_64-macos'):
             obj.source.append('vulkan/macosx/graphics_vulkan_macosx_surface.mm')
-        elif bld.env.PLATFORM == 'armv7-darwin' or bld.env.PLATFORM == 'arm64-darwin':
+        elif bld.env.PLATFORM in ('arm64-ios',):
             obj.source.append('vulkan/ios/graphics_vulkan_ios_surface.mm')
         elif bld.env.PLATFORM in ['armv7-android', 'arm64-android']:
             obj.source.append('vulkan/android/graphics_vulkan_android_surface.cpp')

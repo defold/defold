@@ -269,6 +269,12 @@ namespace dmSys
     void GetSystemInfo(SystemInfo* info);
 
     /**
+     * Get information which may be secure on some platforms
+     * @param info input data
+     */
+    void GetSecureInfo(SystemInfo* info);
+
+    /**
      * Get engine information
      * @param info input data
      */
