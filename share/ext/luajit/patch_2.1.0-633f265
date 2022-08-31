@@ -1,6 +1,6 @@
 diff -ruw --exclude=.git repo_a/src/jit/bcsave.lua repo_b/src/jit/bcsave.lua
---- repo_a/src/jit/bcsave.lua	2022-08-12 16:13:36.000000000 +0200
-+++ repo_b/src/jit/bcsave.lua	2022-08-12 15:12:52.000000000 +0200
+--- repo_a/src/jit/bcsave.lua	2022-08-31 10:42:11.000000000 +0200
++++ repo_b/src/jit/bcsave.lua	2022-08-31 10:42:14.000000000 +0200
 @@ -29,6 +29,7 @@
    -l        Only list bytecode.
    -s        Strip debug info (default).
@@ -73,15 +73,44 @@ diff -ruw --exclude=.git repo_a/src/jit/bcsave.lua repo_b/src/jit/bcsave.lua
    end
  end
  
+diff -ruw --exclude=.git repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
+--- repo_a/src/lj_alloc.c	2022-08-31 10:42:11.000000000 +0200
++++ repo_b/src/lj_alloc.c	2022-08-31 10:42:14.000000000 +0200
+@@ -36,7 +36,7 @@
+ #ifndef LUAJIT_USE_SYSMALLOC
+ 
+ #define MAX_SIZE_T		(~(size_t)0)
+-#define MALLOC_ALIGNMENT	((size_t)8U)
++#define MALLOC_ALIGNMENT	((size_t)16U)
+ 
+ #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
+ #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
+diff -ruw --exclude=.git repo_a/src/lj_jit.h repo_b/src/lj_jit.h
+--- repo_a/src/lj_jit.h	2022-08-31 10:42:11.000000000 +0200
++++ repo_b/src/lj_jit.h	2022-08-31 10:42:14.000000000 +0200
+@@ -447,11 +447,11 @@
+   int32_t retdepth;	/* Return frame depth (count of RETF). */
+ 
+ #if LJ_K32__USED
+-  uint32_t k32[LJ_K32__MAX];  /* Common 4 byte constants used by backends. */
++  uint32_t k32[LJ_K32__MAX+1];  /* Common 4 byte constants used by backends. */
+ #endif
+   TValue ksimd[LJ_KSIMD__MAX*2+1];  /* 16 byte aligned SIMD constants. */
+ #if LJ_K64__USED
+-  TValue k64[LJ_K64__MAX];  /* Common 8 byte constants. */
++  TValue k64[LJ_K64__MAX+1];  /* Common 8 byte constants. */
+ #endif
+ 
+   IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
 diff -ruw --exclude=.git repo_a/src/lj_obj.h repo_b/src/lj_obj.h
---- repo_a/src/lj_obj.h	2022-08-12 16:13:36.000000000 +0200
-+++ repo_b/src/lj_obj.h	2022-08-12 15:12:52.000000000 +0200
-@@ -320,16 +320,27 @@
+--- repo_a/src/lj_obj.h	2022-08-31 10:42:11.000000000 +0200
++++ repo_b/src/lj_obj.h	2022-08-31 10:42:14.000000000 +0200
+@@ -320,16 +320,23 @@
  /* -- Userdata object ----------------------------------------------------- */
  
  /* Userdata object. Payload follows. */
 -typedef struct GCudata {
-+typedef struct LJ_ALIGN(LUA_USERDATA_ALIGNMENT) GCudata {
++typedef struct LJ_ALIGN(16) GCudata {
    GCHeader;
    uint8_t udtype;	/* Userdata type. */
    uint8_t unused2;
@@ -91,38 +120,14 @@ diff -ruw --exclude=.git repo_a/src/lj_obj.h repo_b/src/lj_obj.h
 -  uint32_t align1;	/* To force 8 byte alignment of the payload. */
 +
 +  uint32_t align0;      /* To force 8 byte alignment of the payload. */
-+#if LUA_USERDATA_ALIGNMENT == 16
-+    #ifndef LJ_GC64
-+        uint64_t align1;/* To force 16 byte alignment of the payload. */
-+    #endif
-+#endif
++  #ifndef LJ_GC64
++      uint64_t align1;/* To force 16 byte alignment of the payload. */
++  #endif
 +
  } GCudata;
  
-+#undef LUA_STRUCT_ALIGNED
-+
-+LJ_STATIC_ASSERT((sizeof(GCudata) % LUA_USERDATA_ALIGNMENT) == 0);
++LJ_STATIC_ASSERT((sizeof(GCudata) % 16) == 0);
 +
  /* Userdata types. */
  enum {
    UDTYPE_USERDATA,	/* Regular userdata. */
-diff -ruw --exclude=.git repo_a/src/luaconf.h repo_b/src/luaconf.h
---- repo_a/src/luaconf.h	2022-08-12 16:13:36.000000000 +0200
-+++ repo_b/src/luaconf.h	2022-08-12 15:12:52.000000000 +0200
-@@ -123,6 +123,16 @@
- #define LUA_INTFRMLEN		"l"
- #define LUA_INTFRM_T		long
- 
-+/* Allows for aligning the userdata struct. Valid values are 8 or 16. Default is 8.
-+*/
-+#if !defined(LUA_USERDATA_ALIGNMENT)
-+  #define LUA_USERDATA_ALIGNMENT 16
-+#endif
-+
-+#if !(LUA_USERDATA_ALIGNMENT == 8 || LUA_USERDATA_ALIGNMENT == 16)
-+#error "Invalid LUA_USERDATA_ALIGNMENT (valid values are 8 or 16)"
-+#endif
-+
- /* Linkage of public API functions. */
- #if defined(LUA_BUILD_AS_DLL)
- #if defined(LUA_CORE) || defined(LUA_LIB)
