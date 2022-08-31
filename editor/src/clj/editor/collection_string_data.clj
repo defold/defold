@@ -1,4 +1,4 @@
-(ns editor.collection-data
+(ns editor.collection-string-data
   (:import [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
