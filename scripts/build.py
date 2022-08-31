@@ -1961,8 +1961,6 @@ class Configuration(object):
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
 
-        print(env['PATH'], host)
-
         # This trickery is needed for the bash to properly inherit the PATH that we've set here
         # See /etc/profile for further details
         is_mingw = env.get('MSYSTEM', '') in ('MINGW64',)
