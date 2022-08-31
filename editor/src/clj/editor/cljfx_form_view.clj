@@ -37,9 +37,6 @@
             [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
-            [cljfx.lifecycle :as fx.lifecycle]
-            [cljfx.mutator :as fx.mutator]
-            [cljfx.prop :as fx.prop]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -51,6 +48,7 @@
             [editor.icons :as icons]
             [editor.handler :as handler]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
             [editor.ui :as ui]
             [editor.url :as url]
@@ -59,7 +57,7 @@
             [internal.util :as util])
   (:import [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control Cell ComboBox ListView$EditEvent ScrollPane TableColumn$CellEditEvent TableView ListView]
+           [javafx.scene.control Cell ComboBox ListView$EditEvent TableColumn$CellEditEvent TableView ListView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
 
@@ -436,8 +434,8 @@
                                                     on-added
                                                     state-path
                                                     ui-state]}]
-  (let [resources (dialogs/make-resource-dialog workspace project {:ext filter
-                                                                   :selection :multiple})]
+  (let [resources (resource-dialog/make workspace project {:ext filter
+                                                           :selection :multiple})]
     (when-not (empty? resources)
       (let [value-count (count value)
             added-count (count resources)
@@ -637,7 +635,7 @@
                                                        project
                                                        filter
                                                        on-value-changed]}]
-  (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
+  (when-let [resource (first (resource-dialog/make workspace project {:ext filter}))]
     {:dispatch (assoc on-value-changed :fx/event resource)}))
 
 (defmethod form-input-view :resource [{:keys [value

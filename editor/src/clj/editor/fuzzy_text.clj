@@ -103,7 +103,7 @@
           pattern-length (.length pattern)
           string-length (.length string)]
       (loop [pattern-index 1
-             matching-index-permutations (map vector (case-insensitive-character-indices string (.codePointAt pattern 0) from-index))]
+             matching-index-permutations (mapv vector (case-insensitive-character-indices string (.codePointAt pattern 0) from-index))]
         (if (= pattern-length pattern-index)
           matching-index-permutations
           (let [pattern-whitespace-length (whitespace-length pattern pattern-length pattern-index)
@@ -116,8 +116,8 @@
                                                       (+ 2 prev-matching-index)
                                                       (inc prev-matching-index))]
                                      (when (not= string-length from-index)
-                                       (map (partial conj matching-indices)
-                                            (case-insensitive-character-indices string (.codePointAt pattern pattern-index) from-index))))))
+                                       (mapv (partial conj matching-indices)
+                                             (case-insensitive-character-indices string (.codePointAt pattern pattern-index) from-index))))))
                          matching-index-permutations))))))))
 
 (defn- every-character-is-letter-or-digit?

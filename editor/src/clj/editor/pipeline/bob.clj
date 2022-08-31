@@ -254,7 +254,7 @@
             key-pass (assoc "key-pass" (.getAbsolutePath key-pass)))))
 
 (def ^:private ios-architecture-option->bob-architecture-string
-  {:architecture-64bit? "arm64-darwin"
+  {:architecture-64bit? "arm64-ios"
    :architecture-simulator? "x86_64-ios"})
 
 (defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile sign-app?] :as bundle-options}]

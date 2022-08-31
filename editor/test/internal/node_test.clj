@@ -609,3 +609,32 @@
         (reset! production-count 0)
         (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp false})) ""))
         (is (= @production-count 1))))))
+
+(g/defnode CachedDependencyTestNode
+  (input regular-input g/Any)
+  (input array-input g/Any :array)
+  (output internal-output g/Any :cached (g/fnk [_node-id] _node-id))
+  (output evaluated-output g/Any :cached (g/fnk [regular-input array-input internal-output] [regular-input array-input internal-output])))
+
+(deftest dependency-caching
+  (with-clean-system
+    (let [[regular-input-producer array-input-producer-one array-input-producer-two consumer]
+          (tx-nodes (g/make-node world CachedDependencyTestNode)
+                    (g/make-node world CachedDependencyTestNode)
+                    (g/make-node world CachedDependencyTestNode)
+                    (g/make-node world CachedDependencyTestNode))]
+      (g/transact
+        (concat
+          (g/connect regular-input-producer :evaluated-output consumer :regular-input)
+          (g/connect array-input-producer-one :evaluated-output consumer :array-input)
+          (g/connect array-input-producer-two :evaluated-output consumer :array-input)))
+      (g/node-value consumer :evaluated-output)
+      (is (= #{(gt/endpoint consumer :evaluated-output)
+               (gt/endpoint consumer :internal-output)
+               (gt/endpoint regular-input-producer :evaluated-output)
+               (gt/endpoint regular-input-producer :internal-output)
+               (gt/endpoint array-input-producer-one :evaluated-output)
+               (gt/endpoint array-input-producer-one :internal-output)
+               (gt/endpoint array-input-producer-two :evaluated-output)
+               (gt/endpoint array-input-producer-two :internal-output)}
+             (set (keys (g/cache))))))))

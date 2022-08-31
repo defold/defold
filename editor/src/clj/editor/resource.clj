@@ -256,7 +256,7 @@
   (read-only? [this] true)
   (path [this] path)
   (abs-path [this] nil)
-  (proj-path [this] (str "/" path))
+  (proj-path [this] (.concat "/" path))
   (resource-name [this] name)
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
