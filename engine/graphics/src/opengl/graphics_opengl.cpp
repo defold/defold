@@ -2474,7 +2474,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glTexParameteri(type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
         CHECK_GL_ERROR
 
-        if (g_Context->m_AnisotropySupport)
+        if (g_Context->m_AnisotropySupport && max_anisotropy > 1.0f)
         {
             glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, g_Context->m_MaxAnisotropy));
             CHECK_GL_ERROR
