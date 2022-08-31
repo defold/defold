@@ -84,20 +84,6 @@ namespace dmRender
         return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH, "Expected a constant buffer (acquired from a render.* function)");
     }
 
-    static int RenderScriptConstantBuffer_gc (lua_State *L)
-    {
-        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
-        DeleteNamedConstantBuffer(*cb);
-        *cb = 0;
-        return 0;
-    }
-
-    static int RenderScriptConstantBuffer_tostring (lua_State *L)
-    {
-        lua_pushfstring(L, "ConstantBuffer: %p", lua_touserdata(L, 1));
-        return 1;
-    }
-
     struct ConstantBufferTableEntry
     {
         HNamedConstantBuffer m_ConstantBuffer;
@@ -110,6 +96,21 @@ namespace dmRender
         HNamedConstantBuffer                    m_ConstantBuffer;
         dmHashTable64<ConstantBufferTableEntry> m_ConstantArrayEntries;
     };
+
+    static int RenderScriptConstantBuffer_gc (lua_State *L)
+    {
+        NamedConstantBufferTable* cb = (NamedConstantBufferTable*) lua_touserdata(L, 1);
+        DeleteNamedConstantBuffer(cb->m_ConstantBuffer);
+        cb->m_ConstantArrayEntries.~dmHashTable64<dmRender::ConstantBufferTableEntry>();
+        cb->m_ConstantBuffer = 0;
+        return 0;
+    }
+
+    static int RenderScriptConstantBuffer_tostring (lua_State *L)
+    {
+        lua_pushfstring(L, "ConstantBuffer: %p", lua_touserdata(L, 1));
+        return 1;
+    }
 
     static int RenderScriptConstantBuffer_index(lua_State *L)
     {

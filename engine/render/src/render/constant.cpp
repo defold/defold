@@ -132,8 +132,8 @@ void ClearNamedConstantBuffer(HNamedConstantBuffer buffer)
 struct ShiftConstantsContext
 {
     uint32_t m_Index;
-    uint32_t m_NumValues;
-    uint32_t m_Direction;
+    uint32_t m_NumValues : 31;
+    uint32_t m_Direction : 1;
 };
 
 static inline void ShiftConstantIndices(ShiftConstantsContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
@@ -174,7 +174,7 @@ void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
     buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
 }
 
-void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4 value, uint32_t value_index)
+void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, const dmVMath::Vector4& value, uint32_t value_index)
 {
     dmHashTable64<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
     NamedConstantBuffer::Constant* c = constants.Get(name_hash);
