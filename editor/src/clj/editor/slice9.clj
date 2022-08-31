@@ -227,7 +227,7 @@
                                                          (and (not= x0 x1) (not= y0 y1))))
                                                (map vector xy-box-coords uv-boxes))
         non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset :pivot-center size))
-                                       box-corner-coords->vertices3
+                                       box-corner-coords->vertices4
                                        first)
                                  non-empty-xy-box-coords+uv-boxes)
         position-lst (into [] (mapcat box->triangle-vertices) non-empty-xy-boxes)

@@ -60,7 +60,7 @@
 
 ; Render assets
 (vtx/defvertex texture-vtx
-  (vec3 position)
+  (vec4 position)
   (vec2 texcoord0 true))
 
 (shader/defshader vertex-shader
@@ -100,13 +100,17 @@
 ; TODO - macro of this
 (def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
 
+(defn- transform-positions-data [wt points]
+  (loop [points points]
+    (map v3->v4 (geom/transf-p wt points))))
+
 (defn- conj-animation-data!
   [vbuf animation frame-index world-transform size-mode size slice9]
   (let [animation-frame (get-in animation [:frames frame-index])]
     (reduce conj! vbuf (if (= :size-mode-auto size-mode)
                          (texture-set/vertex-data animation-frame world-transform)
                          (let [slice9-data (slice9/vertex-data animation-frame size slice9)
-                               positions (:position-data slice9-data)
+                               positions (transform-positions-data world-transform (:position-data slice9-data))
                                uvs (:uv-data slice9-data)]
                            (into [] (map into positions uvs)))))))
 
