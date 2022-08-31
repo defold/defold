@@ -6,10 +6,13 @@
 We therefore use the prebuilt version.
 An option is to use a 32 bit VM of an old osx
 
+
 ## Win32 + Win64
 
 Start a "Native Tools Command Prompt for VS" for x86 and x64 respectively.
 Use the buld_win32.bat to download, build and package the bundle
+
+Needs the `git` tool to apply the patch.
 
 ## PS4/PS5
 

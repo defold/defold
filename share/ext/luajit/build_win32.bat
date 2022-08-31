@@ -12,6 +12,7 @@ set SHA1_SHORT=633f265
 set VERSION=2.1.0-%SHA1_SHORT%
 set PRODUCT=luajit
 set TARGET_FILE=%PRODUCT%-%VERSION%
+set PATCH_FILE=patch_%VERSION%
 
 set ZIPFILENAME=%SHA1%.zip
 set ZIPFILE=%URL%/%ZIPFILENAME%
@@ -32,7 +33,23 @@ echo "**************************************************"
 
 if exist %TMP_TARGET% goto ZIPEXTRACTED
 unzip -q %ZIPFILENAME% -d %TMP_TARGET%
+
+
+if not exist %PATCH_FILE% goto ZIPEXTRACTED
+
+echo "**************************************************"
+echo "Applying patch $PATCH_FILE"
+echo "**************************************************"
+
+set FOLDER=%~dp0\%TMP_TARGET%\%PACKAGEDIR%\
+set PATCH_PATH=%~dp0\%PATCH_FILE%
+
+pushd %FOLDER%
+git apply --unsafe-paths %PATCH_PATH%
+popd
+
 :ZIPEXTRACTED
+
 
 echo "**************************************************"
 echo "BUILD %PRODUCT% for %PLATFORM%"
