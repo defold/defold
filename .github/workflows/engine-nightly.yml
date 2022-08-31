@@ -23,7 +23,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'ASAN',
-        run: 'ci/ci.sh --platform=x86_64-darwin --with-asan --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=x86_64-macos --with-asan --skip-builtins --skip-docs engine'
       },
       {
         name: 'UBSAN',
