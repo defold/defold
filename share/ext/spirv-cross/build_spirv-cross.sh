@@ -29,7 +29,7 @@ esac
 
 # Follow the build instructions on https://github.com/KhronosGroup/SPIRV-Cross.git
 
-if [ -z "$SOURCE_DIR" ]; then
+if [ ! -d "$SOURCE_DIR" ]; then
     git clone https://github.com/KhronosGroup/SPIRV-Cross.git $SOURCE_DIR
 fi
 
@@ -41,11 +41,27 @@ pushd $BUILD_DIR
 
 echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
 cmake ${CMAKE_FLAGS} $SOURCE_DIR
-make -j8
+cmake --build . --config Release
+
+EXE_SUFFIX=
+case $PLATFORM in
+    win32|x86_64-win32)
+        EXE_SUFFIX=.exe
+        ;;
+esac
+
 
 mkdir -p ./bin/$PLATFORM
-cp -v ./spirv-cross ./bin/$PLATFORM
-strip ./bin/$PLATFORM/spirv-cross
+
+cp -v ./Release/spirv-cross${EXE_SUFFIX} ./bin/$PLATFORM
+
+case $PLATFORM in
+    win32|x86_64-win32)
+        ;;
+    *)
+        strip ./bin/$PLATFORM/spirv-cross${EXE_SUFFIX}
+        ;;
+esac
 
 popd
 

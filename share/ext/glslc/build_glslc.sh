@@ -32,8 +32,7 @@ case $PLATFORM in
 esac
 
 # Follow the build instructions on https://github.com/google/shaderc
-
-if [ -z "$SOURCE_DIR" ]; then
+if [ ! -d "$SOURCE_DIR" ]; then
     git clone https://github.com/google/shaderc $SOURCE_DIR
 
     pushd $SOURCE_DIR
@@ -48,11 +47,25 @@ mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
 cmake ${CMAKE_FLAGS} $SOURCE_DIR
-make -j8
+cmake --build . --config Release
+
+EXE_SUFFIX=
+case $PLATFORM in
+    win32|x86_64-win32)
+        EXE_SUFFIX=.exe
+        ;;
+esac
 
 mkdir -p ./bin/$PLATFORM
-cp -v ./glslc/glslc ./bin/$PLATFORM
-strip ./bin/$PLATFORM/glslc
+cp -v ./glslc/Release/glslc${EXE_SUFFIX} ./bin/$PLATFORM
+
+case $PLATFORM in
+    win32|x86_64-win32)
+        ;;
+    *)
+        strip ./bin/$PLATFORM/glslc${EXE_SUFFIX}
+        ;;
+esac
 
 popd
 
@@ -64,5 +77,7 @@ echo VERSION=${VERSION}
 PACKAGE=glslc-${VERSION}-${PLATFORM}.tar.gz
 
 pushd $BUILD_DIR
-tar cfvz $PACKAGE bin
+tar cfvz ${PACKAGE} bin
 popd
+
+echo "Wrote ${PACKAGE}"
