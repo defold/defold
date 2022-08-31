@@ -238,7 +238,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static inline Vector3 GetSize(const SpriteComponent* sprite, dmGameSystemDDF::TextureSet* texture_set_ddf, uint32_t anim_id)
+    static inline Vector3 GetSizeFromAnimation(const SpriteComponent* sprite, dmGameSystemDDF::TextureSet* texture_set_ddf, uint32_t anim_id)
     {
         Vector3 result;
         dmGameSystemDDF::TextureSetAnimation* animation = &texture_set_ddf->m_Animations[anim_id];
@@ -294,9 +294,9 @@ namespace dmGameSystem
         uint32_t frame_current = component->m_CurrentAnimationFrame;
         component->m_CurrentAnimationFrame = frame;
 
-        if (frame != frame_current)
+        if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_AUTO && frame != frame_current)
         {
-            component->m_Size = GetSize(component, texture_set_ddf, component->m_AnimationID);
+            component->m_Size = GetSizeFromAnimation(component, texture_set_ddf, component->m_AnimationID);
         }
     }
 
@@ -317,7 +317,11 @@ namespace dmGameSystem
             component->m_AnimPingPong = animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG;
             component->m_AnimBackwards = animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD;
             component->m_Playing = animation->m_Playback != dmGameSystemDDF::PLAYBACK_NONE;
-            component->m_Size = GetSize(component, texture_set->m_TextureSet, component->m_AnimationID);
+
+            if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_AUTO)
+            {
+                component->m_Size = GetSizeFromAnimation(component, texture_set->m_TextureSet, component->m_AnimationID);
+            }
 
             offset = dmMath::Clamp(offset, 0.0f, 1.0f);
             if (animation->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD || animation->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) {
@@ -387,6 +391,12 @@ namespace dmGameSystem
 
         component->m_Size = Vector3(0.0f, 0.0f, 0.0f);
         component->m_AnimationID = 0;
+
+        if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL)
+        {
+            component->m_Size[0] = component->m_Resource->m_DDF->m_Size.getX();
+            component->m_Size[1] = component->m_Resource->m_DDF->m_Size.getY();
+        }
 
         PlayAnimation(component, resource->m_DefaultAnimation, 0.0f, 1.0f);
 
@@ -1310,6 +1320,11 @@ namespace dmGameSystem
         }
         else if (IsReferencingProperty(SPRITE_PROP_SIZE, set_property))
         {
+            if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_AUTO)
+            {
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
+            }
+
             return SetProperty(set_property, params.m_Value, component->m_Size, SPRITE_PROP_SIZE);
         }
         else if (params.m_PropertyId == SPRITE_PROP_CURSOR)
