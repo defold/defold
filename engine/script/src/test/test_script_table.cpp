@@ -29,6 +29,7 @@
 #include "data/table_v818192.dat.embed.h"
 #include "data/table_tstring_v1.dat.embed.h"
 #include "data/table_tstring_v2.dat.embed.h"
+#include "data/table_tstring_v3.dat.embed.h"
 
 extern "C"
 {
@@ -99,10 +100,10 @@ protected:
 TEST_F(LuaTableTest, EmptyTable)
 {
     lua_newtable(L);
-    char buf[8 + 2];
+    char buf[8 + 4];
     uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
-    // 2 bytes for count
-    ASSERT_EQ(10U, buffer_used);
+    // 4 bytes for count
+    ASSERT_EQ(12U, buffer_used);
     lua_pop(L, 1);
 }
 
@@ -168,7 +169,7 @@ TEST_F(LuaTableTest, AttemptReadUnsupportedVersion)
     int result = lua_cpcall(L, ReadUnsupportedVersion, 0x0);
     ASSERT_NE(0, result);
     char str[256];
-    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 3);
+    dmSnPrintf(str, sizeof(str), "Unsupported serialized table data: version = 0x%x (current = 0x%x)", 818192, 4);
     ASSERT_STREQ(str, lua_tostring(L, -1));
     // pop error message
     lua_pop(L, 1);
@@ -253,51 +254,6 @@ TEST_F(LuaTableTest, TestSerializeLargeNumbers)
         ASSERT_EQ(found[i], 1);
 
     lua_pop(L, 1);
-}
-
-// header + count (+ align) + n * element-size (overestimate)
-const uint32_t OVERFLOW_BUFFER_SIZE = 8 + 2 + 2 + 0xffff * (sizeof(char) + sizeof(char) + sizeof(char) * 6 + sizeof(lua_Number));
-char* g_DynamicBuffer = 0x0;
-
-int ProduceOverflow(lua_State *L)
-{
-    char* const buf = g_DynamicBuffer;
-    char* aligned_buf = (char*)(((intptr_t)buf + sizeof(float)-1) & ~(sizeof(float)-1));
-    int size = OVERFLOW_BUFFER_SIZE - (aligned_buf - buf);
-
-    lua_newtable(L);
-    // too many iterations
-    for (uint32_t i = 0; i <= 0xffff; ++i)
-    {
-        // key
-        lua_pushnumber(L, i);
-        // value
-        lua_pushnumber(L, i);
-        // store pair
-        lua_settable(L, -3);
-    }
-    uint32_t buffer_used = dmScript::CheckTable(L, aligned_buf, size, -1);
-    // expect it to fail, avoid warning
-    (void)buffer_used;
-
-    return 1;
-}
-
-TEST_F(LuaTableTest, Overflow)
-{
-    g_DynamicBuffer = new char[OVERFLOW_BUFFER_SIZE];
-
-    int result = lua_cpcall(L, ProduceOverflow, 0x0);
-    // 2 bytes for count
-    ASSERT_NE(0, result);
-    char expected_error[64];
-    dmSnPrintf(expected_error, 64, "too many values in table, %d is max", 0xffff);
-    ASSERT_STREQ(expected_error, lua_tostring(L, -1));
-    // pop error message
-    lua_pop(L, 1);
-
-    delete[] g_DynamicBuffer;
-    g_DynamicBuffer = 0x0;
 }
 
 const uint32_t IOOB_BUFFER_SIZE = 8 + 2 + 2 + (sizeof(char) + sizeof(char) + 5 * sizeof(char) + sizeof(lua_Number));
@@ -524,6 +480,22 @@ TEST_F(LuaTableTest, Verify_TSTRING_V1) // old tostring/pushstring format
 TEST_F(LuaTableTest, Verify_TSTRING_V2) // tolstring / pushlstring
 {
     dmScript::PushTable(L, (const char*)TABLE_TSTRING_V2_DAT, TABLE_TSTRING_V2_DAT_SIZE);
+    lua_setglobal(L, "t");
+
+    ASSERT_TRUE(RunString(L, " \
+        assert( t['binary\\0string'] == 'payload\\1\\0\\2\\3' ) \
+        assert( t['vector3'] == vmath.vector3(1,2,3) ) \
+        assert( t['vector4'] == vmath.vector4(4, 5, 6, 7) ) \
+        assert( t['quat'] == vmath.quat(1,2,3,4) ) \
+        assert( t['number'] == 0.5 ) \
+        assert( t['hash'] == hash('hashed value') ) \
+        assert( t['url'] == msg.url('a', 'b', 'c') ) \
+    "));
+}
+
+TEST_F(LuaTableTest, Verify_TSTRING_V3) // tolstring / pushlstring
+{
+    dmScript::PushTable(L, (const char*)TABLE_TSTRING_V3_DAT, TABLE_TSTRING_V3_DAT_SIZE);
     lua_setglobal(L, "t");
 
     ASSERT_TRUE(RunString(L, " \
