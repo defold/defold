@@ -56,16 +56,19 @@ Remotery = (function()
         this.Server.AddConnectHandler(Bind(OnConnect, this));
         this.Server.AddDisconnectHandler(Bind(OnDisconnect, this));
 
+        this.glCanvas = new GLCanvas(100, 100);
+        this.glCanvas.SetOnDraw((gl, seconds) => this.OnGLCanvasDraw(gl, seconds));
+
         // Create the console up front as everything reports to it
         this.Console = new Console(this.WindowManager, this.Server);
 
         // Create required windows
         this.TitleWindow = new TitleWindow(this.WindowManager, this.Settings, this.Server, this.ConnectionAddress);
         this.TitleWindow.SetConnectionAddressChanged(Bind(OnAddressChanged, this));
-        this.SampleTimelineWindow = new TimelineWindow(this.WindowManager, "Sample Timeline", this.Settings, Bind(OnTimelineCheck, this));
+        this.SampleTimelineWindow = new TimelineWindow(this.WindowManager, "Sample Timeline", this.Settings, Bind(OnTimelineCheck, this), this.glCanvas);
         this.SampleTimelineWindow.SetOnHover(Bind(OnSampleHover, this));
         this.SampleTimelineWindow.SetOnSelected(Bind(OnSampleSelected, this));
-        this.ProcessorTimelineWindow = new TimelineWindow(this.WindowManager, "Processor Timeline", this.Settings, null);
+        this.ProcessorTimelineWindow = new TimelineWindow(this.WindowManager, "Processor Timeline", this.Settings, null, this.glCanvas);
 
         this.SampleTimelineWindow.SetOnMoved(Bind(OnTimelineMoved, this));
         this.ProcessorTimelineWindow.SetOnMoved(Bind(OnTimelineMoved, this));
@@ -78,13 +81,10 @@ Remotery = (function()
         this.ProcessorFrameHistory = { };
         this.PropertyFrameHistory = [ ];
         this.SelectedFrames = { };
-        this.sampleNames = new NameMap(this.SampleTimelineWindow.textBuffer);
-        this.threadNames = new NameMap(this.ProcessorTimelineWindow.textBuffer);
 
         this.Server.AddMessageHandler("SMPL", Bind(OnSamples, this));
         this.Server.AddMessageHandler("SSMP", Bind(OnSampleName, this));
         this.Server.AddMessageHandler("PRTH", Bind(OnProcessorThreads, this));
-        this.Server.AddMessageHandler("THRN", Bind(OnThreadNames, this));
         this.Server.AddMessageHandler("PSNP", Bind(OnPropertySnapshots, this));
 
         // Kick-off the auto-connect loop
@@ -93,16 +93,6 @@ Remotery = (function()
         // Hook up resize event handler
         DOM.Event.AddHandler(window, "resize", Bind(OnResizeWindow, this));
         OnResizeWindow(this);
-
-        // Hook up browser-native canvas refresh
-        this.DisplayFrame = 0;
-        this.LastKnownPause = this.Settings.IsPaused;
-        var self = this;
-        (function display_loop()
-        {
-            window.requestAnimationFrame(display_loop);
-            DrawTimeline(self);
-        })();
     }
 
 
@@ -121,20 +111,60 @@ Remotery = (function()
         this.nbGridWindows = 0;
         this.gridWindows = { };
 
-        this.propertyGridWindow = this.AddGridWindow("__rmt__global__properties__", "Global Properties", new PropertyGridConfig());
+        this.propertyGridWindow = this.AddGridWindow("__rmt__global__properties__", "Global Properties", new GridConfigProperties());
         
         // Clear runtime data
         this.FrameHistory = { };
         this.ProcessorFrameHistory = { };
         this.PropertyFrameHistory = [ ];
         this.SelectedFrames = { };
-        this.sampleNames = new NameMap(this.SampleTimelineWindow.textBuffer);
-        this.threadNames = new NameMap(this.ProcessorTimelineWindow.textBuffer);
+        this.glCanvas.ClearTextResources();
 
         // Resize everything to fit new layout
         OnResizeWindow(this);
     }
 
+    function DrawWindowMask(gl, program, window_node)
+    {
+        gl.useProgram(program);
+
+        // Using depth as a mask
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL);
+
+        // Viewport constants
+        glSetUniform(gl, program, "inViewport.width", gl.canvas.width);
+        glSetUniform(gl, program, "inViewport.height", gl.canvas.height);
+
+        // Window dimensions
+        const rect = window_node.getBoundingClientRect();
+        glSetUniform(gl, program, "minX", rect.left);
+        glSetUniform(gl, program, "minY", rect.top);
+        glSetUniform(gl, program, "maxX", rect.left + rect.width);
+        glSetUniform(gl, program, "maxY", rect.top + rect.height);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    Remotery.prototype.OnGLCanvasDraw = function(gl, seconds)
+    {
+        this.glCanvas.textBuffer.UploadData();
+
+        // Draw windows in their z-order, front-to-back
+        // Depth test is enabled, rejecting equal z, and windows render transparent
+        // Draw window content first, then draw the invisible window mask
+        // Any windows that come after another window will not draw where the previous window already masked out depth
+        for (let window of this.WindowManager.Windows)
+        {
+            // Some windows might not have WebGL drawing on them; they need to occlude as well
+            DrawWindowMask(gl, this.glCanvas.windowProgram, window.Node);
+
+            if (window.userData != null)
+            {
+                window.userData.Draw();
+            }
+        }
+    }
 
     function AutoConnect(self)
     {
@@ -178,115 +208,9 @@ Remotery = (function()
     }
 
 
-    function DrawTimeline(self)
-    {
-        // Has pause state changed?
-        if (self.Settings.IsPaused != self.LastKnownPaused)
-        {
-            // When switching TO paused, draw one last frame to ensure the sample text gets drawn
-            self.LastKnownPaused = self.Settings.IsPaused;
-            self.SampleTimelineWindow.DrawAllRows();
-            self.ProcessorTimelineWindow.DrawAllRows();
-            return;
-        }
-
-        // Don't waste time drawing the timeline when paused
-        if (self.Settings.IsPaused)
-            return;
-
-        // requestAnimationFrame can run up to 60hz which is way too much for drawing the timeline
-        // Assume it's running at 60hz and skip frames to achieve 10hz instead
-        // Doing this instead of using setTimeout because it's better for browser rendering (or; will be once WebGL is in use)
-        // TODO: Expose as config variable because high refresh rate is great when using a separate viewiing machine
-        if ((self.DisplayFrame % 10) == 0)
-        {
-            self.SampleTimelineWindow.DrawAllRows();
-            self.ProcessorTimelineWindow.DrawAllRows();
-        }
-
-        self.DisplayFrame++;
-    }
-
-
-    function DecodeSample(self, data_view_reader)
-    {
-        var sample = {};
-
-        // Get name hash and lookup name it map
-        sample.name_hash = data_view_reader.GetUInt32();
-        let [ name_exists, name ] = self.sampleNames.Get(sample.name_hash);
-        sample.name = name;
-
-        // If the name doesn't exist in the map yet, request it from the server
-        if (!name_exists)
-        {
-            if (self.Server.Connected())
-            {
-                self.Server.Send("GSMP" + sample.name_hash);
-            }
-        }
-
-        // Get the rest of the sample data
-        sample.id = data_view_reader.GetUInt32();
-        sample.colour = data_view_reader.GetStringOfLength(7);
-        sample.us_start = data_view_reader.GetUInt64();
-        sample.us_length = data_view_reader.GetUInt64();
-        sample.us_self = data_view_reader.GetUInt64();
-        sample.usGpuIssueOnCpu = data_view_reader.GetUInt64();
-        sample.call_count = data_view_reader.GetUInt32();
-        sample.recurse_depth = data_view_reader.GetUInt32();
-
-        // TODO(don): Get the profiler to pass these directly instead of hex colour
-        const colour = parseInt(sample.colour.slice(1), 16);
-        const r = (colour >> 16) & 255;
-        const g = (colour >> 8) & 255;
-        const b = colour & 255;
-        sample.rgbColour = [ r, g, b ];
-
-        // Calculate dependent properties
-        sample.ms_length = (sample.us_length / 1000.0).toFixed(3);
-        sample.ms_self = (sample.us_self / 1000.0).toFixed(3);
-
-        // Recurse into children
-        sample.children = [];
-        DecodeSampleArray(self, data_view_reader, sample.children);
-
-        return sample;
-    }
-
-
-    function DecodeSampleArray(self, data_view_reader, samples)
-    {
-        var nb_samples = data_view_reader.GetUInt32();
-        for (var i = 0; i < nb_samples; i++)
-        {
-            var sample = DecodeSample(self, data_view_reader);
-            samples.push(sample)
-        }
-    }
-
-
-    function DecodeSamples(self, data_view_reader)
-    {
-        // Message-specific header
-        let message = { };
-        message.sample_tree_bytes = data_view_reader.GetUInt32();
-        message.thread_name = data_view_reader.GetString();
-        message.nb_samples = data_view_reader.GetUInt32();
-        message.sample_digest = data_view_reader.GetUInt32();
-        message.partial_tree = data_view_reader.GetUInt32();
-
-        // Read samples
-        message.samples = [];
-        message.samples.push(DecodeSample(self, data_view_reader));
-
-        return message;
-    }
-
-
     Remotery.prototype.AddGridWindow = function(name, display_name, config)
     {
-        const grid_window = new GridWindow(this.WindowManager, display_name, this.nbGridWindows, config);
+        const grid_window = new GridWindow(this.WindowManager, display_name, this.nbGridWindows, this.glCanvas, config);
         this.gridWindows[name] = grid_window;
         this.gridWindows[name].WindowResized(this.SampleTimelineWindow.Window, this.Console.Window);
         this.nbGridWindows++;
@@ -295,7 +219,84 @@ Remotery = (function()
     }
 
 
-    function OnSamples(self, socket, data_view_reader)
+    function DecodeSampleHeader(self, data_view_reader, length)
+    {
+        // Message-specific header
+        let message = { };
+        message.messageStart = data_view_reader.Offset;
+        message.thread_name = data_view_reader.GetString();
+        message.nb_samples = data_view_reader.GetUInt32();
+        message.partial_tree = data_view_reader.GetUInt32();
+
+        // Align sample reading to 32-bit boundary
+        const align = ((4 - (data_view_reader.Offset & 3)) & 3);
+        data_view_reader.Offset += align;
+        message.samplesStart = data_view_reader.Offset;
+        message.samplesLength = length - (message.samplesStart - message.messageStart);
+
+        return message;
+    }
+
+
+    function SetNanosecondsAsMilliseconds(samples_view, offset)
+    {
+        samples_view.setFloat32(offset, samples_view.getFloat64(offset, true) / 1000.0, true);
+    }
+
+
+    function SetUint32AsFloat32(samples_view, offset)
+    {
+        samples_view.setFloat32(offset, samples_view.getUint32(offset, true), true);
+    }
+
+
+    function ProcessSampleTree(self, sample_data, message)
+    {
+        const empty_text_entry = {
+            offset: 0,
+            length: 1,
+        };
+
+        const samples_length = message.nb_samples * g_nbBytesPerSample;
+        const samples_view = new DataView(sample_data, message.samplesStart, samples_length);
+        message.sampleDataView = samples_view;
+
+        for (let offset = 0; offset < samples_length; offset += g_nbBytesPerSample)
+        {
+            // Get name hash and lookup in name map
+            const name_hash = samples_view.getUint32(offset, true);
+            const [ name_exists, name ] = self.glCanvas.nameMap.Get(name_hash);
+
+            // If the name doesn't exist in the map yet, request it from the server
+            if (!name_exists)
+            {
+                if (self.Server.Connected())
+                {
+                    self.Server.Send("GSMP" + name_hash);
+                }
+            }
+
+            // Add sample name text buffer location
+            const text_entry = name.textEntry != null ? name.textEntry : empty_text_entry;
+            samples_view.setFloat32(offset + g_sampleOffsetBytes_NameOffset, text_entry.offset, true);
+            samples_view.setFloat32(offset + g_sampleOffsetBytes_NameLength, text_entry.length, true);
+
+            // Time in milliseconds
+            SetNanosecondsAsMilliseconds(samples_view, offset + g_sampleOffsetBytes_Start);
+            SetNanosecondsAsMilliseconds(samples_view, offset + g_sampleOffsetBytes_Length);
+            SetNanosecondsAsMilliseconds(samples_view, offset + g_sampleOffsetBytes_Self);
+            SetNanosecondsAsMilliseconds(samples_view, offset + g_sampleOffsetBytes_GpuToCpu);
+
+            // Convert call count/recursion integers to float
+            SetUint32AsFloat32(samples_view, offset + g_sampleOffsetBytes_Calls);
+            SetUint32AsFloat32(samples_view, offset + g_sampleOffsetBytes_Recurse);
+        }
+
+        // Convert to floats for GPU
+        message.sampleFloats = new Float32Array(sample_data, message.samplesStart, message.nb_samples * g_nbFloatsPerSample);
+    }
+
+    function OnSamples(self, socket, data_view_reader, length)
     {
         // Discard any new samples while paused and connected
         // Otherwise this stops a paused Remotery from loading new samples from disk
@@ -303,8 +304,13 @@ Remotery = (function()
             return;
 
         // Binary decode incoming sample data
-        var message = DecodeSamples(self, data_view_reader);
+        var message = DecodeSampleHeader(self, data_view_reader, length);
+        if (message.nb_samples == 0)
+        {
+            return;
+        }
         var name = message.thread_name;
+        ProcessSampleTree(self, data_view_reader.DataView.buffer, message);
 
         // Add to frame history for this thread
         var thread_frame = new ThreadFrame(message);
@@ -332,13 +338,14 @@ Remotery = (function()
         // Create sample windows on-demand
         if (!(name in self.gridWindows))
         {
-            self.AddGridWindow(name, name, new SampleGridConfig());
+            self.AddGridWindow(name, name, new GridConfigSamples());
         }
 
         // Set on the window and timeline if connected as this implies a trace is being loaded, which we want to speed up
         if (self.Server.Connected())
         {
-            self.gridWindows[name].UpdateEntries(message.nb_samples, message.sample_digest, message.samples);
+            self.gridWindows[name].UpdateEntries(message.nb_samples, message.sampleFloats);
+
             self.SampleTimelineWindow.OnSamples(name, frame_history);
         }
     }
@@ -349,14 +356,24 @@ Remotery = (function()
         // Add any names sent by the server to the local map
         let name_hash = data_view_reader.GetUInt32();
         let name_string = data_view_reader.GetString();
-        self.sampleNames.Set(name_hash, name_string);
+        self.glCanvas.nameMap.Set(name_hash, name_string);
     }
 
 
     function OnProcessorThreads(self, socket, data_view_reader)
     {
+        // Discard any new samples while paused and connected
+        // Otherwise this stops a paused Remotery from loading new samples from disk
+        if (self.Settings.IsPaused && self.Server.Connected())
+            return;
+            
         let nb_processors = data_view_reader.GetUInt32();
         let message_index = data_view_reader.GetUInt64();
+
+        const empty_text_entry = {
+            offset: 0,
+            length: 1,
+        };
 
         // Decode each processor
         for (let i = 0; i < nb_processors; i++)
@@ -388,10 +405,11 @@ Remotery = (function()
                     last_thread_frame.messageIndex = message_index;
 
                     // Sum time elapsed on the previous frame
-                    let us_length = sample_time - last_thread_frame.usLastStart;
+                    const us_length = sample_time - last_thread_frame.usLastStart;
                     last_thread_frame.usLastStart = sample_time;
                     last_thread_frame.EndTime_us += us_length;
-                    last_thread_frame.Samples[0].us_length += us_length;
+                    const last_length = last_thread_frame.sampleDataView.getFloat32(g_sampleOffsetBytes_Length, true);
+                    last_thread_frame.sampleDataView.setFloat32(g_sampleOffsetBytes_Length, last_length + us_length / 1000.0, true);
 
                     continue;
                 }
@@ -406,33 +424,42 @@ Remotery = (function()
             }
             
             // Lookup the thread name
-            let [ _, thread_name ] = self.threadNames.Get(thread_name_hash);
+            let [ name_exists, thread_name ] = self.glCanvas.nameMap.Get(thread_name_hash);
 
-            // Make a pastel-y colour from the thread name hash
-            let hash = thread_name.hash;
-            let r = 127 + (hash & 255) / 2;
-            let g = 127 + ((hash >> 4) & 255) / 2;
-            let b = 127 + ((hash >> 8) & 255) / 2;
+            // If the name doesn't exist in the map yet, request it from the server
+            if (!name_exists)
+            {
+                if (self.Server.Connected())
+                {
+                    self.Server.Send("GSMP" + thread_name_hash);
+                }
+            }
 
             // We are co-opting the sample rendering functionality of the timeline window to display processor threads as
             // thread samples. Fabricate a thread frame message, packing the processor info into one root sample.
             // TODO(don): Abstract the timeline window for pure range display as this is quite inefficient.
-            let thread_message = {
-                nb_samples: 1,
-                sample_digest: 0,
-                samples : [
-                    {
-                        name_hash: thread_name_hash,
-                        name: thread_name,
-                        id: thread_id,
-                        colour: "#FFFFFF",
-                        us_start: sample_time,
-                        us_length: 250,
-                        rgbColour: [ r, g, b ],
-                        children: []
-                    }
-                ]
-            };
+            let thread_message = { };
+            thread_message.nb_samples = 1;
+            thread_message.sampleData = new ArrayBuffer(g_nbBytesPerSample);
+            thread_message.sampleDataView = new DataView(thread_message.sampleData);
+            const sample_data_view = thread_message.sampleDataView;
+
+            // Set the name
+            const text_entry = thread_name.textEntry != null ? thread_name.textEntry : empty_text_entry;
+            sample_data_view.setFloat32(g_sampleOffsetBytes_NameOffset, text_entry.offset, true);
+            sample_data_view.setFloat32(g_sampleOffsetBytes_NameLength, text_entry.length, true);
+
+            // Make a pastel-y colour from the thread name hash
+            const hash = thread_name.hash;
+            sample_data_view.setUint8(g_sampleOffsetBytes_Colour + 0, 127 + (hash & 255) / 2);
+            sample_data_view.setUint8(g_sampleOffsetBytes_Colour + 1, 127 + ((hash >> 4) & 255) / 2);
+            sample_data_view.setUint8(g_sampleOffsetBytes_Colour + 2, 127 + ((hash >> 8) & 255) / 2);
+
+            // Set the time
+            sample_data_view.setFloat32(g_sampleOffsetBytes_Start, sample_time / 1000.0, true);
+            sample_data_view.setFloat32(g_sampleOffsetBytes_Length, 0.25, true);
+
+            thread_message.sampleFloats = new Float32Array(thread_message.sampleData, 0, thread_message.nb_samples * g_nbFloatsPerSample);
 
             // Create a thread frame and annotate with data required to merge processor samples
             let thread_frame = new ThreadFrame(thread_message);
@@ -449,141 +476,143 @@ Remotery = (function()
     }
 
 
-    function OnThreadNames(self, socket, data_view_reader)
+    function UInt64ToFloat32(view, offset)
     {
-        let name_hash = data_view_reader.GetUInt32();
-        let name_length = data_view_reader.GetUInt32();
-        let name_string = data_view_reader.GetStringOfLength(name_length);
-        self.threadNames.Set(name_hash, name_string);
+        // Unpack as two 32-bit integers so we have a vague attempt at reconstructing the value
+        const a = view.getUint32(offset + 0, true);
+        const b = view.getUint32(offset + 4, true);
+
+        // Can't do bit arithmetic above 32-bits in JS so combine using power-of-two math
+        const v = a + (b * Math.pow(2, 32));
+
+        // TODO(don): Potentially massive data loss!
+        snapshots_view.setFloat32(offset, v);
     }
 
 
-    function PrepareFloatValue(value)
+    function SInt64ToFloat32(view, offset)
     {
-        return Math.round(value * 1000) / 1000.0;
-    }
+        // Unpack as two 32-bit integers so we have a vague attempt at reconstructing the value
+        const a = view.getUint32(offset + 0, true);
+        const b = view.getUint32(offset + 4, true);
 
-
-    function DecodeSnapshot(self, frame, data_view_reader)
-    {
-        var snapshot = {};
-
-        // Dispatch value decode on type
-        snapshot.type = data_view_reader.GetUInt32();
-        switch (snapshot.type)
+        // Is this negative?
+        if (b & 0x80000000)
         {
-            case 0:
-                snapshot.value = "";
-                snapshot.prevValue = "";
-                break;
-            case 1:
-                snapshot.value = data_view_reader.GetBool();
-                snapshot.prevValue = data_view_reader.GetBool();
-                break;
-            case 2:
-                snapshot.value = data_view_reader.GetInt32();
-                snapshot.prevValue = data_view_reader.GetInt32();
-                break;
-            case 3:
-                snapshot.value = data_view_reader.GetUInt32();
-                snapshot.prevValue = data_view_reader.GetUInt32();
-                break;
-            case 4:
-                snapshot.value = PrepareFloatValue(data_view_reader.GetFloat32());
-                snapshot.prevValue = PrepareFloatValue(data_view_reader.GetFloat32());
-                break;
-            case 5:
-                snapshot.value = data_view_reader.GetInt64();
-                snapshot.prevValue = data_view_reader.GetInt64();
-                break;
-            case 6:
-                snapshot.value = data_view_reader.GetUInt64();
-                snapshot.prevValue = data_view_reader.GetUInt64();
-                break;
-            case 7:
-                snapshot.value = PrepareFloatValue(data_view_reader.GetFloat64());
-                snapshot.prevValue = PrepareFloatValue(data_view_reader.GetFloat64());
-                break;
-        }
-
-        // Heat colour style falloff to quickly identify modified properties
-        snapshot.prevValueFrame = data_view_reader.GetUInt32();
-        const frame_delta = frame - snapshot.prevValueFrame;
-        if (frame_delta < 64)
-        {
-            const green = Math.min(Math.min(frame_delta, 32) * 8, 255);
-            let green_hex = green.toString(16);
-            if (green_hex.length == 1)
-                green_hex = "0" + green_hex;
-            const blue = Math.min(frame_delta * 4, 255);
-            let blue_hex = blue.toString(16);
-            if (blue_hex.length == 1)
-                blue_hex = "0" + blue_hex;
-            snapshot.colour = "#FF" + green_hex + blue_hex;
+            // Can only convert from twos-complement with 32-bit arithmetic so shave off the upper 32-bits
+            // TODO(don): Crazy data loss here
+            const v = -(~(a - 1));
         }
         else
         {
-            snapshot.colour = "#FFFFFF";
+            // Can't do bit arithmetic above 32-bits in JS so combine using power-of-two math
+            const v = a + (b * Math.pow(2, 32));
         }
 
-        // Notify of colour changed one beyond the number of frames we're looking for so that it restores to white
-        snapshot.colourChanged = Math.max(65 - frame_delta, 0);
-
-        // Get name hash and look it up in the name map
-        snapshot.name_hash = data_view_reader.GetUInt32();
-        let [ name_exists, name ] = self.sampleNames.Get(snapshot.name_hash);
-        snapshot.name = name;
-
-        // Assign the unique ID
-        snapshot.id = data_view_reader.GetUInt32();
-
-        // If the name doesn't exist in the map yet, request it from the server
-        if (!name_exists)
-        {
-            if (self.Server.Connected())
-            {
-                self.Server.Send("GSMP" + snapshot.name_hash);
-            }
-        }
-
-        // Recurse into children
-        snapshot.children = [];
-        DecodeSnapshotArray(self, frame, data_view_reader, snapshot.children);
-
-        return snapshot;
-    }
-
-    function DecodeSnapshotArray(self, frame, data_view_reader, snapshots)
-    {
-        const nb_snapshots = data_view_reader.GetUInt32();
-        for (var i = 0; i < nb_snapshots; i++)
-        {
-            const snapshot = DecodeSnapshot(self, frame, data_view_reader);
-            snapshots.push(snapshot)
-        }
+        // TODO(don): Potentially massive data loss!
+        snapshots_view.setFloat32(offset, v);
     }
 
 
-    function DecodeSnapshots(self, data_view_reader)
+    function DecodeSnapshotHeader(self, data_view_reader, length)
     {
         // Message-specific header
         let message = { };
+        message.messageStart = data_view_reader.Offset;
         message.nbSnapshots = data_view_reader.GetUInt32();
-        message.snapshotDigest = data_view_reader.GetUInt32();
         message.propertyFrame = data_view_reader.GetUInt32();
-
-        // Read snapshots
-        message.snapshots = [];
-        message.snapshots.push(DecodeSnapshot(self, message.propertyFrame, data_view_reader));
-
+        message.snapshotsStart = data_view_reader.Offset;
+        message.snapshotsLength = length - (message.snapshotsStart - message.messageStart);
         return message;
     }
 
 
-    function OnPropertySnapshots(self, socket, data_view_reader)
+    function ProcessSnapshots(self, snapshot_data, message)
     {
+        if (self.Settings.IsPaused)
+        {
+            return null;
+        }
+
+        const empty_text_entry = {
+            offset: 0,
+            length: 1,
+        };
+
+        const snapshots_length = message.nbSnapshots * g_nbBytesPerSnapshot;
+        const snapshots_view = new DataView(snapshot_data, message.snapshotsStart, snapshots_length);
+
+        for (let offset = 0; offset < snapshots_length; offset += g_nbBytesPerSnapshot)
+        {
+            // Get name hash and lookup in name map
+            const name_hash = snapshots_view.getUint32(offset, true);
+            const [ name_exists, name ] = self.glCanvas.nameMap.Get(name_hash);
+
+            // If the name doesn't exist in the map yet, request it from the server
+            if (!name_exists)
+            {
+                if (self.Server.Connected())
+                {
+                    self.Server.Send("GSMP" + name_hash);
+                }
+            }
+
+            // Add snapshot name text buffer location
+            const text_entry = name.textEntry != null ? name.textEntry : empty_text_entry;
+            snapshots_view.setFloat32(offset + 0, text_entry.offset, true);
+            snapshots_view.setFloat32(offset + 4, text_entry.length, true);
+
+            // Heat colour style falloff to quickly identify modified properties
+            let r = 255, g = 255, b = 255;
+            const prev_value_frame = snapshots_view.getUint32(offset + 32, true);
+            const frame_delta = message.propertyFrame - prev_value_frame;
+            if (frame_delta < 64)
+            {
+                g = Math.min(Math.min(frame_delta, 32) * 8, 255);
+                b = Math.min(frame_delta * 4, 255);
+            }
+            snapshots_view.setUint8(offset + 8, r);
+            snapshots_view.setUint8(offset + 9, g);
+            snapshots_view.setUint8(offset + 10, b);
+
+            const snapshot_type = snapshots_view.getUint32(offset + 12, true);
+            switch (snapshot_type)
+            {
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 7:
+                    snapshots_view.setFloat32(offset + 16, snapshots_view.getFloat64(offset + 16, true), true);
+                    snapshots_view.setFloat32(offset + 24, snapshots_view.getFloat64(offset + 24, true), true);
+                    break;
+
+                // Unpack 64-bit integers stored full precision in the logs and view them to the best of our current abilities
+                case 5:
+                    SInt64ToFloat32(snapshots_view, offset + 16);
+                    SInt64ToFloat32(snapshots_view, offset + 24);
+                case 6:
+                    UInt64ToFloat32(snapshots_view, offset + 16);
+                    UInt64ToFloat32(snapshots_view, offset + 24);
+                    break;
+            }
+        }
+
+        // Convert to floats for GPU
+        return new Float32Array(snapshot_data, message.snapshotsStart, message.nbSnapshots * g_nbFloatsPerSnapshot);
+    }
+
+
+    function OnPropertySnapshots(self, socket, data_view_reader, length)
+    {
+        // Discard any new snapshots while paused and connected
+        // Otherwise this stops a paused Remotery from loading new samples from disk
+        if (self.Settings.IsPaused && self.Server.Connected())
+            return;
+
         // Binary decode incoming snapshot data
-        const message = DecodeSnapshots(self, data_view_reader);
+        const message = DecodeSnapshotHeader(self, data_view_reader, length);
+        message.snapshotFloats = ProcessSnapshots(self, data_view_reader.DataView.buffer, message);
 
         // Add to frame history
         const thread_frame = new PropertySnapshotFrame(message);
@@ -599,7 +628,7 @@ Remotery = (function()
         // Set on the window if connected as this implies a trace is being loaded, which we want to speed up
         if (self.Server.Connected())
         {
-            self.propertyGridWindow.UpdateEntries(message.nbSnapshots, message.snapshotDigest, message.snapshots);
+            self.propertyGridWindow.UpdateEntries(message.nbSnapshots, message.snapshotFloats);
         }
     }
 
@@ -634,24 +663,36 @@ Remotery = (function()
             return;
         }
 
+        // Search for the grid window for the thread being hovered over
         for (let window_thread_name in self.gridWindows)
         {
-            const grid_window = self.gridWindows[window_thread_name];
+            if (window_thread_name == thread_name)
+            {
+                const grid_window = self.gridWindows[thread_name];
 
-            if (window_thread_name == thread_name && hover != null)
-            {
-                // Populate with sample under hover
-                let frame = hover[0];
-                grid_window.UpdateEntries(frame.NbSamples, frame.SampleDigest, frame.Samples);
-            }
-            else
-            {
-                // When there's no hover, go back to the selected frame
-                if (self.SelectedFrames[window_thread_name])
+                // Populate with the sample under hover
+                if (hover != null)
                 {
-                    const frame = self.SelectedFrames[window_thread_name];
-                    grid_window.UpdateEntries(frame.NbSamples, frame.SampleDigest, frame.Samples);
+                    const frame = hover[0];
+                    grid_window.UpdateEntries(frame.NbSamples, frame.sampleFloats);
                 }
+
+                // When there's no hover, go back to the selected frame
+                else if (self.SelectedFrames[thread_name])
+                {
+                    const frame = self.SelectedFrames[thread_name];
+                    grid_window.UpdateEntries(frame.NbSamples, frame.sampleFloats);
+                }
+
+                // Otherwise display the last sample in the frame
+                else
+                {
+                    const frames = self.FrameHistory[thread_name];
+                    const frame = frames[frames.length - 1];
+                    grid_window.UpdateEntries(frame.NbSamples, frame.sampleFloats);
+                }
+
+                break;
             }
         }
     }
@@ -659,22 +700,38 @@ Remotery = (function()
 
     function OnSampleSelected(self, thread_name, select)
     {
-        // Lookup sample window set the frame samples on it
-        if (select && thread_name in self.gridWindows)
+        // Lookup sample window
+        if (thread_name in self.gridWindows)
         {
             const grid_window = self.gridWindows[thread_name];
-            const frame = select[0];
-            self.SelectedFrames[thread_name] = frame;
-            grid_window.UpdateEntries(frame.NbSamples, frame.SampleDigest, frame.Samples);
+
+            // Set the grid window to the selected frame if valid
+            if (select)
+            {
+                const frame = select[0];
+                self.SelectedFrames[thread_name] = frame;
+                grid_window.UpdateEntries(frame.NbSamples, frame.sampleFloats);
+            }
+
+            // Otherwise deselect
+            else
+            {
+                const frames = self.FrameHistory[thread_name];
+                const frame = frames[frames.length - 1];
+                self.SelectedFrames[thread_name] = null;
+                grid_window.UpdateEntries(frame.NbSamples, frame.sampleFloats);
+                self.SampleTimelineWindow.Deselect(thread_name);
+            }
         }
     }
 
 
     function OnResizeWindow(self)
     {
-        // Resize windows
         var w = window.innerWidth;
         var h = window.innerHeight;
+
+        // Resize windows
         self.Console.WindowResized(w, h);
         self.TitleWindow.WindowResized(w, h);
         self.SampleTimelineWindow.WindowResized(10, w / 2 - 5, self.TitleWindow.Window);
@@ -692,10 +749,8 @@ Remotery = (function()
         {
             let other_timeline = timeline == self.ProcessorTimelineWindow ? self.SampleTimelineWindow : self.ProcessorTimelineWindow;
             other_timeline.SetTimeRange(timeline.TimeRange.Start_us, timeline.TimeRange.Span_us);
-            other_timeline.DrawAllRows();
         }
     }
-
 
     return Remotery;
 })();

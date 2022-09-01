@@ -99,46 +99,6 @@ namespace dmGraphics
         STATE_ALPHA_TEST_SUPPORTED = 7,
     };
 
-    // Texture format
-    enum TextureFormat
-    {
-        TEXTURE_FORMAT_LUMINANCE            = 0,
-        TEXTURE_FORMAT_LUMINANCE_ALPHA      = 1,
-        TEXTURE_FORMAT_RGB                  = 2,
-        TEXTURE_FORMAT_RGBA                 = 3,
-        TEXTURE_FORMAT_RGB_16BPP            = 4,
-        TEXTURE_FORMAT_RGBA_16BPP           = 5,
-        TEXTURE_FORMAT_DEPTH                = 6,
-        TEXTURE_FORMAT_STENCIL              = 7,
-        // Compressed formats
-        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 8,
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 9,
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
-        TEXTURE_FORMAT_RGB_ETC1             = 12,
-        TEXTURE_FORMAT_R_ETC2               = 13,
-        TEXTURE_FORMAT_RG_ETC2              = 14,
-        TEXTURE_FORMAT_RGBA_ETC2            = 15,
-        TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
-        TEXTURE_FORMAT_RGB_BC1              = 17,
-        TEXTURE_FORMAT_RGBA_BC3             = 18,
-        TEXTURE_FORMAT_R_BC4                = 19,
-        TEXTURE_FORMAT_RG_BC5               = 20,
-        TEXTURE_FORMAT_RGBA_BC7             = 21,
-
-        // Floating point texture formats
-        TEXTURE_FORMAT_RGB16F               = 22,
-        TEXTURE_FORMAT_RGB32F               = 23,
-        TEXTURE_FORMAT_RGBA16F              = 24,
-        TEXTURE_FORMAT_RGBA32F              = 25,
-        TEXTURE_FORMAT_R16F                 = 26,
-        TEXTURE_FORMAT_RG16F                = 27,
-        TEXTURE_FORMAT_R32F                 = 28,
-        TEXTURE_FORMAT_RG32F                = 29,
-
-        TEXTURE_FORMAT_COUNT
-    };
-
     // Translation table to translate RenderTargetAttachment to BufferType
     struct AttachmentToBufferType
     {
@@ -571,9 +531,8 @@ namespace dmGraphics
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
-
-    bool IsTextureFormatSupported(HContext context, TextureFormat format);
     bool IsMultiTargetRenderingSupported(HContext context);
+
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);

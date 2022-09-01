@@ -36,7 +36,7 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "darwin" or platform == "x86_64-darwin":
+    if platform in ("x86_64-macos",):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
     elif platform == 'x86_64-ios':
         pass
@@ -55,8 +55,7 @@ def configure(conf):
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
     conf.env['STLIB_GRAPHICS'] = 'graphics'
     conf.env['STLIB_GRAPHICS_VULKAN'] = ['graphics_vulkan']
-
-    if platform == "x86_64-darwin":
+    if platform in ("x86_64-macos",):
         conf.env['STLIB_GRAPHICS_VULKAN'] += ['MoltenVK']
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TOOLS"')

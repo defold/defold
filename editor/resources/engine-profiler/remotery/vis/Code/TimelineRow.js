@@ -18,9 +18,8 @@ TimelineRow = (function()
         </div>`
 
 
-    var CANVAS_BORDER = 1;
     var SAMPLE_HEIGHT = 16;
-    var SAMPLE_BORDER = 1;
+    var SAMPLE_BORDER = 2;
     var SAMPLE_Y_SPACING = SAMPLE_HEIGHT + SAMPLE_BORDER * 2;
 
 
@@ -69,14 +68,8 @@ TimelineRow = (function()
         this.SelectSampleInfo = null;
 
         // Create WebGL sample buffers
-        this.sampleBuffer = new glDynamicBuffer(gl, gl.FLOAT, 4, 8);
-        this.colourBuffer = new glDynamicBuffer(gl, gl.FLOAT, 4, 8);
-        
-		// Create a vertex array for these buffers
-		this.vertexArrayObject = gl.createVertexArray();
-		gl.bindVertexArray(this.vertexArrayObject);
-		this.sampleBuffer.BindAsInstanceAttribute(timeline.Program, "inSample_TextOffset");
-		this.colourBuffer.BindAsInstanceAttribute(timeline.Program, "inColour_TextLength");
+        this.sampleBuffer = new glDynamicBuffer(gl, glDynamicBufferType.Buffer, gl.FLOAT, 4);
+        this.colourBuffer = new glDynamicBuffer(gl, glDynamicBufferType.Buffer, gl.UNSIGNED_BYTE, 4);
 
         // An initial SetSize call to restore containers to their original size after traces were loaded prior to this
         this.SetSize();
@@ -85,7 +78,7 @@ TimelineRow = (function()
 
     TimelineRow.prototype.SetSize = function()
     {
-        this.LabelContainerNode.style.height = CANVAS_BORDER + SAMPLE_BORDER + SAMPLE_Y_SPACING * this.Depth;
+        this.LabelContainerNode.style.height = SAMPLE_Y_SPACING * this.Depth;
     }
 
 
@@ -136,46 +129,62 @@ TimelineRow = (function()
     }
 
 
-    TimelineRow.prototype.DrawSampleHighlight = function(sample, depth, selected, y_scroll_offset)
+    TimelineRow.prototype.DrawSampleHighlight = function(gl_canvas, container, frame, offset, depth, selected)
     {
         if (depth <= this.Depth)
         {
-            // Determine pixel range of the sample	
-            var x0 = this.VisibleTimeRange.PixelOffset(sample.us_start);
-            var x1 = x0 + this.VisibleTimeRange.PixelSize(sample.us_length);
+            const gl = gl_canvas.gl;
+            const program = gl_canvas.timelineHighlightProgram;
 
-            var offset_x = x0;
-            var offset_y = this.LabelContainerNode.offsetTop + 2 + (depth - 1) * SAMPLE_Y_SPACING + y_scroll_offset;
-            var size_x = x1 - x0;
-            var size_y = SAMPLE_HEIGHT;
+            gl_canvas.SetContainerUniforms(program, container);
+    
+            // Set row parameters
+            const row_rect = this.LabelContainerNode.getBoundingClientRect();
+            glSetUniform(gl, program, "inRow.yOffset", row_rect.top);
+    
+            // Set sample parameters
+            const float_offset = offset / 4;
+            glSetUniform(gl, program, "inStartMs", frame.sampleFloats[float_offset + g_sampleOffsetFloats_Start]);
+            glSetUniform(gl, program, "inLengthMs", frame.sampleFloats[float_offset + g_sampleOffsetFloats_Length]);
+            glSetUniform(gl, program, "inDepth", depth);
 
-            // Normal rendering
-            var ctx = this.timeline.drawContext;
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = selected ? "#FF0000" : "#FFFFFF";
-            ctx.strokeRect(offset_x + 2.5, offset_y - 0.5, size_x - 3, size_y + 1);
+            // Set colour
+            glSetUniform(gl, program, "inColourR", 1.0);
+            glSetUniform(gl, program, "inColourG", selected ? 0.0 : 1.0);
+            glSetUniform(gl, program, "inColourB", selected ? 0.0 : 1.0);
 
-            // Render CPU issue time if this is a GPU sample
-            if (sample.usGpuIssueOnCpu > 0)
-            {
-                // Determine line range from start of sample to its CPU equivalent
-                var x0 = this.VisibleTimeRange.PixelOffset(sample.us_start);
-                var x1 = this.VisibleTimeRange.PixelOffset(sample.usGpuIssueOnCpu);
+            gl_canvas.EnableBlendPremulAlpha();
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl_canvas.DisableBlend();
+        }
+    }
 
-                // Draw in the gutter
-                var offset_y = this.LabelContainerNode.offsetTop + (depth - 1) * SAMPLE_Y_SPACING + y_scroll_offset;
-                
-                // Dashed line render
-                var ctx = this.timeline.drawContext;
-                ctx.lineWidth = selected ? 2 : 1;
-                ctx.strokeStyle = "#FFFFFF";
-                ctx.setLineDash([4, 4]);
-                ctx.beginPath();
-                ctx.moveTo(x0, offset_y);
-                ctx.lineTo(x1, offset_y);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            }
+
+    TimelineRow.prototype.DrawSampleGpuToCpu = function(gl_canvas, container, frame, offset, depth)
+    {
+        // Is this a GPU sample?
+        const float_offset = offset / 4;
+        const start_ms = frame.sampleFloats[float_offset + g_sampleOffsetFloats_GpuToCpu];
+        if (start_ms > 0)
+        {
+            const gl = gl_canvas.gl;
+            const program = gl_canvas.timelineGpuToCpuProgram;
+
+            gl_canvas.SetContainerUniforms(program, container);
+
+            // Set row parameters
+            const row_rect = this.LabelContainerNode.getBoundingClientRect();
+            glSetUniform(gl, program, "inRow.yOffset", row_rect.top);
+
+            // Set sample parameters
+            const length_ms = frame.sampleFloats[float_offset + g_sampleOffsetFloats_Start] - start_ms;
+            glSetUniform(gl, program, "inStartMs", start_ms);
+            glSetUniform(gl, program, "inLengthMs", length_ms);
+            glSetUniform(gl, program, "inDepth", depth);
+
+            gl_canvas.EnableBlendPremulAlpha();
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl_canvas.DisableBlend();
         }
     }
 
@@ -192,41 +201,39 @@ TimelineRow = (function()
     }
 
 
-    TimelineRow.prototype.DrawBackground = function(hover_sample_info, y_scroll_offset)
+    function GatherSamples(self, frame, samples_per_depth)
     {
-        // Fill box that shows the boundary between thread rows
-        this.timeline.drawContext.fillStyle = "#444"
-        var b = CANVAS_BORDER;
-        this.timeline.drawContext.fillRect(b, this.YOffset() + y_scroll_offset + b, this.timeline.drawCanvas.width - b * 2, this.DisplayHeight() - b * 2);
+        const sample_data_view = frame.sampleDataView;
 
-        // Draw the selected sample for this row
-        if (this.SelectSampleInfo != null)
+        for (let offset = 0; offset < sample_data_view.byteLength; offset += g_nbBytesPerSample)
         {
-            const sample = this.SelectSampleInfo[1];
-            const depth = this.SelectSampleInfo[2];
-            this.DrawSampleHighlight(sample, depth, true, y_scroll_offset);
-        }
+            depth = sample_data_view.getUint8(offset + g_sampleOffsetBytes_Depth) + 1;
+            if (depth > self.Depth)
+            {
+                continue;
+            }
 
-        // Draw the current hover sample if it's over this row
-        if (hover_sample_info != null && hover_sample_info[3] == this)
-        {
-            const sample = hover_sample_info[1];
-            const depth = hover_sample_info[2];
-            const thread_row = hover_sample_info[3];
-            this.DrawSampleHighlight(sample, depth, false, y_scroll_offset);
+            // Ensure there's enough entries for each depth
+            while (depth >= samples_per_depth.length)
+            {
+                samples_per_depth.push([]);
+            }
+
+            let samples_this_depth = samples_per_depth[depth];
+            samples_this_depth.push([frame, offset]);
         }
     }
 
 
-    TimelineRow.prototype.Draw = function(gl, draw_text, y_scroll_offset)
+    TimelineRow.prototype.Draw = function(gl_canvas, container)
     {
         let samples_per_depth = [];
 
-        // Gather all root samples in the visible frame set
+        // Gather all sample data in the visible frame set
         for (var i in this.VisibleFrames)
         {
             var frame = this.VisibleFrames[i];
-            GatherSamples(this, frame.Samples, 1, draw_text, samples_per_depth);
+            GatherSamples(this, frame, samples_per_depth);
         }
 
         // Count number of samples required
@@ -237,6 +244,8 @@ TimelineRow = (function()
         }
 
         // Resize buffers to match any new count of samples
+        const gl = gl_canvas.gl;
+        const program = gl_canvas.timelineProgram;
         if (nb_samples > this.sampleBuffer.nbEntries)
         {
             this.sampleBuffer.ResizeToFitNextPow2(nb_samples);
@@ -245,8 +254,8 @@ TimelineRow = (function()
             // Have to create a new VAO for these buffers
             this.vertexArrayObject = gl.createVertexArray();
             gl.bindVertexArray(this.vertexArrayObject);
-            this.sampleBuffer.BindAsInstanceAttribute(this.timeline.Program, "inSample_TextOffset");
-            this.colourBuffer.BindAsInstanceAttribute(this.timeline.Program, "inColour_TextLength");
+            this.sampleBuffer.BindAsInstanceAttribute(program, "inSample_TextOffset");
+            this.colourBuffer.BindAsInstanceAttribute(program, "inColour_TextLength");
         }
 
         // CPU write destination for samples
@@ -254,29 +263,29 @@ TimelineRow = (function()
         let cpu_colours = this.colourBuffer.cpuArray;
         let sample_pos = 0;
 
-        const empty_text_entry = {
-            offset: 0,
-            length: 1,
-        };
+        // TODO(don): Pack offsets into the sample buffer, instead?
+        // Puts all samples together into one growing buffer (will need ring buffer management).
+        // Offset points into that.
+        // Remains to be seen how much of this can be done given the limitations of WebGL2...
 
         // Copy samples to the CPU buffer
         // TODO(don): Use a ring buffer instead and take advantage of timeline scrolling adding new samples at the beginning/end
         for (let depth = 0; depth < samples_per_depth.length; depth++)
         {
             let samples_this_depth = samples_per_depth[depth];
-            for (const sample of samples_this_depth)
+            for (const [frame, offset] of samples_this_depth)
             {
-                const text_entry = sample.name.textEntry != null ? sample.name.textEntry : empty_text_entry;
+                const float_offset = offset / 4;
 
-                cpu_samples[sample_pos + 0] = sample.us_start;
-                cpu_samples[sample_pos + 1] = sample.us_length;
+                cpu_samples[sample_pos + 0] = frame.sampleFloats[float_offset + g_sampleOffsetFloats_Start];
+                cpu_samples[sample_pos + 1] = frame.sampleFloats[float_offset + g_sampleOffsetFloats_Length];
                 cpu_samples[sample_pos + 2] = depth;
-                cpu_samples[sample_pos + 3] = text_entry.offset;
+                cpu_samples[sample_pos + 3] = frame.sampleFloats[float_offset + g_sampleOffsetFloats_NameOffset];
 
-                cpu_colours[sample_pos + 0] = sample.rgbColour[0];
-                cpu_colours[sample_pos + 1] = sample.rgbColour[1];
-                cpu_colours[sample_pos + 2] = sample.rgbColour[2];
-                cpu_colours[sample_pos + 3] = text_entry.length;
+                cpu_colours[sample_pos + 0] = frame.sampleDataView.getUint8(offset + g_sampleOffsetBytes_Colour + 0);
+                cpu_colours[sample_pos + 1] = frame.sampleDataView.getUint8(offset + g_sampleOffsetBytes_Colour + 1);
+                cpu_colours[sample_pos + 2] = frame.sampleDataView.getUint8(offset + g_sampleOffsetBytes_Colour + 2);
+                cpu_colours[sample_pos + 3] = frame.sampleFloats[float_offset + g_sampleOffsetFloats_NameLength];
 
                 sample_pos += 4;
             }
@@ -285,33 +294,15 @@ TimelineRow = (function()
         // Upload to GPU
         this.sampleBuffer.UploadData();
         this.colourBuffer.UploadData();
-        this.timeline.textBuffer.UploadData();
+
+        gl_canvas.SetContainerUniforms(program, container);
 
         // Set row parameters
-        glSetUniform(gl, this.timeline.Program, "inRow.yOffset", this.YOffset() + y_scroll_offset);
+        const row_rect = this.LabelContainerNode.getBoundingClientRect();
+        glSetUniform(gl, program, "inRow.yOffset", row_rect.top);
 
         gl.bindVertexArray(this.vertexArrayObject);
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, nb_samples);
-    }
-
-
-    function GatherSamples(self, samples, depth, draw_text, samples_per_depth)
-    {
-        // Ensure there's enough entries for each depth
-        while (depth >= samples_per_depth.length)
-        {
-            samples_per_depth.push([]);
-        }
-        let samples_this_depth = samples_per_depth[depth];
-
-        for (var i in samples)
-        {
-            var sample = samples[i];
-            samples_this_depth.push(sample);
-
-            if (depth < self.Depth && sample.children != null)
-                GatherSamples(self, sample.children, depth + 1, draw_text, samples_per_depth);
-        }
     }
 
 
@@ -339,7 +330,6 @@ TimelineRow = (function()
     {
         this.Depth++;
         this.SetSize();
-        this.timeline.DrawAllRows();
     }
 
 
@@ -351,9 +341,7 @@ TimelineRow = (function()
             this.SetSize();
 
             // Trigger scroll handling to ensure reducing the depth reduces the display height
-            this.timeline.ScrollVertically(0);
-
-            this.timeline.DrawAllRows();
+            this.timeline.MoveVertically(0);
         }
     }
 
@@ -361,22 +349,24 @@ TimelineRow = (function()
     TimelineRow.prototype.GetSampleAtPosition = function(time_us, mouse_y)
     {
         // Calculate depth of the mouse cursor
-        var depth = Math.min(Math.floor(mouse_y / SAMPLE_Y_SPACING) + 1, this.Depth);
+        const depth = Math.min(Math.floor(mouse_y / SAMPLE_Y_SPACING) + 1, this.Depth);
 
         // Search for the first frame to intersect this time
-        for (var i in this.VisibleFrames)
+        for (let i in this.VisibleFrames)
         {
             // Use the sample's closed interval to detect hits.
             // Rendering of samples ensures a sample is never smaller than one pixel so that all samples always draw, irrespective
             // of zoom level. If a half-open interval is used then some visible samples will be unselectable due to them being
             // smaller than a pixel. This feels pretty odd and the closed interval fixes this feeling well.
             // TODO(don): There are still inconsistencies, need to shift to pixel range checking to match exactly.
-            var frame = this.VisibleFrames[i];
+            const frame = this.VisibleFrames[i];
             if (time_us >= frame.StartTime_us && time_us <= frame.EndTime_us)
             {
-                var found_sample = FindSample(this, frame.Samples, time_us, depth, 1);
+                const found_sample = FindSample(this, frame, time_us, depth, 1);
                 if (found_sample != null)
+                {
                     return [ frame, found_sample[0], found_sample[1], this ];
+                }
             }
         }
 
@@ -384,22 +374,21 @@ TimelineRow = (function()
     }
 
 
-    function FindSample(self, samples, time_us, target_depth, depth)
+    function FindSample(self, frame, time_us, target_depth, depth)
     {
-        for (var i in samples)
+        // Search entire frame of samples looking for a depth and time range that contains the input time
+        const sample_data_view = frame.sampleDataView;
+        for (let offset = 0; offset < sample_data_view.byteLength; offset += g_nbBytesPerSample)
         {
-            var sample = samples[i];
+            depth = sample_data_view.getUint8(offset + g_sampleOffsetBytes_Depth) + 1;
             if (depth == target_depth)
             {
-                if (time_us >= sample.us_start && time_us < sample.us_start + sample.us_length)
-                    return [ sample, depth ];
-            }
-
-            else if (depth < target_depth && sample.children != null)
-            {
-                var found_sample = FindSample(self, sample.children, time_us, target_depth, depth + 1);
-                if (found_sample != null)
-                    return found_sample;
+                const us_start = sample_data_view.getFloat32(offset + g_sampleOffsetBytes_Start, true) * 1000.0;
+                const us_length = sample_data_view.getFloat32(offset + g_sampleOffsetBytes_Length, true) * 1000.0;
+                if (time_us >= us_start && time_us < us_start + us_length)
+                {
+                    return [ offset, depth ];
+                }
             }
         }
 

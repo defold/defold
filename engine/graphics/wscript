@@ -47,7 +47,7 @@ def configure(conf):
         conf.fatal("DYNAMO_HOME not set")
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
-    if platform == "darwin" or platform == 'x86_64-darwin':
+    if platform in ('x86_64-macos',):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
     elif platform == "x86_64-ios":
         pass

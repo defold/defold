@@ -18,7 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import com.defold.editor.Platform;
+import com.dynamo.bob.Platform;
 
 public class SupportPath {
 
@@ -27,7 +27,7 @@ public class SupportPath {
         switch(platform.getOs()) {
             case "win32":
                 return getWindowsSupportPath(applicationName);
-            case "darwin":
+            case "macos":
                 return getMacSupportPath(applicationName);
             case "linux":
                 return getLinuxSupportPath(applicationName);
