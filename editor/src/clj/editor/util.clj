@@ -14,7 +14,7 @@
 
 (ns editor.util
   (:require [clojure.string :as string])
-  (:import [com.defold.editor Platform]
+  (:import [com.dynamo.bob Platform]
            [java.util Locale Comparator]))
 
 (set! *warn-on-reflection* true)
@@ -52,73 +52,95 @@
   ^String [fmt & args]
   (String/format Locale/ROOT fmt (to-array args)))
 
-
-;; non-lazy implementation of variant of the Alphanum Algorithm:
-;; http://www.davekoelle.com/alphanum.html
-
-(defn- alphanum-chunks
-  "Returns a vector of groups of consecutive digit or non-digit substrings in
-  string. The strings are converted to lowercase."
-  [^String s]
-  (letfn [(complete-chunk [digit ^StringBuilder sb]
-            (if digit
-              (BigInteger. (.toString sb))
-              (string/lower-case (.toString sb))))]
-    (let [n (.length s)]
-      (loop [i 0
-             digit false
-             sb (StringBuilder.)
-             ret (transient [])]
-        (if (== n i)
-          (-> ret
-              (cond-> (pos? (.length sb))
-                      (conj! (complete-chunk digit sb)))
-              persistent!)
-          (let [ch (.charAt s i)]
-            (if digit
-              (if (Character/isDigit ch)
-                (recur (unchecked-inc-int i) true (.append sb ch) ret)
-                (recur (unchecked-inc-int i)
-                       false
-                       (doto (StringBuilder.) (.append ch))
-                       (conj! ret (complete-chunk digit sb))))
-              (if-not (Character/isDigit ch)
-                (recur (unchecked-inc-int i) false (.append sb ch) ret)
-                (recur (unchecked-inc-int i)
-                       true
-                       (doto (StringBuilder.) (.append ch))
-                       (conj! ret (complete-chunk digit sb)))))))))))
-
-(defn pad-nil [vec len]
-  (loop [i (count vec)
-         acc (transient vec)]
-    (if (< i len)
-      (recur (unchecked-inc i) (conj! acc nil))
-      (persistent! acc))))
-
 (def ^Comparator natural-order
   (reify Comparator
     (compare [_ a b]
       (if (and a b)
-        (let [a-chunk (alphanum-chunks a)
-              b-chunk (alphanum-chunks b)
-              l (max (count a-chunk) (count b-chunk))
-              a' (pad-nil a-chunk l)
-              b' (pad-nil b-chunk l)]
-          (compare a' b'))
+        ;; compare code point by code point
+        ;; if something starts a digit, read the whole number and then compare
+        (let [^String a a
+              ^String b b
+              a-len (.length a)
+              b-len (.length b)]
+          (loop [a-i 0
+                 b-i 0]
+            (if (or (== a-i a-len) (== b-i b-len))
+              ;; end of a or b, sort shorter first
+              (unchecked-subtract
+                (unchecked-subtract a-len a-i)
+                (unchecked-subtract b-len b-i))
+              ;; compare code points
+              (let [a-cp (.codePointAt a a-i)
+                    a-digit (Character/isDigit a-cp)
+                    b-cp (.codePointAt b b-i)
+                    b-digit (Character/isDigit b-cp)]
+                (if (= a-digit b-digit)
+                  (if a-digit
+                    ;; compare numbers: read whole numbers, advance indices
+                    (let [a-sb (doto (StringBuilder.) (.appendCodePoint a-cp))
+                          next-a-i (loop [i (unchecked-inc a-i)]
+                                     (if (== i a-len)
+                                       i
+                                       (let [cp (.codePointAt a i)]
+                                         (if (Character/isDigit cp)
+                                           (do (.appendCodePoint a-sb cp)
+                                               (recur (unchecked-inc i)))
+                                           i))))
+                          a-num (BigInteger. (.toString a-sb))
+                          b-sb (doto (StringBuilder.) (.appendCodePoint b-cp))
+                          next-b-i (loop [i (unchecked-inc b-i)]
+                                     (if (== i b-len)
+                                       i
+                                       (let [cp (.codePointAt b i)]
+                                         (if (Character/isDigit cp)
+                                           (do (.appendCodePoint b-sb cp)
+                                               (recur (unchecked-inc i)))
+                                           i))))
+                          b-num (BigInteger. (.toString b-sb))
+                          ret (compare a-num b-num)]
+                      (if (zero? ret)
+                        (recur (long next-a-i) (long next-b-i))
+                        ret))
+                    ;; compare as alphanumeric chars
+                    (let [ret (compare (Character/toLowerCase a-cp) (Character/toLowerCase b-cp))]
+                      (if (zero? ret)
+                        (recur (unchecked-inc a-i) (unchecked-inc b-i))
+                        ret)))
+                  ;; both digits and non-digits, simple compare
+                  (compare a-cp b-cp))))))
         (compare a b)))))
 
-(def natural-order-key alphanum-chunks)
+(defn comparator-chain
+  ([^Comparator c1 ^Comparator c2 ^Comparator c3]
+   (reify Comparator
+     (compare [_ a b]
+       (let [ret (.compare c1 a b)]
+         (if (zero? ret)
+           (let [ret (.compare c2 a b)]
+             (if (zero? ret)
+               (.compare c3 a b)
+               ret))
+           ret))))))
+
+(defn comparator-on
+  ([f]
+   (reify Comparator
+     (compare [_ a b]
+       (compare (f a) (f b)))))
+  ([^Comparator c f]
+   (reify Comparator
+     (compare [_ a b]
+       (.compare c (f a) (f b))))))
 
 (defn os-raw
-  "Returns :win32, :darwin or :linux"
+  "Returns :win32, :macos or :linux"
   []
   (keyword (.. Platform getHostPlatform getOs)))
 
 (def os (memoize os-raw))
 
 (defn is-mac-os? []
-  (= (os) :darwin))
+  (= (os) :macos))
 
 (defn is-linux? []
   (= (os) :linux))

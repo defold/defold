@@ -33,7 +33,7 @@
                               ["Alt+T" :t]
                               ["Ctrl+Alt+U" :u]
                               ["Shift+Alt+X" :x]]
-                             :darwin)
+                             :macos)
          #{{:type :typable-shortcut :command :s :shortcut "S"}
            {:type :typable-shortcut :command :t :shortcut "Alt+T"}
            {:type :typable-shortcut :command :u :shortcut "Ctrl+Alt+U"}

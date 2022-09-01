@@ -6,11 +6,11 @@ import waf_gamesys
 
 def build(bld):
     defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
-    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     additional_libs = []
-    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-darwin'):
+    if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos'):
         additional_libs += ['UNWIND']
 
     graphics_lib = 'GRAPHICS_NULL'

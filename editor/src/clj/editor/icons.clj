@@ -14,7 +14,7 @@
 
 (ns editor.icons
   (:require [clojure.java.io :as io]
-            [editor.workspace :as workspace]
+            [dynamo.graph :as g]
             [service.log :as log]
             [util.thread-util :as thread-util])
   (:import [java.net URL]
@@ -45,12 +45,19 @@
         (log/error :msg msg :exception exception)
         nil))))
 
+(defn- find-resource
+  ([workspace proj-path]
+   (g/with-auto-evaluation-context evaluation-context
+     (find-resource workspace proj-path evaluation-context)))
+  ([workspace proj-path evaluation-context]
+   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
+
 (defn- load-icon-image
   ^Image [^String name ^Double size]
   (if-some [bundled-resource-url (io/resource name)]
     (load-bundled-image bundled-resource-url size)
     (when-some [workspace @workspace-atom]
-      (when-some [resource (workspace/find-resource workspace name)]
+      (when-some [resource (find-resource workspace name)]
         (load-workspace-image resource size)))))
 
 (defn get-image

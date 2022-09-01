@@ -264,6 +264,14 @@ namespace dmScript
      * @return Number of bytes used in buffer
      */
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index);
+    
+    /**
+     * Get the size of a table when serialized
+     * @param L Lua state
+     * @param index Index of the table
+     * @return Number of bytes required for the serialized table
+     */
+    uint32_t CheckTableSize(lua_State* L, int index);
 
     /**
      * Push a serialized table to the supplied lua state, will increase the stack by 1.

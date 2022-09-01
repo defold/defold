@@ -88,7 +88,7 @@ public class OSXBundlerTest {
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        project.setOption("platform", Platform.X86_64Darwin.getPair());
+        project.setOption("platform", Platform.X86_64MacOS.getPair());
         project.setOption("archive", "true");
         project.setOption("bundle-output", outputDir);
         project.findSources(contentRoot, new HashSet<String>());
