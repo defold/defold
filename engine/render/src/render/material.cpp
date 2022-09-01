@@ -322,7 +322,7 @@ namespace dmRender
                 if (s.m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
                     s.m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
                 {
-                    dmGraphics::SetTextureParams(texture, s.m_MinFilter, s.m_MagFilter, s.m_UWrap, s.m_VWrap);
+                    dmGraphics::SetTextureParams(texture, s.m_MinFilter, s.m_MagFilter, s.m_UWrap, s.m_VWrap, s.m_MaxAnisotropy);
                 }
             }
         }
@@ -442,7 +442,7 @@ namespace dmRender
             return -1;
     }
 
-    void SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter)
+    void SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
         dmArray<Sampler>& samplers = material->m_Samplers;
 
@@ -459,6 +459,7 @@ namespace dmRender
             s.m_VWrap = v_wrap;
             s.m_MinFilter = min_filter;
             s.m_MagFilter = mag_filter;
+            s.m_MaxAnisotropy = max_anisotropy;
         }
     }
 
