@@ -185,8 +185,16 @@ namespace dmRender
             lua_pushnil(L);
             while (lua_next(L, -2) != 0)
             {
-                dmVMath::Vector4* value = dmScript::CheckVector4(L, -1);
-                int32_t ix              = luaL_checknumber(L, -2) - 1;
+                dmVMath::Vector4* value = 0x0;
+                if (dmScript::IsMatrix4(L,-1))
+                {
+                    (dmVMath::Vector4*) dmScript::CheckMatrix4(L, -1);
+                }
+                else
+                {
+                    value = dmScript::CheckVector4(L, -1);
+                }
+                int32_t ix = luaL_checknumber(L, -2) - 1;
                 assert(ix >= 0);
 
                 SetNamedConstantAtIndex(cb, name_hash, *value, ix);
