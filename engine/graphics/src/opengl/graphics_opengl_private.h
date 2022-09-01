@@ -62,7 +62,6 @@ namespace dmGraphics
         uint8_t                 m_RenderDocSupport : 1;
         uint8_t                 m_IsGles3Version : 1; // 0 == gles 2, 1 == gles 3
         uint8_t                 m_IsShaderLanguageGles : 1; // 0 == glsl, 1 == gles
-        uint8_t                 m_IsMRTSupported : 1;
     };
 
     static inline void IncreaseModificationVersion(Context* context)

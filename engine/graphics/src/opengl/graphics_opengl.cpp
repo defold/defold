@@ -602,7 +602,7 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLIsMultiTargetRenderingSupported(HContext context)
     {
-        return context->m_IsMRTSupported;
+        return PFN_glDrawBuffers != 0x0;
     }
 
 
@@ -1106,8 +1106,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
         }
-
-        context->m_IsMRTSupported = PFN_glDrawBuffers != 0x0;
 
         // GL_NUM_COMPRESSED_TEXTURE_FORMATS is deprecated in newer OpenGL Versions
         GLint iNumCompressedFormats = 0;
@@ -2124,36 +2122,23 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             rt->m_BufferTextureParams[i].m_DataSize = 0;
         }
 
-        if (context->m_IsMRTSupported)
+        BufferType color_buffer_flags[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+
+        uint8_t max_color_attachments = PFN_glDrawBuffers != 0x0 ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
+        for (int i = 0; i < max_color_attachments; ++i)
         {
-            BufferType color_buffer_flags[] = {
-                BUFFER_TYPE_COLOR0_BIT,
-                BUFFER_TYPE_COLOR1_BIT,
-                BUFFER_TYPE_COLOR2_BIT,
-                BUFFER_TYPE_COLOR3_BIT,
-            };
-            for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            if (buffer_type_flags & color_buffer_flags[i])
             {
-                if (buffer_type_flags & color_buffer_flags[i])
-                {
-                    uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
-                    rt->m_ColorBufferTexture[i] = NewTexture(context, creation_params[color_buffer_index]);
-                    SetTexture(rt->m_ColorBufferTexture[i], params[color_buffer_index]);
-                    // attach the texture to FBO color attachment point
-                    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rt->m_ColorBufferTexture[i]->m_Texture, 0);
-                    CHECK_GL_ERROR;
-                }
-            }
-        }
-        else
-        {
-            if(buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR0_BIT)
-            {
-                uint32_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR0_BIT);
-                rt->m_ColorBufferTexture[0] = NewTexture(context, creation_params[color_buffer_index]);
-                SetTexture(rt->m_ColorBufferTexture[0], params[color_buffer_index]);
+                uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
+                rt->m_ColorBufferTexture[i] = NewTexture(context, creation_params[color_buffer_index]);
+                SetTexture(rt->m_ColorBufferTexture[i], params[color_buffer_index]);
                 // attach the texture to FBO color attachment point
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture[0]->m_Texture, 0);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, rt->m_ColorBufferTexture[i]->m_Texture, 0);
                 CHECK_GL_ERROR;
             }
         }
@@ -2266,7 +2251,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR;
 
-        if (render_target != NULL && context->m_IsMRTSupported)
+        if (render_target != NULL && PFN_glDrawBuffers != 0x0)
         {
             uint32_t num_buffers = 0;
             GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
