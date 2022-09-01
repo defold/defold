@@ -676,16 +676,21 @@ class Configuration(object):
         zip.close()
         return outfile.name
 
-    def _add_files_to_zip(self, zip, paths, directory=None, topfolder=None):
+    def _add_files_to_zip(self, zip, paths, basedir=None, topfolder=None):
         for p in paths:
             if not os.path.isfile(p):
                 continue
             an = p
-            if directory:
-                an = os.path.relpath(p, directory)
+            if basedir:
+                an = os.path.relpath(p, basedir)
             if topfolder:
                 an = os.path.join(topfolder, an)
             zip.write(p, an)
+
+    def _add_file_to_zip(self, zip, src, dst):
+        if not os.path.isfile(src):
+            self._log("Path is not a file: '%s'" % src)
+        zip.write(src, dst)
 
     def is_cross_platform(self):
         return self.host != self.target_platform
@@ -818,7 +823,13 @@ class Configuration(object):
 
                 self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init], self.dynamo_home, topfolder)
 
-                # we don't want to run "pip install" on individual sdk files., so we copy the python files as-is
+                # workaround for extender running on x86_64-darwin still:
+                if platform == 'x86_64-macos':
+                    protoc_src = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
+                    protoc_dst = '%s/ext/bin/%s/protoc' % (topfolder, "x86_64-darwin")
+                    self._add_file_to_zip(zip, protoc_src, protoc_dst)
+
+                # we don't want to run "pip install" on individual sdk files, so we copy the python files as-is
                 protobuf_files = []
                 for root, dirs, files in os.walk(os.path.join(self.dynamo_home, 'ext/lib/python/google')):
                     for f in files:
