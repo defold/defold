@@ -175,12 +175,13 @@ void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
     buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
 }
 
-void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, const dmVMath::Vector4& value, uint32_t value_index)
+void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values,
+    uint32_t num_values, uint32_t value_index, dmRenderDDF::MaterialDesc::ConstantType constant_type)
 {
     dmHashTable64<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
     NamedConstantBuffer::Constant* c = constants.Get(name_hash);
 
-    uint32_t value_size = value_index + 1;
+    uint32_t value_size = value_index + num_values;
 
     if (c == 0)
     {
@@ -202,6 +203,7 @@ void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, co
         constant.m_NameHash    = name_hash;
         constant.m_NumValues   = value_size;
         constant.m_ValueIndex  = values_index;
+        constant.m_Type        = constant_type;
         constants.Put(name_hash, constant);
 
         // Get the pointer
@@ -242,7 +244,7 @@ void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, co
     }
 
     dmVMath::Vector4* values_start = &buffer->m_Values[c->m_ValueIndex];
-    values_start[value_index] = value;
+    memcpy(&values_start[value_index], values, sizeof(dmVMath::Vector4) * num_values);
 }
 
 void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, dmRenderDDF::MaterialDesc::ConstantType type)

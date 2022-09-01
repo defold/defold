@@ -186,9 +186,13 @@ namespace dmRender
             while (lua_next(L, -2) != 0)
             {
                 dmVMath::Vector4* value = 0x0;
+                uint32_t num_values = 1;
+                dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
                 if (dmScript::IsMatrix4(L,-1))
                 {
-                    (dmVMath::Vector4*) dmScript::CheckMatrix4(L, -1);
+                    value = (dmVMath::Vector4*) dmScript::CheckMatrix4(L, -1);
+                    num_values *= 4;
+                    constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
                 }
                 else
                 {
@@ -197,7 +201,7 @@ namespace dmRender
                 int32_t ix = luaL_checknumber(L, -2) - 1;
                 assert(ix >= 0);
 
-                SetNamedConstantAtIndex(cb, name_hash, *value, ix);
+                SetNamedConstantAtIndex(cb, name_hash, value, num_values, ix, constant_type);
 
                 lua_pop(L, 1);
             }
@@ -233,16 +237,28 @@ namespace dmRender
         dmhash_t name_hash                    = table_entry->m_ConstantName;
         uint32_t table_index_lua              = (uint32_t) luaL_checknumber(L, 2);
         uint32_t table_index                  = table_index_lua - 1;
-        dmVMath::Vector4* values;
-        uint32_t num_values = 0;
+        dmVMath::Vector4* values              = 0;
+        uint32_t num_values                   = 0;
+        dmRenderDDF::MaterialDesc::ConstantType constant_type;
 
-        if (GetNamedConstant(cb, name_hash, &values, &num_values))
+        if (GetNamedConstant(cb, name_hash, &values, &num_values, &constant_type))
         {
+            if (constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+            {
+                table_index *= 4;
+            }
             if (table_index >= num_values)
             {
                 return luaL_error(L, "Constant %s[%d] not set.", dmHashReverseSafe64(name_hash), table_index_lua);
             }
-            dmScript::PushVector4(L, values[table_index]);
+            if (constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+            {
+                dmScript::PushMatrix4(L, ((dmVMath::Matrix4*) &values[table_index])[0]);
+            }
+            else
+            {
+                dmScript::PushVector4(L, values[table_index]);
+            }
             return 1;
         }
         else
@@ -265,10 +281,24 @@ namespace dmRender
             return luaL_error(L, "Constant %s[%d] not set. Indices must start from 1", dmHashReverseSafe64(name_hash), table_index_lua);
         }
 
-        uint32_t table_index                  = (uint32_t) table_index_lua - 1;
-        dmVMath::Vector4* value               = dmScript::CheckVector4(L, 3);
+        uint32_t table_index    = (uint32_t) table_index_lua - 1;
+        dmVMath::Vector4* value = 0;
+        uint32_t num_values     = 1;
+        dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
 
-        SetNamedConstantAtIndex(cb, name_hash, *value, table_index);
+
+        if (dmScript::IsMatrix4(L,3))
+        {
+            value = (dmVMath::Vector4*) dmScript::CheckMatrix4(L, 3);
+            num_values *= 4;
+            constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+        }
+        else
+        {
+            value = dmScript::CheckVector4(L, 3);
+        }
+
+        SetNamedConstantAtIndex(cb, name_hash, value, num_values, table_index, constant_type);
         assert(top == lua_gettop(L));
 
         return 0;

@@ -526,7 +526,7 @@ namespace dmRender
      * @param value [type: dmVMath::Vector4] the value
      * @param value_index [type: uint32_t] the index of the value to set
      */
-    void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, const dmVMath::Vector4& value, uint32_t value_index);
+    void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, uint32_t value_index, dmRenderDDF::MaterialDesc::ConstantType constant_type);
 
     /*#
      * Gets a named constant from the buffer
