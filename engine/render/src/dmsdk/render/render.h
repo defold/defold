@@ -495,7 +495,7 @@ namespace dmRender
     void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash);
 
     /*#
-     * Sets a named constant to the buffer
+     * Sets one or more named constants to the buffer
      * @name SetNamedConstant
      * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
      * @param name_hash [type: dmhash_t] the name of the constant
@@ -512,6 +512,16 @@ namespace dmRender
      * @param num_constants [type: uint32_t] the number of constants
      */
     void SetNamedConstants(HNamedConstantBuffer buffer, HConstant* constants, uint32_t num_constants);
+
+    /*#
+     * Sets a named constant in the buffer at a specific index
+     * @name SetNamedConstantAtIndex
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param name_hash [type: dmhash_t] the name of the constant
+     * @param value [type: dmVMath::Vector4] the value
+     * @param value_index [type: uint32_t] the index of the value to set
+     */
+    void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, const dmVMath::Vector4& value, uint32_t value_index);
 
     /*#
      * Gets a named constant from the buffer
