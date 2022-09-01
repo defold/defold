@@ -117,28 +117,10 @@ namespace dmGameObject
                 return PROPERTY_RESULT_OK;
             case PROPERTY_TYPE_MATRIX4:
                 {
-                    // JG: Can't we just use memcpy here instead?
-                    Matrix4* m = (Matrix4*) userdata;
-                    // Column 1
-                    out_var.m_M4[0]  = m->getElem(0, 0);
-                    out_var.m_M4[1]  = m->getElem(0, 1);
-                    out_var.m_M4[2]  = m->getElem(0, 2);
-                    out_var.m_M4[3]  = m->getElem(0, 3);
-                    // Column 2
-                    out_var.m_M4[4]  = m->getElem(1, 0);
-                    out_var.m_M4[5]  = m->getElem(1, 1);
-                    out_var.m_M4[6]  = m->getElem(1, 2);
-                    out_var.m_M4[7]  = m->getElem(1, 3);
-                    // Column 3
-                    out_var.m_M4[8]  = m->getElem(2, 0);
-                    out_var.m_M4[9]  = m->getElem(2, 1);
-                    out_var.m_M4[10] = m->getElem(2, 2);
-                    out_var.m_M4[11] = m->getElem(2, 3);
-                    // Column 4
-                    out_var.m_M4[12] = m->getElem(3, 0);
-                    out_var.m_M4[13] = m->getElem(3, 1);
-                    out_var.m_M4[14] = m->getElem(3, 2);
-                    out_var.m_M4[15] = m->getElem(3, 3);
+                    Matrix4* m  = (Matrix4*) userdata;
+                    Vector4& c0 = (*m)[0];
+                    float& v0   = c0[0];
+                    memcpy(out_var.m_M4, &v0, sizeof(out_var.m_M4));
                 }
                 return PROPERTY_RESULT_OK;
             default:
@@ -229,6 +211,8 @@ namespace dmGameObject
                     case PROPERTY_TYPE_BOOLEAN:
                         ++params.m_BoolCount;
                         break;
+                    case PROPERTY_TYPE_MATRIX4:
+                        // Not supported
                     case PROPERTY_TYPE_COUNT:
                         lua_pop(L, 3);
                         return 0x0;
@@ -271,6 +255,7 @@ namespace dmGameObject
                     case PROPERTY_TYPE_BOOLEAN:
                         PushBool(builder, id, lua_toboolean(L, -1) != 0);
                         break;
+                    case PROPERTY_TYPE_MATRIX4:
                     case PROPERTY_TYPE_COUNT:
                         assert(false);
                         break;

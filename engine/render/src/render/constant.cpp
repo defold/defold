@@ -269,12 +269,6 @@ static inline void ApplyConstant(ApplyConstantContext* context, const uint64_t* 
 
         if (constant->m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
         {
-            /*
-            HConstant material_constant;
-            GetMaterialProgramConstant(context->m_Material, *name_hash, material_constant);
-            dmRenderDDF::MaterialDesc::ConstantType  constant_type = GetConstantType(material_constant);
-            */
-
             dmGraphics::SetConstantM4(context->m_GraphicsContext, values, constant->m_NumValues / 4, *location);
         }
         else

@@ -470,7 +470,12 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
 
     if (is_matrix4_type)
     {
-        // JG: What about element_index != 0x0 ?
+        if (element_index != 0x0)
+        {
+            dmLogError("Setting a specific element in a matrix constant for the property %s[%u] is not supported.", dmHashReverseSafe64(name_hash), value_index);
+            return;
+        }
+
         v[0] = Vector4(var.m_M4[0],  var.m_M4[1],  var.m_M4[2],  var.m_M4[3]);
         v[1] = Vector4(var.m_M4[4],  var.m_M4[5],  var.m_M4[6],  var.m_M4[7]);
         v[2] = Vector4(var.m_M4[8],  var.m_M4[9],  var.m_M4[10], var.m_M4[11]);
