@@ -147,6 +147,8 @@ static rmtBool g_SettingsInitialized = RMT_FALSE;
         #include <pthread.h>
         #include <unistd.h>
         #include <string.h>
+        #include <arpa/inet.h>
+        #include <sys/select.h>
         #include <sys/socket.h>
         #include <sys/mman.h>
         #include <netinet/in.h>
@@ -982,7 +984,7 @@ typedef struct VirtualMirrorBuffer
  * `name' is an optional label to give the region (visible in /proc/pid/maps)
  * `size' is the size of the region, in page-aligned bytes
  */
-int ashmem_create_region(const char* name, size_t size)
+static int ashmem_dev_create_region(const char* name, size_t size)
 {
     int fd, ret;
 
@@ -1011,6 +1013,61 @@ error:
     close(fd);
     return ret;
 }
+
+/*
+ * Copyright (C) 2008 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// https://chromium.googlesource.com/chromium/src/+/ad02487d87120bd66045960ffafe0fc27600af50/third_party/ashmem/ashmem-dev.c#181
+
+// Starting with API level 26, the following functions from
+// libandroid.so should be used to create shared memory regions.
+typedef int(*ASharedMemory_createFunc)(const char*, size_t);
+typedef size_t(*ASharedMemory_getSizeFunc)(int fd);
+typedef int(*ASharedMemory_setProtFunc)(int fd, int prot);
+
+typedef struct {
+  ASharedMemory_createFunc create;
+  ASharedMemory_getSizeFunc getSize;
+  ASharedMemory_setProtFunc setProt;
+} ASharedMemoryFuncs;
+
+static void* s_LibAndroid = 0;
+static pthread_once_t s_ashmem_funcs_once = PTHREAD_ONCE_INIT;
+static ASharedMemoryFuncs s_ashmem_funcs = {};
+
+static void ashmem_init_funcs() {
+  ASharedMemoryFuncs* funcs = &s_ashmem_funcs;
+  if (android_get_device_api_level() >= __ANDROID_API_O__) {
+    // Leaked intentionally!
+    s_LibAndroid = dlopen("libandroid.so", RTLD_NOW);
+    funcs->create = (ASharedMemory_createFunc)dlsym(s_LibAndroid, "ASharedMemory_create");
+  } else {
+    funcs->create = &ashmem_dev_create_region;
+  }
+}
+
+static const ASharedMemoryFuncs* ashmem_get_funcs() {
+  pthread_once(&s_ashmem_funcs_once, ashmem_init_funcs);
+  return &s_ashmem_funcs;
+}
+
+static int ashmem_create_region(const char* name, size_t size) {
+  return ashmem_get_funcs()->create(name, size);
+}
+
 #endif // __ANDROID__
 
 static rmtError VirtualMirrorBuffer_Constructor(VirtualMirrorBuffer* buffer, rmtU32 size, int nb_attempts)
@@ -10093,12 +10150,13 @@ static void PropertyFrameReset(Remotery* rmt, rmtProperty* first_property)
     rmtProperty* property;
     for (property = first_property; property != NULL; property = property->nextSibling)
     {
+        PropertyFrameReset(rmt, property->firstChild);
+
         // TODO(don): It might actually be quicker to sign-extend assignments but this gives me a nice debug hook for now
         rmtBool changed = RMT_FALSE;
         switch (property->type)
         {
             case RMT_PropertyType_rmtGroup:
-                PropertyFrameReset(rmt, property->firstChild);
                 break;
 
             case RMT_PropertyType_rmtBool:
