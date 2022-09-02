@@ -112,7 +112,8 @@ static int TestStandalone(const char* path)
 
 int main(int argc, char **argv)
 {
-    if (argc > 1 && strstr(argv[1], ".gltf") != 0)
+    if (argc > 1 && (strstr(argv[1], ".gltf") != 0 ||
+                     strstr(argv[1], ".glb") != 0))
     {
         return TestStandalone(argv[1]);
     }
