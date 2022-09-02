@@ -142,7 +142,7 @@ static void OutputMesh(Mesh* mesh, int indent)
     // for (uint32_t i = 0; i < mesh->m_IndexCount; ++i)
     // {
     //     printf("%3d\t", mesh->m_Indices[i]);
-    //     if ((i % (32-1)) == 0)
+    //     if (((i+1) % 16) == 0)
     //         printf("\n");
     // }
     // printf("\n");
