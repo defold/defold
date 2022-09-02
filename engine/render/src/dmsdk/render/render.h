@@ -89,6 +89,7 @@ namespace dmRender
         RESULT_OUT_OF_RESOURCES = -2,
         RESULT_BUFFER_IS_FULL = -3,
         RESULT_INVALID_PARAMETER = -4,
+        RESULT_TYPE_MISMATCH = -5,
     };
 
     /*#
@@ -526,7 +527,7 @@ namespace dmRender
      * @param value [type: dmVMath::Vector4] the value
      * @param value_index [type: uint32_t] the index of the value to set
      */
-    void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, uint32_t value_index, dmRenderDDF::MaterialDesc::ConstantType constant_type);
+    Result SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, uint32_t value_index, dmRenderDDF::MaterialDesc::ConstantType constant_type);
 
     /*#
      * Gets a named constant from the buffer
