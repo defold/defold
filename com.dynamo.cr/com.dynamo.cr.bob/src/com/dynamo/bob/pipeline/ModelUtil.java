@@ -786,8 +786,14 @@ public class ModelUtil {
 
         Scene scene;
         try {
+            long timeStart = System.currentTimeMillis();
+
             InputStream is = new FileInputStream(file);
             scene = loadScene(is, file.getPath(), new ModelImporter.Options());
+
+            long timeEnd = System.currentTimeMillis();
+            System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
+
         } catch (Exception e) {
             System.out.printf("Failed reading '%s':\n%s\n", file, e.getMessage());
             return;

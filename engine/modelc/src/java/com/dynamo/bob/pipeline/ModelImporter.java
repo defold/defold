@@ -401,10 +401,14 @@ public class ModelImporter {
 
         System.out.printf("Testing\n");
 
+        long timeStart = System.currentTimeMillis();
+
         Scene scene = LoadFromPath(new Options(), path);
 
-        System.out.printf("Result LoadScene: %s : %s\n", path, scene!=null ? "ok":"fail");
+        long timeEnd = System.currentTimeMillis();
 
+        System.out.printf("Loaded %s %s\n", path, scene!=null ? "ok":"failed");
+        System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
 
         System.out.printf("--------------------------------\n");
 
