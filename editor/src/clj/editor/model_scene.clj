@@ -34,8 +34,9 @@
   (:import [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
-           [java.nio ByteBuffer FloatBuffer]
-           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3f Vector3f]))
+           [java.nio ByteOrder ByteBuffer FloatBuffer]
+           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3f Vector3f]
+           [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
 
@@ -91,9 +92,6 @@
 (defmacro umul [a b]
   `(unchecked-multiply ~a ~b))
 
-(defmacro uadd [a b]
-  `(unchecked-add-int ~a ~b))
-
 (defn- transform-array3! [^floats array xform]
   (let [d3 (float-array 3)
         c (/ (alength array) 3)]
@@ -110,17 +108,13 @@
     (System/arraycopy src 0 dst 0 c)
     dst))
 
-(defmacro put! [vb x y z]
-  `(vtx-pos-nrm-tex-put! ~vb ~x ~y ~z 0 0 0 0 0))
-
 (defn mesh->vb! [^VertexBuffer vb ^Matrix4d world-transform vertex-space mesh scratch]
+  
   (let [^floats positions (to-scratch! mesh scratch :positions)
         ^floats normals   (to-scratch! mesh scratch :normals)
         ^floats texcoords (to-scratch! mesh scratch :texcoord0)
-        ^ints positions-indices (:position-indices mesh)
-        ^ints normals-indices   (:normals-indices mesh)
-        ^ints texcoords-indices (:texcoord0-indices mesh)
-        vcount (alength positions-indices)
+        ^ints indices (:indices mesh)
+        vcount (alength indices)
 
         ^Matrix4f world-transform (Matrix4f. world-transform)
         ^floats positions (if (= vertex-space :vertex-space-world)
@@ -143,27 +137,23 @@
                                                          (.normalize world-normal) ; need to normalize since since normal-transform may be scaled
                                                          (.get world-normal d3))))
                           normals)]
+
     ;; Raw access to run as fast as possible
     ;; 3x faster than using generated *-put! function
     ;; Not clear how to turn this into pretty API
+
     (let [^ByteBuffer b (.buf vb)
           ^FloatBuffer fb (.asFloatBuffer b)]
-      (if (not= (alength normals-indices) 0)
-        (dotimes [vi vcount]
-          (let [pi (aget positions-indices vi)
-                ni (aget normals-indices vi)
-                ti (aget texcoords-indices vi)]
-            (.put fb positions (umul 3 pi) 3)
-            (.put fb normals (umul 3 ni) 3)
-            (.put fb texcoords (umul 2 ti) 2)))
-        (dotimes [vi vcount]
-          (let [pi (aget positions-indices vi)
-                ti (aget texcoords-indices vi)]
-            (.put fb positions (umul 3 pi) 3)
-            (.put fb 0.0)
-            (.put fb 0.0)
-            (.put fb -1.0)
-            (.put fb texcoords (umul 2 ti) 2)))))
+      (dotimes [i vcount]
+        (let [vi (aget indices i)
+              normal (float-array [0.0 0.0 -1.0])]
+          (.put fb positions (umul 3 vi) 3)
+          (if (not= (alength normals) 0)
+            (.put fb normals (umul 3 vi) 3)
+            (.put fb normal 0 3))
+          (.put fb texcoords (umul 2 vi) 2)
+          )))
+
     ;; Since we have bypassed the vb and internal ByteBuffer, manually update the position
     (vtx/position! vb vcount)))
 
@@ -261,14 +251,31 @@
 (defn- doubles->floats [ds]
   (float-array (map float ds)))
 
+(defn- bytes-to-indices [^ByteString indices index-format]
+  (let [num-bytes (.size indices)
+        ba (byte-array num-bytes)
+        _ (.copyTo indices ba 0)
+        bb (ByteBuffer/wrap ba)
+        _ (.order bb ByteOrder/LITTLE_ENDIAN)
+        bo (if (= :indexbuffer-format-16 index-format)
+             (.asShortBuffer bb)
+             (.asIntBuffer bb))
+
+        ;; Make it into a human readable/printable int array
+        count (if (= :indexbuffer-format-16 index-format)
+                (/ num-bytes 2)
+                (/ num-bytes 4))
+        ia (int-array count)
+        _ (dotimes [i count]
+            (aset ia i (int (.get bo i))))]
+    ia))
+
 (defn- arrayify [mesh]
   (-> mesh
-    (update :positions doubles->floats)
-    (update :normals doubles->floats)
-    (update :texcoord0 doubles->floats)
-    (update :position-indices int-array)
-    (update :normals-indices int-array)
-    (update :texcoord0-indices int-array)))
+      (update :positions doubles->floats)
+      (update :normals doubles->floats)
+      (update :texcoord0 doubles->floats)
+      (update :indices (fn [bytes] (bytes-to-indices bytes (:indices-format mesh))))))
 
 (defn- get-and-update-meshes [model]
   (let [transform (:transform model) ; :rotation [0.0 0.0 0.0 1.0], :translation [0.0 0.0 0.0], :scale [1.0 1.0 1.0]}
@@ -309,20 +316,14 @@
 (g/defnk produce-animation-ids [content]
   (:animation-ids content))
 
-(defn- vbuf-size [meshes]
-  (reduce (fn [sz m] (max sz (alength ^ints (:position-indices m)))) 0 meshes))
-
 (defn- index-oob [vs is comp-count]
   (> (* comp-count (reduce max 0 is)) (count vs)))
 
 (defn- validate-meshes [meshes]
   (when-let [es (seq (keep (fn [m]
-                             (let [{:keys [^floats positions ^floats normals ^floats texcoord0 ^ints position-indices ^ints normals-indices ^ints texcoord0-indices]} m]
-                               (when (or (not (= (alength position-indices) (alength texcoord0-indices)))
-                                         (and (not= (alength normals-indices) 0) (not= (alength position-indices) (alength normals-indices))) ; normals optional
-                                         (index-oob positions position-indices 3)
-                                         (index-oob normals normals-indices 3)
-                                         (index-oob texcoord0 texcoord0-indices 2))
+                             (let [{:keys [^floats positions ^floats normals ^floats texcoord0 ^ints indices]} m]
+                               (when (or (and (not= (alength normals) 0) (not= (alength positions) (alength normals))) ; normals optional
+                                         (index-oob positions indices 3))
                                  (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
                        meshes))]
     (error-values/error-aggregate es)))
@@ -405,7 +406,7 @@
 
 (defn- make-vb [^GL2 gl data]
   (let [{:keys [mesh]} data
-        vb (->vtx-pos-nrm-tex (alength ^ints (:position-indices mesh)))]
+        vb (->vtx-pos-nrm-tex (alength ^ints (:indices mesh)))]
     (update-vb gl vb data)))
 
 (defn- destroy-vbs [^GL2 gl vbs _])

@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include <dlib/time.h>
 #include <string.h>
 
 
@@ -95,8 +96,13 @@ TEST(ModelGLTF, LoadSkeleton)
 
 static int TestStandalone(const char* path)
 {
+    uint64_t tstart = dmTime::GetTime();
+
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = LoadScene(path, options);
+
+    uint64_t tend = dmTime::GetTime();
+    printf("Model %s loaded in %.3f seconds.\n", path, float(tend-tstart)/1000000.0f);
 
     dmModelImporter::DebugScene(scene);
 
@@ -106,7 +112,8 @@ static int TestStandalone(const char* path)
 
 int main(int argc, char **argv)
 {
-    if (argc > 1 && strstr(argv[1], ".gltf") != 0)
+    if (argc > 1 && (strstr(argv[1], ".gltf") != 0 ||
+                     strstr(argv[1], ".glb") != 0))
     {
         return TestStandalone(argv[1]);
     }

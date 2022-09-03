@@ -365,7 +365,7 @@ static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
         Mesh* mesh = &model->m_Meshes[i];
         mesh->m_Name = strdup(gltf_mesh->name);
 
-        mesh->m_Material = strdup(prim->material->name);
+        mesh->m_Material = strdup(prim->material ? prim->material->name : "no_material");
         mesh->m_VertexCount = 0;
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
@@ -603,6 +603,9 @@ static void GenerateRootBone(Scene* scene)
             for (uint32_t j = 0; j < model->m_MeshesCount; ++j)
             {
                 Mesh* mesh = &model->m_Meshes[j];
+
+                if (!mesh->m_Bones)
+                    continue; // The mesh doesn't have any bone indices to update
 
                 for (uint32_t v = 0; v < mesh->m_VertexCount; ++v)
                 {
