@@ -464,7 +464,7 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
         model->m_Name = strdup(gltf_mesh->name);
         model->m_Index = i;
 
-        LoadPrimitives(model, gltf_mesh);
+        LoadPrimitives(model, gltf_mesh); // Our "Meshes"
     }
 }
 

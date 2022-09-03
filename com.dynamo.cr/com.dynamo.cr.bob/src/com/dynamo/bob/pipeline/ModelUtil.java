@@ -84,7 +84,8 @@ public class ModelUtil {
     public static Scene loadScene(byte[] content, String path, Options options) {
         if (options == null)
             options = new Options();
-        return ModelImporter.LoadFromBuffer(options, path, content);
+        Scene scene = ModelImporter.LoadFromBuffer(options, path, content);
+        return loadInternal(scene, options);
     }
 
     public static Scene loadScene(InputStream stream, String path, Options options) throws IOException {
@@ -667,6 +668,44 @@ public class ModelUtil {
         }
 
         return null;
+    }
+
+    private static ModelImporter.Vec4 calcCenter(Scene scene) {
+        ModelImporter.Vec4 center = new ModelImporter.Vec4(0.0f, 0.0f, 0.0f, 0.0f);
+        float count = 0.0f;
+        for (Node root : scene.rootNodes) {
+            Node modelNode = findFirstModelNode(root);
+            if (modelNode == null) {
+                continue;
+            }
+            center.x += modelNode.local.translation.x;
+            center.y += modelNode.local.translation.y;
+            center.z += modelNode.local.translation.z;
+            count++;
+            break; // TODO: Support more than one root node
+        }
+        center.x /= (float)count;
+        center.z /= (float)count;
+        center.x /= (float)count;
+        return center;
+    }
+
+    private static void shiftModels(Scene scene, ModelImporter.Vec4 center) {
+        for (Node root : scene.rootNodes) {
+            Node modelNode = findFirstModelNode(root);
+            modelNode.local.translation.x -= center.x;
+            modelNode.local.translation.y -= center.y;
+            modelNode.local.translation.z -= center.z;
+            modelNode.world.translation.x -= center.x;
+            modelNode.world.translation.y -= center.y;
+            modelNode.world.translation.z -= center.z;
+        }
+    }
+
+    private static Scene loadInternal(Scene scene, Options options) {
+        ModelImporter.Vec4 center = calcCenter(scene);
+        shiftModels(scene, center); // We might make this optional
+        return scene;
     }
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
