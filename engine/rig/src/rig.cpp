@@ -1036,6 +1036,8 @@ namespace dmRig
                 Matrix4& pose_matrix = pose_matrices[bi];
                 pose_matrix = pose_matrix * bind_pose[bi].m_ModelToLocal;
             }
+        } else {
+            pose_matrices.SetSize(0);
         }
 
         Matrix4 normal_matrix = Vectormath::Aos::inverse(world_matrix);
