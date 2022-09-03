@@ -353,14 +353,14 @@ public class ModelUtil {
     }
 
     public static ArrayList<String> loadMaterialNames(Scene scene) {
-        ArrayList<String> materials = new ArrayList<>();
+        HashSet<String> materials = new HashSet<>();
 
         for (Model model : scene.models) {
             for (Mesh mesh : model.meshes) {
                 materials.add(mesh.material);
             }
         }
-        return materials;
+        return new ArrayList<String>(materials);
     }
 
     public static ByteBuffer create16BitIndices(int[] indices) {
