@@ -20,6 +20,9 @@ class ExecException(Exception):
     def __init__(self, retcode, output):
         self.retcode = retcode
         self.output = output
+    def __init__(self, retcode):
+        self.retcode = retcode
+        self.output = ''
 
 def _to_str(x):
     if x is None:
@@ -60,7 +63,9 @@ def _exec_command(arg_list, **kwargs):
                 break
 
     if process.wait() != 0:
-        raise ExecException(process.returncode, output)
+        e = ExecException(process.returncode)
+        e.output = output
+        raise e
 
     output = _to_str(output)
     return output.strip()
