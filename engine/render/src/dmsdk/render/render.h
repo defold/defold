@@ -505,10 +505,18 @@ namespace dmRender
      */
     void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values);
 
-    // TODO: Documentation
+    /*#
+     * Sets one or more named constants to the buffer with a specified data type.
+     * Currently only dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER and dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4
+     * are supported.
+     * @name SetNamedConstant
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param name_hash [type: dmhash_t] the name of the constant
+     * @param values [type: dmVMath::Vector4*] the values
+     * @param num_values [type: uint32_t] the number of values
+     * @param constant_type [type: dmRenderDDF::MaterialDesc::ConstantType] The constant type
+     */
     void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, dmRenderDDF::MaterialDesc::ConstantType constant_type);
-    // TODO: Documentation
-    bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type);
 
     /*#
      * Sets a list of named constants to the buffer
@@ -526,6 +534,7 @@ namespace dmRender
      * @param name_hash [type: dmhash_t] the name of the constant
      * @param value [type: dmVMath::Vector4] the value
      * @param value_index [type: uint32_t] the index of the value to set
+     * @return result [type: Result] the result
      */
     Result SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, uint32_t value_index, dmRenderDDF::MaterialDesc::ConstantType constant_type);
 
@@ -542,13 +551,25 @@ namespace dmRender
     bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values);
 
     /*#
+     * Gets a named constant from the buffer - with type information
+     * @name GetNamedConstant
+     * @note This give access to the internal memory of the constant
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param name_hash [type: dmhash_t] the name of the constant
+     * @param values [type: dmVMath::Vector4**] (out) the values. May not be null.
+     * @param num_values [type: uint32_t*] (out) the number of values. May not be null.
+     * @param constant_type [type: dmRenderDDF::MaterialDesc::ConstantType*] (out) the constant type.
+     * @return ok [type: bool] true if constant existed.
+     */
+    bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type);
+
+    /*#
      * Gets number of constants in the buffer
      * @name GetNamedConstantCount
      * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
      * @return ok [type: bool] true if constant existed.
      */
     uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer);
-
 }
 
 #endif /* DMSDK_RENDER_H */

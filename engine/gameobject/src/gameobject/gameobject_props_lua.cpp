@@ -256,6 +256,7 @@ namespace dmGameObject
                         PushBool(builder, id, lua_toboolean(L, -1) != 0);
                         break;
                     case PROPERTY_TYPE_MATRIX4:
+                        // Not supported
                     case PROPERTY_TYPE_COUNT:
                         assert(false);
                         break;

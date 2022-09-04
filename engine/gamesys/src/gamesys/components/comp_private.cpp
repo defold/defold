@@ -475,11 +475,7 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
             dmLogError("Setting a specific element in a matrix constant for the property %s[%u] is not supported.", dmHashReverseSafe64(name_hash), value_index);
             return;
         }
-
-        v[0] = Vector4(var.m_M4[0],  var.m_M4[1],  var.m_M4[2],  var.m_M4[3]);
-        v[1] = Vector4(var.m_M4[4],  var.m_M4[5],  var.m_M4[6],  var.m_M4[7]);
-        v[2] = Vector4(var.m_M4[8],  var.m_M4[9],  var.m_M4[10], var.m_M4[11]);
-        v[3] = Vector4(var.m_M4[12], var.m_M4[13], var.m_M4[14], var.m_M4[15]);
+        memcpy(v, var.m_M4, sizeof(var.m_M4));
     }
     else
     {
