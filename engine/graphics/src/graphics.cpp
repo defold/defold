@@ -820,6 +820,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetSupportedExtension(context, index);
     }
+    bool IsMultiTargetRenderingSupported(HContext context)
+    {
+        return g_functions.m_IsMultiTargetRenderingSupported(context);
+    }
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)

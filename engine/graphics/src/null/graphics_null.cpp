@@ -475,6 +475,11 @@ namespace dmGraphics
         return 65536;
     }
 
+    static bool NullIsMultiTargetRenderingSupported(HContext context)
+    {
+        return true;
+    }
+
     static HVertexDeclaration NullNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
     {
         return NewVertexDeclaration(context, element, count);
@@ -1395,6 +1400,7 @@ namespace dmGraphics
         fn_table.m_RunApplicationLoop = NullRunApplicationLoop;
         fn_table.m_GetTextureHandle = NullGetTextureHandle;
         fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
+        fn_table.m_IsMultiTargetRenderingSupported = NullIsMultiTargetRenderingSupported;
         return fn_table;
     }
 }
