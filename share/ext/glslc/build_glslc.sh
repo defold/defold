@@ -13,6 +13,7 @@ if [ -z "$PLATFORM" ]; then
 fi
 
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DMACOSX_DEPLOYMENT_TARGET=10.7 ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSHADERC_SKIP_TESTS=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSHADERC_SKIP_EXAMPLES=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSHADERC_SKIP_COPYRIGHT_CHECK=ON ${CMAKE_FLAGS}"
@@ -47,17 +48,20 @@ mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
 cmake ${CMAKE_FLAGS} $SOURCE_DIR
-cmake --build . --config Release
+cmake --build . --config Release -j 8
+
+mkdir -p ./bin/$PLATFORM
 
 EXE_SUFFIX=
 case $PLATFORM in
     win32|x86_64-win32)
         EXE_SUFFIX=.exe
+        cp -v ./glslc/Release/glslc${EXE_SUFFIX} ./bin/$PLATFORM
+        ;;
+    *)
+        cp -v ./glslc/glslc${EXE_SUFFIX} ./bin/$PLATFORM
         ;;
 esac
-
-mkdir -p ./bin/$PLATFORM
-cp -v ./glslc/Release/glslc${EXE_SUFFIX} ./bin/$PLATFORM
 
 case $PLATFORM in
     win32|x86_64-win32)
