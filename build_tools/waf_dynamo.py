@@ -1516,6 +1516,8 @@ def detect(conf):
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         bp_arch, bp_os = build_platform.split('-')
+        if bp_os == 'macos':
+            bp_os = 'darwin' # the toolset is still called darwin
         target_arch = build_util.get_target_architecture()
         tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)

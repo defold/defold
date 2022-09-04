@@ -578,6 +578,9 @@ class Configuration(object):
                 host = 'windows'
             elif 'linux' in host:
                 host = 'linux'
+            elif 'macos' in host:
+                host = 'darwin' # our packages are still called darwin
+
             # Android NDK
             download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
