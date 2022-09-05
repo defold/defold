@@ -111,6 +111,13 @@
         (compare a b)))))
 
 (defn comparator-chain
+  ([^Comparator c1 ^Comparator c2]
+   (reify Comparator
+     (compare [_ a b]
+       (let [ret (.compare c1 a b)]
+         (if (zero? ret)
+           (.compare c2 a b)
+           ret)))))
   ([^Comparator c1 ^Comparator c2 ^Comparator c3]
    (reify Comparator
      (compare [_ a b]

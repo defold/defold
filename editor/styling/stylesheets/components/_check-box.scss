@@ -1,9 +1,7 @@
 .check-box {
-  &:hover {
-    .box {
-      -fx-background-color: -df-background-light;
-      -fx-border-color: -df-component-light;
-    }
+  &:hover > .box {
+    -fx-background-color: -df-background-light;
+    -fx-border-color: -df-component-light;
   }
   &:selected {
     .mark {
@@ -11,20 +9,24 @@
     }
     &:hover {
       .mark {
-         -fx-border-color: -df-text-selected;
+         -fx-background-color: -df-text-selected;
       }
     }
   }
 
-  .box {
+  & > .box {
     -fx-background-color: -df-background-light;
     -fx-background-insets: 0;
     -fx-background-radius: 0;
     -fx-border-width: 1px;
     -fx-border-color: -df-component-dark;
-    .mark {
+    & > .mark {
       -fx-shape: "M 4.5 9.1 L 0 4.7 L 1.4 3.3 L 4.5 6.3 L 10.8 0 L 12.2 1.4 L 4.5 9.1 L 4.5 9.1";
       -fx-scale-shape: false;
     }
+  }
+  &:indeterminate > .box > .mark {
+    -fx-shape: "M0,0H10V2H0Z";
+    -fx-scale-shape: false;
   }
 }
