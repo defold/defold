@@ -26,7 +26,7 @@ when presented in the engine and in the HTML profile page.
 
 You can update the patch by making your changes to a "vanilla" version of the Remotery source code
 
-    git diff engine/dlib/src/remotery/Remotery.* > engine/dlib/src/remotery/defold.patch
+    git diff engine/dlib/src/remotery/lib/Remotery.* > engine/dlib/src/remotery/defold.patch
 
 Then, you can apply these changes
 
