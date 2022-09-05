@@ -198,7 +198,7 @@ def build(bld):
 
     # ******************************************************************
 
-    remotery_defines = ['RMT_USE_INTERNAL_HASH_FUNCTION=0']
+    remotery_defines = []
     if '64' in build_util.get_target_architecture():
         remotery_defines.append('RMT_ARCH_64BIT')
 
