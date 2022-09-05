@@ -405,7 +405,12 @@ namespace dmGameObject
         float m_ScreenDX;
         /// Cursor dy since last frame, in screen space
         float m_ScreenDY;
-        float m_AccX, m_AccY, m_AccZ;
+        /// Accelerometer x value (if present)
+        float m_AccX;
+        /// Accelerometer y value (if present)
+        float m_AccY;
+        /// Accelerometer z value (if present)
+        float m_AccZ;
         /// Touch data
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch

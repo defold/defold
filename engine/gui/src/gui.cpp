@@ -1831,6 +1831,48 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         lua_setfield(L, -2, "gamepad_name");
                     }
 
+                    if (ia->m_HasGamepadPacket)
+                    {
+                        dmHID::GamepadPacket gamepadPacket = ia->m_GamepadPacket;
+                        lua_pushliteral(L, "gamepad_axis");
+                        lua_createtable(L, dmHID::MAX_GAMEPAD_AXIS_COUNT, 0);
+                        for (int i = 0; i < dmHID::MAX_GAMEPAD_AXIS_COUNT; ++i)
+                        {
+                            lua_pushinteger(L, (lua_Integer) (i+1));
+                            lua_pushnumber(L, gamepadPacket.m_Axis[i]);
+                            lua_settable(L, -3);
+                        }
+                        lua_settable(L, -3);
+
+                        lua_pushliteral(L, "gamepad_buttons");
+                        lua_createtable(L, dmHID::MAX_GAMEPAD_AXIS_COUNT, 0);
+                        for (int i = 0; i < dmHID::MAX_GAMEPAD_AXIS_COUNT; ++i)
+                        {
+                            lua_pushinteger(L, (lua_Integer) (i+1));
+                            lua_pushnumber(L, dmHID::GetGamepadButton(&gamepadPacket, i));
+                            lua_settable(L, -3);
+                        }
+                        lua_settable(L, -3);
+
+                        lua_pushliteral(L, "gamepad_hats");
+                        lua_createtable(L, dmHID::MAX_GAMEPAD_HAT_COUNT, 0);
+                        for (int i = 0; i < dmHID::MAX_GAMEPAD_HAT_COUNT; ++i)
+                        {
+                            lua_pushinteger(L, (lua_Integer) (i+1));
+                            uint8_t hat_value;
+                            if (dmHID::GetGamepadHat(&gamepadPacket, i, &hat_value))
+                            {
+                                lua_pushnumber(L, hat_value);
+                            }
+                            else
+                            {
+                                lua_pushnumber(L, 0);
+                            }
+                            lua_settable(L, -3);
+                        }
+                        lua_settable(L, -3);
+                    }
+
                     if (ia->m_ActionId != 0)
                     {
                         lua_pushstring(L, "value");
