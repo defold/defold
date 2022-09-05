@@ -66,10 +66,8 @@
 
 // DEFOLD
 #include <dmsdk/dlib/log.h>
-#include <dmsdk/dlib/hash.h>
-
 static const char* g_EmptyString = "<empty>"; // As seen in profile_remotery.cpp _rmt_HashString32()
-static rmtU32 g_EmptyHash = 0;
+static rmtU32 g_EmptyHash = 0x89abcdef; // Unlikely anything else would collide with this
 // END DEFOLD
 
 #if RMT_ENABLED
@@ -2710,9 +2708,6 @@ static rmtError rmtHashTable_Insert(rmtHashTable* table, rmtU32 key, rmtU64 valu
 
 // DEFOLD
     if (key == 0) {
-        if (g_EmptyHash == 0) {
-            g_EmptyHash = dmHashString32(g_EmptyString);
-        }
         key = g_EmptyHash;
         dmLogError("REMOTERY: DEFOLD: rmtHashTable_Insert: The hash was 0x%08x. Setting it to 0x%08x ('%s')", key, g_EmptyHash, g_EmptyString);
     }
