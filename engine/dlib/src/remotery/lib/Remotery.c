@@ -32,7 +32,7 @@
     @OBJALLOC:      Reusable Object Allocator
     @DYNBUF:        Dynamic Buffer
     @HASHTABLE:     Integer pair hash map for inserts/finds. No removes for added simplicity.
-    @STRINGTABLE:	Map from string hash to string offset in local buffer
+    @STRINGTABLE:   Map from string hash to string offset in local buffer
     @SOCKETS:       Sockets TCP/IP Wrapper
     @SHA1:          SHA-1 Cryptographic Hash Function
     @BASE64:        Base-64 encoder
@@ -64,6 +64,14 @@
 #pragma comment(lib, "winmm.lib")
 #endif
 
+// DEFOLD
+#include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/hash.h>
+
+static const char* g_EmptyString = "<empty>"; // As seen in profile_remotery.cpp _rmt_HashString32()
+static rmtU32 g_EmptyHash = 0;
+// END DEFOLD
+
 #if RMT_ENABLED
 
 // Global settings
@@ -85,8 +93,8 @@ static rmtBool g_SettingsInitialized = RMT_FALSE;
 //
 #if RMT_USE_TINYCRT
 
-	#include <TinyCRT/TinyCRT.h>
-	#include <TinyCRT/TinyWinsock.h>
+    #include <TinyCRT/TinyCRT.h>
+    #include <TinyCRT/TinyWinsock.h>
     #include <Memory/Memory.h>
 
     #define CreateFileMapping CreateFileMappingA
@@ -820,26 +828,26 @@ static rmtU32 Well512_RandomOpenLimit(rmtU32 limit)
 
 static rmtU32 Log2i(rmtU32 x)
 {
-	static const rmtU32 MultiplyDeBruijnBitPosition[32] =
-	{
-		0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
-		8, 12, 20, 28, 15, 17, 24, 7, 19, 27, 23, 6, 26, 5, 4, 31
-	};
+    static const rmtU8 MultiplyDeBruijnBitPosition[32] =
+    {
+        0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
+        8, 12, 20, 28, 15, 17, 24, 7, 19, 27, 23, 6, 26, 5, 4, 31
+    };
 
     // First round down to one less than a power of two
-	x |= x >> 1;
-	x |= x >> 2;
-	x |= x >> 4;
-	x |= x >> 8;
-	x |= x >> 16;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
 
-	return MultiplyDeBruijnBitPosition[(rmtU32)(x * 0x07C4ACDDU) >> 27];
+    return MultiplyDeBruijnBitPosition[(rmtU32)(x * 0x07C4ACDDU) >> 27];
 }
 
 static rmtU32 GaloisLFSRMask(rmtU32 table_size_log2)
 {
     // Taps for 4 to 8 bit ranges
-    static const rmtU32 XORMasks[] =
+    static const rmtU8 XORMasks[] =
     {
         ((1 << 0) | (1 << 1)),                          // 2
         ((1 << 1) | (1 << 2)),                          // 3
@@ -2699,6 +2707,16 @@ static rmtError rmtHashTable_Insert(rmtHashTable* table, rmtU32 key, rmtU64 valu
     // Calculate initial slot location for this key
     rmtU32 index_mask = table->maxNbSlots - 1;
     rmtU32 index = key & index_mask;
+
+// DEFOLD
+    if (key == 0) {
+        if (g_EmptyHash == 0) {
+            g_EmptyHash = dmHashString32(g_EmptyString);
+        }
+        key = g_EmptyHash;
+        dmLogError("REMOTERY: DEFOLD: rmtHashTable_Insert: The hash was 0x%08x. Setting it to 0x%08x ('%s')", key, g_EmptyHash, g_EmptyString);
+    }
+// END DEFOLD
 
     assert(key != 0);
     assert(value != RMT_NOT_FOUND);
@@ -5038,6 +5056,12 @@ static rmtBool QueueAddToStringTable(rmtMessageQueue* queue, rmtU32 hash, const 
         return RMT_FALSE;
     }
 
+// DEFOLD
+    if (hash == 0 || length == 0) {
+        dmLogError("REMOTERY: DEFOLD: QueueAddToStringTable: The hash is 0x%08x! String is '%s' len: %u", hash, string, (uint32_t)length);
+    }
+// END DEFOLD
+
     // Populate and commit
     payload = (Msg_AddToStringTable*)message->payload;
     payload->hash = hash;
@@ -5271,6 +5295,12 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
             name_len = strnlen_s(name, 256);
             name_hash = _rmt_HashString32(name, name_len, 0);
 
+// DEFOLD
+    if (name_hash == 0 || name_len == 0) {
+        dmLogError("REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(a): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
+    }
+// END DEFOLD
+
             // Queue the string for the string table and only cache the hash if it succeeds
             if (QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler) == RMT_TRUE)
             {
@@ -5284,6 +5314,13 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
     // Have to recalculate and speculatively insert the name every time when no cache storage exists
     name_len = strnlen_s(name, 256);
     name_hash = _rmt_HashString32(name, name_len, 0);
+
+// DEFOLD
+    if (name_hash == 0 || name_len == 0) {
+        dmLogError("REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(b): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
+    }
+// END DEFOLD
+
     QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler);
     return name_hash;
 }
@@ -6500,7 +6537,7 @@ static rmtError Remotery_SerialisePropertySnapshots(Buffer* bin_buf, Msg_Propert
             case RMT_PropertyType_rmtGroup:
                 rmtTry(Buffer_Write(bin_buf, empty_group, 16));
                 break;
-            
+
             // All value ranges here are double-representable, so convert them early in C where it's cheap
             case RMT_PropertyType_rmtBool:
                 rmtTry(Buffer_WriteF64(bin_buf, snapshot->value.Bool));
@@ -6973,7 +7010,7 @@ static void Remotery_Destructor(Remotery* rmt)
     rmtDelete(rmtMessageQueue, rmt->mq_to_rmt_thread);
 
     rmtDelete(Server, rmt->server);
-    
+
     // Free the error message TLS
     // TODO(don): The allocated messages will need to be freed as well
     if (g_lastErrorMessageTlsHandle != TLS_INVALID_HANDLE)
@@ -6981,7 +7018,7 @@ static void Remotery_Destructor(Remotery* rmt)
         tlsFree(g_lastErrorMessageTlsHandle);
         g_lastErrorMessageTlsHandle = TLS_INVALID_HANDLE;
     }
-    
+
     mtxDelete(&rmt->propertyMutex);
 }
 
@@ -8484,7 +8521,7 @@ static rmtError CreateQueryHeap(D3D12BindImpl* bind, ID3D12Device* d3d_device, I
         {
             return rmtMakeError(RMT_ERROR_INVALID_INPUT, "Copy queues on this device do not support timestamps");
         }
-        
+
         query_heap_type = D3D12_QUERY_HEAP_TYPE_COPY_QUEUE_TIMESTAMP;
     }*/
     #else
@@ -8678,7 +8715,7 @@ static rmtError D3D12MarkFrame(D3D12BindImpl* bind)
 
     // Chain to the next bind here so that root calling code doesn't need to know the definition of D3D12BindImpl
     rmtTry(D3D12MarkFrame(bind->next));
-    
+
     return RMT_ERROR_NONE;
 }
 
@@ -8825,7 +8862,7 @@ RMT_API void _rmt_BeginD3D12Sample(rmtD3D12Bind* bind, void* command_list, rmtPS
 
     if (g_Remotery == NULL || bind == NULL)
         return;
-    
+
     assert(command_list != NULL);
 
     if (ThreadProfilers_GetCurrentThreadProfiler(g_Remotery->threadProfilers, &thread_profiler) == RMT_ERROR_NONE)
@@ -9981,6 +10018,11 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
 
             name_len = strnlen_s(name, 256);
             property->nameHash = _rmt_HashString32(name, name_len, 0);
+
+            if (property->nameHash == 0 || name_len == 0) {
+                dmLogError("REMOTERY: DEFOLD: RegisterProperty: The hash is 0x%08x! String is '%s' len: %u", property->nameHash, name, (uint32_t)name_len);
+            }
+
             QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
 /// END DEFOLD
 
