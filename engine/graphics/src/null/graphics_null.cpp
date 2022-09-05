@@ -880,14 +880,14 @@ namespace dmGraphics
     {
         assert(context);
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4));
+        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * count);
     }
 
-    static void NullSetConstantM4(HContext context, const Vector4* data, int base_register)
+    static void NullSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
     {
         assert(context);
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4);
+        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4 * count);
     }
 
     static void NullSetSampler(HContext context, int32_t location, int32_t unit)

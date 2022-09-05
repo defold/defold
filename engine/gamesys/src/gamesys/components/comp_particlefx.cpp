@@ -464,7 +464,14 @@ namespace dmGameSystem
                 ParticleFXComponent* component = &world->m_Components[i];
                 if (component->m_Instance == params.m_Instance)
                 {
-                    dmParticle::SetRenderConstant(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value);
+                    if (ddf->m_IsMatrix4)
+                    {
+                        dmParticle::SetRenderConstantM4(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value);
+                    }
+                    else
+                    {
+                        dmParticle::SetRenderConstant(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value.getCol0());
+                    }
                     ++found_count;
                 }
             }
@@ -549,7 +556,13 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < constant_count; ++i)
         {
             dmParticle::RenderConstant* c = &constants[i];
-            dmRender::SetNamedConstant(constant_buffer, c->m_NameHash, &c->m_Value, 1);
+
+            dmRenderDDF::MaterialDesc::ConstantType type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+            if (c->m_IsMatrix4)
+            {
+                type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+            }
+            dmRender::SetNamedConstant(constant_buffer, c->m_NameHash, (dmVMath::Vector4*) &c->m_Value, c->m_IsMatrix4 ? 4 : 1, type);
         }
     }
 
