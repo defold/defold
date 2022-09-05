@@ -112,33 +112,83 @@ namespace dmRender
         return 1;
     }
 
+    static bool RenderScriptPushValueFromConstantType(lua_State *L, dmVMath::Vector4* value_ptr, uint32_t value_count, uint32_t table_index, dmRenderDDF::MaterialDesc::ConstantType type)
+    {
+        uint32_t value_index = table_index;
+
+        if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            value_index *= 4;
+        }
+
+        if (value_index >= value_count)
+        {
+            return false;
+        }
+
+        switch(type)
+        {
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+                dmScript::PushVector4(L, value_ptr[value_index]);
+                break;
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4:
+                dmScript::PushMatrix4(L, ((dmVMath::Matrix4*) &value_ptr[value_index])[0]);
+                break;
+            default: return false;
+
+        }
+
+        return true;
+    }
+
     static int RenderScriptConstantBuffer_index(lua_State *L)
     {
         NamedConstantBufferTable* cb_table = (NamedConstantBufferTable*)lua_touserdata(L, 1);
-        HNamedConstantBuffer cb = cb_table->m_ConstantBuffer;
+        HNamedConstantBuffer cb            = cb_table->m_ConstantBuffer;
         assert(cb);
 
-        const char* name = luaL_checkstring(L, 2);
-        dmhash_t name_hash = dmHashString64(name);
-        dmVMath::Vector4* values;
-        uint32_t num_values = 0;
+        const char* name         = luaL_checkstring(L, 2);
+        dmhash_t name_hash       = dmHashString64(name);
+        dmVMath::Vector4* values = 0;
+        uint32_t num_values      = 0;
 
+        dmRenderDDF::MaterialDesc::ConstantType constant_type;
         ConstantBufferTableEntry* table_entry = cb_table->m_ConstantArrayEntries.Get(name_hash);
         if (table_entry != 0)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, table_entry->m_LuaRef);
             return 1;
         }
-        else if (GetNamedConstant(cb, name_hash, &values, &num_values))
+        else if (GetNamedConstant(cb, name_hash, &values, &num_values, &constant_type))
         {
-            dmScript::PushVector4(L, values[0]);
-            return 1;
+            return RenderScriptPushValueFromConstantType(L, values, num_values, 0, constant_type);
         }
         else
         {
             return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
         }
         return 0;
+    }
+
+    static dmRender::Result RenderScriptSetNamedValueFromLua(lua_State *L, int stack_index, HNamedConstantBuffer buffer, dmhash_t name_hash, int table_index)
+    {
+        uint32_t value_count                                  = 1;
+        uint32_t value_index                                  = table_index;
+        dmVMath::Vector4* value_ptr                           = 0;
+        dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+
+        if (dmScript::IsMatrix4(L, stack_index))
+        {
+            value_ptr     = (dmVMath::Vector4*) dmScript::CheckMatrix4(L, stack_index);
+            value_count  *= 4;
+            value_index  *= 4;
+            constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+        }
+        else
+        {
+            value_ptr = dmScript::CheckVector4(L, stack_index);
+        }
+        return SetNamedConstantAtIndex(buffer, name_hash, value_ptr, value_count, value_index, constant_type);
     }
 
     static int RenderScriptConstantBuffer_newindex(lua_State *L)
@@ -172,25 +222,34 @@ namespace dmRender
 
             cb_table->m_ConstantArrayEntries.Put(name_hash, *p_table_entry);
 
-            // If the table contains vectors, we add them directly
+            // If the table contains elements, we add them directly
             lua_pushvalue(L, 3);
             lua_pushnil(L);
             while (lua_next(L, -2) != 0)
             {
-                dmVMath::Vector4* value = dmScript::CheckVector4(L, -1);
-                int32_t ix              = luaL_checknumber(L, -2) - 1;
-                assert(ix >= 0);
+                if (!lua_isnumber(L, -2))
+                {
+                    return luaL_error(L, "Constant %s not set. Indices must be numbers", dmHashReverseSafe64(name_hash));
+                }
 
-                SetNamedConstantAtIndex(cb, name_hash, *value, ix);
+                int32_t table_index_lua = lua_tonumber(L, -2);
 
+                if (table_index_lua < 1)
+                {
+                    return luaL_error(L, "Constant %s[%d] not set. Indices must start from 1", dmHashReverseSafe64(name_hash), table_index_lua);
+                }
+
+                if (RenderScriptSetNamedValueFromLua(L, -1, cb, name_hash, table_index_lua - 1) != RESULT_OK)
+                {
+                    return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+                }
                 lua_pop(L, 1);
             }
             lua_pop(L, 1);
         }
         else
         {
-            dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-            SetNamedConstant(cb, name_hash, value, 1);
+            RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, 0);
         }
         assert(top == lua_gettop(L));
         return 0;
@@ -203,23 +262,19 @@ namespace dmRender
         dmhash_t name_hash                    = table_entry->m_ConstantName;
         uint32_t table_index_lua              = (uint32_t) luaL_checknumber(L, 2);
         uint32_t table_index                  = table_index_lua - 1;
-        dmVMath::Vector4* values;
-        uint32_t num_values = 0;
+        dmVMath::Vector4* values              = 0;
+        uint32_t num_values                   = 0;
+        dmRenderDDF::MaterialDesc::ConstantType constant_type;
 
-        if (GetNamedConstant(cb, name_hash, &values, &num_values))
+        if (GetNamedConstant(cb, name_hash, &values, &num_values, &constant_type))
         {
-            if (table_index >= num_values)
+            if (!RenderScriptPushValueFromConstantType(L, values, num_values, table_index, constant_type))
             {
                 return luaL_error(L, "Constant %s[%d] not set.", dmHashReverseSafe64(name_hash), table_index_lua);
             }
-            dmScript::PushVector4(L, values[table_index]);
             return 1;
         }
-        else
-        {
-            return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
-        }
-        return 0;
+        return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
     }
 
     static int RenderScriptConstantBufferArray_newindex(lua_State *L)
@@ -228,18 +283,23 @@ namespace dmRender
         ConstantBufferTableEntry* table_entry = (ConstantBufferTableEntry*) lua_touserdata(L, 1);
         HNamedConstantBuffer cb               = table_entry->m_ConstantBuffer;
         dmhash_t name_hash                    = table_entry->m_ConstantName;
-        int32_t table_index_lua               = luaL_checknumber(L, 2);
+
+        if (!lua_isnumber(L, 2))
+        {
+            return luaL_error(L, "Constant %s not set. Indices must be numbers", dmHashReverseSafe64(name_hash));
+        }
+
+        int32_t table_index_lua = lua_tonumber(L, 2);
 
         if (table_index_lua < 1)
         {
             return luaL_error(L, "Constant %s[%d] not set. Indices must start from 1", dmHashReverseSafe64(name_hash), table_index_lua);
         }
 
-        uint32_t table_index                  = (uint32_t) table_index_lua - 1;
-        dmVMath::Vector4* value               = dmScript::CheckVector4(L, 3);
-
-        SetNamedConstantAtIndex(cb, name_hash, *value, table_index);
-
+        if (RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, table_index_lua - 1) != RESULT_OK)
+        {
+            return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+        }
         assert(top == lua_gettop(L));
 
         return 0;

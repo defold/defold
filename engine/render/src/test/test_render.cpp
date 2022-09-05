@@ -987,23 +987,29 @@ TEST(Constants, NamedConstantsArray)
 
     dmhash_t name_hash_array = dmHashString64("test_constant_array");
 
+    ////////////////////////////////////////////////////////////
     // Test 1: set a single value
-    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, original_values[0], 0);
+    ////////////////////////////////////////////////////////////
+    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, &original_values[0], 1, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
     result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
     ASSERT_TRUE(result);
     ASSERT_EQ(num_values, 1);
     ASSERT_VEC4(original_values[0], values[0]);
 
+    ////////////////////////////////////////////////////////////
     // Test 2: set two values
-    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, original_values[1], 1);
+    ////////////////////////////////////////////////////////////
+    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, &original_values[1], 1, 1, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
     result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
     ASSERT_TRUE(result);
     ASSERT_EQ(num_values, 2);
     ASSERT_VEC4(original_values[0], values[0]);
     ASSERT_VEC4(original_values[1], values[1]);
 
+    ////////////////////////////////////////////////////////////
     // Test 3: set a third value at an offset
-    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, original_values[2], 6);
+    ////////////////////////////////////////////////////////////
+    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, &original_values[2], 1, 6, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
     result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
     ASSERT_TRUE(result);
     ASSERT_EQ(num_values, 7);
@@ -1011,7 +1017,9 @@ TEST(Constants, NamedConstantsArray)
     ASSERT_VEC4(original_values[1], values[1]);
     ASSERT_VEC4(original_values[2], values[6]);
 
+    ////////////////////////////////////////////////////////////
     // Test 4: add a second constant after array
+    ////////////////////////////////////////////////////////////
     dmhash_t name_hash_single_value = dmHashString64("test_single_value");
     dmVMath::Vector4 test_single_value(1337,7331,3311,1133);
 
@@ -1021,15 +1029,19 @@ TEST(Constants, NamedConstantsArray)
     ASSERT_EQ(num_values, 1);
     ASSERT_VEC4(test_single_value, values[0]);
 
+    ////////////////////////////////////////////////////////////
     // Test 4: resize test_constant_array to a single value, test_single_value should be the same
+    ////////////////////////////////////////////////////////////
     dmRender::SetNamedConstant(buffer, name_hash_array, original_values, 1);
     result = dmRender::GetNamedConstant(buffer, name_hash_single_value, &values, &num_values);
     ASSERT_TRUE(result);
     ASSERT_EQ(num_values, 1);
     ASSERT_VEC4(test_single_value, values[0]);
 
+    ////////////////////////////////////////////////////////////
     // Test 5: remove test_single_value constant
-    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, original_values[2], 6);
+    ////////////////////////////////////////////////////////////
+    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, &original_values[2], 1, 6, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
     ASSERT_EQ(GetNamedConstantCount(buffer), 2);
     dmRender::RemoveNamedConstant(buffer, name_hash_single_value);
     ASSERT_EQ(GetNamedConstantCount(buffer), 1);
@@ -1037,7 +1049,7 @@ TEST(Constants, NamedConstantsArray)
     result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
     ASSERT_TRUE(result);
     ASSERT_EQ(num_values, 7);
-
+    
     // All intermediate vectors should be 0 i.e values of index [1...6]
     dmVMath::Vector4 test_zero_vec(0,0,0,0);
     for (int i = 1; i < num_values-1; ++i)
@@ -1110,6 +1122,46 @@ TEST(Constants, NamedConstants)
 
     result = dmRender::GetNamedConstant(buffer, name_hash, &values, &num_values);
     ASSERT_FALSE(result);
+
+    ////////////////////////////////////////////////////////////
+    // Test matrix constants
+    ////////////////////////////////////////////////////////////
+    dmVMath::Matrix4 original_matrix_value[] = {
+        dmVMath::Matrix4::identity(),
+        dmVMath::Matrix4::identity()};
+
+    original_matrix_value[0].setElem(0,0,1.0f).setElem(1,1,2.0f).setElem(2,2,3.0f).setElem(3,3,4.0f);
+    original_matrix_value[1].setElem(0,0,-1.0f).setElem(1,1,-2.0f).setElem(2,2,-3.0f).setElem(3,3,-4.0f);
+
+    dmhash_t matrix_name_hash_1 = dmHashString64("test_matrix_constant_1");
+
+    uint32_t num_values_matrix_test = sizeof(original_matrix_value[0]) / sizeof(dmVMath::Vector4);
+
+    ////////////////////////////////////////////////////////////
+    // Set a single matrix value
+    dmRender::SetNamedConstant(buffer, matrix_name_hash_1, (dmVMath::Vector4*) &original_matrix_value[0],
+        num_values_matrix_test, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+
+    dmRenderDDF::MaterialDesc::ConstantType constant_type;
+    result = dmRender::GetNamedConstant(buffer, matrix_name_hash_1, &values, &num_values, &constant_type);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+    ASSERT_TRUE(num_values == num_values_matrix_test);
+    ASSERT_ARRAY_EQ_LEN(values, (dmVMath::Vector4*) original_matrix_value, num_values);
+
+    ////////////////////////////////////////////////////////////
+    // Remove constant and add the entire array of matrices
+    dmRender::RemoveNamedConstant(buffer, matrix_name_hash_1);
+    dmRender::SetNamedConstant(buffer, name_hash_2, original_values2, DM_ARRAY_SIZE(original_values2));
+
+    num_values_matrix_test *= DM_ARRAY_SIZE(original_matrix_value);
+    dmRender::SetNamedConstant(buffer, matrix_name_hash_1, (dmVMath::Vector4*) original_matrix_value,
+        num_values_matrix_test, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+    result = dmRender::GetNamedConstant(buffer, matrix_name_hash_1, &values, &num_values, &constant_type);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+    ASSERT_TRUE(num_values == num_values_matrix_test);
+    ASSERT_ARRAY_EQ_LEN(values, (dmVMath::Vector4*) original_matrix_value, num_values);
 
     ////////////////////////////////////////////////////////////
     dmRender::DeleteConstant(constant);
