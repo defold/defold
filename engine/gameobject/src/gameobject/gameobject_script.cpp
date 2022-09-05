@@ -742,6 +742,8 @@ namespace dmGameObject
             return "vmath.quat";
         case PROPERTY_TYPE_BOOLEAN:
             return "boolean";
+        case PROPERTY_TYPE_MATRIX4:
+            return "vmath.matrix4";
         default:
             return "unknown";
         }

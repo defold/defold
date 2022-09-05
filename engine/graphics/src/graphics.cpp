@@ -640,9 +640,9 @@ namespace dmGraphics
     {
         g_functions.m_SetConstantV4(context, data, count, base_register);
     }
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int base_register)
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
     {
-        g_functions.m_SetConstantM4(context, data, base_register);
+        g_functions.m_SetConstantM4(context, data, count, base_register);
     }
     void SetSampler(HContext context, int32_t location, int32_t unit)
     {

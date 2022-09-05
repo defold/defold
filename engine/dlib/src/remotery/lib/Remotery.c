@@ -66,7 +66,6 @@
 
 // DEFOLD
 #include <dmsdk/dlib/log.h>
-
 static const char* g_EmptyString = "<empty>"; // As seen in profile_remotery.cpp _rmt_HashString32()
 static rmtU32 g_EmptyHash = 0x89abcdef; // Unlikely anything else would collide with this
 // END DEFOLD

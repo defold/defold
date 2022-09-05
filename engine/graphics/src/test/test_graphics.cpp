@@ -404,7 +404,7 @@ TEST_F(dmGraphicsTest, TestProgram)
                             Vector4(5.0f, 6.0f, 7.0f, 8.0f),
                             Vector4(9.0f, 10.0f, 11.0f, 12.0f),
                             Vector4(13.0f, 14.0f, 15.0f, 16.0f) };
-    dmGraphics::SetConstantM4(m_Context, matrix, 4);
+    dmGraphics::SetConstantM4(m_Context, matrix, 1, 4);
     char* program_data = new char[1024];
     *program_data = 0;
     vs_shader = MakeDDFShader(program_data, 1024);

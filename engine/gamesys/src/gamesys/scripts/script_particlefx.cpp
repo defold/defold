@@ -315,12 +315,24 @@ namespace dmGameSystem
 
         dmhash_t emitter_id = dmScript::CheckHashOrString(L, 2);
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 3);
-        Vectormath::Aos::Vector4* value = dmScript::CheckVector4(L, 4);
+
+        Vectormath::Aos::Matrix4 value;
+        bool is_matrix4_type = dmScript::IsMatrix4(L,4);
+        if (is_matrix4_type)
+        {
+            value = *dmScript::ToMatrix4(L,4);
+        }
+        else
+        {
+            Vectormath::Aos::Vector4* value_vec4 = dmScript::CheckVector4(L, 4);
+            value.setCol0(*value_vec4);
+        }
 
         dmGameSystemDDF::SetConstantParticleFX msg;
         msg.m_EmitterId = emitter_id;
         msg.m_NameHash = name_hash;
-        msg.m_Value = *value;
+        msg.m_Value = value;
+        msg.m_IsMatrix4 = is_matrix4_type;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;

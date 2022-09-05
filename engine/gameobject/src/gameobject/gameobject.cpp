@@ -159,6 +159,15 @@ namespace dmGameObject
         m_Bool = v;
     }
 
+    PropertyVar::PropertyVar(Matrix4 v)
+    {
+        m_Type   = PROPERTY_TYPE_MATRIX4;
+
+        Vector4& c0 = v[0];
+        float& v0   = c0[0];
+        memcpy(m_M4, &v0, sizeof(m_M4));
+    }
+
     Register::Register()
     {
         m_ComponentTypeCount = 0;

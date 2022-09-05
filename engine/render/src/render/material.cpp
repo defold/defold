@@ -119,6 +119,12 @@ namespace dmRender
                 HConstant render_constant = dmRender::NewConstant(name_hash);
                 dmRender::SetConstantLocation(render_constant, location);
 
+                if (type == dmGraphics::TYPE_FLOAT_MAT4)
+                {
+                    num_values *= 4;
+                    dmRender::SetConstantType(render_constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+                }
+
                 // Set correct size of the constant (Until the shader builder provides all the default values)
                 if (num_values > default_values_capacity)
                 {
@@ -201,6 +207,13 @@ namespace dmRender
                     dmGraphics::SetConstantV4(graphics_context, values, num_values, location);
                     break;
                 }
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4:
+                {
+                    uint32_t num_values;
+                    dmVMath::Vector4* values = GetConstantValues(constant, &num_values);
+                    dmGraphics::SetConstantM4(graphics_context, values, num_values / 4, location);
+                    break;
+                }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
                 {
                     if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
@@ -209,27 +222,27 @@ namespace dmRender
                         ndc_matrix.setElem(2, 2, 0.5f );
                         ndc_matrix.setElem(3, 2, 0.5f );
                         const Matrix4 view_projection = ndc_matrix * render_context->m_ViewProj;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, 1, location);
                     }
                     else
                     {
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, 1, location);
                     }
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_WorldTransform, location);
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_WorldTransform, 1, location);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TEXTURE:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_TextureTransform, location);
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_TextureTransform, 1, location);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW:
                 {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_View, location);
+                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_View, 1, location);
                     break;
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION:
@@ -242,11 +255,11 @@ namespace dmRender
                         ndc_matrix.setElem(2, 2, 0.5f );
                         ndc_matrix.setElem(3, 2, 0.5f );
                         const Matrix4 proj = ndc_matrix * render_context->m_Projection;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&proj, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&proj, 1, location);
                     }
                     else
                     {
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, 1, location);
                     }
                     break;
                 }
@@ -259,7 +272,7 @@ namespace dmRender
                         // It is always affine however
                         normalT = affineInverse(normalT);
                         normalT = transpose(normalT);
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&normalT, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&normalT, 1, location);
                     }
                     break;
                 }
@@ -267,7 +280,7 @@ namespace dmRender
                 {
                     {
                         Matrix4 world_view = render_context->m_View * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, 1, location);
                     }
                     break;
                 }
@@ -279,12 +292,12 @@ namespace dmRender
                         ndc_matrix.setElem(2, 2, 0.5f );
                         ndc_matrix.setElem(3, 2, 0.5f );
                         const Matrix4 world_view_projection = ndc_matrix * render_context->m_ViewProj * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
                     }
                     else
                     {
                         const Matrix4 world_view_projection = render_context->m_ViewProj * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, location);
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
                     }
                     break;
                 }

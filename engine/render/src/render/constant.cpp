@@ -102,9 +102,10 @@ struct NamedConstantBuffer
 {
     struct Constant
     {
-        dmhash_t   m_NameHash;
-        uint32_t   m_ValueIndex;
-        uint32_t   m_NumValues;
+        dmhash_t                                m_NameHash;
+        uint32_t                                m_ValueIndex;
+        uint32_t                                m_NumValues;
+        dmRenderDDF::MaterialDesc::ConstantType m_Type;
     };
 
     dmHashTable64<Constant>     m_Constants;
@@ -174,13 +175,13 @@ void RemoveNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash)
     buffer->m_Constants.Iterate(ShiftConstantIndices, &shift_context);
 }
 
-void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, const dmVMath::Vector4& value, uint32_t value_index)
+Result SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values,
+    uint32_t num_values, uint32_t value_index, dmRenderDDF::MaterialDesc::ConstantType constant_type)
 {
     dmHashTable64<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
     NamedConstantBuffer::Constant* c = constants.Get(name_hash);
 
-    uint32_t value_size = value_index + 1;
-
+    uint32_t value_size = value_index + num_values;
     if (c == 0)
     {
         if (constants.Full())
@@ -201,10 +202,15 @@ void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, co
         constant.m_NameHash    = name_hash;
         constant.m_NumValues   = value_size;
         constant.m_ValueIndex  = values_index;
+        constant.m_Type        = constant_type;
         constants.Put(name_hash, constant);
 
         // Get the pointer
         c = constants.Get(name_hash);
+    }
+    else if (c->m_NumValues > 0 && c->m_Type != constant_type)
+    {
+        return RESULT_TYPE_MISMATCH;
     }
     else if (c->m_NumValues < value_size)
     {
@@ -241,10 +247,12 @@ void SetNamedConstantAtIndex(HNamedConstantBuffer buffer, dmhash_t name_hash, co
     }
 
     dmVMath::Vector4* values_start = &buffer->m_Values[c->m_ValueIndex];
-    values_start[value_index] = value;
+    memcpy(&values_start[value_index], values, sizeof(dmVMath::Vector4) * num_values);
+
+    return RESULT_OK;
 }
 
-void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values)
+void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values, dmRenderDDF::MaterialDesc::ConstantType type)
 {
     dmHashTable64<NamedConstantBuffer::Constant>& constants = buffer->m_Constants;
 
@@ -274,6 +282,7 @@ void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
         constant.m_NameHash    = name_hash;
         constant.m_NumValues   = num_values;
         constant.m_ValueIndex  = values_index;
+        constant.m_Type        = type;
         constants.Put(name_hash, constant);
 
         // Get the pointer
@@ -284,16 +293,27 @@ void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
     memcpy(p, values, sizeof(values[0]) * num_values);
 }
 
+void SetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t num_values)
+{
+    SetNamedConstant(buffer, name_hash, values, num_values, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
+}
+
 void SetNamedConstants(HNamedConstantBuffer buffer, HConstant* constants, uint32_t num_constants)
 {
     for (uint32_t i = 0; i < num_constants; ++i)
     {
         Constant* c = constants[i];
-        SetNamedConstant(buffer, c->m_NameHash, c->m_Values, c->m_NumValues);
+        SetNamedConstant(buffer, c->m_NameHash, c->m_Values, c->m_NumValues, c->m_Type);
     }
 }
 
 bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values)
+{
+    dmRenderDDF::MaterialDesc::ConstantType constant_type;
+    return GetNamedConstant(buffer, name_hash, values, num_values, &constant_type);
+}
+
+bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::Vector4** values, uint32_t* num_values, dmRenderDDF::MaterialDesc::ConstantType* constant_type)
 {
     NamedConstantBuffer::Constant* c = buffer->m_Constants.Get(name_hash);
     if (!c)
@@ -301,6 +321,7 @@ bool GetNamedConstant(HNamedConstantBuffer buffer, dmhash_t name_hash, dmVMath::
 
     *values = &buffer->m_Values[c->m_ValueIndex];
     *num_values = c->m_NumValues;
+    *constant_type = c->m_Type;
     return true;
 }
 
@@ -308,7 +329,6 @@ uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer)
 {
     return buffer->m_Constants.Size();
 }
-
 
 struct ApplyConstantContext
 {
@@ -329,7 +349,15 @@ static inline void ApplyConstant(ApplyConstantContext* context, const uint64_t* 
     if (location)
     {
         dmVMath::Vector4* values = &context->m_ConstantBuffer->m_Values[constant->m_ValueIndex];
-        dmGraphics::SetConstantV4(context->m_GraphicsContext, values, constant->m_NumValues, *location);
+
+        if (constant->m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            dmGraphics::SetConstantM4(context->m_GraphicsContext, values, constant->m_NumValues / 4, *location);
+        }
+        else
+        {
+            dmGraphics::SetConstantV4(context->m_GraphicsContext, values, constant->m_NumValues, *location);
+        }
     }
 }
 
