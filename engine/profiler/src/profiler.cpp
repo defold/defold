@@ -15,6 +15,7 @@
 #include "profiler.h"
 
 #include <dlib/dlib.h>
+#include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
@@ -541,7 +542,8 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     out.m_Count = dmProfile::SampleGetCallCount(sample);
     out.m_Color = dmProfile::SampleGetColor(sample);
     out.m_Indent = (uint8_t)indent;
-    out.m_NameHash = dmProfile::SampleGetNameHash(sample);
+    const char* name = dmProfile::SampleGetName(sample);
+    out.m_NameHash = dmHashString32(name?name:"<empty_sample_name>");
 
     if (thread->m_Samples.Full())
         thread->m_Samples.OffsetCapacity(32);
@@ -594,7 +596,9 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
 
 static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
 {
-    uint32_t name_hash = dmProfile::PropertyGetNameHash(property);
+    const char* name = dmProfile::PropertyGetName(property);
+    uint32_t name_hash = dmHashString32(name?name:"<empty_property_name>");
+
     dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
     dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
 
