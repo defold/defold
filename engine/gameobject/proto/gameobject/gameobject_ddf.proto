@@ -37,6 +37,7 @@ message ComponentDesc
     optional dmMath.Quat    rotation    = 4;
     repeated PropertyDesc properties    = 5;
     optional dmPropertiesDDF.PropertyDeclarations property_decls = 6;
+    optional dmMath.Vector3 scale       = 7;
 }
 
 message EmbeddedComponentDesc
@@ -46,6 +47,7 @@ message EmbeddedComponentDesc
     required string data = 3;
     optional dmMath.Point3  position    = 4;
     optional dmMath.Quat    rotation    = 5;
+    optional dmMath.Vector3 scale       = 6;
 }
 
 message PrototypeDesc

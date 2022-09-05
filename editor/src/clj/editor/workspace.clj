@@ -51,8 +51,11 @@ ordinary paths."
 (defn- skip-first-char [path]
   (subs path 1))
 
-(defn build-path [workspace]
-  (io/file (project-path workspace) (skip-first-char build-dir)))
+(defn build-path
+  (^File [workspace]
+   (io/file (project-path workspace) (skip-first-char build-dir)))
+  (^File [workspace build-resource-path]
+   (io/file (build-path workspace) (skip-first-char build-resource-path))))
 
 (defn plugin-path
   (^File [workspace]
@@ -127,7 +130,7 @@ ordinary paths."
     (:default :text) false
     true))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
   (let [resource-type {:textual? (true? textual?)
                        :editable? (some? (some editable-view-type? view-types))
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
@@ -136,6 +139,8 @@ ordinary paths."
                        :dependencies-fn dependencies-fn
                        :write-fn write-fn
                        :read-fn read-fn
+                       :read-raw-fn (or read-raw-fn read-fn)
+                       :sanitize-fn sanitize-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts

@@ -767,6 +767,7 @@ namespace dmGameObject
             params.m_Instance = instance;
             params.m_Position = component->m_Position;
             params.m_Rotation = component->m_Rotation;
+            params.m_Scale = component->m_Scale;
             params.m_ComponentIndex = i;
             params.m_Resource = component->m_Resource;
             params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];
