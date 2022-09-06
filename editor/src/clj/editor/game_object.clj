@@ -243,8 +243,8 @@
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
 
-  (input embedded-resource-id g/NodeID)
-  (input save-data g/Any :cascade-delete)
+  (input embedded-resource-id g/NodeID :cascade-delete)
+  (input save-data g/Any)
   (output ddf-message g/Any (g/fnk [id position rotation save-data]
                               (gen-embed-ddf id position rotation save-data)))
   (output build-resource resource/Resource (g/fnk [source-resource save-data]
@@ -528,8 +528,6 @@
         node-type (project/resource-node-type resource)]
     (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]
                          resource-node [node-type :resource resource]]
-                  (g/connect resource-node :_node-id self :nodes)
-                  (g/connect comp-node :_node-id self :nodes)
                   (project/load-node project resource-node node-type resource)
                   (project/connect-if-output node-type resource-node comp-node
                                              [[:_node-id :embedded-resource-id]

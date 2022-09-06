@@ -21,14 +21,15 @@
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.coll :refer [pair]])
   (:import [internal.graph.error_values ErrorValue]
            [schema.core Maybe ConditionalSchema]
            [java.lang.ref WeakReference]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas true))
+(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas *assert*))
 
 (defn trace-expr [node-id label evaluation-context label-type deferred-expr]
   (if-let [tracer (:tracer evaluation-context)]
@@ -300,26 +301,38 @@
   (override-id [this]
     nil))
 
-(defn- defaults
-  "Return a map of default values for the node type."
-  [node-type-ref]
-  (util/map-vals #(some-> % :default :fn util/var-get-recursive (util/apply-if-fn {}))
-                 (declared-properties node-type-ref)))
+(defn- prop-info-default [prop-info]
+  (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {})))
 
-(defn- assert-no-extra-args
-  [node-type-ref args]
-  (let [args-without-properties (set/difference
-                                  (util/key-set args)
-                                  (util/key-set (:property (deref node-type-ref))))]
-    (assert (empty? args-without-properties) (str "You have given values for properties " args-without-properties ", but those don't exist on nodes of type " (:name node-type-ref)))))
+(defn- defaults-raw [node-type-deref]
+  (let [declared-property-labels (:declared-property node-type-deref)]
+    (into {}
+          (keep (fn [[prop-kw prop-info]]
+                  (when (contains? declared-property-labels prop-kw)
+                    (pair prop-kw
+                          (prop-info-default prop-info)))))
+          (:property node-type-deref))))
+
+(def ^:private defaults
+  "Return a map of default values for the node type."
+  (comp (memoize defaults-raw) deref))
+
+(defn- args-without-properties [node-type-ref args]
+  (set/difference
+    (util/key-set args)
+    (util/key-set (:property (deref node-type-ref)))))
 
 (defn construct
   [node-type-ref args]
   (assert (and node-type-ref (deref node-type-ref)))
-  (assert-no-extra-args node-type-ref args)
-  (-> (new internal.node.NodeImpl node-type-ref)
-      (merge (defaults node-type-ref))
-      (merge args)))
+  (assert (empty? (args-without-properties node-type-ref args))
+          (str "You have given values for properties "
+               (args-without-properties node-type-ref args)
+               ", but those don't exist on nodes of type "
+               (:name node-type-ref)))
+  (merge (->NodeImpl node-type-ref)
+         (defaults node-type-ref)
+         args))
 
 ;;; ----------------------------------------
 ;;; Evaluating outputs

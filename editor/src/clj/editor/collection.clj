@@ -719,7 +719,6 @@
         node-type (project/resource-node-type resource)]
     (g/make-nodes graph [go-node [EmbeddedGOInstanceNode :id id :position position :rotation rotation :scale scale]
                          resource-node [node-type :resource resource]]
-                  (g/connect resource-node :_node-id self :nodes)
                   (g/connect go-node :url resource-node :base-url)
                   (project/load-node project resource-node node-type resource)
                   (project/connect-if-output node-type resource-node go-node
