@@ -1157,6 +1157,18 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 | (sub_index << SUB_INDEX_SHIFT);
     }
 
+    static uint64_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
+        return CalcRenderKey(layer, index, 0, 0, 0);
+        /*
+        if (scope != 0x0) {
+            //return CalcRenderKey(scope->m_RootLayer, scope->m_RootIndex, scope->m_Index, layer, index);
+            return CalcRenderKey(layer, index, scope->m_Index 0, scope->m_RootLayer, scope->m_RootIndex);
+        } else {
+            return CalcRenderKey(layer, index, 0, 0, 0);
+        }
+        */
+    }
+
     static void UpdateScope(InternalNode* node, StencilScope& scope, StencilScope& child_scope, const StencilScope* parent_scope, uint16_t index, uint16_t non_inv_clipper_count, uint16_t inv_clipper_count, uint16_t bit_field_offset) {
         int bit_range = CalcBitRange(non_inv_clipper_count);
         // state used for drawing the clipper
@@ -1284,20 +1296,21 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
+    /*
     static void Increment(Scope* scope) {
         scope->m_Index = dmMath::Min(255, scope->m_Index + 1);
     }
-
-    static uint64_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
-        if (scope != 0x0) {
-            return CalcRenderKey(scope->m_RootLayer, scope->m_RootIndex, scope->m_Index, layer, index);
-        } else {
-            return CalcRenderKey(layer, index, 0, 0, 0);
-        }
-    }
+    */
 
     static uint16_t CollectRenderEntries(HScene scene, uint16_t start_index, uint16_t order, Scope* scope, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries) {
+        #define PUSH_RENDER_ENTRY(e) \
+            if (render_entries.Full()) \
+                render_entries.OffsetCapacity(16U); \
+            render_entries.Push(e);
+
+
         uint16_t index = start_index;
+
         while (index != INVALID_INDEX) {
             InternalNode* n = &scene->m_Nodes[index];
             if (n->m_Node.m_Enabled) {
@@ -1306,6 +1319,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 if (n->m_ClipperIndex != INVALID_INDEX) {
                     InternalClippingNode& clipper = clippers[n->m_ClipperIndex];
                     if (clipper.m_NodeIndex == index) {
+                        /*
                         bool root_clipper = scope == 0x0;
                         Scope tmp_scope(0, order);
                         Scope* current_scope = scope;
@@ -1315,32 +1329,41 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         } else {
                             Increment(current_scope);
                         }
+    
                         uint64_t clipping_key = CalcRenderKey(current_scope, 0, 0);
-                        uint64_t render_key = CalcRenderKey(current_scope, layer, 1);
+                        uint64_t render_key   = CalcRenderKey(current_scope, layer, 1);
                         CollectRenderEntries(scene, n->m_ChildHead, 2, current_scope, clippers, render_entries);
+
                         if (layer > 0) {
                             render_key = CalcRenderKey(current_scope, layer, 1);
                         }
+    
+                        CalcRenderKey(scope, layer, order++)
+                        */
+
+                        uint64_t clipping_key = CalcRenderKey(scope, 0, 0);
+                        uint64_t render_key   = CalcRenderKey(scope, layer, order++);
+                        CollectRenderEntries(scene, n->m_ChildHead, order, scope, clippers, render_entries);
+
                         clipper.m_VisibleRenderKey = render_key;
+
                         RenderEntry entry;
                         entry.m_Node = node;
                         entry.m_RenderKey = clipping_key;
-                        if (render_entries.Full())
-                        {
-                            render_entries.OffsetCapacity(16U);
-                        }
-                        render_entries.Push(entry);
+
+                        PUSH_RENDER_ENTRY(entry);
+
                         if (n->m_Node.m_ClippingVisible) {
                             entry.m_RenderKey = render_key;
-                            if (render_entries.Full())
-                            {
-                                render_entries.OffsetCapacity(16U);
-                            }
-                            render_entries.Push(entry);
+                            PUSH_RENDER_ENTRY(entry);
                         }
+
+                        /*
                         if (!root_clipper) {
                             Increment(current_scope);
                         }
+                        */
+
                         index = n->m_NextIndex;
                         continue;
                     }
@@ -1371,11 +1394,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                                 emitter_render_entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
                                 emitter_render_entry.m_RenderData = emitter_render_data;
 
-                                if (render_entries.Full())
-                                {
-                                    render_entries.OffsetCapacity(16U);
-                                }
-                                render_entries.Push(emitter_render_entry);
+                                PUSH_RENDER_ENTRY(emitter_render_entry);
                             }
                         }
                     }
@@ -1385,17 +1404,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     RenderEntry entry;
                     entry.m_Node = node;
                     entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
-                    if (render_entries.Full())
-                    {
-                        render_entries.OffsetCapacity(16U);
-                    }
-                    render_entries.Push(entry);
+
+                    PUSH_RENDER_ENTRY(entry);
                 }
 
                 order = CollectRenderEntries(scene, n->m_ChildHead, order, scope, clippers, render_entries);
             }
             index = n->m_NextIndex;
         }
+        #undef PUSH_RENDER_ENTRY
+
         return order;
     }
 
