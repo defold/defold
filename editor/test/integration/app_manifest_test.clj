@@ -13,12 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.app-manifest-test
-  (:require [clojure.test :refer :all]
-            [editor.app-manifest :as app-manifest]
-            [integration.test-util :as test-util]
+  (:require [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.app-manifest :as app-manifest]
             [editor.code.data :as data]
-            [clojure.string :as string]))
+            [integration.test-util :as test-util]))
 
 (deftest toggle-test
   (testing "contains toggles"

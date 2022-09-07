@@ -13,13 +13,13 @@
 ;; specific language governing permissions and limitations under the License.
 (ns editor.app-manifest
   (:require [dynamo.graph :as g]
-            [editor.code.resource :as r]
             [editor.code.data :as data]
-            [editor.resource-io :as resource-io]
-            [editor.graph-util :as gu]
+            [editor.code.resource :as r]
             [editor.code.util :as util]
-            [editor.yaml :as yaml]
-            [editor.properties :as properties]))
+            [editor.graph-util :as gu]
+            [editor.properties :as properties]
+            [editor.resource-io :as resource-io]
+            [editor.yaml :as yaml]))
 
 (def windows #{:x86-win32 :x86_64-win32})
 
@@ -194,7 +194,7 @@
                   key vector? []
                   (if enabled
                     (fn [values]
-                      (into [] (distinct) (conj (or values []) value)))
+                      (into [] (distinct) (conj values value)))
                     (fn [values]
                       (filterv #(not= value %) values)))))
 
@@ -266,16 +266,16 @@
   (case (:setting setting)
     :check-box (reduce #(set-toggle-value %1 %2 value) manifest (:toggles setting))
     :choice (let [{:keys [choices none]} setting
-                  enabled-toggles (if (identical? none value)
+                  enabled-toggles (if (= none value)
                                     nil
                                     (some (fn [[kw toggles]]
-                                            (when (identical? kw value) toggles))
+                                            (when (= kw value) toggles))
                                           choices))
-                  disabled-toggles (if (identical? none value)
+                  disabled-toggles (if (= none value)
                                      (mapcat second choices)
                                      (into []
                                            (comp
-                                             (remove #(identical? value (first %)))
+                                             (remove #(= value (first %)))
                                              (mapcat second))
                                            choices))]
               (as-> manifest $
@@ -405,7 +405,8 @@
   (output parsed-manifest g/Any :cached (g/fnk [lines _node-id resource]
                                           (resource-io/with-error-translation resource _node-id :manifest
                                             (yaml/with-error-translation _node-id :manifest resource
-                                              (yaml/load (data/lines-reader lines) keyword)))))
+                                              (with-open [reader (data/lines-reader lines)]
+                                                (yaml/load reader keyword))))))
   (property manifest g/Any
             (dynamic visible (g/constantly false))
             (value (gu/passthrough parsed-manifest))
@@ -460,7 +461,7 @@
             (value (setting-property-getter use-android-support-lib-setting))
             (set (setting-property-setter use-android-support-lib-setting)))
   (property graphics g/Any
-            (dynamic tooltip (g/constantly "Vulkan support is in BETA (desktop and mobile pltforms)"))
+            (dynamic tooltip (g/constantly "Vulkan support is in BETA (desktop and mobile platforms)"))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:open-gl "OpenGL"]
                                                         [:vulkan "Vulkan"]

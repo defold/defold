@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.yaml-test
-  (:import [java.io StringReader])
-  (:require [editor.yaml :as yaml]
-            [clojure.test :refer :all]))
+  (:require [clojure.test :refer :all]
+            [editor.yaml :as yaml])
+  (:import [java.io StringReader]))
 
 (def yaml-text "
 - name: facebook

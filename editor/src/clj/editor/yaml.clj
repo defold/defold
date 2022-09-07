@@ -14,19 +14,19 @@
 
 (ns editor.yaml
   (:refer-clojure :exclude [load])
-  (:require [editor.code.data :as data]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code.data :as data]
             [editor.util :as util])
-  (:import [java.io Reader]
+  (:import [clojure.lang Keyword]
+           [com.defold.snakeyaml OpenRepresenter]
+           [java.io Reader]
            [java.util List Map LinkedHashMap Collection]
            [java.util.function BiConsumer]
            [org.snakeyaml.engine.v1.api Load LoadSettingsBuilder Dump DumpSettingsBuilder RepresentToNode]
+           [org.snakeyaml.engine.v1.common ScalarStyle]
            [org.snakeyaml.engine.v1.exceptions Mark MarkedYamlEngineException]
-           [com.defold.snakeyaml OpenRepresenter]
-           [clojure.lang Keyword]
-           [org.snakeyaml.engine.v1.nodes ScalarNode Tag]
-           [org.snakeyaml.engine.v1.common ScalarStyle]))
+           [org.snakeyaml.engine.v1.nodes ScalarNode Tag]))
 
 (defn- translate-on [key-fn]
   (fn java->clj [x]
@@ -81,17 +81,22 @@
                                                          :resource ~resource
                                                          :cursor-range cursor-range#})))))
 
-(defn- ^Dump new-dumper [{:keys [indent]
-                          :or {indent 2}}]
+(def ^:private keyword-representer
+  (reify RepresentToNode
+    (representData [_ kw]
+      (ScalarNode. Tag/STR (name kw) ScalarStyle/PLAIN))))
+
+(defn- new-dumper
+  ^Dump
+  [{:keys [indent]
+    :or {indent 2}}]
   (let [dump-settings (-> (DumpSettingsBuilder.)
                           (.setIndent indent)
                           (.setSplitLines false)
                           (.build))
         representer (OpenRepresenter. dump-settings)]
     (doto (.getRepresenters representer)
-      (.put Keyword (reify RepresentToNode
-                      (representData [_ kw]
-                        (ScalarNode. Tag/STR (name kw) ScalarStyle/PLAIN)))))
+      (.put Keyword keyword-representer))
     (Dump. dump-settings representer)))
 
 (defn- make-ordered
