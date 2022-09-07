@@ -72,21 +72,35 @@ static void LogThreadSmall(void* arg)
 
 struct CustomLogContext
 {
-    int m_NumWritten;
+    int             m_NumWrittenHook; // full message with log domain, severity + newline
+    int             m_NumWrittenListener; // just the message part
     dmMutex::HMutex m_Mutex;
-};
+} g_CustomLogContext;
 
 static void CustomLogHook(void* user_data, const char* s)
 {
     CustomLogContext* ctx = (CustomLogContext*)user_data;
 
     bool result = dmMutex::TryLock(ctx->m_Mutex);
-    assert(result && "The lock was already taken!");
+    assert(result && "The lock was already taken for log hook");
     if (!result)
         return;
-    ctx->m_NumWritten += strlen(s);
+    ctx->m_NumWrittenHook += strlen(s);
     dmMutex::Unlock(ctx->m_Mutex);
 }
+
+static void CustomLogListener(LogSeverity severity, const char* domain, const char* formatted_string)
+{
+    CustomLogContext* ctx = &g_CustomLogContext;
+
+    bool result = dmMutex::TryLock(ctx->m_Mutex);
+    assert(result && "The lock was already taken for log listener");
+    if (!result)
+        return;
+    ctx->m_NumWrittenListener += strlen(formatted_string);
+    dmMutex::Unlock(ctx->m_Mutex);
+}
+
 
 
 #if !(defined(__EMSCRIPTEN__) || defined(__NX__))
@@ -134,10 +148,12 @@ TEST(dmLog, Stress)
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
-    CustomLogContext log_ctx;
-    log_ctx.m_NumWritten = 0;
+    CustomLogContext& log_ctx = g_CustomLogContext;
+    memset(&log_ctx, 0, sizeof(log_ctx));
     log_ctx.m_Mutex = dmMutex::New();
     dmLog::SetCustomLogCallback(CustomLogHook, &log_ctx);
+
+    dmLogRegisterListener(CustomLogListener);
 
     const int loop_count = 100;
     const int num_threads = 4;
@@ -157,15 +173,21 @@ TEST(dmLog, Stress)
         dmThread::Join(threads[i]);
     }
 
+    dmLogUnregisterListener(CustomLogListener);
+
     dmLog::SetCustomLogCallback(0, 0);
     dmMutex::Delete(log_ctx.m_Mutex);
 
-    dmLogWarning("Regular output reenabled. Custom hook printed %d characters", log_ctx.m_NumWritten);
+    dmLogInfo("Regular output reenabled.");
+    dmLogInfo("  Custom hook printed %d characters", log_ctx.m_NumWrittenHook);
+    dmLogInfo("  Custom log listener printed %d characters", log_ctx.m_NumWrittenListener);
 
     // Size of each message should be 13: 'INFO:DLIB: %d\n'
-    // 13 * num_threads * loop_count =
-    int expected_count = 13 * num_threads * loop_count;
-    ASSERT_EQ(expected_count, log_ctx.m_NumWritten);
+    int expected_count_hook = 13 * num_threads * loop_count;
+    ASSERT_EQ(expected_count_hook, log_ctx.m_NumWrittenHook);
+
+    int expected_count_listener = 13 * num_threads * loop_count;
+    ASSERT_EQ(expected_count_listener, log_ctx.m_NumWrittenListener);
 
     dmLog::LogFinalize();
 }

@@ -556,6 +556,8 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 
     va_end(lst);
 
+    DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogSpinLock);
+
     if (!g_isSendingLogs)
     {
         g_isSendingLogs = true;
@@ -570,8 +572,6 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     {
         return;
     }
-
-    DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogSpinLock);
 
     DM_PROFILE_TEXT("%s", str_buf);
 
