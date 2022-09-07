@@ -57,7 +57,6 @@ protected:
     {
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
-        dmLog::SetCustomLogCallback(0x0, 0x0);
         dmLogUnregisterListener(LogCallback);
         s_LogListenerContext = 0;
     }
