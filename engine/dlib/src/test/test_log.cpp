@@ -20,6 +20,7 @@
 #include "../dlib/dlib.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
+#include "../dlib/mutex.h"
 #include "../dlib/dstrings.h"
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
@@ -52,6 +53,41 @@ static void LogThread(void* arg)
     dmLogInfo("%s", s);
     delete[] s;
 }
+
+struct ThreadContext
+{
+    int m_ThreadID;
+    int m_LoopCount;
+};
+
+static void LogThreadSmall(void* arg)
+{
+    ThreadContext ctx = *(ThreadContext*)arg;
+    int threadid = ctx.m_ThreadID;
+    int n = ctx.m_LoopCount;
+    for (int i = 0; i < n; ++i) {
+        dmLogInfo("%d", threadid);
+    }
+}
+
+struct CustomLogContext
+{
+    int m_NumWritten;
+    dmMutex::HMutex m_Mutex;
+};
+
+static void CustomLogHook(void* user_data, const char* s)
+{
+    CustomLogContext* ctx = (CustomLogContext*)user_data;
+
+    bool result = dmMutex::TryLock(ctx->m_Mutex);
+    assert(result && "The lock was already taken!");
+    if (!result)
+        return;
+    ctx->m_NumWritten += strlen(s);
+    dmMutex::Unlock(ctx->m_Mutex);
+}
+
 
 #if !(defined(__EMSCRIPTEN__) || defined(__NX__))
 TEST(dmLog, Client)
@@ -92,6 +128,47 @@ TEST(dmLog, Client)
     dmLog::LogFinalize();
 }
 #endif
+
+TEST(dmLog, Stress)
+{
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
+    CustomLogContext log_ctx;
+    log_ctx.m_NumWritten = 0;
+    log_ctx.m_Mutex = dmMutex::New();
+    dmLog::SetCustomLogCallback(CustomLogHook, &log_ctx);
+
+    const int loop_count = 100;
+    const int num_threads = 4;
+    dmThread::Thread threads[num_threads] = {0};
+    ThreadContext thread_ctx[num_threads];
+
+    for (int i = 0; i < num_threads; ++i)
+    {
+        ThreadContext& ctx = thread_ctx[i];
+        ctx.m_ThreadID = i;
+        ctx.m_LoopCount = loop_count;
+        threads[i] = dmThread::New(LogThreadSmall, 0x80000, &ctx, "test");
+    }
+
+    for (int i = 0; i < num_threads; ++i)
+    {
+        dmThread::Join(threads[i]);
+    }
+
+    dmLog::SetCustomLogCallback(0, 0);
+    dmMutex::Delete(log_ctx.m_Mutex);
+
+    dmLogWarning("Regular output reenabled. Custom hook printed %d characters", log_ctx.m_NumWritten);
+
+    // Size of each message should be 13: 'INFO:DLIB: %d\n'
+    // 13 * num_threads * loop_count =
+    int expected_count = 13 * num_threads * loop_count;
+    ASSERT_EQ(expected_count, log_ctx.m_NumWritten);
+
+    dmLog::LogFinalize();
+}
 
 TEST(dmLog, LogFile)
 {

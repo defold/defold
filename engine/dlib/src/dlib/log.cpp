@@ -27,6 +27,7 @@
 #include "math.h"
 #include "time.h"
 #include "path.h"
+#include "spinlock.h"
 #include "sys.h"
 #include "network_constants.h"
 
@@ -77,6 +78,7 @@ static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
 static CustomLogCallback g_CustomLogCallback = 0;
 static void* g_CustomLogCallbackUserData = 0;
+static dmSpinlock::Spinlock g_LogSpinLock = {0};
 
 // create and bind the server socket, will reuse old port if supplied handle valid
 static void dmLogInitSocket( dmSocket::Socket& server_socket )
@@ -330,6 +332,8 @@ void LogInitialize(const LogParams* params)
     thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     g_dmLogServer->m_Thread = thread;
 
+    dmSpinlock::Init(&g_LogSpinLock);
+
     /*
      * This message is parsed by editor 2 - don't remove or change without
      * corresponding changes in engine.clj
@@ -567,6 +571,8 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
         return;
     }
 
+    DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogSpinLock);
+
     DM_PROFILE_TEXT("%s", str_buf);
 
     if (dmLog::g_CustomLogCallback != 0x0)
@@ -593,9 +599,6 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 #elif !defined(ANDROID)
     fwrite(str_buf, 1, actual_n, stderr);
 #endif
-
-    if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
-        return;
 
     if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
         fwrite(str_buf, 1, actual_n, dmLog::g_LogFile);
