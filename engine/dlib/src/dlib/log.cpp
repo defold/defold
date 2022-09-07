@@ -76,8 +76,6 @@ static dmLogServer* g_dmLogServer = 0;
 static LogSeverity g_LogLevel = LOG_SEVERITY_USER_DEBUG;
 static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
-static CustomLogCallback g_CustomLogCallback = 0;
-static void* g_CustomLogCallbackUserData = 0;
 static dmSpinlock::Spinlock g_LogSpinLock = {0};
 
 // create and bind the server socket, will reuse old port if supplied handle valid
@@ -445,12 +443,6 @@ bool SetLogFile(const char* path)
     return true;
 }
 
-void SetCustomLogCallback(CustomLogCallback callback, void* user_data)
-{
-    g_CustomLogCallback = callback;
-    g_CustomLogCallbackUserData = user_data;
-}
-
 } //namespace dmLog
 
 
@@ -574,12 +566,6 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     }
 
     DM_PROFILE_TEXT("%s", str_buf);
-
-    if (dmLog::g_CustomLogCallback != 0x0)
-    {
-        dmLog::g_CustomLogCallback(dmLog::g_CustomLogCallbackUserData, str_buf);
-        return;
-    }
 
 #ifdef ANDROID
     __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", str_buf);

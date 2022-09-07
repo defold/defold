@@ -41,9 +41,13 @@ extern "C"
 class ScriptTest : public jc_test_base_class
 {
 protected:
+
+    static ScriptTest* s_LogListenerContext;
+
     virtual void SetUp()
     {
-        dmLog::SetCustomLogCallback(LogCallback, this);
+        s_LogListenerContext = this;
+        dmLogRegisterListener(LogCallback);
         m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
@@ -54,6 +58,8 @@ protected:
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
         dmLog::SetCustomLogCallback(0x0, 0x0);
+        dmLogUnregisterListener(LogCallback);
+        s_LogListenerContext = 0;
     }
 
     const char* RemoveTableAddresses(char* str)
@@ -100,16 +106,17 @@ protected:
         m_Log.PushArray(log, len);
     }
 
-    static void LogCallback(void* user_data, const char* log)
+    static void LogCallback(LogSeverity severity, const char* domain, const char* formatted_string)
     {
-        ScriptTest* i = (ScriptTest*)user_data;
-        i->AppendToLog(log);
+        ScriptTest* i = (ScriptTest*)s_LogListenerContext;
+        i->AppendToLog(formatted_string);
     }
 
     dmScript::HContext m_Context;
     lua_State* L;
     dmArray<char> m_Log;
 };
+ScriptTest* ScriptTest::s_LogListenerContext = 0;
 
 bool RunFile(lua_State* L, const char* filename)
 {

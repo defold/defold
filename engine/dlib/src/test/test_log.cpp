@@ -72,22 +72,9 @@ static void LogThreadSmall(void* arg)
 
 struct CustomLogContext
 {
-    int             m_NumWrittenHook; // full message with log domain, severity + newline
-    int             m_NumWrittenListener; // just the message part
+    int             m_NumWritten; // full message with log domain, severity + newline
     dmMutex::HMutex m_Mutex;
 } g_CustomLogContext;
-
-static void CustomLogHook(void* user_data, const char* s)
-{
-    CustomLogContext* ctx = (CustomLogContext*)user_data;
-
-    bool result = dmMutex::TryLock(ctx->m_Mutex);
-    assert(result && "The lock was already taken for log hook");
-    if (!result)
-        return;
-    ctx->m_NumWrittenHook += strlen(s);
-    dmMutex::Unlock(ctx->m_Mutex);
-}
 
 static void CustomLogListener(LogSeverity severity, const char* domain, const char* formatted_string)
 {
@@ -97,7 +84,7 @@ static void CustomLogListener(LogSeverity severity, const char* domain, const ch
     assert(result && "The lock was already taken for log listener");
     if (!result)
         return;
-    ctx->m_NumWrittenListener += strlen(formatted_string);
+    ctx->m_NumWritten += strlen(formatted_string);
     dmMutex::Unlock(ctx->m_Mutex);
 }
 
@@ -151,7 +138,6 @@ TEST(dmLog, Stress)
     CustomLogContext& log_ctx = g_CustomLogContext;
     memset(&log_ctx, 0, sizeof(log_ctx));
     log_ctx.m_Mutex = dmMutex::New();
-    dmLog::SetCustomLogCallback(CustomLogHook, &log_ctx);
 
     dmLogRegisterListener(CustomLogListener);
 
@@ -174,20 +160,14 @@ TEST(dmLog, Stress)
     }
 
     dmLogUnregisterListener(CustomLogListener);
-
-    dmLog::SetCustomLogCallback(0, 0);
     dmMutex::Delete(log_ctx.m_Mutex);
 
     dmLogInfo("Regular output reenabled.");
-    dmLogInfo("  Custom hook printed %d characters", log_ctx.m_NumWrittenHook);
-    dmLogInfo("  Custom log listener printed %d characters", log_ctx.m_NumWrittenListener);
+    dmLogInfo("  Custom log listener printed %d characters", log_ctx.m_NumWritten);
 
     // Size of each message should be 13: 'INFO:DLIB: %d\n'
-    int expected_count_hook = 13 * num_threads * loop_count;
-    ASSERT_EQ(expected_count_hook, log_ctx.m_NumWrittenHook);
-
     int expected_count_listener = 13 * num_threads * loop_count;
-    ASSERT_EQ(expected_count_listener, log_ctx.m_NumWrittenListener);
+    ASSERT_EQ(expected_count_listener, log_ctx.m_NumWritten);
 
     dmLog::LogFinalize();
 }
@@ -221,25 +201,26 @@ TEST(dmLog, LogFile)
     dmSys::Unlink(path);
 }
 
-static void TestLogCaptureCallback(void* user_data, const char* log)
+dmArray<char> g_LogListenerOutput;
+
+static void TestLogCaptureCallback(LogSeverity severity, const char* domain, const char* formatted_string)
 {
-    dmArray<char>* log_output = (dmArray<char>*)user_data;
-    uint32_t len = (uint32_t)strlen(log);
+    dmArray<char>* log_output = &g_LogListenerOutput;
+    uint32_t len = (uint32_t)strlen(formatted_string);
     log_output->SetCapacity(log_output->Size() + len + 1);
-    log_output->PushArray(log, len);
+    log_output->PushArray(formatted_string, len);
 }
 
 TEST(dmLog, TestCapture)
 {
-    dmArray<char> log_output;
-    dmLog::SetCustomLogCallback(TestLogCaptureCallback, &log_output);
+    dmLogRegisterListener(TestLogCaptureCallback);
     dmLogDebug("This is a debug message");
     dmLogInfo("This is a info message");
     dmLogWarning("This is a warning message");
     dmLogError("This is a error message");
     dmLogFatal("This is a fata message");
 
-    log_output.Push(0);
+    g_LogListenerOutput.Push(0);
 
     const char* ExpectedOutput =
                 "INFO:DLIB: This is a info message\n"
@@ -247,9 +228,8 @@ TEST(dmLog, TestCapture)
                 "ERROR:DLIB: This is a error message\n"
                 "FATAL:DLIB: This is a fata message\n";
 
-    ASSERT_STREQ(ExpectedOutput,
-                log_output.Begin());
-    dmLog::SetCustomLogCallback(0x0, 0x0);
+    ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
+    dmLogUnregisterListener(TestLogCaptureCallback);
 }
 
 int main(int argc, char **argv)
