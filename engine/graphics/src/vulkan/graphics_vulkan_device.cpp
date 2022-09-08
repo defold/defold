@@ -1013,16 +1013,22 @@ bail:
         vk_color_blending.blendConstants[2] = 0.0f;
         vk_color_blending.blendConstants[3] = 0.0f;
 
-        VkStencilOpState vk_stencil_op_state;
-        memset(&vk_stencil_op_state, 0, sizeof(vk_stencil_op_state));
+        VkStencilOpState vk_stencil_op_state_front;
+        memset(&vk_stencil_op_state_front, 0, sizeof(vk_stencil_op_state_front));
 
-        vk_stencil_op_state.failOp      = g_vk_stencil_ops[pipelineState.m_StencilOpFail];
-        vk_stencil_op_state.depthFailOp = g_vk_stencil_ops[pipelineState.m_StencilOpDepthFail];
-        vk_stencil_op_state.passOp      = g_vk_stencil_ops[pipelineState.m_StencilOpPass];
-        vk_stencil_op_state.compareOp   = g_vk_compare_funcs[pipelineState.m_StencilTestFunc];
-        vk_stencil_op_state.compareMask = pipelineState.m_StencilCompareMask;
-        vk_stencil_op_state.writeMask   = pipelineState.m_StencilWriteMask;
-        vk_stencil_op_state.reference   = pipelineState.m_StencilReference;
+        vk_stencil_op_state_front.failOp      = g_vk_stencil_ops[pipelineState.m_StencilFrontOpFail];
+        vk_stencil_op_state_front.depthFailOp = g_vk_stencil_ops[pipelineState.m_StencilFrontOpDepthFail];
+        vk_stencil_op_state_front.passOp      = g_vk_stencil_ops[pipelineState.m_StencilFrontOpPass];
+        vk_stencil_op_state_front.compareOp   = g_vk_compare_funcs[pipelineState.m_StencilFrontTestFunc];
+        vk_stencil_op_state_front.compareMask = pipelineState.m_StencilCompareMask;
+        vk_stencil_op_state_front.writeMask   = pipelineState.m_StencilWriteMask;
+        vk_stencil_op_state_front.reference   = pipelineState.m_StencilReference;
+
+        VkStencilOpState vk_stencil_op_state_back = vk_stencil_op_state_front;
+        vk_stencil_op_state_back.failOp           = g_vk_stencil_ops[pipelineState.m_StencilBackOpFail];
+        vk_stencil_op_state_back.depthFailOp      = g_vk_stencil_ops[pipelineState.m_StencilBackOpDepthFail];
+        vk_stencil_op_state_back.passOp           = g_vk_stencil_ops[pipelineState.m_StencilBackOpPass];
+        vk_stencil_op_state_back.compareOp        = g_vk_compare_funcs[pipelineState.m_StencilBackTestFunc];
 
         VkPipelineDepthStencilStateCreateInfo vk_depth_stencil_create_info;
         memset(&vk_depth_stencil_create_info, 0, sizeof(vk_depth_stencil_create_info));
@@ -1035,8 +1041,8 @@ bail:
         vk_depth_stencil_create_info.minDepthBounds        = 0.0f;
         vk_depth_stencil_create_info.maxDepthBounds        = 1.0f;
         vk_depth_stencil_create_info.stencilTestEnable     = pipelineState.m_StencilEnabled ? VK_TRUE : VK_FALSE;
-        vk_depth_stencil_create_info.front                 = vk_stencil_op_state;
-        vk_depth_stencil_create_info.back                  = vk_stencil_op_state;
+        vk_depth_stencil_create_info.front                 = vk_stencil_op_state_front;
+        vk_depth_stencil_create_info.back                  = vk_stencil_op_state_back;
 
         const VkDynamicState vk_dynamic_state[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 

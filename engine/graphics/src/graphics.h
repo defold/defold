@@ -308,10 +308,19 @@ namespace dmGraphics
         uint64_t m_DepthTestFunc            : 3;
         // Stencil Test
         uint64_t m_StencilEnabled           : 1;
-        uint64_t m_StencilOpFail            : 3;
-        uint64_t m_StencilOpPass            : 3;
-        uint64_t m_StencilOpDepthFail       : 3;
-        uint64_t m_StencilTestFunc          : 3;
+
+        // Front
+        uint64_t m_StencilFrontOpFail       : 3;
+        uint64_t m_StencilFrontOpPass       : 3;
+        uint64_t m_StencilFrontOpDepthFail  : 3;
+        uint64_t m_StencilFrontTestFunc     : 3;
+
+        // Back
+        uint64_t m_StencilBackOpFail        : 3;
+        uint64_t m_StencilBackOpPass        : 3;
+        uint64_t m_StencilBackOpDepthFail   : 3;
+        uint64_t m_StencilBackTestFunc      : 3;
+
         uint64_t m_StencilWriteMask         : 8;
         uint64_t m_StencilCompareMask       : 8;
         uint64_t m_StencilReference         : 8;

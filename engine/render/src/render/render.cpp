@@ -358,6 +358,65 @@ namespace dmRender
         }
     }
 
+    static void RestoreRenderState(dmGraphics::HContext graphics_context, dmGraphics::PipelineState ps_orig, dmGraphics::PipelineState ps_now)
+    {
+        #define HAS_CHANGED(name) (ps_now.name != ps_orig.name)
+
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
+        {
+            dmGraphics::SetBlendFunc(graphics_context, (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor);
+        }
+
+        if (HAS_CHANGED(m_FaceWinding))
+        {
+            dmGraphics::SetFaceWinding(graphics_context, (dmGraphics::FaceWinding) ps_orig.m_FaceWinding);
+        }
+
+        if (HAS_CHANGED(m_StencilWriteMask))
+        {
+            dmGraphics::SetStencilMask(graphics_context, ps_orig.m_StencilWriteMask);
+        }
+
+        if (HAS_CHANGED(m_WriteColorMask))
+        {
+            dmGraphics::SetColorMask(graphics_context,
+                ps_orig.m_WriteColorMask & (1<<3),
+                ps_orig.m_WriteColorMask & (1<<2),
+                ps_orig.m_WriteColorMask & (1<<1),
+                ps_orig.m_WriteColorMask & (1<<0));
+        }
+
+        if (HAS_CHANGED(m_StencilFrontTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
+        {
+            dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT,
+                (dmGraphics::CompareFunc) ps_orig.m_StencilFrontTestFunc, ps_orig.m_StencilReference, ps_orig.m_StencilCompareMask);
+        }
+
+        if (HAS_CHANGED(m_StencilBackTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
+        {
+            dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK,
+                (dmGraphics::CompareFunc) ps_orig.m_StencilBackTestFunc, ps_orig.m_StencilReference, ps_orig.m_StencilCompareMask);
+        }
+
+        if (HAS_CHANGED(m_StencilFrontOpFail) || HAS_CHANGED(m_StencilFrontOpDepthFail) || HAS_CHANGED(m_StencilFrontOpPass))
+        {
+            dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT,
+                (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpFail,
+                (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpDepthFail,
+                (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpPass);
+        }
+
+        if (HAS_CHANGED(m_StencilBackOpFail) || HAS_CHANGED(m_StencilBackOpDepthFail) || HAS_CHANGED(m_StencilBackOpPass))
+        {
+            dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK,
+                (dmGraphics::StencilOp) ps_orig.m_StencilBackOpFail,
+                (dmGraphics::StencilOp) ps_orig.m_StencilBackOpDepthFail,
+                (dmGraphics::StencilOp) ps_orig.m_StencilBackOpPass);
+        }
+
+        #undef HAS_CHANGED
+    }
+
     // For unit testing only
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range)
     {
@@ -738,58 +797,20 @@ namespace dmRender
             if (constant_buffer) // from render script
                 ApplyNamedConstantBuffer(render_context, material, constant_buffer);
 
-            dmGraphics::PipelineState ps_now = dmGraphics::GetPipelineState(context);
-
-            dmGraphics::BlendFactor blend_src_want    = (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor;
-            dmGraphics::BlendFactor blend_dst_want    = (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor;
-            dmGraphics::FaceWinding face_winding_want = (dmGraphics::FaceWinding) ps_orig.m_FaceWinding;
-
-            if (ro->m_SetBlendFactors)
-            {
-                blend_src_want = ro->m_SourceBlendFactor;
-                blend_dst_want = ro->m_DestinationBlendFactor;
-            }
-
-            if (blend_src_want != ps_now.m_BlendSrcFactor || blend_dst_want != ps_now.m_BlendDstFactor)
-            {
-                dmGraphics::SetBlendFunc(context, blend_src_want, blend_dst_want);
-            }
-
-            if (ro->m_SetFaceWinding)
-            {
-                face_winding_want = ro->m_FaceWinding;
-            }
-
-            if (face_winding_want != ps_now.m_FaceWinding)
-            {
-                dmGraphics::SetFaceWinding(context, face_winding_want);
-            }
-
-            if (ro->m_SetStencilTest)
-            {
-                ApplyStencilTest(render_context, ro);
-            }
-
-            /*
             if (ro->m_SetBlendFactors)
             {
                 dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
-            }
-            else if (ps_orig.m_BlendSrcFactor != ps_now.m_BlendSrcFactor || ps_orig.m_BlendDstFactor != ps_now.m_BlendDstFactor)
-            {
-                dmGraphics::SetBlendFunc(context, ps_orig.m_BlendSrcFactor, ps_orig.m_BlendDstFactor);
-            }
-
-            if (ro->m_SetStencilTest)
-            {
-                ApplyStencilTest(render_context, ro);
             }
 
             if (ro->m_SetFaceWinding)
             {
                 dmGraphics::SetFaceWinding(context, ro->m_FaceWinding);
             }
-            */
+
+            if (ro->m_SetStencilTest)
+            {
+                ApplyStencilTest(render_context, ro);
+            }
 
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
@@ -801,7 +822,6 @@ namespace dmRender
                     dmGraphics::EnableTexture(context, i, texture);
                     ApplyMaterialSampler(render_context, material, i, texture);
                 }
-
             }
 
             dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
@@ -823,11 +843,7 @@ namespace dmRender
             }
         }
 
-        dmGraphics::PipelineState ps_now = dmGraphics::GetPipelineState(context);
-        if (ps_now.m_BlendSrcFactor != ps_orig.m_BlendSrcFactor || ps_now.m_BlendDstFactor != ps_orig.m_BlendDstFactor)
-        {
-            dmGraphics::SetBlendFunc(context, (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor);
-        }
+        RestoreRenderState(context, ps_orig, dmGraphics::GetPipelineState(context));
 
         return RESULT_OK;
     }

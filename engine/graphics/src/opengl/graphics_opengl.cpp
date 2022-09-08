@@ -3055,9 +3055,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glStencilFunc(GetOpenGLCompareFunc(func), ref, mask);
         CHECK_GL_ERROR
 
-        context->m_PipelineState.m_StencilTestFunc    = (uint8_t) func;
-        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void OpenGLSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
@@ -3066,8 +3067,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glStencilFuncSeparate(GetOpenGLFaceTypeFunc(face_type), GetOpenGLCompareFunc(func), ref, mask);
         CHECK_GL_ERROR
 
-        // TODO: separate
-        context->m_PipelineState.m_StencilTestFunc    = (uint8_t) func;
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        }
         context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
         context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
     }
@@ -3089,9 +3096,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glStencilOp(stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
         CHECK_GL_ERROR;
 
-        context->m_PipelineState.m_StencilOpFail      = sfail;
-        context->m_PipelineState.m_StencilOpDepthFail = dpfail;
-        context->m_PipelineState.m_StencilOpPass      = dppass;
+        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
     static void OpenGLSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
@@ -3110,6 +3120,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glStencilOpSeparate(GetOpenGLFaceTypeFunc(face_type), stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
         CHECK_GL_ERROR;
+
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;   
+        }
     }
 
     static void OpenGLSetCullFace(HContext context, FaceType face_type)

@@ -135,6 +135,7 @@ namespace dmGraphics
         context->m_MainFrameBuffer.m_StencilBufferSize = buffer_size;
         context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
         context->m_Program = 0x0;
+        context->m_PipelineState = GetDefaultPipelineState();
 
         if (params->m_PrintDeviceInfo)
         {
@@ -1196,6 +1197,8 @@ namespace dmGraphics
     static void NullSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
+        context->m_PipelineState.m_BlendSrcFactor = source_factor;
+        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
     static void NullSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
@@ -1205,18 +1208,27 @@ namespace dmGraphics
         context->m_GreenMask = green;
         context->m_BlueMask = blue;
         context->m_AlphaMask = alpha;
+
+        // Replace above
+        uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
+        context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
     static void NullSetDepthMask(HContext context, bool mask)
     {
         assert(context);
         context->m_DepthMask = mask;
+        context->m_PipelineState.m_WriteDepth = mask;
     }
 
     static void NullSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
         context->m_DepthFunc = func;
+        context->m_PipelineState.m_DepthTestFunc = func;
     }
 
     static void NullSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -1232,6 +1244,7 @@ namespace dmGraphics
     {
         assert(context);
         context->m_StencilMask = mask;
+        context->m_PipelineState.m_StencilWriteMask = mask;
     }
 
     static void NullSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
@@ -1240,6 +1253,10 @@ namespace dmGraphics
         context->m_StencilFunc = func;
         context->m_StencilFuncRef = ref;
         context->m_StencilFuncMask = mask;
+        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void NullSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
@@ -1248,6 +1265,12 @@ namespace dmGraphics
         context->m_StencilOpSFail = sfail;
         context->m_StencilOpDPFail = dpfail;
         context->m_StencilOpDPPass = dppass;
+        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
     static void NullSetCullFace(HContext context, FaceType face_type)
@@ -1258,6 +1281,11 @@ namespace dmGraphics
     static void NullSetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
+    }
+
+    static PipelineState NullGetPipelineState(HContext context)
+    {
+        return context->m_PipelineState;
     }
 
     // Not used?
@@ -1401,6 +1429,7 @@ namespace dmGraphics
         fn_table.m_GetTextureHandle = NullGetTextureHandle;
         fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
         fn_table.m_IsMultiTargetRenderingSupported = NullIsMultiTargetRenderingSupported;
+        fn_table.m_GetPipelineState = NullGetPipelineState;
         return fn_table;
     }
 }
