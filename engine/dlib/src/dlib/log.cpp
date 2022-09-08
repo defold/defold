@@ -81,7 +81,7 @@ static dmSpinlock::Spinlock g_ListenerLock; // Protects the array of listener fu
 
 static const int g_MaxListeners = 32;
 static FLogListener g_Listeners[g_MaxListeners];
-static int32_atomic_t g_ListenersCount = 0;
+static int32_atomic_t g_ListenersCount;
 
 // create and bind the server socket, will reuse old port if supplied handle valid
 static void dmLogInitSocket( dmSocket::Socket& server_socket )
