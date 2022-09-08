@@ -86,6 +86,9 @@ static void CustomLogListener(LogSeverity severity, const char* domain, const ch
         return;
     ctx->m_NumWritten += strlen(formatted_string);
     dmMutex::Unlock(ctx->m_Mutex);
+
+    // This is not supported, and should be sent to the void
+    dmLogInfo("Calling dmLog::LogInternal from the Log Listener");
 }
 
 
@@ -132,6 +135,8 @@ TEST(dmLog, Client)
 
 TEST(dmLog, Stress)
 {
+    dLib::SetDebugMode(false);
+
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
@@ -159,17 +164,30 @@ TEST(dmLog, Stress)
         dmThread::Join(threads[i]);
     }
 
+    // Size of each message should be 13: 'INFO:DLIB: %d\n'
+    int expected_count_listener = 13 * num_threads * loop_count;
+
+    // Wait for some time until there is no more received content.
+    int prev_count = 0;
+    while (prev_count < expected_count_listener)
+    {
+        {
+            DM_MUTEX_SCOPED_LOCK(log_ctx.m_Mutex);
+            prev_count = log_ctx.m_NumWritten;
+        }
+        dmTime::Sleep(10000);
+    }
+
     dmLogUnregisterListener(CustomLogListener);
     dmMutex::Delete(log_ctx.m_Mutex);
 
     dmLogInfo("Regular output reenabled.");
     dmLogInfo("  Custom log listener printed %d characters", log_ctx.m_NumWritten);
 
-    // Size of each message should be 13: 'INFO:DLIB: %d\n'
-    int expected_count_listener = 13 * num_threads * loop_count;
     ASSERT_EQ(expected_count_listener, log_ctx.m_NumWritten);
 
     dmLog::LogFinalize();
+    dLib::SetDebugMode(true);
 }
 
 TEST(dmLog, LogFile)
@@ -205,6 +223,9 @@ dmArray<char> g_LogListenerOutput;
 
 static void TestLogCaptureCallback(LogSeverity severity, const char* domain, const char* formatted_string)
 {
+    if (strstr(formatted_string, "Log server started on port") != 0)
+        return;
+
     dmArray<char>* log_output = &g_LogListenerOutput;
     uint32_t len = (uint32_t)strlen(formatted_string);
     log_output->SetCapacity(log_output->Size() + len + 1);
@@ -213,23 +234,27 @@ static void TestLogCaptureCallback(LogSeverity severity, const char* domain, con
 
 TEST(dmLog, TestCapture)
 {
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
     dmLogRegisterListener(TestLogCaptureCallback);
     dmLogDebug("This is a debug message");
     dmLogInfo("This is a info message");
     dmLogWarning("This is a warning message");
     dmLogError("This is a error message");
-    dmLogFatal("This is a fata message");
+    dmLogFatal("This is a fatal message");
 
-    g_LogListenerOutput.Push(0);
+    dmTime::Sleep(100000);
+
+    dmLogUnregisterListener(TestLogCaptureCallback);
+    dmLog::LogFinalize();
 
     const char* ExpectedOutput =
                 "INFO:DLIB: This is a info message\n"
                 "WARNING:DLIB: This is a warning message\n"
                 "ERROR:DLIB: This is a error message\n"
-                "FATAL:DLIB: This is a fata message\n";
+                "FATAL:DLIB: This is a fatal message\n";
 
     ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
-    dmLogUnregisterListener(TestLogCaptureCallback);
 }
 
 int main(int argc, char **argv)

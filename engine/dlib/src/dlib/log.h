@@ -45,7 +45,9 @@ struct LogMessage
         SHUTDOWN = 1,
     };
 
-    uint8_t m_Type;
+    uint8_t m_Type:2;
+    uint8_t m_Severity:6;
+    char    m_Domain[15];
     char    m_Message[0];
 };
 

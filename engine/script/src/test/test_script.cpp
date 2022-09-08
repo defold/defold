@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
+#include <dlib/time.h>
 
 #include <string.h>
 
@@ -47,6 +48,8 @@ protected:
     virtual void SetUp()
     {
         s_LogListenerContext = this;
+        dmLog::LogParams params;
+        dmLog::LogInitialize(&params);
         dmLogRegisterListener(LogCallback);
         m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
@@ -59,6 +62,7 @@ protected:
         dmScript::DeleteContext(m_Context);
         dmLogUnregisterListener(LogCallback);
         s_LogListenerContext = 0;
+        dmLog::LogFinalize();
     }
 
     const char* RemoveTableAddresses(char* str)
@@ -94,12 +98,15 @@ protected:
 
     char* GetLog()
     {
+        m_Log.SetCapacity(m_Log.Size() + 1);
         m_Log.Push('\0');
         return m_Log.Begin();
     }
 
     void AppendToLog(const char* log)
     {
+        if (strstr(log, "Log server started on port") != 0)
+            return;
         uint32_t len = strlen(log);
         m_Log.SetCapacity(m_Log.Size() + len + 1);
         m_Log.PushArray(log, len);
@@ -147,6 +154,7 @@ TEST_F(ScriptTest, TestPrint)
     ASSERT_TRUE(RunString(L, "print(\"test print\")"));
     ASSERT_TRUE(RunString(L, "print(\"test\", \"multiple\")"));
 
+    dmTime::Sleep(100000);
     char* log = GetLog();
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -159,6 +167,7 @@ TEST_F(ScriptTest, TestPPrint)
     ASSERT_TRUE(RunFile(L, "test_script.luac"));
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmTime::Sleep(100000);
     const char* result = RemoveTableAddresses(GetLog());
     ASSERT_EQ(result, strstr(result, "DEBUG:SCRIPT: testing pprint\n"));
     ASSERT_NE((const char*)0, strstr(result, "{ --[[0]]"));
@@ -179,6 +188,7 @@ TEST_F(ScriptTest, TestCircularRefPPrint)
     ASSERT_TRUE(RunFile(L, "test_circular_ref_pprint.luac"));
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmTime::Sleep(100000);
     const char* result = RemoveTableAddresses(GetLog());
     ASSERT_EQ(result, strstr(result, "DEBUG:SCRIPT: testing pprint with circular ref\n"));
     ASSERT_NE((const char*)0, strstr(result, "DEBUG:SCRIPT: \n"));
@@ -205,6 +215,7 @@ TEST_F(ScriptTest, TestLuaCallstack)
     ASSERT_EQ(5, ret);
     ASSERT_EQ(top, lua_gettop(L));
 
+    dmTime::Sleep(100000);
     const char* log = GetLog();
     printf("LOG: %s\n", log ? log : "");
 }
@@ -214,6 +225,7 @@ TEST_F(ScriptTest, TestPPrintTruncate)
     int top = lua_gettop(L);
     ASSERT_TRUE(RunFile(L, "test_pprint_truncate.luac"));
     ASSERT_EQ(top, lua_gettop(L));
+    dmTime::Sleep(100000);
     const char* log = GetLog();
     const char* truncate_message_addr = strstr(log, "...\n[Output truncated]\n");
     ASSERT_NE((const char*)0x0, truncate_message_addr);
