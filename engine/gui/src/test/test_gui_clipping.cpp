@@ -774,7 +774,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_ClipperStraight) {
  *   - b (layer1)
  * - c
  *
- * Expected order: a, b, c
+ * Expected order: a, c, b
  */
 TEST_F(dmGuiClippingTest, TestRenderOrder_OneLayer) {
     dmGui::HNode a = AddClipperBox("a");
@@ -787,10 +787,10 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_OneLayer) {
 
     Render();
 
-    AssertRenderOrder(a, b, c);
+    AssertRenderOrder(a, c, b);
 
     AssertClipperOrder(a, a);
-    AssertClipperOrder(a, b);
+    AssertClipperOrder(a, c);
 }
 
 /**
@@ -812,7 +812,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_OneClipperLayer) {
 
     Render();
 
-    AssertRenderOrder(a, b, c);
+    AssertRenderOrder(c, a, b);
 }
 
 /**
@@ -835,10 +835,9 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayers) {
 
     Render();
 
-    AssertRenderOrder(b, a, c);
+    AssertRenderOrder(c, b, a);
 
     AssertClipperOrder(a, a);
-    AssertClipperOrder(a, b);
 }
 
 /**
@@ -864,7 +863,6 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersAfter) {
     AssertRenderOrder(c, b, a);
 
     AssertClipperOrder(a, a);
-    AssertClipperOrder(a, b);
 }
 
 /**
@@ -887,10 +885,8 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersInvClipper) {
 
     Render();
 
-    AssertRenderOrder(b, a, c);
-
+    AssertRenderOrder(c, b, a);
     AssertClipperOrder(a, a);
-    AssertClipperOrder(a, b);
 }
 
 /**
@@ -915,13 +911,12 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersSub) {
 
     Render();
 
-    AssertRenderOrder(z, b, a, c);
+    AssertRenderOrder(z, c, b, a);
 
     AssertClipperOrder(z, a);
     AssertClipperOrder(z, b);
     AssertClipperOrder(z, c);
     AssertClipperOrder(a, a);
-    AssertClipperOrder(a, b);
 }
 
 /**
@@ -952,13 +947,11 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_Complex) {
 
     Render();
 
-    AssertRenderOrder(c, b, d, a, e);
+    AssertRenderOrder(e, d, a, c, b);
 
     // Verify clipping order (color-less stencil rendering)
-    AssertClipperOrder(a, e);
-    AssertClipperOrder(a, d);
-    AssertClipperOrder(b, d);
-    AssertClipperOrder(b, c);
+    AssertClipperOrder(a, c);
+    AssertClipperOrder(a, b);
 }
 
 /**
@@ -982,7 +975,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_Complex2) {
 
     Render();
 
-    AssertRenderOrder(b, c, a);
+    AssertRenderOrder(b, a, c);
 }
 
 /* OVERFLOW TESTS */
@@ -1156,6 +1149,7 @@ TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
+    dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
