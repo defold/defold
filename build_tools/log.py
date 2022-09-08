@@ -24,6 +24,6 @@ def log(msg):
             except:
                 pass
     else:
-        print(msg.encode('utf-8').decode('utf-8', errors='replace'))
+        print(msg.encode('utf-8').decode('ascii', 'replace'))
     sys.stdout.flush()
     sys.stderr.flush()
