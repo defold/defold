@@ -199,7 +199,7 @@
     load-txs))
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies resource-metrics transaction-metrics]
-  (let [tx-result (g/transact transaction-metrics
+  (let [tx-result (g/transact (du/when-metrics {:metrics transaction-metrics})
                     (load-resource-nodes project node-ids render-progress! resource-node-dependencies resource-metrics))]
     (render-progress! progress/done)
     tx-result))
@@ -483,6 +483,7 @@
     (let [process-metrics (du/make-metrics-collector)
           resource-metrics (du/make-metrics-collector)
           transaction-metrics (du/make-metrics-collector)
+          transact-opts (du/when-metrics {:metrics transaction-metrics})
 
           collected-properties-by-resource
           (du/measuring process-metrics :collect-overridden-properties
@@ -522,7 +523,7 @@
       ;; corresponding override-nodes for the incoming connections will be created in the
       ;; overrides.
       (du/measuring process-metrics :transfer-overrides
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (du/if-metrics
             ;; Doing metrics - Submit separate transaction steps for each resource.
             (for [[resource old-node-id] (:transfer-overrides plan)]
@@ -538,7 +539,7 @@
       ;; must delete old versions of resource nodes before loading to avoid
       ;; load functions finding these when doing lookups of dependencies...
       (du/measuring process-metrics :delete-old-nodes
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (for [node (:delete plan)]
             (g/delete-node node))))
 
@@ -549,7 +550,7 @@
         (g/update-cache-from-evaluation-context! rn-dependencies-evaluation-context))
 
       (du/measuring process-metrics :transfer-outgoing-arcs
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
             (let [source-node (resource->node source-resource)
                   existing-arcs (set (gu/explicit-outputs source-node))]
@@ -563,13 +564,13 @@
                   (g/connect source-node source-label target-node target-label)))))))
 
       (du/measuring process-metrics :redirect
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (for [[resource-node new-resource] (:redirect plan)]
             (g/set-property resource-node :resource new-resource))))
 
       (du/measuring process-metrics :mark-deleted
         (let [basis (g/now)]
-          (g/transact transaction-metrics
+          (g/transact transact-opts
             (for [node-id (:mark-deleted plan)]
               (let [flaw (resource-io/file-not-found-error node-id nil :fatal (resource-node/resource basis node-id))]
                 (g/mark-defective node-id flaw))))))
@@ -599,7 +600,7 @@
                 (du/measuring resource-metrics (resource/proj-path resource) :restore-overridden-properties
                   (let [restore-properties-tx-data (g/restore-overridden-properties new-node-id collected-properties evaluation-context)]
                     (when (seq restore-properties-tx-data)
-                      (g/transact transaction-metrics restore-properties-tx-data)))))))
+                      (g/transact transact-opts restore-properties-tx-data)))))))
           (let [restore-properties-tx-data
                 (g/with-auto-evaluation-context evaluation-context
                   (into []
@@ -608,7 +609,7 @@
                                     (g/restore-overridden-properties new-node-id collected-properties evaluation-context))))
                         collected-properties-by-resource))]
             (when (seq restore-properties-tx-data)
-              (g/transact transaction-metrics
+              (g/transact transact-opts
                 restore-properties-tx-data)))))
 
       (du/measuring process-metrics :update-selection
@@ -617,7 +618,7 @@
                                     [(old-nodes-by-path p) n]))
                              resource-path->new-node)
               dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))]
-          (g/transact transaction-metrics
+          (g/transact transact-opts
             (concat
               (let [all-selections (-> (g/node-value project :all-selections)
                                        (dissoc-deleted)

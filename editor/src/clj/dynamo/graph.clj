@@ -153,15 +153,18 @@
   "
   ([txs]
    (transact nil txs))
-  ([metrics-collector txs]
+  ([opts txs]
    (when *tps-debug*
      (send-off tps-counter tick (System/nanoTime)))
    (let [system (deref *the-system*)
          basis (is/basis system)
          id-generators (is/id-generators system)
          override-id-generator (is/override-id-generator system)
-         tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator metrics-collector) txs)]
-     (when (= :ok (:status tx-result))
+         metrics-collector (:metrics opts)
+         transaction-context (it/new-transaction-context basis id-generators override-id-generator metrics-collector)
+         tx-result (it/transact* transaction-context txs)]
+     (when (and (not (:dry-run opts))
+                (= :ok (:status tx-result)))
        (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
      tx-result)))
 
