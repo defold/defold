@@ -22,6 +22,7 @@
 #include <dlib/log.h>
 #include <dlib/configfile.h>
 #include <dlib/time.h>
+#include <dlib/spinlock.h>
 
 #include <string.h>
 
@@ -54,6 +55,7 @@ protected:
         m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
+        dmSpinlock::Init(&m_ListenerLock);
     }
 
     virtual void TearDown()
@@ -98,6 +100,29 @@ protected:
 
     char* GetLog()
     {
+        // Wait for some time until there is no more received content.
+        int prev_count = -1;
+        int new_count = 0;
+        int idle_count = 3;
+        while (new_count == 0 || idle_count == 0)
+        {
+            {
+                DM_SPINLOCK_SCOPED_LOCK(m_ListenerLock);
+                new_count = (int)m_Log.Size();
+            }
+            int new_content = prev_count != new_count;
+            prev_count = new_count;
+
+            if (!new_content)
+                idle_count--;
+            else
+                idle_count = 3;
+
+            if (idle_count <= 0)
+                break;
+            dmTime::Sleep(20000);
+        }
+
         m_Log.SetCapacity(m_Log.Size() + 1);
         m_Log.Push('\0');
         return m_Log.Begin();
@@ -105,6 +130,7 @@ protected:
 
     void AppendToLog(const char* log)
     {
+        DM_SPINLOCK_SCOPED_LOCK(m_ListenerLock);
         if (strstr(log, "Log server started on port") != 0)
             return;
         uint32_t len = strlen(log);
@@ -121,6 +147,7 @@ protected:
     dmScript::HContext m_Context;
     lua_State* L;
     dmArray<char> m_Log;
+    dmSpinlock::Spinlock m_ListenerLock;
 };
 ScriptTest* ScriptTest::s_LogListenerContext = 0;
 
@@ -154,7 +181,6 @@ TEST_F(ScriptTest, TestPrint)
     ASSERT_TRUE(RunString(L, "print(\"test print\")"));
     ASSERT_TRUE(RunString(L, "print(\"test\", \"multiple\")"));
 
-    dmTime::Sleep(100000);
     char* log = GetLog();
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -167,7 +193,6 @@ TEST_F(ScriptTest, TestPPrint)
     ASSERT_TRUE(RunFile(L, "test_script.luac"));
     ASSERT_EQ(top, lua_gettop(L));
 
-    dmTime::Sleep(100000);
     const char* result = RemoveTableAddresses(GetLog());
     ASSERT_EQ(result, strstr(result, "DEBUG:SCRIPT: testing pprint\n"));
     ASSERT_NE((const char*)0, strstr(result, "{ --[[0]]"));
@@ -188,7 +213,6 @@ TEST_F(ScriptTest, TestCircularRefPPrint)
     ASSERT_TRUE(RunFile(L, "test_circular_ref_pprint.luac"));
     ASSERT_EQ(top, lua_gettop(L));
 
-    dmTime::Sleep(100000);
     const char* result = RemoveTableAddresses(GetLog());
     ASSERT_EQ(result, strstr(result, "DEBUG:SCRIPT: testing pprint with circular ref\n"));
     ASSERT_NE((const char*)0, strstr(result, "DEBUG:SCRIPT: \n"));
@@ -215,7 +239,6 @@ TEST_F(ScriptTest, TestLuaCallstack)
     ASSERT_EQ(5, ret);
     ASSERT_EQ(top, lua_gettop(L));
 
-    dmTime::Sleep(100000);
     const char* log = GetLog();
     printf("LOG: %s\n", log ? log : "");
 }
@@ -225,7 +248,6 @@ TEST_F(ScriptTest, TestPPrintTruncate)
     int top = lua_gettop(L);
     ASSERT_TRUE(RunFile(L, "test_pprint_truncate.luac"));
     ASSERT_EQ(top, lua_gettop(L));
-    dmTime::Sleep(100000);
     const char* log = GetLog();
     const char* truncate_message_addr = strstr(log, "...\n[Output truncated]\n");
     ASSERT_NE((const char*)0x0, truncate_message_addr);
