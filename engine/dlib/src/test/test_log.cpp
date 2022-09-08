@@ -24,7 +24,6 @@
 #include "../dlib/dstrings.h"
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
-#include "../dlib/time.h"
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
 #define JC_TEST_IMPLEMENTATION
@@ -164,29 +163,17 @@ TEST(dmLog, Stress)
         dmThread::Join(threads[i]);
     }
 
-    // Size of each message should be 13: 'INFO:DLIB: %d\n'
-    int expected_count_listener = 13 * num_threads * loop_count;
-
-    // Wait for some time until there is no more received content.
-    int prev_count = 0;
-    while (prev_count < expected_count_listener)
-    {
-        {
-            DM_MUTEX_SCOPED_LOCK(log_ctx.m_Mutex);
-            prev_count = log_ctx.m_NumWritten;
-        }
-        dmTime::Sleep(10000);
-    }
-
-    dmLogUnregisterListener(CustomLogListener);
-    dmMutex::Delete(log_ctx.m_Mutex);
+    // wait for thread to join, thus making sure we get all the pending log messages
+    dmLog::LogFinalize();
 
     dmLogInfo("Regular output reenabled.");
     dmLogInfo("  Custom log listener printed %d characters", log_ctx.m_NumWritten);
 
+    // Size of each message should be 13: 'INFO:DLIB: %d\n'
+    int expected_count_listener = 13 * num_threads * loop_count;
     ASSERT_EQ(expected_count_listener, log_ctx.m_NumWritten);
 
-    dmLog::LogFinalize();
+    dmMutex::Delete(log_ctx.m_Mutex);
     dLib::SetDebugMode(true);
 }
 
@@ -243,9 +230,7 @@ TEST(dmLog, TestCapture)
     dmLogError("This is a error message");
     dmLogFatal("This is a fatal message");
 
-    dmTime::Sleep(100000);
-
-    dmLogUnregisterListener(TestLogCaptureCallback);
+    // wait for thread to join, thus making sure we get all the pending log messages
     dmLog::LogFinalize();
 
     const char* ExpectedOutput =
