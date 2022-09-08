@@ -15,7 +15,6 @@
 #include <dlib/math.h>
 
 #include "graphics_vulkan_defines.h"
-#include "../graphics.h"
 #include "graphics_vulkan_private.h"
 
 namespace dmGraphics
@@ -983,10 +982,10 @@ bail:
 
         uint8_t state_write_mask    = pipelineState.m_WriteColorMask;
         uint8_t vk_color_write_mask = 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
         for (int i = 0; i < render_target->m_ColorAttachmentCount; ++i)
         {

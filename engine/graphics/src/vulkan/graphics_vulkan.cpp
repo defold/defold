@@ -20,7 +20,6 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#include "../graphics.h"
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
@@ -610,28 +609,7 @@ namespace dmGraphics
             context->m_MainDescriptorAllocators.Begin(), context->m_MainScratchBuffers.Begin());
         CHECK_VK_ERROR(res);
 
-        // Create default pipeline state
-        PipelineState vk_default_pipeline;
-        vk_default_pipeline.m_WriteColorMask           = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
-        vk_default_pipeline.m_WriteDepth               = 1;
-        vk_default_pipeline.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
-        vk_default_pipeline.m_DepthTestEnabled         = 1;
-        vk_default_pipeline.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
-        vk_default_pipeline.m_BlendEnabled             = 0;
-        vk_default_pipeline.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_StencilEnabled           = 0;
-        vk_default_pipeline.m_StencilOpFail            = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpDepthFail       = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpPass            = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilTestFunc          = COMPARE_FUNC_ALWAYS;
-        vk_default_pipeline.m_StencilWriteMask         = 0xff;
-        vk_default_pipeline.m_StencilCompareMask       = 0xff;
-        vk_default_pipeline.m_StencilReference         = 0x0;
-        vk_default_pipeline.m_CullFaceEnabled          = 0;
-        vk_default_pipeline.m_CullFaceType             = FACE_TYPE_BACK;
-        vk_default_pipeline.m_PolygonOffsetFillEnabled = 0;
-        context->m_PipelineState = vk_default_pipeline;
+        context->m_PipelineState = GetDefaultPipelineState();
 
         // Create default texture sampler
         CreateVulkanTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
@@ -2661,10 +2639,10 @@ bail:
     static void VulkanSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
-        uint8_t write_mask = red   ? DMGRAPHICS_STATE_WRITE_R : 0;
-        write_mask        |= green ? DMGRAPHICS_STATE_WRITE_G : 0;
-        write_mask        |= blue  ? DMGRAPHICS_STATE_WRITE_B : 0;
-        write_mask        |= alpha ? DMGRAPHICS_STATE_WRITE_A : 0;
+        uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
 
         context->m_PipelineState.m_WriteColorMask = write_mask;
     }

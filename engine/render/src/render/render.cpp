@@ -704,6 +704,8 @@ namespace dmRender
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
         }
 
+        dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
+
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
@@ -736,14 +738,58 @@ namespace dmRender
             if (constant_buffer) // from render script
                 ApplyNamedConstantBuffer(render_context, material, constant_buffer);
 
-            if (ro->m_SetBlendFactors)
-                dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
+            dmGraphics::PipelineState ps_now = dmGraphics::GetPipelineState(context);
 
-            if (ro->m_SetStencilTest)
-                ApplyStencilTest(render_context, ro);
+            dmGraphics::BlendFactor blend_src_want    = (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor;
+            dmGraphics::BlendFactor blend_dst_want    = (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor;
+            dmGraphics::FaceWinding face_winding_want = (dmGraphics::FaceWinding) ps_orig.m_FaceWinding;
+
+            if (ro->m_SetBlendFactors)
+            {
+                blend_src_want = ro->m_SourceBlendFactor;
+                blend_dst_want = ro->m_DestinationBlendFactor;
+            }
+
+            if (blend_src_want != ps_now.m_BlendSrcFactor || blend_dst_want != ps_now.m_BlendDstFactor)
+            {
+                dmGraphics::SetBlendFunc(context, blend_src_want, blend_dst_want);
+            }
 
             if (ro->m_SetFaceWinding)
+            {
+                face_winding_want = ro->m_FaceWinding;
+            }
+
+            if (face_winding_want != ps_now.m_FaceWinding)
+            {
+                dmGraphics::SetFaceWinding(context, face_winding_want);
+            }
+
+            if (ro->m_SetStencilTest)
+            {
+                ApplyStencilTest(render_context, ro);
+            }
+
+            /*
+            if (ro->m_SetBlendFactors)
+            {
+                dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
+            }
+            else if (ps_orig.m_BlendSrcFactor != ps_now.m_BlendSrcFactor || ps_orig.m_BlendDstFactor != ps_now.m_BlendDstFactor)
+            {
+                dmGraphics::SetBlendFunc(context, ps_orig.m_BlendSrcFactor, ps_orig.m_BlendDstFactor);
+            }
+
+            if (ro->m_SetStencilTest)
+            {
+                ApplyStencilTest(render_context, ro);
+            }
+
+            if (ro->m_SetFaceWinding)
+            {
                 dmGraphics::SetFaceWinding(context, ro->m_FaceWinding);
+            }
+            */
 
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
@@ -776,6 +822,13 @@ namespace dmRender
                     dmGraphics::DisableTexture(context, i, texture);
             }
         }
+
+        dmGraphics::PipelineState ps_now = dmGraphics::GetPipelineState(context);
+        if (ps_now.m_BlendSrcFactor != ps_orig.m_BlendSrcFactor || ps_now.m_BlendDstFactor != ps_orig.m_BlendDstFactor)
+        {
+            dmGraphics::SetBlendFunc(context, (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor);
+        }
+
         return RESULT_OK;
     }
 

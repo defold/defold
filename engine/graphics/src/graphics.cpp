@@ -306,6 +306,31 @@ namespace dmGraphics
         }
     }
 
+    PipelineState GetDefaultPipelineState()
+    {
+        PipelineState ps;
+        ps.m_WriteColorMask           = DM_GRAPHICS_STATE_WRITE_R | DM_GRAPHICS_STATE_WRITE_G | DM_GRAPHICS_STATE_WRITE_B | DM_GRAPHICS_STATE_WRITE_A;
+        ps.m_WriteDepth               = 1;
+        ps.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
+        ps.m_DepthTestEnabled         = 1;
+        ps.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
+        ps.m_BlendEnabled             = 0;
+        ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
+        ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
+        ps.m_StencilEnabled           = 0;
+        ps.m_StencilOpFail            = STENCIL_OP_KEEP;
+        ps.m_StencilOpDepthFail       = STENCIL_OP_KEEP;
+        ps.m_StencilOpPass            = STENCIL_OP_KEEP;
+        ps.m_StencilTestFunc          = COMPARE_FUNC_ALWAYS;
+        ps.m_StencilWriteMask         = 0xff;
+        ps.m_StencilCompareMask       = 0xff;
+        ps.m_StencilReference         = 0x0;
+        ps.m_CullFaceEnabled          = 0;
+        ps.m_CullFaceType             = FACE_TYPE_BACK;
+        ps.m_PolygonOffsetFillEnabled = 0;
+        return ps;
+    }
+
     // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
     // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
     dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height)
@@ -823,6 +848,10 @@ namespace dmGraphics
     bool IsMultiTargetRenderingSupported(HContext context)
     {
         return g_functions.m_IsMultiTargetRenderingSupported(context);
+    }
+    PipelineState GetPipelineState(HContext context)
+    {
+        return g_functions.m_GetPipelineState(context);
     }
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
