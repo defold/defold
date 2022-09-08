@@ -228,17 +228,6 @@ namespace dmGui
         uint8_t     m_Padding : 4;
     };
 
-    struct Scope {
-        int dummy;
-        /*
-        Scope(int layer, int index) : m_Index(1), m_RootLayer(layer), m_RootIndex(index) {}
-
-        // uint16_t m_Index;
-        uint16_t m_RootLayer;
-        uint16_t m_RootIndex;
-        */
-    };
-
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
 

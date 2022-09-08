@@ -63,11 +63,12 @@ namespace dmGui
 
     const uint16_t INVALID_INDEX = 0xffff;
 
-    const uint64_t INVALID_RENDER_KEY = 0xffffffff;
+    const uint64_t INVALID_RENDER_KEY = 0xffffffffffffffff;
 
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
-    const uint64_t LAYER_RANGE = 8; // 256 layers
+    // Currently not used, here for reference only
+    // const uint64_t LAYER_RANGE = 8; // 256 layers
     const uint64_t INDEX_RANGE = 24; // 16777216 nodes
     const uint64_t INDEX_SHIFT = 0;
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
