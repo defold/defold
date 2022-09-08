@@ -247,7 +247,7 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
     }
 
     {
-        DM_SPINLOCK_SCOPED_LOCK(g_ListenerLock); // Make sure no listeners are added or removed during tCountscope
+        DM_SPINLOCK_SCOPED_LOCK(g_ListenerLock); // Make sure no listeners are added or removed during the scope
 
         for (int i = dmLog::g_ListenersCount - 1; i >= 0 ; --i)
         {
@@ -477,8 +477,7 @@ bool SetLogFile(const char* path)
 void dmLogRegisterListener(FLogListener listener)
 {
     DM_SPINLOCK_SCOPED_LOCK(dmLog::g_ListenerLock);
-    int n = dmLog::g_ListenersCount;
-    if (n >= dmLog::g_MaxListeners) {
+    if (dmLog::g_ListenersCount >= dmLog::g_MaxListeners) {
         dmLogWarning("Max dmLog listeners reached (%d)", dmLog::g_MaxListeners);
     } else {
         dmLog::g_Listeners[dmLog::g_ListenersCount++] = listener;
@@ -515,7 +514,7 @@ namespace dmLog {
 
 void LogInternal(LogSeverity severity, const char* domain, const char* format, ...)
 {
-    if (!dmLog::g_dmLogServer)
+    if (!dmLog::g_dmLogServer) // if unit tests forgot to create the log system
     {
         return;
     }
@@ -530,11 +529,6 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     if (!is_debug_mode && (dmAtomicGet32(&dmLog::g_ListenersCount) == 0))
     {
         return;
-    }
-
-    if (dmThread::GetCurrentThread() == dmLog::g_dmLogServer->m_Thread)
-    {
-        return; // We're not allowed make new dmLogXxx calls from the dispatch thread
     }
 
     va_list lst;
@@ -604,6 +598,13 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 #endif
 
     } // debug
+
+    if (dmThread::GetCurrentThread() == dmLog::g_dmLogServer->m_Thread)
+    {
+        // Due to the recursive nature, we're not allowed make new dmLogXxx calls from the dispatch thread
+        // However, we may call the print functions
+        return;
+    }
 
     dmLog::dmLogServer* self = dmLog::g_dmLogServer;
     if (self)
