@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
+#include <dlib/time.h>
 
 #include <string.h>
 
@@ -41,19 +42,37 @@ extern "C"
 class ScriptTest : public jc_test_base_class
 {
 protected:
+
+    static ScriptTest* s_LogListenerContext;
+
     virtual void SetUp()
     {
-        dmLog::SetCustomLogCallback(LogCallback, this);
+        s_LogListenerContext = this;
+        dmLog::LogParams params;
+        dmLog::LogInitialize(&params);
+        dmLogRegisterListener(LogCallback);
         m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
+    }
+
+    void FinalizeLogs()
+    {
+        if (s_LogListenerContext != 0)
+        {
+            dmLog::LogFinalize();
+            s_LogListenerContext = 0;
+        }
     }
 
     virtual void TearDown()
     {
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
-        dmLog::SetCustomLogCallback(0x0, 0x0);
+
+        if (s_LogListenerContext)
+            dmLogUnregisterListener(LogCallback);
+        FinalizeLogs();
     }
 
     const char* RemoveTableAddresses(char* str)
@@ -89,27 +108,33 @@ protected:
 
     char* GetLog()
     {
+        FinalizeLogs(); // Waits for the log thread to close
+
+        m_Log.SetCapacity(m_Log.Size() + 1);
         m_Log.Push('\0');
         return m_Log.Begin();
     }
 
     void AppendToLog(const char* log)
     {
+        if (strstr(log, "Log server started on port") != 0)
+            return;
         uint32_t len = strlen(log);
         m_Log.SetCapacity(m_Log.Size() + len + 1);
         m_Log.PushArray(log, len);
     }
 
-    static void LogCallback(void* user_data, const char* log)
+    static void LogCallback(LogSeverity severity, const char* domain, const char* formatted_string)
     {
-        ScriptTest* i = (ScriptTest*)user_data;
-        i->AppendToLog(log);
+        ScriptTest* i = (ScriptTest*)s_LogListenerContext;
+        i->AppendToLog(formatted_string);
     }
 
     dmScript::HContext m_Context;
     lua_State* L;
     dmArray<char> m_Log;
 };
+ScriptTest* ScriptTest::s_LogListenerContext = 0;
 
 bool RunFile(lua_State* L, const char* filename)
 {
