@@ -360,6 +360,7 @@ void LogInitialize(const LogParams* params)
     g_dmLogServer->m_Thread = thread;
 
     dmAtomicStore32(&g_ListenersCount, 0);
+    dmSpinlock::Init(&g_ListenerLock);
 
     /*
      * This message is parsed by editor 2 - don't remove or change without
