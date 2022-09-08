@@ -121,4 +121,14 @@ inline int32_t dmAtomicCompareStore32(int32_atomic_t *ptr, int32_t value, int32_
 #endif
 }
 
+/**
+ * Retrieves the current value by adding 0
+ * @param ptr Pointer to a int32_atomic_t to store into.
+ * @return Previous value.
+ */
+inline int32_t dmAtomicGet32(int32_atomic_t *ptr)
+{
+    return dmAtomicAdd32(ptr, 0);
+}
+
 #endif //DM_ATOMIC_H

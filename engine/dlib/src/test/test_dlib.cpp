@@ -572,11 +572,6 @@ TEST_F(dlib, HashReverseEnable)
     dmHashEnableReverseHash(true);
 }
 
-TEST_F(dlib, Log)
-{
-    dmLogWarning("Test warning message. Should have domain DLIB");
-}
-
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
