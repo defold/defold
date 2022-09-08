@@ -1033,6 +1033,10 @@ If you do not specifically require different script states, consider changing th
     (workspace/clear-build-cache! workspace)
     (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
 
+(defn- pipe-log-stream-to-console! [input-stream]
+  (reset-console-stream! input-stream)
+  (reset-remote-log-pump-thread! (start-log-pump! input-stream (make-remote-log-sink input-stream))))
+
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
     (let [main-scene (.getScene ^Stage main-stage)
@@ -1043,7 +1047,7 @@ If you do not specifically require different script states, consider changing th
           task-cancelled? (make-task-cancelled-query :build)
           bob-args (bob/build-html5-bob-args project prefs)]
       (build-errors-view/clear-build-errors build-errors-view)
-      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! task-cancelled?
+      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! pipe-log-stream-to-console! task-cancelled?
                              render-build-error! bob/build-html5-bob-commands bob-args project changes-view
                              (fn [successful?]
                                (when successful?
@@ -2012,7 +2016,7 @@ If you do not specifically require different script states, consider changing th
     (when-not (.exists output-directory)
       (fs/create-directories! output-directory))
     (build-errors-view/clear-build-errors build-errors-view)
-    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! task-cancelled?
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! pipe-log-stream-to-console! task-cancelled?
                            render-build-error! bob/bundle-bob-commands bob-args project changes-view
                            (fn [successful?]
                              (when successful?

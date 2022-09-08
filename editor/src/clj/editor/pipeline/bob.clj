@@ -17,6 +17,7 @@
     [clojure.java.io :as io]
     [clojure.string :as string]
     [dynamo.graph :as g]
+    [editor.code.util :as util]
     [editor.defold-project :as project]
     [editor.engine.build-errors :as engine-build-errors]
     [editor.engine.native-extensions :as native-extensions]
@@ -28,12 +29,21 @@
     [editor.prefs :as prefs]
     [editor.workspace :as workspace])
   (:import
-    [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
+    [com.dynamo.bob Bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
+    [java.io File InputStream PrintStream PrintWriter PipedInputStream PipedOutputStream]
+    [java.net URI]
+    [java.nio.charset StandardCharsets]
     [org.apache.commons.io FilenameUtils]
-    [java.io File InputStream]
-    [java.net URI]))
+    [org.apache.commons.io.output WriterOutputStream]))
+
+(try
+  (doto (.getDeclaredField Bob "verbose")
+    (.setAccessible true)
+    (.setBoolean nil true))
+  (catch Exception e
+    (throw (Exception. "Couldn't make Bob verbose" e))))
 
 (set! *warn-on-reflection* true)
 
@@ -152,41 +162,64 @@
 (defn build-in-progress? []
   @build-in-progress-atom)
 
-(defn bob-build! [project evaluation-context bob-commands bob-args render-progress! task-cancelled?]
-  (assert (vector? bob-commands))
-  (assert (every? string? bob-commands))
-  (assert (map? bob-args))
-  (assert (every? (fn [[key val]] (and (string? key) (string? val))) bob-args))
-  (assert (ifn? render-progress!))
-  (assert (ifn? task-cancelled?))
+(defn- PrintStream-on ^PrintStream [fn]
+  (-> fn
+      (PrintWriter-on nil)
+      (WriterOutputStream. StandardCharsets/UTF_8 1024 true)
+      (PrintStream. true StandardCharsets/UTF_8)))
+
+(defn bob-build! [project evaluation-context bob-commands bob-args render-progress! show-build-log-stream! task-cancelled?]
+  {:pre [(vector? bob-commands)
+         (every? string? bob-commands)
+         (map? bob-args)
+         (every? (fn [[key val]] (and (string? key) (string? val))) bob-args)
+         (ifn? render-progress!)
+         (ifn? show-build-log-stream!)
+         (ifn? task-cancelled?)]}
   (reset! build-in-progress-atom true)
-  (try
-    (if (and (some #(= "build" %) bob-commands)
-             (native-extensions/has-extensions? project evaluation-context)
-             (not (native-extensions/supported-platform? (get bob-args "platform"))))
-      {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
-      (let [ws (project/workspace project evaluation-context)
-            proj-path (str (workspace/project-path ws evaluation-context))
-            bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
-        (doseq [[key val] bob-args]
-          (.setOption bob-project key val))
-        (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
-        (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
-          (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
-            (.scan bob-project scanner pkg)))
-        (let [deps (workspace/dependencies ws)]
-          (when (seq deps)
-            (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
+  (let [prev-out System/out
+        prev-err System/err]
+    (with-open [log-stream (PipedInputStream.)
+                log-stream-writer (PrintWriter. (PipedOutputStream. log-stream) true StandardCharsets/UTF_8)
+                build-out (PrintStream-on
+                            #(doseq [line (util/split-lines %)]
+                               (when (string/starts-with? line "Bob: ")
+                                 (.println log-stream-writer (subs line 5)))))
+                build-err (PrintStream-on
+                            #(doseq [line (util/split-lines %)]
+                               (.println log-stream-writer line)))]
+      (try
+        (show-build-log-stream! log-stream)
+        (System/setOut build-out)
+        (System/setErr build-err)
+        (if (and (some #(= "build" %) bob-commands)
+                 (native-extensions/has-extensions? project evaluation-context)
+                 (not (native-extensions/supported-platform? (get bob-args "platform"))))
+          {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
+          (let [ws (project/workspace project evaluation-context)
+                proj-path (str (workspace/project-path ws evaluation-context))
+                bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
+            (doseq [[key val] bob-args]
+              (.setOption bob-project key val))
+            (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
+            (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
+              (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
+                (.scan bob-project scanner pkg)))
+            (let [deps (workspace/dependencies ws)]
+              (when (seq deps)
+                (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
+                (ui/with-progress [render-progress! render-progress!]
+                  (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
+            (.mount bob-project (->graph-resource-scanner ws))
+            (.findSources bob-project proj-path skip-dirs)
             (ui/with-progress [render-progress! render-progress!]
-              (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
-        (.mount bob-project (->graph-resource-scanner ws))
-        (.findSources bob-project proj-path skip-dirs)
-        (ui/with-progress [render-progress! render-progress!]
-          (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
-    (catch Throwable error
-      {:exception error})
-    (finally
-      (reset! build-in-progress-atom false))))
+              (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
+        (catch Throwable error
+          {:exception error})
+        (finally
+          (reset! build-in-progress-atom false)
+          (System/setOut prev-out)
+          (System/setErr prev-err))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling
