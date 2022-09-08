@@ -799,7 +799,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_OneLayer) {
  *   - b
  * - c
  *
- * Expected order: a, b, c
+ * Expected order: c, a, b
  */
 TEST_F(dmGuiClippingTest, TestRenderOrder_OneClipperLayer) {
     dmGui::HNode a = AddClipperBox("a");
@@ -821,7 +821,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_OneClipperLayer) {
  *   - b (layer1)
  * - c
  *
- * Expected order: b, a, c
+ * Expected order: c, b, a
  */
 TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayers) {
     dmGui::HNode a = AddClipperBox("a");
@@ -871,7 +871,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersAfter) {
  *   - b (layer1)
  * - c
  *
- * Expected order: b, a, c
+ * Expected order: c, b, a
  */
 TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersInvClipper) {
     dmGui::HNode a = AddInvClipperBox("a");
@@ -896,7 +896,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersInvClipper) {
  *     - b (layer1)
  *   - c
  *
- * Expected order: z, b, a, c
+ * Expected order: z, c, b, a
  */
 TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersSub) {
     dmGui::HNode z = AddClipperBox("z");
@@ -960,7 +960,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_Complex) {
  *   - b (clipper, layer1)
  *     - c (layer2)
  *
- * Expected order: b, c, a
+ * Expected order: b, a, c
  */
 TEST_F(dmGuiClippingTest, TestRenderOrder_Complex2) {
     dmGui::HNode a = AddBox("a");
@@ -1149,7 +1149,6 @@ TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
-    dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
