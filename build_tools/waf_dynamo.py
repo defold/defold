@@ -3,10 +3,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -307,7 +307,7 @@ def default_flags(self):
         opt_level = "d" # how to disable optimizations in windows
 
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
-    if Options.options.with_asan and opt_level != '0':
+    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
         opt_level = 1
 
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
@@ -580,10 +580,14 @@ def asan_cxxflags(self):
         self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
-    if Options.options.with_ubsan and build_util.get_target_os() in ('osx','ios','android'):
+    elif Options.options.with_ubsan and build_util.get_target_os() in ('osx','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined'])
         self.env.append_value('CCFLAGS', ['-fsanitize=undefined'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
+    elif Options.options.with_tsan and build_util.get_target_os() in ('osx','ios','android'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=thread'])
+        self.env.append_value('CFLAGS', ['-fsanitize=thread'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
 
 @taskgen
 @feature('cprogram', 'cxxprogram')
@@ -1707,6 +1711,7 @@ def set_options(opt):
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
+    opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
     opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
