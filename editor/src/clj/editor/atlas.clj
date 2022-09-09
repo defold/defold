@@ -789,8 +789,12 @@
   (active? [selection] (selection->atlas selection))
   (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
 
-(defn- add-images-handler [app-view workspace project parent] ; parent = new parent of images
-  (when-some [image-resources (seq (resource-dialog/make workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
+(defn- add-images-handler [app-view workspace project parent accept-fn] ; parent = new parent of images
+  (when-some [image-resources (seq (resource-dialog/make workspace project
+                                                         {:ext image/exts
+                                                          :title "Select Images"
+                                                          :selection :multiple
+                                                          :accept-fn accept-fn}))]
     (let [op-seq (gensym)
           image-msgs (map #(assoc default-image-msg :image %) image-resources)
           image-nodes (g/tx-nodes-added
@@ -817,10 +821,14 @@
 (handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
   (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
-  (run [app-view project selection] (when-some [parent-node (or (selection->atlas selection)
-                                                                (selection->animation selection))]
-                                      (let [workspace (project/workspace project)]
-                                        (add-images-handler app-view workspace project parent-node)))))
+  (run [app-view project selection]
+    (let [atlas (selection->atlas selection)]
+      (when-some [parent-node (or atlas (selection->animation selection))]
+        (let [workspace (project/workspace project)
+              accept-fn (if atlas
+                          (complement (set (g/node-value atlas :image-resources)))
+                          (constantly true))]
+          (add-images-handler app-view workspace project parent-node accept-fn))))))
 
 (defn- vec-move
   [v x offset]
