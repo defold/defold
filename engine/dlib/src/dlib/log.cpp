@@ -342,7 +342,6 @@ void LogInitialize(const LogParams* params)
 
     dmMessage::HSocket message_socket = 0;
     dmMessage::Result mr;
-    dmThread::Thread thread = 0;
 
     mr = dmMessage::NewSocket("@log", &message_socket);
     if (mr != dmMessage::RESULT_OK)
@@ -356,8 +355,12 @@ void LogInitialize(const LogParams* params)
     }
 
     g_dmLogServer = new dmLogServer(server_socket, port, message_socket);
-    thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
-    g_dmLogServer->m_Thread = thread;
+
+    g_dmLogServer->m_Thread = 0;
+    if(dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP)) // e.g. Emscripten
+    {
+        g_dmLogServer->m_Thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
+    }
 
     dmAtomicStore32(&g_ListenersCount, 0);
     dmSpinlock::Init(&g_ListenerLock);
@@ -393,7 +396,9 @@ void LogFinalize()
     receiver.m_Path = 0;
     receiver.m_Fragment = 0;
     dmMessage::Post(0, &receiver, 0, 0, 0, &msg, sizeof(msg), 0);
-    dmThread::Join(self->m_Thread);
+
+    if (self->m_Thread)
+        dmThread::Join(self->m_Thread);
 
     uint32_t n = self->m_Connections.Size();
     for (uint32_t i = 0; i < n; ++i)
@@ -599,6 +604,9 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 #endif
 
     } // debug
+
+    if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP)) // e.g. Emscripten
+        return;
 
     if (dmThread::GetCurrentThread() == dmLog::g_dmLogServer->m_Thread)
     {
