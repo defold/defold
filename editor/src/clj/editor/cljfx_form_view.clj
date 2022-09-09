@@ -240,23 +240,26 @@
 
 ;; region boolean input
 
-(defmethod form-input-view :boolean [{:keys [value on-value-changed]}]
+(defn- ensure-value [value field]
+  (if (nil? value) (form/field-default field) value))
+
+(defmethod form-input-view :boolean [{:keys [value on-value-changed] :as field}]
   {:fx/type fx.check-box/lifecycle
    :style-class ["check-box" "cljfx-form-check-box"]
-   :selected value
+   :selected (ensure-value value field)
    :on-selected-changed on-value-changed})
 
 ;; endregion
 
 ;; region integer input
 
-(defmethod form-input-view :integer [{:keys [value on-value-changed]}]
+(defmethod form-input-view :integer [{:keys [value on-value-changed] :as field}]
   {:fx/type text-field
    :alignment :center-right
    :max-width 80
    :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter int-converter
-                    :value (int value)
+                    :value (int (ensure-value value field))
                     :on-value-changed on-value-changed}})
 
 (defmethod cell-input-view :integer [field]
@@ -266,13 +269,13 @@
 
 ;; region number input
 
-(defmethod form-input-view :number [{:keys [value on-value-changed]}]
+(defmethod form-input-view :number [{:keys [value on-value-changed] :as field}]
   {:fx/type text-field
    :alignment :center-right
    :max-width 80
    :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter number-converter
-                    :value value
+                    :value (ensure-value value field)
                     :on-value-changed on-value-changed}})
 
 (defmethod cell-input-view :number [field]
@@ -304,8 +307,9 @@
 (defmethod handle-event :on-vec4-element-change [{:keys [value index on-value-changed fx/event]}]
   {:dispatch (assoc on-value-changed :fx/event (assoc value index event))})
 
-(defmethod form-input-view :vec4 [{:keys [value on-value-changed]}]
-  (let [labels ["X" "Y" "Z" "W"]]
+(defmethod form-input-view :vec4 [{:keys [value on-value-changed] :as field}]
+  (let [labels ["X" "Y" "Z" "W"]
+        value (ensure-value value field)]
     {:fx/type fx.h-box/lifecycle
      :padding {:left 5}
      :spacing 5
