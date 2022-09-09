@@ -21,6 +21,7 @@
 namespace dmGraphics
 {
     PipelineState GetDefaultPipelineState();
+    void SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     uint64_t GetDrawCount();
     void SetForceFragmentReloadFail(bool should_fail);
     void SetForceVertexReloadFail(bool should_fail);

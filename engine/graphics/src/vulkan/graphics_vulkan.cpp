@@ -2589,44 +2589,16 @@ bail:
         context->m_ViewportChanged = 1;
     }
 
-    static inline void SetStateValue(PipelineState& pipeline_state, State state, uint8_t value)
-    {
-        if (state == STATE_DEPTH_TEST)
-        {
-            pipeline_state.m_DepthTestEnabled = value;
-        }
-        else if (state == STATE_STENCIL_TEST)
-        {
-            pipeline_state.m_StencilEnabled = value;
-        }
-        else if (state == STATE_BLEND)
-        {
-            pipeline_state.m_BlendEnabled = value;
-        }
-        else if (state == STATE_CULL_FACE)
-        {
-            pipeline_state.m_CullFaceEnabled = value;
-        }
-        else if (state == STATE_POLYGON_OFFSET_FILL)
-        {
-            pipeline_state.m_PolygonOffsetFillEnabled = value;
-        }
-        else
-        {
-            assert(0 && "EnableState: State not supported");
-        }
-    }
-
     static void VulkanEnableState(HContext context, State state)
     {
         assert(context);
-        SetStateValue(context->m_PipelineState, state, 1);
+        SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void VulkanDisableState(HContext context, State state)
     {
         assert(context);
-        SetStateValue(context->m_PipelineState, state, 0);
+        SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void VulkanSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)

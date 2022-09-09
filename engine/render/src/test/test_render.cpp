@@ -321,6 +321,98 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     ASSERT_EQ(ctx.m_Z, orders[1]);
 }
 
+struct TestDrawStateDispatchCtx
+{
+    dmRender::HRenderContext m_Context;
+    dmRender::HMaterial      m_Material;
+    dmRender::RenderObject   m_RenderObjects[2];
+};
+
+static void TestDrawStateDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
+        TestDrawStateDispatchCtx* user_ctx = (TestDrawStateDispatchCtx*) params.m_UserData;
+        dmRender::RenderObject* ro         = &user_ctx->m_RenderObjects[0];
+
+        ro->Init();
+        ro->m_Material = user_ctx->m_Material;
+
+        // Override blending factors
+        ro->m_SetBlendFactors           = true;
+        ro->m_SourceBlendFactor         = dmGraphics::BLEND_FACTOR_ONE;
+        ro->m_DestinationBlendFactor    = dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+
+        // Override face winding
+        ro->m_SetFaceWinding = true;
+        ro->m_FaceWinding    = dmGraphics::FACE_WINDING_CW;
+
+        ro->m_SetStencilTest                   = true;
+        ro->m_StencilTestParams.m_Front.m_Func = dmGraphics::COMPARE_FUNC_EQUAL;
+        ro->m_StencilTestParams.m_Ref          = 0x16; // expected: 0xff after render
+        ro->m_StencilTestParams.m_RefMask      = 0x22; // expected: 0x0f after render
+
+        AddToRender(user_ctx->m_Context, ro);
+    }
+}
+
+static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
+{
+    dmGraphics::ShaderDesc::Shader ddf;
+    memset(&ddf,0,sizeof(ddf));
+    ddf.m_Source.m_Data  = (uint8_t*)data;
+    ddf.m_Source.m_Count = count;
+    return ddf;
+}
+
+TEST_F(dmRenderTest, TestRenderListDrawState)
+{
+    dmRender::RenderListBegin(m_Context);
+
+    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, vp, fp);
+    dmhash_t tag = dmHashString64("tag");
+    dmRender::SetMaterialTags(material, 1, &tag);
+
+    TestDrawStateDispatchCtx user_ctx;
+    user_ctx.m_Context = m_Context;
+    user_ctx.m_Material = material;
+
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestDrawStateDispatch, 0, &user_ctx);
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, 1);
+
+    dmRender::RenderListEntry & entry = out[0];
+    entry.m_WorldPosition             = Point3(0,0,0);
+    entry.m_MajorOrder                = 0;
+    entry.m_MinorOrder                = 0;
+    entry.m_TagListKey                = 0;
+    entry.m_Order                     = 1;
+    entry.m_BatchKey                  = 0;
+    entry.m_Dispatch                  = dispatch;
+    entry.m_UserData                  = 0;
+
+    dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_BLEND);
+    dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_STENCIL_TEST);
+
+    dmGraphics::SetBlendFunc(m_GraphicsContext, dmGraphics::BLEND_FACTOR_ZERO, dmGraphics::BLEND_FACTOR_ZERO);
+    dmGraphics::SetStencilFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_NEVER, 0xff, 0xf);
+    dmGraphics::SetFaceWinding(m_GraphicsContext, dmGraphics::FACE_WINDING_CCW);
+
+    dmGraphics::PipelineState ps_before = dmGraphics::GetPipelineState(m_GraphicsContext);
+
+    dmRender::RenderListSubmit(m_Context, out, out + 1);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+
+    dmGraphics::PipelineState ps_after = dmGraphics::GetPipelineState(m_GraphicsContext);
+
+    ASSERT_EQ(0, memcmp(&ps_before, &ps_after, sizeof(dmGraphics::PipelineState)));
+}
+
 
 static void TestDrawVisibilityDispatch(dmRender::RenderListDispatchParams const & params)
 {

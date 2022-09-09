@@ -2924,6 +2924,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     #endif
         glEnable(GetOpenGLState(state));
         CHECK_GL_ERROR
+
+        SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void OpenGLDisableState(HContext context, State state)
@@ -2938,6 +2940,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     #endif
         glDisable(GetOpenGLState(state));
         CHECK_GL_ERROR
+
+        SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void OpenGLSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)

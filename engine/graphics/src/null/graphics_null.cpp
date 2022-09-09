@@ -1187,11 +1187,13 @@ namespace dmGraphics
     static void NullEnableState(HContext context, State state)
     {
         assert(context);
+        SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void NullDisableState(HContext context, State state)
     {
         assert(context);
+        SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void NullSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
@@ -1286,6 +1288,11 @@ namespace dmGraphics
             context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
             context->m_PipelineState.m_StencilFrontOpPass      = dppass;
         }
+    }
+
+    static void NullSetFaceWinding(HContext context, FaceWinding face_winding)
+    {
+        context->m_PipelineState.m_FaceWinding = face_winding;
     }
 
     static void NullSetCullFace(HContext context, FaceType face_type)
@@ -1447,6 +1454,7 @@ namespace dmGraphics
         fn_table.m_GetPipelineState = NullGetPipelineState;
         fn_table.m_SetStencilFuncSeparate = NullSetStencilFuncSeparate;
         fn_table.m_SetStencilOpSeparate = NullSetStencilOpSeparate;
+        fn_table.m_SetFaceWinding = NullSetFaceWinding;
 
         return fn_table;
     }

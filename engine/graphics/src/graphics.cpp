@@ -335,6 +335,29 @@ namespace dmGraphics
         return ps;
     }
 
+    void SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value)
+    {
+        switch (state)
+        {
+            case STATE_DEPTH_TEST:
+                pipeline_state.m_DepthTestEnabled = value;
+                break;
+            case STATE_STENCIL_TEST:
+                pipeline_state.m_StencilEnabled = value;
+                break;
+            case STATE_BLEND:
+                pipeline_state.m_BlendEnabled = value;
+                break;
+            case STATE_CULL_FACE:
+                pipeline_state.m_CullFaceEnabled = value;
+                break;
+            case STATE_POLYGON_OFFSET_FILL:
+                pipeline_state.m_PolygonOffsetFillEnabled = value;
+                break;
+            default: assert(0 && "EnableState: State not supported");
+        }
+    }
+
     // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
     // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
     dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height)
