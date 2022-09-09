@@ -1203,12 +1203,6 @@ namespace dmGraphics
 
     static void NullSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
-        assert(context);
-        context->m_RedMask = red;
-        context->m_GreenMask = green;
-        context->m_BlueMask = blue;
-        context->m_AlphaMask = alpha;
-
         // Replace above
         uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
         write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
@@ -1220,14 +1214,12 @@ namespace dmGraphics
     static void NullSetDepthMask(HContext context, bool mask)
     {
         assert(context);
-        context->m_DepthMask = mask;
         context->m_PipelineState.m_WriteDepth = mask;
     }
 
     static void NullSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
-        context->m_DepthFunc = func;
         context->m_PipelineState.m_DepthTestFunc = func;
     }
 
@@ -1243,16 +1235,12 @@ namespace dmGraphics
     static void NullSetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
-        context->m_StencilMask = mask;
         context->m_PipelineState.m_StencilWriteMask = mask;
     }
 
     static void NullSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
-        context->m_StencilFunc = func;
-        context->m_StencilFuncRef = ref;
-        context->m_StencilFuncMask = mask;
         context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
         context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
         context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
@@ -1262,9 +1250,6 @@ namespace dmGraphics
     static void NullSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
-        context->m_StencilOpSFail = sfail;
-        context->m_StencilOpDPFail = dpfail;
-        context->m_StencilOpDPPass = dppass;
         context->m_PipelineState.m_StencilFrontOpFail      = sfail;
         context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
         context->m_PipelineState.m_StencilFrontOpPass      = dppass;
