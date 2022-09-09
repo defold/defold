@@ -323,9 +323,11 @@ TEST_F(dmRenderTest, TestRenderListDraw)
 
 struct TestDrawStateDispatchCtx
 {
-    dmRender::HRenderContext m_Context;
-    dmRender::HMaterial      m_Material;
-    dmRender::RenderObject   m_RenderObjects[2];
+    dmRender::HRenderContext       m_Context;
+    dmRender::HMaterial            m_Material;
+    dmRender::RenderObject         m_RenderObjects[2];
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
 };
 
 static void TestDrawStateDispatch(dmRender::RenderListDispatchParams const & params)
@@ -333,26 +335,56 @@ static void TestDrawStateDispatch(dmRender::RenderListDispatchParams const & par
     if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
     {
         TestDrawStateDispatchCtx* user_ctx = (TestDrawStateDispatchCtx*) params.m_UserData;
-        dmRender::RenderObject* ro         = &user_ctx->m_RenderObjects[0];
+        dmRender::RenderObject* ro_0       = &user_ctx->m_RenderObjects[0];
 
-        ro->Init();
-        ro->m_Material = user_ctx->m_Material;
+        ro_0->Init();
+        ro_0->m_Material = user_ctx->m_Material;
+        ro_0->m_VertexCount = 1;
+        ro_0->m_VertexDeclaration = user_ctx->m_VertexDeclaration;
+        ro_0->m_VertexBuffer      = user_ctx->m_VertexBuffer;
 
         // Override blending factors
-        ro->m_SetBlendFactors           = true;
-        ro->m_SourceBlendFactor         = dmGraphics::BLEND_FACTOR_ONE;
-        ro->m_DestinationBlendFactor    = dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+        ro_0->m_SetBlendFactors        = true;
+        ro_0->m_SourceBlendFactor      = dmGraphics::BLEND_FACTOR_ONE;
+        ro_0->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
 
         // Override face winding
-        ro->m_SetFaceWinding = true;
-        ro->m_FaceWinding    = dmGraphics::FACE_WINDING_CW;
+        ro_0->m_SetFaceWinding = true;
+        ro_0->m_FaceWinding    = dmGraphics::FACE_WINDING_CW;
 
-        ro->m_SetStencilTest                   = true;
-        ro->m_StencilTestParams.m_Front.m_Func = dmGraphics::COMPARE_FUNC_EQUAL;
-        ro->m_StencilTestParams.m_Ref          = 0x16; // expected: 0xff after render
-        ro->m_StencilTestParams.m_RefMask      = 0x22; // expected: 0x0f after render
+        ro_0->m_SetStencilTest                      = true;
+        ro_0->m_StencilTestParams.m_Front.m_Func    = dmGraphics::COMPARE_FUNC_EQUAL;
+        ro_0->m_StencilTestParams.m_Ref             = 16; // expected: 0xff after render
+        ro_0->m_StencilTestParams.m_RefMask         = 22; // expected: 0x0f after render
+        ro_0->m_StencilTestParams.m_ColorBufferMask = dmGraphics::DM_GRAPHICS_STATE_WRITE_R | dmGraphics::DM_GRAPHICS_STATE_WRITE_A;
+        ro_0->m_StencilTestParams.m_BufferMask      = 1;
 
-        AddToRender(user_ctx->m_Context, ro);
+        dmRender::RenderObject* ro_1 = &user_ctx->m_RenderObjects[1];
+        ro_1->Init();
+        ro_1->m_Material          = user_ctx->m_Material;
+        ro_1->m_VertexCount       = 1;
+        ro_1->m_VertexDeclaration = user_ctx->m_VertexDeclaration;
+        ro_1->m_VertexBuffer      = user_ctx->m_VertexBuffer;
+
+        ro_1->m_SetStencilTest                         = true;
+        ro_1->m_StencilTestParams.m_SeparateFaceStates = 1;
+
+        // Set some non-specific state values
+        ro_1->m_StencilTestParams.m_Front.m_Func     = dmGraphics::COMPARE_FUNC_NOTEQUAL;
+        ro_1->m_StencilTestParams.m_Front.m_OpSFail  = dmGraphics::STENCIL_OP_INCR_WRAP;
+        ro_1->m_StencilTestParams.m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_DECR;
+        ro_1->m_StencilTestParams.m_Front.m_OpDPPass = dmGraphics::STENCIL_OP_DECR_WRAP;
+
+        ro_1->m_StencilTestParams.m_Back.m_Func     = dmGraphics::COMPARE_FUNC_GEQUAL;
+        ro_1->m_StencilTestParams.m_Back.m_OpSFail  = dmGraphics::STENCIL_OP_REPLACE;
+        ro_1->m_StencilTestParams.m_Back.m_OpDPFail = dmGraphics::STENCIL_OP_INVERT;
+        ro_1->m_StencilTestParams.m_Back.m_OpDPPass = dmGraphics::STENCIL_OP_INCR_WRAP;
+
+        ro_1->m_StencilTestParams.m_Ref     = 127; // expected: 0xff after render
+        ro_1->m_StencilTestParams.m_RefMask = 11; // expected: 0x0f after render
+
+        AddToRender(user_ctx->m_Context, ro_0);
+        AddToRender(user_ctx->m_Context, ro_1);
     }
 }
 
@@ -377,9 +409,14 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
 
+    dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    dmGraphics::HVertexBuffer vx_buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
     TestDrawStateDispatchCtx user_ctx;
-    user_ctx.m_Context = m_Context;
-    user_ctx.m_Material = material;
+    user_ctx.m_Context           = m_Context;
+    user_ctx.m_Material          = material;
+    user_ctx.m_VertexDeclaration = vx_decl;
+    user_ctx.m_VertexBuffer      = vx_buffer;
 
     uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestDrawStateDispatch, 0, &user_ctx);
 
@@ -401,6 +438,10 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmGraphics::SetBlendFunc(m_GraphicsContext, dmGraphics::BLEND_FACTOR_ZERO, dmGraphics::BLEND_FACTOR_ZERO);
     dmGraphics::SetStencilFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_NEVER, 0xff, 0xf);
     dmGraphics::SetFaceWinding(m_GraphicsContext, dmGraphics::FACE_WINDING_CCW);
+    dmGraphics::SetStencilOp(m_GraphicsContext, dmGraphics::STENCIL_OP_ZERO, dmGraphics::STENCIL_OP_ZERO, dmGraphics::STENCIL_OP_ZERO);
+
+    dmGraphics::SetColorMask(m_GraphicsContext, 0, 0, 0, 0);
+    dmGraphics::SetStencilMask(m_GraphicsContext, 0);
 
     dmGraphics::PipelineState ps_before = dmGraphics::GetPipelineState(m_GraphicsContext);
 
@@ -411,6 +452,13 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmGraphics::PipelineState ps_after = dmGraphics::GetPipelineState(m_GraphicsContext);
 
     ASSERT_EQ(0, memcmp(&ps_before, &ps_after, sizeof(dmGraphics::PipelineState)));
+
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+    dmRender::DeleteMaterial(m_Context, material);
+
+    dmGraphics::DeleteVertexBuffer(vx_buffer);
+    dmGraphics::DeleteVertexDeclaration(vx_decl);
 }
 
 
