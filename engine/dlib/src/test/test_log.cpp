@@ -233,6 +233,10 @@ TEST(dmLog, TestCapture)
     // wait for thread to join, thus making sure we get all the pending log messages
     dmLog::LogFinalize();
 
+    // Make the string null terminated
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size()+1);
+    g_LogListenerOutput.Push(0);
+
     const char* ExpectedOutput =
                 "INFO:DLIB: This is a info message\n"
                 "WARNING:DLIB: This is a warning message\n"
