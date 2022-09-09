@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1273,6 +1273,36 @@ namespace dmGraphics
         context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
+    static void NullSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
+    {
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        }
+        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+    }
+
+    static void NullSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        }
+    }
+
     static void NullSetCullFace(HContext context, FaceType face_type)
     {
         assert(context);
@@ -1430,6 +1460,9 @@ namespace dmGraphics
         fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
         fn_table.m_IsMultiTargetRenderingSupported = NullIsMultiTargetRenderingSupported;
         fn_table.m_GetPipelineState = NullGetPipelineState;
+        fn_table.m_SetStencilFuncSeparate = NullSetStencilFuncSeparate;
+        fn_table.m_SetStencilOpSeparate = NullSetStencilOpSeparate;
+
         return fn_table;
     }
 }
