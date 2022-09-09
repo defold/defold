@@ -48,6 +48,7 @@
                     "json" "application/json"
                     "css" "text/css"
                     "ttf" "font/ttf"
+                    "glsl" "text/plain"
                     "text/html")]
     mime-type))
 
@@ -67,7 +68,8 @@
         data (some-> resource slurp)
         code (if data 200 404)]
     {:code code
-     :headers {"Content-Type" mime-type}
+     :headers {"Content-Type" mime-type
+              "Access-Control-Allow-Origin" "*"}
      :body data}))
 
 (defn handler [req]
@@ -75,9 +77,9 @@
           (= (:url req) "/engine-profiler/")
           (.contains (:url req) "/engine-profiler?"))
     {:code 200
-    :headers {"Content-Type" "text/html"
-              "Content-Length" (str (count @html))
-              "Server" "Defold Editor"}
-    :body (or @html "")
-    }
+     :headers {"Content-Type" "text/html"
+               "Content-Length" (str (count @html))
+               "Server" "Defold Editor"
+               "Access-Control-Allow-Origin" "*"}
+     :body (or @html "")}
     (read-resource req)))
