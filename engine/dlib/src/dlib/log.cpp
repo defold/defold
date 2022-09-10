@@ -234,6 +234,49 @@ static void dmLogUpdateNetwork()
     }
 }
 
+
+static void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
+{
+#ifdef ANDROID
+        __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
+
+// iOS
+#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
+        dmLog::__ios_log_print(severity, output);
+#endif
+
+#ifdef __EMSCRIPTEN__
+        //Emscripten maps stderr to console.error and stdout to console.log.
+        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
+            fwrite(output, 1, output_len, stderr);
+        } else {
+            fwrite(output, 1, output_len, stdout);
+        }
+#elif !defined(ANDROID)
+        fwrite(output, 1, output_len, stderr);
+#endif
+
+    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
+        dmLog::g_TotalBytesLogged += output_len;
+        fwrite(output, 1, output_len, dmLog::g_LogFile);
+        fflush(dmLog::g_LogFile);
+    }
+}
+
+// Here we put logging that needs to be thread safe
+// We either push it on the logger thread, or from the main thread if threads aren't supported (e.g. html5)
+static void DoLogSynchronized(LogSeverity severity, const char* domain, const char* output, int output_len)
+{
+    DM_SPINLOCK_SCOPED_LOCK(g_ListenerLock); // Make sure no listeners are added or removed during the scope
+
+    for (int i = dmLog::g_ListenersCount - 1; i >= 0 ; --i)
+    {
+        g_Listeners[i]((LogSeverity)severity, domain, output);
+    }
+
+    dmProfile::LogText("%s", output);
+}
+
 static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
 {
     dmLogServer* self = g_dmLogServer;
@@ -246,27 +289,8 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
         return;
     }
 
-    {
-        DM_SPINLOCK_SCOPED_LOCK(g_ListenerLock); // Make sure no listeners are added or removed during the scope
-
-        for (int i = dmLog::g_ListenersCount - 1; i >= 0 ; --i)
-        {
-            g_Listeners[i]((LogSeverity)log_message->m_Severity, log_message->m_Domain, log_message->m_Message);
-        }
-
-        dmProfile::LogText("%s", log_message->m_Message);
-    } // else: dropping recursive custom logs
-
     int msg_len = (int) strlen(log_message->m_Message);
-
-    if (dLib::IsDebugMode())
-    {
-        if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
-            dmLog::g_TotalBytesLogged += msg_len;
-            fwrite(log_message->m_Message, 1, msg_len, dmLog::g_LogFile);
-            fflush(dmLog::g_LogFile);
-        }
-    }
+    DoLogSynchronized((LogSeverity)log_message->m_Severity, log_message->m_Domain, log_message->m_Message, msg_len);
 
     // NOTE: Keep i as signed! See --i below after EraseSwap
     int n = (int) self->m_Connections.Size();
@@ -584,26 +608,13 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     // I think it's good to output info directly to the native platform as soon as possible.
     if (is_debug_mode)
     {
-#ifdef ANDROID
-        __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", str_buf);
+        dmLog::DoLogPlatform(severity, str_buf, actual_n);
+    }
 
-// iOS
-#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
-        dmLog::__ios_log_print(severity, str_buf);
-#endif
-
-#ifdef __EMSCRIPTEN__
-        //Emscripten maps stderr to console.error and stdout to console.log.
-        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
-            fwrite(str_buf, 1, actual_n, stderr);
-        } else {
-            fwrite(str_buf, 1, actual_n, stdout);
-        }
-#elif !defined(ANDROID)
-        fwrite(str_buf, 1, actual_n, stderr);
-#endif
-
-    } // debug
+    if (!dmLog::g_dmLogServer->m_Thread) // e.g. Emscripten
+    {
+        dmLog::DoLogSynchronized(severity, domain, str_buf, actual_n);
+    }
 
     if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP)) // e.g. Emscripten
         return;
