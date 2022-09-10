@@ -234,6 +234,34 @@ static void dmLogUpdateNetwork()
     }
 }
 
+#ifdef ANDROID
+static android_LogPriority ToAndroidPriority(LogSeverity severity)
+{
+    switch (severity)
+    {
+        case LOG_SEVERITY_DEBUG:
+            return ANDROID_LOG_DEBUG;
+
+        case LOG_SEVERITY_USER_DEBUG:
+            return ANDROID_LOG_DEBUG;
+
+        case LOG_SEVERITY_INFO:
+            return ANDROID_LOG_INFO;
+
+        case LOG_SEVERITY_WARNING:
+            return ANDROID_LOG_WARN;
+
+        case LOG_SEVERITY_ERROR:
+            return ANDROID_LOG_ERROR;
+
+        case LOG_SEVERITY_FATAL:
+            return ANDROID_LOG_FATAL;
+
+        default:
+            return ANDROID_LOG_ERROR;
+    }
+}
+#endif
 
 static void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
 {
@@ -456,35 +484,6 @@ uint16_t GetPort()
 
     return g_dmLogServer->m_Port;
 }
-
-#ifdef ANDROID
-static android_LogPriority ToAndroidPriority(LogSeverity severity)
-{
-    switch (severity)
-    {
-        case LOG_SEVERITY_DEBUG:
-            return ANDROID_LOG_DEBUG;
-
-        case LOG_SEVERITY_USER_DEBUG:
-            return ANDROID_LOG_DEBUG;
-
-        case LOG_SEVERITY_INFO:
-            return ANDROID_LOG_INFO;
-
-        case LOG_SEVERITY_WARNING:
-            return ANDROID_LOG_WARN;
-
-        case LOG_SEVERITY_ERROR:
-            return ANDROID_LOG_ERROR;
-
-        case LOG_SEVERITY_FATAL:
-            return ANDROID_LOG_FATAL;
-
-        default:
-            return ANDROID_LOG_ERROR;
-    }
-}
-#endif
 
 bool SetLogFile(const char* path)
 {
