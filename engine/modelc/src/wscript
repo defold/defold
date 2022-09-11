@@ -8,8 +8,8 @@ def configure(conf):
     pass
 
 def build(bld):
-    # We only need this library in the editor
-    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
+    # We only need this library in the editor and bob
+    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
 
     if not is_host:
         return
@@ -21,7 +21,7 @@ def build(bld):
         java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'linux'))
     if 'win32' in bld.env['PLATFORM']:
         java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'win32'))
-    if 'darwin' in bld.env['PLATFORM']:
+    if 'macos' in bld.env['PLATFORM']:
         java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
 
     # really only used for the unit tests
@@ -30,14 +30,12 @@ def build(bld):
                       source = modelc_sources,
                       target = 'model')
 
-    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
-    if is_host:
-        # Used by bob.jar + editor
-        model_shared = bld(features = 'c cxx cshlib extract_symbols',
-                           includes = model.includes,
-                           uselib = 'DLIB PROFILE_NULL JDK',
-                           source = modelc_sources,
-                           target = 'modelc_shared')
+    # Used by bob.jar + editor
+    model_shared = bld(features = 'c cxx cshlib extract_symbols',
+                       includes = model.includes,
+                       uselib = 'DLIB PROFILE_NULL JDK',
+                       source = modelc_sources,
+                       target = 'modelc_shared')
 
     classpath = []
 
