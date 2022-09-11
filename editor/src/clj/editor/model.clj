@@ -45,6 +45,13 @@
                 (animation-set/is-animation-set? animations-resource))
     (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set)))
 
+(g/defnk produce-animation-ids [_node-id resource animations-resource animation-set-info animation-set]
+  (if (or (= 0 (count animation-set))
+          (animation-set/is-animation-set? animations-resource))
+    (:animation-ids (resource/base-name animations-resource)) ; single animation file
+    (:animation-ids animation-set-info) ; animation-set
+    ))
+
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
   (cond-> {:mesh (resource/resource->proj-path mesh)
            :material (resource/resource->proj-path material)
@@ -76,7 +83,7 @@
     (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in pb-msg label) (get pb-msg label)))]))))
 
 (defn- validate-default-animation [_node-id default-animation animation-ids]
-  (when (and (not (str/blank? default-animation)) (seq animation-ids))
+  (when (not (str/blank? default-animation))
     (validation/prop-error :fatal _node-id :default-animation validation/prop-member-of? default-animation (set animation-ids)
                            (format "Animation '%s' does not exist" default-animation))))
 
@@ -255,12 +262,12 @@
   (output animation-info g/Any :cached animation-set/produce-animation-info)
   (output animation-set-info g/Any :cached animation-set/produce-animation-set-info)
   (output animation-set g/Any :cached animation-set/produce-animation-set)
-  (output animation-ids g/Any :cached animation-set/produce-animation-ids)
+  (output animation-ids g/Any :cached produce-animation-ids)
+
   ; if we're referencing a single animation file
   (output animation-set-build-target-single g/Any :cached produce-animation-set-build-target)
 
   (input animation-ids g/Any)
-  (output animation-ids g/Any (gu/passthrough animation-ids))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
