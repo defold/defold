@@ -71,7 +71,7 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_6
 
 # MODELC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libmodelc_shared.so lib/x86_64-linux/libmodelc_shared.so
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-darwin/libmodelc_shared.dylib lib/x86_64-darwin/libmodelc_shared.dylib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libmodelc_shared.dylib lib/x86_64-macos/libmodelc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/modelc_shared.dll lib/x86_64-win32/modelc_shared.dll
 
 # Win32 32
