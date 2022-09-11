@@ -136,6 +136,18 @@ public class ColladaUtil {
         return assetSpace;
     }
 
+    // private static void printVector4d(Vector4d v) {
+    //     System.err.printf("  %f, %f, %f, %f\n", v.getX(), v.getY(), v.getZ(), v.getW());
+    // }
+
+    // private static void printMatrix4d(Matrix4d mat) {
+    //     Vector4d v = new Vector4d();
+    //     mat.getColumn(0, v); printVector4d(v);
+    //     mat.getColumn(1, v); printVector4d(v);
+    //     mat.getColumn(2, v); printVector4d(v);
+    //     mat.getColumn(3, v); printVector4d(v);
+    // }
+
     private static XMLInput findInput(List<XMLInput> inputs, String semantic, boolean required)
             throws LoaderException {
         for (XMLInput i : inputs) {

@@ -82,12 +82,30 @@ public class ColladaUtilTest {
     }
 
     private void assertV(Tuple3d expected, Tuple3d actual) {
+        if ((expected.x - actual.x) > EPSILON ||
+            (expected.y - actual.y) > EPSILON ||
+            (expected.z - actual.z) > EPSILON )
+        {
+            System.err.printf("Expected: %f, %f, %f  but got %f, %f, %f\n",
+                expected.x, expected.y, expected.z,
+                actual.x, actual.y, actual.z);
+        }
         assertEquals(expected.x, actual.x, EPSILON);
         assertEquals(expected.y, actual.y, EPSILON);
         assertEquals(expected.z, actual.z, EPSILON);
     }
 
     private void assertV(Tuple4d expected, Tuple4d actual) {
+        if ((expected.x - actual.x) > EPSILON ||
+            (expected.y - actual.y) > EPSILON ||
+            (expected.z - actual.z) > EPSILON ||
+            (expected.w - actual.w) > EPSILON )
+        {
+            System.err.printf("Expected: %f, %f, %f, %f  but got %f, %f, %f, %f\n",
+                expected.x, expected.y, expected.z, expected.w,
+                actual.x, actual.y, actual.z, actual.w);
+        }
+
         assertEquals(expected.x, actual.x, EPSILON);
         assertEquals(expected.y, actual.y, EPSILON);
         assertEquals(expected.z, actual.z, EPSILON);
@@ -441,7 +459,7 @@ public class ColladaUtilTest {
     /*
      *  Tests a collada with only one bone with animation (matrix input track).
      */
-    //@Test
+    @Test
     public void testOneBoneAnimation() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
@@ -475,7 +493,7 @@ public class ColladaUtilTest {
 
             if (track.getRotationsCount() > 0) {
                 // Assert that the rotation keyframes keeps increasing rotation around X
-                assertAnimationRotationChanges(track, 1.0f, 0.0f, 0.0f);
+                assertAnimationRotationChanges(track, -1.0f, 1.0f, -1.0f);
             }
         }
     }
@@ -549,7 +567,7 @@ public class ColladaUtilTest {
     /*
      *  Tests a collada with two connected bones without a mesh.
      */
-    //@Test
+    @Test
     public void testTwoBoneNoMesh() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
@@ -596,9 +614,9 @@ public class ColladaUtilTest {
 
             } else if (boneIndex == 1 && track.getPositionsCount() > 0) {
                 // Verify animation on secondary bone
-                assertAnimationPosition(track, 0, new Vector3d(0.0, 0.0, 0.0));
-                assertAnimationPosition(track, keyframeCount/2, new Vector3d(0.0, 0.0, -1.0));
-                assertAnimationPosition(track, keyframeCount, new Vector3d(0.0, 0.0, -1.0));
+                assertAnimationPosition(track, 0, new Vector3d(0.0, 1.0, 1.0));
+                assertAnimationPosition(track, keyframeCount/2, new Vector3d(0.0, 1.0, 0.0));
+                assertAnimationPosition(track, keyframeCount, new Vector3d(0.0, 1.0, 0.0));
 
             }
         }
@@ -685,7 +703,7 @@ public class ColladaUtilTest {
     /*
      *
      */
-    //@Test
+    @Test
     public void testMultipleBones() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
@@ -715,10 +733,10 @@ public class ColladaUtilTest {
 
             if (boneIndex == 0) {
                 // Bone 0 doesn't have any "real" rotation animation.
-                Quat4d rotIdentity = new Quat4d(0.0, 0.0, 0.0, 1.0);
+                Quat4d rotKey = new Quat4d(-0.495852, 0.499983, 0.499983, 0.504148);
                 int rotationKeys = track.getRotationsCount() / 4;
                 for (int i = 0; i < rotationKeys; i++) {
-                    assertAnimationRotation(track, i, rotIdentity);
+                    assertAnimationRotation(track, i, rotKey);
                 }
 
             } else if (boneIndex == 1) {
@@ -804,7 +822,7 @@ public class ColladaUtilTest {
     /*
      *  Test collada file with a bone animation that includes both translation and rotation.
      */
-    //@Test
+    @Test
     public void testTranslationRotation() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
@@ -826,18 +844,14 @@ public class ColladaUtilTest {
             if (track.getBoneIndex() == 1) {
 
                 if (track.getRotationsCount() > 0) {
-
-                    // Rotation don't change, but is the inverse of the bind pose
-                    Quat bindPoseRot = skeletonBuilder.getBones(track.getBoneIndex()).getLocal().getRotation();
-                    Quat4d bindPoseInverse = new Quat4d(bindPoseRot.getX(), bindPoseRot.getY(), bindPoseRot.getZ(), bindPoseRot.getW());
-                    bindPoseInverse.inverse();
+                    Quat4d rotIdentity = new Quat4d(0.0, 0.0, 0.0, 1.0);
 
                     int rotCount = track.getRotationsCount() / 4;
                     for (int i = 0; i < rotCount; i++) {
-                        assertEquals(bindPoseInverse.getX(), track.getRotations(i*4), EPSILON);
-                        assertEquals(bindPoseInverse.getY(), track.getRotations(i*4+1), EPSILON);
-                        assertEquals(bindPoseInverse.getZ(), track.getRotations(i*4+2), EPSILON);
-                        assertEquals(bindPoseInverse.getW(), track.getRotations(i*4+3), EPSILON);
+                        assertEquals(rotIdentity.getX(), track.getRotations(i*4), EPSILON);
+                        assertEquals(rotIdentity.getY(), track.getRotations(i*4+1), EPSILON);
+                        assertEquals(rotIdentity.getZ(), track.getRotations(i*4+2), EPSILON);
+                        assertEquals(rotIdentity.getW(), track.getRotations(i*4+3), EPSILON);
                     }
                 } else if (track.getPositionsCount() > 0) {
 
@@ -896,7 +910,7 @@ public class ColladaUtilTest {
     /*
      * Test collada file with scale applied on its skeleton.
      */
-    //@Test
+    @Test
     public void testSkeletonScale() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
@@ -919,7 +933,7 @@ public class ColladaUtilTest {
                 List<Float> scales = track.getScaleList();
 
                 for (int i = 0; i < scalesCount; ++i) {
-                    assertEquals(10.0, scales.get(i), EPSILON);
+                    assertEquals(1.0, scales.get(i), EPSILON);
                 }
             }
         }
