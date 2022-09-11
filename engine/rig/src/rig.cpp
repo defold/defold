@@ -379,6 +379,8 @@ namespace dmRig
     static void ApplyAnimation(RigPlayer* player, dmArray<BonePose>& pose, dmArray<IKAnimation>& ik_animation, float blend_weight)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
+        if (!animation)
+            return;
         float duration = GetCursorDuration(player, animation);
         float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
 
