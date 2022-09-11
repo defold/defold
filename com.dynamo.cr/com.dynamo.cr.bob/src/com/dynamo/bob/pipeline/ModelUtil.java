@@ -693,6 +693,8 @@ public class ModelUtil {
     private static void shiftModels(Scene scene, ModelImporter.Vec4 center) {
         for (Node root : scene.rootNodes) {
             Node modelNode = findFirstModelNode(root);
+            if (modelNode == null)
+                continue;
             modelNode.local.translation.x -= center.x;
             modelNode.local.translation.y -= center.y;
             modelNode.local.translation.z -= center.z;
