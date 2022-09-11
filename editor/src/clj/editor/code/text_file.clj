@@ -15,12 +15,15 @@
 (ns editor.code.text-file
   (:require [dynamo.graph :as g]
             [editor.code.lang.cish :as cish]
+            [editor.code.lang.json :as json]
             [editor.code.resource :as r]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (def ^:private cish-opts {:code {:grammar cish/grammar}})
+
+(def ^:private json-opts {:code {:grammar json/grammar}})
 
 (def ^:private text-file-defs
   [{:ext "cpp"
@@ -55,6 +58,10 @@
     :label "C"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
+   {:ext "json"
+    :label "JSON"
+    :icon "icons/32/Icons_29-AT-Unknown.png"
+    :view-opts json-opts}
    {:ext "manifest"
     :label "Manifest"
     :icon "icons/32/Icons_11-Script-general.png"}

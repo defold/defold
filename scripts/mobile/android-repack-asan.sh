@@ -52,6 +52,7 @@ DEFOLD_HOME="$(cd "${DYNAMO_HOME}/../.."; pwd)"
 
 ANDROID_NDK_VERSION=20
 ANDROID_BUILD_TOOLS_VERSION="32.0.0"
+PLATFORM="darwin-x86_64"
 ANDROID_NDK_ROOT="${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}"
 ANDROID_SDK_ROOT="${DYNAMO_HOME}/ext/SDKs/android-sdk"
 
@@ -65,12 +66,12 @@ KEYSTORE_PASS="${3:-}" && [ ! -z "${KEYSTORE_PASS}" ] || terminate_usage
 
 ZIP="zip"
 UNZIP="unzip"
-ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/zipalign"
+ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-macos/zipalign"
 APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
 GDBSERVER=${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver
 
-OBJDUMP_32=arm-linux-androideabi-objdump
-OBJDUMP_64=aarch64-linux-android-objdump
+OBJDUMP_32=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${PLATFORM}/bin/arm-linux-androideabi-objdump
+OBJDUMP_64=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${PLATFORM}/bin/aarch64-linux-android-objdump
 
 [ $(which "${ZIP}") ] || terminate "'${ZIP}' is not installed"
 [ $(which "${UNZIP}") ] || terminate "'${UNZIP}' is not installed"

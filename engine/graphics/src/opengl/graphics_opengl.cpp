@@ -358,6 +358,9 @@ static void LogFrameBufferError(GLenum status)
     typedef void (* DM_PFNGLINVALIDATEFRAMEBUFFERPROC) (GLenum target, GLsizei numAttachments, const GLenum *attachments);
     DM_PFNGLINVALIDATEFRAMEBUFFERPROC PFN_glInvalidateFramebuffer = NULL;
 
+    typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
+    DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
+
     Context* g_Context = 0x0;
 
     Context::Context(const ContextParams& params)
@@ -567,7 +570,6 @@ static void LogFrameBufferError(GLenum status)
             if (context->m_Extensions.Full())
                 context->m_Extensions.OffsetCapacity(4);
             context->m_Extensions.Push(next);
-
             next = dmStrTok(0, " ", &iter);
         }
     }
@@ -596,6 +598,11 @@ static void LogFrameBufferError(GLenum status)
     static const char* OpenGLGetSupportedExtension(HContext context, uint32_t index)
     {
         return context->m_Extensions[index];
+    }
+
+    static bool OpenGLIsMultiTargetRenderingSupported(HContext context)
+    {
+        return PFN_glDrawBuffers != 0x0;
     }
 
 
@@ -627,13 +634,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             break;
         }
     }
-#if !defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)
+#if !defined(__EMSCRIPTEN__)
     if(func == 0 && core_name)
     {
         // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
         func = (uintptr_t) glfwGetProcAddress(core_name);
     }
 #endif
+
     return func;
 }
 
@@ -1026,6 +1034,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers, "glDrawBuffers", "draw_buffers", "glDrawBuffers", DM_PFNGLDRAWBUFFERSPROC, context);
 
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
@@ -1177,6 +1186,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         if (OpenGLIsExtensionSupported(context, "GL_OES_compressed_ETC1_RGB8_texture"))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        }
+
+        if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_filter_anisotropic"))
+        {
+            context->m_AnisotropySupport = 1;
+            glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &context->m_MaxAnisotropy);
         }
 
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
@@ -2016,10 +2031,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int base_register)
+    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
     {
         assert(context);
-        glUniformMatrix4fv(base_register, 1, 0, (const GLfloat*) data);
+        glUniformMatrix4fv(base_register, count, 0, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 
@@ -2113,24 +2128,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             rt->m_BufferTextureParams[i].m_DataSize = 0;
         }
 
-    #ifdef GL_ES_VERSION_2_0
-        if(buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR0_BIT)
-        {
-            uint32_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR0_BIT);
-            rt->m_ColorBufferTexture[0] = NewTexture(context, creation_params[color_buffer_index]);
-            SetTexture(rt->m_ColorBufferTexture[0], params[color_buffer_index]);
-            // attach the texture to FBO color attachment point
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture[0]->m_Texture, 0);
-            CHECK_GL_ERROR;
-        }
-    #else
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
             BUFFER_TYPE_COLOR1_BIT,
             BUFFER_TYPE_COLOR2_BIT,
             BUFFER_TYPE_COLOR3_BIT,
         };
-        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+
+        uint8_t max_color_attachments = PFN_glDrawBuffers != 0x0 ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
+        for (int i = 0; i < max_color_attachments; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
             {
@@ -2142,7 +2148,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 CHECK_GL_ERROR;
             }
         }
-    #endif
 
         if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
         {
@@ -2252,8 +2257,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR;
 
-#ifndef GL_ES_VERSION_2_0
-        if (render_target != NULL)
+        if (render_target != NULL && PFN_glDrawBuffers != 0x0)
         {
             uint32_t num_buffers = 0;
             GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
@@ -2273,10 +2277,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
             if (num_buffers > 1)
             {
-                glDrawBuffers(num_buffers, buffers);
+                PFN_glDrawBuffers(num_buffers, buffers);
             }
         }
-#endif
 
         CHECK_GL_FRAMEBUFFER_ERROR;
     }
@@ -2452,7 +2455,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return texture_filter_lut[texture_filter];
     }
 
-    static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         GLenum type = GetOpenGLTextureType(texture->m_Type);
 
@@ -2467,6 +2470,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glTexParameteri(type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
         CHECK_GL_ERROR
+
+        if (g_Context->m_AnisotropySupport && max_anisotropy > 1.0f)
+        {
+            glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, g_Context->m_MaxAnisotropy));
+            CHECK_GL_ERROR
+        }
     }
 
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
@@ -2579,7 +2588,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         texture->m_Params = params;
         if (!params.m_SubUpdate) {
-            SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+            SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
             if (params.m_MipMap == 0)
             {
@@ -2868,7 +2877,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindTexture(GetOpenGLTextureType(texture->m_Type), texture->m_Texture);
         CHECK_GL_ERROR;
 
-        SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
+        SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap, 1.0f);
     }
 
     static void OpenGLDisableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -3240,6 +3249,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_IsExtensionSupported = OpenGLIsExtensionSupported;
         fn_table.m_GetNumSupportedExtensions = OpenGLGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = OpenGLGetSupportedExtension;
+        fn_table.m_IsMultiTargetRenderingSupported = OpenGLIsMultiTargetRenderingSupported;
         return fn_table;
     }
 }

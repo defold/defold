@@ -204,7 +204,8 @@ public class ShaderUtil {
         private static final String glFragColorKeyword = "gl_FragColor";
         private static final String glFragDataKeyword = "gl_FragData";
         private static final String glFragColorRep = dmEngineGeneratedRep + glFragColorKeyword;
-        private static final String glFragColorAttrRep = "\nout vec4 " + glFragColorRep + "%s;\n";
+        private static final String glFragColorAttrRep = "\n%sout vec4 " + glFragColorRep + "%s;\n";
+        private static final String glFragColorAttrLayoutPrefix = "layout(location = %d) ";
         private static final String floatPrecisionAttrRep = "precision mediump float;\n";
 
         public static Result transform(String input, ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
@@ -349,9 +350,16 @@ public class ShaderUtil {
                     if(floatPrecisionIndex < 0 && targetProfile.equals("es")) {
                         output.add(patchLineIndex++, floatPrecisionAttrRep);
                     }
+
+                    // insert fragcolor out attribute for all output targets
                     for (int i = 0; i < maxColorOutputs; i++) {
-                         // insert fragcolor out attr
-                        output.add(patchLineIndex++, String.format(glFragColorAttrRep, "_" + i));   
+                        String colorOutputLayoutPrefix = "";
+                        // For ES targets we need to add a layout specification for the outputs
+                        if (targetProfile.equals("es") && maxColorOutputs > 1)
+                        {
+                            colorOutputLayoutPrefix = String.format(glFragColorAttrLayoutPrefix, i);
+                        }
+                        output.add(patchLineIndex++, String.format(glFragColorAttrRep, colorOutputLayoutPrefix, "_" + i));
                     }
                 }
             }

@@ -2023,16 +2023,6 @@ TEST_F(ParticleTest, case1544)
     ASSERT_TRUE(LoadPrototype("modifier_crash.particlefxc", &m_Prototype));
 }
 
-void RenderConstantRenderInstanceCallback(void* usercontext, void* material, void* texture, const Matrix4& world, dmParticleDDF::BlendMode blendMode, uint32_t vertex_index, uint32_t vertex_count, dmParticle::RenderConstant* constants, uint32_t constant_count)
-{
-    std::map<dmhash_t, Vector4>* render_constants = (std::map<dmhash_t, Vector4>*)usercontext;
-    for (uint32_t i = 0; i < constant_count; ++i)
-    {
-        dmParticle::RenderConstant& c = constants[i];
-        (*render_constants)[c.m_NameHash] = c.m_Value;
-    }
-}
-
 TEST_F(ParticleTest, RenderConstants)
 {
     dmhash_t emitter_id = dmHashString64("emitter");
@@ -2057,7 +2047,7 @@ TEST_F(ParticleTest, RenderConstants)
     dmParticle::Update(m_Context, dt, 0x0);
 
     ASSERT_TRUE(emitter_render_data->m_RenderConstantsSize == 1);
-    Vector4 v = emitter_render_data->m_RenderConstants->m_Value;
+    Vector4 v = emitter_render_data->m_RenderConstants->m_Value.getCol0();
     ASSERT_EQ(1, v.getX());
     ASSERT_EQ(2, v.getY());
     ASSERT_EQ(3, v.getZ());

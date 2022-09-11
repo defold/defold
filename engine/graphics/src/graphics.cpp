@@ -640,9 +640,9 @@ namespace dmGraphics
     {
         g_functions.m_SetConstantV4(context, data, count, base_register);
     }
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int base_register)
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
     {
-        g_functions.m_SetConstantM4(context, data, base_register);
+        g_functions.m_SetConstantM4(context, data, count, base_register);
     }
     void SetSampler(HContext context, int32_t location, int32_t unit)
     {
@@ -756,9 +756,9 @@ namespace dmGraphics
     {
         g_functions.m_SetTextureAsync(texture, paramsa);
     }
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        g_functions.m_SetTextureParams(texture, minfilter, magfilter, uwrap, vwrap);
+        g_functions.m_SetTextureParams(texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
     uint32_t GetTextureResourceSize(HTexture texture)
     {
@@ -819,6 +819,10 @@ namespace dmGraphics
     const char* GetSupportedExtension(HContext context, uint32_t index)
     {
         return g_functions.m_GetSupportedExtension(context, index);
+    }
+    bool IsMultiTargetRenderingSupported(HContext context)
+    {
+        return g_functions.m_IsMultiTargetRenderingSupported(context);
     }
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))

@@ -20,6 +20,7 @@ message MaterialDesc
         CONSTANT_TYPE_NORMAL = 6;
         CONSTANT_TYPE_WORLDVIEW = 7;
         CONSTANT_TYPE_WORLDVIEWPROJ = 8;
+        CONSTANT_TYPE_USER_MATRIX4 = 9;
     }
 
     message Constant
@@ -60,11 +61,12 @@ message MaterialDesc
 
     message Sampler
     {
-        required string name           = 1; // uniform name
-        required WrapMode wrap_u       = 2;
-        required WrapMode wrap_v       = 3;
+        required string name              = 1; // uniform name
+        required WrapMode wrap_u          = 2;
+        required WrapMode wrap_v          = 3;
         required FilterModeMin filter_min = 4;
         required FilterModeMag filter_mag = 5;
+        optional float max_anisotropy     = 6 [default = 1.0];
     }
 
     required string name = 1;

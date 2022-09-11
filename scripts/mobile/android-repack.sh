@@ -65,7 +65,7 @@ KEYSTORE_PASS="${3:-}" && [ ! -z "${KEYSTORE_PASS}" ] || terminate_usage
 
 ZIP="zip"
 UNZIP="unzip"
-ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-darwin/zipalign"
+ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-macos/zipalign"
 APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
 GDBSERVER=${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver
 

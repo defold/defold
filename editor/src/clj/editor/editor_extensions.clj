@@ -35,7 +35,7 @@
             [editor.workspace :as workspace])
   (:import [org.luaj.vm2 LuaError LuaValue LuaFunction Prototype]
            [clojure.lang MultiFn]
-           [com.defold.editor Platform]
+           [com.dynamo.bob Platform]
            [com.defold.editor.luart SearchPath]
            [java.io File]
            [java.nio.file Path]))

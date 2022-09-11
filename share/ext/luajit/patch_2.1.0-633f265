@@ -1,0 +1,133 @@
+diff -ruw --exclude=.git repo_a/src/jit/bcsave.lua repo_b/src/jit/bcsave.lua
+--- repo_a/src/jit/bcsave.lua	2022-08-31 10:42:11.000000000 +0200
++++ repo_b/src/jit/bcsave.lua	2022-08-31 10:42:14.000000000 +0200
+@@ -29,6 +29,7 @@
+   -l        Only list bytecode.
+   -s        Strip debug info (default).
+   -g        Keep debug info.
++  -f        Set custom file name (passed to loadstring. default: input filename)
+   -n name   Set module name (default: auto-detect from input name).
+   -t type   Set output file type (default: auto-detect from output name).
+   -a arch   Override architecture for object files (default: native).
+@@ -49,10 +50,13 @@
+   os.exit(1)
+ end
+ 
+-local function readfile(input)
++local function readfile(input, filename)
+   if type(input) == "function" then return input end
+   if input == "-" then input = nil end
+-  return check(loadfile(input))
++  local f = assert(io.open(input, "r"))
++  local src = f:read("*all")
++  f:close()
++  return check(loadstring(src, filename))
+ end
+ 
+ local function savefile(name, mode)
+@@ -604,13 +608,13 @@
+ 
+ ------------------------------------------------------------------------------
+ 
+-local function bclist(input, output)
+-  local f = readfile(input)
++local function bclist(input, output, filename)
++  local f = readfile(input, filename)
+   require("jit.bc").dump(f, savefile(output, "w"), true)
+ end
+ 
+-local function bcsave(ctx, input, output)
+-  local f = readfile(input)
++local function bcsave(ctx, input, output, filename)
++  local f = readfile(input, filename)
+   local s = string.dump(f, ctx.strip)
+   local t = ctx.type
+   if not t then
+@@ -633,6 +637,7 @@
+   local arg = {...}
+   local n = 1
+   local list = false
++  local filename = nil
+   local ctx = {
+     strip = true, arch = jit.arch, os = jit.os:lower(),
+     type = false, modname = false,
+@@ -663,6 +668,8 @@
+ 	    ctx.arch = checkarg(tremove(arg, n), map_arch, "architecture")
+ 	  elseif opt == "o" then
+ 	    ctx.os = checkarg(tremove(arg, n), map_os, "OS name")
++	  elseif opt == "f" then
++	    filename = tremove(arg, n)
+ 	  else
+ 	    usage()
+ 	  end
+@@ -674,10 +681,10 @@
+   end
+   if list then
+     if #arg == 0 or #arg > 2 then usage() end
+-    bclist(arg[1], arg[2] or "-")
++    bclist(arg[1], arg[2] or "-", filename or arg[1])
+   else
+     if #arg ~= 2 then usage() end
+-    bcsave(ctx, arg[1], arg[2])
++    bcsave(ctx, arg[1], arg[2], filename or arg[1])
+   end
+ end
+ 
+diff -ruw --exclude=.git repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
+--- repo_a/src/lj_alloc.c	2022-08-31 10:42:11.000000000 +0200
++++ repo_b/src/lj_alloc.c	2022-08-31 10:42:14.000000000 +0200
+@@ -36,7 +36,7 @@
+ #ifndef LUAJIT_USE_SYSMALLOC
+ 
+ #define MAX_SIZE_T		(~(size_t)0)
+-#define MALLOC_ALIGNMENT	((size_t)8U)
++#define MALLOC_ALIGNMENT	((size_t)16U)
+ 
+ #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
+ #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
+diff -ruw --exclude=.git repo_a/src/lj_jit.h repo_b/src/lj_jit.h
+--- repo_a/src/lj_jit.h	2022-08-31 10:42:11.000000000 +0200
++++ repo_b/src/lj_jit.h	2022-08-31 10:42:14.000000000 +0200
+@@ -447,11 +447,11 @@
+   int32_t retdepth;	/* Return frame depth (count of RETF). */
+ 
+ #if LJ_K32__USED
+-  uint32_t k32[LJ_K32__MAX];  /* Common 4 byte constants used by backends. */
++  uint32_t k32[LJ_K32__MAX+1];  /* Common 4 byte constants used by backends. */
+ #endif
+   TValue ksimd[LJ_KSIMD__MAX*2+1];  /* 16 byte aligned SIMD constants. */
+ #if LJ_K64__USED
+-  TValue k64[LJ_K64__MAX];  /* Common 8 byte constants. */
++  TValue k64[LJ_K64__MAX+1];  /* Common 8 byte constants. */
+ #endif
+ 
+   IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
+diff -ruw --exclude=.git repo_a/src/lj_obj.h repo_b/src/lj_obj.h
+--- repo_a/src/lj_obj.h	2022-08-31 10:42:11.000000000 +0200
++++ repo_b/src/lj_obj.h	2022-08-31 10:42:14.000000000 +0200
+@@ -320,16 +320,23 @@
+ /* -- Userdata object ----------------------------------------------------- */
+ 
+ /* Userdata object. Payload follows. */
+-typedef struct GCudata {
++typedef struct LJ_ALIGN(16) GCudata {
+   GCHeader;
+   uint8_t udtype;	/* Userdata type. */
+   uint8_t unused2;
+   GCRef env;		/* Should be at same offset in GCfunc. */
+   MSize len;		/* Size of payload. */
+   GCRef metatable;	/* Must be at same offset in GCtab. */
+-  uint32_t align1;	/* To force 8 byte alignment of the payload. */
++
++  uint32_t align0;      /* To force 8 byte alignment of the payload. */
++  #ifndef LJ_GC64
++      uint64_t align1;/* To force 16 byte alignment of the payload. */
++  #endif
++
+ } GCudata;
+ 
++LJ_STATIC_ASSERT((sizeof(GCudata) % 16) == 0);
++
+ /* Userdata types. */
+ enum {
+   UDTYPE_USERDATA,	/* Regular userdata. */

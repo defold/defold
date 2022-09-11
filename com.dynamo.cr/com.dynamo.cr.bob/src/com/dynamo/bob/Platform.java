@@ -23,12 +23,14 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 
 
 public enum Platform {
-    X86_64Darwin("x86_64",  true,   "darwin",  new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
+    // arch, is64bit, os, exeSuffixes, exePrefix, libSuffix, libPrefix, extenderPaths, architectures, extenderPair
+    //    extenderPaths: The extenderPaths are the searh directories that we use when looking for platform resources for a remote build
+    X86_64MacOS( "x86_64",  true,   "macos",   new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.MacOS, "x86_64-osx"),
     X86Win32(    "x86",     false,  "win32",   new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows32, "x86-win32"),
     X86_64Win32( "x86_64",  true,   "win32",   new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows64, "x86_64-win32"),
     X86Linux(    "x86",     false,  "linux",   new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
     X86_64Linux( "x86_64",  true,   "linux",   new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
-    Arm64Darwin( "arm64",   true,   "darwin",  new String[] {""}, "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
+    Arm64Ios(    "arm64",   true,   "ios",     new String[] {""}, "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
     X86_64Ios(   "x86_64",  true,   "ios",     new String[] {""}, "", "lib", ".so", new String[] {"ios", "x86_64-ios"}, PlatformArchitectures.iOS, "x86_64-ios"),
     Armv7Android("armv7",   false,  "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformArchitectures.Android, "armv7-android"),
     Arm64Android("arm64",   true,   "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "arm64-android"}, PlatformArchitectures.Android, "arm64-android"),
@@ -40,9 +42,9 @@ public enum Platform {
     static {
         platformPatterns.put(PlatformProfile.OS.OS_ID_GENERIC, "^$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WINDOWS, "^x86(_64)?-win32$");
-        platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^x86(_64)?-darwin$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^x86(_64)?-macos$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_LINUX,   "^x86(_64)?-linux$");
-        platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^(arm64-darwin)|(x86_64-ios)$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^((arm64)|(x86_64))-ios$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^arm((v7)|(64))-android$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^((js)|(wasm))-web$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_SWITCH,  "^(arm64-nx64)$");
@@ -112,6 +114,10 @@ public enum Platform {
         return String.format("%s-%s", this.arch, this.os);
     }
 
+    public String getOs() {
+        return this.os;
+    }
+
     public String getExtenderPair() {
         return extenderPair;
     }
@@ -175,7 +181,7 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os_name.indexOf("mac") != -1) {
-            return Platform.X86_64Darwin;
+            return Platform.X86_64MacOS;
         } else if (os_name.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;
@@ -199,7 +205,7 @@ public enum Platform {
                 return Platform.X86Win32;
             }
         } else if (os_name.indexOf("mac") != -1) {
-            return Platform.X86_64Darwin;
+            return Platform.X86_64MacOS;
         } else if (os_name.indexOf("linux") != -1) {
             if (arch.equals("x86_64") || arch.equals("amd64")) {
                 return Platform.X86_64Linux;

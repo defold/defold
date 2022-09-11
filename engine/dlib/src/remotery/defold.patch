@@ -1,8 +1,75 @@
 diff --git a/engine/dlib/src/remotery/lib/Remotery.c b/engine/dlib/src/remotery/lib/Remotery.c
-index 7514d8d84..b6f01e46f 100644
+index bb4d5f6ef4..3510cd3b55 100644
 --- a/engine/dlib/src/remotery/lib/Remotery.c
 +++ b/engine/dlib/src/remotery/lib/Remotery.c
-@@ -9862,9 +9862,17 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
+@@ -64,6 +64,12 @@
+ #pragma comment(lib, "winmm.lib")
+ #endif
+ 
++// DEFOLD
++#include <dmsdk/dlib/log.h>
++static const char* g_EmptyString = "<empty>"; // As seen in profile_remotery.cpp _rmt_HashString32()
++static rmtU32 g_EmptyHash = 0x89abcdef; // Unlikely anything else would collide with this
++// END DEFOLD
++
+ #if RMT_ENABLED
+ 
+ // Global settings
+@@ -2700,6 +2706,13 @@ static rmtError rmtHashTable_Insert(rmtHashTable* table, rmtU32 key, rmtU64 valu
+     rmtU32 index_mask = table->maxNbSlots - 1;
+     rmtU32 index = key & index_mask;
+ 
++// DEFOLD
++    if (key == 0) {
++        key = g_EmptyHash;
++        dmLogError("REMOTERY: DEFOLD: rmtHashTable_Insert: The hash was 0x%08x. Setting it to 0x%08x ('%s')", key, g_EmptyHash, g_EmptyString);
++    }
++// END DEFOLD
++
+     assert(key != 0);
+     assert(value != RMT_NOT_FOUND);
+ 
+@@ -5038,6 +5051,12 @@ static rmtBool QueueAddToStringTable(rmtMessageQueue* queue, rmtU32 hash, const
+         return RMT_FALSE;
+     }
+ 
++// DEFOLD
++    if (hash == 0 || length == 0) {
++        dmLogError("REMOTERY: DEFOLD: QueueAddToStringTable: The hash is 0x%08x! String is '%s' len: %u", hash, string, (uint32_t)length);
++    }
++// END DEFOLD
++
+     // Populate and commit
+     payload = (Msg_AddToStringTable*)message->payload;
+     payload->hash = hash;
+@@ -5271,6 +5290,12 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
+             name_len = strnlen_s(name, 256);
+             name_hash = _rmt_HashString32(name, name_len, 0);
+ 
++// DEFOLD
++    if (name_hash == 0 || name_len == 0) {
++        dmLogError("REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(a): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
++    }
++// END DEFOLD
++
+             // Queue the string for the string table and only cache the hash if it succeeds
+             if (QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler) == RMT_TRUE)
+             {
+@@ -5284,6 +5309,13 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
+     // Have to recalculate and speculatively insert the name every time when no cache storage exists
+     name_len = strnlen_s(name, 256);
+     name_hash = _rmt_HashString32(name, name_len, 0);
++
++// DEFOLD
++    if (name_hash == 0 || name_len == 0) {
++        dmLogError("REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(b): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
++    }
++// END DEFOLD
++
+     QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler);
+     return name_hash;
+ }
+@@ -9972,9 +10004,22 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
              }
  
              // Calculate the name hash and send it to the viewer
@@ -18,6 +85,11 @@ index 7514d8d84..b6f01e46f 100644
 +
 +            name_len = strnlen_s(name, 256);
 +            property->nameHash = _rmt_HashString32(name, name_len, 0);
++
++            if (property->nameHash == 0 || name_len == 0) {
++                dmLogError("REMOTERY: DEFOLD: RegisterProperty: The hash is 0x%08x! String is '%s' len: %u", property->nameHash, name, (uint32_t)name_len);
++            }
++
 +            QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
 +/// END DEFOLD
  

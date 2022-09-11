@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -42,10 +42,10 @@
             [editor.properties :as properties]
             [editor.handler :as handler]
             [editor.font :as font]
-            [editor.dialogs :as dialogs]
             [editor.outline :as outline]
             [editor.material :as material]
             [editor.particlefx :as particlefx]
+            [editor.resource-dialog :as resource-dialog]
             [editor.validation :as validation]
             [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
@@ -1943,7 +1943,7 @@
 
 
 (defn- browse [title project exts]
-  (seq (dialogs/make-resource-dialog (project/workspace project) project {:ext exts :title title :selection :multiple})))
+  (seq (resource-dialog/make (project/workspace project) project {:ext exts :title title :selection :multiple})))
 
 (defn- resource->id [resource]
   (resource/base-name resource))
@@ -2867,10 +2867,13 @@
                 sanitize-node-colors
                 sanitize-node-rotation)
 
-            ;; Size mode is not applicable for text nodes, but might still be
-            ;; stored in the files from editor 1.
-            (= :type-text (:type node-desc))
-            (dissoc :size-mode))))
+      (= :type-text node-type)
+      ;; These properties are not applicable to text nodes, but might still be stored in files from editor1.
+      (dissoc :clipping-inverted :clipping-mode :clipping-visible :size-mode)
+
+      (= :type-template node-type)
+      ;; These properties are not applicable to template nodes, but might still be stored in files from editor1.
+      (dissoc :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))))
 
 (def ^:private sanitize-nodes #(mapv sanitize-node %))
 

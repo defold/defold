@@ -2,7 +2,7 @@
 
 EXTRA_DEFINES = []
 
-if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
     # Note: LUA_NO_SYSTEM is our own invention, mimicking the LJ_NO_SYSTEM
     EXTRA_DEFINES = ['LUA_NO_SYSTEM']
 
@@ -22,7 +22,7 @@ lua_lib = bld.stlib(features = 'c cxx',
                     source = lua_lib_source,
                     defines = ['LUA_ANSI'] + EXTRA_DEFINES)
 
-is_desktop = bld.env.PLATFORM  in ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
+is_desktop = bld.env.PLATFORM  in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
 if is_desktop:
     lua = bld.program(features = 'c cxx',
                       includes = '. ../',
