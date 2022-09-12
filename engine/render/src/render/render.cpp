@@ -322,7 +322,9 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    static void SetRenderStateIfChanged(dmGraphics::HContext graphics_context, dmGraphics::PipelineState ps_orig, dmGraphics::PipelineState ps_now)
+    // This function will compare the values in ps_orig and ps_now and reset the render state that is different between them
+    // It is expected that the first parameter is the "default" state, i.e the values from that pipeline will be used
+    static void ResetRenderStateIfChanged(dmGraphics::HContext graphics_context, dmGraphics::PipelineState ps_orig, dmGraphics::PipelineState ps_now)
     {
         #define HAS_CHANGED(name) (ps_now.name != ps_orig.name)
 
@@ -434,7 +436,7 @@ namespace dmRender
             }
         }
 
-        SetRenderStateIfChanged(graphics_context, ps_now, ps_default);
+        ResetRenderStateIfChanged(graphics_context, ps_now, ps_default);
     }
 
     // For unit testing only
@@ -850,7 +852,7 @@ namespace dmRender
             }
         }
 
-        SetRenderStateIfChanged(context, ps_orig, dmGraphics::GetPipelineState(context));
+        ResetRenderStateIfChanged(context, ps_orig, dmGraphics::GetPipelineState(context));
 
         return RESULT_OK;
     }
