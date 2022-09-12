@@ -12,25 +12,37 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/profile.h>
+#include <dmsdk/dlib/android.h>
+
 #include "profiler_private.h"
 #include "profiler_proc_utils.h"
 
+DM_PROPERTY_EXTERN(rmtp_Profiler);
+DM_PROPERTY_BOOL(rmtp_AttachedToJVM, false, FrameReset, "Thread attached to JVM", &rmtp_Profiler);
+
+extern struct android_app* __attribute__((weak)) g_AndroidApp;
+
 void dmProfilerExt::SampleCpuUsage()
 {
-    dmProfilerExt:SampleProcCpuUsage();
+    // Should be implementd using JNI for Android 8+
+    // see https://github.com/defold/defold/issues/3385
+    dmProfilerExt::SampleProcCpuUsage();
 }
 
 uint64_t dmProfilerExt::GetMemoryUsage()
 {
-    return GetProcMemoryUsage();
+    return dmProfilerExt::GetProcMemoryUsage();
 }
 
 double dmProfilerExt::GetCpuUsage()
 {
-    return GetProcCpuUsage();
+    return dmProfilerExt::GetProcCpuUsage();
 }
 
 void dmProfilerExt::UpdatePlatformProfiler()
 {
-    // nop
+    // Shows if thread was attached and wasn't detached
+    JNIEnv* env = 0;
+    DM_PROPERTY_SET_BOOL(rmtp_AttachedToJVM, g_AndroidApp->activity->vm->GetEnv((void **)&env, JNI_VERSION_1_6) != JNI_OK);
 }
