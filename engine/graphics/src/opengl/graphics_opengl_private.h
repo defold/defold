@@ -15,6 +15,7 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
+#include <dlib/atomic.h>
 #include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
@@ -82,7 +83,7 @@ namespace dmGraphics
         uint16_t    m_MipMapCount;
 
         // data state per mip-map (mipX = bitX). 0=ok, 1=pending
-        volatile uint16_t    m_DataState;
+        int32_atomic_t m_DataState;
 
         TextureParams m_Params;
     };

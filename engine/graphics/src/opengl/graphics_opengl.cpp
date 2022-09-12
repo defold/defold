@@ -2218,8 +2218,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         tex->m_MipMapCount = 0;
-        tex->m_DataState = 0;
         tex->m_ResourceSize = 0;
+
+        dmAtomicStore32(&tex->m_DataState, 0);
         return (HTexture) tex;
     }
 
@@ -2339,7 +2340,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
     {
         uint32_t flags = TEXTURE_STATUS_OK;
-        if(texture->m_DataState)
+        if(dmAtomicGet32(&texture->m_DataState))
             flags |= TEXTURE_STATUS_DATA_PENDING;
         return flags;
     }
@@ -2355,12 +2356,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         SetTexture(ap.m_Texture, ap.m_Params);
         glFlush();
-        ap.m_Texture->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
+
+        // Removing a power of two can be done using subtraction
+        dmAtomicSub32(&ap.m_Texture->m_DataState, 1<<ap.m_Params.m_MipMap);
     }
 
     static void OpenGLSetTextureAsync(HTexture texture, const TextureParams& params)
     {
-        texture->m_DataState |= 1<<params.m_MipMap;
+        dmAtomicAdd32(&texture->m_DataState, 1<<params.m_MipMap);
+
         uint16_t param_array_index;
         {
             dmMutex::ScopedLock lk(g_Context->m_AsyncMutex);
