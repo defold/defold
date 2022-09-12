@@ -19,7 +19,6 @@ def build(bld):
     elif 'linux' in bld.env.PLATFORM:
         source += ' profiler_linux.cpp'
         source += ' profiler_proc_utils.cpp'
-        profiler_proc_utils.cpp
     elif 'win32' in bld.env.PLATFORM:
         source += ' profiler_win32.cpp'
     else:
