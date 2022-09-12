@@ -46,11 +46,15 @@
     (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set)))
 
 (g/defnk produce-animation-ids [_node-id resource animations-resource animation-set-info animation-set]
-  (if (or (= 0 (count animation-set))
-          (animation-set/is-animation-set? animations-resource))
-    (:animation-ids (resource/base-name animations-resource)) ; single animation file
-    (:animation-ids animation-set-info) ; animation-set
-    ))
+  (let [anim-ids-single (if (not (nil? animations-resource))
+                          [(resource/base-name animations-resource)] ; single animation file
+                          [])
+        anim-ids-set (:animation-ids animation-set-info)
+        is-single-anim (or (= 0 (count animation-set))
+                           (animation-set/is-animation-set? animations-resource))]
+    (if is-single-anim
+      anim-ids-single
+      anim-ids-set)))
 
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
   (cond-> {:mesh (resource/resource->proj-path mesh)
