@@ -65,9 +65,24 @@
 #endif
 
 // DEFOLD
-#include <dmsdk/dlib/log.h>
 static const char* g_EmptyString = "<empty>"; // As seen in profile_remotery.cpp _rmt_HashString32()
 static rmtU32 g_EmptyHash = 0x89abcdef; // Unlikely anything else would collide with this
+
+#ifdef ANDROID
+#include <android/log.h>
+#endif
+#include <stdio.h> //snprintf
+#include <string.h> //strlen
+
+void __platform_log_print(const char* output)
+{
+#ifdef ANDROID
+    __android_log_print(ANDROID_LOG_ERROR, "defold", "%s", output);
+#else
+    fwrite(output, 1, strlen(output), stderr);
+#endif
+}
+
 // END DEFOLD
 
 #if RMT_ENABLED
@@ -2709,7 +2724,9 @@ static rmtError rmtHashTable_Insert(rmtHashTable* table, rmtU32 key, rmtU64 valu
 // DEFOLD
     if (key == 0) {
         key = g_EmptyHash;
-        dmLogError("REMOTERY: DEFOLD: rmtHashTable_Insert: The hash was 0x%08x. Setting it to 0x%08x ('%s')", key, g_EmptyHash, g_EmptyString);
+        char buf[512];
+        snprintf(buf, sizeof(buf), "REMOTERY: DEFOLD: rmtHashTable_Insert: The hash was 0x%08x. Setting it to 0x%08x ('%s')\n", key, g_EmptyHash, g_EmptyString);
+        __platform_log_print(buf);
     }
 // END DEFOLD
 
@@ -5053,7 +5070,9 @@ static rmtBool QueueAddToStringTable(rmtMessageQueue* queue, rmtU32 hash, const 
 
 // DEFOLD
     if (hash == 0 || length == 0) {
-        dmLogError("REMOTERY: DEFOLD: QueueAddToStringTable: The hash is 0x%08x! String is '%s' len: %u", hash, string, (uint32_t)length);
+        char buf[512];
+        snprintf(buf, sizeof(buf), "REMOTERY: DEFOLD: QueueAddToStringTable: The hash is 0x%08x! String is '%s' len: %u\n", hash, string, (uint32_t)length);
+        __platform_log_print(buf);
     }
 // END DEFOLD
 
@@ -5292,7 +5311,9 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
 
 // DEFOLD
     if (name_hash == 0 || name_len == 0) {
-        dmLogError("REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(a): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
+        char buf[512];
+        snprintf(buf, sizeof(buf), "REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(a): The hash is 0x%08x! String is '%s' len: %u\n", name_hash, name, (uint32_t)name_len);
+        __platform_log_print(buf);
     }
 // END DEFOLD
 
@@ -5312,7 +5333,9 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
 
 // DEFOLD
     if (name_hash == 0 || name_len == 0) {
-        dmLogError("REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(b): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
+        char buf[512];
+        snprintf(buf, sizeof(buf), "REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(b): The hash is 0x%08x! String is '%s' len: %u\n", name_hash, name, (uint32_t)name_len);
+        __platform_log_print(buf);
     }
 // END DEFOLD
 
@@ -10015,7 +10038,9 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
             property->nameHash = _rmt_HashString32(name, name_len, 0);
 
             if (property->nameHash == 0 || name_len == 0) {
-                dmLogError("REMOTERY: DEFOLD: RegisterProperty: The hash is 0x%08x! String is '%s' len: %u", property->nameHash, name, (uint32_t)name_len);
+                char buf[512];
+                snprintf(buf, sizeof(buf), "REMOTERY: DEFOLD: RegisterProperty: The hash is 0x%08x! String is '%s' len: %u\n", property->nameHash, name, (uint32_t)name_len);
+                __platform_log_print(buf);
             }
 
             QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
