@@ -566,7 +566,7 @@ static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int inde
 
 static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::HSample root)
 {
-    if (g_ProfilerCreated == 0) // Possibly in the process of shutting down
+    if (dmAtomicGet32(&g_ProfilerCreated)) // Possibly in the process of shutting down
         return;
 
     // TODO: Make a better selection scheme, letting the user step through the threads one by one
@@ -734,6 +734,7 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
     if (!dmProfile::IsInitialized()) // We might use the null implementation
     {
+        dmAtomicStore32(&g_ProfilerCreated, 0);
         delete g_ProfilerCurrentFrame;
         g_ProfilerCurrentFrame = 0;
         return dmExtension::RESULT_OK;
@@ -744,11 +745,7 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
 static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 {
-    if (!dmProfile::IsInitialized()) // We might use the null implementation
-    {
-        return dmExtension::RESULT_OK;
-    }
-
+    if (dmProfile::IsInitialized()) // We might use the null implementation
     {
         DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
