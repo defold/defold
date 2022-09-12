@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-
+#include <dlib/atomic.h>
 #include <dlib/log.h>
 #include <dlib/thread.h>
 #include <dlib/mutex.h>
@@ -32,7 +32,7 @@ namespace dmGraphics
     static dmThread::Thread m_JobThread = 0x0;
     static dmMutex::HMutex  m_ConsumerThreadMutex;
     static dmConditionVariable::HConditionVariable m_ConsumerThreadCondition;
-    static volatile bool m_Active = false;
+    static int32_atomic_t m_Active = 0;
 
     /// Job input and output queues
     static dmArray<JobDesc> m_JobQueue;
@@ -51,14 +51,14 @@ namespace dmGraphics
     {
         void* aux_context = glfwAcquireAuxContext();
         JobDesc job;
-        while (m_Active)
+        while (dmAtomicGet32(&m_Active))
         {
             // Lock and sleep until signaled there is jobs queued up
             {
                 dmMutex::ScopedLock lk(m_ConsumerThreadMutex);
                 while(m_JobQueue.Empty())
                     dmConditionVariable::Wait(m_ConsumerThreadCondition, m_ConsumerThreadMutex);
-                if(!m_Active)
+                if(!dmAtomicGet32(&m_Active))
                     break;
                 job = m_JobQueue.Back();
                 m_JobQueue.Pop();
@@ -101,7 +101,9 @@ namespace dmGraphics
         m_JobQueue.SetSize(0);
         m_ConsumerThreadMutex = dmMutex::New();
         m_ConsumerThreadCondition = dmConditionVariable::New();
-        m_Active = true;
+
+        dmAtomicStore32(&m_Active, 1);
+
         m_JobThread = dmThread::New(AsyncThread, 0x80000, 0, "graphicsworker");
 
         dmLogDebug("AsyncInitialize: Auxillary context enabled");
@@ -113,7 +115,7 @@ namespace dmGraphics
         {
             // When shutting down, discard any pending jobs
             // Set queue size to 1 for early bail (previous size does not matter, discarding jobs)
-            m_Active = false;
+            dmAtomicStore32(&m_Active, 0);
             dmMutex::Lock(m_ConsumerThreadMutex);
             m_JobQueue.SetSize(1);
             dmConditionVariable::Signal(m_ConsumerThreadCondition);
