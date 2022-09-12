@@ -44,5 +44,5 @@ void dmProfilerExt::UpdatePlatformProfiler()
 {
     // Shows if thread was attached to JVM and wasn't detached
     JNIEnv* env = 0;
-    DM_PROPERTY_SET_BOOL(rmtp_AttachedToJVM, g_AndroidApp->activity->vm->GetEnv((void **)&env, JNI_VERSION_1_6) != JNI_OK);
+    DM_PROPERTY_SET_BOOL(rmtp_AttachedToJVM, g_AndroidApp->activity->vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_OK);
 }
