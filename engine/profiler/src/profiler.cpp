@@ -14,6 +14,7 @@
 
 #include "profiler.h"
 
+#include <dlib/atomic.h>
 #include <dlib/dlib.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -52,6 +53,7 @@ static uint32_t gUpdateFrequency = 60;
 
 static dmProfileRender::ProfilerFrame*  g_ProfilerCurrentFrame = 0;
 static dmMutex::HMutex                  g_ProfilerMutex = 0;
+static int32_atomic_t                   g_ProfilerCreated = 0;
 static dmHashTable64<int>               g_ProfilerThreadSortOrder;
 
 
@@ -564,7 +566,7 @@ static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int inde
 
 static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::HSample root)
 {
-    if (g_ProfilerCurrentFrame == 0) // Possibly in the process of shutting down
+    if (g_ProfilerCreated == 0) // Possibly in the process of shutting down
         return;
 
     // TODO: Make a better selection scheme, letting the user step through the threads one by one
@@ -712,6 +714,16 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 {
     g_ProfilerPort = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.port", 0);
 
+    // Note that the callback might come from a different thread!
+    g_ProfilerMutex = dmMutex::New();
+
+    g_ProfilerThreadSortOrder.SetCapacity(7, 8);
+    g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);
+    g_ProfilerThreadSortOrder.Put(dmHashString64("sound"), 1);
+    g_ProfilerThreadSortOrder.Put(dmHashString64("liveupdate"), 2);
+
+    dmAtomicAdd32(&g_ProfilerCreated, 1);
+
     g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
     dmProfile::SetSampleTreeCallback(g_ProfilerCurrentFrame, SampleTreeCallback);
     dmProfile::SetPropertyTreeCallback(g_ProfilerCurrentFrame, PropertyTreeCallback);
@@ -727,14 +739,6 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
         return dmExtension::RESULT_OK;
     }
 
-    // Note that the callback might come from a different thread!
-    g_ProfilerMutex = dmMutex::New();
-
-    g_ProfilerThreadSortOrder.SetCapacity(7, 8);
-    g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);
-    g_ProfilerThreadSortOrder.Put(dmHashString64("sound"), 1);
-    g_ProfilerThreadSortOrder.Put(dmHashString64("liveupdate"), 2);
-
     return dmExtension::RESULT_OK;
 }
 
@@ -745,16 +749,22 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
         return dmExtension::RESULT_OK;
     }
 
-    dmProfile::SetSampleTreeCallback(0, 0);
-    dmProfile::SetPropertyTreeCallback(0, 0);
-    dmProfile::Finalize();
+    {
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+
+        dmAtomicStore32(&g_ProfilerCreated, 0);
+
+        dmProfile::SetSampleTreeCallback(0, 0);
+        dmProfile::SetPropertyTreeCallback(0, 0);
+        dmProfile::Finalize();
+    }
 
     if (g_ProfilerCurrentFrame)
     {
-        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
         DeleteProfilerFrame(g_ProfilerCurrentFrame);
         g_ProfilerCurrentFrame = 0;
     }
+
     dmMutex::Delete(g_ProfilerMutex);
     g_ProfilerMutex = 0;
 
