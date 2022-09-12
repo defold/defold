@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #endif
+#include <string.h>
 
 namespace dmThread
 {
@@ -46,6 +47,7 @@ namespace dmThread
         dmProfile::SetThreadName(data->m_Name);
 
         data->m_Start(data->m_Arg);
+        free((char*)data->m_Name);
         delete data;
     }
 
@@ -78,7 +80,7 @@ namespace dmThread
 
         ThreadData* thread_data = new ThreadData;
         thread_data->m_Start = thread_start;
-        thread_data->m_Name = name;
+        thread_data->m_Name = strdup(name);
         thread_data->m_Arg = arg;
 
         ret = pthread_create(&thread, &attr, (void* (*)(void*)) ThreadStartProxy, thread_data);
