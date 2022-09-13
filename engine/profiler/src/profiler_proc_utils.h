@@ -17,8 +17,6 @@
 
 #include <script/script.h>
 
-#define SAMPLE_CPU_INTERVAL 0.25
-
 namespace dmProfilerExt {
     /**
      * Call to sample CPU usage from proc in intevals.

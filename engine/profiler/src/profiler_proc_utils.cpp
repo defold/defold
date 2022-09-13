@@ -15,6 +15,7 @@
 #include <dlib/time.h>
 #include <unistd.h>
 
+#include "profiler_private.h"
 #include "profiler_proc_utils.h"
 
 // Inspired by this post: http://stackoverflow.com/questions/1420426/how-to-calculate-the-cpu-usage-of-a-process-by-pid-in-linux-from-c

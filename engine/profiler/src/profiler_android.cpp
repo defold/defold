@@ -25,7 +25,7 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp;
 
 void dmProfilerExt::SampleCpuUsage()
 {
-    // Should be implementd using JNI for Android 8+
+    // Should be implemented using JNI for Android 8+
     // see https://github.com/defold/defold/issues/3385
     dmProfilerExt::SampleProcCpuUsage();
 }
