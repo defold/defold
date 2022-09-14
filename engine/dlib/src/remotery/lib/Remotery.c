@@ -5511,6 +5511,12 @@ static rmtError ThreadProfilers_GetThreadProfiler(ThreadProfilers* thread_profil
         }
     }
 
+    if (thread_profilers->nbThreadProfilers < thread_profilers->maxNbThreadProfilers)
+    {
+        mtxUnlock(&thread_profilers->threadProfilerMutex);
+        return RMT_ERROR_MALLOC_FAIL;
+    }
+
     // Thread info not found so create a new one at the end
     thread_profiler = thread_profilers->threadProfilers + thread_profilers->nbThreadProfilers;
     error = ThreadProfiler_Constructor(thread_profilers->mqToRmtThread, thread_profiler, thread_id);
