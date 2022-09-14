@@ -310,9 +310,6 @@ def default_flags(self):
     if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
         opt_level = 1
 
-    if 'web' == build_util.get_target_os() and opt_level == 0:
-        opt_level = 1 # em++: error: wasm2js does not support source maps yet (debug in wasm for now)
-
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
     # Common for all platforms
@@ -1710,7 +1707,7 @@ def set_options(opt):
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
-    opt.add_option('--opt-level', default="0", dest='opt_level', help='optimization level')
+    opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
