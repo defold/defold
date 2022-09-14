@@ -11,6 +11,7 @@
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
+
 (ns editor.resource-dialog
   (:require [editor.resource :as resource]
             [dynamo.graph :as g]
@@ -105,16 +106,18 @@
                       [(make-text-run (subs text start end) nil)])))
           (fuzzy-text/runs (count text) matching-indices))))
 
-(defn- matched-list-item-view [{:keys [icon text matching-indices]}]
+(defn matched-list-item-view [{:keys [icon text matching-indices children]}]
   {:fx/type fx.h-box/lifecycle
    :style-class "content"
    :alignment :center-left
    :spacing 4
-   :children [{:fx/type ui/image-icon
-               :path icon
-               :size 16.0}
-              {:fx/type fx.text-flow/lifecycle
-               :children (matched-text-runs text matching-indices)}]})
+   :children (cond-> [{:fx/type ui/image-icon
+                       :path icon
+                       :size 16.0}
+                      {:fx/type fx.text-flow/lifecycle
+                       :children (matched-text-runs text matching-indices)}]
+                     children
+                     (into children))})
 
 (defn make [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))

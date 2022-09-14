@@ -1194,7 +1194,7 @@
                  (assoc :fx/type fx.image-view/lifecycle)
                  (dissoc :path :size))]
     (if size
-      (assoc desc :image (icons/get-image path size) :fit-width size :fit-height size)
+      (assoc desc :image (icons/get-image path) :fit-width size :fit-height size)
       (assoc desc :image (icons/get-image path)))))
 
 (defn invoke-handler

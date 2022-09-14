@@ -11,18 +11,18 @@
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
+
 (ns editor.recent-files
-  (:require [editor.prefs :as prefs]
-            [editor.resource :as resource]
-            [editor.workspace :as workspace]
-            [editor.dialogs :as dialogs]
-            [cljfx.fx.h-box :as fx.h-box]
-            [editor.ui :as ui]
-            [cljfx.fx.text :as fx.text]
-            [editor.ui.fuzzy-choices :as fuzzy-choices]
-            [cljfx.fx.label :as fx.label]
+  (:require [cljfx.fx.label :as fx.label]
             [cljfx.fx.region :as fx.region]
-            [dynamo.graph :as g])
+            [dynamo.graph :as g]
+            [editor.dialogs :as dialogs]
+            [editor.prefs :as prefs]
+            [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
+            [editor.ui :as ui]
+            [editor.ui.fuzzy-choices :as fuzzy-choices]
+            [editor.workspace :as workspace])
   (:import [javafx.scene.control TabPane]))
 
 (def ^:private history-size 64)
@@ -67,18 +67,13 @@
       items
       {:title "Recent Files"
        :ok-label "Open"
-       :cell-fn (fn [[resource view-type]]
+       :cell-fn (fn [[resource view-type :as item]]
                   {:style-class (into ["list-cell"] (resource/style-classes resource))
-                   :graphic {:fx/type fx.h-box/lifecycle
-                             :style-class "content"
-                             :alignment :center-left
-                             :spacing 4
-                             :children [{:fx/type ui/image-icon
-                                         :path (workspace/resource-icon resource)
-                                         :size 16}
-                                        {:fx/type fx.text/lifecycle
-                                         :text (resource/proj-path resource)}
-                                        {:fx/type fx.region/lifecycle
+                   :graphic {:fx/type resource-dialog/matched-list-item-view
+                             :icon (workspace/resource-icon resource)
+                             :text (resource/proj-path resource)
+                             :matching-indices (:matching-indices (meta item))
+                             :children [{:fx/type fx.region/lifecycle
                                          :h-box/hgrow :always}
                                         {:fx/type fx.label/lifecycle
                                          :style {:-fx-text-fill :-df-text-darker}
