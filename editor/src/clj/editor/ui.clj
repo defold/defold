@@ -1324,7 +1324,7 @@
                                 label
                                 icon
                                 style-classes
-                                (make-menu-items scene options command-contexts {} evaluation-context)
+                                (make-menu-items scene options command-contexts command->shortcut evaluation-context)
                                 on-open))
                 (make-menu-command scene id label icon style-classes acc user-data command enabled? check)))))))))
 
