@@ -56,6 +56,7 @@
             [editor.prefs-dialog :as prefs-dialog]
             [editor.process :as process]
             [editor.progress :as progress]
+            [editor.recent-files :as recent-files]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
@@ -1319,6 +1320,8 @@ If you do not specifically require different script states, consider changing th
                 :command :open-asset}
                {:label "Search in Files..."
                 :command :search-in-files}
+               {:label "Recent Files"
+                :command :recent-files}
                {:label :separator}
                {:label "Close"
                 :command :close}
@@ -1656,6 +1659,7 @@ If you do not specifically require different script states, consider changing th
                            :tab       tab})
         view       (make-view-fn view-graph parent resource-node opts)]
     (assert (g/node-instance? view/WorkbenchView view))
+    (recent-files/add! prefs workspace resource view-type)
     (g/transact
       (concat
         (view/connect-resource-node view resource-node)
@@ -1668,8 +1672,12 @@ If you do not specifically require different script states, consider changing th
     (.setGraphic tab (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
+    (.setOnSelectionChanged tab (ui/event-handler event
+                                  (when (.isSelected tab)
+                                    (recent-files/add! prefs workspace resource view-type))))
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler event
+                          (recent-files/add! prefs workspace resource view-type)
                           ;; The menu refresh can occur after the view graph is
                           ;; deleted but before the tab controls lose input
                           ;; focus, causing handlers to evaluate against deleted
@@ -1783,6 +1791,48 @@ If you do not specifically require different script states, consider changing th
                        :command   :open-as
                        :user-data {:selected-view-type vt}})
                     (:view-types resource-type))))))
+
+(handler/defhandler :recent-files :global
+  (enabled? [prefs workspace evaluation-context]
+    (recent-files/exist? prefs workspace evaluation-context))
+  (active? [] true)
+  (options [prefs workspace app-view]
+    (g/with-auto-evaluation-context evaluation-context
+      (-> [{:label "Re-Open Closed File"
+            :command :reopen-recent-file}]
+          (cond-> (recent-files/exist? prefs workspace evaluation-context)
+                  (->
+                    (conj {:label :separator})
+                    (into
+                      (map (fn [[resource view-type :as resource+view-type]]
+                             {:label (str (resource/proj-path resource) " • " (:label view-type) " view")
+                              :command :open-selected-recent-file
+                              :user-data resource+view-type}))
+                      (recent-files/some-recent prefs workspace evaluation-context))
+                    (conj {:label :separator})))
+          (conj {:label "More..."
+                 :command :open-recent-file})))))
+
+(handler/defhandler :open-selected-recent-file :global
+  (run [prefs app-view workspace project user-data]
+    (let [[resource view-type] user-data]
+      (open-resource app-view prefs workspace project resource {:selected-view-type view-type}))))
+
+(handler/defhandler :open-recent-file :global
+  (active? [prefs workspace evaluation-context]
+    (recent-files/exist? prefs workspace evaluation-context))
+  (run [prefs app-view workspace project]
+    (g/with-auto-evaluation-context evaluation-context
+      (doseq [[resource view-type] (recent-files/select prefs workspace evaluation-context)]
+        (open-resource app-view prefs workspace project resource {:selected-view-type view-type})))))
+
+(handler/defhandler :reopen-recent-file :global
+  (enabled? [prefs workspace evaluation-context app-view]
+    (recent-files/exist-closed? prefs workspace app-view evaluation-context))
+  (run [prefs app-view workspace project]
+    (g/with-auto-evaluation-context evaluation-context
+      (let [[resource view-type] (recent-files/last-closed prefs workspace app-view evaluation-context)]
+        (open-resource app-view prefs workspace project resource {:selected-view-type view-type})))))
 
 (handler/defhandler :synchronize :global
   (enabled? [] (disk-availability/available?))
