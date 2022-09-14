@@ -1363,7 +1363,7 @@ Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
 @after('cprogram', 'cxxprogram')
 def extract_symbols(self):
     platform = self.env['PLATFORM']
-    if not 'macos' in platform:
+    if not ('macos' in platform or 'ios' in platform):
         return
 
     engine = self.path.find_or_declare(self.target)
