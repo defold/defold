@@ -5511,7 +5511,7 @@ static rmtError ThreadProfilers_GetThreadProfiler(ThreadProfilers* thread_profil
         }
     }
 
-    if (thread_profilers->nbThreadProfilers < thread_profilers->maxNbThreadProfilers)
+    if (thread_profilers->nbThreadProfilers+1 > thread_profilers->maxNbThreadProfilers)
     {
         mtxUnlock(&thread_profilers->threadProfilerMutex);
         return RMT_ERROR_MALLOC_FAIL;
