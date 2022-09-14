@@ -310,6 +310,9 @@ def default_flags(self):
     if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
         opt_level = 1
 
+    if 'web' == build_util.get_target_os() and opt_level == 0:
+        opt_level = 1 # em++: error: wasm2js does not support source maps yet (debug in wasm for now)
+
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
     # Common for all platforms
