@@ -24,13 +24,6 @@
 
 #include "dmsdk/external/remotery/Remotery.h"
 
-rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed)
-{
-    static uint32_t empty_hash = dmHashString32("<empty>");
-    rmtU32 hash = dmHashBuffer32(s, len);
-    return hash != 0 ? hash : empty_hash;
-}
-
 namespace dmProfile
 {
     static Remotery* g_Remotery = 0;

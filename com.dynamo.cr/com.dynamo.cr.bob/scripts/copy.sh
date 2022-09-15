@@ -78,9 +78,10 @@ cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.d
 
 rm -rf tmp
 mkdir -p tmp
-tar xf ../../packages/luajit-2.1.0-beta3-x86_64-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-beta3-x86_64-linux.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-beta3-x86_64-macos.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-633f265-win32.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-633f265-x86_64-win32.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-633f265-x86_64-linux.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-633f265-x86_64-macos.tar.gz -C tmp
 
 cp -v tmp/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v tmp/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
@@ -88,7 +89,7 @@ cp -v tmp/bin/x86_64-macos/luajit-32 libexec/x86_64-macos/luajit-32
 cp -v tmp/bin/x86_64-macos/luajit-64 libexec/x86_64-macos/luajit-64
 #cp -v tmp/bin/arm64-macos/luajit-32 libexec/arm64-macos/luajit-32
 #cp -v tmp/bin/arm64-macos/luajit-64 libexec/arm64-macos/luajit-64
-cp -v tmp/bin/x86_64-win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
+cp -v tmp/bin/win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
 cp -v tmp/bin/x86_64-win32/luajit-64.exe libexec/x86_64-win32/luajit-64.exe
 jar cfM lib/luajit-share.zip -C $DYNAMO_HOME/ext/share/ luajit
 

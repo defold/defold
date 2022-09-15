@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1979,7 +1979,7 @@ namespace dmParticle
         prototype->m_Emitters[emitter_index].m_TileSource = tile_source;
     }
 
-    void SetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value)
+    static void SetRenderConstantInternal(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Matrix4 value, bool is_matrix4)
     {
         Instance* inst = GetInstance(context, instance);
         uint32_t count = inst->m_Emitters.Size();
@@ -2010,10 +2010,23 @@ namespace dmParticle
                     c = &constants[constant_count];
                     c->m_NameHash = name_hash;
                 }
-                c->m_Value = value;
-                e->m_ReHash = 1;
+                c->m_Value     = value;
+                c->m_IsMatrix4 = is_matrix4;
+                e->m_ReHash    = 1;
             }
         }
+    }
+
+    void SetRenderConstantM4(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Matrix4 value)
+    {
+        SetRenderConstantInternal(context, instance, emitter_id, name_hash, value, true);
+    }
+
+    void SetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value)
+    {
+        Matrix4 m;
+        m.setCol0(value);
+        SetRenderConstantInternal(context, instance, emitter_id, name_hash, m, false);
     }
 
     void ResetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash)

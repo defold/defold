@@ -404,7 +404,7 @@ TEST_F(dmGraphicsTest, TestProgram)
                             Vector4(5.0f, 6.0f, 7.0f, 8.0f),
                             Vector4(9.0f, 10.0f, 11.0f, 12.0f),
                             Vector4(13.0f, 14.0f, 15.0f, 16.0f) };
-    dmGraphics::SetConstantM4(m_Context, matrix, 4);
+    dmGraphics::SetConstantM4(m_Context, matrix, 1, 4);
     char* program_data = new char[1024];
     *program_data = 0;
     vs_shader = MakeDDFShader(program_data, 1024);
@@ -672,47 +672,49 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
 TEST_F(dmGraphicsTest, TestMasks)
 {
     dmGraphics::SetColorMask(m_Context, false, false, false, false);
-    ASSERT_FALSE(m_Context->m_RedMask);
-    ASSERT_FALSE(m_Context->m_GreenMask);
-    ASSERT_FALSE(m_Context->m_BlueMask);
-    ASSERT_FALSE(m_Context->m_AlphaMask);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_R);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_G);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_B);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_A);
     dmGraphics::SetColorMask(m_Context, true, true, true, true);
-    ASSERT_TRUE(m_Context->m_RedMask);
-    ASSERT_TRUE(m_Context->m_GreenMask);
-    ASSERT_TRUE(m_Context->m_BlueMask);
-    ASSERT_TRUE(m_Context->m_AlphaMask);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_R);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_G);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_B);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_A);
 
     dmGraphics::SetDepthMask(m_Context, false);
-    ASSERT_FALSE(m_Context->m_DepthMask);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteDepth);
     dmGraphics::SetDepthMask(m_Context, true);
-    ASSERT_TRUE(m_Context->m_DepthMask);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteDepth);
 
-    dmGraphics::SetStencilMask(m_Context, 0u);
-    ASSERT_EQ(0u, m_Context->m_StencilMask);
-    dmGraphics::SetStencilMask(m_Context, ~0u);
-    ASSERT_EQ(~0u, m_Context->m_StencilMask);
+    dmGraphics::SetStencilMask(m_Context, 0xff);
+    ASSERT_EQ(0xff, m_Context->m_PipelineState.m_StencilWriteMask);
+    dmGraphics::SetStencilMask(m_Context, ~0xff);
+    ASSERT_EQ(0, m_Context->m_PipelineState.m_StencilWriteMask);
     dmGraphics::SetDepthFunc(m_Context, dmGraphics::COMPARE_FUNC_ALWAYS);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, m_Context->m_DepthFunc);
+    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, (dmGraphics::CompareFunc) m_Context->m_PipelineState.m_DepthTestFunc);
     dmGraphics::SetDepthFunc(m_Context, dmGraphics::COMPARE_FUNC_NEVER);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, m_Context->m_DepthFunc);
+    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, (dmGraphics::CompareFunc) m_Context->m_PipelineState.m_DepthTestFunc);
 
     dmGraphics::SetStencilFunc(m_Context, dmGraphics::COMPARE_FUNC_ALWAYS, 0xffffffff, 0x0);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, m_Context->m_StencilFunc);
-    ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncRef);
-    ASSERT_EQ(0x0, m_Context->m_StencilFuncMask);
+    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, (dmGraphics::CompareFunc) m_Context->m_PipelineState.m_StencilFrontTestFunc);
+    ASSERT_EQ(0xff, m_Context->m_PipelineState.m_StencilReference);
+    ASSERT_EQ(0x0, m_Context->m_PipelineState.m_StencilCompareMask);
+
     dmGraphics::SetStencilFunc(m_Context, dmGraphics::COMPARE_FUNC_NEVER, 0x0, 0xffffffff);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, m_Context->m_StencilFunc);
-    ASSERT_EQ(0x0, m_Context->m_StencilFuncRef);
-    ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncMask);
+    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, (dmGraphics::CompareFunc) m_Context->m_PipelineState.m_StencilFrontTestFunc);
+    ASSERT_EQ(0x0, m_Context->m_PipelineState.m_StencilReference);
+    ASSERT_EQ(0xff, m_Context->m_PipelineState.m_StencilCompareMask);
 
     dmGraphics::SetStencilOp(m_Context, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_REPLACE, dmGraphics::STENCIL_OP_INVERT);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP, m_Context->m_StencilOpSFail);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, m_Context->m_StencilOpDPFail);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT, m_Context->m_StencilOpDPPass);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP,    (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpDepthFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT,  (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpPass);
+
     dmGraphics::SetStencilOp(m_Context, dmGraphics::STENCIL_OP_INVERT, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_REPLACE);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT, m_Context->m_StencilOpSFail);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP, m_Context->m_StencilOpDPFail);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, m_Context->m_StencilOpDPPass);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT,  (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP,    (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpDepthFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpPass);
 }
 
 TEST_F(dmGraphicsTest, TestCloseCallback)

@@ -15,23 +15,21 @@
 (ns integration.collection-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system graph-dependencies]]
             [editor.app-view :as app-view]
             [editor.collection :as collection]
+            [editor.defold-project :as project]
+            [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.types :as types]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [internal.graph.types :as gt])
-  (:import [editor.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]))
+            [internal.graph.types :as gt]
+            [support.test-support :refer [with-clean-system graph-dependencies]])
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+           [com.dynamo.proto DdfMath$Vector3]))
 
 (deftest hierarchical-outline
   (testing "Hierarchical outline"
@@ -250,3 +248,144 @@
                    (test-util/with-prop [inst-id :id "props"]
                      (is (g/error? (test-util/prop-error inst-id :id)))
                      (is (build-error? coll-id)))))))))
+
+(defn- vector3-pb
+  ^DdfMath$Vector3 [^double x ^double y ^double z]
+  (-> (DdfMath$Vector3/newBuilder)
+      (.setX x)
+      (.setY y)
+      (.setZ z)
+      (.build)))
+
+(deftest component-ddf-scale
+  (letfn [(make-components! [game-object sprite-resource atlas-resource app-view]
+            (let [sprite-resource-type (resource/resource-type sprite-resource)
+                  embedded-component (test-util/add-embedded-component! app-view sprite-resource-type game-object)
+                  referenced-component (test-util/add-referenced-component! app-view sprite-resource game-object)]
+              (test-util/prop! embedded-component :image atlas-resource)
+              (test-util/prop! embedded-component :default-animation "logo")
+              [embedded-component referenced-component]))
+
+          (test-unscaled [embedded-component referenced-component]
+            (testing "Unscaled components have identity scale."
+              (is (= [1.0 1.0 1.0] (g/node-value embedded-component :scale)))
+              (is (= [1.0 1.0 1.0] (g/node-value referenced-component :scale)))))
+
+          (test-unscaled-saved-pb [game-object-saved-pb]
+            (testing "Unscaled components do not include scale in save data."
+              (is (= 1 (.getEmbeddedComponentsCount game-object-saved-pb)))
+              (is (= 1 (.getComponentsCount game-object-saved-pb)))
+              (let [embedded-component-saved-pb (.getEmbeddedComponents game-object-saved-pb 0)
+                    referenced-component-saved-pb (.getComponents game-object-saved-pb 0)]
+                (is (not (.hasScale embedded-component-saved-pb)))
+                (is (not (.hasScale referenced-component-saved-pb))))))
+
+          (test-unscaled-built-pb [game-object-built-pb]
+            (testing "Unscaled components include default scale in built binaries."
+              (is (= 2 (.getComponentsCount game-object-built-pb)))
+              (let [embedded-component-built-pb (.getComponents game-object-built-pb 0)
+                    referenced-component-built-pb (.getComponents game-object-built-pb 1)]
+                (is (.hasScale embedded-component-built-pb))
+                (is (.hasScale referenced-component-built-pb))
+                (is (= (vector3-pb 1.0 1.0 1.0) (.getScale embedded-component-built-pb)))
+                (is (= (vector3-pb 1.0 1.0 1.0) (.getScale referenced-component-built-pb))))))
+
+          (scale-components! [embedded-component referenced-component]
+            (g/transact
+              [(g/set-property embedded-component :scale [2.0 3.0 4.0])
+               (g/set-property referenced-component :scale [5.0 6.0 7.0])]))
+
+          (test-scaled-saved-pb [game-object-saved-pb]
+            (testing "Scaled components include assigned scale in save data."
+              (is (= 1 (.getEmbeddedComponentsCount game-object-saved-pb)))
+              (is (= 1 (.getComponentsCount game-object-saved-pb)))
+              (let [embedded-component-saved-pb (.getEmbeddedComponents game-object-saved-pb 0)
+                    referenced-component-saved-pb (.getComponents game-object-saved-pb 0)]
+                (is (.hasScale embedded-component-saved-pb))
+                (is (.hasScale referenced-component-saved-pb))
+                (is (= (vector3-pb 2.0 3.0 4.0) (.getScale embedded-component-saved-pb)))
+                (is (= (vector3-pb 5.0 6.0 7.0) (.getScale referenced-component-saved-pb))))))
+
+          (test-scaled-built-pb [game-object-built-pb]
+            (testing "Scaled components include assigned scale in built binaries."
+              (is (= 2 (.getComponentsCount game-object-built-pb)))
+              (let [embedded-component-built-pb (.getComponents game-object-built-pb 0)
+                    referenced-component-built-pb (.getComponents game-object-built-pb 1)]
+                (is (.hasScale embedded-component-built-pb))
+                (is (.hasScale referenced-component-built-pb))
+                (is (= (vector3-pb 2.0 3.0 4.0) (.getScale embedded-component-built-pb)))
+                (is (= (vector3-pb 5.0 6.0 7.0) (.getScale referenced-component-built-pb))))))
+
+          (game-object-saved-pb [game-object]
+            (test-util/saved-pb game-object GameObject$PrototypeDesc))
+
+          (game-object-built-pb [game-object]
+            (test-util/built-pb game-object GameObject$PrototypeDesc))
+
+          (collection-game-object-saved-pb [collection game-object-index]
+            (let [collection-saved-pb (test-util/saved-pb collection GameObject$CollectionDesc)]
+              (is (< game-object-index (.getEmbeddedInstancesCount collection-saved-pb)))
+              (let [game-object-embedded-instance-saved-pb (.getEmbeddedInstances collection-saved-pb game-object-index)
+                    embedded-game-object-string (.getData game-object-embedded-instance-saved-pb)]
+                (protobuf/str->pb GameObject$PrototypeDesc embedded-game-object-string))))
+
+          (collection-game-object-built-pb [collection game-object-index]
+            (let [collection-resource (g/node-value collection :resource)
+                  workspace (resource/workspace collection-resource)
+                  collection-built-pb (test-util/built-pb collection GameObject$CollectionDesc)]
+              (is (< game-object-index (.getInstancesCount collection-built-pb)))
+              (let [game-object-instance-built-pb (.getInstances collection-built-pb game-object-index)
+                    game-object-build-output-file (workspace/build-path workspace (.getPrototype game-object-instance-built-pb))
+                    game-object-build-output-bytes (fs/read-bytes game-object-build-output-file)]
+                (protobuf/bytes->pb GameObject$PrototypeDesc game-object-build-output-bytes))))]
+    (with-clean-system
+      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/small_project")
+            atlas-resource (workspace/find-resource workspace "/main/logo.atlas")
+            atlas-proj-path (resource/proj-path atlas-resource)
+            game-object-resource (test-util/make-resource! workspace "/test.go" {})
+            collection-resource (test-util/make-resource! workspace "/test.collection" {:name "collection"})
+            sprite-resource (test-util/make-resource! workspace "/test.sprite" {:tile-set atlas-proj-path :default-animation "logo"})]
+        (workspace/resource-sync! workspace)
+        (let [project (test-util/setup-project! workspace)
+              app-view (test-util/setup-app-view! project)]
+
+          (testing "Components in game object."
+            (let [game-object (project/get-resource-node project game-object-resource)
+                  [embedded-component referenced-component] (make-components! game-object sprite-resource atlas-resource app-view)]
+              (test-unscaled embedded-component referenced-component)
+              (test-unscaled-saved-pb (game-object-saved-pb game-object))
+              (with-open [_ (test-util/build! game-object)]
+                (test-unscaled-built-pb (game-object-built-pb game-object)))
+              (scale-components! embedded-component referenced-component)
+              (test-scaled-saved-pb (game-object-saved-pb game-object))
+              (with-open [_ (test-util/build! game-object)]
+                (test-scaled-built-pb (game-object-built-pb game-object)))))
+
+          (testing "Components in game object embedded inside collection."
+            (let [collection (project/get-resource-node project collection-resource)
+                  game-object-instance (test-util/add-embedded-game-object! app-view project collection)
+                  game-object (test-util/to-game-object-id game-object-instance)
+                  [embedded-component referenced-component] (make-components! game-object sprite-resource atlas-resource app-view)]
+              (test-unscaled embedded-component referenced-component)
+              (test-unscaled-saved-pb (collection-game-object-saved-pb collection 0))
+              (with-open [_ (test-util/build! collection)]
+                (test-unscaled-built-pb (collection-game-object-built-pb collection 0)))
+              (scale-components! embedded-component referenced-component)
+              (test-scaled-saved-pb (collection-game-object-saved-pb collection 0))
+              (with-open [_ (test-util/build! collection)]
+                (test-scaled-built-pb (collection-game-object-built-pb collection 0)))))
+
+          (testing "Components in child game object embedded inside collection."
+            (let [collection (project/get-resource-node project collection-resource)
+                  game-object-instance (:node-id (test-util/outline collection [0]))
+                  child-game-object-instance (test-util/add-embedded-game-object! app-view project collection game-object-instance)
+                  child-game-object (test-util/to-game-object-id child-game-object-instance)
+                  [embedded-component referenced-component] (make-components! child-game-object sprite-resource atlas-resource app-view)]
+              (test-unscaled embedded-component referenced-component)
+              (test-unscaled-saved-pb (collection-game-object-saved-pb collection 1))
+              (with-open [_ (test-util/build! collection)]
+                (test-unscaled-built-pb (collection-game-object-built-pb collection 1)))
+              (scale-components! embedded-component referenced-component)
+              (test-scaled-saved-pb (collection-game-object-saved-pb collection 1))
+              (with-open [_ (test-util/build! collection)]
+                (test-scaled-built-pb (collection-game-object-built-pb collection 1))))))))))

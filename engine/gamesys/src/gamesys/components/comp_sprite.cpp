@@ -378,13 +378,13 @@ namespace dmGameSystem
         component->m_Instance = params.m_Instance;
         component->m_Position = Vector3(params.m_Position);
         component->m_Rotation = params.m_Rotation;
+        component->m_Scale = params.m_Scale;
         SpriteResource* resource = (SpriteResource*)params.m_Resource;
         component->m_Resource = resource;
         component->m_RenderConstants = 0;
         dmMessage::ResetURL(&component->m_Listener);
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
-        component->m_Scale = Vector3(1.0f);
         component->m_FunctionRef = 0;
 
         component->m_ReHash = 1;

@@ -89,12 +89,17 @@ def get_issue_type(issue):
     return TYPE_FIX
 
 
-def issue_to_markdown(issue, hide_details = True):
-    md = ("__%s__: ([#%s](%s)) __%s__ \n" % (issue["type"], issue["number"], issue["url"],issue["title"]))
-    if hide_details: md += ("[details=\"Details\"]\n")
-    md += ("%s\n" % issue["body"])
-    if hide_details: md += ("\n---\n[/details]\n")
-    md += ("\n")
+def issue_to_markdown(issue, hide_details = True, title_only = False):
+    if title_only:
+        md = ("* __%s__: ([#%s](%s)) %s \n" % (issue["type"], issue["number"], issue["url"], issue["title"]))
+
+    else:    
+        md = ("__%s__: ([#%s](%s)) __%s__ \n" % (issue["type"], issue["number"], issue["url"], issue["title"]))
+        if hide_details: md += ("[details=\"Details\"]\n")
+        md += ("%s\n" % issue["body"])
+        if hide_details: md += ("\n---\n[/details]\n")
+        md += ("\n")
+
     return md
 
 
@@ -110,7 +115,7 @@ def generate(version, hide_details = False):
     for card in get_cards_in_column(project, "Done"):
         content_url = card.get("content_url")
         # do not process cards that doesn't reference an issue
-        if not content_url and "issue" not in content_url:
+        if not content_url:
             output.append({
                 "title": "Note",
                 "body": card["note"],
@@ -138,7 +143,7 @@ def generate(version, hide_details = False):
                 continue
             entry = {
                 "title": pr["title"],
-                "body": pr["body"],
+                "body": pr["body"] if pr["body"] != None else "",
                 "number": issue["number"],
                 "url": issue["html_url"],
                 "labels": get_issue_labels(issue),
@@ -147,8 +152,8 @@ def generate(version, hide_details = False):
         else:
             print("  Issue is not associated with a pull request.")
             entry = {
-                "title": issue["title"],
-                "body": issue["body"],
+                "title": str(issue["title"]),
+                "body": issue["body"] if issue["body"] != None else "",
                 "number": issue["number"],
                 "url": issue["html_url"],
                 "labels": get_issue_labels(issue),
@@ -176,13 +181,25 @@ def generate(version, hide_details = False):
     for card in cards:
         content += ("%s\n" % card["body"])
 
-    content += ("## Engine\n")
+
+    # list of issue titles
+    content += ("\n## Summary\n")
+    for issue_type in [TYPE_NEW, TYPE_FIX]:
+        for issue in engine:
+            if issue["type"] == issue_type:
+                content += issue_to_markdown(issue, title_only = True)
+        for issue in editor:
+            if issue["type"] == issue_type:
+                content += issue_to_markdown(issue, title_only = True)
+
+    # the details
+    content += ("\n## Engine\n")
     for issue_type in [TYPE_NEW, TYPE_FIX]:
         for issue in engine:
             if issue["type"] == issue_type:
                 content += issue_to_markdown(issue, hide_details = hide_details)
 
-    content += ("## Editor\n")
+    content += ("\n## Editor\n")
     for issue_type in [TYPE_NEW, TYPE_FIX]:
         for issue in editor:
             if issue["type"] == issue_type:

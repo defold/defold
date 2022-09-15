@@ -92,6 +92,8 @@ namespace dmGameObject
         dmVMath::Point3    m_Position;
         /// Local component rotation
         dmVMath::Quat      m_Rotation;
+        /// Local component scale
+        dmVMath::Vector3   m_Scale;
         PropertySet        m_PropertySet;
         /// Component resource
         void* m_Resource;

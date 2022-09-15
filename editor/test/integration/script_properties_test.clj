@@ -19,7 +19,6 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
-            [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.code.script :as script]
             [editor.collection :as collection]
@@ -27,7 +26,6 @@
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.pipeline :as pipeline]
-            [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -36,8 +34,7 @@
             [support.test-support :refer [spit-until-new-mtime with-clean-system]]
             [util.murmur :as murmur])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.lua.proto Lua$LuaModule]
-           [java.io ByteArrayOutputStream StringReader]))
+           [com.dynamo.lua.proto Lua$LuaModule]))
 
 (defn- unpack-property-declarations [property-declarations]
   (assert (map? property-declarations))
@@ -222,8 +219,7 @@
     (:resource (first (:deps (first (g/node-value resource-node :build-targets)))))))
 
 (defn- save-value [pb-class node-id]
-  (with-open [reader (StringReader. (:content (g/node-value node-id :save-data)))]
-    (protobuf/read-text pb-class reader)))
+  (protobuf/str->map pb-class (:content (g/node-value node-id :save-data))))
 
 (defn- properties [node-id]
   (:properties (g/node-value node-id :_properties)))
