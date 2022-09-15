@@ -954,7 +954,8 @@
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
-            (let [slice9-data (slice9/vertex-data anim-data size slice9 pivot)
+            (let [frame (get-in anim-data [:frames 0])
+                  slice9-data (slice9/vertex-data frame size slice9 pivot)
                   user-data {:geom-data (:position-data slice9-data)
                              :line-data (:line-data slice9-data)
                              :uv-data (:uv-data slice9-data)

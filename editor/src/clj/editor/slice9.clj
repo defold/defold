@@ -24,8 +24,8 @@
 (defn- rotated-box-corner-coords->vertices2 [[x0 y0 x1 y1]]
   [[x0 y0] [x1 y0] [x1 y1] [x0 y1]])
 
-(defn- box-corner-coords->vertices4 [[x0 y0 x1 y1]]
-  [[x0 y0 0.0 1.0] [x0 y1 0.0 1.0] [x1 y1 0.0 1.0] [x1 y0 0.0 1.0]])
+(defn- box-corner-coords->vertices3 [[x0 y0 x1 y1]]
+  [[x0 y0 0.0] [x0 y1 0.0] [x1 y1 0.0] [x1 y0 0.0]])
 
 (defn- ranges->box-corner-coords [x-ranges y-ranges]
   (for [[x0 x1] x-ranges
@@ -225,7 +225,7 @@
                                                          (and (not= x0 x1) (not= y0 y1))))
                                                (map vector xy-box-coords uv-boxes))
         non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset pivot size))
-                                       box-corner-coords->vertices4
+                                       box-corner-coords->vertices3
                                        first)
                                  non-empty-xy-box-coords+uv-boxes)
         position-data (into []
