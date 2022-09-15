@@ -16,15 +16,13 @@
   (:require [editor.geom :as geom]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- box-corner-coords->vertices2 [[x0 y0 x1 y1]]
   [[x0 y0] [x0 y1] [x1 y1] [x1 y0]])
 
 (defn- rotated-box-corner-coords->vertices2 [[x0 y0 x1 y1]]
   [[x0 y0] [x1 y0] [x1 y1] [x0 y1]])
-
-(defn- box-corner-coords->vertices3 [[x0 y0 x1 y1]]
-  [[x0 y0 0.0] [x0 y1 0.0] [x1 y1 0.0] [x1 y0 0.0]])
 
 (defn- box-corner-coords->vertices4 [[x0 y0 x1 y1]]
   [[x0 y0 0.0 1.0] [x0 y1 0.0 1.0] [x1 y1 0.0 1.0] [x1 y0 0.0 1.0]])
@@ -109,9 +107,9 @@
   (map box box-triangles-vertex-order))
 
 (defn vertex-data
-  [{:keys [width height tex-coords] :as frame} size slice9]
-  (let [texture-width width
-        texture-height height
+  [{:keys [width height tex-coords] :as _frame} size slice9 pivot]
+  (let [^double texture-width (or width 1.0)
+        ^double texture-height (or height 1.0)
         ;; Sample tex-coords if anim from tile source:
         ;;
         ;;  no flip:  [[0.0 0.140625] [0.0 1.0] [0.5566406 1.0] [0.5566406 0.140625]]   TL BL BR TR     T-B-B-T L-L-R-R
@@ -128,8 +126,8 @@
                                (get-in tex-coords [1 0]))
                          (not= (get-in tex-coords [1 1])
                                (get-in tex-coords [2 1])))
-        [u0 v0] (get tex-coords 0 [0.0 0.0])
-        [u1 v1] (get tex-coords 2 [1.0 1.0])
+        [^double u0 ^double v0] (get tex-coords 0 [0.0 0.0])
+        [^double u1 ^double v1] (get tex-coords 2 [1.0 1.0])
         u-delta (- u1 u0)
         v-delta (- v1 v0)
         uv-boxes (if-not uv-rotated?
@@ -167,12 +165,12 @@
                    ;; |   |   |   |
                    ;;  -----------
                    (let [u-steps [u0
-                                  (+ u0 (* u-delta (/ (get slice9 0) texture-width)))
-                                  (- u1 (* u-delta (/ (get slice9 2) texture-width)))
+                                  (+ u0 (* u-delta (/ ^double (get slice9 0) texture-width)))
+                                  (- u1 (* u-delta (/ ^double (get slice9 2) texture-width)))
                                   u1]
                          v-steps [v0
-                                  (+ v0 (* v-delta (/ (get slice9 3) texture-height)))
-                                  (- v1 (* v-delta (/ (get slice9 1) texture-height)))
+                                  (+ v0 (* v-delta (/ ^double (get slice9 3) texture-height)))
+                                  (- v1 (* v-delta (/ ^double (get slice9 1) texture-height)))
                                   v1]
                          uv-box-coords (ranges->box-corner-coords (steps->ranges u-steps) (steps->ranges v-steps))]
                      (map box-corner-coords->vertices2 uv-box-coords))
@@ -209,33 +207,38 @@
                    ;; |   |   |   |
                    ;;  -----------
                    (let [u-steps [u0
-                                  (+ u0 (* u-delta (/ (get slice9 3) texture-height)))
-                                  (- u1 (* u-delta (/ (get slice9 1) texture-height)))
+                                  (+ u0 (* u-delta (/ ^double (get slice9 3) texture-height)))
+                                  (- u1 (* u-delta (/ ^double (get slice9 1) texture-height)))
                                   u1]
                          v-steps [v0
-                                  (+ v0 (* v-delta (/ (get slice9 0) texture-width)))
-                                  (- v1 (* v-delta (/ (get slice9 2) texture-width)))
+                                  (+ v0 (* v-delta (/ ^double (get slice9 0) texture-width)))
+                                  (- v1 (* v-delta (/ ^double (get slice9 2) texture-width)))
                                   v1]
                          uv-box-coords (ranges->rotated-box-corner-coords (steps->ranges u-steps) (steps->ranges v-steps))]
                      (map rotated-box-corner-coords->vertices2 uv-box-coords)))
-        [box-width box-height _] size
-        x-steps [0.0 (get slice9 0) (- box-width (get slice9 2)) box-width]
-        y-steps [0.0 (get slice9 3) (- box-height (get slice9 1)) box-height]
+        [^double box-width ^double box-height _] size
+        x-steps [0.0 ^double (get slice9 0) (- box-width ^double (get slice9 2)) box-width]
+        y-steps [0.0 ^double (get slice9 3) (- box-height ^double (get slice9 1)) box-height]
         xy-box-coords (ranges->box-corner-coords (steps->ranges x-steps) (steps->ranges y-steps))
         non-empty-xy-box-coords+uv-boxes (into []
-                                               (filter (fn [[[x0 y0 x1 y1] uv-box]]
+                                               (filter (fn [[[x0 y0 x1 y1] _uv-box]]
                                                          (and (not= x0 x1) (not= y0 y1))))
                                                (map vector xy-box-coords uv-boxes))
-        non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset :pivot-center size))
+        non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset pivot size))
                                        box-corner-coords->vertices4
                                        first)
                                  non-empty-xy-box-coords+uv-boxes)
-        position-lst (into [] (mapcat box->triangle-vertices) non-empty-xy-boxes)
-        uv-lst (into [] (comp
-                          (map second)
-                          (mapcat box->triangle-vertices))
-                     non-empty-xy-box-coords+uv-boxes)
-        line-lst (into [] (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices))))) non-empty-xy-boxes)]
-    {:position-data position-lst
-      :uv-data uv-lst
-      :line-data line-lst}))
+        position-data (into []
+                            (mapcat box->triangle-vertices)
+                            non-empty-xy-boxes)
+        uv-data (into []
+                      (comp (map second)
+                            (mapcat box->triangle-vertices))
+                      non-empty-xy-box-coords+uv-boxes)
+        line-data (into []
+                        (mapcat (fn [box-vertices]
+                                  (interleave box-vertices (drop 1 (cycle box-vertices)))))
+                        non-empty-xy-boxes)]
+    {:position-data position-data
+     :uv-data uv-data
+     :line-data line-data}))
