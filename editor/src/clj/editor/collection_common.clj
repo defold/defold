@@ -1,0 +1,246 @@
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
+(ns editor.collection-common
+  (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.math :as math]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace]
+            [internal.util :as util]
+            [service.log :as log])
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
+           [java.io StringReader]
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
+
+(set! *warn-on-reflection* true)
+
+(def collection-icon "icons/32/Icons_09-Collection.png")
+(def path-sep "/")
+
+(defn make-collection-dependencies-fn [workspace]
+  ;; TODO: This should probably also consider resource property overrides?
+  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
+    (fn [source-value]
+      (let [go-resource-type (workspace/get-resource-type workspace "go")
+            go-read-fn (:read-fn go-resource-type)
+            go-dependencies-fn (:dependencies-fn go-resource-type)]
+        (into (default-dependencies-fn source-value)
+              (mapcat (fn [embedded-instance-desc]
+                        (try
+                          (go-dependencies-fn
+                            (with-open [reader (StringReader. (:data embedded-instance-desc))]
+                              (go-read-fn reader)))
+                          (catch Exception error
+                            (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
+                                      :exception error)
+                            nil))))
+              (:embedded-instances source-value))))))
+
+(defn game-object-instance-build-target [build-resource instance-desc ^Matrix4d transform-matrix game-object-build-target proj-path->resource-property-build-target]
+  {:pre [(workspace/build-resource? build-resource)
+         (map? instance-desc)
+         (instance? Matrix4d transform-matrix)
+         (map? game-object-build-target)
+         (ifn? proj-path->resource-property-build-target)]}
+  ;; Create a build-target for the referenced or embedded game object. Also tag
+  ;; on :instance-data with the overrides for this instance. This will later be
+  ;; extracted and compiled into the Collection - the overrides do not end up in
+  ;; the resulting game object binary.
+  ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
+  ;; when reading this. It describes how the ddf-message map is structured.
+  ;; You might also want to familiarize yourself with how this process works in
+  ;; `game_object.clj`, since it is similar but less complicated there.
+  ;;
+  ;; NOTE: A `go-prop` is basically a PropertyDesc in map form with an
+  ;; additional :clj-value entry. See `properties/build-target-go-props`
+  ;; for more info.
+  (let [build-target-go-props (partial properties/build-target-go-props
+                                       proj-path->resource-property-build-target)
+        component-property-infos (map (comp build-target-go-props :properties)
+                                      (:component-properties instance-desc))
+        component-go-props (map first component-property-infos)
+        component-property-descs (map #(assoc %1 :properties %2)
+                                      (:component-properties instance-desc)
+                                      component-go-props)
+        go-prop-dep-build-targets (into []
+                                        (comp (mapcat second)
+                                              (util/distinct-by (comp resource/proj-path :resource)))
+                                        component-property-infos)
+        game-object-instance-data {:resource build-resource
+                                   :transform transform-matrix
+                                   :property-deps go-prop-dep-build-targets
+                                   :instance-msg (if (seq component-property-descs)
+                                                   (assoc instance-desc :component-properties component-property-descs)
+                                                   instance-desc)}
+        build-target (assoc game-object-build-target
+                       :resource build-resource
+                       :instance-data game-object-instance-data)]
+    (bt/with-content-hash build-target)))
+
+(defn override-property-descs [original-property-descs overridden-property-descs]
+  ;; GameObject$PropertyDescs in map format.
+  (-> (into {}
+            (comp cat
+                  (map (juxt :id identity)))
+            [original-property-descs overridden-property-descs])
+      (vals)
+      (vec)))
+
+(defn- flatten-game-object-instance-data [game-object-instance-data collection-instance-id ^Matrix4d collection-instance-transform child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target]
+  (let [{:keys [resource instance-msg ^Matrix4d transform]} game-object-instance-data
+        {:keys [id children component-properties]} instance-msg
+        build-target-go-props (partial properties/build-target-go-props proj-path->resource-property-build-target)
+        component-properties (override-property-descs component-properties (game-object-instance-id->component-property-descs id))
+        component-property-infos (map (comp build-target-go-props :properties) component-properties)
+        component-go-props (map first component-property-infos)
+        component-property-descs (mapv #(assoc %1 :properties %2)
+                                       component-properties
+                                       component-go-props)
+        go-prop-dep-build-targets (into []
+                                        (comp (mapcat second)
+                                              (util/distinct-by (comp resource/proj-path :resource)))
+                                        component-property-infos)
+        instance-msg {:id (str collection-instance-id path-sep id)
+                      :children (mapv #(str collection-instance-id path-sep %) children)
+                      :component-properties component-property-descs}
+        transform (if (child-game-object-instance-id? id)
+                    transform
+                    (doto (Matrix4d. collection-instance-transform)
+                      (.mul transform)))]
+    {:resource resource
+     :instance-msg instance-msg
+     :transform transform
+     :property-deps go-prop-dep-build-targets}))
+
+(defn collection-instance-build-target [collection-instance-id ^Matrix4d transform-matrix instance-property-descs collection-build-target proj-path->resource-property-build-target]
+  {:pre [(string? collection-instance-id)
+         (instance? Matrix4d transform-matrix)
+         (seqable? instance-property-descs) ; InstancePropertyDescs in map format.
+         (map? collection-build-target)
+         (ifn? proj-path->resource-property-build-target)]}
+  (let [game-object-instance-datas (-> collection-build-target :user-data :instance-data)
+
+        child-game-object-instance-id?
+        (reduce (fn [child-game-object-instance-ids game-object-instance-data]
+                  ;; InstanceDesc or EmbeddedInstanceDesc in map format.
+                  (let [any-instance-desc (:instance-msg game-object-instance-data)]
+                    (into child-game-object-instance-ids
+                          (:children any-instance-desc))))
+                #{}
+                game-object-instance-datas)
+
+        game-object-instance-id->component-property-descs
+        (into {}
+              (map (juxt :id :properties))
+              instance-property-descs)]
+    (bt/with-content-hash
+      (assoc-in collection-build-target [:user-data :instance-data]
+                (mapv (fn [game-object-instance-data]
+                        (flatten-game-object-instance-data game-object-instance-data collection-instance-id transform-matrix child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target))
+                      game-object-instance-datas)))))
+
+(defn- matrix->transform-properties [^Matrix4d transform-matrix]
+  (let [position (Point3d.)
+        rotation (Quat4d.)
+        scale (Vector3d.)]
+    (math/split-mat4 transform-matrix position rotation scale)
+    {:position (math/vecmath->clj position)
+     :rotation (math/vecmath->clj rotation)
+     :scale3 (math/vecmath->clj scale)}))
+
+(defn- build-collection [build-resource dep-resources user-data]
+  ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
+  ;; when reading this. It will clear up how the output binaries are structured.
+  ;; Be aware that these structures are also used to store the saved project
+  ;; data. Sometimes a field will only be used by the editor *or* the runtime.
+  ;; In the case of CollectionDesc, neither the `collection_instances` nor the
+  ;; `embedded_instances` fields are read by the runtime. Instead, all the game
+  ;; objects brought in from these two fields are recursively collected into a
+  ;; flat list of InstanceDesc under the `instances` field, each referencing a
+  ;; BuildResource of a PrototypeDesc binary produced from the referenced or
+  ;; embedded game objects. However, embedded game objects from different
+  ;; collections might have been fused into a single BuildResource if they are
+  ;; equivalent. We must update any references to these BuildResources
+  ;; to instead point to the resulting fused BuildResource. The same goes for
+  ;; resource property overrides inside the InstanceDescs.
+  (let [{:keys [name instance-data scale-along-z]} user-data
+        build-go-props (partial properties/build-go-props dep-resources)
+        go-instance-msgs (map :instance-msg instance-data)
+        go-instance-transform-properties (map (comp matrix->transform-properties :transform) instance-data)
+        go-instance-build-resource-paths (map (comp resource/proj-path dep-resources :resource) instance-data)
+        go-instance-component-go-props (map (fn [instance-desc] ; GameObject$InstanceDesc in map form
+                                              (map (fn [component-property-desc] ; GameObject$ComponentPropertyDesc in map form
+                                                     (build-go-props (:properties component-property-desc)))
+                                                   (:component-properties instance-desc)))
+                                            go-instance-msgs)
+        instance-descs (map (fn [instance-desc transform-properties fused-build-resource-path component-go-props]
+                              (-> instance-desc
+                                  (merge transform-properties)
+                                  (dissoc :data)
+                                  (assoc :id (str path-sep (:id instance-desc))
+                                         :prototype fused-build-resource-path
+                                         :children (mapv (partial str path-sep) (:children instance-desc))
+                                         :component-properties (map (fn [component-property-desc go-props]
+                                                                      (cond-> (dissoc component-property-desc :properties) ; Runtime uses :property-decls, not :properties
+                                                                              (seq go-props) (assoc :property-decls (properties/go-props->decls go-props false))))
+                                                                    (:component-properties instance-desc)
+                                                                    component-go-props))))
+                            go-instance-msgs
+                            go-instance-transform-properties
+                            go-instance-build-resource-paths
+                            go-instance-component-go-props)
+        property-resource-paths (into (sorted-set)
+                                      (comp cat cat (keep properties/try-get-go-prop-proj-path))
+                                      go-instance-component-go-props)
+        collection-desc {:name name
+                         :instances instance-descs
+                         :scale-along-z (if scale-along-z 1 0)
+                         :property-resources property-resource-paths}]
+    {:resource build-resource
+     :content (protobuf/map->bytes GameObject$CollectionDesc collection-desc)}))
+
+(defn collection-build-target [build-resource node-id name scale-along-z game-object-instance-build-targets collection-instance-build-targets]
+  {:pre [(workspace/build-resource? build-resource)
+         (g/node-id? node-id)
+         (string? name)
+         (boolean? scale-along-z)
+         (seqable? game-object-instance-build-targets)
+         (seqable? collection-instance-build-targets)]}
+  ;; Extract the :instance-data from the game object instance build targets
+  ;; so that overrides can be embedded in the resulting collection binary.
+  ;; We also establish dependencies to build-targets from any resources
+  ;; referenced by script property overrides.
+  (let [collection-instance-build-targets (flatten collection-instance-build-targets)
+        game-object-instance-build-targets (flatten game-object-instance-build-targets)
+        instance-data (into (mapv :instance-data game-object-instance-build-targets)
+                            (comp (keep :user-data)
+                                  (mapcat :instance-data))
+                            collection-instance-build-targets)
+        property-deps (sequence (comp (mapcat :property-deps)
+                                      (util/distinct-by (comp resource/proj-path :resource)))
+                                instance-data)]
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource build-resource
+       :build-fn build-collection
+       :user-data {:name name
+                   :instance-data instance-data
+                   :scale-along-z scale-along-z}
+       :deps (into (vec (concat game-object-instance-build-targets property-deps))
+                   (mapcat :deps)
+                   collection-instance-build-targets)})))

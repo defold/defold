@@ -15,6 +15,7 @@
 (ns editor.build-target
   (:require [editor.resource :as resource]
             [editor.system :as system]
+            [util.coll :refer [pair]]
             [util.digestable :as digestable]))
 
 (set! *warn-on-reflection* true)
@@ -40,3 +41,15 @@
 
 (defn with-content-hash [build-target]
   (assoc build-target :content-hash (content-hash build-target)))
+
+(defn make-proj-path->build-target [build-targets]
+  ;; Create a map that can be used to locate the build target that was produced
+  ;; from a specific resource in the project. Embedded resources (i.e. MemoryResources)
+  ;; are excluded from the map, since these have no source path in the project,
+  ;; and it should not be possible for another resource to reference them.
+  (into {}
+        (keep (fn [build-target]
+                (when-some [source-resource (-> build-target :resource :resource)]
+                  (pair (resource/proj-path source-resource)
+                        build-target))))
+        (flatten build-targets)))

@@ -113,6 +113,19 @@
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
 
+(g/defnode ImmutableResourceNode
+  (inherits ResourceNode)
+
+  (property editable? g/Bool :unjammable
+            (default false)
+            (dynamic visible (g/constantly false)))
+
+  (output source-value g/Any (g/constantly nil))
+  (output save-value g/Any (g/constantly nil))
+  (output cleaned-save-value g/Any (g/constantly nil))
+  (output dirty? g/Bool (g/constantly false))
+  (output undecorated-save-data g/Any (g/fnk [_node-id resource save-value] {:resource resource :value save-value :node-id _node-id})))
+
 (definline ^:private resource-node-resource [basis resource-node]
   ;; This is faster than g/node-value, and doesn't require creating an
   ;; evaluation-context. The resource property is unjammable and properties

@@ -273,6 +273,7 @@
                     property (:name @node-type)))
     (assoc this property value))
 
+  (own-properties [this] (.__extmap this))
   (overridden-properties [this] {})
   (property-overridden?  [this property] false)
 
@@ -1565,6 +1566,7 @@
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))
       (assoc-in this [:properties property] value)))
+  (own-properties [this] properties)
   (overridden-properties [this] properties)
   (property-overridden?  [this property] (contains? properties property))
 

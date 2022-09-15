@@ -495,8 +495,11 @@
                     :clj-value value}))
                script-properties)
 
+          proj-path->resource-property-build-target
+          (bt/make-proj-path->build-target original-resource-property-build-targets)
+
           [go-props go-prop-dep-build-targets]
-          (properties/build-target-go-props original-resource-property-build-targets go-props-with-source-resources)]
+          (properties/build-target-go-props proj-path->resource-property-build-target go-props-with-source-resources)]
       ;; NOTE: The :user-data must not contain any overridden data. If it does,
       ;; the build targets won't be fused and the script will be recompiled
       ;; for every instance of the script component. The :go-props here describe

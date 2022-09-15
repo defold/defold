@@ -15,10 +15,10 @@
 (ns editor.workspace
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
-            [clojure.edn :as edn]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
@@ -30,10 +30,11 @@ ordinary paths."
             [editor.ui :as ui]
             [editor.url :as url]
             [editor.util :as util]
-            [service.log :as log])
-  (:import [java.io File PushbackReader]
+            [service.log :as log]
+            [util.coll :refer [pair]])
+  (:import [editor.resource FileResource]
+           [java.io File PushbackReader]
            [java.net URI]
-           [editor.resource FileResource]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -117,7 +118,9 @@ ordinary paths."
   (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree))))
 
 (g/defnk produce-resource-map [resource-list]
-  (into {} (map #(do [(resource/proj-path %) %]) resource-list)))
+  (into {}
+        (map #(pair (resource/proj-path %) %))
+        resource-list))
 
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
@@ -210,6 +213,16 @@ ordinary paths."
   ([workspace tag]
    (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
 
+(defn make-embedded-resource [workspace ext data]
+  (let [resource-type-map (get-resource-type-map workspace)]
+    (if-some [resource-type (resource-type-map ext)]
+      (resource/make-memory-resource workspace resource-type data)
+      (throw (ex-info (format "Unable to locate resource type info. Extension not loaded? (type=%s)"
+                              ext)
+                      {:type ext
+                       :registered-types (into (sorted-set)
+                                               (keys resource-type-map))})))))
+
 (defn resource-icon [resource]
   (when resource
     (if (and (resource/read-only? resource)
@@ -241,10 +254,13 @@ ordinary paths."
 
 (defn resolve-workspace-resource
   ([workspace path]
-   (g/with-auto-evaluation-context evaluation-context
-     (resolve-workspace-resource workspace path evaluation-context)))
+   (when (not-empty path)
+     (g/with-auto-evaluation-context evaluation-context
+       (or
+         (find-resource workspace path evaluation-context)
+         (file-resource workspace path evaluation-context)))))
   ([workspace path evaluation-context]
-   (when (and path (not-empty path))
+   (when (not-empty path)
      (or
        (find-resource workspace path evaluation-context)
        (file-resource workspace path evaluation-context)))))

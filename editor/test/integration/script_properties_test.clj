@@ -19,15 +19,14 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
-            [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.code.script :as script]
             [editor.collection :as collection]
+            [editor.collection-common :as collection-common]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.pipeline :as pipeline]
-            [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -37,7 +36,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.lua.proto Lua$LuaModule]
-           [java.io ByteArrayOutputStream StringReader]))
+           [java.io StringReader]))
 
 (defn- unpack-property-declarations [property-declarations]
   (assert (map? property-declarations))
@@ -373,7 +372,7 @@
   (assert (vector? items))
   (let [wanted-id (g/node-value node-with-id-property :id)]
     (some (fn [{:keys [id] :as item}]
-            (let [item-id (if (string/starts-with? id collection/path-sep) (subs id 1) id)]
+            (let [item-id (if (string/starts-with? id collection-common/path-sep) (subs id 1) id)]
               (when (= wanted-id item-id)
                 item)))
           items)))

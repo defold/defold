@@ -564,9 +564,7 @@
   ;; will mark all our outputs activated regardless.
   (let [node-id (gt/node-id node)
         node-type (gt/node-type node)
-        property-entries (if (some? (gt/original node))
-                           (gt/overridden-properties node)
-                           (.__extmap node))] ; Skip record fields, just assoc:ed entries.
+        property-entries (gt/own-properties node)]
     (reduce (fn [ctx property-entry]
               (let [property-value (val property-entry)]
                 (if (nil? property-value)

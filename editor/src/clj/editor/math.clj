@@ -340,7 +340,7 @@
      (.setElement 2 2 z-scale)
      (.setElement 3 3 1.0))))
 
-(defn split-mat4 [^Matrix4d mat ^Point3d out-position ^Quat4d out-rotation ^Vector3d out-scale]
+(defn split-mat4 [^Matrix4d mat ^Tuple3d out-position ^Quat4d out-rotation ^Vector3d out-scale]
   (let [tmp (Vector4d.)
         _ (.getColumn mat 3 tmp)
         _ (.set out-position (.getX tmp) (.getY tmp) (.getZ tmp))
@@ -395,6 +395,15 @@
                         (.m10 this) (.m11 this) (.m12 this) (.m13 this)
                         (.m20 this) (.m21 this) (.m22 this) (.m23 this)
                         (.m30 this) (.m31 this) (.m32 this) (.m33 this)]))
+
+(defn clj->mat4
+  ^Matrix4d [position rotation scale]
+  (let [position-v3 (doto (Vector3d.) (clj->vecmath position))
+        rotation-q4 (doto (Quat4d.) (clj->vecmath rotation))]
+    (if (number? scale)
+      (->mat4-uniform position-v3 rotation-q4 (double scale))
+      (let [scale-v3 (doto (Vector3d.) (clj->vecmath scale))]
+        (->mat4-non-uniform position-v3 rotation-q4 scale-v3)))))
 
 (defn hermite [y0 y1 t0 t1 t]
   (let [t2 (* t t)

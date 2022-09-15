@@ -279,14 +279,8 @@
        project))))
 
 (defn make-embedded-resource [project type data]
-  (let [resource-types (g/node-value project :resource-types)]
-    (if-some [resource-type (get resource-types type)]
-      (resource/make-memory-resource (g/node-value project :workspace) resource-type data)
-      (throw (ex-info (format "Unable to locate resource type info. Extension not loaded? (type=%s)"
-                              type)
-                      {:type type
-                       :registered-types (into (sorted-set)
-                                               (keys resource-types))})))))
+  (let [workspace (g/node-value project :workspace)]
+    (workspace/make-embedded-resource workspace type data)))
 
 (defn all-save-data [project]
   (g/node-value project :save-data))
