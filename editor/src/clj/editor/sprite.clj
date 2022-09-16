@@ -354,8 +354,15 @@
   (property size-mode g/Keyword (default :size-mode-auto)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
   (property size types/Vec3 (default [0.0 0.0 0.0])
+            (value (g/fnk [size size-mode texture-size]
+                     (if (or (= :size-mode-auto size-mode)
+                             (= [0.0 0.0 0.0] size))
+                       (or texture-size size)
+                       size)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
-  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
+  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
+            (dynamic visible (g/fnk [size-mode] (= :size-mode-manual size-mode)))
+            (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))
@@ -372,6 +379,9 @@
                              (or (some-> material-samplers first material/sampler->tex-params)
                                  default-tex-params)))
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
+  (output texture-size g/Any (g/fnk [animation]
+                                    (when (some? animation)
+                                      [(double (:width animation)) (double (:height animation)) 0.0])))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
                                          (let [animation-width (* 0.5 (:width animation))

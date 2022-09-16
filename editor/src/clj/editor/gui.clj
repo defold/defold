@@ -879,73 +879,15 @@
 
 ;; Box nodes
 
-(def ^:private box-triangles-vertex-order [0 1 3 3 1 2])
-
-(defn box->triangle-vertices [box]
-  ;; box vertices are in order BL TL TR BR
-  ;;
-  ;; turns:
-  ;; 1---2
-  ;; |   |
-  ;; 0---3
-  ;;
-  ;; into:
-  ;; 1     1-2
-  ;; |\  +  \|
-  ;; 0-3     3
-  ;;
-  ;; normal uv box vertices are in order BL TL TR BR
-  ;;
-  ;; turns:
-  ;; 1---2
-  ;; |   |
-  ;; 0---3
-  ;;
-  ;; into:
-  ;; 1     1-2
-  ;; |\  +  \|
-  ;; 0-3     3
-  ;;
-  ;; _rotated_ uv box vertices are in order TL TR BR BL
-  ;;
-  ;; turns:
-  ;;
-  ;; 0---1
-  ;; |   |
-  ;; 3---2
-  ;;
-  ;; into:
-  ;; 0-1     1
-  ;; |/  +  /|
-  ;; 3     3-2
-  (map box box-triangles-vertex-order))
-
-(defn- box-corner-coords->vertices2 [[x0 y0 x1 y1]]
-  [[x0 y0] [x0 y1] [x1 y1] [x1 y0]])
-
-(defn- rotated-box-corner-coords->vertices2 [[x0 y0 x1 y1]]
-  [[x0 y0] [x1 y0] [x1 y1] [x0 y1]])
-
-(defn- box-corner-coords->vertices3 [[x0 y0 x1 y1]]
-  [[x0 y0 0.0] [x0 y1 0.0] [x1 y1 0.0] [x1 y0 0.0]])
-
-(defn- ranges->box-corner-coords [x-ranges y-ranges]
-  (for [[x0 x1] x-ranges
-        [y0 y1] y-ranges]
-    [x0 y0 x1 y1]))
-
-(defn- ranges->rotated-box-corner-coords [x-ranges y-ranges]
-  (for [[y0 y1] y-ranges
-        [x0 x1] x-ranges]
-    [x0 y0 x1 y1]))
-
 (defn- steps->ranges [v]
   (partition 2 1 v))
 
 (g/defnode BoxNode
   (inherits ShapeNode)
 
-  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
+  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
+            (dynamic visible (g/fnk [size-mode] (= :size-mode-manual size-mode)))
+            (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
   (display-order (into base-display-order
                        [:size-mode :enabled :visible :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
