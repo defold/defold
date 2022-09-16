@@ -14,39 +14,32 @@
 
 (ns editor.sprite
   (:require [clojure.string :as str]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.colors :as colors]
-            [editor.graph-util :as gu]
+            [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
-            [editor.defold-project :as project]
+            [editor.graph-util :as gu]
             [editor.material :as material]
-            [editor.properties :as properties]
-            [editor.scene :as scene]
-            [editor.scene-picking :as scene-picking]
-            [editor.workspace :as workspace]
-            [editor.validation :as validation]
             [editor.pipeline :as pipeline]
+            [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.scene-picking :as scene-picking]
+            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]
-            [editor.gl.pass :as pass]
             [editor.types :as types]
-            [editor.slice9 :as slice9])
-  (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Vector4d]))
+           [editor.types AABB]
+           [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -148,23 +141,12 @@
     (loop [renderables renderables
            vbuf (->color-vtx (* count 8))]
       (if-let [renderable (first renderables)]
-        (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
-              cr (get color 0)
-              cg (get color 1)
-              cb (get color 2)
+        (let [[cr cg cb] (if (:selected renderable) colors/selected-outline-color colors/outline-color)
               world-transform (:world-transform renderable)
-              user-data (:user-data renderable)
-              size (:size user-data)
-              size-mode (:size-mode user-data)
-              slice9 (:slice9 user-data)
-              animation (:animation user-data)
-              quad-width (if (= :size-mode-auto size-mode)
-                           (:width animation)
-                           (get size 0))
-              quad-height (if (= :size-mode-auto size-mode)
-                            (:height animation)
-                            (get size 1))
-              animation-frame (get-in animation [:frames 0])] ; frame index??
+              {:keys [animation size size-mode slice9]} (:user-data renderable)
+              [quad-width quad-height] size
+              animation-frame-index (or (some-> renderable :updatable :state :frame) 0)
+              animation-frame (get-in animation [:frames animation-frame-index])]
           (recur (rest renderables)
                  (if (= :size-mode-auto size-mode)
                    (conj-outline-quad! vbuf world-transform tmp-point quad-width quad-height cr cg cb)
@@ -245,9 +227,15 @@
            :material (resource/resource->proj-path material)
            :blend-mode blend-mode}
 
-          (not= :size-mode-auto size-mode) (assoc :size-mode size-mode)
-          (not= [0.0 0.0 0.0] size) (assoc :size (v3->v4 size))
-          (not= [0.0 0.0 0.0 0.0] slice9) (assoc :slice9 slice9)))
+          (not= [0.0 0.0 0.0 0.0] slice9)
+          (assoc :slice9 slice9)
+
+          (not= :size-mode-auto size-mode)
+          (cond-> :always
+                  (assoc :size-mode size-mode)
+
+                  (not= [0.0 0.0 0.0] size)
+                  (assoc :size (v3->v4 size)))))
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode size-mode size slice9]
@@ -323,7 +311,9 @@
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id image anim-data]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
-                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image"))))
+                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")
+                                      (when (nil? anim-data) ; nil from :substitute on input.
+                                        (g/->error _node-id :image :fatal image "the assigned Image has internal errors")))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]})))
@@ -354,18 +344,19 @@
   (property size-mode g/Keyword (default :size-mode-auto)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
   (property size types/Vec3 (default [0.0 0.0 0.0])
-            (value (g/fnk [size size-mode texture-size]
-                     (if (or (= :size-mode-auto size-mode)
-                             (= [0.0 0.0 0.0] size))
-                       (or texture-size size)
+            (value (g/fnk [size size-mode animation]
+                     (if (and (some? animation)
+                              (or (= :size-mode-auto size-mode)
+                                  (= [0.0 0.0 0.0] size)))
+                       [(double (:width animation)) (double (:height animation)) 0.0]
                        size)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
-            (dynamic visible (g/fnk [size-mode] (= :size-mode-manual size-mode)))
+            (dynamic read-only? (g/fnk [size-mode] (= :size-mode-manual size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
   (input image-resource resource/Resource)
-  (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))
+  (input anim-data g/Any :substitute nil)
   (input anim-ids g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
