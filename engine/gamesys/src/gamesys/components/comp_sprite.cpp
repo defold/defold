@@ -429,6 +429,123 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static void CreateVertexDataSlice9(SpriteVertex* vertices, const Matrix4& transform, Vector3 sprite_size, Vector4 slice9,
+        const float* tc, float texture_width, float texture_height, bool flip_u, bool flip_v, bool has_index_buffer)
+    {
+        // render 9-sliced node
+        //   0 1     2 3
+        // 0 *-*-----*-*
+        //   | |  y  | |
+        // 1 *-*-----*-*
+        //   | |     | |
+        //   |x|     |z|
+        //   | |     | |
+        // 2 *-*-----*-*
+        //   | |  w  | |
+        // 3 *-*-----*-*
+        float us[4], vs[4], xs[4], ys[4];
+
+        // v are '1-v'
+        xs[0] = ys[0] = 0;
+        xs[3] = ys[3] = 1;
+
+        // disable slice9 computation below a certain dimension
+        // (avoid div by zero)
+        const float s9_min_dim = 0.001f;
+        const float su         = 1.0f / texture_width;
+        const float sv         = 1.0f / texture_height;
+        const float sx         = sprite_size.getX() > s9_min_dim ? 1.0f / sprite_size.getX() : 0;
+        const float sy         = sprite_size.getY() > s9_min_dim ? 1.0f / sprite_size.getY() : 0;
+
+        static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
+        bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
+        if(uv_rotated)
+        {
+            const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
+            const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
+            us[uI[0]] = tc[0];
+            us[uI[1]] = tc[0] + (su * slice9.getW());
+            us[uI[2]] = tc[2] - (su * slice9.getY());
+            us[uI[3]] = tc[2];
+            vs[vI[0]] = tc[1];
+            vs[vI[1]] = tc[1] - (sv * slice9.getX());
+            vs[vI[2]] = tc[5] + (sv * slice9.getZ());
+            vs[vI[3]] = tc[5];
+        }
+        else
+        {
+            const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
+            const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
+            us[uI[0]] = tc[0];
+            us[uI[1]] = tc[0] + (su * slice9.getX());
+            us[uI[2]] = tc[4] - (su * slice9.getZ());
+            us[uI[3]] = tc[4];
+            vs[vI[0]] = tc[1];
+            vs[vI[1]] = tc[1] + (sv * slice9.getW());
+            vs[vI[2]] = tc[3] - (sv * slice9.getY());
+            vs[vI[3]] = tc[3];
+        }
+
+        xs[1] = sx * slice9.getX();
+        xs[2] = 1 - sx * slice9.getZ();
+        ys[1] = sy * slice9.getW();
+        ys[2] = 1 - sy * slice9.getY();
+
+        if (has_index_buffer)
+        {
+            for (int y=0;y<4;y++)
+            {
+                for (int x=0;x<4;x++)
+                {
+                    Vector4 p   = transform * Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
+                    vertices->x = p.getX();
+                    vertices->y = p.getY();
+                    vertices->z = p.getZ();
+                    vertices->u = us[x];
+                    vertices->v = vs[y];
+                    vertices++;
+                }
+            }
+        }
+        else
+        {
+            Vector4 pts[4][4];
+            for (int y=0;y<4;y++)
+            {
+                for (int x=0;x<4;x++)
+                {
+                    pts[y][x] = transform * Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
+                }
+            }
+
+            for (int y=0;y<3;y++)
+            {
+                for (int x=0;x<3;x++)
+                {
+                    const int x0 = x;
+                    const int x1 = x+1;
+                    const int y0 = y;
+                    const int y1 = y+1;
+
+                    #define SET_VERTEX(vert,_p,_u,_v) \
+                        vert.x = _p.getX(); \
+                        vert.y = _p.getY(); \
+                        vert.z = _p.getZ(); \
+                        vert.u = uv_rotated ? _v : _u; \
+                        vert.v = uv_rotated ? _u : _v;
+
+                    SET_VERTEX(vertices[0], pts[y0][x0], us[x0], vs[y0]);
+                    SET_VERTEX(vertices[1], pts[y0][x1], us[x1], vs[y0]);
+                    SET_VERTEX(vertices[2], pts[y1][x1], us[x1], vs[y1]);
+                    SET_VERTEX(vertices[3], pts[y1][x0], us[x0], vs[y1]);
+
+                    vertices += 4;
+                    #undef SET_VERTEX
+                }
+            }
+        }
+    }
+
 
     static void CreateVertexData(SpriteWorld* sprite_world, SpriteVertex** vb_where, uint8_t** ib_where, TextureSetResource* texture_set, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
@@ -444,6 +561,8 @@ namespace dmGameSystem
         uint32_t index_type_size = sprite_world->m_Is16BitIndex ? sizeof(uint16_t) : sizeof(uint32_t);
 
         const dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+
+        const float* tex_coords = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
 
         if (sprite_world->m_UseGeometries)
         {
@@ -461,61 +580,131 @@ namespace dmGameSystem
 
                 uint32_t frame_index = frame_indices[animation_ddf->m_Start + component->m_CurrentAnimationFrame];
 
-                const dmGameSystemDDF::SpriteGeometry* geometry = &geometries[frame_index];
-
-                const Matrix4& w = component->m_World;
-
-                uint32_t num_points = geometry->m_Vertices.m_Count / 2;
-
-                const float* points = geometry->m_Vertices.m_Data;
-                const float* uvs = geometry->m_Uvs.m_Data;
-
                 // Depending on the sprite is flipped or not, we loop the vertices forward or backward
                 // to respect face winding (and backface culling)
                 int flipx = animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal;
                 int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
                 int reverse = flipx ^ flipy;
 
-                float scaleX = flipx ? -1 : 1;
-                float scaleY = flipy ? -1 : 1;
+                const Matrix4& w          = component->m_World;
+                const Vector4 slice9      = component->m_Resource->m_DDF->m_Slice9;
+                const bool use_slice_nine = sum(slice9) != 0 && component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL;
 
-                int step = reverse ? -2 : 2;
-                points = reverse ? points + num_points*2 - 2 : points;
-                uvs = reverse ? uvs + num_points*2 - 2 : uvs;
-
-                for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points += step, uvs += step)
+                // If this sprite is using slice9 and has a hull, we produce "regular" quads
+                // instead of trying to clip the 9 quads to the hull
+                if (use_slice_nine)
                 {
-                    float x = points[0] * scaleX; // range -0.5,+0.5
-                    float y = points[1] * scaleY;
-                    float u = uvs[0];
-                    float v = uvs[1];
+                    const float* tc = &tex_coords[frame_index * 4 * 2];
+                    CreateVertexDataSlice9(vertices, w, component->m_Size, slice9, tc,
+                        dmGraphics::GetTextureWidth(texture_set->m_Texture),
+                        dmGraphics::GetTextureHeight(texture_set->m_Texture),
+                        flipx, flipy, true);
 
-                    Vector4 p0 = w * Point3(x, y, 0.0f);
-                    vertices[0].x = ((float*)&p0)[0];
-                    vertices[0].y = ((float*)&p0)[1];
-                    vertices[0].z = ((float*)&p0)[2];
-                    vertices[0].u = u;
-                    vertices[0].v = v;
-                }
+                    // render 9-sliced node
+                    //   0 1     2 3
+                    // 0 *-*-----*-*
+                    //   | |  y  | |
+                    // 1 *-*-----*-*
+                    //   | |     | |
+                    //   |x|     |z|
+                    //   | |     | |
+                    // 2 *-*-----*-*
+                    //   | |  w  | |
+                    // 3 *-*-----*-*
 
-                uint32_t index_count = geometry->m_Indices.m_Count;
-                uint32_t* geom_indices = geometry->m_Indices.m_Data;
-                if (sprite_world->m_Is16BitIndex)
-                {
-                    for (uint32_t index = 0; index < index_count; ++index)
+                    uint32_t index = 0;
+
+                    for (int y=0;y<3;y++)
                     {
-                        ((uint16_t*)indices)[index] = vertex_offset + geom_indices[index];
+                        for (int x=0;x<3;x++)
+                        {
+                            uint32_t p0 = vertex_offset + y * 4 + x;
+                            uint32_t p1 = p0 + 1;
+                            uint32_t p2 = p0 + 4;
+                            uint32_t p3 = p2 + 1;
+
+                            if (sprite_world->m_Is16BitIndex)
+                            {
+                                // Triangle 1
+                                ((uint16_t*) indices)[index++] = p0;
+                                ((uint16_t*) indices)[index++] = p1;
+                                ((uint16_t*) indices)[index++] = p2;
+                                // Triangle 2
+                                ((uint16_t*) indices)[index++] = p2;
+                                ((uint16_t*) indices)[index++] = p1;
+                                ((uint16_t*) indices)[index++] = p3;
+                            }
+                            else
+                            {
+                                // Triangle 1
+                                ((uint32_t*) indices)[index++] = p0;
+                                ((uint32_t*) indices)[index++] = p1;
+                                ((uint32_t*) indices)[index++] = p2;
+                                // Triangle 2
+                                ((uint32_t*) indices)[index++] = p2;
+                                ((uint32_t*) indices)[index++] = p1;
+                                ((uint32_t*) indices)[index++] = p3;
+                            }
+                        }
                     }
+
+                    // The 9 slice function produces 16 vertices (4 rows 4 columns)
+                    // and since there's 2 triangles per quad and 9 quads in total,
+                    // the amount of indices is 6 per quad and 9 quads = 54 indices in total
+                    const uint32_t num_slice9_quads = 3 * 3;
+                    const uint32_t index_count      = num_slice9_quads * 6;
+                    indices                        += index_type_size * index_count;
+                    vertices                       += 16;
+                    vertex_offset                  += 16;
                 }
                 else
                 {
-                    for (uint32_t index = 0; index < index_count; ++index)
+                    const dmGameSystemDDF::SpriteGeometry* geometry = &geometries[frame_index];
+                    uint32_t num_points = geometry->m_Vertices.m_Count / 2;
+                    const float* points = geometry->m_Vertices.m_Data;
+                    const float* uvs    = geometry->m_Uvs.m_Data;
+
+                    float scaleX = flipx ? -1 : 1;
+                    float scaleY = flipy ? -1 : 1;
+
+                    int step = reverse ? -2 : 2;
+                    points = reverse ? points + num_points*2 - 2 : points;
+                    uvs = reverse ? uvs + num_points*2 - 2 : uvs;
+
+                    for (uint32_t vert = 0; vert < num_points; ++vert, ++vertices, points += step, uvs += step)
                     {
-                        ((uint32_t*)indices)[index] = vertex_offset + geom_indices[index];
+                        float x = points[0] * scaleX; // range -0.5,+0.5
+                        float y = points[1] * scaleY;
+                        float u = uvs[0];
+                        float v = uvs[1];
+
+                        Vector4 p0 = w * Point3(x, y, 0.0f);
+                        vertices[0].x = ((float*)&p0)[0];
+                        vertices[0].y = ((float*)&p0)[1];
+                        vertices[0].z = ((float*)&p0)[2];
+                        vertices[0].u = u;
+                        vertices[0].v = v;
                     }
+
+                    uint32_t index_count = geometry->m_Indices.m_Count;
+                    uint32_t* geom_indices = geometry->m_Indices.m_Data;
+                    if (sprite_world->m_Is16BitIndex)
+                    {
+                        for (uint32_t index = 0; index < index_count; ++index)
+                        {
+                            ((uint16_t*)indices)[index] = vertex_offset + geom_indices[index];
+                        }
+                    }
+                    else
+                    {
+                        for (uint32_t index = 0; index < index_count; ++index)
+                        {
+                            ((uint32_t*)indices)[index] = vertex_offset + geom_indices[index];
+                        }
+                    }
+                    indices += index_type_size * geometry->m_Indices.m_Count;
+                    vertex_offset += num_points;
                 }
-                indices += index_type_size * geometry->m_Indices.m_Count;
-                vertex_offset += num_points;
             }
         }
         else // original path using quads
@@ -526,8 +715,6 @@ namespace dmGameSystem
                 1,0,3,3,2,1,    //v
                 2,3,0,0,1,2     //hv
             };
-
-            const float* tex_coords = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
 
             for (uint32_t *i = begin;i != end; ++i)
             {
@@ -552,117 +739,24 @@ namespace dmGameSystem
                 }
 
                 const int* tex_lookup = &tex_coord_order[flip_flag * 6];
-
                 const Matrix4& w = component->m_World;
 
                 // Slice 9
-                const Vector4 slice9 = component->m_Resource->m_DDF->m_Slice9;
-                bool use_slice_nine = sum(slice9) != 0;
+                const Vector4 slice9      = component->m_Resource->m_DDF->m_Slice9;
+                const bool use_slice_nine = sum(slice9) != 0 && component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL;
 
-                // All of this is taken from comp_gui.cpp
-                // If we get this to work maybe we should merge this code somehow..
                 if (use_slice_nine)
                 {
-                    // todo:
-                    bool flip_u = false, flip_v = false;
+                    int flipx = animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal;
+                    int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
+                    CreateVertexDataSlice9(vertices, w, component->m_Size, slice9, tc,
+                        dmGraphics::GetTextureWidth(texture_set->m_Texture),
+                        dmGraphics::GetTextureHeight(texture_set->m_Texture),
+                        flipx, flipy, false);
 
-                    // render 9-sliced node
-                    //   0 1     2 3
-                    // 0 *-*-----*-*
-                    //   | |  y  | |
-                    // 1 *-*-----*-*
-                    //   | |     | |
-                    //   |x|     |z|
-                    //   | |     | |
-                    // 2 *-*-----*-*
-                    //   | |  w  | |
-                    // 3 *-*-----*-*
-                    float us[4], vs[4], xs[4], ys[4];
-
-                    // v are '1-v'
-                    xs[0] = ys[0] = 0;
-                    xs[3] = ys[3] = 1;
-
-                    // disable slice9 computation below a certain dimension
-                    // (avoid div by zero)
-                    const float s9_min_dim = 0.001f;
-                    const float su = 1.0f / dmGraphics::GetTextureWidth(texture_set->m_Texture);
-                    const float sv = 1.0f / dmGraphics::GetTextureHeight(texture_set->m_Texture);
-
-                    // Point3 size = dmGui::GetNodeSize(scene, node);
-                    const float sx = component->m_Size.getX() > s9_min_dim ? 1.0f / component->m_Size.getX() : 0;
-                    const float sy = component->m_Size.getY() > s9_min_dim ? 1.0f / component->m_Size.getY() : 0;
-
-                    static const uint32_t uvIndex[2][4] = {{0,1,2,3}, {3,2,1,0}};
-                    bool uv_rotated = tc[0] != tc[2] && tc[3] != tc[5];
-                    if(uv_rotated)
-                    {
-                        const uint32_t *uI = flip_v ? uvIndex[1] : uvIndex[0];
-                        const uint32_t *vI = flip_u ? uvIndex[1] : uvIndex[0];
-                        us[uI[0]] = tc[0];
-                        us[uI[1]] = tc[0] + (su * slice9.getW());
-                        us[uI[2]] = tc[2] - (su * slice9.getY());
-                        us[uI[3]] = tc[2];
-                        vs[vI[0]] = tc[1];
-                        vs[vI[1]] = tc[1] - (sv * slice9.getX());
-                        vs[vI[2]] = tc[5] + (sv * slice9.getZ());
-                        vs[vI[3]] = tc[5];
-                    }
-                    else
-                    {
-                        const uint32_t *uI = flip_u ? uvIndex[1] : uvIndex[0];
-                        const uint32_t *vI = flip_v ? uvIndex[1] : uvIndex[0];
-                        us[uI[0]] = tc[0];
-                        us[uI[1]] = tc[0] + (su * slice9.getX());
-                        us[uI[2]] = tc[4] - (su * slice9.getZ());
-                        us[uI[3]] = tc[4];
-                        vs[vI[0]] = tc[1];
-                        vs[vI[1]] = tc[1] + (sv * slice9.getW());
-                        vs[vI[2]] = tc[3] - (sv * slice9.getY());
-                        vs[vI[3]] = tc[3];
-                    }
-
-                    xs[1] = sx * slice9.getX();
-                    xs[2] = 1 - sx * slice9.getZ();
-                    ys[1] = sy * slice9.getW();
-                    ys[2] = 1 - sy * slice9.getY();
-
-                    Vector4 pts[4][4];
-                    for (int y=0;y<4;y++)
-                    {
-                        for (int x=0;x<4;x++)
-                        {
-                            pts[y][x] = w * Point3(xs[x], ys[y], 0);
-                        }
-                    }
-
-                    for (int y=0;y<3;y++)
-                    {
-                        for (int x=0;x<3;x++)
-                        {
-                            const int x0 = x;
-                            const int x1 = x+1;
-                            const int y0 = y;
-                            const int y1 = y+1;
-
-                            #define SET_VERTEX(vert,_p,_u,_v) \
-                                vert.x = _p.getX(); \
-                                vert.y = _p.getY(); \
-                                vert.z = _p.getZ(); \
-                                vert.u = uv_rotated ? _v : _u; \
-                                vert.v = uv_rotated ? _u : _v;
-
-                            SET_VERTEX(vertices[0], pts[y0][x0], us[x0], vs[y0]);
-                            SET_VERTEX(vertices[1], pts[y0][x1], us[x1], vs[y0]);
-                            SET_VERTEX(vertices[2], pts[y1][x1], us[x1], vs[y1]);
-                            SET_VERTEX(vertices[3], pts[y1][x0], us[x0], vs[y1]);
-
-                            vertices += 4;
-                            indices += 6 * index_type_size;
-
-                            #undef SET_VERTEX
-                        }
-                    }
+                    const uint32_t num_slice9_quads = 3 * 3;
+                    vertices += num_slice9_quads * 4;
+                    indices += num_slice9_quads * 6 * index_type_size;
                 }
                 else
                 {
@@ -1092,9 +1186,9 @@ namespace dmGameSystem
 
         if (sprite_world->m_ReallocBuffers)
         {
-            // Old version has always 4 vertices. New version has up to 8 vertices.
+            // Old version has always 4 vertices. New version has up to 9 vertices (due to slice-9).
             // We will allocate for this upper bound
-            uint32_t num_vertices_per_sprite = sprite_world->m_UseGeometries ? 8 : 4;
+            uint32_t num_vertices_per_sprite = sprite_world->m_UseGeometries ? 9 : 4;
             uint32_t num_indices_per_sprite = (num_vertices_per_sprite - 2) * 3;
             ReAllocateBuffers(sprite_world, render_context, sprite_context->m_MaxSpriteCount, num_vertices_per_sprite, num_indices_per_sprite);
         }

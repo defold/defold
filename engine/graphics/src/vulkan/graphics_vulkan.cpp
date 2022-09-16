@@ -774,6 +774,11 @@ namespace dmGraphics
         return true;
     }
 
+    static PipelineState VulkanGetPipelineState(HContext context)
+    {
+        return context->m_PipelineState;
+    }
+
     static void SetupSupportedTextureFormats(HContext context)
     {
     #if defined(__MACH__)
@@ -3552,6 +3557,7 @@ bail:
         fn_table.m_GetNumSupportedExtensions = VulkanGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = VulkanGetSupportedExtension;
         fn_table.m_IsMultiTargetRenderingSupported = VulkanIsMultiTargetRenderingSupported;
+        fn_table.m_GetPipelineState = VulkanGetPipelineState;
         return fn_table;
     }
 }
