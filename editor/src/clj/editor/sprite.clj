@@ -352,7 +352,7 @@
                        size)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
-            (dynamic read-only? (g/fnk [size-mode] (= :size-mode-manual size-mode)))
+            (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
   (input image-resource resource/Resource)
