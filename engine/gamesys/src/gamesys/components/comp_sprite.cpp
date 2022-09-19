@@ -131,19 +131,6 @@ namespace dmGameSystem
     static float GetPlaybackRate(SpriteComponent* component);
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
 
-    template<typename T>
-    void fillIndices(T* index, uint32_t indices_count) {
-        for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
-        {
-            *index++ = v+0;
-            *index++ = v+1;
-            *index++ = v+2;
-            *index++ = v+2;
-            *index++ = v+3;
-            *index++ = v+0;
-        }
-    }
-
     static void ReAllocateBuffers(SpriteWorld* sprite_world, dmRender::HRenderContext render_context, uint32_t max_sprite_count, uint32_t num_vertices_per_sprite, uint32_t num_indices_per_sprite) {
         if (sprite_world->m_VertexBuffer) {
             dmGraphics::DeleteVertexBuffer(sprite_world->m_VertexBuffer);
@@ -167,14 +154,6 @@ namespace dmGameSystem
             size_t indices_size = indices_count * size_type;
 
             sprite_world->m_IndexBufferData = (uint8_t*)realloc(sprite_world->m_IndexBufferData, indices_size);
-
-            if (!sprite_world->m_UseGeometries) {
-                if (sprite_world->m_Is16BitIndex) {
-                    fillIndices<uint16_t>((uint16_t*)sprite_world->m_IndexBufferData, indices_count);
-                } else {
-                    fillIndices<uint32_t>((uint32_t*)sprite_world->m_IndexBufferData, indices_count);
-                }
-            }
 
             if (sprite_world->m_IndexBuffer) {
                 dmGraphics::DeleteIndexBuffer(sprite_world->m_IndexBuffer);
@@ -429,8 +408,9 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void CreateVertexDataSlice9(SpriteVertex* vertices, const Matrix4& transform, Vector3 sprite_size, Vector4 slice9,
-        const float* tc, float texture_width, float texture_height, bool flip_u, bool flip_v, bool has_index_buffer)
+    static void CreateVertexDataSlice9(SpriteWorld* world, SpriteVertex* vertices, uint8_t* indices,
+        const Matrix4& transform, Vector3 sprite_size, Vector4 slice9, uint32_t vertex_offset,
+        const float* tc, float texture_width, float texture_height, bool flip_u, bool flip_v)
     {
         // render 9-sliced node
         //   0 1     2 3
@@ -491,56 +471,53 @@ namespace dmGameSystem
         ys[1] = sy * slice9.getW();
         ys[2] = 1 - sy * slice9.getY();
 
-        if (has_index_buffer)
+        for (int y=0;y<4;y++)
         {
-            for (int y=0;y<4;y++)
+            for (int x=0;x<4;x++)
             {
-                for (int x=0;x<4;x++)
-                {
-                    Vector4 p   = transform * Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
-                    vertices->x = p.getX();
-                    vertices->y = p.getY();
-                    vertices->z = p.getZ();
-                    vertices->u = us[x];
-                    vertices->v = vs[y];
-                    vertices++;
-                }
+                Vector4 p   = transform * Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
+                vertices->x = p.getX();
+                vertices->y = p.getY();
+                vertices->z = p.getZ();
+                vertices->u = us[x];
+                vertices->v = vs[y];
+                vertices++;
             }
         }
-        else
+
+        uint32_t index = 0;
+        for (int y=0;y<3;y++)
         {
-            Vector4 pts[4][4];
-            for (int y=0;y<4;y++)
+            for (int x=0;x<3;x++)
             {
-                for (int x=0;x<4;x++)
+                uint32_t p0 = vertex_offset + y * 4 + x;
+                uint32_t p1 = p0 + 1;
+                uint32_t p2 = p0 + 4;
+                uint32_t p3 = p2 + 1;
+
+                if (world->m_Is16BitIndex)
                 {
-                    pts[y][x] = transform * Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
+                    uint16_t* indices_16 = (uint16_t*) indices;
+                    // Triangle 1
+                    indices_16[index++] = p0;
+                    indices_16[index++] = p1;
+                    indices_16[index++] = p2;
+                    // Triangle 2
+                    indices_16[index++] = p2;
+                    indices_16[index++] = p1;
+                    indices_16[index++] = p3;
                 }
-            }
-
-            for (int y=0;y<3;y++)
-            {
-                for (int x=0;x<3;x++)
+                else
                 {
-                    const int x0 = x;
-                    const int x1 = x+1;
-                    const int y0 = y;
-                    const int y1 = y+1;
-
-                    #define SET_VERTEX(vert,_p,_u,_v) \
-                        vert.x = _p.getX(); \
-                        vert.y = _p.getY(); \
-                        vert.z = _p.getZ(); \
-                        vert.u = uv_rotated ? _v : _u; \
-                        vert.v = uv_rotated ? _u : _v;
-
-                    SET_VERTEX(vertices[0], pts[y0][x0], us[x0], vs[y0]);
-                    SET_VERTEX(vertices[1], pts[y0][x1], us[x1], vs[y0]);
-                    SET_VERTEX(vertices[2], pts[y1][x1], us[x1], vs[y1]);
-                    SET_VERTEX(vertices[3], pts[y1][x0], us[x0], vs[y1]);
-
-                    vertices += 4;
-                    #undef SET_VERTEX
+                    uint32_t* indices_32 = (uint32_t*) indices;
+                    // Triangle 1
+                    indices_32[index++] = p0;
+                    indices_32[index++] = p1;
+                    indices_32[index++] = p2;
+                    // Triangle 2
+                    indices_32[index++] = p2;
+                    indices_32[index++] = p1;
+                    indices_32[index++] = p3;
                 }
             }
         }
@@ -564,12 +541,12 @@ namespace dmGameSystem
 
         const float* tex_coords = (const float*) texture_set->m_TextureSet->m_TexCoords.m_Data;
 
+        // The offset for the indices
+        uint32_t vertex_offset = *vb_where - sprite_world->m_VertexBufferData;
+
         if (sprite_world->m_UseGeometries)
         {
             const dmGameSystemDDF::SpriteGeometry* geometries = texture_set_ddf->m_Geometries.m_Data;
-
-            // The offset for the indices
-            uint32_t vertex_offset = *vb_where - sprite_world->m_VertexBufferData;
 
             for (uint32_t* i = begin; i != end; ++i)
             {
@@ -595,58 +572,11 @@ namespace dmGameSystem
                 if (use_slice_nine)
                 {
                     const float* tc = &tex_coords[frame_index * 4 * 2];
-                    CreateVertexDataSlice9(vertices, w, component->m_Size, slice9, tc,
+                    CreateVertexDataSlice9(sprite_world, vertices, indices,
+                        w, component->m_Size, slice9, vertex_offset, tc,
                         dmGraphics::GetTextureWidth(texture_set->m_Texture),
                         dmGraphics::GetTextureHeight(texture_set->m_Texture),
-                        flipx, flipy, true);
-
-                    // render 9-sliced node
-                    //   0 1     2 3
-                    // 0 *-*-----*-*
-                    //   | |  y  | |
-                    // 1 *-*-----*-*
-                    //   | |     | |
-                    //   |x|     |z|
-                    //   | |     | |
-                    // 2 *-*-----*-*
-                    //   | |  w  | |
-                    // 3 *-*-----*-*
-
-                    uint32_t index = 0;
-
-                    for (int y=0;y<3;y++)
-                    {
-                        for (int x=0;x<3;x++)
-                        {
-                            uint32_t p0 = vertex_offset + y * 4 + x;
-                            uint32_t p1 = p0 + 1;
-                            uint32_t p2 = p0 + 4;
-                            uint32_t p3 = p2 + 1;
-
-                            if (sprite_world->m_Is16BitIndex)
-                            {
-                                // Triangle 1
-                                ((uint16_t*) indices)[index++] = p0;
-                                ((uint16_t*) indices)[index++] = p1;
-                                ((uint16_t*) indices)[index++] = p2;
-                                // Triangle 2
-                                ((uint16_t*) indices)[index++] = p2;
-                                ((uint16_t*) indices)[index++] = p1;
-                                ((uint16_t*) indices)[index++] = p3;
-                            }
-                            else
-                            {
-                                // Triangle 1
-                                ((uint32_t*) indices)[index++] = p0;
-                                ((uint32_t*) indices)[index++] = p1;
-                                ((uint32_t*) indices)[index++] = p2;
-                                // Triangle 2
-                                ((uint32_t*) indices)[index++] = p2;
-                                ((uint32_t*) indices)[index++] = p1;
-                                ((uint32_t*) indices)[index++] = p3;
-                            }
-                        }
-                    }
+                        flipx, flipy);
 
                     // The 9 slice function produces 16 vertices (4 rows 4 columns)
                     // and since there's 2 triangles per quad and 9 quads in total,
@@ -749,14 +679,20 @@ namespace dmGameSystem
                 {
                     int flipx = animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal;
                     int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
-                    CreateVertexDataSlice9(vertices, w, component->m_Size, slice9, tc,
+                    CreateVertexDataSlice9(sprite_world, vertices, indices,
+                        w, component->m_Size, slice9, vertex_offset, tc,
                         dmGraphics::GetTextureWidth(texture_set->m_Texture),
                         dmGraphics::GetTextureHeight(texture_set->m_Texture),
-                        flipx, flipy, false);
+                        flipx, flipy);
 
+                    // The 9 slice function produces 16 vertices (4 rows 4 columns)
+                    // and since there's 2 triangles per quad and 9 quads in total,
+                    // the amount of indices is 6 per quad and 9 quads = 54 indices in total
                     const uint32_t num_slice9_quads = 3 * 3;
-                    vertices += num_slice9_quads * 4;
-                    indices += num_slice9_quads * 6 * index_type_size;
+                    const uint32_t index_count      = num_slice9_quads * 6;
+                    indices                        += index_type_size * index_count;
+                    vertices                       += 16;
+                    vertex_offset                  += 16;
                 }
                 else
                 {
@@ -791,8 +727,30 @@ namespace dmGameSystem
                     // for (int f = 0; f < 4; ++f)
                     //     printf("  %u: %.2f, %.2f\t%.2f, %.2f\n", f, vertices[f].x, vertices[f].y, vertices[f].u, vertices[f].v );
 
-                    vertices += 4;
-                    indices += 6 * index_type_size;
+                    if (sprite_world->m_Is16BitIndex)
+                    {
+                        uint16_t indices_16 = (uint16_t*) indices;
+                        indices_16[0] = vertex_offset + 0;
+                        indices_16[1] = vertex_offset + 1;
+                        indices_16[2] = vertex_offset + 2;
+                        indices_16[3] = vertex_offset + 2;
+                        indices_16[4] = vertex_offset + 3;
+                        indices_16[5] = vertex_offset + 0;
+                    }
+                    else
+                    {
+                        uint32_t indices_32 = (uint32_t*) indices;
+                        indices_32[0] = vertex_offset + 0;
+                        indices_32[1] = vertex_offset + 1;
+                        indices_32[2] = vertex_offset + 2;
+                        indices_32[3] = vertex_offset + 2;
+                        indices_32[4] = vertex_offset + 3;
+                        indices_32[5] = vertex_offset + 0;
+                    }
+
+                    vertices      += 4;
+                    vertex_offset += 4;
+                    indices       += 6 * index_type_size;
                 }
             }
         }
@@ -1148,10 +1106,6 @@ namespace dmGameSystem
                         DM_PROPERTY_ADD_U32(rmtp_SpriteVertexSize, vertex_size);
 
                     }
-                }
-
-                if (world->m_UseGeometries)
-                {
                     uint32_t index_size = (world->m_IndexBufferWritePtr - world->m_IndexBufferData);
                     if (index_size)
                     {
@@ -1186,10 +1140,10 @@ namespace dmGameSystem
 
         if (sprite_world->m_ReallocBuffers)
         {
-            // Old version has always 4 vertices. New version has up to 9 vertices (due to slice-9).
-            // We will allocate for this upper bound
-            uint32_t num_vertices_per_sprite = sprite_world->m_UseGeometries ? 9 : 4;
-            uint32_t num_indices_per_sprite = (num_vertices_per_sprite - 2) * 3;
+            // Since both old and new version supports slice 9, we allocate for this as upper bound
+            // even if all of that space will not be used.
+            uint32_t num_vertices_per_sprite = 16; // 9 slice has 16 points in a grid that we use for the triangles
+            uint32_t num_indices_per_sprite  = 9 * 6; // 9 slice has 9 quads with two triangles each
             ReAllocateBuffers(sprite_world, render_context, sprite_context->m_MaxSpriteCount, num_vertices_per_sprite, num_indices_per_sprite);
         }
 
