@@ -189,8 +189,6 @@ ordinary paths."
                        :dependencies-fn dependencies-fn
                        :write-fn write-fn
                        :read-fn read-fn
-                       :read-raw-fn (or read-raw-fn read-fn)
-                       :sanitize-fn sanitize-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts
