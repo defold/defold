@@ -19,14 +19,16 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 set -e
 mkdir -p lib/x86_64-linux
-mkdir -p lib/x86_64-darwin
+mkdir -p lib/x86_64-macos
+#mkdir -p lib/arm64-macos
 mkdir -p lib/x86-win32
 mkdir -p lib/x86_64-win32
 mkdir -p libexec/x86_64-linux
-mkdir -p libexec/x86_64-darwin
+mkdir -p libexec/x86_64-macos
+#mkdir -p libexec/arm64-macos
 mkdir -p libexec/x86-win32
 mkdir -p libexec/x86_64-win32
-mkdir -p libexec/arm64-darwin
+mkdir -p libexec/arm64-ios
 mkdir -p libexec/x86_64-ios
 mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
@@ -37,17 +39,19 @@ mkdir -p libexec/arm64-nx64
 SHA1=`git log --pretty=%H -n1`
 
 # SPIRV toolchain
-cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/glslc libexec/x86_64-darwin/glslc
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/glslc libexec/x86_64-macos/glslc
+#cp -v $DYNAMO_HOME/ext/bin/arm64-macos/glslc libexec/arm64-macos/glslc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/glslc libexec/x86_64-linux/glslc
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe libexec/x86_64-win32/glslc.exe
 
-cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/spirv-cross libexec/x86_64-darwin/spirv-cross
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross libexec/x86_64-macos/spirv-cross
+#cp -v $DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross libexec/arm64-macos/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross libexec/x86_64-linux/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe libexec/x86_64-win32/spirv-cross.exe
 
 # luac
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luac-32 libexec/x86_64-linux/luac-32
-cp -v $DYNAMO_HOME/ext/bin/x86_64-darwin/luac-32 libexec/x86_64-darwin/luac-32
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luac-32 libexec/x86_64-macos/luac-32
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/luac-32.exe libexec/x86_64-win32/luac-32.exe
 
 #
@@ -60,7 +64,8 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
 
 # TEXC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-darwin/libtexc_shared.dylib lib/x86_64-darwin/libtexc_shared.dylib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libtexc_shared.dylib lib/x86_64-macos/libtexc_shared.dylib
+#cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libtexc_shared.dylib lib/arm64-macos/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
 
 # Win32 32
@@ -73,15 +78,18 @@ cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.d
 
 rm -rf tmp
 mkdir -p tmp
-tar xf ../../packages/luajit-2.1.0-beta3-x86_64-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-beta3-x86_64-linux.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-beta3-x86_64-darwin.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-633f265-win32.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-633f265-x86_64-win32.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-633f265-x86_64-linux.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-633f265-x86_64-macos.tar.gz -C tmp
 
 cp -v tmp/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v tmp/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
-cp -v tmp/bin/x86_64-darwin/luajit-32 libexec/x86_64-darwin/luajit-32
-cp -v tmp/bin/x86_64-darwin/luajit-64 libexec/x86_64-darwin/luajit-64
-cp -v tmp/bin/x86_64-win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
+cp -v tmp/bin/x86_64-macos/luajit-32 libexec/x86_64-macos/luajit-32
+cp -v tmp/bin/x86_64-macos/luajit-64 libexec/x86_64-macos/luajit-64
+#cp -v tmp/bin/arm64-macos/luajit-32 libexec/arm64-macos/luajit-32
+#cp -v tmp/bin/arm64-macos/luajit-64 libexec/arm64-macos/luajit-64
+cp -v tmp/bin/win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
 cp -v tmp/bin/x86_64-win32/luajit-64.exe libexec/x86_64-win32/luajit-64.exe
 jar cfM lib/luajit-share.zip -C $DYNAMO_HOME/ext/share/ luajit
 
@@ -92,17 +100,20 @@ copy () {
 copy x86_64-linux/stripped/dmengine x86_64-linux/dmengine
 copy x86_64-linux/stripped/dmengine_release x86_64-linux/dmengine_release
 copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
-copy x86_64-darwin/stripped/dmengine x86_64-darwin/dmengine
-copy x86_64-darwin/stripped/dmengine_release x86_64-darwin/dmengine_release
-copy x86_64-darwin/stripped/dmengine_headless x86_64-darwin/dmengine_headless
+copy x86_64-macos/stripped/dmengine x86_64-macos/dmengine
+copy x86_64-macos/stripped/dmengine_release x86_64-macos/dmengine_release
+copy x86_64-macos/stripped/dmengine_headless x86_64-macos/dmengine_headless
+#copy arm64-macos/stripped/dmengine arm64-macos/dmengine
+#copy arm64-macos/stripped/dmengine_release arm64-macos/dmengine_release
+#copy arm64-macos/stripped/dmengine_headless arm64-macos/dmengine_headless
 copy win32/dmengine.exe x86-win32/dmengine.exe
 copy win32/dmengine_release.exe x86-win32/dmengine_release.exe
 copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe
 copy x86_64-win32/dmengine.exe x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
 copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
-copy arm64-darwin/stripped/dmengine arm64-darwin/dmengine
-copy arm64-darwin/stripped/dmengine_release arm64-darwin/dmengine_release
+copy arm64-ios/stripped/dmengine arm64-ios/dmengine
+copy arm64-ios/stripped/dmengine_release arm64-ios/dmengine_release
 copy x86_64-ios/stripped/dmengine x86_64-ios/dmengine
 copy x86_64-ios/stripped/dmengine_release x86_64-ios/dmengine_release
 copy armv7-android/stripped/libdmengine.so armv7-android/libdmengine.so

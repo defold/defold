@@ -27,6 +27,7 @@
     BOOL secureTextEntry;
     id <UITextInputDelegate> inputDelegate;
     NSMutableString *markedText;
+    NSString *fakeText;
 }
 
 - (void)swapBuffers;

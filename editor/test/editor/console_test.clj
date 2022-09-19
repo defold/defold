@@ -63,14 +63,14 @@
 
     "ERROR:SCRIPT: e_name_is_quite_long_how_will_you_deal_with_that_huh.script:2: attempt to call field 'balooba' (a nil value)" ["e_name_is_quite_long_how_will_you_deal_with_that_huh.script" "2"]))
 
-(defn- on-region-click! [_region]
+(defn- on-region-click! [_region _event]
   nil)
 
 (defn- resource-reference-region
   ([row col text resource-proj-path]
-   (#'console/make-resource-reference-region row col (+ col (count text)) resource-proj-path on-region-click!))
+   (#'console/make-resource-reference-region row col (+ col (count text)) [resource-proj-path] on-region-click!))
   ([row col text resource-proj-path resource-row]
-   (#'console/make-resource-reference-region row col (+ col (count text)) resource-proj-path resource-row on-region-click!)))
+   (#'console/make-resource-reference-region row col (+ col (count text)) [resource-proj-path] resource-row on-region-click!)))
 
 (defn- whole-line-region [type row text]
   (#'console/make-whole-line-region type row text))

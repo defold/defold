@@ -140,6 +140,7 @@ TEST(dmSys, GetSystemInfo)
 {
     dmSys::SystemInfo info;
     dmSys::GetSystemInfo(&info);
+    dmSys::GetSecureInfo(&info);
 
     dmLogInfo("DeviceModel: '%s'", info.m_DeviceModel);
     dmLogInfo("SystemName: '%s'", info.m_SystemName);

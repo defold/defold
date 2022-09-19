@@ -110,7 +110,8 @@ namespace dmGameObject
                                                                               type,
                                                                               type_index,
                                                                               component_desc.m_Position,
-                                                                              component_desc.m_Rotation);
+                                                                              component_desc.m_Rotation,
+                                                                              component_desc.m_Scale);
                 c.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
 
                 c.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerFromDDF(&component_desc.m_PropertyDecls);

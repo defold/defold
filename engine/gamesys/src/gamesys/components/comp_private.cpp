@@ -409,13 +409,23 @@ static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants consta
 
     uint32_t num_values;
     dmVMath::Vector4* values = dmRender::GetConstantValues(material_constant, &num_values);
+    dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRender::GetConstantType(material_constant);
 
     if (values)
     {
         dmRender::SetConstantValues(constant, values, num_values);
+        dmRender::SetConstantType(constant, constant_type);
     } else {
-        dmVMath::Vector4 zero(0,0,0,0);
-        dmRender::SetConstantValues(constant, &zero, 1);
+        if (constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            dmVMath::Matrix4 zero(0.0f);
+            dmRender::SetConstantValues(constant, (dmVMath::Vector4*) &zero, 4);
+        }
+        else
+        {
+            dmVMath::Vector4 zero(0,0,0,0);
+            dmRender::SetConstantValues(constant, &zero, 1);
+        }
     }
 
     return constant;
@@ -444,6 +454,12 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
 
     uint32_t num_values = 0;
     dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+    bool is_matrix4_type = dmRender::GetConstantType(constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+
+    if (is_matrix4_type)
+    {
+        value_index *= 4;
+    }
 
     if (value_index >= num_values)
     {
@@ -451,10 +467,23 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
         return; // We should really handle
     }
     dmVMath::Vector4* v = &values[value_index];
-    if (element_index == 0x0)
-        *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+
+    if (is_matrix4_type)
+    {
+        if (element_index != 0x0)
+        {
+            dmLogError("Setting a specific element in a matrix constant for the property %s[%u] is not supported.", dmHashReverseSafe64(name_hash), value_index);
+            return;
+        }
+        memcpy(v, var.m_M4, sizeof(var.m_M4));
+    }
     else
-        v->setElem(*element_index, (float)var.m_Number);
+    {
+        if (element_index == 0x0)
+            *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+        else
+            v->setElem(*element_index, (float)var.m_Number);
+    }
 
     UpdateChecksums(constants, name_hash, values, num_values);
 }

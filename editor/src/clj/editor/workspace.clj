@@ -51,8 +51,11 @@ ordinary paths."
 (defn- skip-first-char [path]
   (subs path 1))
 
-(defn build-path [workspace]
-  (io/file (project-path workspace) (skip-first-char build-dir)))
+(defn build-path
+  (^File [workspace]
+   (io/file (project-path workspace) (skip-first-char build-dir)))
+  (^File [workspace build-resource-path]
+   (io/file (build-path workspace) (skip-first-char build-resource-path))))
 
 (defn plugin-path
   (^File [workspace]
@@ -186,6 +189,8 @@ ordinary paths."
                        :dependencies-fn dependencies-fn
                        :write-fn write-fn
                        :read-fn read-fn
+                       :read-raw-fn (or read-raw-fn read-fn)
+                       :sanitize-fn sanitize-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts

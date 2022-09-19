@@ -222,4 +222,5 @@ emitters {
   duration_spread: 0.0
   stretch_with_velocity: false
   start_offset: 0.0
+  pivot:              { x: 0 y: 0 z: 0 }
 }

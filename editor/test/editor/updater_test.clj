@@ -21,7 +21,7 @@
             [ring.adapter.jetty :as jetty]
             [ring.util.response :as response])
   (:import [ch.qos.logback.classic Level Logger]
-           [com.defold.editor Platform]
+           [com.dynamo.bob Platform]
            [java.io File]
            [java.util Timer]
            [org.slf4j LoggerFactory]))
