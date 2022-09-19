@@ -729,7 +729,7 @@ namespace dmGameSystem
 
                     if (sprite_world->m_Is16BitIndex)
                     {
-                        uint16_t indices_16 = (uint16_t*) indices;
+                        uint16_t* indices_16 = (uint16_t*) indices;
                         indices_16[0] = vertex_offset + 0;
                         indices_16[1] = vertex_offset + 1;
                         indices_16[2] = vertex_offset + 2;
@@ -739,7 +739,7 @@ namespace dmGameSystem
                     }
                     else
                     {
-                        uint32_t indices_32 = (uint32_t*) indices;
+                        uint32_t* indices_32 = (uint32_t*) indices;
                         indices_32[0] = vertex_offset + 0;
                         indices_32[1] = vertex_offset + 1;
                         indices_32[2] = vertex_offset + 2;
