@@ -292,9 +292,10 @@ ordinary paths."
       (do
         (plugin-fn workspace)
         (log/info :msg (str "Loaded plugin " (resource/path resource))))
-      (log/info :msg (str "Unable to load plugin " (resource/path resource))))
+      (log/error :msg (str "Unable to load plugin " (resource/path resource))))
     (catch Exception e
-      (log/error :msg (str "Exception while loading plugin: " (.getMessage e)))
+      (log/error :msg (str "Exception while loading plugin: " (.getMessage e))
+                 :exception e)
       (ui/run-later
         (dialogs/make-info-dialog
           {:title "Unable to Load Plugin"

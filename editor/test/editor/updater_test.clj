@@ -46,14 +46,14 @@
 
                 updater/update-url
                 (fn [archive-domain channel]
-                  (format "http://localhost:%s/editor2/channels/%s/update-v3.json"
+                  (format "http://localhost:%s/editor2/channels/%s/update-v4.json"
                           test-port channel))]
     (f)))
 
 (use-fixtures :once error-log-level-fixture test-urls-fixture)
 
 (defn make-handler-resources [channel sha1]
-  {(format "/editor2/channels/%s/update-v3.json" channel)
+  {(format "/editor2/channels/%s/update-v4.json" channel)
    (response/response (json/write-str {:sha1 sha1}))
 
    (format "/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair (Platform/getHostPlatform)))
