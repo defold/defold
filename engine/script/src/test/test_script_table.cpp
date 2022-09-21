@@ -100,7 +100,7 @@ protected:
 TEST_F(LuaTableTest, EmptyTable)
 {
     lua_newtable(L);
-    DM_ALIGNED(16) char buf[8 + 4];
+    char DM_ALIGNED(16) buf[8 + 4];
     uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
     // 4 bytes for count
     ASSERT_EQ(12U, buffer_used);
@@ -260,7 +260,7 @@ const uint32_t IOOB_BUFFER_SIZE = 8 + 2 + 2 + (sizeof(char) + sizeof(char) + 5 *
 
 int ProduceIndexOutOfBounds(lua_State *L)
 {
-    char DM_ALIGNED(16) char buf[IOOB_BUFFER_SIZE];
+    char DM_ALIGNED(16) buf[IOOB_BUFFER_SIZE];
     lua_newtable(L);
     // invalid key
     lua_pushnumber(L, 0xffffffffLL+1);
