@@ -16,6 +16,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/align.h>
+#include <dlib/memory.h>
 #include <dlib/math.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -944,7 +945,8 @@ TEST_F(LuaTableTest, Stress)
             }
 
             // Add eight to ensure there is room for the header too.
-            char* DM_ALIGNED(16) buf = new char[8 + buf_size + 4]; // add 4 extra at end for GUARD BYTES
+            char* buf;
+            dmMemory::AlignedMalloc((void**)&buf, 16, 8 + buf_size + 4); // add 4 extra at end for GUARD BYTES
             buf[8 + buf_size + 0] = 0xBA;
             buf[8 + buf_size + 1] = 0xAD;
             buf[8 + buf_size + 2] = 0xF0;
@@ -977,7 +979,7 @@ TEST_F(LuaTableTest, Stress)
             ASSERT_EQ(d, rd);
 
             lua_pop(L, 1);
-            delete[] buf;
+            dmMemory::AlignedFree(buf);
         }
     }
 }
