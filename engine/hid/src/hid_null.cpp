@@ -95,12 +95,4 @@ namespace dmHID
     void EnableAccelerometer()
     {
     }
-
-    void ShowMouseCursor()
-    {
-    }
-
-    void HideMouseCursor()
-    {
-    }
 }

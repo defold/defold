@@ -294,16 +294,6 @@ namespace dmHID
         glfwAccelerometerEnable();
     }
 
-    void ShowMouseCursor()
-    {
-        glfwEnable(GLFW_MOUSE_CURSOR);
-    }
-
-    void HideMouseCursor()
-    {
-        glfwDisable(GLFW_MOUSE_CURSOR);
-    }
-
     const char* GetKeyName(Key key)
     {
         return KEY_NAMES[key];
