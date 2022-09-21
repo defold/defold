@@ -299,7 +299,7 @@ namespace dmScript
         return total_size;
     }
 
-    uint32_t DoCheckTableSize(lua_State* L, int index, int total_size)
+    uint32_t DoCheckTableSize(lua_State* L, int index, int parent_offset)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -342,7 +342,7 @@ namespace dmScript
 
                 case LUA_TNUMBER:
                 {
-                    int offset = total_size + size;
+                    int offset = parent_offset + size;
                     int aligned_offset = (offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     int align_size = aligned_offset - offset;
                     size += align_size;
@@ -361,7 +361,7 @@ namespace dmScript
                     // subtype
                     size += 1;
 
-                    int offset = total_size + size;
+                    int offset = parent_offset + size;
                     int aligned_offset = (offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     int align_size = aligned_offset - offset;
                     size += align_size;
@@ -400,7 +400,7 @@ namespace dmScript
 
                 case LUA_TTABLE:
                 {
-                    size += DoCheckTableSize(L, -1, total_size + size);
+                    size += DoCheckTableSize(L, -1, parent_offset + size);
                 }
                 break;
 
