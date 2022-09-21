@@ -100,7 +100,7 @@ protected:
 TEST_F(LuaTableTest, EmptyTable)
 {
     lua_newtable(L);
-    char buf[8 + 4];
+    DM_ALIGNED(16) char buf[8 + 4];
     uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
     // 4 bytes for count
     ASSERT_EQ(12U, buffer_used);
