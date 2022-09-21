@@ -436,6 +436,46 @@ TEST_F(LuaTableTest, case1308)
     lua_pop(L, 1);
 }
 
+TEST_F(LuaTableTest, NestedTableSizeCheck)
+{
+    /**
+     * This table structure was guaranteed to crash on frist version of #6676
+     * Fix in https://github.com/defold/defold/pull/6991
+     * 
+     * {
+     *   foo = 1234,
+     *   b = {
+     *       a = 1234,
+     *   }
+     * }
+     *
+     */
+    // create outer table
+    lua_newtable(L);
+
+    // foo = 1234
+    lua_pushnumber(L, 1234);
+    lua_setfield(L, -2, "foo");
+
+    // create inner table "b"
+    lua_newtable(L);
+
+    // a = 1234
+    lua_pushnumber(L, 1234);
+    lua_setfield(L, -2, "a");
+
+    // b = {}
+    lua_setfield(L, -2, "b");
+
+    uint32_t calculated_table_size = dmScript::CheckTableSize(L, -1);
+    uint32_t actual_table_size = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(calculated_table_size, actual_table_size);
+}
+
+
 // TODO!!
 // TEST_F(LuaTableTest, ReadTruncatedFile)
 // {
