@@ -28,6 +28,7 @@
 #include <dlib/utf8.h>
 #include <dlib/zlib.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/intersection.h>
 #include <graphics/graphics_util.h>
 
 #include "font_renderer.h"
@@ -562,6 +563,20 @@ namespace dmRender
         te.m_SourceBlendFactor = params.m_SourceBlendFactor;
         te.m_DestinationBlendFactor = params.m_DestinationBlendFactor;
 
+        // find center and radius for frustum culling
+        dmVMath::Vector4 cornerpoint_local(0,0,0,1);    // lowerleft corner always at (0,0,0) - TODO check Z coord
+        dmVMath::Vector4 centerpoint_local(params.m_Width/2, params.m_Height/2, 0, 1);
+        // transform to world coordinates
+        dmVMath::Vector4 cornerpoint_world = params.m_WorldTransform * cornerpoint_local;
+        dmVMath::Vector4 centerpoint_world = params.m_WorldTransform * centerpoint_local;
+
+        float radius = Vectormath::Aos::length(cornerpoint_world - centerpoint_world);
+
+        te.m_FrustumCullingCenter.setX(centerpoint_world.getX());
+        te.m_FrustumCullingCenter.setY(centerpoint_world.getY());
+        te.m_FrustumCullingCenter.setZ(centerpoint_world.getZ());
+        te.m_FrustumCullingRadius = radius;
+
         assert( params.m_NumRenderConstants <= dmRender::MAX_FONT_RENDER_CONSTANTS );
         te.m_NumRenderConstants = params.m_NumRenderConstants;
         memcpy( te.m_RenderConstants, params.m_RenderConstants, params.m_NumRenderConstants * sizeof(dmRender::HConstant));
@@ -1081,6 +1096,26 @@ namespace dmRender
         }
     }
 
+    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
+    {
+        DM_PROFILE("FrustumCulling"); // TODO - this is the same as in Sprites. Maybe change it ?
+
+        //print (*(TextEntry*) params.m_Entries[0].m_UserData).m_FrustumCullingCenter
+
+        const dmIntersection::Frustum frustum = *params.m_Frustum;
+        uint32_t num_entries = params.m_NumEntries;
+        for (uint32_t i = 0; i < num_entries; ++i)
+        {
+            dmRender::RenderListEntry* entry = &params.m_Entries[i];
+            TextEntry* te = ((TextEntry*) entry->m_UserData);
+
+            Point3 center = te->m_FrustumCullingCenter; // TODO - optimize this. Use directly in TestFrustumSphere
+            float radius = te->m_FrustumCullingRadius;   // "
+
+            bool intersect = dmIntersection::TestFrustumSphere(frustum, center, radius, true);
+            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+        }
+    }
 
     void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final)
     {
@@ -1108,7 +1143,7 @@ namespace dmRender
 
             if (count > 0) {
                 dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
-                dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &FontRenderListDispatch, render_context);
+                dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &FontRenderListDispatch, &RenderListFrustumCulling, render_context);
                 dmRender::RenderListEntry* write_ptr = render_list;
 
                 for( uint32_t i = 0; i < count; ++i )
