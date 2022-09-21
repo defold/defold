@@ -28,9 +28,11 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
 import java.net.URL;
 import java.net.URI;
 import java.text.ParseException;
@@ -918,6 +920,16 @@ public class Project {
             File logFile = new File(buildDir, "log.txt");
             String serverURL = this.option("build-server", "https://build.defold.com");
             boolean asyncBuild = this.hasOption("use-async-build-server");
+
+            // get comma separated extra headers
+            // split into individual headers and URI decode
+            String commaSeparatedHeaders = this.option("build-server-headers", "");
+            List<String> headers = commaSeparatedHeaders.isEmpty() ? new ArrayList<String>() : Arrays.asList(commaSeparatedHeaders.split(","));
+            for (int hi = 0; hi < headers.size(); hi++) {
+                String header = headers.get(hi);
+                header = URLDecoder.decode(header, StandardCharsets.UTF_8);
+                headers.set(hi, header);
+            }
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
