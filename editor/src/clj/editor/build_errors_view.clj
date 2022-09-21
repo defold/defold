@@ -20,6 +20,7 @@
             [editor.icons :as icons]
             [editor.outline :as outline]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :refer [pair]])
@@ -85,7 +86,9 @@
 (defn- missing-resource-node? [evaluation-context node-id]
   (and (g/node-instance? (:basis evaluation-context) resource/ResourceNode node-id)
        (some? (g/node-value node-id :resource evaluation-context))
-       (some? (g/node-value node-id :_output-jammers evaluation-context))))
+       (if-some [output-jammers (g/node-value node-id :_output-jammers evaluation-context)]
+         (resource-io/file-not-found-error? (first (vals output-jammers)))
+         false)))
 
 (defn- error-item [evaluation-context root-cause]
   (let [{:keys [message severity]} (first root-cause)
