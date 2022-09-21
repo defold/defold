@@ -944,7 +944,7 @@ TEST_F(LuaTableTest, Stress)
             }
 
             // Add eight to ensure there is room for the header too.
-            char* buf = new char[8 + buf_size + 4]; // add 4 extra at end for GUARD BYTES
+            char* DM_ALIGNED(16) buf = new char[8 + buf_size + 4]; // add 4 extra at end for GUARD BYTES
             buf[8 + buf_size + 0] = 0xBA;
             buf[8 + buf_size + 1] = 0xAD;
             buf[8 + buf_size + 2] = 0xF0;
