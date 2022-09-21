@@ -68,7 +68,7 @@ static bool RunString(lua_State* L, const char* script)
 
 class LuaTableTest* g_LuaTableTest = 0;
 
-class LuaTableTest : public jc_test_base_class
+DM_ALIGNED(16) class LuaTableTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
