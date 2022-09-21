@@ -287,6 +287,9 @@ namespace dmHID
      */
     void HideKeyboard(HContext context);
 
+    void ShowMouseCursor();
+    void HideMouseCursor();
+
     /**
      * Reset keyboard
      * @param context context

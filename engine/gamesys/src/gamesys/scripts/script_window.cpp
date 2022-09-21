@@ -16,6 +16,7 @@
 #include <dlib/log.h>
 #include "../gamesys.h"
 #include <script/script.h>
+#include <hid/hid.h>
 
 #include "script_window.h"
 
@@ -206,6 +207,35 @@ static int SetDimMode(lua_State* L)
     return 0;
 }
 
+// TODO: Move to dmScript
+static bool CheckBoolean(lua_State* L, int index)
+{
+    if ( lua_isboolean( L, index ) )
+        return lua_toboolean( L, index );
+
+    return luaL_error(L, "Argument %d must be a boolean", index);
+}
+
+static int SetCursorLock(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    bool flag = CheckBoolean(L, 1);
+
+    // Hide the cursor if we want to lock it
+    if (flag)
+    {
+        dmHID::HideMouseCursor();
+    }
+    else
+    {
+        dmHID::ShowMouseCursor();
+    }
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
 /*# get the mode for screen dimming
  *
  * [icon:ios] [icon:android] Returns the current dimming mode set on a mobile device.
@@ -257,6 +287,7 @@ static const luaL_reg Module_methods[] =
     {"set_dim_mode", SetDimMode},
     {"get_dim_mode", GetDimMode},
     {"get_size", GetSize},
+    {"set_cursor_lock", SetCursorLock},
     {0, 0}
 };
 
