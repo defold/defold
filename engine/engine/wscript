@@ -71,11 +71,11 @@ namespace dmEngineVersion
 
     sound_lib = 'sound'
 
-    if operating_sys == 'osx':
+    if operating_sys == 'macos':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
         # For Vulkan/MoltenVK
-        if waflib.Options.options.with_vulkan and architecture == 'x86_64':
+        if waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
             # Link with vulkan.dylib if the env is set (see graphics/vulkan/README.md) for more information
@@ -126,7 +126,7 @@ namespace dmEngineVersion
     conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
 
-    if operating_sys != "osx":
+    if operating_sys != "macos":
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     conf.env['STLIB_FACEBOOKEXT'] = 'facebookext'
@@ -141,7 +141,7 @@ namespace dmEngineVersion
 
     if operating_sys == "linux":
         conf.env['LIB_OPENAL'] = 'openal'
-    elif operating_sys == "osx":
+    elif operating_sys == "macos":
         pass
     elif operating_sys == "win" and architecture == "x86":
         conf.env['LIB_OPENAL'] = 'OpenAL32'

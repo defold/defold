@@ -37,9 +37,6 @@ namespace dmCrash
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
-    // This array contains the default behavior for each signal.
-    static struct sigaction sigdfl[SIGNAL_MAX];
-
     void EnableHandler(bool enable)
     {
         g_CrashDumpEnabled = enable;
@@ -197,12 +194,22 @@ namespace dmCrash
         OnCrash(0xDEAD);
     }
 
+    static void ResetToDefaultHandler(const int signum)
+    {
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sigemptyset(&sa.sa_mask);
+        sa.sa_handler = SIG_DFL;
+        sa.sa_flags = 0;
+        sigaction(signum, &sa, NULL);
+    }
+
     static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
-        // The previous (default) behavior is restored for the signal.
+        // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
-        sigaction(signum, &sigdfl[signum], NULL);
+        ResetToDefaultHandler(signum);
         OnCrash(signum);
     }
 
@@ -215,9 +222,8 @@ namespace dmCrash
         sigemptyset(&sa.sa_mask);
         sa.sa_sigaction = Handler;
         sa.sa_flags = SA_SIGINFO;
-
-        // The current (default) behavior is stored in sigdfl.
-        sigaction(signum, &sa, &sigdfl[signum]);
+        
+        sigaction(signum, &sa, NULL);
     }
 
     void SetCrashFilename(const char*)

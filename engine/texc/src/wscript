@@ -19,7 +19,7 @@ def build(bld):
     remove_flags['CXXFLAGS'] = []
     remove_flags['LINKFLAGS'] = []
     extra_encoder_flags = []
-    if bld.env['PLATFORM'] == 'x86_64-darwin':
+    if bld.env['PLATFORM'] == 'x86_64-macos':
         # SSE4.1 was added in 10.12
         remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
         remove_flags['LINKFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )

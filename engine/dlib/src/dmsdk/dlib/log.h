@@ -244,6 +244,8 @@ typedef void (*FLogListener)(LogSeverity severity, const char* domain, const cha
  * Registers a log listener.
  * This listener receive logs even in release bundle.
  *
+ * @note Any calls to dmLogInfo et al from within the calllback will be ignored
+ *
  * @name dmLogRegisterListener
  * @param listener [type:FLogListener]
  */

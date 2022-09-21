@@ -35,9 +35,9 @@ from queue import Queue
 from configparser import ConfigParser
 
 BASE_PLATFORMS = [  'x86_64-linux',
-                    'x86_64-darwin',
+                    'x86_64-macos', #'arm64-macos',
                     'win32', 'x86_64-win32',
-                    'x86_64-ios', 'arm64-darwin',
+                    'x86_64-ios', 'arm64-ios',
                     'armv7-android', 'arm64-android',
                     'js-web', 'wasm-web']
 
@@ -82,17 +82,17 @@ def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
-PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-beta3 tremolo-0.0.8".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_DARWIN="vpx-1.7.0".split()
-PACKAGES_DARWIN_64="protobuf-3.20.1 luajit-2.1.0-beta3 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41 luac-32-5.1.5".split()
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-beta3 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-beta3 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-beta3 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-633f265 tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
+PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-633f265 tremolo-0.0.8".split()
+PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-633f265 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41 luac-32-5.1.5".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-633f265 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41 luac-32-5.1.5".split()
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-633f265 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-633f265 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-633f265 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -124,44 +124,8 @@ ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resourc
 
 EXTERNAL_LIBS = "bullet3d".split()
 
-def is_64bit_machine():
-    return platform.machine().endswith('64')
-
-# Legacy format, should be removed eventually
-# Returns: [linux|x86_64-linux|win32|x86_64-win32|darwin]
 def get_host_platform():
-    if sys.platform == 'linux':
-        arch = platform.architecture()[0]
-        if arch == '64bit':
-            return 'x86_64-linux'
-        else:
-            return 'linux'
-    elif sys.platform == 'win32' and is_64bit_machine():
-        return 'x86_64-win32'
-    else:
-        return sys.platform
-
-# The difference from get_host_platform is that it returns the correct platform
-# Returns: [x86|x86_64][win32|linux|darwin]
-def get_host_platform2():
-    if sys.platform == 'linux':
-        arch = platform.architecture()[0]
-        if arch == '64bit':
-            return 'x86_64-linux'
-        else:
-            return 'x86-linux'
-    elif sys.platform == 'win32':
-        if is_64bit_machine():
-            return 'x86_64-win32'
-        else:
-            return 'x86-win32'
-    elif sys.platform == 'darwin':
-        if is_64bit_machine():
-            return 'x86_64-darwin'
-        else:
-            return 'x86-darwin'
-    else:
-        raise Exception("Unknown host platform: %s" % sys.platform)
+    return sdk.get_host_platform()
 
 def format_exes(name, platform):
     prefix = ''
@@ -191,7 +155,7 @@ def format_exes(name, platform):
 def format_lib(name, platform):
     prefix = 'lib'
     suffix = ''
-    if 'darwin' in platform or 'ios' in platform:
+    if 'macos' in platform or 'ios' in platform:
         suffix = '.dylib'
     elif 'win32' in platform:
         prefix = ''
@@ -290,7 +254,6 @@ class Configuration(object):
         self.defold = normpath(join(dirname(abspath(__file__)), '..'))
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
-        self.host2 = get_host_platform2()
         self.target_platform = target_platform
 
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
@@ -338,6 +301,12 @@ class Configuration(object):
         if len(self.futures) > 0:
             print('ERROR: Pending futures (%d)' % len(self.futures))
             os._exit(5)
+
+    def get_python(self):
+        if 'macos' in self.host and 'arm64' == platform.machine():
+            if 'x86_64-macos' == self.target_platform:
+                return 'arch -x86_64 python'
+        return 'python'
 
     def _create_common_dirs(self):
         for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
@@ -470,9 +439,9 @@ class Configuration(object):
             'win32':          PACKAGES_WIN32,
             'x86_64-win32':   PACKAGES_WIN32_64,
             'x86_64-linux':   PACKAGES_LINUX_64,
-            'darwin':         PACKAGES_DARWIN, # ?? Still used by bob-light?
-            'x86_64-darwin':  PACKAGES_DARWIN_64,
-            'arm64-darwin':   PACKAGES_IOS_64,
+            'x86_64-macos':   PACKAGES_MACOS_X86_64,
+            #'arm64-macos':    PACKAGES_MACOS_ARM64,
+            'arm64-ios':      PACKAGES_IOS_64,
             'x86_64-ios':     PACKAGES_IOS_X86_64,
             'armv7-android':  PACKAGES_ANDROID,
             'arm64-android':  PACKAGES_ANDROID_64,
@@ -513,7 +482,7 @@ class Configuration(object):
                 installed_packages.update(package_paths)
 
         # For easier usage with the extender server, we want the linux protoc tool available
-        if target_platform in ('x86_64-darwin', 'x86_64-win32', 'x86_64-linux'):
+        if target_platform in ('x86_64-macos', 'x86_64-win32', 'x86_64-linux'):
             protobuf_packages = filter(lambda x: "protobuf" in x, PACKAGES_HOST)
             package_paths = make_package_paths(self.defold_root, 'x86_64-linux', protobuf_packages)
             print("Installing %s packages " % 'x86_64-linux')
@@ -532,11 +501,10 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), ['python', './packages/get-pip.py', '--user'])
-        run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
+        run.env_command(self._form_env(), [self.get_python(), '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
-            run.env_command(self._form_env(), ['python', '-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
+            run.env_command(self._form_env(), [self.get_python(), '-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
 
         print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
@@ -574,7 +542,7 @@ class Configuration(object):
         self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform)
 
         # We currently only support a subset of platforms using this mechanic
-        if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
+        if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
             if not self.sdk_info:
                 print("Couldn't find any sdks")
                 print("We recommend you follow the packaging steps found here: %s" % "https://github.com/defold/defold/blob/dev/scripts/package/README.md#packaging-the-sdks")
@@ -587,17 +555,17 @@ class Configuration(object):
         sdkfolder = join(self.ext, 'SDKs')
 
         target_platform = self.target_platform
-        if target_platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
+        if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
             download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), join(sdkfolder, sdk.PACKAGES_XCODE_TOOLCHAIN))
 
-        if target_platform in ('arm64-darwin', 'x86_64-ios'):
+        if target_platform in ('arm64-ios', 'x86_64-ios'):
             # iOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
 
-        if 'win32' in target_platform or ('win32' in self.host2):
+        if 'win32' in target_platform or ('win32' in self.host):
             win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
@@ -610,15 +578,18 @@ class Configuration(object):
                 host = 'windows'
             elif 'linux' in host:
                 host = 'linux'
+            elif 'macos' in host:
+                host = 'darwin' # our packages are still called darwin
+
             # Android NDK
             download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
             download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, ANDROID_TARGET_API_LEVEL, ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
-        if 'linux' in self.host2:
+        if 'linux' in self.host:
             download_sdk(self, '%s/%s.tar.xz' % (self.package_path, sdk.PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG), format='J')
 
-        if target_platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios') and 'linux' in self.host2:
+        if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios') and 'linux' in self.host:
             if not os.path.exists(join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'cctools')):
                 download_sdk(self, '%s/%s.tar.gz' % (self.package_path, PACKAGES_CCTOOLS_PORT), join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG), force_extract=True)
 
@@ -645,7 +616,10 @@ class Configuration(object):
             print("Emscripten is already installed:", emsDir)
         else:
             self._check_package_path()
-            platform_map = {'x86_64-linux':'linux','x86_64-darwin':'darwin','x86_64-win32':'win32'}
+            platform_map = {'x86_64-linux':'linux',
+                            'x86_64-macos':'darwin',
+                            'arm64-macos':'darwin',
+                            'x86_64-win32':'win32'}
             path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, platform_map.get(self.host, self.host)))
             path = self.get_local_or_remote_file(path)
             self._extract(path, join(self.ext, 'SDKs'))
@@ -705,22 +679,27 @@ class Configuration(object):
         zip.close()
         return outfile.name
 
-    def _add_files_to_zip(self, zip, paths, directory=None, topfolder=None):
+    def _add_files_to_zip(self, zip, paths, basedir=None, topfolder=None):
         for p in paths:
             if not os.path.isfile(p):
                 continue
             an = p
-            if directory:
-                an = os.path.relpath(p, directory)
+            if basedir:
+                an = os.path.relpath(p, basedir)
             if topfolder:
                 an = os.path.join(topfolder, an)
             zip.write(p, an)
+
+    def _add_file_to_zip(self, zip, src, dst):
+        if not os.path.isfile(src):
+            self._log("Path is not a file: '%s'" % src)
+        zip.write(src, dst)
 
     def is_cross_platform(self):
         return self.host != self.target_platform
 
     def is_desktop_target(self):
-        return self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32']
+        return self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']
 
     # package the native SDK, return the path to the zip file
     def _package_platform_sdk(self, platform):
@@ -830,7 +809,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # pipeline tools
-            if platform in ('x86_64-darwin','x86_64-linux','x86_64-win32'): # needed for the linux build server
+            if platform in ('x86_64-macos','arm64-macos','x86_64-linux','x86_64-win32'): # needed for the linux build server
                 # protoc
                 protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
                 ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')
@@ -847,7 +826,13 @@ class Configuration(object):
 
                 self._add_files_to_zip(zip, [protoc, ddfc_py, ddfc_java, ddfc_cxx, ddfc_cxx_bat, plugin_pb2, ddf_init, ddf_extensions_pb2, ddf_math_pb2, dlib_init], self.dynamo_home, topfolder)
 
-                # we don't want to run "pip install" on individual sdk files., so we copy the python files as-is
+                # workaround for extender running on x86_64-darwin still:
+                if platform == 'x86_64-macos':
+                    protoc_src = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
+                    protoc_dst = '%s/ext/bin/%s/protoc' % (topfolder, "x86_64-darwin")
+                    self._add_file_to_zip(zip, protoc_src, protoc_dst)
+
+                # we don't want to run "pip install" on individual sdk files, so we copy the python files as-is
                 protobuf_files = []
                 for root, dirs, files in os.walk(os.path.join(self.dynamo_home, 'ext/lib/python/google')):
                     for f in files:
@@ -891,7 +876,7 @@ class Configuration(object):
 
     def _strip_engine(self, path):
         """ Strips the debug symbols from an executable """
-        if self.target_platform not in ['x86_64-linux','x86_64-darwin','arm64-darwin','x86_64-ios','armv7-android','arm64-android']:
+        if self.target_platform not in ['x86_64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios','armv7-android','arm64-android']:
             return False
 
         sdkfolder = join(self.ext, 'SDKs')
@@ -909,7 +894,7 @@ class Configuration(object):
             ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
             strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
 
-        if self.target_platform in ('x86_64-darwin','arm64-darwin','x86_64-ios') and 'linux' == sys.platform:
+        if self.target_platform in ('x86_64-macos','arm64-macos','arm64-ios','x86_64-ios') and 'linux' == sys.platform:
             strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')
 
         run.shell_command("%s %s" % (strip, path))
@@ -927,7 +912,7 @@ class Configuration(object):
         lib_dir = self.target_platform
 
         # upload editor 2.0 launcher
-        if self.target_platform in ['x86_64-linux', 'x86_64-darwin', 'x86_64-win32']:
+        if self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
             launcher_name = format_exes("launcher", self.target_platform)[0]
             launcherbin = join(bin_dir, launcher_name)
             self.upload_to_archive(launcherbin, '%s/%s' % (full_archive_path, launcher_name))
@@ -957,7 +942,7 @@ class Configuration(object):
                 engine_symbols = join(bin_dir, engine_name + '.symbols')
                 if os.path.exists(engine_symbols):
                     self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
-            elif 'darwin' in self.target_platform:
+            elif 'macos' in self.target_platform or 'ios' in self.target_platform:
                 engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
                 if os.path.exists(engine_symbols):
                     self.upload_to_archive(engine_symbols, '%s/%s' % (full_archive_path, os.path.basename(engine_symbols)))
@@ -998,7 +983,7 @@ class Configuration(object):
 
     def _get_build_flags(self):
         supported_tests = {}
-        supported_tests['darwin'] = ['darwin', 'x86_64-darwin']
+        # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64']
 
         supports_tests = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
@@ -1011,7 +996,8 @@ class Configuration(object):
         # Base platforms is the platforms to build the base libs for.
         # The base libs are the libs needed to build bob, i.e. contains compiler code.
 
-        platform_dependencies = {'darwin': ['darwin', 'x86_64-darwin'], # x86_64-darwin from IOS fix 3dea8222
+        platform_dependencies = {'x86_64-macos': ['x86_64-macos'],
+                                 #'arm64-macos': ['arm64-macos'],
                                  'x86_64-linux': [],
                                  'x86_64-win32': ['win32']}
 
@@ -1024,7 +1010,7 @@ class Configuration(object):
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
         prefix = prefix and prefix or self.dynamo_home
-        return 'python %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
+        return '%s %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.get_python(), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -1045,6 +1031,8 @@ class Configuration(object):
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
+        else:
+            self.copy_local_bob_artefacts()
 
         ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
         ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
@@ -1075,11 +1063,7 @@ class Configuration(object):
 
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
-        host = self.host2
-        if 'x86-' in host:
-            host = self.host
-        if host == 'darwin':
-            host = 'x86_64-darwin'
+        host = self.host
         # Make sure we build these for the host platform for the toolchain (bob light)
         for lib in ['dlib', 'texc']:
             skip_tests = host != self.target_platform
@@ -1106,7 +1090,7 @@ class Configuration(object):
         if '--static-analyze' in self.waf_options:
             scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
             report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
-            run.command(['python', './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
+            run.command([self.get_python(), './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
@@ -1129,7 +1113,7 @@ class Configuration(object):
             self.upload_to_archive(p, '%s/%s' % (full_archive_path, basename(p)))
 
     def copy_local_bob_artefacts(self):
-        texc_name = format_lib('texc_shared', self.host2)
+        texc_name = format_lib('texc_shared', self.host)
         luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         missing = {}
@@ -1137,18 +1121,26 @@ class Configuration(object):
             txts = []
             txts = missing.setdefault(plf, txts)
             txts = txts.append(txt)
-        for plf in [['x86_64-win32', 'x86_64-win32'], ['x86_64-linux', 'x86_64-linux'], ['x86_64-darwin', 'x86_64-darwin']]:
-            luajit_path = join(cwd, '../../packages/luajit-2.1.0-beta3-%s.tar.gz' % (plf[0]))
+
+        for plf in [['win32', 'x86_64-win32'],
+                    ['x86_64-win32', 'x86_64-win32'],
+                    ['x86_64-linux', 'x86_64-linux'],
+                    ['x86_64-macos', 'x86_64-macos'],
+                    ['arm64-macos', 'arm64-macos']]:
+            luajit_path = join(cwd, '../../packages/luajit-2.1.0-633f265-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
                 self._extract(luajit_path, luajit_dir)
-                luajit_exe = format_exes('luajit-32', plf[1])[0]
-                luajit_exe_64 = format_exes('luajit-64', plf[1])[0]
-                self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
-                self._copy(join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe_64)), join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe_64)))
+                for name in ('luajit-32', 'luajit-64'):
+                    luajit_exe = format_exes(name, plf[0])[0]
+                    src = join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe))
+                    if not os.path.exists(src):
+                        continue
+                    self._copy(src, join(cwd, 'libexec/%s/%s' % (plf[1], luajit_exe)))
+
         win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
-        osx_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-darwin', 'x86_64-darwin']]])
+        macos_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
@@ -1159,20 +1151,20 @@ class Configuration(object):
         #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
-                                 'lib/%s/%s' % (self.host2, texc_name): 'lib/%s/%s' % (self.host2, texc_name)},
+                                 'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name)},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
                      'js-bundling': js_files,
                      'ios-bundling': {},
-                     'osx-bundling': osx_files,
+                     'osx-bundling': macos_files,
                      'linux-bundling': linux_files,
                      'switch-bundling': switch_files}
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
                            'win32-bundling': [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'js-bundling': [['js-web', 'js-web'], ['wasm-web', 'wasm-web']],
-                           'ios-bundling': [['arm64-darwin', 'arm64-darwin'], ['x86_64-ios', 'x86_64-ios']],
-                           'osx-bundling': [['x86_64-darwin', 'x86_64-darwin']],
+                           'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
+                           'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux']],
                            'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.items():
             # plfs is pairs of src-platform -> dst-platform
@@ -1202,13 +1194,11 @@ class Configuration(object):
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
 
-
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
             run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
         else:
             self.copy_local_bob_artefacts()
-
 
         env = self._form_env()
 
@@ -1290,7 +1280,7 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
-        cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
+        cmd = '%s %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.get_python(), self.dynamo_home, self.dynamo_home, skip_tests)
         run.env_command(self._form_env(), cmd.split() + self.waf_options, cwd = cwd)
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
@@ -1329,7 +1319,7 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
-        cmd = ['python', './scripts/bundle.py',
+        cmd = [self.get_python(), './scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--archive-domain=%s' % self.archive_domain,
                'build']
@@ -1343,7 +1333,7 @@ class Configuration(object):
         if not self.channel:
             raise Exception('No channel provided when bundling the editor')
 
-        cmd = ['python', './scripts/bundle.py',
+        cmd = [self.get_python(), './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
@@ -1354,7 +1344,7 @@ class Configuration(object):
 
     def sign_editor2(self):
         editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        cmd = ['python', './scripts/bundle.py',
+        cmd = [self.get_python(), './scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--bundle-dir=%s' % editor_bundle_dir,
                '--archive-domain=%s' % self.archive_domain,
@@ -1371,13 +1361,13 @@ class Configuration(object):
         self.run_editor_script(cmd)
 
     def notarize_editor2(self):
-        if self.target_platform != "x86_64-darwin":
+        if self.target_platform not in ('x86_64-macos', 'arm64-macos'):
             return
 
         editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
         # create dmg installer
         cmd = ['./scripts/bundle.py',
-               '--platform=x86_64-darwin',
+               '--platform=%s' % self.target_platform,
                '--bundle-dir=%s' % editor_bundle_dir,
                '--archive-domain=%s' % self.archive_domain,
                'installer']
@@ -1389,7 +1379,7 @@ class Configuration(object):
         self.run_editor_script(cmd)
 
         # notarize dmg
-        editor_dmg = join(editor_bundle_dir, 'Defold-x86_64-darwin.dmg')
+        editor_dmg = join(editor_bundle_dir, 'Defold-%s.dmg' % self.target_platform)
         cmd = ['./scripts/notarize.py',
                editor_dmg,
                self.notarization_username,
@@ -1410,7 +1400,7 @@ class Configuration(object):
         if self.set_version:
             new_version = self.set_version
         else:
-            lst = map(int, current.split('.'))
+            lst = [int(x) for x in current.split('.')]
             lst[-1] += 1
             new_version = '.'.join(map(str, lst))
 
@@ -1440,7 +1430,7 @@ class Configuration(object):
         else:
             preexec_fn = self.check_ems
 
-        if "darwin" in self.host and "arm" in platform.processor():
+        if "macos" in self.host and "arm" in platform.processor():
             print ('Detected Apple M1 CPU - running shell with x86 architecture')
             # Submit as string because on POSIX subsequent tokens are passed to the shell - not the arch command.
             # See: https://docs.python.org/3.10/library/subprocess.html#popen-constructor
@@ -1452,7 +1442,7 @@ class Configuration(object):
         output = process.communicate()[0]
 
         if process.returncode != 0:
-            self._log(output)
+            self._log(str(output, encoding='utf-8'))
             sys.exit(process.returncode)
 
 # ------------------------------------------------------------
@@ -1518,7 +1508,7 @@ class Configuration(object):
         release_sha1 = releases[0]['sha1']
 
         editor_download_url = "https://%s%s/%s/%s/editor2/" % (hostname, editor_archive_path, release_sha1, editor_channel)
-        model['release'] = {'editor': [ dict(name='macOS 10.12', url=editor_download_url + 'Defold-x86_64-darwin.dmg'),
+        model['release'] = {'editor': [ dict(name='macOS 10.12', url=editor_download_url + 'Defold-x86_64-macos.dmg'),
                                         dict(name='Windows', url=editor_download_url + 'Defold-x86_64-win32.zip'),
                                         dict(name='Ubuntu 18.04+', url=editor_download_url + 'Defold-x86_64-linux.zip')] }
 
@@ -1550,8 +1540,8 @@ class Configuration(object):
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
         # Used by www.defold.com/download
         # For example;
-        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-darwin.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-darwin.dmg
-        for name in ['Defold-x86_64-darwin.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
+        #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-macos.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-macos.dmg
+        for name in ['Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
             key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
@@ -1601,13 +1591,14 @@ class Configuration(object):
             releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
 
         if not releases:
-            self.log('Unable to find any releases')
+            self._log('Unable to find any releases')
             sys.exit(1)
 
         release_sha1 = releases[0]['sha1']
 
         if sys.stdin.isatty():
             sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
+            sys.stdout.flush()
             response = sys.stdin.readline()
             if response[0] != 'y':
                 return
@@ -1672,24 +1663,24 @@ class Configuration(object):
 #
     def _download_editor2(self, channel, sha1):
         bundles = {
-            'x86_64-darwin': 'Defold-x86_64-darwin.dmg',
+            'x86_64-macos': 'Defold-x86_64-macos.dmg',
             'x86_64-linux' : 'Defold-x86_64-linux.zip',
             'x86_64-win32' : 'Defold-x86_64-win32.zip'
         }
-        host2 = get_host_platform2()
-        bundle = bundles.get(host2)
+        host = get_host_platform()
+        bundle = bundles.get(host)
         if bundle:
             url = join(self.get_archive_path(), sha1, channel, 'editor2', bundle).replace("s3", "https").replace("\\", "/")
             path = self._download(url)
             return path
         else:
-            print("No editor2 bundle found for %s" % host2)
+            print("No editor2 bundle found for %s" % host)
             return None
 
     def _install_editor2(self, path):
-        host2 = get_host_platform2()
+        host = get_host_platform()
         install_path = join('tmp', 'smoke_test')
-        if 'darwin' in host2:
+        if 'macos' in host:
             out = run.command(['hdiutil', 'attach', path])
             print("cmd:" + out)
             last = [l2 for l2 in (l1.strip() for l1 in out.split('\n')) if l2][-1]
@@ -1705,7 +1696,7 @@ class Configuration(object):
                       'config': join(install_path, 'Contents', 'Resources', 'config')}
             return result
         else:
-            if 'win32' in host2 or 'linux' in host2:
+            if 'win32' in host or 'linux' in host:
                 self._extract_zip(path, install_path)
             else:
                 self._extract(path, install_path)
@@ -1716,9 +1707,9 @@ class Configuration(object):
             return result
 
     def _uninstall_editor2(self, info):
-        host2 = get_host_platform2()
+        host = get_host_platform()
         shutil.rmtree(info['install_path'])
-        if 'darwin' in host2:
+        if 'macos' in host:
             out = run.command(['hdiutil', 'detach', info['fs']])
 
     def _get_config(self, config, section, option, overrides):
@@ -1747,10 +1738,10 @@ class Configuration(object):
         config.read(info['config'])
         overrides = {'bootstrap.resourcespath': info['resources_path']}
         jdk = 'jdk-11.0.15+10'
-        host2 = get_host_platform2()
-        if 'win32' in host2:
+        host = get_host_platform()
+        if 'win32' in host:
             java = join('Defold', 'packages', jdk, 'bin', 'java.exe')
-        elif 'linux' in host2:
+        elif 'linux' in host:
             run.command(['chmod', '-R', '755', 'tmp/smoke_test/Defold'])
             java = join('Defold', 'packages', jdk, 'bin', 'java')
         else:
@@ -1765,7 +1756,7 @@ class Configuration(object):
         robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke-test.edn', '-o', 'result']
         origdir = os.getcwd()
         origcwd = cwd
-        if 'win32' in host2:
+        if 'win32' in host:
             os.chdir(cwd)
             cwd = '.'
         print('Running robot: %s' % robot_args)
@@ -1796,7 +1787,7 @@ class Configuration(object):
         return True
 
     def local_smoke(self):
-        host2 = get_host_platform2()
+        host = get_host_platform()
         cwd = './editor'
         if os.path.exists('editor/log.txt'):
             os.remove('editor/log.txt')
@@ -1806,7 +1797,7 @@ class Configuration(object):
         robot_args = ['java', '-jar', robot_jar, '-s', '../share/smoke-test.edn', '-o', 'local_smoke_result']
         origdir = os.getcwd()
         origcwd = cwd
-        if 'win32' in host2:
+        if 'win32' in host:
             os.chdir(cwd)
             args = ['sh'] + args
             cwd = '.'
@@ -1955,11 +1946,9 @@ class Configuration(object):
     def _form_env(self):
         env = os.environ.copy()
 
-        host = self.host2
-        if 'x86-' in host:
-            host = self.host
+        host = self.host
 
-        ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
+        ld_library_path = 'DYLD_LIBRARY_PATH' if 'macos' in self.host else 'LD_LIBRARY_PATH'
         ld_library_paths = ['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                             '%s/ext/lib/%s' % (self.dynamo_home, self.host)]
         if self.host == 'x86_64-linux':
@@ -2181,9 +2170,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     target_platform = options.target_platform
     if not options.target_platform:
-        target_platform = get_host_platform2()
-        if 'x86-' in target_platform:
-            target_platform = get_host_platform() # we need even more cleanup to use "x86-linux" format for everything
+        target_platform = get_host_platform()
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,

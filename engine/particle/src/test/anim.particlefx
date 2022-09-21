@@ -25,6 +25,8 @@ emitters: {
     particle_properties:         { key: PARTICLE_KEY_SCALE
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }
 emitters: {
     mode:               PLAY_MODE_ONCE
@@ -55,6 +57,8 @@ emitters: {
     particle_properties:         { key: PARTICLE_KEY_SCALE
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }
 emitters: {
     mode:               PLAY_MODE_ONCE
@@ -83,6 +87,8 @@ emitters: {
     particle_properties:         { key: PARTICLE_KEY_SCALE
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }
 emitters: {
     mode:               PLAY_MODE_ONCE
@@ -111,6 +117,8 @@ emitters: {
     particle_properties:         { key: PARTICLE_KEY_SCALE
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }
 emitters: {
     mode:               PLAY_MODE_ONCE
@@ -139,6 +147,8 @@ emitters: {
     particle_properties:         { key: PARTICLE_KEY_SCALE
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }
 emitters: {
     mode:               PLAY_MODE_ONCE
@@ -167,6 +177,8 @@ emitters: {
     particle_properties:         { key: PARTICLE_KEY_SCALE
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }
 emitters: {
     mode:               PLAY_MODE_ONCE
@@ -195,4 +207,6 @@ emitters: {
     particle_properties:         { key: PARTICLE_KEY_SCALE
         points: { x: 0 y: 1 t_x: 1 t_y: 0 }
     }
+
+    pivot:              { x: 0 y: 0 z: 0 }
 }

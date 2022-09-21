@@ -14,7 +14,7 @@ def build(bld):
         source = bld.path.ant_glob(['*.cpp', 'resources/*.cpp', 'components/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*'),
         target = 'gamesys')
 
-    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         resource.source += ['scripts/window/script_window_ios.mm']
     elif re.match('.*?android', bld.env.PLATFORM):
         resource.source += ['scripts/window/script_window_android.cpp']

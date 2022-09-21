@@ -83,12 +83,14 @@ defold_info = defaultdict(defaultdict)
 defold_info['xcode']['version'] = VERSION_XCODE
 defold_info['xcode']['pattern'] = PACKAGES_XCODE_TOOLCHAIN
 defold_info['xcode-clang']['version'] = VERSION_XCODE_CLANG
-defold_info['arm64-darwin']['version'] = VERSION_IPHONEOS
-defold_info['arm64-darwin']['pattern'] = PACKAGES_IOS_SDK
+defold_info['arm64-ios']['version'] = VERSION_IPHONEOS
+defold_info['arm64-ios']['pattern'] = PACKAGES_IOS_SDK
 defold_info['x86_64-ios']['version'] = VERSION_IPHONESIMULATOR
 defold_info['x86_64-ios']['pattern'] = PACKAGES_IOS_SIMULATOR_SDK
-defold_info['x86_64-darwin']['version'] = VERSION_MACOSX
-defold_info['x86_64-darwin']['pattern'] = PACKAGES_MACOS_SDK
+defold_info['x86_64-macos']['version'] = VERSION_MACOSX
+defold_info['x86_64-macos']['pattern'] = PACKAGES_MACOS_SDK
+defold_info['arm64-macos']['version'] = VERSION_MACOSX
+defold_info['arm64-macos']['pattern'] = PACKAGES_MACOS_SDK
 
 defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK_10
 defold_info['x86_64-win32']['pattern'] = "Win32/%s" % PACKAGES_WIN32_TOOLCHAIN
@@ -106,9 +108,9 @@ defold_info['x86_64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
 
 
 def _convert_darwin_platform(platform):
-    if platform in ('x86_64-darwin',):
+    if platform in ('x86_64-macos','arm64-macos'):
         return 'macosx'
-    if platform in ('arm64-darwin',):
+    if platform in ('arm64-ios',):
         return 'iphoneos'
     if platform in ('x86_64-ios',):
         return 'iphonesimulator'
@@ -332,7 +334,7 @@ def check_defold_sdk(sdkfolder, platform):
     folders = []
     print ("check_defold_sdk", sdkfolder, platform)
 
-    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
@@ -360,7 +362,7 @@ def check_defold_sdk(sdkfolder, platform):
     return count == len(folders)
 
 def check_local_sdk(platform):
-    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         xcode_version = get_local_darwin_toolchain_version()
         if not xcode_version:
             return False
@@ -373,7 +375,7 @@ def check_local_sdk(platform):
 
 def _get_defold_sdk_info(sdkfolder, platform):
     info = {}
-    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
+    if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
@@ -395,7 +397,7 @@ def _get_defold_sdk_info(sdkfolder, platform):
 
 def _get_local_sdk_info(platform):
     info = {}
-    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
+    if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
@@ -434,23 +436,26 @@ def get_sdk_info(sdkfolder, platform):
     return None
 
 def get_toolchain_root(sdkinfo, platform):
-    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
+    if platform in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
         return sdkinfo['xcode']['path']
     if platform in ('x86_64-linux',):
         return sdkinfo['x86_64-linux']['path']
     return None
 
-
-def _is_64bit_machine():
-    return platform.machine().endswith('64')
-
 def get_host_platform():
-    if _is_64bit_machine():
-        if sys.platform == 'linux':
-            return 'x86_64-linux'
-        elif sys.platform == 'win32':
-            return 'x86_64-win32'
-        elif sys.platform == 'darwin':
-            return 'x86_64-darwin'
-    raise Exception("Unsupported host platform: %s %s" % (sys.platform,  platform.machine()))
+    machine = platform.machine().lower()
+    if machine == 'amd64':
+        machine = 'x86_64'
+    is64bit = machine.endswith('64')
 
+    if sys.platform == 'linux':
+        return '%s-linux' % machine
+    elif sys.platform == 'win32':
+        return '%s-win32' % machine
+    elif sys.platform == 'darwin':
+        # Force x86_64 on M1 Macs for now.
+        if machine == 'arm64':
+            machine = 'x86_64'
+        return '%s-macos' % machine
+
+    raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))

@@ -19,7 +19,8 @@ enum PropertyType
     PROPERTY_TYPE_VECTOR4 = 4;
     PROPERTY_TYPE_QUAT = 5;
     PROPERTY_TYPE_BOOLEAN = 6;
-    PROPERTY_TYPE_COUNT = 7;
+    PROPERTY_TYPE_MATRIX4 = 7;
+    PROPERTY_TYPE_COUNT = 8;
 }
 
 message PropertyDesc
@@ -37,6 +38,7 @@ message ComponentDesc
     optional dmMath.Quat    rotation    = 4;
     repeated PropertyDesc properties    = 5;
     optional dmPropertiesDDF.PropertyDeclarations property_decls = 6;
+    optional dmMath.Vector3 scale       = 7;
 }
 
 message EmbeddedComponentDesc
@@ -46,6 +48,7 @@ message EmbeddedComponentDesc
     required string data = 3;
     optional dmMath.Point3  position    = 4;
     optional dmMath.Quat    rotation    = 5;
+    optional dmMath.Vector3 scale       = 6;
 }
 
 message PrototypeDesc

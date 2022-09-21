@@ -33,7 +33,7 @@
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at])
+(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at endpoint-node-id endpoint-label])
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than])
 
@@ -106,13 +106,19 @@
   "Clears a cache (default *the-system* cache), useful when debugging"
   ([] (clear-system-cache! *the-system*))
   ([sys-atom]
-   (swap! sys-atom assoc :cache (is/make-cache {}))
-   nil)
+   (let [cleared-cache (c/cache-clear (:cache @sys-atom))]
+     (swap! sys-atom assoc :cache cleared-cache)
+     nil))
   ([sys-atom node-id]
    (let [outputs (cached-outputs (node-type* node-id))
          entries (map (partial endpoint node-id) outputs)]
      (swap! sys-atom update :cache c/cache-invalidate entries)
      nil)))
+
+(defn cache-info
+  "Return a map detailing cache utilization."
+  ([] (c/cache-info (cache)))
+  ([cache] (c/cache-info cache)))
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
@@ -592,6 +598,13 @@
   [node-id p f & args]
   (assert node-id)
   (it/update-property node-id p f args))
+
+(defn update-property-ec
+  "Same as update-property, but injects the in-transaction evaluation-context
+  as the first argument to the update-fn."
+  [node-id p f & args]
+  (assert node-id)
+  (it/update-property-ec node-id p f args))
 
 (defn update-property!
   "Create the transaction step to apply a function to a node's property in a transaction. Then it applies the transaction.

@@ -50,17 +50,17 @@ Verify that Java is installed and working:
 ```
 
 
-### Required Software - Python 2
+### Required Software - Python 3
 
-You need a 64 bit Python 2 version to build the engine and tools. The latest tested on all platforms is Python 2.7.18. Install Python from the [official download page](https://www.python.org/downloads/windows/). There is an install option to add `C:\Python27` to the PATH environment variable, select it or add the path manually.
+You need a 64 bit Python 3 version to build the engine and tools. The latest tested on all platforms is Python 3.10.5.
 
-Install using Chocolatey:
+* Install via `https://www.python.org/downloads/release/python-3105/`
+
+* Install using Chocolatey:
 
 ```sh
-choco install python2
+choco install python
 ```
-
-Since we need a python2 executable, you need to make a duplicate in `C:\Python27\python2.exe`
 
 ### Required Software
 

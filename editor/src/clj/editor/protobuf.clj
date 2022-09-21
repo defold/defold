@@ -31,7 +31,7 @@ Macros currently mean no foreseeable performance gain however."
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
            [java.lang.reflect Method]
-           [java.io ByteArrayOutputStream]
+           [java.io ByteArrayOutputStream StringReader]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -434,11 +434,15 @@ Macros currently mean no foreseeable performance gain however."
   (when-let [builder (pb-builder cls)]
     (builder m)))
 
+(defmacro str->pb [^Class cls str]
+  (with-meta `(TextFormat/parse ~str ~cls)
+             {:tag cls}))
+
 (defn- break-embedded-newlines
   [^String pb-str]
   (.replace pb-str "\\n" "\\n\"\n  \""))
 
-(defn- pb->str [^Message pb format-newlines?]
+(defn pb->str [^Message pb format-newlines?]
   (cond-> (.printToString (TextFormat/printer) pb)
     format-newlines?
     (break-embedded-newlines)))
@@ -573,12 +577,20 @@ Macros currently mean no foreseeable performance gain however."
 (defn read-text [^Class cls input]
   (pb->map (.build (read-text-into! (new-builder cls) input))))
 
+(defn str->map [^Class cls ^String str]
+  (with-open [reader (StringReader. str)]
+    (read-text cls reader)))
+
 (defn- parser-fn-raw [^Class cls]
   (let [parse-method (.getMethod cls "parseFrom" (into-array Class [(.getClass (byte-array 0))]))]
     (fn [^bytes bytes]
       (.invoke parse-method nil (into-array Object [bytes])))))
 
-(def ^:private parser-fn (memoize parser-fn-raw))
+(def parser-fn (memoize parser-fn-raw))
+
+(defmacro bytes->pb [^Class cls bytes]
+  (with-meta `((parser-fn ~cls) ~bytes)
+             {:tag cls}))
 
 (defn bytes->map [^Class cls bytes]
   (let [parser (parser-fn cls)]
@@ -611,3 +623,15 @@ Macros currently mean no foreseeable performance gain however."
 (defn map->sha1-hex
   ^String [^Class cls m]
   (digest/bytes->hex (pb->hash "SHA-1" (map->pb cls m))))
+
+(defn default-read-scale-value? [value]
+  ;; The default value of the Vector3 type is zero, and protobuf does not
+  ;; support custom default values for message-type fields. That means
+  ;; everything read from protobuf will be scaled down to zero. However, we
+  ;; might change the behavior of the protobuf reader in the future to have it
+  ;; return [1.0 1.0 1.0] or even nil for default scale fields. In some way, nil
+  ;; would make sense as a default for message-type fields as that is what
+  ;; protobuf does without our wrapper. We could then decide on sensible default
+  ;; values on a case-by-case basis. Related to all this, there has been some
+  ;; discussion around perhaps omitting default values from the project data.
+  (= [0.0 0.0 0.0] value))

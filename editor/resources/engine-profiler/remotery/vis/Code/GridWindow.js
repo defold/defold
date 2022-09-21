@@ -1,112 +1,193 @@
-class SampleGridConfig
+
+class GridConfigSamples
 {
     constructor()
     {
-        this.titleCellData =
-        {
-            Name: "Samples",
-            Length: "Time (ms)",
-            Self: "Self (ms)",
-            Calls: "Calls",
-            Recurse: "Recurse",
-        };
-        this.titleCellClasses =
-        {
-            Name: "SampleTitleNameCell",
-            Length: "SampleTitleTimeCell",
-            Self: "SampleTitleTimeCell",
-            Calls: "SampleTitleCountCell",
-            Recurse: "SampleTitleCountCell",
-        };
+        this.nbFloatsPerSample = g_nbFloatsPerSample;
 
-        this.rowCellData =
-        {
-            Name: "",
-            Length: "",
-            Self: "",
-            Calls: "",
-            Recurse: "",
-        };
-        this.rowCellClasses =
-        {
-            Name: "SampleNameCell",
-            Length: "SampleTimeCell",
-            Self: "SampleTimeCell",
-            Calls: "SampleCountCell",
-            Recurse: "SampleCountCell",
-        };
-    }
-
-    SetRowData(row, entry)
-    {
-        row.CellNodes["Length"].innerHTML = entry.ms_length;
-        row.CellNodes["Self"].innerHTML = entry.ms_self;
-        row.CellNodes["Calls"].innerHTML = entry.call_count;
-        row.CellNodes["Recurse"].innerHTML = entry.recurse_depth;
+        this.columns = [];
+        this.columns.push(new GridColumn("Sample Name", 196));
+        this.columns.push(new GridColumn("Time (ms)", 56, g_sampleOffsetFloats_Length, 4));
+        this.columns.push(new GridColumn("Self (ms)", 56, g_sampleOffsetFloats_Self, 4));
+        this.columns.push(new GridColumn("Calls", 34, g_sampleOffsetFloats_Calls, 0));
+        this.columns.push(new GridColumn("Depth", 34, g_sampleOffsetFloats_Recurse, 0));
     }
 }
 
-class PropertyGridConfig
+class GridConfigProperties
 {
     constructor()
     {
-        this.titleCellData =
-        {
-            Name: "Property",
-            Value: "Value",
-            PrevValue: "Prev Value",
-        };
-        this.titleCellClasses =
-        {
-            Name: "SampleTitleNameCell",
-            Value: "PropertyTitleValueCell",
-            PrevValue: "PropertyTitleValueCell",
-        };
+        this.nbFloatsPerSample = 10;
 
-        this.rowCellData =
-        {
-            Name: "",
-            Value: "",
-            PrevValue: "",
-        };
-        this.rowCellClasses =
-        {
-            Name: "SampleNameCell",
-            Value: "PropertyValueCell",
-            PrevValue: "PropertyValueCell",
-        };
+        this.columns = [];
+        this.columns.push(new GridColumn("Property Name", 196));
+        this.columns.push(new GridColumn("Value", 90, 4, 4));
+        this.columns.push(new GridColumn("Prev Value", 90, 6, 4));
+    }
+}
+
+class GridColumn
+{
+    static ColumnTemplate = `<div class="GridNameHeader"></div>`;
+
+    constructor(name, width, number_offset, nb_float_chars)
+    {
+        // Description
+        this.name = name;
+        this.width = width;
+        this.numberOffset = number_offset;
+        this.nbFloatChars = nb_float_chars;
+
+        // Constants
+        this.rowHeight = 15;
     }
 
-    SetRowData(row, entry)
+    Attach(parent_node)
     {
-        row.CellNodes["Value"].innerHTML = entry.value;
-        row.CellNodes["PrevValue"].innerHTML = entry.prevValue;
+        // Generate HTML for the header and parent it
+        const column = DOM.Node.CreateHTML(GridColumn.ColumnTemplate);
+        column.innerHTML = this.name;
+        column.style.width = (this.width - 4) + "px";
+        this.headerNode = parent_node.appendChild(column);
+    }
+
+    Draw(gl_canvas, x, buffer, scroll_pos, clip, nb_entries, nb_floats_per_sample)
+    {
+        // If a number offset in the data stream is provided, we're rendering numbers and not names
+        if (this.numberOffset !== undefined)
+        {
+            this._DrawNumbers(gl_canvas, x, buffer, scroll_pos, clip, nb_entries, nb_floats_per_sample);
+        }
+        else
+        {
+            this._DrawNames(gl_canvas, x, buffer, scroll_pos, clip, nb_entries, nb_floats_per_sample);
+        }
+    }
+
+    _DrawNames(gl_canvas, x, buffer, scroll_pos, clip, nb_entries, nb_floats_per_sample)
+    {
+        const gl = gl_canvas.gl;
+        const program = gl_canvas.gridProgram;
+
+        gl.useProgram(program);
+        gl_canvas.SetTextUniforms(program);
+
+        this._DrawAny(gl, program, x, buffer, scroll_pos, clip, nb_entries, nb_floats_per_sample);
+    }
+
+    _DrawNumbers(gl_canvas, x, buffer, scroll_pos, clip, nb_entries, nb_floats_per_sample)
+    {
+        const gl = gl_canvas.gl;
+        const program = gl_canvas.gridNumberProgram;
+
+        gl.useProgram(program);
+        gl_canvas.SetFontUniforms(program);
+        glSetUniform(gl, program, "inNumberOffset", this.numberOffset);
+        glSetUniform(gl, program, "inNbFloatChars", this.nbFloatChars);
+
+        this._DrawAny(gl, program, x, buffer, scroll_pos, clip, nb_entries, nb_floats_per_sample);
+    }
+
+    _DrawAny(gl, program, x, buffer, scroll_pos, clip, nb_entries, nb_floats_per_sample)
+    {
+        const clip_min_x = clip[0];
+        const clip_min_y = clip[1];
+        const clip_max_x = clip[2];
+        const clip_max_y = clip[3];
+
+        // Scrolled position of the grid
+        const pos_x = clip_min_x + scroll_pos[0] + x;
+        const pos_y = clip_min_y + scroll_pos[1];
+
+        // Clip column to the window
+        const min_x = Math.min(Math.max(clip_min_x, pos_x), clip_max_x);
+        const min_y = Math.min(Math.max(clip_min_y, pos_y), clip_max_y);
+        const max_x = Math.max(Math.min(clip_max_x, pos_x + this.width), clip_min_x);
+        const max_y = Math.max(Math.min(clip_max_y, pos_y + nb_entries * this.rowHeight), clip_min_y);
+
+        // Don't render if outside the bounds of the main window
+        if (min_x > gl.canvas.width || max_x < 0 || min_y > gl.canvas.height || max_y < 0)
+        {
+            return;
+        }
+        
+        const pixel_offset_x = Math.max(min_x - pos_x, 0);
+        const pixel_offset_y = Math.max(min_y - pos_y, 0);
+
+        // Viewport constants
+        glSetUniform(gl, program, "inViewport.width", gl.canvas.width);
+        glSetUniform(gl, program, "inViewport.height", gl.canvas.height);
+
+        // Grid constants
+        glSetUniform(gl, program, "inGrid.minX", min_x);
+        glSetUniform(gl, program, "inGrid.minY", min_y);
+        glSetUniform(gl, program, "inGrid.maxX", max_x);
+        glSetUniform(gl, program, "inGrid.maxY", max_y);
+        glSetUniform(gl, program, "inGrid.pixelOffsetX", pixel_offset_x);
+        glSetUniform(gl, program, "inGrid.pixelOffsetY", pixel_offset_y);
+
+        // Source data set buffers
+        glSetUniform(gl, program, "inSamples", buffer.texture, 2);
+        glSetUniform(gl, program, "inSamplesLength", buffer.nbEntries);
+        glSetUniform(gl, program, "inFloatsPerSample", nb_floats_per_sample);
+        glSetUniform(gl, program, "inNbSamples", buffer.nbEntries / nb_floats_per_sample);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 }
 
 class GridWindow
 {
-    constructor(wm, name, offset, config)
-    {
-        // Digest for checking if grid needs to be repopulated
-        this.nbEntries = 0;
-        this.layoutDigest = null;
+    static GridTemplate = `
+        <div style="height:100%; overflow: hidden; position: relative; display:flex; flex-flow: column;">
+            <div style="height: 16px; flex: 0 1 auto;"></div>
+            <div style="flex: 1 1 auto;"></div>
+        </div>
+    `;
 
-        // Source entry reference to reduce repopulation
-        this.entries = null;
+    constructor(wm, name, offset, gl_canvas, config)
+    {
+        this.nbEntries = 0;
+        this.scrollPos = [ 0, 0 ];
 
         // Window setup
         this.xPos = 10 + offset * 410;
-        this.window = wm.AddWindow(name, 100, 100, 100, 100);
+        this.window = wm.AddWindow(name, 100, 100, 100, 100, null, this);
         this.window.ShowNoAnim();
         this.visible = true;
 
-        // Create a grid that's indexed by the unique entry ID
-        this.grid = this.window.AddControlNew(new WM.Grid());
-        this.rootRow = this.grid.Rows.Add(config.titleCellData, "GridGroup", config.titleCellClasses);
-        this.rootRow.Rows.AddIndex("_ID");
+        // Cache how much internal padding the window has, for clipping
+        const style = getComputedStyle(this.window.BodyNode);
+        this.bodyPadding = parseFloat(style.padding);
 
-        this.config = config;
+        // Create the Grid host HTML
+        const grid_node = DOM.Node.CreateHTML(GridWindow.GridTemplate);
+        this.gridNode = this.window.BodyNode.appendChild(grid_node);
+        this.headerNode = this.gridNode.children[0];
+        this.contentNode = this.gridNode.children[1];
+
+        // Build column data
+        this.nbFloatsPerSample = config.nbFloatsPerSample;
+        this.columns = config.columns;
+        for (let column of this.columns)
+        {
+            column.Attach(this.headerNode);
+        }
+        this._PositionHeaders();
+
+        // Header nodes have 1 pixel borders so the first column is required to have a width 1 less than everything else
+        // To counter that, shift the first header node one to the left (it will clip) so that it can have its full width
+        this.columns[0].headerNode.style.marginLeft = "-1px";
+
+        // Setup for pan/wheel scrolling
+        this.mouseInteraction = new MouseInteraction(this.window.BodyNode);
+        this.mouseInteraction.onMoveHandler = (mouse_state, mx, my) => this._OnMouseMove(mouse_state, mx, my);
+        this.mouseInteraction.onScrollHandler = (mouse_state) => this._OnMouseScroll(mouse_state);
+
+        const gl = gl_canvas.gl;
+        this.glCanvas = gl_canvas;
+        this.sampleBuffer = new glDynamicBuffer(gl, glDynamicBufferType.Texture, gl.FLOAT, 1);
     }
 
     Close()
@@ -147,119 +228,64 @@ class GridWindow
         this.window.SetSize(400, bottom_window.Position[1] - 10 - top);
     }
 
-    GrowGrid(parent_row, nb_entries)
+    UpdateEntries(nb_entries, samples)
     {
-        parent_row.Rows.Clear();
+        // This tracks the latest actual entry count
+        this.nbEntries = nb_entries;
 
-        for (let i = 0; i < nb_entries; i++)
+        // Resize buffers to match any new entry count
+        if (nb_entries * this.nbFloatsPerSample > this.sampleBuffer.nbEntries)
         {
-            const cell_data = Object.assign({}, this.config.rowCellData);
-            cell_data._ID = i;
-            
-            parent_row.Rows.Add(cell_data, null, this.config.rowCellClasses);
+            this.sampleBuffer.ResizeToFitNextPow2(nb_entries * this.nbFloatsPerSample);
+        }
+
+        // Copy and upload the entry data
+        this.sampleBuffer.cpuArray.set(samples);
+        this.sampleBuffer.UploadData();
+    }
+
+    Draw()
+    {
+        // Establish content node clipping rectangle
+        const rect = this.contentNode.getBoundingClientRect();
+        const clip = [
+            rect.left,
+            rect.top,
+            rect.left + rect.width,
+            rect.top + rect.height,
+        ];
+
+        // Draw columns, left-to-right
+        let x = 0;
+        for (let column of this.columns)
+        {
+            column.Draw(this.glCanvas, x, this.sampleBuffer, this.scrollPos, clip, this.nbEntries, this.nbFloatsPerSample);
+            x += column.width + 1;
         }
     }
 
-    UpdateEntries(nb_entries, layout_digest, entries)
+    _PositionHeaders()
     {
-        if (!this.visible)
-            return;
-        
-        // If the source hasn't changed, don't repopulate
-        if (this.entries == entries)
-            return;
-        this.entries = entries;
-
-        // Recreate all the HTML if the number of entries gets bigger
-        if (nb_entries > this.nbEntries)
+        let x = this.scrollPos[0];
+        for (let i in this.columns)
         {
-            this.GrowGrid(this.rootRow, nb_entries);
-            this.nbEntries = nb_entries;
+            const column = this.columns[i];
+            column.headerNode.style.left = x + "px";
+            x += column.width;
+            x += (i >= 1) ? 1 : 0;
         }
+   }
 
-        // If the content of the entries changes from previous update, update them all
-        if (this.layoutDigest != layout_digest)
-        {
-            this.rootRow.Rows.ClearIndex("_ID");
-            const index = this.UpdateAllEntryFields(this.rootRow, entries, 0, "");
-            this.layoutDigest = layout_digest;
+    _OnMouseMove(mouse_state, mouse_offset_x, mouse_offset_y)
+    {
+        this.scrollPos[0] = Math.min(0, this.scrollPos[0] + mouse_offset_x);
+        this.scrollPos[1] = Math.min(0, this.scrollPos[1] + mouse_offset_y);
 
-            // Clear out any left-over rows
-            for (let i = index; i < this.rootRow.Rows.Rows.length; i++)
-            {
-                const row = this.rootRow.Rows.Rows[i];
-                DOM.Node.Hide(row.Node);
-            }
-        }
-
-        else if (this.visible)
-        {
-            // Otherwise just update the existing entry fields
-            this.UpdateChangedEntryFields(this.rootRow, entries, "");
-        }
+        this._PositionHeaders();
     }
 
-    UpdateAllEntryFields(parent_row, entries, index, indent)
+    _OnMouseScroll(mouse_state)
     {
-        for (let i in entries)
-        {
-            const entry = entries[i];
-
-            // Match row allocation in GrowGrid
-            const row = parent_row.Rows.Rows[index++];
-
-            // Entry row may have been hidden previously
-            DOM.Node.Show(row.Node);
-            
-            // Assign unique ID so that the common fast path of updating sample times only
-            // can lookup target samples in the grid
-            row.CellData._ID = entry.id;
-            parent_row.Rows.AddRowToIndex("_ID", entry.id, row);
-
-            // Record entry name for later comparison
-            row.CellData.Name = entry.name.string;
-            
-            // Set entry name and colour
-            const name_node = row.CellNodes["Name"];
-            name_node.innerHTML = indent + entry.name.string;
-            DOM.Node.SetColour(name_node, entry.colour);
-
-            this.config.SetRowData(row, entry);
-
-            index = this.UpdateAllEntryFields(parent_row, entry.children, index, indent + "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;");
-        }
-
-        return index;
-    }
-
-    UpdateChangedEntryFields(parent_row, entries, indent)
-    {
-        for (let i in entries)
-        {
-            const entry = entries[i];
-
-            const row = parent_row.Rows.GetBy("_ID", entry.id);
-            if (row)
-            {
-                this.config.SetRowData(row, entry);
-
-                // Entry name will change when it switches from hash ID to network-retrieved 
-                // name. Quickly check that before re-applying the HTML for the name.
-                if (row.CellData.Name != entry.name.string)
-                {
-                    const name_node = row.CellNodes["Name"];
-                    row.CellData.Name = entry.name.string;
-                    name_node.innerHTML = indent + entry.name.string;
-                }
-
-                if (entry.colourChanged)
-                {
-                    const name_node = row.CellNodes["Name"];
-                    DOM.Node.SetColour(name_node, entry.colour);
-                }
-            }
-
-            this.UpdateChangedEntryFields(parent_row, entry.children, indent + "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;");
-        }
+        this.scrollPos[1] = Math.min(0, this.scrollPos[1] + mouse_state.WheelDelta * 15);
     }
 }

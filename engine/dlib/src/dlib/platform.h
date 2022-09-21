@@ -23,6 +23,8 @@
 #define DM_PLATFORM_IOS 	"ios"
 #define DM_PLATFORM_SWITCH 	"switch"
 
+// Note: DM_PLATFORM is used as a key in data files, e.g. ".gamepads"
+
 #if defined(ANDROID)
 #define DM_PLATFORM DM_PLATFORM_ANDROID
 #elif defined(__linux__)

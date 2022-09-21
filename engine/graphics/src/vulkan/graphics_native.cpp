@@ -304,6 +304,11 @@ namespace dmGraphics
         return context->m_WindowHeight;
     }
 
+    float VulkanGetDisplayScaleFactor(HContext context)
+    {
+        return glfwGetDisplayScaleFactor();
+    }
+
     void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height)
     {
         int w, h;

@@ -22,7 +22,8 @@
             [editor.system :as system]
             [service.log :as log]
             [util.net :as net])
-  (:import [com.defold.editor Editor Platform]
+  (:import [com.defold.editor Editor]
+           [com.dynamo.bob Platform]
            [java.io File IOException]
            [java.nio.file Files CopyOption StandardCopyOption]
            [java.nio.file.attribute FileAttribute]
@@ -110,7 +111,7 @@
 
 (defn platform-supported? [updater]
   (contains? #{Platform/X86_64Linux
-               Platform/X86_64Darwin
+               Platform/X86_64MacOS
                Platform/X86_64Win32}
              (:platform updater)))
 
@@ -238,7 +239,7 @@
 (defn- install-file! [updater source-file target-file]
   (let [{:keys [^Platform platform editor-sha1]} updater]
     (case (.getOs platform)
-      ("linux" "darwin") (install-unix-file! source-file target-file)
+      ("linux" "macos") (install-unix-file! source-file target-file)
       "win32" (install-windows-file! source-file target-file editor-sha1))))
 
 (defn- in-protected-dir? [updater ^File file]
@@ -337,14 +338,14 @@
         install-dir (.getCanonicalFile
                       (if-let [path (system/defold-resourcespath)]
                         (case os
-                          "darwin" (io/file path "../../")
+                          "macos" (io/file path "../../")
                           ("linux" "win32") (io/file path))
                         (io/file "")))
         launcher-path (or (system/defold-launcherpath)
                           (case os
                             "win32" "./Defold.exe"
                             "linux" "./Defold"
-                            "darwin" "./Contents/MacOS/Defold"))
+                            "macos" "./Contents/MacOS/Defold"))
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
         initial-update-delay 1000

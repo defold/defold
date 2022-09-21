@@ -16,11 +16,24 @@ Copy the HTML files to the editor:
 
     cp -v -r ~/notwork/Remotery/vis/ editor/resources/engine-profiler/remotery/vis
 
+Remove the font(s)
+
+    rm -rf editor/resources/engine-profiler/remotery/vis/Styles/Fonts
+
+
 ## Manually update the code
 
 Looking at the current code, we do a Defold fixup to modify the property name strings.
 We do this in order to be able to have a prefix (`rmtp_`), but also to avoid displaying this prefix
 when presented in the engine and in the HTML profile page.
+
+Manually edit the `Remotery.css` with a web link:
+
+    @font-face
+    {
+        font-family: "LocalFiraCode";
+        src:url("https://cdnjs.cloudflare.com/ajax/libs/firacode/5.2.0/ttf/FiraCode-Regular.ttf") format('truetype');
+    }
 
 #### Create the patch
 

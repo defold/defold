@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -26,6 +27,9 @@ import java.util.Set;
 import java.util.HashSet;
 
 import org.apache.commons.io.FilenameUtils;
+
+import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector4;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -42,10 +46,20 @@ import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
+import com.dynamo.gamesys.proto.Label.LabelDesc;
+import com.dynamo.proto.DdfMath.Vector3;
 import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
 public class GameObjectBuilder extends Builder<Void> {
+
+
+    private boolean isComponentOfType(EmbeddedComponentDesc d, String type) {
+        return d.getType().equals(type);
+    }
+    private boolean isComponentOfType(ComponentDesc d, String type) {
+        return FilenameUtils.getExtension(d.getComponent()).equals(type);
+    }
 
     private PrototypeDesc.Builder loadPrototype(IResource input) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder b = PrototypeDesc.newBuilder();
@@ -156,6 +170,9 @@ public class GameObjectBuilder extends Builder<Void> {
             BuilderUtil.checkResource(this.project, input, "component", component);
         }
 
+        final Vector3 defaultScale = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
+
+        // convert embedded components to generated components in the build folder
         for (EmbeddedComponentDesc ec : protoBuilder.getEmbeddedComponentsList()) {
             if (ec.getId().length() == 0) {
                 throw new CompileExceptionError(input, 0, "missing required field 'id'");
@@ -172,12 +189,20 @@ public class GameObjectBuilder extends Builder<Void> {
             int buildDirLen = project.getBuildDirectory().length();
             String path = genResource.getPath().substring(buildDirLen);
 
-            ComponentDesc c = ComponentDesc.newBuilder()
+            ComponentDesc.Builder b = ComponentDesc.newBuilder()
                     .setId(ec.getId())
                     .setPosition(ec.getPosition())
                     .setRotation(ec.getRotation())
-                    .setComponent(path)
-                    .build();
+                    .setComponent(path);
+
+            // #3981
+            // copy the scale from the embedded component only if it has a scale to
+            // avoid that the component gets the default value for v3 which is 0
+            if (ec.hasScale()) {
+                b.setScale(ec.getScale());
+            }
+
+            ComponentDesc c = b.build();
 
             protoBuilder.addComponents(c);
         }
@@ -194,6 +219,8 @@ public class GameObjectBuilder extends Builder<Void> {
 
     private PrototypeDesc.Builder transformGo(IResource resource,
             PrototypeDesc.Builder protoBuilder) throws CompileExceptionError {
+
+        final Vector3 defaultScale = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
 
         protoBuilder.clearPropertyResources();
         Collection<String> propertyResources = new HashSet<String>();
@@ -212,6 +239,39 @@ public class GameObjectBuilder extends Builder<Void> {
                 }
             }
             ComponentDesc.Builder compBuilder = ComponentDesc.newBuilder(cd);
+
+            // #3981
+            // migrate label scale from LabelDesc to ComponentDesc
+            if (isComponentOfType(cd, "label")) {
+                try {
+                    // find the label resource in one of two places:
+                    // * in the build directory if it is generated from an embedded label (see build step above)
+                    // * in the project
+                    IResource labelResource = project.getResource(cd.getComponent());
+                    if (!labelResource.exists()) {
+                        labelResource = labelResource.output();
+                    }
+                    FileReader reader = new FileReader(labelResource.getAbsPath());
+                    LabelDesc.Builder lb = LabelDesc.newBuilder();
+                    TextFormat.merge(reader, lb);
+                    if (lb.hasScale()) {
+                        Vector4 labelScaleV4 = lb.getScale();
+                        Vector3 labelScaleV3 = Vector3.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
+                        compBuilder.setScale(labelScaleV3);
+                    }
+                }
+                catch(IOException e) {
+                    throw new CompileExceptionError(e);
+                }
+            }
+
+            // #3981
+            // if the component doesn't have a scale we set a default of v3(1.0)
+            // if we do not set a scale it will have a scale of v3(0.0) at runtime
+            if (!compBuilder.hasScale()) {
+                compBuilder.setScale(defaultScale);
+            }
+
             compBuilder.setComponent(c);
             compBuilder.setPropertyDecls(properties);
             newList.add(compBuilder.build());

@@ -211,6 +211,11 @@ namespace dmGraphics
         return context->m_WindowWidth;
     }
 
+    static float NullGetDisplayScaleFactor(HContext context)
+    {
+        return 1.0f;
+    }
+
     static uint32_t NullGetWindowHeight(HContext context)
     {
         return context->m_WindowHeight;
@@ -468,6 +473,11 @@ namespace dmGraphics
     static uint32_t NullGetMaxElementsIndices(HContext context)
     {
         return 65536;
+    }
+
+    static bool NullIsMultiTargetRenderingSupported(HContext context)
+    {
+        return true;
     }
 
     static HVertexDeclaration NullNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
@@ -870,14 +880,14 @@ namespace dmGraphics
     {
         assert(context);
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4));
+        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * count);
     }
 
-    static void NullSetConstantM4(HContext context, const Vector4* data, int base_register)
+    static void NullSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
     {
         assert(context);
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4);
+        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4 * count);
     }
 
     static void NullSetSampler(HContext context, int32_t location, int32_t unit)
@@ -1086,7 +1096,7 @@ namespace dmGraphics
         return HANDLE_RESULT_OK;
     }
 
-    static void NullSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static void NullSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         assert(texture);
     }
@@ -1302,6 +1312,7 @@ namespace dmGraphics
         fn_table.m_GetHeight = NullGetHeight;
         fn_table.m_GetWindowWidth = NullGetWindowWidth;
         fn_table.m_GetWindowHeight = NullGetWindowHeight;
+        fn_table.m_GetDisplayScaleFactor = NullGetDisplayScaleFactor;
         fn_table.m_SetWindowSize = NullSetWindowSize;
         fn_table.m_ResizeWindow = NullResizeWindow;
         fn_table.m_GetDefaultTextureFilters = NullGetDefaultTextureFilters;
@@ -1389,6 +1400,7 @@ namespace dmGraphics
         fn_table.m_RunApplicationLoop = NullRunApplicationLoop;
         fn_table.m_GetTextureHandle = NullGetTextureHandle;
         fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
+        fn_table.m_IsMultiTargetRenderingSupported = NullIsMultiTargetRenderingSupported;
         return fn_table;
     }
 }

@@ -18,9 +18,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
-            [editor.code.script :as script]
             [editor.defold-project :as project]
-            [editor.dialogs :as dialogs]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
@@ -29,6 +27,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
@@ -40,26 +39,29 @@
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [java.io StringReader]
-           [javax.vecmath Matrix4d Vector3d]))
+           [javax.vecmath Matrix4d Vector3d]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn- gen-ref-ddf [id position rotation source-resource ddf-properties]
+(defn- gen-ref-ddf [id position rotation scale source-resource ddf-properties]
   {:id id
    :position position
    :rotation rotation
+   :scale scale
    :component (resource/resource->proj-path source-resource)
    :properties ddf-properties})
 
-(defn- gen-embed-ddf [id position rotation save-data]
+(defn- gen-embed-ddf [id position rotation scale save-data]
   {:id id
    :type (or (and (:resource save-data) (:ext (resource/resource-type (:resource save-data))))
              "unknown")
    :position position
    :rotation rotation
+   :scale scale
    :data (or (:content save-data) "")})
 
 (defn- build-raw-sound [resource dep-resources user-data]
@@ -246,8 +248,8 @@
 
   (input embedded-resource-id g/NodeID)
   (input save-data g/Any :cascade-delete)
-  (output ddf-message g/Any (g/fnk [id position rotation save-data]
-                              (gen-embed-ddf id position rotation save-data)))
+  (output ddf-message g/Any (g/fnk [id position rotation scale save-data]
+                              (gen-embed-ddf id position rotation scale save-data)))
   (output build-resource resource/Resource (g/fnk [source-resource save-data]
                                                   (some-> source-resource
                                                      (assoc :data (:content save-data))
@@ -297,39 +299,53 @@
                            :overrides ddf-properties}))
             (set (fn [evaluation-context self old-value new-value]
                    (concat
-                     (if-let [old-source (g/node-value self :source-id evaluation-context)]
-                       (g/delete-node old-source)
-                       [])
+                     (when-some [old-source (g/node-value self :source-id evaluation-context)]
+                       (g/delete-node old-source))
                      (let [new-resource (:resource new-value)
                            resource-type (and new-resource (resource/resource-type new-resource))
-                           override? (contains? (:tags resource-type) :overridable-properties)]
-                       (if override?
-                         (let [project (project/get-project self)
-                               workspace (project/workspace project)]
-                           (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
-                             (concat
-                               connect-tx-data
-                               (g/override comp-node {:traverse-fn g/always-override-traverse-fn}
-                                           (fn [evaluation-context id-mapping]
-                                             (let [or-comp-node (get id-mapping comp-node)
-                                                   comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
-                                               (concat
-                                                 (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                   (for [[from to] [[:_node-id :source-id]
-                                                                    [:resource :source-resource]
-                                                                    [:node-outline :source-outline]
-                                                                    [:_properties :source-properties]
-                                                                    [:scene :scene]
-                                                                    [:build-targets :source-build-targets]
-                                                                    [:resource-property-build-targets :resource-property-build-targets]]
-                                                         :when (contains? outputs from)]
-                                                     (g/connect or-comp-node from self to)))
-                                                 (properties/apply-property-overrides workspace id-mapping comp-props (:overrides new-value)))))))))
-                         (project/resource-setter evaluation-context self (:resource old-value) (:resource new-value)
-                                                  [:resource :source-resource]
-                                                  [:node-outline :source-outline]
-                                                  [:scene :scene]
-                                                  [:build-targets :source-build-targets]))))))
+                           project (project/get-project self)
+                           override? (contains? (:tags resource-type) :overridable-properties)
+
+                           [comp-node tx-data]
+                           (if override?
+                             (let [workspace (project/workspace project)]
+                               (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                                 [comp-node
+                                  (concat
+                                    connect-tx-data
+                                    (g/override comp-node {:traverse-fn g/always-override-traverse-fn}
+                                                (fn [evaluation-context id-mapping]
+                                                  (let [or-comp-node (get id-mapping comp-node)
+                                                        comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
+                                                    (concat
+                                                      (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                                                        (for [[from to] [[:_node-id :source-id]
+                                                                         [:resource :source-resource]
+                                                                         [:node-outline :source-outline]
+                                                                         [:_properties :source-properties]
+                                                                         [:scene :scene]
+                                                                         [:build-targets :source-build-targets]
+                                                                         [:resource-property-build-targets :resource-property-build-targets]]
+                                                              :when (contains? outputs from)]
+                                                          (g/connect or-comp-node from self to)))
+                                                      (properties/apply-property-overrides workspace id-mapping comp-props (:overrides new-value)))))))]))
+                             (let [old-resource (:resource old-value)
+                                   new-resource (:resource new-value)
+                                   connections [[:resource :source-resource]
+                                                [:node-outline :source-outline]
+                                                [:scene :scene]
+                                                [:build-targets :source-build-targets]]
+                                   disconnect-tx-data (when old-resource
+                                                        (project/disconnect-resource-node evaluation-context project old-resource self connections))
+                                   {connect-tx-data :tx-data comp-node :node-id} (when new-resource
+                                                                                   (project/connect-resource-node evaluation-context project new-resource self connections))]
+                               [comp-node
+                                (concat disconnect-tx-data
+                                        connect-tx-data)]))]
+                       (concat
+                         tx-data
+                         (when-some [alter-referenced-component-fn (some-> resource-type :tag-opts :component :alter-referenced-component-fn)]
+                           (alter-referenced-component-fn self comp-node)))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (or (validation/prop-error :info _node-id :path validation/prop-nil? source-resource "Path")
                                       (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
@@ -344,12 +360,34 @@
                      (filter (fn [[_ p]] (contains? p :original-value)))
                      (sort-by (comp prop-order first))
                      (into [] (keep properties/property-entry->go-prop))))))
-  (output ddf-message g/Any (g/fnk [id position rotation source-resource ddf-properties]
-                              (gen-ref-ddf id position rotation source-resource ddf-properties))))
+  (output ddf-message g/Any (g/fnk [id position rotation scale source-resource ddf-properties]
+                              (gen-ref-ddf id position rotation scale source-resource ddf-properties))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
   {:components ref-ddf
    :embedded-components embed-ddf})
+
+(def ^:private default-scale-value (:scale identity-transform-properties))
+
+(defn- strip-default-scale-from-component-desc [component-desc]
+  ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
+  (let [scale (:scale component-desc)]
+    (if (or (= default-scale-value scale)
+            (protobuf/default-read-scale-value? scale))
+      (dissoc component-desc :scale)
+      component-desc)))
+
+(defn- strip-default-scale-from-component-descs [component-descs]
+  (mapv strip-default-scale-from-component-desc component-descs))
+
+(defn strip-default-scale-from-components-in-prototype-desc [prototype-desc]
+  ;; GameObject$PrototypeDesc in map format.
+  (-> prototype-desc
+      (update :components strip-default-scale-from-component-descs)
+      (update :embedded-components strip-default-scale-from-component-descs)))
+
+(g/defnk produce-save-value [proto-msg]
+  (strip-default-scale-from-components-in-prototype-desc proto-msg))
 
 (defn- build-game-object [resource dep-resources user-data]
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
@@ -466,7 +504,7 @@
   (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any produce-proto-msg)
-  (output save-value g/Any (gu/passthrough proto-msg))
+  (output save-value g/Any produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any :cached produce-scene)
@@ -496,7 +534,8 @@
   (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
-                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :scale scale :path path]]
+                  [comp-node [ReferencedComponent :id id :position position :rotation rotation :scale scale]]
+                  (g/set-property comp-node :path path)
                   (attach-ref-component self comp-node)
                   (when select-fn
                     (select-fn [comp-node])))))
@@ -511,7 +550,7 @@
 (defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
                                          (workspace/get-resource-types workspace :embeddable)))]
-    (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext component-exts :title "Select Component File"}))]
+    (when-let [resource (first (resource-dialog/make workspace project {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource select-fn))))
 
 (defn- selection->game-object [selection]
@@ -601,11 +640,61 @@
                 transform-properties (select-transform-properties resource-type embedded)]]
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
-(defn- sanitize-component [c]
-  (dissoc c :property-decls)) ; Only used in built data by the runtime.
+(defn sanitize-property-descs-at-path [desc property-descs-path]
+  ;; GameObject$ComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  ;; The supplied path should lead up to a seq of GameObject$PropertyDescs in map format.
+  (if-some [property-descs (not-empty (get-in desc property-descs-path))]
+    (assoc-in desc property-descs-path (mapv properties/sanitize-property-desc property-descs))
+    desc))
 
-(defn- sanitize-game-object [go]
-  (update go :components (partial mapv sanitize-component)))
+(defn- sanitize-referenced-component [component-desc]
+  ;; GameObject$ComponentDesc in map format.
+  (-> component-desc
+      (sanitize-property-descs-at-path [:properties])
+      (dissoc :property-decls) ; Only used in built data by the runtime.
+      (strip-default-scale-from-component-desc)))
+
+(defn- sanitize-embedded-component-data [embedded-component-desc resource-type-map]
+  ;; GameObject$EmbeddedComponentDesc in map format.
+  (let [component-ext (:type embedded-component-desc)
+        resource-type (resource-type-map component-ext)
+        tag-opts (:tag-opts resource-type)
+        sanitize-fn (:sanitize-fn resource-type)
+        sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))]
+    (try
+      (let [unsanitized-data (when (or sanitize-fn sanitize-embedded-component-fn)
+                               (let [read-raw-fn (:read-raw-fn resource-type)
+                                     unsanitized-data-string (:data embedded-component-desc)]
+                                 (with-open [reader (StringReader. unsanitized-data-string)]
+                                   (read-raw-fn reader))))
+            sanitized-data (if sanitize-fn
+                             (sanitize-fn unsanitized-data)
+                             unsanitized-data)
+            [embedded-component-desc sanitized-data] (if sanitize-embedded-component-fn
+                                                       (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
+                                                       [embedded-component-desc sanitized-data])]
+        (if (= unsanitized-data sanitized-data)
+          embedded-component-desc
+          (let [write-fn (:write-fn resource-type)
+                sanitized-data-string (write-fn sanitized-data)]
+            (assoc embedded-component-desc :data sanitized-data-string))))
+      (catch Exception e
+        ;; Leave unsanitized.
+        (log/warn :msg (str "Failed to sanitize embedded component of type: " (or component-ext "nil")) :exception e)
+        embedded-component-desc))))
+
+(defn- sanitize-embedded-component [resource-type-map embedded-component-desc]
+  ;; GameObject$EmbeddedComponentDesc in map format.
+  (-> embedded-component-desc
+      (sanitize-embedded-component-data resource-type-map)
+      (strip-default-scale-from-component-desc)))
+
+(defn sanitize-game-object [workspace prototype-desc]
+  ;; GameObject$PrototypeDesc in map format.
+  (let [resource-type-map (workspace/get-resource-type-map workspace)]
+    (-> prototype-desc
+        (update :components (partial mapv sanitize-referenced-component))
+        (update :embedded-components (partial mapv (partial sanitize-embedded-component resource-type-map))))))
 
 (defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]
   (when-let [resource-type (resource-types type)]
@@ -634,7 +723,7 @@
     :ddf-type GameObject$PrototypeDesc
     :load-fn load-game-object
     :dependencies-fn (make-dependencies-fn workspace)
-    :sanitize-fn sanitize-game-object
+    :sanitize-fn (partial sanitize-game-object workspace)
     :icon game-object-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))
