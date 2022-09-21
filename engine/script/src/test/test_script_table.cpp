@@ -260,7 +260,7 @@ const uint32_t IOOB_BUFFER_SIZE = 8 + 2 + 2 + (sizeof(char) + sizeof(char) + 5 *
 
 int ProduceIndexOutOfBounds(lua_State *L)
 {
-    char buf[IOOB_BUFFER_SIZE];
+    char DM_ALIGNED(16) char buf[IOOB_BUFFER_SIZE];
     lua_newtable(L);
     // invalid key
     lua_pushnumber(L, 0xffffffffLL+1);
