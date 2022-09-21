@@ -190,6 +190,8 @@ namespace dmProfile
         if (name != 0)
         {
             valid = 1;
+            if (name[0] == 0)
+                name = "<empty>";
             _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)name_hash);
         }
     }
