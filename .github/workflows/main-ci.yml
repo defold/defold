@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-20.04
     if: |
       !contains(github.event.head_commit.message, 'skip-ci') &&
-      (github.event_name != 'pull_request'        || (github.event_name == 'pull_request'        && github.event.pull_request.head.repo.full_name == github.repository)) &&
+      (github.event_name != 'pull_request'        || (github.event_name == 'pull_request'        && github.event.pull_request.head.repo.full_name == github.repository)) &&
       (github.event_name != 'pull_request_target' || (github.event_name == 'pull_request_target' && contains(github.event.pull_request.labels.*.name, 'ok to test')))
     steps: [
       {
@@ -60,6 +60,7 @@ jobs:
 # ---- * Check outcome of 'skip-duplicate-actions'
   pre-check-ok:
     needs: [pre_check]
+    runs-on: ubuntu-20.04
     if: ${{ needs.pre_check.outputs.should_skip != 'true' }}
     steps: [
       {
