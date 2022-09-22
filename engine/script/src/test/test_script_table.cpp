@@ -16,6 +16,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/align.h>
+#include <dlib/memory.h>
 #include <dlib/math.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -68,6 +69,9 @@ static bool RunString(lua_State* L, const char* script)
 
 class LuaTableTest* g_LuaTableTest = 0;
 
+char DM_ALIGNED(16) g_Buf[256];
+
+
 class LuaTableTest : public jc_test_base_class
 {
 protected:
@@ -89,8 +93,6 @@ protected:
 
     }
 
-    char DM_ALIGNED(16) m_Buf[256];
-
     int top;
     dmScript::HContext m_Context;
     lua_State* L;
@@ -100,7 +102,7 @@ protected:
 TEST_F(LuaTableTest, EmptyTable)
 {
     lua_newtable(L);
-    char buf[8 + 4];
+    char DM_ALIGNED(16) buf[8 + 4];
     uint32_t buffer_used = dmScript::CheckTable(L, buf, sizeof(buf), -1);
     // 4 bytes for count
     ASSERT_EQ(12U, buffer_used);
@@ -226,11 +228,11 @@ TEST_F(LuaTableTest, TestSerializeLargeNumbers)
         lua_settable(L, -3);
     }
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_Number found[count] = { 0 };
 
@@ -260,7 +262,7 @@ const uint32_t IOOB_BUFFER_SIZE = 8 + 2 + 2 + (sizeof(char) + sizeof(char) + 5 *
 
 int ProduceIndexOutOfBounds(lua_State *L)
 {
-    char buf[IOOB_BUFFER_SIZE];
+    char DM_ALIGNED(16) buf[IOOB_BUFFER_SIZE];
     lua_newtable(L);
     // invalid key
     lua_pushnumber(L, 0xffffffffLL+1);
@@ -326,11 +328,11 @@ TEST_F(LuaTableTest, Table01)
     lua_pushinteger(L, 456);
     lua_setfield(L, -2, "b");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "a");
     ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
@@ -351,7 +353,7 @@ TEST_F(LuaTableTest, Table01)
     lua_pushinteger(L, 456);
     lua_setfield(L, -2, "b");
 
-    int result = PCallCheckTable(L, m_Buf, buffer_used-1, -1, true);
+    int result = PCallCheckTable(L, g_Buf, buffer_used-1, -1, true);
 
     ASSERT_NE(result, 0);
 
@@ -368,11 +370,11 @@ TEST_F(LuaTableTest, Table02)
     lua_pushstring(L, "kalle");
     lua_setfield(L, -2, "foo2");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "foo");
     ASSERT_EQ(LUA_TBOOLEAN, lua_type(L, -1));
@@ -394,7 +396,7 @@ TEST_F(LuaTableTest, Table02)
     lua_pushstring(L, "kalle");
     lua_setfield(L, -2, "foo2");
 
-    int result = PCallCheckTable(L, m_Buf, buffer_used-1, -1, true);
+    int result = PCallCheckTable(L, g_Buf, buffer_used-1, -1, true);
 
     ASSERT_NE(result, 0);
 
@@ -414,11 +416,11 @@ TEST_F(LuaTableTest, case1308)
 
     lua_setfield(L, -2, "t");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "a");
     ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
@@ -435,6 +437,46 @@ TEST_F(LuaTableTest, case1308)
 
     lua_pop(L, 1);
 }
+
+TEST_F(LuaTableTest, NestedTableSizeCheck)
+{
+    /**
+     * This table structure was guaranteed to crash on frist version of #6676
+     * Fix in https://github.com/defold/defold/pull/6991
+     * 
+     * {
+     *   foo = 1234,
+     *   b = {
+     *       a = 1234,
+     *   }
+     * }
+     *
+     */
+    // create outer table
+    lua_newtable(L);
+
+    // foo = 1234
+    lua_pushnumber(L, 1234);
+    lua_setfield(L, -2, "foo");
+
+    // create inner table "b"
+    lua_newtable(L);
+
+    // a = 1234
+    lua_pushnumber(L, 1234);
+    lua_setfield(L, -2, "a");
+
+    // b = {}
+    lua_setfield(L, -2, "b");
+
+    uint32_t calculated_table_size = dmScript::CheckTableSize(L, -1);
+    uint32_t actual_table_size = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
+
+    lua_pop(L, 1);
+
+    ASSERT_EQ(calculated_table_size, actual_table_size);
+}
+
 
 // TODO!!
 // TEST_F(LuaTableTest, ReadTruncatedFile)
@@ -524,11 +566,11 @@ TEST_F(LuaTableTest, TSTRING) // binary strings (def2821)
     lua_pushlstring(L, (const char*)binary_string2, 8);
     lua_setfield(L, -2, "key3");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "key1");
     ASSERT_EQ(LUA_TSTRING, lua_type(L, -1));
@@ -560,11 +602,11 @@ TEST_F(LuaTableTest, Vector3)
     dmScript::PushVector3(L, dmVMath::Vector3(1,2,3));
     lua_setfield(L, -2, "v");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "v");
     dmVMath::Vector3* v1 = dmScript::ToVector3(L, -1);
@@ -588,11 +630,11 @@ TEST_F(LuaTableTest, Vector4)
     dmScript::PushVector4(L, dmVMath::Vector4(1,2,3,4));
     lua_setfield(L, -2, "v");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "v");
     dmVMath::Vector4* v1 = dmScript::ToVector4(L, -1);
@@ -618,11 +660,11 @@ TEST_F(LuaTableTest, Quat)
     dmScript::PushQuat(L, dmVMath::Quat(1,2,3,4));
     lua_setfield(L, -2, "v");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "v");
     dmVMath::Quat* v1 = dmScript::ToQuat(L, -1);
@@ -652,11 +694,11 @@ TEST_F(LuaTableTest, Matrix4)
     dmScript::PushMatrix4(L, m);
     lua_setfield(L, -2, "v");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "v");
     dmVMath::Matrix4* m1 = dmScript::ToMatrix4(L, -1);
@@ -683,11 +725,11 @@ TEST_F(LuaTableTest, Hash)
     dmScript::PushHash(L, hash);
     lua_setfield(L, -2, "h");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "h");
     ASSERT_TRUE(dmScript::IsHash(L, -1));
@@ -713,11 +755,11 @@ TEST_F(LuaTableTest, URL)
     dmScript::PushURL(L, url);
     lua_setfield(L, -2, "url");
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_getfield(L, -1, "url");
     ASSERT_TRUE(dmScript::IsURL(L, -1));
@@ -753,11 +795,11 @@ TEST_F(LuaTableTest, MixedKeys)
     lua_pushnumber(L, 5);
     lua_settable(L, -3);
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
-    dmScript::PushTable(L, m_Buf, sizeof(m_Buf));
+    dmScript::PushTable(L, g_Buf, sizeof(g_Buf));
 
     lua_pushnumber(L, 1);
     lua_gettable(L, -2);
@@ -820,16 +862,16 @@ TEST_F(LuaTableTest, CorruptedTables)
 
     // Make sure we write to the buffer so that Valgrind doesn't complain
     // at the lua_pushlstring below.
-    memset(m_Buf, 0, sizeof(m_Buf));
+    memset(g_Buf, 0, sizeof(g_Buf));
 
-    uint32_t buffer_used = dmScript::CheckTable(L, m_Buf, sizeof(m_Buf), -1);
+    uint32_t buffer_used = dmScript::CheckTable(L, g_Buf, sizeof(g_Buf), -1);
     (void) buffer_used;
     lua_pop(L, 1);
 
     for (uint32_t i = buffer_used-1; i > 0; --i)
     {
         lua_pushcfunction(L, ParseTruncatedTable);
-        lua_pushlstring(L, m_Buf, sizeof(m_Buf));
+        lua_pushlstring(L, g_Buf, sizeof(g_Buf));
         lua_pushnumber(L, i);
         int res = lua_pcall(L, 2, 0, 0x0);
         ASSERT_EQ(LUA_ERRRUN, res);
@@ -903,7 +945,8 @@ TEST_F(LuaTableTest, Stress)
             }
 
             // Add eight to ensure there is room for the header too.
-            char* buf = new char[8 + buf_size + 4]; // add 4 extra at end for GUARD BYTES
+            char* buf;
+            dmMemory::AlignedMalloc((void**)&buf, 16, 8 + buf_size + 4); // add 4 extra at end for GUARD BYTES
             buf[8 + buf_size + 0] = 0xBA;
             buf[8 + buf_size + 1] = 0xAD;
             buf[8 + buf_size + 2] = 0xF0;
@@ -936,7 +979,7 @@ TEST_F(LuaTableTest, Stress)
             ASSERT_EQ(d, rd);
 
             lua_pop(L, 1);
-            delete[] buf;
+            dmMemory::AlignedFree(buf);
         }
     }
 }
