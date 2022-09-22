@@ -248,10 +248,10 @@ public:
 };
 
 
-class WindowEventTest : public GamesysTest<const char*>
+class WindowTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~WindowEventTest() {}
+    virtual ~WindowTest() {}
 };
 
 struct DrawCountParams

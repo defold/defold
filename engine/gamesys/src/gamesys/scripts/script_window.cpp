@@ -404,7 +404,6 @@ static void LuaInit(lua_State* L)
 void ScriptWindowRegister(const ScriptLibContext& context)
 {
     LuaInit(context.m_LuaState);
-
     g_Window.m_HidContext = context.m_HidContext;
 }
 
