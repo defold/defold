@@ -363,3 +363,11 @@ GLFWAPI int GLFWAPIENTRY glfwSetGamepadCallback(GLFWkeyfun cbfun)
     return 1;
 }
 
+// DEFOLD change
+// Since the locking of the mouse is done internally in glfw,
+// we need to query the current state here
+GLFWAPI int glfwGetMouseLocked()
+{
+    return _glfwWin.mouseLock;
+}
+

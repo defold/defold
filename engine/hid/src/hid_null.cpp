@@ -95,4 +95,17 @@ namespace dmHID
     void EnableAccelerometer()
     {
     }
+
+    void ShowMouseCursor(HContext context)
+    {
+    }
+
+    void HideMouseCursor(HContext context)
+    {
+    }
+
+    bool GetCursorVisible(HContext context)
+    {
+        return true;
+    }
 }

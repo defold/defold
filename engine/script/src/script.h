@@ -264,7 +264,7 @@ namespace dmScript
      * @return Number of bytes used in buffer
      */
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index);
-    
+
     /**
      * Get the size of a table when serialized
      * @param L Lua state
@@ -310,6 +310,14 @@ namespace dmScript
      * @return The FloatVector value
      */
     dmVMath::FloatVector* CheckVector(lua_State* L, int index);
+
+    /**
+     * Check if the value in the supplied index on the lua stack is a boolean.
+     * @param L Lua state
+     * @param index Index of the value
+     * @return The boolean value
+     */
+    bool CheckBoolean(lua_State* L, int index);
 
     /**
      * Check if the value at #index is a URL
