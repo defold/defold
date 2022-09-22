@@ -933,6 +933,15 @@ public class Project {
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+
+                // get comma separated extra headers
+                // split into individual headers and URI decode
+                String commaSeparatedHeaders = this.option("build-server-headers", "");
+                List<String> headers = commaSeparatedHeaders.isEmpty() ? new ArrayList<String>() : Arrays.asList(commaSeparatedHeaders.split(","));
+                for (String header : headers) {
+                    extender.addHeader(URLDecoder.decode(header, StandardCharsets.UTF_8));
+                }
+
                 File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, asyncBuild);
 
                 cleanEngine(platform, buildDir);
