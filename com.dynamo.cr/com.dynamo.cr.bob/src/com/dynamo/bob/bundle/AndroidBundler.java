@@ -397,10 +397,12 @@ public class AndroidBundler implements IBundler {
                 args.add("-o"); args.add(compiledResourceDir.getAbsolutePath());
                 args.add("--dir"); args.add(packageDir.getAbsolutePath());
 
+                log("Compiling " + packageDir.getAbsolutePath() + " to " + compiledResourceDir.getAbsolutePath());
                 Result res = exec(args);
                 if (res.ret != 0) {
-                    String msg = new String(res.stdOutErr);
-                    throw new IOException(msg);
+                    String stdout = new String(res.stdOutErr, StandardCharsets.UTF_8);
+                    log("Failed compiling " + compiledResourceDir.getAbsolutePath() + ", code: " + res.ret + ", error: " + stdout);
+                    throw new IOException(stdout);
                 }
                 BundleHelper.throwIfCanceled(canceled);
             }

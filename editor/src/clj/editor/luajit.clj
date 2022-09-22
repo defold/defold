@@ -21,7 +21,7 @@
    [editor.system :as system])
   (:import
    (java.io File ByteArrayOutputStream)
-   (com.defold.editor Platform)))
+   (com.dynamo.bob Platform)))
 
 (set! *warn-on-reflection* true)
 

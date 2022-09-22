@@ -16,12 +16,14 @@
 #include <stdarg.h>
 #include <string.h>
 #include <assert.h>
+#include "atomic.h"
 #include "dlib.h"
 #include "array.h"
 #include "dstrings.h"
 #include "log.h"
 #include "profile/profile.h"
 #include "socket.h"
+#include "spinlock.h"
 #include "message.h"
 #include "thread.h"
 #include "math.h"
@@ -60,14 +62,14 @@ struct dmLogServer
         m_Connections.SetCapacity(DLIB_MAX_LOG_CONNECTIONS);
         m_ServerSocket = server_socket;
         m_Port = port;
-        m_MessgeSocket = message_socket;
+        m_MessageSocket = message_socket;
         m_Thread = 0;
     }
 
     dmArray<dmLogConnection> m_Connections;
     dmSocket::Socket         m_ServerSocket;
     uint16_t                 m_Port;
-    dmMessage::HSocket       m_MessgeSocket;
+    dmMessage::HSocket       m_MessageSocket;
     dmThread::Thread         m_Thread;
 };
 
@@ -75,8 +77,11 @@ static dmLogServer* g_dmLogServer = 0;
 static LogSeverity g_LogLevel = LOG_SEVERITY_USER_DEBUG;
 static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
-static CustomLogCallback g_CustomLogCallback = 0;
-static void* g_CustomLogCallbackUserData = 0;
+static dmSpinlock::Spinlock g_ListenerLock; // Protects the array of listener functions
+
+static const int g_MaxListeners = 32;
+static FLogListener g_Listeners[g_MaxListeners];
+static int32_atomic_t g_ListenersCount;
 
 // create and bind the server socket, will reuse old port if supplied handle valid
 static void dmLogInitSocket( dmSocket::Socket& server_socket )
@@ -185,6 +190,8 @@ static dmSocket::Result SendAll(dmSocket::Socket socket, const char* buffer, int
 static void dmLogUpdateNetwork()
 {
     dmLogServer* self = g_dmLogServer;
+    if (self->m_ServerSocket == dmSocket::INVALID_SOCKET_HANDLE)
+        return;
 
     dmSocket::Selector selector;
     dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, self->m_ServerSocket);
@@ -227,6 +234,77 @@ static void dmLogUpdateNetwork()
     }
 }
 
+#ifdef ANDROID
+static android_LogPriority ToAndroidPriority(LogSeverity severity)
+{
+    switch (severity)
+    {
+        case LOG_SEVERITY_DEBUG:
+            return ANDROID_LOG_DEBUG;
+
+        case LOG_SEVERITY_USER_DEBUG:
+            return ANDROID_LOG_DEBUG;
+
+        case LOG_SEVERITY_INFO:
+            return ANDROID_LOG_INFO;
+
+        case LOG_SEVERITY_WARNING:
+            return ANDROID_LOG_WARN;
+
+        case LOG_SEVERITY_ERROR:
+            return ANDROID_LOG_ERROR;
+
+        case LOG_SEVERITY_FATAL:
+            return ANDROID_LOG_FATAL;
+
+        default:
+            return ANDROID_LOG_ERROR;
+    }
+}
+#endif
+
+static void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
+{
+#ifdef ANDROID
+        __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
+
+// iOS
+#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
+        dmLog::__ios_log_print(severity, output);
+#endif
+
+#ifdef __EMSCRIPTEN__
+        //Emscripten maps stderr to console.error and stdout to console.log.
+        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
+            fwrite(output, 1, output_len, stderr);
+        } else {
+            fwrite(output, 1, output_len, stdout);
+        }
+#elif !defined(ANDROID)
+        fwrite(output, 1, output_len, stderr);
+#endif
+
+    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
+        dmLog::g_TotalBytesLogged += output_len;
+        fwrite(output, 1, output_len, dmLog::g_LogFile);
+        fflush(dmLog::g_LogFile);
+    }
+}
+
+// Here we put logging that needs to be thread safe
+// We either push it on the logger thread, or from the main thread if threads aren't supported (e.g. html5)
+static void DoLogSynchronized(LogSeverity severity, const char* domain, const char* output, int output_len)
+{
+    DM_SPINLOCK_SCOPED_LOCK(g_ListenerLock); // Make sure no listeners are added or removed during the scope
+
+    for (int i = dmLog::g_ListenersCount - 1; i >= 0 ; --i)
+    {
+        g_Listeners[i]((LogSeverity)severity, domain, output);
+    }
+
+    dmProfile::LogText("%s", output);
+}
+
 static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
 {
     dmLogServer* self = g_dmLogServer;
@@ -238,7 +316,9 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
         *run = false;
         return;
     }
+
     int msg_len = (int) strlen(log_message->m_Message);
+    DoLogSynchronized((LogSeverity)log_message->m_Severity, log_message->m_Domain, log_message->m_Message, msg_len);
 
     // NOTE: Keep i as signed! See --i below after EraseSwap
     int n = (int) self->m_Connections.Size();
@@ -285,16 +365,13 @@ static void dmLogThread(void* args)
         // Currently no support for that and hence the sleep here
         dmTime::Sleep(1000 * 30);
         dmLogUpdateNetwork();
-        dmMessage::Dispatch(self->m_MessgeSocket, dmLogDispatch, (void*) &run);
+        dmMessage::Dispatch(self->m_MessageSocket, dmLogDispatch, (void*) &run);
     }
 }
 
 void LogInitialize(const LogParams* params)
 {
     g_TotalBytesLogged = 0;
-
-    if (!dLib::IsDebugMode() || !dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
-        return;
 
     if (g_dmLogServer)
     {
@@ -303,18 +380,20 @@ void LogInitialize(const LogParams* params)
     }
 
     dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
-    dmSocket::Address address;
-    uint16_t port;
-    dmLogInitSocket(server_socket);
-    if (server_socket == dmSocket::INVALID_SOCKET_HANDLE)
+    uint16_t port = 0;
+
+    if (dLib::IsDebugMode() && dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
     {
-        return;
+        dmLogInitSocket(server_socket);
+        if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Address address;
+            dmSocket::GetName(server_socket, &address, &port);
+        }
     }
-    dmSocket::GetName(server_socket, &address, &port);
 
     dmMessage::HSocket message_socket = 0;
     dmMessage::Result mr;
-    dmThread::Thread thread = 0;
 
     mr = dmMessage::NewSocket("@log", &message_socket);
     if (mr != dmMessage::RESULT_OK)
@@ -322,13 +401,21 @@ void LogInitialize(const LogParams* params)
         fprintf(stderr, "ERROR:DLIB: Unable to create @log message socket\n");
         if (message_socket != 0)
             dmMessage::DeleteSocket(message_socket);
-        dmSocket::Delete(server_socket);
+        if (server_socket != dmSocket::INVALID_SOCKET_HANDLE)
+            dmSocket::Delete(server_socket);
         return;
     }
 
     g_dmLogServer = new dmLogServer(server_socket, port, message_socket);
-    thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
-    g_dmLogServer->m_Thread = thread;
+
+    g_dmLogServer->m_Thread = 0;
+    if(dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP)) // e.g. Emscripten
+    {
+        g_dmLogServer->m_Thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
+    }
+
+    dmAtomicStore32(&g_ListenersCount, 0);
+    dmSpinlock::Init(&g_ListenerLock);
 
     /*
      * This message is parsed by editor 2 - don't remove or change without
@@ -357,11 +444,13 @@ void LogFinalize()
     LogMessage msg;
     msg.m_Type = LogMessage::SHUTDOWN;
     dmMessage::URL receiver;
-    receiver.m_Socket = self->m_MessgeSocket;
+    receiver.m_Socket = self->m_MessageSocket;
     receiver.m_Path = 0;
     receiver.m_Fragment = 0;
     dmMessage::Post(0, &receiver, 0, 0, 0, &msg, sizeof(msg), 0);
-    dmThread::Join(self->m_Thread);
+
+    if (self->m_Thread)
+        dmThread::Join(self->m_Thread);
 
     uint32_t n = self->m_Connections.Size();
     for (uint32_t i = 0; i < n; ++i)
@@ -378,9 +467,9 @@ void LogFinalize()
         self->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
     }
 
-    if (self->m_MessgeSocket != 0)
+    if (self->m_MessageSocket != 0)
     {
-        dmMessage::DeleteSocket(self->m_MessgeSocket);
+        dmMessage::DeleteSocket(self->m_MessageSocket);
     }
 
     delete self;
@@ -395,35 +484,6 @@ uint16_t GetPort()
 
     return g_dmLogServer->m_Port;
 }
-
-#ifdef ANDROID
-static android_LogPriority ToAndroidPriority(LogSeverity severity)
-{
-    switch (severity)
-    {
-        case LOG_SEVERITY_DEBUG:
-            return ANDROID_LOG_DEBUG;
-
-        case LOG_SEVERITY_USER_DEBUG:
-            return ANDROID_LOG_DEBUG;
-
-        case LOG_SEVERITY_INFO:
-            return ANDROID_LOG_INFO;
-
-        case LOG_SEVERITY_WARNING:
-            return ANDROID_LOG_WARN;
-
-        case LOG_SEVERITY_ERROR:
-            return ANDROID_LOG_ERROR;
-
-        case LOG_SEVERITY_FATAL:
-            return ANDROID_LOG_FATAL;
-
-        default:
-            return ANDROID_LOG_ERROR;
-    }
-}
-#endif
 
 bool SetLogFile(const char* path)
 {
@@ -441,44 +501,32 @@ bool SetLogFile(const char* path)
     return true;
 }
 
-void SetCustomLogCallback(CustomLogCallback callback, void* user_data)
-{
-    g_CustomLogCallback = callback;
-    g_CustomLogCallbackUserData = user_data;
-}
-
 } //namespace dmLog
-
-
-static const int g_dmLog_MaxListeners = 32;
-static FLogListener g_dmLog_Listeners[g_dmLog_MaxListeners];
-static int g_dmLog_ListenersCount = 0;
-static bool g_isSendingLogs = false;
 
 void dmLogRegisterListener(FLogListener listener)
 {
-    if (g_dmLog_ListenersCount >= g_dmLog_MaxListeners) {
-        dmLogWarning("Max dmLog listeners reached (%d)", g_dmLog_MaxListeners);
+    DM_SPINLOCK_SCOPED_LOCK(dmLog::g_ListenerLock);
+    if (dmLog::g_ListenersCount >= dmLog::g_MaxListeners) {
+        dmLogWarning("Max dmLog listeners reached (%d)", dmLog::g_MaxListeners);
     } else {
-        g_dmLog_Listeners[g_dmLog_ListenersCount++] = listener;
+        dmLog::g_Listeners[dmLog::g_ListenersCount++] = listener;
     }
 }
 
 void dmLogUnregisterListener(FLogListener listener)
 {
-    for (int i = 0; i < g_dmLog_ListenersCount; ++i)
+    DM_SPINLOCK_SCOPED_LOCK(dmLog::g_ListenerLock);
+    for (int i = 0; i < dmLog::g_ListenersCount; ++i)
     {
-        if (g_dmLog_Listeners[i] == listener)
+        if (dmLog::g_Listeners[i] == listener)
         {
-            g_dmLog_Listeners[i] = g_dmLog_Listeners[g_dmLog_ListenersCount - 1];
-            g_dmLog_ListenersCount--;
+            dmLog::g_Listeners[i] = dmLog::g_Listeners[dmLog::g_ListenersCount - 1];
+            dmLog::g_ListenersCount--;
             return;
         }
     }
     dmLogWarning("dmLog listener not found");
 }
-
-#undef g_dmLog_MaxListeners
 
 void dmLogSetLevel(LogSeverity severity)
 {
@@ -495,14 +543,19 @@ namespace dmLog {
 
 void LogInternal(LogSeverity severity, const char* domain, const char* format, ...)
 {
-    bool is_debug_mode = dLib::IsDebugMode();
-
-    if (!is_debug_mode && g_dmLog_ListenersCount == 0)
+    if (!dmLog::g_dmLogServer) // if unit tests forgot to create the log system
     {
         return;
     }
 
     if (severity < dmLog::g_LogLevel)
+    {
+        return;
+    }
+
+    // In release mode, if there are no custom listeners, we'll return here
+    bool is_debug_mode = dLib::IsDebugMode();
+    if (!is_debug_mode && (dmAtomicGet32(&dmLog::g_ListenersCount) == 0))
     {
         return;
     }
@@ -548,66 +601,38 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     str_buf[dmLog::MAX_STRING_SIZE-1] = '\0';
     int actual_n = dmMath::Min(n, (int)(dmLog::MAX_STRING_SIZE-1));
 
-    dmLog::g_TotalBytesLogged += actual_n;
-
     va_end(lst);
 
-    if (!g_isSendingLogs)
+    // Could potentially be moved to the thread, but these are already thread safe, and
+    // I think it's good to output info directly to the native platform as soon as possible.
+    if (is_debug_mode)
     {
-        g_isSendingLogs = true;
-        for (int i = g_dmLog_ListenersCount - 1; i >= 0 ; --i)
-        {
-            g_dmLog_Listeners[i](severity, domain, str_buf);
-        }
-        g_isSendingLogs = false;
+        dmLog::DoLogPlatform(severity, str_buf, actual_n);
     }
 
-    if (!is_debug_mode)
+    if (!dmLog::g_dmLogServer->m_Thread) // e.g. Emscripten
     {
-        return;
+        dmLog::DoLogSynchronized(severity, domain, str_buf, actual_n);
     }
 
-    DM_PROFILE_TEXT("%s", str_buf);
-
-    if (dmLog::g_CustomLogCallback != 0x0)
-    {
-        dmLog::g_CustomLogCallback(dmLog::g_CustomLogCallbackUserData, str_buf);
-        return;
-    }
-
-#ifdef ANDROID
-    __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", str_buf);
-
-// iOS
-#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
-    dmLog::__ios_log_print(severity, str_buf);
-#endif
-
-#ifdef __EMSCRIPTEN__
-    //Emscripten maps stderr to console.error and stdout to console.log.
-    if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
-        fwrite(str_buf, 1, actual_n, stderr);
-    } else {
-        fwrite(str_buf, 1, actual_n, stdout);
-    }
-#elif !defined(ANDROID)
-    fwrite(str_buf, 1, actual_n, stderr);
-#endif
-
-    if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
+    if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP)) // e.g. Emscripten
         return;
 
-    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
-        fwrite(str_buf, 1, actual_n, dmLog::g_LogFile);
-        fflush(dmLog::g_LogFile);
+    if (dmThread::GetCurrentThread() == dmLog::g_dmLogServer->m_Thread)
+    {
+        // Due to the recursive nature, we're not allowed make new dmLogXxx calls from the dispatch thread
+        // However, we may call the print functions
+        return;
     }
 
     dmLog::dmLogServer* self = dmLog::g_dmLogServer;
     if (self)
     {
         msg->m_Type = dmLog::LogMessage::MESSAGE;
+        msg->m_Severity = severity;
+        dmStrlCpy(msg->m_Domain, domain, sizeof(msg->m_Domain));
         dmMessage::URL receiver;
-        receiver.m_Socket = self->m_MessgeSocket;
+        receiver.m_Socket = self->m_MessageSocket;
         receiver.m_Path = 0;
         receiver.m_Fragment = 0;
         dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLog::LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);

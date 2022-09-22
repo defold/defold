@@ -221,8 +221,7 @@
     (:resource (first (:deps (first (g/node-value resource-node :build-targets)))))))
 
 (defn- save-value [pb-class node-id]
-  (with-open [reader (StringReader. (:content (g/node-value node-id :save-data)))]
-    (protobuf/read-text pb-class reader)))
+  (protobuf/str->map pb-class (:content (g/node-value node-id :save-data))))
 
 (defn- properties [node-id]
   (:properties (g/node-value node-id :_properties)))

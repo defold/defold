@@ -52,8 +52,11 @@ ordinary paths."
 (defn- skip-first-char [path]
   (subs path 1))
 
-(defn build-path [workspace]
-  (io/file (project-path workspace) (skip-first-char build-dir)))
+(defn build-path
+  (^File [workspace]
+   (io/file (project-path workspace) (skip-first-char build-dir)))
+  (^File [workspace build-resource-path]
+   (io/file (build-path workspace) (skip-first-char build-resource-path))))
 
 (defn plugin-path
   (^File [workspace]
@@ -122,61 +125,19 @@ ordinary paths."
         (map #(pair (resource/proj-path %) %))
         resource-list))
 
-(defn get-view-type [workspace id]
-  (get (g/node-value workspace :view-types) id))
+(defn get-view-type
+  ([workspace id]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-view-type workspace id evaluation-context)))
+  ([workspace id evaluation-context]
+   (get (g/node-value workspace :view-types evaluation-context) id)))
 
 (defn- editable-view-type? [view-type]
   (case view-type
     (:default :text) false
     true))
 
-(defn register-resource-type
-  "Register new resource type to be handled by the editor
-
-  Required kv-args:
-    :ext    file extension associated with the resource type, either a string
-            or a coll of strings
-
-  Optional kv-args:
-    :node-type          a loaded resource node type; defaults to
-                        editor.placeholder-resource/PlaceholderResourceNode
-    :textual?           whether the resource is saved as text and needs proper
-                        lf/crlf handling, default false
-    :build-ext          file extension of a built resource, defaults to :ext's
-                        value with appended \"c\"
-    :dependencies-fn    fn of node's :source-value output to a collection of
-                        resource project paths that this node depends on,
-                        affects loading order
-    :load-fn            a function from project, new node id and resource to
-                        transaction step, invoked on loading the resource of
-                        the type; default editor.placeholder-resource/load-node
-    :read-fn            a fn from clojure.java.io/reader-able object (e.g.
-                        a resource or a Reader) to a data structure
-                        representation of the resource (a source value)
-    :write-fn           a fn from a data representation of the resource
-                        (a save value) to string
-    :icon               classpath path to an icon image or project resource path
-                        string; default \"icons/32/Icons_29-AT-Unknown.png\"
-    :view-types         vector of alternative views that can be used for
-                        resources of the resource type, e.g. :code, :scene,
-                        :cljfx-form-view, :text, :html or :default.
-    :view-opts          a map from a view-type keyword to options map that will
-                        be merged with other opts used when opening a view
-    :tags               a set of keywords that can be used for customizing the
-                        behavior of the resource throughout the project
-    :tag-opts           a map from tag keyword from :tags to additional options
-                        map the configures the behavior of the resource with the
-                        tag
-    :template           classpath or project resource path to a template file
-                        for a new resource file creation; defaults to
-                        \"templates/template.{ext}\"
-    :label              label for a resource type when shown in the editor
-    :stateless?         whether the resource can be modified in the editor, by
-                        default true if there is no :load-fn and false otherwise
-    :auto-connect-save-data?    whether changes to the resource are saved
-                                to disc (this can also be enabled in load-fn)
-                                when there is a :write-fn, default true"
-  [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
   (let [resource-type {:textual? (true? textual?)
                        :editable? (some? (some editable-view-type? view-types))
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
@@ -185,6 +146,8 @@ ordinary paths."
                        :dependencies-fn dependencies-fn
                        :write-fn write-fn
                        :read-fn read-fn
+                       :read-raw-fn (or read-raw-fn read-fn)
+                       :sanitize-fn sanitize-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts
@@ -345,9 +308,10 @@ ordinary paths."
       (do
         (plugin-fn workspace)
         (log/info :msg (str "Loaded plugin " (resource/path resource))))
-      (log/info :msg (str "Unable to load plugin " (resource/path resource))))
+      (log/error :msg (str "Unable to load plugin " (resource/path resource))))
     (catch Exception e
-      (log/error :msg (str "Exception while loading plugin: " (.getMessage e)))
+      (log/error :msg (str "Exception while loading plugin: " (.getMessage e))
+                 :exception e)
       (ui/run-later
         (dialogs/make-info-dialog
           {:title "Unable to Load Plugin"

@@ -86,7 +86,7 @@ public class BundleHelper {
 
     public static final String MANIFEST_NAME_ANDROID    = "AndroidManifest.xml";
     public static final String MANIFEST_NAME_IOS        = "Info.plist";
-    public static final String MANIFEST_NAME_OSX        = "Info.plist";
+    public static final String MANIFEST_NAME_MACOS      = "Info.plist";
     public static final String MANIFEST_NAME_HTML5      = "engine_template.html";
 
     public static final String SSL_CERTIFICATES_NAME   = "ssl_keys.pem";
@@ -115,7 +115,7 @@ public class BundleHelper {
         this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         String appDirSuffix = "";
-        if (platform == Platform.X86_64Darwin || platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.X86_64MacOS || platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             appDirSuffix = ".app";
         }
 
@@ -169,10 +169,10 @@ public class BundleHelper {
     }
 
     private String getManifestName(Platform platform) {
-        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             return BundleHelper.MANIFEST_NAME_IOS;
-        } else if (platform == Platform.X86_64Darwin) {
-            return BundleHelper.MANIFEST_NAME_OSX;
+        } else if (platform == Platform.X86_64MacOS) {
+            return BundleHelper.MANIFEST_NAME_MACOS;
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             return BundleHelper.MANIFEST_NAME_ANDROID;
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
@@ -199,10 +199,10 @@ public class BundleHelper {
 
         IResource mainManifest;
         Map<String, Object> properties = new HashMap<>();
-        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             mainManifest = getResource("ios", "infoplist");
             properties = createIOSManifestProperties(exeName);
-        } else if (platform == Platform.X86_64Darwin) {
+        } else if (platform == Platform.X86_64MacOS) {
             mainManifest = getResource("osx", "infoplist");
             properties = createOSXManifestProperties(exeName);
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
@@ -244,9 +244,9 @@ public class BundleHelper {
     }
 
     private File getAppManifestFile(Platform platform, File appDir) {
-        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             return new File(appDir, "Info.plist");
-        } else if (platform == Platform.X86_64Darwin) {
+        } else if (platform == Platform.X86_64MacOS) {
             return new File(appDir, "Contents/Info.plist");
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             return new File(appDir, "AndroidManifest.xml");
@@ -257,10 +257,10 @@ public class BundleHelper {
     }
 
     private static String getMainManifestName(Platform platform) {
-        if (platform == Platform.Arm64Darwin || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
             return MANIFEST_NAME_IOS;
-        } else if (platform == Platform.X86_64Darwin) {
-            return MANIFEST_NAME_OSX;
+        } else if (platform == Platform.X86_64MacOS) {
+            return MANIFEST_NAME_MACOS;
         } else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android) {
             return MANIFEST_NAME_ANDROID;
         } else if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
@@ -901,7 +901,7 @@ public class BundleHelper {
         }
     }
 
-    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
+    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, boolean async) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -914,7 +914,7 @@ public class BundleHelper {
         checkForDuplicates(allSource);
 
         try {
-            extender.build(platform, sdkVersion, allSource, zipFile, logFile);
+            extender.build(platform, sdkVersion, allSource, zipFile, logFile, async);
         } catch (ExtenderClientException e) {
             if (e.getCause() instanceof ConnectException) {
                 throw (ConnectException)e.getCause();

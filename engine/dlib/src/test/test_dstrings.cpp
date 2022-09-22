@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <errno.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <string.h>
@@ -171,6 +172,27 @@ TEST(dmStrings, dmStrCaseCmp)
     ASSERT_GT(0, dmStrCaseCmp("a", "b"));
     ASSERT_LT(0, dmStrCaseCmp("b", "a"));
     ASSERT_EQ(0, dmStrCaseCmp("a", "a"));
+}
+
+TEST(dmStrings, dmStrError)
+{
+    char buf[128];
+    // Test with a ENOENT errno code
+    dmStrError(buf, sizeof(buf), ENOENT);
+    ASSERT_STREQ("No such file or directory", buf);
+
+    // Pass in a small buffer
+    dmStrError(buf, 4, ENOENT);
+    ASSERT_STREQ("No ", buf);
+
+    // Pass invalid errno
+    dmStrError(buf, sizeof(buf), -1);
+    ASSERT_STREQ("Unknown error -1", buf);
+
+    // Nothing set in buffer
+    memset(buf, 1, sizeof(buf));
+    dmStrError(buf, 0, 0);
+    ASSERT_EQ(1, buf[0]);
 }
 
 int main(int argc, char **argv)

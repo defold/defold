@@ -94,6 +94,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
+        float         m_MaxAnisotropy;
         uint8_t       m_MaxLod;
     };
 
@@ -477,7 +478,7 @@ namespace dmGraphics
     VkResult CreateTextureSampler(VkDevice vk_device,
         VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
         VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v,
-        float minLod, float maxLod, VkSampler* vk_sampler_out);
+        float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment,
@@ -568,6 +569,7 @@ namespace dmGraphics
     uint32_t VulkanGetHeight(HContext context);
     uint32_t VulkanGetWindowWidth(HContext context);
     uint32_t VulkanGetWindowHeight(HContext context);
+    float VulkanGetDisplayScaleFactor(HContext context);
     uint32_t VulkanGetWindowRefreshRate(HContext context);
     void VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
     void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);

@@ -403,7 +403,7 @@ namespace dmMessage
                     uintptr_t descriptor, const void* message_data, uint32_t message_data_size, MessageDestroyCallback destroy_callback)
     {
         DM_PROFILE("Post");
-        DM_PROPERTY_ADD_U32(rmtp_Messages, 1);
+        //Currently called out by the Thread Sanitizer: DM_PROPERTY_ADD_U32(rmtp_Messages, 1);
 
         if (receiver == 0x0)
         {
