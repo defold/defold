@@ -53,6 +53,7 @@ var LibraryGLFW = {
     prevNonFSWidth: 0,
     prevNonFSHeight: 0,
     isFullscreen: false,
+    isPointerLocked: false,
     dpi: 1,
     mouseTouchId:null,
 
@@ -520,6 +521,28 @@ var LibraryGLFW = {
       GLFW.refreshJoysticks(true);
     },
 
+    requestPointerLock: function() {
+      element = element || Module["fullScreenContainer"] || Module["canvas"];
+      if (!element) {
+        return;
+      }
+
+      var RPL = element.requestPointerLock ||
+                element.mozRequestPointerLock ||
+                element.webkitRequestPointerLock ||
+                element.msRequestPointerLock ||
+          (function() {});
+        RPL.apply(element, []);
+    },
+
+    cancelPointerLock: function() {
+      var EPL = document.exitPointerLock ||
+                document.mozExitPointerLock ||
+                document.webkitExitPointerLock ||
+                document.msExitPointerLock ||
+          (function() {});
+        EPL.apply(document, []);
+    },
     disconnectJoystick: function (joy) {
       _free(GLFW.joys[joy].id);
       delete GLFW.joys[joy];
@@ -851,6 +874,11 @@ var LibraryGLFW = {
     GLFW.wheelPos = pos;
   },
 
+  glfwGetMouseLocked: function() {
+    // If it's not visible, it's locked, hence the negation
+    return !GLFW.params[0x00030001] // GLFW_MOUSE_CURSOR
+  },
+
   glfwSetKeyCallback: function(cbfun) {
     GLFW.keyFunc = cbfun;
   },
@@ -1016,11 +1044,11 @@ var LibraryGLFW = {
 
   /* Enable/disable functions */
   glfwEnable: function(token) {
-    GLFW.params[token] = false;
+    GLFW.params[token] = true;
   },
 
   glfwDisable: function(token) {
-    GLFW.params[token] = true;
+    GLFW.params[token] = false;
   },
 
   /* Image/texture I/O support */
