@@ -1096,8 +1096,6 @@ namespace dmRender
     {
         DM_PROFILE("FrustumCulling"); // TODO - this is the same as in Sprites. Maybe change it ?
 
-        //print (*(TextEntry*) params.m_Entries[0].m_UserData).m_FrustumCullingCenter
-
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
         for (uint32_t i = 0; i < num_entries; ++i)
@@ -1105,10 +1103,7 @@ namespace dmRender
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
             TextEntry* te = ((TextEntry*) entry->m_UserData);
 
-            Point3 center = te->m_FrustumCullingCenter; // TODO - optimize this. Use directly in TestFrustumSphere
-            float radius = te->m_FrustumCullingRadius;   // "
-
-            bool intersect = dmIntersection::TestFrustumSphere(frustum, center, radius, true);
+            bool intersect = dmIntersection::TestFrustumSphere(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadius, true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
