@@ -564,18 +564,14 @@ namespace dmRender
         te.m_DestinationBlendFactor = params.m_DestinationBlendFactor;
 
         // find center and radius for frustum culling
-        dmVMath::Vector4 cornerpoint_local(0,0,0,1);    // lowerleft corner always at (0,0,0) - TODO check Z coord
-        dmVMath::Vector4 centerpoint_local(params.m_Width/2, params.m_Height/2, 0, 1);
-        // transform to world coordinates
-        dmVMath::Vector4 cornerpoint_world = params.m_WorldTransform * cornerpoint_local;
-        dmVMath::Vector4 centerpoint_world = params.m_WorldTransform * centerpoint_local;
+        dmVMath::Vector4 cornerpoint_world = params.m_WorldTransform.getCol(3); // origin of label is always its bottom left. 'cornerpoint_world' is where it ends up after transforms
+        dmVMath::Vector4 centerpoint_local(params.m_Width/2, params.m_Height/2, 0, 1); // center of label cell in local coords
+        dmVMath::Vector4 centerpoint_world = params.m_WorldTransform * centerpoint_local; // transform to world coordinates
 
-        float radius = Vectormath::Aos::length(cornerpoint_world - centerpoint_world);
-
+        te.m_FrustumCullingRadius = Vectormath::Aos::length(cornerpoint_world - centerpoint_world);
         te.m_FrustumCullingCenter.setX(centerpoint_world.getX());
         te.m_FrustumCullingCenter.setY(centerpoint_world.getY());
         te.m_FrustumCullingCenter.setZ(centerpoint_world.getZ());
-        te.m_FrustumCullingRadius = radius;
 
         assert( params.m_NumRenderConstants <= dmRender::MAX_FONT_RENDER_CONSTANTS );
         te.m_NumRenderConstants = params.m_NumRenderConstants;
