@@ -441,3 +441,9 @@ Text {
     -fx-fill: -df-defold-blue-lighter;
   }
 }
+
+.hover-popup {
+  -fx-background-color: -df-background-lighter;
+  -fx-padding: 5px;
+  -fx-border-color: -df-background;
+}

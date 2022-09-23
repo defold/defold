@@ -13,11 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.view
-  (:require [clojure.string :as string]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.label :as fx.label]
+            [cljfx.fx.v-box :as fx.v-box]
+            [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
+            [editor.fxui :as fxui]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
@@ -70,10 +75,10 @@
 (defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
 
 (defn- cursor-range-draw-info [type fill stroke cursor-range]
-  (assert (case type (:range :underline :word) true false))
-  (assert (or (nil? fill) (instance? Paint fill)))
-  (assert (or (nil? stroke) (instance? Paint stroke)))
-  (assert (instance? CursorRange cursor-range))
+  {:pre [(case type (:range :squiggle :underline :word) true false)
+         (or (nil? fill) (instance? Paint fill))
+         (or (nil? stroke) (instance? Paint stroke))
+         (instance? CursorRange cursor-range)]}
   (->CursorRangeDrawInfo type fill stroke cursor-range))
 
 (def ^:private *performance-tracker (atom nil))
@@ -197,6 +202,10 @@
      ["constant" (Color/valueOf "#FFBBFF")]
      ["support.function" (Color/valueOf "#33CCCC")]
      ["support.variable" (Color/valueOf "#FFBBFF")]
+     ["editor.error" (Color/valueOf "#FF6161")]
+     ["editor.warning" (Color/valueOf "#FF9A34")]
+     ["editor.info" (Color/valueOf "#CCCFD3")]
+     ["editor.debug" (Color/valueOf "#3B8CF8")]
      ["name.function" (Color/valueOf "#33CC33")]
      ["parameter.function" (Color/valueOf "#E3A869")]
      ["variable.language" (Color/valueOf "#E066FF")]]))
@@ -251,7 +260,8 @@
               (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [^Rect r rects]
                (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
-      :underline nil)))
+      :underline nil
+      :squiggle nil)))
 
 (defn- stroke-opaque-polyline! [^GraphicsContext gc xs ys]
   ;; The strokePolyLine method slows down considerably when the shape covers a large
@@ -282,7 +292,16 @@
                    (let [sx (.x r)
                          ex (+ sx (.w r))
                          y (+ (.y r) (.h r))]
-                     (.strokeLine gc sx y ex y))))))
+                     (.strokeLine gc sx y ex y)))
+      :squiggle (doseq [^Rect r rects]
+                  (let [sx (.x r)
+                        ex (+ sx (.w r))
+                        y (+ (.y r) (.h r))
+                        old-line-dashes (.getLineDashes gc)]
+                    (doto gc
+                      (.setLineDashes (double-array [2.0 3.0]))
+                      (.strokeLine sx y ex y)
+                      (.setLineDashes old-line-dashes)))))))
 
 (defn- draw-cursor-ranges! [^GraphicsContext gc layout lines cursor-range-draw-infos]
   (let [draw-calls (mapv (fn [^CursorRangeDrawInfo draw-info]
@@ -712,6 +731,10 @@
         execution-marker-frame-row-color (color-lookup color-scheme "editor.execution-marker.frame")
         matching-brace-color (color-lookup color-scheme "editor.matching.brace")
         foreground-color (color-lookup color-scheme "editor.foreground")
+        error-color (color-lookup color-scheme "editor.error")
+        warning-color (color-lookup color-scheme "editor.warning")
+        info-color (color-lookup color-scheme "editor.info")
+        debug-color (color-lookup color-scheme "editor.debug")
         visible-regions-by-type (group-by :type visible-regions)
         active-tab-trigger-scope-ids (into #{}
                                            (keep (fn [tab-trigger-scope-region]
@@ -727,6 +750,16 @@
              visible-matching-braces)
         (map (partial cursor-range-draw-info :underline nil foreground-color)
              (visible-regions-by-type :resource-reference))
+        (map (fn [{:keys [severity] :as region}]
+               (cursor-range-draw-info :squiggle
+                                       nil
+                                       (case severity
+                                         :error error-color
+                                         :warning warning-color
+                                         :information info-color
+                                         :hint debug-color)
+                                       region))
+             (visible-regions-by-type :diagnostic))
         (map (partial make-execution-marker-draw-info execution-marker-current-row-color execution-marker-frame-row-color)
              execution-markers)
         (cond
@@ -1510,8 +1543,9 @@
 
 (defn handle-mouse-released! [view-node ^MouseEvent event]
   (.consume event)
-  (when-some [{:keys [on-click!] :as hovered-region} (:region (get-property view-node :hovered-element))]
-    (on-click! hovered-region event))
+  (when-some [hovered-region (:region (get-property view-node :hovered-element))]
+    (when-some [on-click! (:on-click! hovered-region)]
+      (on-click! hovered-region event)))
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
                    (data/mouse-released (get-property view-node :lines)
@@ -2428,6 +2462,56 @@
         (ui/event-handler e
           (handle-input-method-changed! view-node e))))))
 
+(defmulti hoverable-region-view :type)
+
+(defmethod hoverable-region-view :diagnostic [{:keys [message]}]
+  {:fx/type fx.label/lifecycle
+   :wrap-text true
+   :text (str message)})
+
+(defn- hover-view [canvas {:keys [hovered-element layout lines]}]
+  (let [r ^Rect (first (data/cursor-range-rects layout lines (:region hovered-element)))
+        anchor (.localToScreen canvas (.-x r) (.-y r))]
+    {:fx/type fxui/with-popup
+     :desc {:fx/type fxui/ext-value :value canvas}
+     :showing true
+     :anchor-x (.getX anchor)
+     :anchor-y (.getY anchor)
+     :anchor-location :window-bottom-left
+     :auto-hide true
+     :auto-fix true
+     :hide-on-escape true
+     :consume-auto-hiding-events true
+     :content [{:fx/type fx.v-box/lifecycle
+                :stylesheets [(str (io/resource "dialogs.css"))]
+                :style-class "hover-popup"
+                :max-width 300
+                :children [(assoc (:region hovered-element)
+                             :fx/type hoverable-region-view
+                             :v-box/vgrow :always)]}]}))
+
+(defn- create-hover! [view-node canvas]
+  (let [state (atom nil)
+        refresh (fn refresh []
+                  (g/with-auto-evaluation-context evaluation-context
+                    (let [hovered-element (g/node-value view-node :hovered-element evaluation-context)]
+                      (if (and (= :region (:type hovered-element))
+                               (:hoverable (:region hovered-element)))
+                        (reset! state {:hovered-element hovered-element
+                                       :layout (g/node-value view-node :layout evaluation-context)
+                                       :lines (g/node-value view-node :lines evaluation-context)})
+                        (reset! state nil)))))
+        timer (ui/->timer 10 "hover-code-editor-timer" (fn [_ _] (refresh)))]
+    (fx/mount-renderer state (fx/create-renderer
+                               :error-handler editor.error-reporting/report-exception!
+                               :middleware (comp
+                                             fxui/wrap-dedupe-desc
+                                             (fx/wrap-map-desc #(hover-view canvas %)))))
+    (ui/timer-start! timer)
+    (fn dispose []
+      (ui/timer-stop! timer)
+      (reset! state nil))))
+
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
         app-view (:app-view opts)
@@ -2460,6 +2544,7 @@
         repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time]
                                                            (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                                              (repaint-view! view-node elapsed-time {:cursor-visible? true}))))
+        dispose-hover! (create-hover! view-node canvas)
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
@@ -2545,6 +2630,7 @@
         (ui/on-closed! tab (fn [_]
                              (ui/kill-event-dispatch! canvas)
                              (ui/timer-stop! repainter)
+                             (dispose-hover!)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)
                              (dispose-replace-bar! replace-bar)
