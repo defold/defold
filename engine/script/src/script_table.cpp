@@ -299,7 +299,7 @@ namespace dmScript
         return total_size;
     }
 
-    uint32_t DoCheckTableSize(lua_State* L, int index)
+    uint32_t DoCheckTableSize(lua_State* L, int index, int parent_offset)
     {
         int top = lua_gettop(L);
         (void)top;
@@ -342,8 +342,10 @@ namespace dmScript
 
                 case LUA_TNUMBER:
                 {
-                    int align = ((size + sizeof(float) - 1) & ~(sizeof(float) - 1)) - size;
-                    size += align;
+                    int offset = parent_offset + size;
+                    int aligned_offset = (offset + sizeof(float)-1) & ~(sizeof(float)-1);
+                    int align_size = aligned_offset - offset;
+                    size += align_size;
                     size += sizeof(lua_Number);
                 }
                 break;
@@ -359,8 +361,11 @@ namespace dmScript
                     // subtype
                     size += 1;
 
-                    int align = ((size + sizeof(float) - 1) & ~(sizeof(float) - 1)) - size;
-                    size += align;
+                    int offset = parent_offset + size;
+                    int aligned_offset = (offset + sizeof(float)-1) & ~(sizeof(float)-1);
+                    int align_size = aligned_offset - offset;
+                    size += align_size;
+
 
                     if (IsVector3(L, -1))
                     {
@@ -395,7 +400,7 @@ namespace dmScript
 
                 case LUA_TTABLE:
                 {
-                    size += DoCheckTableSize(L, -1);
+                    size += DoCheckTableSize(L, -1, parent_offset + size);
                 }
                 break;
 
@@ -412,7 +417,8 @@ namespace dmScript
 
     uint32_t CheckTableSize(lua_State* L, int index)
     {
-        return sizeof(TableHeader) + DoCheckTableSize(L, index);
+        uint32_t size = sizeof(TableHeader) + DoCheckTableSize(L, index, 0);
+        return size;
     }
 
     uint32_t DoCheckTable(lua_State* L, const TableHeader& header, const char* original_buffer, char* buffer, uint32_t buffer_size, int index)
@@ -670,6 +676,7 @@ namespace dmScript
 
     uint32_t CheckTable(lua_State* L, char* buffer, uint32_t buffer_size, int index)
     {
+        assert((intptr_t)buffer % 16 == 0);
         if (buffer_size > sizeof(TableHeader)) {
             char* original_buffer = buffer;
 

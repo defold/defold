@@ -18,6 +18,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dlib/dstrings.h>
+#include <dlib/align.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
@@ -2127,7 +2128,7 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(16) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2397,7 +2398,7 @@ TEST_F(dmGuiTest, Bug352)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr((const char*)BUG352_LUA, BUG352_LUA_SIZE));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(16) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
