@@ -80,7 +80,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.7.21"]
+                     [cljfx "1.7.22"]
 
                      [org.openjfx/javafx-base "18"]
                      [org.openjfx/javafx-base "18" :classifier "linux"]
