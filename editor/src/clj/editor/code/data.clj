@@ -2426,7 +2426,8 @@
 
     :else
     (when-some [clickable-region (some (fn [region]
-                                         (when (and (some? (:on-click! region))
+                                         (when (and (or (some? (:on-click! region))
+                                                        (:hoverable region))
                                                     (some #(rect-contains? % x y)
                                                           (cursor-range-rects layout lines region)))
                                            region))

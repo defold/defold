@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.util :as util]
+            [editor.graph-util :as gu]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -102,6 +103,8 @@
       (eager-load self resource))
     (when connect-breakpoints?
       (g/connect self :breakpoints project :breakpoints))
+    (let [workspace (g/node-value project :workspace)]
+      (g/connect workspace :resource->diagnostics self :resource->diagnostics))
     (when additional-load-fn
       (additional-load-fn project self resource))))
 
@@ -111,8 +114,27 @@
               (map data/breakpoint-row))
         regions))
 
+(g/defnk produce-private-regions [private-modified-regions diagnostic-regions private-diagnostics-version-of-modified-regions]
+  (cond
+    ;; we haven't modified regions yet, current regions are diagnostics
+    (nil? private-diagnostics-version-of-modified-regions)
+    diagnostic-regions
+
+    ;; we modified regions of current diagnostics
+    (= (hash diagnostic-regions) private-diagnostics-version-of-modified-regions)
+    private-modified-regions
+
+    ;; we modified regions, but the diagnostics are now different and take precedence
+    :else
+    (let [regions (filterv #(-> % :type (not= :diagnostic)) private-modified-regions)]
+      (vec (sort (into regions diagnostic-regions))))))
+
 (g/defnode CodeEditorResourceNode
   (inherits resource-node/ResourceNode)
+  (input resource->diagnostics g/Any)
+  (output diagnostic-regions g/Any (g/fnk [resource->diagnostics resource]
+                                     (mapv #(assoc % :hoverable true)
+                                           (get resource->diagnostics resource []))))
 
   (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
@@ -121,7 +143,25 @@
             (set (fn [evaluation-context self _old-value _new-value]
                    (ensure-unmodified-lines! self evaluation-context)
                    nil)))
-  (property regions Regions (default []) (dynamic visible (g/constantly false)))
+
+  ;; "Public" property, use it for read/write regions
+  (property regions Regions
+            (value (gu/passthrough private-regions))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [diagnostics-version (hash (g/node-value self :diagnostic-regions evaluation-context))]
+                     [(g/set-property self :private-modified-regions new-value)
+                      (g/set-property self :private-diagnostics-version-of-modified-regions diagnostics-version)])))
+            (dynamic visible (g/constantly false)))
+  ;; "Private" regions-related properties
+  ;; We want diagnostics application to be non-undoable, but we also want
+  ;; to adjust diagnostic regions while we are typing.
+  ;; The solution is:
+  ;; - make diagnostics as an input from a graph without history (workspace)
+  ;; - record diagnostics version (i.e. hash) when changing regions and then
+  ;;   compare it in regions output to current diagnostics version.
+  (property private-modified-regions Regions (default []) (dynamic visible (g/constantly false)))
+  (property private-diagnostics-version-of-modified-regions g/Any (dynamic visible (g/constantly false)))
+  (output private-regions Regions :cached produce-private-regions)
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
   (output completions g/Any (g/constantly {}))
