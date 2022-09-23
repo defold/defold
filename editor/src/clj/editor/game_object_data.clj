@@ -8,7 +8,6 @@
             [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.properties :as properties]
-            [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [internal.graph :as ig]
@@ -21,11 +20,8 @@
   [[:build-targets :embedded-component-build-targets]])
 
 (defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data ext->resource-type project]
-  (let [embedded-component-ext (:type embedded-component-resource-data)
-        embedded-component-write-fn (:write-fn (ext->resource-type embedded-component-ext))
-        embedded-component-pb-map (:data embedded-component-resource-data)
-        embedded-component-pb-string (embedded-component-write-fn embedded-component-pb-map)
-        embedded-resource (project/make-embedded-resource project embedded-component-ext embedded-component-pb-string)
+  (let [embedded-component-pb-string (collection-string-data/string-encoded-data ext->resource-type embedded-component-resource-data)
+        embedded-resource (project/make-embedded-resource project (:type embedded-component-resource-data) embedded-component-pb-string)
         node-type (project/resource-node-type embedded-resource)
         graph (g/node-id->graph-id host-node-id)]
     (g/make-nodes graph [embedded-resource-node-id [node-type :resource embedded-resource]]
@@ -54,10 +50,10 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn any-instance-desc->transform-matrix
-  ^Matrix4d [{:keys [position rotation scale3]}]
-  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  (math/clj->mat4 position rotation (or scale3 1.0)))
+(defn- any-component-desc->transform-matrix
+  ^Matrix4d [{:keys [position rotation scale]}]
+  ;; GameObject$ComponentDesc, or GameObject$EmbeddedInstanceDesc in map format.
+  (math/clj->mat4 position rotation (or scale 1.0)))
 
 (defn prototype-desc->referenced-component-proj-paths [prototype-desc]
   (eduction
@@ -105,7 +101,7 @@
 
 (defn component-desc->component-instance-data [component-desc proj-path->build-target]
   (let [build-resource (-> component-desc :component proj-path->build-target :resource)
-        transform-matrix (any-instance-desc->transform-matrix component-desc)
+        transform-matrix (any-component-desc->transform-matrix component-desc)
         proj-path->source-resource (comp proj-path->build-target :resource :resource)
         go-props-with-source-resources (mapv #(properties/property-desc->go-prop % proj-path->source-resource) (:properties component-desc))
         component-desc (assoc component-desc :properties go-props-with-source-resources)]
@@ -113,7 +109,7 @@
 
 (defn embedded-component-desc->component-instance-data [embedded-component-desc embedded-component-desc->build-resource]
   (let [build-resource (embedded-component-desc->build-resource embedded-component-desc)
-        transform-matrix (any-instance-desc->transform-matrix embedded-component-desc)]
+        transform-matrix (any-component-desc->transform-matrix embedded-component-desc)]
     (game-object-common/embedded-component-instance-data build-resource embedded-component-desc transform-matrix)))
 
 (defn prototype-desc->component-instance-datas [prototype-desc embedded-component-desc->build-resource proj-path->build-target]
@@ -219,11 +215,12 @@
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any produce-scene))
 
-(defn- load-game-object-data [_project self resource pb-map]
-  (let [workspace (resource/workspace resource)
-        ext->resource-type (workspace/get-resource-type-map workspace)
-        prototype-desc (collection-string-data/string-decode-game-object-data ext->resource-type pb-map)]
-    (g/set-property self :prototype-desc prototype-desc)))
+(defn- sanitize-game-object-data [workspace prototype-desc]
+  (let [ext->resource-type (workspace/get-resource-type-map workspace)]
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->resource-type :embed-data-as-maps)))
+
+(defn- load-game-object-data [_project self _resource prototype-desc]
+  (g/set-property self :prototype-desc prototype-desc))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -232,6 +229,7 @@
     :node-type GameObjectDataNode
     :ddf-type GameObject$PrototypeDesc
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn workspace)
+    :sanitize-fn (partial sanitize-game-object-data workspace)
     :load-fn load-game-object-data
     :auto-connect-save-data? false
     :icon game-object-common/game-object-icon

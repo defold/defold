@@ -611,7 +611,8 @@
       :property-type-vector3 (parse-vec go-prop-value 3)
       :property-type-vector4 (parse-vec go-prop-value 4)
       :property-type-quat (parse-quat-euler go-prop-value)
-      :property-type-hash (or (proj-path->resource go-prop-value) go-prop-value))))
+      :property-type-hash (or (proj-path->resource go-prop-value) go-prop-value)
+      go-prop-value)))
 
 (defn property-desc->go-prop [property-desc proj-path->resource]
   (assoc property-desc :clj-value (property-desc->clj-value property-desc proj-path->resource)))

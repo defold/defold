@@ -32,11 +32,15 @@
         string-decode-embedded-instances-data (partial mapv string-decode-embedded-instance-data)]
     (update string-encoded-collection-data :embedded-instances string-decode-embedded-instances-data)))
 
+(defn string-encoded-data [ext->resource-type string-decoded-pb-map]
+  (let [resource-ext (:type string-decoded-pb-map)
+        resource-type (ext->resource-type resource-ext)
+        resource-write-fn (:write-fn resource-type)]
+    (resource-write-fn (:data string-decoded-pb-map))))
+
 (defn string-encode-embedded-component-data [ext->resource-type string-decoded-embedded-component-data]
-  (let [component-ext (:type string-decoded-embedded-component-data)
-        component-resource-type (ext->resource-type component-ext)
-        component-data->string (:write-fn component-resource-type)]
-    (update string-decoded-embedded-component-data :data component-data->string)))
+  (assoc string-decoded-embedded-component-data
+    :data (string-encoded-data ext->resource-type string-decoded-embedded-component-data)))
 
 (defn string-encode-game-object-data [ext->resource-type string-decoded-game-object-data]
   (let [string-encode-embedded-component-data (partial string-encode-embedded-component-data ext->resource-type)

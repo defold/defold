@@ -15,6 +15,7 @@
 (ns editor.collection-common
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.game-object-common :as game-object-common]
             [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -23,7 +24,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [java.io StringReader]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
@@ -31,6 +32,66 @@
 
 (def collection-icon "icons/32/Icons_09-Collection.png")
 (def path-sep "/")
+
+(defn- read-scale3-or-scale [{:keys [scale3 scale] :as _any-instance-desc}]
+  ;; scale is the legacy uniform scale
+  ;; check if scale3 has default value and if so, use legacy uniform scale
+  (if (and (protobuf/default-read-scale-value? scale3)
+           (some? scale)
+           (not (zero? scale)))
+    [scale scale scale]
+    scale3))
+
+(defn- uniform->non-uniform-scale [any-instance-desc]
+  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  (-> any-instance-desc
+      (assoc :scale3 (read-scale3-or-scale any-instance-desc))
+      (dissoc :scale)))
+
+(defn- sanitize-any-instance-desc [any-instance-desc property-descs-path]
+  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  (-> any-instance-desc
+      (uniform->non-uniform-scale)
+      (game-object-common/sanitize-property-descs-at-path property-descs-path)))
+
+(defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->resource-type embed-data-handling]
+  ;; GameObject$EmbeddedInstanceDesc in map format.
+  (try
+    (let [unsanitized-prototype-desc (protobuf/str->map GameObject$PrototypeDesc (:data embedded-instance-desc))
+          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->resource-type embed-data-handling)]
+      (assoc embedded-instance-desc
+        :data (case embed-data-handling
+                :embed-data-as-maps sanitized-prototype-desc
+                :embed-data-as-strings (protobuf/map->str GameObject$PrototypeDesc sanitized-prototype-desc))))
+    (catch Exception error
+      ;; Leave unsanitized.
+      (log/warn :msg "Failed to sanitize embedded game object" :exception error)
+      embedded-instance-desc)))
+
+(defn- sanitize-instance-desc [instance-desc]
+  ;; GameObject$InstanceDesc in map format.
+  (-> instance-desc
+      (sanitize-any-instance-desc [:component-properties :properties])))
+
+(defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->resource-type embed-data-handling]
+  ;; GameObject$EmbeddedInstanceDesc in map format.
+  (cond-> (sanitize-any-instance-desc embedded-instance-desc [:component-properties :properties])
+          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->resource-type embed-data-handling)))
+
+(defn- sanitize-collection-instance-desc [collection-instance-desc]
+  ;; GameObject$CollectionInstanceDesc in map format.
+  (-> collection-instance-desc
+      (sanitize-any-instance-desc [:instance-properties :properties :properties])))
+
+(defn sanitize-collection-desc [collection-desc ext->resource-type embed-data-handling]
+  {:pre [(map? collection-desc)
+         (ifn? ext->resource-type)
+         (case embed-data-handling (:embed-data-as-maps :embed-data-as-strings) true false)]}
+  ;; GameObject$CollectionDesc in map format.
+  (-> collection-desc
+      (update :instances (partial mapv sanitize-instance-desc))
+      (update :embedded-instances (partial mapv #(sanitize-embedded-instance-desc % ext->resource-type embed-data-handling)))
+      (update :collection-instances (partial mapv sanitize-collection-instance-desc))))
 
 (defn make-collection-dependencies-fn [workspace]
   ;; TODO: This should probably also consider resource property overrides?

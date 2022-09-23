@@ -34,11 +34,9 @@
             [editor.sound :as sound]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util]
-            [service.log :as log])
+            [internal.util :as util])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
-           [java.io StringReader]
            [javax.vecmath Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -97,18 +95,13 @@
      :icon ""
      :label ""}))
 
-(def ^:private identity-transform-properties
-  {:position [(float 0.0) (float 0.0) (float 0.0)]
-   :rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
-   :scale [(float 1.0) (float 1.0) (float 1.0)]})
-
 (defn- supported-transform-properties [component-resource-type]
   (assert (some? component-resource-type))
   (if-not (contains? (:tags component-resource-type) :component)
     #{}
     (let [supported-properties (-> component-resource-type :tag-opts :component :transform-properties)]
       (assert (set? supported-properties))
-      (assert (every? (partial contains? identity-transform-properties) supported-properties))
+      (assert (every? (partial contains? game-object-common/identity-transform-properties) supported-properties))
       supported-properties)))
 
 (defn- select-transform-properties
@@ -116,11 +109,11 @@
   Unsupported properties will be initialized to the identity transform.
   If the resource type is unknown to us, keep all transform properties."
   [component-resource-type component]
-  (merge identity-transform-properties
+  (merge game-object-common/identity-transform-properties
          (select-keys component
                       (if (some? component-resource-type)
                         (supported-transform-properties component-resource-type)
-                        (keys identity-transform-properties)))))
+                        (keys game-object-common/identity-transform-properties)))))
 
 (g/defnk produce-component-transform-properties
   "Determines which transform properties we allow the user to edit using the
@@ -136,7 +129,7 @@
   (assert (set? transform-properties))
   (-> _declared-properties
       (update :properties (fn [properties]
-                            (let [stripped-transform-properties (remove transform-properties (keys identity-transform-properties))
+                            (let [stripped-transform-properties (remove transform-properties (keys game-object-common/identity-transform-properties))
                                   component-node-properties (apply dissoc properties stripped-transform-properties)
                                   source-resource-properties (:properties source-properties)]
                               (merge-with (fn [_ _]
@@ -366,18 +359,8 @@
   {:components ref-ddf
    :embedded-components embed-ddf})
 
-(def ^:private default-scale-value (:scale identity-transform-properties))
-
-(defn- strip-default-scale-from-component-desc [component-desc]
-  ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
-  (let [scale (:scale component-desc)]
-    (if (or (= default-scale-value scale)
-            (protobuf/default-read-scale-value? scale))
-      (dissoc component-desc :scale)
-      component-desc)))
-
 (defn- strip-default-scale-from-component-descs [component-descs]
-  (mapv strip-default-scale-from-component-desc component-descs))
+  (mapv game-object-common/strip-default-scale-from-component-desc component-descs))
 
 (defn strip-default-scale-from-components-in-prototype-desc [prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
@@ -510,7 +493,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Component")
-        (add-component go-id resource id identity-transform-properties [] select-fn)))))
+        (add-component go-id resource id game-object-common/identity-transform-properties [] select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
@@ -556,7 +539,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id identity-transform-properties select-fn)))))
+      (add-embedded-component self project (:ext component-type) template id game-object-common/identity-transform-properties select-fn)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -603,61 +586,10 @@
                 transform-properties (select-transform-properties resource-type embedded)]]
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
-(defn sanitize-property-descs-at-path [desc property-descs-path]
-  ;; GameObject$ComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  ;; The supplied path should lead up to a seq of GameObject$PropertyDescs in map format.
-  (if-some [property-descs (not-empty (get-in desc property-descs-path))]
-    (assoc-in desc property-descs-path (mapv properties/sanitize-property-desc property-descs))
-    desc))
-
-(defn- sanitize-referenced-component [component-desc]
-  ;; GameObject$ComponentDesc in map format.
-  (-> component-desc
-      (sanitize-property-descs-at-path [:properties])
-      (dissoc :property-decls) ; Only used in built data by the runtime.
-      (strip-default-scale-from-component-desc)))
-
-(defn- sanitize-embedded-component-data [embedded-component-desc resource-type-map]
-  ;; GameObject$EmbeddedComponentDesc in map format.
-  (let [component-ext (:type embedded-component-desc)
-        resource-type (resource-type-map component-ext)
-        tag-opts (:tag-opts resource-type)
-        sanitize-fn (:sanitize-fn resource-type)
-        sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))]
-    (try
-      (let [unsanitized-data (when (or sanitize-fn sanitize-embedded-component-fn)
-                               (let [read-raw-fn (:read-raw-fn resource-type)
-                                     unsanitized-data-string (:data embedded-component-desc)]
-                                 (with-open [reader (StringReader. unsanitized-data-string)]
-                                   (read-raw-fn reader))))
-            sanitized-data (if sanitize-fn
-                             (sanitize-fn unsanitized-data)
-                             unsanitized-data)
-            [embedded-component-desc sanitized-data] (if sanitize-embedded-component-fn
-                                                       (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
-                                                       [embedded-component-desc sanitized-data])]
-        (if (= unsanitized-data sanitized-data)
-          embedded-component-desc
-          (let [write-fn (:write-fn resource-type)
-                sanitized-data-string (write-fn sanitized-data)]
-            (assoc embedded-component-desc :data sanitized-data-string))))
-      (catch Exception e
-        ;; Leave unsanitized.
-        (log/warn :msg (str "Failed to sanitize embedded component of type: " (or component-ext "nil")) :exception e)
-        embedded-component-desc))))
-
-(defn- sanitize-embedded-component [resource-type-map embedded-component-desc]
-  ;; GameObject$EmbeddedComponentDesc in map format.
-  (-> embedded-component-desc
-      (sanitize-embedded-component-data resource-type-map)
-      (strip-default-scale-from-component-desc)))
-
-(defn sanitize-game-object [workspace prototype-desc]
+(defn- sanitize-game-object [workspace prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
-  (let [resource-type-map (workspace/get-resource-type-map workspace)]
-    (-> prototype-desc
-        (update :components (partial mapv sanitize-referenced-component))
-        (update :embedded-components (partial mapv (partial sanitize-embedded-component resource-type-map))))))
+  (let [ext->resource-type (workspace/get-resource-type-map workspace)]
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->resource-type :embed-data-as-strings)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

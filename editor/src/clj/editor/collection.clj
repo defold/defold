@@ -35,11 +35,9 @@
             [editor.scene :as scene]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.cache :as c]
-            [service.log :as log])
+            [internal.cache :as c])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [internal.graph.types Arc]
-           [java.io StringReader]))
+           [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
@@ -728,64 +726,9 @@
       (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
                                (:rotation coll-instance) (:scale3 coll-instance) (:instance-properties coll-instance)))))
 
-(defn- read-scale3-or-scale
-  [{:keys [scale3 scale] :as pb-map}]
-  ;; scale is the legacy uniform scale
-  ;; check if scale3 has default value and if so, use legacy uniform scale
-  (if (and (protobuf/default-read-scale-value? scale3)
-           (some? scale)
-           (not (zero? scale)))
-    [scale scale scale]
-    scale3))
-
-(defn- uniform->non-uniform-scale [any-instance-desc]
-  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  (-> any-instance-desc
-      (assoc :scale3 (read-scale3-or-scale any-instance-desc))
-      (dissoc :scale)))
-
-(defn- sanitize-instance-data [any-instance-desc property-descs-path]
-  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  (-> any-instance-desc
-      (uniform->non-uniform-scale)
-      (game-object/sanitize-property-descs-at-path property-descs-path)))
-
-(defn- sanitize-embedded-game-object-data [embedded-instance-desc resource-type-map]
-  ;; GameObject$EmbeddedInstanceDesc in map format.
-  (let [{:keys [read-fn write-fn]} (resource-type-map "go")]
-    (try
-      (let [data (:data embedded-instance-desc)
-            sanitized-data (with-open [reader (StringReader. data)]
-                             (write-fn (read-fn reader)))]
-        (assoc embedded-instance-desc :data sanitized-data))
-      (catch Exception e
-        ;; Leave unsanitized.
-        (log/warn :msg "Failed to sanitize embedded game object" :exception e)
-        embedded-instance-desc))))
-
-(defn- sanitize-referenced-game-object-instance [instance-desc]
-  ;; GameObject$InstanceDesc in map format.
-  (-> instance-desc
-      (sanitize-instance-data [:component-properties :properties])))
-
-(defn- sanitize-embedded-game-object-instance [embedded-instance-desc resource-type-map]
-  ;; GameObject$EmbeddedInstanceDesc in map format.
-  (-> embedded-instance-desc
-      (sanitize-instance-data [:component-properties :properties])
-      (sanitize-embedded-game-object-data resource-type-map)))
-
-(defn- sanitize-referenced-collection-instance [collection-instance-desc]
-  ;; GameObject$CollectionInstanceDesc in map format.
-  (-> collection-instance-desc
-      (sanitize-instance-data [:instance-properties :properties :properties])))
-
 (defn- sanitize-collection [workspace collection-desc]
-  ;; GameObject$CollectionDesc in map format.
-  (let [resource-type-map (workspace/get-resource-type-map workspace)]
-    (-> collection-desc
-        (update :instances (partial mapv sanitize-referenced-game-object-instance))
-        (update :embedded-instances (partial mapv #(sanitize-embedded-game-object-instance % resource-type-map)))
-        (update :collection-instances (partial mapv sanitize-referenced-collection-instance)))))
+  (let [ext->resource-type (workspace/get-resource-type-map workspace)]
+    (collection-common/sanitize-collection-desc collection-desc ext->resource-type :embed-data-as-strings)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

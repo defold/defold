@@ -22,12 +22,14 @@
             [editor.game-object-data :as game-object-data]
             [editor.geom :as geom]
             [editor.graph-util :as gu]
-            [editor.resource :as resource]
+            [editor.math :as math]
+            [editor.protobuf :as protobuf]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]))
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
+           [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -42,10 +44,19 @@
             referenced-component-build-targets
             resource-property-build-targets)))
 
+(defn- any-instance-desc->transform-matrix
+  ^Matrix4d [{:keys [position rotation scale3] :as any-instance-desc}]
+  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  (let [corrected-scale (if (or (nil? scale3)
+                                (protobuf/default-read-scale-value? scale3))
+                          (or (:scale any-instance-desc) 1.0) ; Legacy file format - use uniform scale.
+                          scale3)]
+    (math/clj->mat4 position rotation corrected-scale)))
+
 (defn- instance-desc->game-object-instance-build-target [instance-desc game-object-build-target proj-path->build-target]
   ;; GameObject$InstanceDesc in map format.
   (let [build-resource (:resource game-object-build-target)
-        transform-matrix (game-object-data/any-instance-desc->transform-matrix instance-desc)]
+        transform-matrix (any-instance-desc->transform-matrix instance-desc)]
     (collection-common/game-object-instance-build-target build-resource instance-desc transform-matrix game-object-build-target proj-path->build-target)))
 
 (g/defnk produce-referenced-game-object-instance-build-targets [_node-id collection-desc proj-path->build-target resource]
@@ -65,10 +76,10 @@
   (let [prototype-desc (:data embedded-instance-desc)
         component-instance-datas (game-object-data/prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target)
         embedded-game-object-pb-string (collection-string-data/string-encode-game-object-data ext->resource-type prototype-desc)
-        embedded-game-object-resource (workspace/make-embedded-resource workspace "go" embedded-game-object-pb-string)
+        embedded-game-object-resource (workspace/make-embedded-resource workspace "go" embedded-game-object-pb-string) ; Content determines hash for merging with embedded components in other .go files.
         embedded-game-object-build-resource (workspace/make-build-resource embedded-game-object-resource)
         embedded-game-object-build-target (game-object-common/game-object-build-target embedded-game-object-build-resource collection-node-id component-instance-datas component-build-targets)
-        transform-matrix (game-object-data/any-instance-desc->transform-matrix embedded-instance-desc)]
+        transform-matrix (any-instance-desc->transform-matrix embedded-instance-desc)]
     (collection-common/game-object-instance-build-target embedded-game-object-build-resource embedded-instance-desc transform-matrix embedded-game-object-build-target proj-path->build-target)))
 
 (g/defnk produce-embedded-game-object-instance-build-targets [_node-id collection-desc embedded-component-resource-data->index embedded-component-build-targets referenced-component-build-targets proj-path->build-target]
@@ -120,7 +131,7 @@
               collection-instance-build-targets
               (mapv (fn [collection-instance-desc]
                       (let [collection-instance-id (:id collection-instance-desc)
-                            transform-matrix (game-object-data/any-instance-desc->transform-matrix collection-instance-desc)
+                            transform-matrix (any-instance-desc->transform-matrix collection-instance-desc)
                             instance-property-descs (:instance-properties collection-instance-desc)
                             referenced-collection-build-target (proj-path->build-target (:collection collection-instance-desc))]
                         (collection-common/collection-instance-build-target collection-instance-id transform-matrix instance-property-descs referenced-collection-build-target proj-path->build-target)))
@@ -350,11 +361,12 @@
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any produce-scene))
 
-(defn- load-collection-data [_project self resource pb-map]
-  (let [workspace (resource/workspace resource)
-        ext->resource-type (workspace/get-resource-type-map workspace)
-        collection-desc (collection-string-data/string-decode-collection-data ext->resource-type pb-map)]
-    (g/set-property self :collection-desc collection-desc)))
+(defn- sanitize-collection-data [workspace collection-desc]
+  (let [ext->resource-type (workspace/get-resource-type-map workspace)]
+    (collection-common/sanitize-collection-desc collection-desc ext->resource-type :embed-data-as-maps)))
+
+(defn- load-collection-data [_project self _resource collection-desc]
+  (g/set-property self :collection-desc collection-desc))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -363,6 +375,7 @@
     :node-type CollectionDataNode
     :ddf-type GameObject$CollectionDesc
     :dependencies-fn (collection-common/make-collection-dependencies-fn workspace)
+    :sanitize-fn (partial sanitize-collection-data workspace)
     :load-fn load-collection-data
     :auto-connect-save-data? false
     :icon collection-common/collection-icon
