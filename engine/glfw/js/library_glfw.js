@@ -522,10 +522,12 @@ var LibraryGLFW = {
     },
 
     onPointerLockEventChange: function(event) {
-      GLFW.isPointerLocked = document["pointerLockElement"] ||
+      var pointerLockElement = document["pointerLockElement"] ||
                             document["mozPointerLockElement"] ||
                             document["webkitIsPointerLockElement"] ||
                             document["msIsPointerLockElement"];
+      GLFW.isPointerLocked = !!pointerLockElement;
+
       if (!GLFW.isPointerLocked) {
         document.removeEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
         document.removeEventListener('mozpointerlockchange', GLFW.onPointerLockEventChange, true);
@@ -534,23 +536,26 @@ var LibraryGLFW = {
       }
     },
 
-    requestPointerLock: function() {
-      element = element || Module["fullScreenContainer"] || Module["canvas"];
+    requestPointerLock: function(element) {
+      element = element || Module["canvas"];
       if (!element) {
         return;
       }
 
-      document.addEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
-      document.addEventListener('mozpointerlockchange', GLFW.onPointerLockEventChange, true);
-      document.addEventListener('webkitpointerlockchange', GLFW.onPointerLockEventChange, true);
-      document.addEventListener('mspointerlockchange', GLFW.onPointerLockEventChange, true);
+      if (!GLFW.isPointerLocked)
+      {
+        document.addEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+        document.addEventListener('mozpointerlockchange', GLFW.onPointerLockEventChange, true);
+        document.addEventListener('webkitpointerlockchange', GLFW.onPointerLockEventChange, true);
+        document.addEventListener('mspointerlockchange', GLFW.onPointerLockEventChange, true);
 
-      var RPL = element.requestPointerLock ||
-                element.mozRequestPointerLock ||
-                element.webkitRequestPointerLock ||
-                element.msRequestPointerLock ||
-          (function() {});
-        RPL.apply(element, []);
+        var RPL = element.requestPointerLock ||
+                  element.mozRequestPointerLock ||
+                  element.webkitRequestPointerLock ||
+                  element.msRequestPointerLock ||
+            (function() {});
+          RPL.apply(element, []);
+      }
     },
 
     cancelPointerLock: function() {
@@ -893,7 +898,7 @@ var LibraryGLFW = {
   },
 
   glfwGetMouseLocked: function() {
-    return GLFW.isPointerLocked;
+    return GLFW.isPointerLocked ? 1 : 0;
   },
 
   glfwSetKeyCallback: function(cbfun) {
@@ -1062,10 +1067,19 @@ var LibraryGLFW = {
   /* Enable/disable functions */
   glfwEnable: function(token) {
     GLFW.params[token] = true;
+
+    if (token == 0x00030001) // GLFW_MOUSE_CURSOR)
+    {
+      GLFW.cancelPointerLock();
+    }
   },
 
   glfwDisable: function(token) {
     GLFW.params[token] = false;
+    if (token == 0x00030001) // GLFW_MOUSE_CURSOR)
+    {
+      GLFW.requestPointerLock();
+    }
   },
 
   /* Image/texture I/O support */
