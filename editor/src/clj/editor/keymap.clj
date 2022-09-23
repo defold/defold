@@ -30,7 +30,7 @@
   ;; of mistake.
   ;; Note that specifying Shortcut key (which is Meta on mac and Ctrl on windows
   ;; and linux) is not allowed.
-  {:macos   [["A" :add]
+  {:macos  [["A" :add]
             ["Alt+Backspace" :delete-prev-word]
             ["Alt+Delete" :delete-next-word]
             ["Alt+Down" :end-of-line]

@@ -528,6 +528,7 @@ ordinary paths."
   (property view-types g/Any)
   (property resource-types g/Any)
   (property snapshot-cache g/Any (default {}))
+  (property resource->diagnostics g/Any (default {})) ;; a map from resources to sorted diagnostic ranges
   (property build-settings g/Any)
 
   (output resource-tree FileResource :cached produce-resource-tree)
