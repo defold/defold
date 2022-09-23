@@ -600,6 +600,7 @@ ordinary paths."
   (property resource-types g/Any)
   (property resource-types-non-editable g/Any)
   (property snapshot-cache g/Any (default {}))
+  (property resource->diagnostics g/Any (default {})) ;; a map from resources to sorted diagnostic ranges
   (property build-settings g/Any)
   (property editable-proj-path? g/Any)
 

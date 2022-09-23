@@ -2,12 +2,14 @@
   (:require [clojure.main :as m]
             [clojure.string :as str]
             [dynamo.graph :as g]
+            editor.code.data
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [vlaaad.reveal :as r]
             [internal.system :as is])
   (:import [clojure.lang IRef]
            [editor.resource FileResource ZipResource]
+           [editor.code.data Cursor CursorRange]
            [internal.graph.types Endpoint]
            [javafx.scene Parent]))
 
@@ -162,6 +164,28 @@
     (r/raw-string "#resource/zip" {:fill :object})
     r/separator
     (r/stream (resource/proj-path resource))))
+
+(r/defstream Cursor [{:keys [row col]}]
+  (r/horizontal
+    (r/raw-string "#code/cursor [" {:fill :object})
+    (r/stream row)
+    r/separator
+    (r/stream col)
+    (r/raw-string "]" {:fill :object})))
+
+(r/defstream CursorRange [{:keys [from to] :as range}]
+  (r/horizontal
+    (r/raw-string "#code/range [" {:fill :object})
+    (apply
+      r/vertical
+      (r/horizontal
+        (r/stream ((juxt :row :col) from))
+        r/separator
+        (r/stream ((juxt :row :col) to)))
+      (let [rest (dissoc range :from :to)]
+        (when (seq rest)
+          [(r/vertically (map r/horizontally rest))])))
+    (r/raw-string "]" {:fill :object})))
 
 (r/defaction ::javafx:children [x]
   (when (instance? Parent x)
