@@ -46,6 +46,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:const defold-build-server-url (get-in connection-properties [:native-extensions :build-server-url]))
+(def ^:const defold-build-server-headers "")
 (def ^:const connect-timeout-ms (* 30 1000))
 (def ^:const read-timeout-ms (* 10 60 1000))
 
@@ -223,7 +224,7 @@
         ne-cache-info))
 
 (defn- build-engine-archive ^File
-  [server-url extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
+  [server-url server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
   ;; NOTE:
   ;; sdk-version is likely to be nil unless you're running a bundled editor.
   ;; In this case things will only work correctly if you're running a local
@@ -251,6 +252,10 @@
         (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info)))))
     (if (and (not-empty extender-username) (not-empty extender-password))
         (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes (str extender-username ":" extender-password))))))
+    ; SPLIT SERVER HEADERS
+    ; OR EVEN BETTER USE ExtenderClient.build() from bob.jar and get rid of most of this function?
+
+
     (with-open [form (FormDataMultiPart.)]
       ; upload the file to the server, basically telling it what we are sending (and what we aren't)
       (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes ^String (json/write-str {:files ne-cache-info})))))
@@ -270,6 +275,10 @@
 (defn get-build-server-url
   ^String [prefs]
   (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
+
+(defn get-build-server-headers
+  ^String [prefs]
+  (prefs/get-prefs prefs "extensions-server-headers" defold-build-server-headers))
 
 ;; Note: When we do bundling for Android via the editor, we need add
 ;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
@@ -334,7 +343,7 @@
   (not (empty? (merge (extension-roots project evaluation-context)
                       (global-resource-nodes-by-upload-path project evaluation-context)))))
 
-(defn get-engine-archive [project evaluation-context platform build-server-url]
+(defn get-engine-archive [project evaluation-context platform build-server-url build-server-headers]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
     (let [extender-platform (get-in extender-platforms [platform :platform])
@@ -347,6 +356,6 @@
           key (cache-key extender-platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)) evaluation-context)]
       (if-let [cached-archive (cached-engine-archive cache-dir extender-platform key)]
         {:id {:type :custom :version key} :cached true :engine-archive cached-archive :extender-platform extender-platform}
-        (let [temp-archive (build-engine-archive build-server-url extender-platform sdk-version resource-nodes-by-upload-path evaluation-context)
+        (let [temp-archive (build-engine-archive build-server-url build-server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context)
               engine-archive (cache-engine-archive! cache-dir extender-platform key temp-archive)]
           {:id {:type :custom :version key} :engine-archive engine-archive :extender-platform extender-platform})))))

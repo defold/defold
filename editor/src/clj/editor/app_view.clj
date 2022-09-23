@@ -791,6 +791,7 @@
         (fn start-engine-build! []
           (assert (ui/on-ui-thread?))
           (cancel-engine-build!)
+          (println "START ENGINE BUILD")
           (when engine?
             (let [evaluation-context (g/make-evaluation-context)
                   platform (engine/current-platform)]
@@ -932,6 +933,7 @@
     ;; soon as they can.
     (assert (not @build-in-progress-atom))
     (reset! build-in-progress-atom true)
+    (println "ASYNC BUILD")
     (phase-1-run-pre-build-hook!)))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
