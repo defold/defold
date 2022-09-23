@@ -521,11 +521,29 @@ var LibraryGLFW = {
       GLFW.refreshJoysticks(true);
     },
 
+    onPointerLockEventChange: function(event) {
+      GLFW.isPointerLocked = document["pointerLockElement"] ||
+                            document["mozPointerLockElement"] ||
+                            document["webkitIsPointerLockElement"] ||
+                            document["msIsPointerLockElement"];
+      if (!GLFW.isPointerLocked) {
+        document.removeEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+        document.removeEventListener('mozpointerlockchange', GLFW.onPointerLockEventChange, true);
+        document.removeEventListener('webkitpointerlockchange', GLFW.onPointerLockEventChange, true);
+        document.removeEventListener('mspointerlockchange', GLFW.onPointerLockEventChange, true);
+      }
+    },
+
     requestPointerLock: function() {
       element = element || Module["fullScreenContainer"] || Module["canvas"];
       if (!element) {
         return;
       }
+
+      document.addEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+      document.addEventListener('mozpointerlockchange', GLFW.onPointerLockEventChange, true);
+      document.addEventListener('webkitpointerlockchange', GLFW.onPointerLockEventChange, true);
+      document.addEventListener('mspointerlockchange', GLFW.onPointerLockEventChange, true);
 
       var RPL = element.requestPointerLock ||
                 element.mozRequestPointerLock ||
@@ -875,8 +893,7 @@ var LibraryGLFW = {
   },
 
   glfwGetMouseLocked: function() {
-    // If it's not visible, it's locked, hence the negation
-    return !GLFW.params[0x00030001] // GLFW_MOUSE_CURSOR
+    return GLFW.isPointerLocked;
   },
 
   glfwSetKeyCallback: function(cbfun) {
