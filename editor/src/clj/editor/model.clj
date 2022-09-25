@@ -51,7 +51,7 @@
                           [])
         anim-ids-set (:animation-ids animation-set-info)
         is-single-anim (or (= 0 (count animation-set))
-                           (animation-set/is-animation-set? animations-resource))]
+                           (not (animation-set/is-animation-set? animations-resource)))]
     (if is-single-anim
       anim-ids-single
       anim-ids-set)))
