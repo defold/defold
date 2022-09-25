@@ -15,6 +15,7 @@
 (ns editor.resource-types
   (:require [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
+            [editor.app-manifest :as app-manifest]
             [editor.atlas :as atlas]
             [editor.buffer :as buffer]
             [editor.camera-editor :as camera]
@@ -56,6 +57,7 @@
   (g/transact
     (concat
       (animation-set/register-resource-types workspace)
+      (app-manifest/register-resource-types workspace)
       (atlas/register-resource-types workspace)
       (buffer/register-resource-types workspace)
       (camera/register-resource-types workspace)

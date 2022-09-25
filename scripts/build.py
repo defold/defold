@@ -1548,11 +1548,11 @@ class Configuration(object):
         key.set_contents_from_string(json.dumps({'version': self.version,
                                                  'sha1' : release_sha1}))
 
-        # Editor update-v3.json
-        key_v3 = bucket.new_key('editor2/channels/%s/update-v3.json' % self.channel)
-        key_v3.content_type = 'application/json'
-        self._log("Updating channel '%s' for update-v3.json: %s" % (self.channel, key_v3))
-        key_v3.set_contents_from_string(json.dumps({'sha1': release_sha1}))
+        # Editor update-v4.json
+        key_v4 = bucket.new_key('editor2/channels/%s/update-v4.json' % self.channel)
+        key_v4.content_type = 'application/json'
+        self._log("Updating channel '%s' for update-v4.json: %s" % (self.channel, key_v4))
+        key_v4.set_contents_from_string(json.dumps({'sha1': release_sha1}))
 
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
         # Used by www.defold.com/download

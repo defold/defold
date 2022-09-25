@@ -322,40 +322,121 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    static void ApplyStencilTest(HRenderContext render_context, const RenderObject* ro)
+    // This function will compare the values in ps_orig and ps_now and reset the render state that is different between them
+    // It is expected that the first parameter is the "default" state, i.e the values from that pipeline will be used
+    static void ResetRenderStateIfChanged(dmGraphics::HContext graphics_context, dmGraphics::PipelineState ps_orig, dmGraphics::PipelineState ps_now)
     {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        const StencilTestParams& stp = ro->m_StencilTestParams;
-        if (stp.m_ClearBuffer)
-        {
-            if (render_context->m_StencilBufferCleared)
-            {
-                // render.clear command will set context m_StencilBufferCleared to 1 if stencil clear flag is set.
-                // We skip clear and reset context m_StencilBufferCleared to 0, indicating that the stencil is no longer cleared.
-                // Concecutive calls with m_ClearBuffer option will result in a clear until render.clear is called with stencil clear flag set.
-                render_context->m_StencilBufferCleared = 0;
-            }
-            else
-            {
-                dmGraphics::SetStencilMask(graphics_context, 0xff);
-                dmGraphics::Clear(graphics_context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
-            }
-        }
-        dmGraphics::SetColorMask(graphics_context, stp.m_ColorBufferMask & (1<<3), stp.m_ColorBufferMask & (1<<2), stp.m_ColorBufferMask & (1<<1), stp.m_ColorBufferMask & (1<<0));
-        dmGraphics::SetStencilMask(graphics_context, stp.m_BufferMask);
+        #define HAS_CHANGED(name) (ps_now.name != ps_orig.name)
 
-        if (stp.m_SeparateFaceStates)
+        if (HAS_CHANGED(m_BlendSrcFactor) || HAS_CHANGED(m_BlendDstFactor))
         {
-            dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT, stp.m_Front.m_Func, stp.m_Ref, stp.m_RefMask);
-            dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK, stp.m_Back.m_Func, stp.m_Ref, stp.m_RefMask);
-            dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT, stp.m_Front.m_OpSFail, stp.m_Front.m_OpDPFail, stp.m_Front.m_OpDPPass);
-            dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK, stp.m_Back.m_OpSFail, stp.m_Back.m_OpDPFail, stp.m_Back.m_OpDPPass);
+            dmGraphics::SetBlendFunc(graphics_context, (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor);
         }
-        else
+
+        if (HAS_CHANGED(m_FaceWinding))
         {
-            dmGraphics::SetStencilFunc(graphics_context, stp.m_Front.m_Func, stp.m_Ref, stp.m_RefMask);
-            dmGraphics::SetStencilOp(graphics_context, stp.m_Front.m_OpSFail, stp.m_Front.m_OpDPFail, stp.m_Front.m_OpDPPass);
+            dmGraphics::SetFaceWinding(graphics_context, (dmGraphics::FaceWinding) ps_orig.m_FaceWinding);
         }
+
+        if (HAS_CHANGED(m_StencilWriteMask))
+        {
+            dmGraphics::SetStencilMask(graphics_context, ps_orig.m_StencilWriteMask);
+        }
+
+        if (HAS_CHANGED(m_WriteColorMask))
+        {
+            dmGraphics::SetColorMask(graphics_context,
+                ps_orig.m_WriteColorMask & (1<<3),
+                ps_orig.m_WriteColorMask & (1<<2),
+                ps_orig.m_WriteColorMask & (1<<1),
+                ps_orig.m_WriteColorMask & (1<<0));
+        }
+
+        if (HAS_CHANGED(m_StencilFrontTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
+        {
+            dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT,
+                (dmGraphics::CompareFunc) ps_orig.m_StencilFrontTestFunc, ps_orig.m_StencilReference, ps_orig.m_StencilCompareMask);
+        }
+
+        if (HAS_CHANGED(m_StencilBackTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
+        {
+            dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK,
+                (dmGraphics::CompareFunc) ps_orig.m_StencilBackTestFunc, ps_orig.m_StencilReference, ps_orig.m_StencilCompareMask);
+        }
+
+        if (HAS_CHANGED(m_StencilFrontOpFail) || HAS_CHANGED(m_StencilFrontOpDepthFail) || HAS_CHANGED(m_StencilFrontOpPass))
+        {
+            dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT,
+                (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpFail,
+                (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpDepthFail,
+                (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpPass);
+        }
+
+        if (HAS_CHANGED(m_StencilBackOpFail) || HAS_CHANGED(m_StencilBackOpDepthFail) || HAS_CHANGED(m_StencilBackOpPass))
+        {
+            dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK,
+                (dmGraphics::StencilOp) ps_orig.m_StencilBackOpFail,
+                (dmGraphics::StencilOp) ps_orig.m_StencilBackOpDepthFail,
+                (dmGraphics::StencilOp) ps_orig.m_StencilBackOpPass);
+        }
+
+        #undef HAS_CHANGED
+    }
+
+    static void ApplyRenderState(HRenderContext render_context, dmGraphics::HContext graphics_context, dmGraphics::PipelineState ps_default, const RenderObject* ro)
+    {
+        dmGraphics::PipelineState ps_now = ps_default;
+
+        if (ro->m_SetBlendFactors)
+        {
+            ps_now.m_BlendSrcFactor = ro->m_SourceBlendFactor;
+            ps_now.m_BlendDstFactor = ro->m_DestinationBlendFactor;
+        }
+
+        if (ro->m_SetFaceWinding)
+        {
+            ps_now.m_FaceWinding = ro->m_FaceWinding;
+        }
+
+        if (ro->m_SetStencilTest)
+        {
+            const StencilTestParams& stp = ro->m_StencilTestParams;
+            if (stp.m_ClearBuffer)
+            {
+                // Note: We don't need to save any of these values in the pipeline
+                if (render_context->m_StencilBufferCleared)
+                {
+                    // render.clear command will set context m_StencilBufferCleared to 1 if stencil clear flag is set.
+                    // We skip clear and reset context m_StencilBufferCleared to 0, indicating that the stencil is no longer cleared.
+                    // Concecutive calls with m_ClearBuffer option will result in a clear until render.clear is called with stencil clear flag set.
+                    render_context->m_StencilBufferCleared = 0;
+                }
+                else
+                {
+                    dmGraphics::SetStencilMask(graphics_context, 0xff);
+                    dmGraphics::Clear(graphics_context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 1.0f, 0);
+                }
+            }
+
+            ps_now.m_WriteColorMask          = stp.m_ColorBufferMask;
+            ps_now.m_StencilWriteMask        = stp.m_BufferMask;
+            ps_now.m_StencilReference        = stp.m_Ref;
+            ps_now.m_StencilCompareMask      = stp.m_RefMask;
+            ps_now.m_StencilFrontTestFunc    = stp.m_Front.m_Func;
+            ps_now.m_StencilFrontOpFail      = stp.m_Front.m_OpSFail;
+            ps_now.m_StencilFrontOpDepthFail = stp.m_Front.m_OpDPFail;
+            ps_now.m_StencilFrontOpPass      = stp.m_Front.m_OpDPPass;
+
+            if (stp.m_SeparateFaceStates)
+            {
+                ps_now.m_StencilBackTestFunc    = stp.m_Back.m_Func;
+                ps_now.m_StencilBackOpFail      = stp.m_Back.m_OpSFail;
+                ps_now.m_StencilBackOpDepthFail = stp.m_Back.m_OpDPFail;
+                ps_now.m_StencilBackOpPass      = stp.m_Back.m_OpDPPass;
+            }
+        }
+
+        ResetRenderStateIfChanged(graphics_context, ps_now, ps_default);
     }
 
     // For unit testing only
@@ -704,6 +785,8 @@ namespace dmRender
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
         }
 
+        dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
+
         for (uint32_t i = 0; i < render_context->m_RenderObjects.Size(); ++i)
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
@@ -736,14 +819,7 @@ namespace dmRender
             if (constant_buffer) // from render script
                 ApplyNamedConstantBuffer(render_context, material, constant_buffer);
 
-            if (ro->m_SetBlendFactors)
-                dmGraphics::SetBlendFunc(context, ro->m_SourceBlendFactor, ro->m_DestinationBlendFactor);
-
-            if (ro->m_SetStencilTest)
-                ApplyStencilTest(render_context, ro);
-
-            if (ro->m_SetFaceWinding)
-                dmGraphics::SetFaceWinding(context, ro->m_FaceWinding);
+            ApplyRenderState(render_context, render_context->m_GraphicsContext, ps_orig, ro);
 
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
@@ -755,7 +831,6 @@ namespace dmRender
                     dmGraphics::EnableTexture(context, i, texture);
                     ApplyMaterialSampler(render_context, material, i, texture);
                 }
-
             }
 
             dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
@@ -776,6 +851,9 @@ namespace dmRender
                     dmGraphics::DisableTexture(context, i, texture);
             }
         }
+
+        ResetRenderStateIfChanged(context, ps_orig, dmGraphics::GetPipelineState(context));
+
         return RESULT_OK;
     }
 

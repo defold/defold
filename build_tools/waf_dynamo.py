@@ -1368,7 +1368,7 @@ Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
 @after('apply_link')
 def extract_symbols(self):
     platform = self.env['PLATFORM']
-    if not 'macos' in platform:
+    if not ('macos' in platform or 'ios' in platform):
         return
 
     link_output = self.link_task.outputs[0]

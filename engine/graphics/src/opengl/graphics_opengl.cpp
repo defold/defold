@@ -898,6 +898,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_WindowHeight   = (uint32_t) height;
         context->m_Dpi            = 0;
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
+        context->m_PipelineState  = GetDefaultPipelineState();
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
         context->m_IsShaderLanguageGles = 1;
@@ -1285,6 +1286,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return glfwGetWindowRefreshRate();
         else
             return 0;
+    }
+
+    static PipelineState OpenGLGetPipelineState(HContext context)
+    {
+        return context->m_PipelineState;
     }
 
     static uint32_t OpenGLGetDisplayDpi(HContext context)
@@ -2918,6 +2924,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     #endif
         glEnable(GetOpenGLState(state));
         CHECK_GL_ERROR
+
+        SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void OpenGLDisableState(HContext context, State state)
@@ -2932,6 +2940,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     #endif
         glDisable(GetOpenGLState(state));
         CHECK_GL_ERROR
+
+        SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void OpenGLSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
@@ -2964,6 +2974,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glBlendFunc(blend_factor_lut[source_factor], blend_factor_lut[destinaton_factor]);
         CHECK_GL_ERROR
+
+        context->m_PipelineState.m_BlendSrcFactor = source_factor;
+        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
     static void OpenGLSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
@@ -2971,6 +2984,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glColorMask(red, green, blue, alpha);
         CHECK_GL_ERROR;
+
+        uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
+        context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
     static void OpenGLSetDepthMask(HContext context, bool mask)
@@ -2978,6 +2997,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glDepthMask(mask);
         CHECK_GL_ERROR;
+
+        context->m_PipelineState.m_WriteDepth = mask;
     }
 
     static GLenum GetOpenGLCompareFunc(CompareFunc func)
@@ -3012,6 +3033,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glDepthFunc(GetOpenGLCompareFunc(func));
         CHECK_GL_ERROR
+
+        context->m_PipelineState.m_DepthTestFunc = func;
     }
 
     static void OpenGLSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -3026,6 +3049,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glStencilMask(mask);
         CHECK_GL_ERROR;
+
+        context->m_PipelineState.m_StencilWriteMask = mask;
     }
 
     static void OpenGLSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
@@ -3033,6 +3058,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glStencilFunc(GetOpenGLCompareFunc(func), ref, mask);
         CHECK_GL_ERROR
+
+        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void OpenGLSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
@@ -3040,6 +3070,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glStencilFuncSeparate(GetOpenGLFaceTypeFunc(face_type), GetOpenGLCompareFunc(func), ref, mask);
         CHECK_GL_ERROR
+
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        }
+        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
     }
 
     static void OpenGLSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
@@ -3058,6 +3099,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glStencilOp(stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
         CHECK_GL_ERROR;
+
+        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
     static void OpenGLSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
@@ -3076,6 +3124,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glStencilOpSeparate(GetOpenGLFaceTypeFunc(face_type), stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
         CHECK_GL_ERROR;
+
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;   
+        }
     }
 
     static void OpenGLSetCullFace(HContext context, FaceType face_type)
@@ -3083,6 +3144,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glCullFace(GetOpenGLFaceTypeFunc(face_type));
         CHECK_GL_ERROR
+
+        context->m_PipelineState.m_CullFaceType = face_type;
     }
 
     static void OpenGLSetFaceWinding(HContext context, FaceWinding face_winding)
@@ -3095,6 +3158,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         };
 
         glFrontFace(face_winding_lut[face_winding]);
+
+        context->m_PipelineState.m_FaceWinding = face_winding;
     }
 
     static void OpenGLSetPolygonOffset(HContext context, float factor, float units)
@@ -3250,6 +3315,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_GetNumSupportedExtensions = OpenGLGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = OpenGLGetSupportedExtension;
         fn_table.m_IsMultiTargetRenderingSupported = OpenGLIsMultiTargetRenderingSupported;
+        fn_table.m_GetPipelineState = OpenGLGetPipelineState;
         return fn_table;
     }
 }

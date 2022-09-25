@@ -19,7 +19,6 @@
 #include <android_native_app_glue.h>
 
 #include "../graphics_vulkan_defines.h"
-#include "../../graphics.h"
 #include "../graphics_vulkan_private.h"
 
 extern struct android_app* __attribute__((weak)) g_AndroidApp;

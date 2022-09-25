@@ -40,7 +40,7 @@
   (g/clear-property! node-id property))
 
 (g/defnk produce-form-data
-  [_node-id aspect-ratio fov near-z far-z auto-aspect-ratio]
+  [_node-id aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom]
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
@@ -60,20 +60,30 @@
                          :type :number}
                         {:path [:auto-aspect-ratio]
                          :label "Auto Aspect Ratio"
-                         :type :boolean}]}]
+                         :type :boolean}
+                        {:path [:orthographic-projection]
+                         :label "Orthographic Projection"
+                         :type :boolean}
+                        {:path [:orthographic-zoom]
+                         :label "Orthographic Zoom"
+                         :type :number}]}]
    :values {[:aspect-ratio] aspect-ratio
             [:fov] fov
             [:near-z] near-z
             [:far-z] far-z
-            [:auto-aspect-ratio] auto-aspect-ratio}})
+            [:auto-aspect-ratio] auto-aspect-ratio
+            [:orthographic-projection] orthographic-projection
+            [:orthographic-zoom] orthographic-zoom}})
 
 (g/defnk produce-pb-msg
-  [aspect-ratio fov near-z far-z auto-aspect-ratio]
+  [aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom]
   {:aspect-ratio aspect-ratio
    :fov fov
    :near-z near-z
    :far-z far-z
-   :auto-aspect-ratio (if (true? auto-aspect-ratio) 1 0)})
+   :auto-aspect-ratio (if (true? auto-aspect-ratio) 1 0)
+   :orthographic-projection (if (true? orthographic-projection) 1 0)
+   :orthographic-zoom orthographic-zoom})
 
 (defn build-camera
   [resource dep-resources user-data]
@@ -94,7 +104,9 @@
     :fov (:fov camera)
     :near-z (:near-z camera)
     :far-z (:far-z camera)
-    :auto-aspect-ratio (not (zero? (:auto-aspect-ratio camera)))))
+    :auto-aspect-ratio (not (zero? (:auto-aspect-ratio camera)))
+    :orthographic-projection (not (zero? (:orthographic-projection camera)))
+    :orthographic-zoom (:orthographic-zoom camera)))
 
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
@@ -104,6 +116,8 @@
   (property near-z g/Num)
   (property far-z g/Num)
   (property auto-aspect-ratio g/Bool)
+  (property orthographic-projection g/Bool)
+  (property orthographic-zoom g/Num)
 
   (output form-data g/Any produce-form-data)
 

@@ -3,3 +3,5 @@ fov: 0.7854
 near_z: 0.1
 far_z: 1000.0
 auto_aspect_ratio: 0
+orthographic_projection: 0
+orthographic_zoom: 1

@@ -16,10 +16,10 @@
 
 (def ^:const connection-properties
   {:sentry {:project-id "97739"
-            :key        "9e25fea9bc334227b588829dd60265c1"
-            :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}
+            :key "9e25fea9bc334227b588829dd60265c1"
+            :secret "f694ef98d47d42cf8bb67ef18a4e9cdb"}
    :google-analytics {:tid "UA-83690-7"}
    :git-issues {:url "https://github.com/defold/defold"}
    :native-extensions {:build-server-url "https://build.defold.com"}
    :updater {:download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.zip"
-             :update-url-template "https://%s/editor2/channels/%s/update-v3.json"}})
+             :update-url-template "https://%s/editor2/channels/%s/update-v4.json"}})
