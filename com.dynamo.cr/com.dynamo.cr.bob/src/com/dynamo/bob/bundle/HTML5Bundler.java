@@ -51,12 +51,105 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
+@BundlerParams(platforms = {Platform.JsWeb, Platform.WasmWeb})
 public class HTML5Bundler implements IBundler {
     private static Logger logger = Logger.getLogger(HTML5Bundler.class.getName());
 
     private static final String SplitFileDir = "archive";
     private static final String SplitFileJson = "archive_files.json";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
+
+    public static final String MANIFEST_NAME = "engine_template.html";
+
+    @Override
+    public IResource getManifestResource(Project project, Platform platform) throws IOException {
+        return project.getResource("html5", "htmlfile");
+    }
+
+    @Override
+    public String getMainManifestName(Platform platform) {
+        return MANIFEST_NAME;
+    }
+
+    @Override
+    public String getMainManifestTargetPath(Platform platform) {
+        return "index.html"; // relative to the appDir
+    }
+
+    @Override
+    public void updateManifestProperties(Project project, Platform platform,
+                                BobProjectProperties projectProperties,
+                                Map<String, Map<String, Object>> propertiesMap,
+                                Map<String, Object> properties) throws IOException {
+
+
+        // Same value as engine is compiled with; 268435456
+        int customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024 * 1024;
+
+        {// Deprecated method of setting the heap size. For backwards compatibility
+            if (projectProperties.getBooleanValue("html5", "set_custom_heap_size", false)) {
+                Integer size = projectProperties.getIntValue("html5", "custom_heap_size");
+                if (null != size) {
+                    customHeapSize = size.intValue();
+                }
+            }
+        }
+        properties.put("DEFOLD_HEAP_SIZE", customHeapSize);
+
+        String splashImage = projectProperties.getStringValue("html5", "splash_image", null);
+        if (splashImage != null) {
+            properties.put("DEFOLD_SPLASH_IMAGE", new File(project.getRootDirectory(), splashImage).getName());
+        } else {
+            // Without this value we can't use Inverted Sections (^) in Mustache and recive an error:
+            // "No key, method or field with name 'DEFOLD_SPLASH_IMAGE' on line N"
+            properties.put("DEFOLD_SPLASH_IMAGE", false);
+        }
+
+        // Check if game has configured a Facebook App ID
+        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
+        properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
+
+        String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
+        List<String> engineArguments = BundleHelper.createArrayFromString(engineArgumentsString);
+
+        properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", projectProperties.getStringValue("html5", "archive_location_prefix", "archive"));
+        properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", projectProperties.getStringValue("html5", "archive_location_suffix", ""));
+        properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
+
+        String scaleMode = projectProperties.getStringValue("html5", "scale_mode", "downscale_fit").toUpperCase();
+        properties.put("DEFOLD_SCALE_MODE_IS_"+scaleMode, true);
+
+        /// Legacy properties for backwards compatibility
+        {
+            properties.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width"));
+            properties.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height"));
+
+            String version = projectProperties.getStringValue("project", "version", "0.0");
+            String title = projectProperties.getStringValue("project", "title", "Unnamed");
+
+            properties.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
+
+            String exeName = BundleHelper.projectNameToBinaryName(title);
+            properties.put("DEFOLD_BINARY_PREFIX", exeName);
+        }
+
+        // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
+        Boolean localLaunch = project.option("local-launch", "false").equals("true");
+        if (localLaunch) {
+            properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
+            properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
+            properties.put("HAS_DEFOLD_ENGINE_ARGUMENTS", "true");
+
+            engineArguments.add("--verify-graphics-calls=false");
+            properties.put("DEFOLD_ENGINE_ARGUMENTS", engineArguments);
+        }
+
+        properties.put("DEFOLD_CUSTOM_CSS_INLINE", "");
+        IResource customCSS = project.getResource("html5", "cssfile");
+        if (customCSS != null) {
+            properties.put("DEFOLD_CUSTOM_CSS_INLINE", BundleHelper.formatResource(propertiesMap, properties, customCSS));
+        }
+    }
 
     class SplitFile {
         private File source;
@@ -136,12 +229,11 @@ public class HTML5Bundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDirectory, ICanceled canceled)
+    public void bundleApplication(Project project, Platform platform, File bundleDirectory, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        final Platform platform = Platform.JsWeb;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         // Collect bundle/package resources to be included in bundle directory

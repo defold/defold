@@ -31,7 +31,30 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
+@BundlerParams(platforms = {Platform.X86_64Linux})
 public class LinuxBundler implements IBundler {
+
+    @Override
+    public IResource getManifestResource(Project project, Platform platform) throws IOException {
+        return null;
+    }
+
+    @Override
+    public String getMainManifestName(Platform platform) {
+        return null;
+    }
+
+    @Override
+    public String getMainManifestTargetPath(Platform platform) {
+        return null;
+    }
+
+    @Override
+    public void updateManifestProperties(Project project, Platform platform,
+                                BobProjectProperties projectProperties,
+                                Map<String, Map<String, Object>> propertiesMap,
+                                Map<String, Object> properties) throws IOException {
+    }
 
     public void bundleApplicationForPlatform(Platform platform, Project project, File appDir, String exeName)
             throws IOException, CompileExceptionError {
@@ -62,10 +85,9 @@ public class LinuxBundler implements IBundler {
     }
 
     @Override
-    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
+    public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
-        final Platform platform = Platform.X86_64Linux;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
