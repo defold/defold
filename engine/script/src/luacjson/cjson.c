@@ -607,9 +607,8 @@ static void json_append_data(lua_State *l, json_config_t *cfg, int current_depth
         case LUA_TTHREAD:
             {
                 unsigned long long pointer_addr = (unsigned long long)lua_topointer(l, -1);
-                const int buff_size = 16;
-                char str_buffer[buff_size];
-                int len = snprintf(str_buffer, buff_size, "%llx", pointer_addr);
+                char str_buffer[16];
+                int len = snprintf(str_buffer, 16, "%llx", pointer_addr);
                 strbuf_append_mem(json, "\"object at 0x", 13);
                 strbuf_append_mem(json, str_buffer, len);
                 strbuf_append_mem(json, "\"", 1);
