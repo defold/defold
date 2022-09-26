@@ -36,8 +36,9 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 
-public class OSXBundler implements IBundler {
-    private static Logger logger = Logger.getLogger(OSXBundler.class.getName());
+@BundlerParams(platforms = {Platform.X86_64MacOS})
+public class MacOSBundler implements IBundler {
+    private static Logger logger = Logger.getLogger(MacOSBundler.class.getName());
     public static final String ICON_NAME = "icon.icns";
 
     private void copyIcon(BobProjectProperties projectProperties, File projectRoot, File resourcesDir) throws IOException {
@@ -49,11 +50,43 @@ public class OSXBundler implements IBundler {
         }
     }
 
+    private static String MANIFEST_NAME = "Info.plist";
+
     @Override
-    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
+    public IResource getManifestResource(Project project, Platform platform) throws IOException {
+        return project.getResource("osx", "infoplist");
+    }
+
+    @Override
+    public String getMainManifestName(Platform platform) {
+        return MANIFEST_NAME;
+    }
+
+    @Override
+    public String getMainManifestTargetPath(Platform platform) {
+        // no need for a path here, we dictate where the file is written anyways with copyOrWriteManifestFile
+        return "Contents/" + MANIFEST_NAME;
+    }
+
+    @Override
+    public void updateManifestProperties(Project project, Platform platform,
+                                BobProjectProperties projectProperties,
+                                Map<String, Map<String, Object>> propertiesMap,
+                                Map<String, Object> properties) throws IOException {
+
+        String applicationLocalizationsStr = projectProperties.getStringValue("osx", "localizations", null);
+        List<String> applicationLocalizations = BundleHelper.createArrayFromString(applicationLocalizationsStr);
+        properties.put("application-localizations", applicationLocalizations);
+
+        String title = projectProperties.getStringValue("project", "title", "dmengine");
+        properties.put("bundle-name", projectProperties.getStringValue("osx", "bundle_name", IOSBundler.derivedBundleName(title)));
+
+    }
+
+    @Override
+    public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
-        final Platform platform = Platform.X86_64MacOS;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);

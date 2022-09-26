@@ -59,7 +59,7 @@ import com.dynamo.bob.util.TimeProfiler;
 
 import com.defold.extender.client.ExtenderResource;
 
-
+@BundlerParams(platforms = {Platform.Armv7Android, Platform.Arm64Android})
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
@@ -825,15 +825,66 @@ public class AndroidBundler implements IBundler {
         return apk;
     }
 
+    public static final String MANIFEST_NAME = "AndroidManifest.xml";
 
     @Override
-    public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    public IResource getManifestResource(Project project, Platform platform) throws IOException {
+        return project.getResource("android", "manifest");
+    }
+
+    @Override
+    public String getMainManifestName(Platform platform) {
+        return MANIFEST_NAME;
+    }
+
+    @Override
+    public String getMainManifestTargetPath(Platform platform) {
+        // no need for a path here, we dictate where the file is written anyways with copyOrWriteManifestFile
+        return MANIFEST_NAME;
+    }
+
+    @Override
+    public void updateManifestProperties(Project project, Platform platform,
+                                BobProjectProperties projectProperties,
+                                Map<String, Map<String, Object>> propertiesMap,
+                                Map<String, Object> properties) throws IOException {
+
+        // We copy and resize the default icon in builtins if no other icons are set.
+        // This means that the app will always have icons from now on.
+        properties.put("has-icons?", true);
+
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
+            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
+            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
+                properties.put("orientation-support", "landscape");
+            } else {
+                properties.put("orientation-support", "portrait");
+            }
+        } else {
+            properties.put("orientation-support", "sensor");
+        }
+
+        // Since we started to always fill in the default values to the propject properties
+        // it is harder to distinguish what is a user defined value.
+        // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
+        if (projectProperties.isDefault("android", "debuggable")) {
+            Map<String, Object> propGroup = propertiesMap.get("android");
+            if (propGroup != null && propGroup.containsKey("debuggable")) {
+                boolean debuggable = project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG);
+                propGroup.put("debuggable", debuggable ? "true":"false");
+            }
+        }
+    }
+
+    @Override
+    public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         TimeProfiler.start("Init Android");
         Bob.initAndroid(); // extract 
         TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
 
         File outDir = new File(bundleDir, getProjectTitle(project));
         FileUtils.deleteDirectory(outDir);
