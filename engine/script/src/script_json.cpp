@@ -231,10 +231,46 @@ namespace dmScript
         return luaL_error(L, "Failed to parse json '%s' (%d).", json, r);
     }
 
+    /*# encode a lua table to a JSON string
+     * Encode a lua table to a JSON string.
+     * A Lua error is raised for syntax errors.
+     *
+     * @name json.encode
+     * @param tbl [type:table] lua table to encode
+     * @return json [type:string] encoded json
+     *
+     * @examples
+     *
+     * Converting a lua table to a JSON string:
+     *
+     * ```lua
+     * function init(self)
+     *      local tbl = {
+     *           persons = {
+     *                { name = "John Doe"},
+     *                { name = "Darth Vader"}
+     *           }
+     *      }
+     *      local jsonstring = json.encode(tbl)
+     *      pprint(jsonstring)
+     * end
+     * ```
+     *
+     * Results in the following printout:
+     *
+     * ```
+     * {"persons":[{"name":"John Doe"},{"name":"Darth Vader"}]}
+     * ```
+     */
+    int Json_Encode(lua_State* L)
+    {
+        return lua_cjson_encode(L);
+    }
+
     static const luaL_reg ScriptJson_methods[] =
     {
         {"decode", Json_Decode},
-        {"encode", lua_cjson_encode},
+        {"encode", Json_Encode},
         {0, 0}
     };
 
