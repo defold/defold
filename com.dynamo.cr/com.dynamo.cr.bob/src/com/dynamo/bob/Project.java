@@ -810,13 +810,15 @@ public class Project {
             // TODO: remove in some future update
             if (pair.equals("x86_64-darwin"))
             {
+                String deprecatedPair = pair;
                 pair = Platform.X86_64MacOS.getPair();
-                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", pair);
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", deprecatedPair, pair);
             }
             else if (pair.equals("arm64-darwin"))
             {
+                String deprecatedPair = pair;
                 pair = Platform.Arm64Ios.getPair();
-                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", pair);
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", deprecatedPair, pair);
             }
             p = Platform.get(pair);
         }
