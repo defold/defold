@@ -24,8 +24,9 @@
 
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+    #include <lua/lua.h>
+    #include <lua/lauxlib.h>
+    #include "luacjson/cjson.h"
 }
 
 #include "script_json.h"
@@ -233,6 +234,7 @@ namespace dmScript
     static const luaL_reg ScriptJson_methods[] =
     {
         {"decode", Json_Decode},
+        {"encode", lua_cjson_encode},
         {0, 0}
     };
 
