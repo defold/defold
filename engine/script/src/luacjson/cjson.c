@@ -1,21 +1,3 @@
-#ifdef _MSC_VER
-    //not #if defined(_WIN32) || defined(_WIN64) because we have strncasecmp in mingw
-    #define strncasecmp _strnicmp
-    #define strcasecmp _stricmp
-#endif
-
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-
-#include <stdio.h>
-#include <assert.h>
-#include <string.h>
-#include <math.h>
-#include <limits.h>
-
-#include "strbuf.h"
-#include "fpconv.h"
-
 /* Lua CJSON - JSON support for Lua
  *
  * Copyright (c) 2010-2012  Mark Pulford <mark@kyne.com.au>
@@ -53,6 +35,24 @@
  *       time (30%) managing tables when parsing JSON since it is
  *       difficult to know object/array sizes ahead of time.
  */
+
+#ifdef _MSC_VER
+    //not #if defined(_WIN32) || defined(_WIN64) because we have strncasecmp in mingw
+    #define strncasecmp _strnicmp
+    #define strcasecmp _stricmp
+#endif
+
+#include <lua/lua.h>
+#include <lua/lauxlib.h>
+
+#include <stdio.h>
+#include <assert.h>
+#include <string.h>
+#include <math.h>
+#include <limits.h>
+
+#include "strbuf.h"
+#include "fpconv.h"
 
 #ifndef CJSON_MODNAME
     #define CJSON_MODNAME   "cjson"
@@ -200,9 +200,7 @@ static json_config_t *json_fetch_config(lua_State *l)
         luaL_error(l, "BUG: Unable to fetch CJSON configuration");
     return cfg;
 }
-#endif
 
-#if 0 // Defold: unused
 static json_config_t *json_arg_init(lua_State *l, int args)
 {
     luaL_argcheck(l, lua_gettop(l) <= args, args + 1,
@@ -211,9 +209,7 @@ static json_config_t *json_arg_init(lua_State *l, int args)
         lua_pushnil(l);
     return json_fetch_config(l);
 }
-#endif
 
-#if 0 // Defold: unused
 static int json_integer_option(lua_State *l, int optindex, int *setting, int min, int max)
 {
     char errmsg[64];
@@ -228,9 +224,7 @@ static int json_integer_option(lua_State *l, int optindex, int *setting, int min
     lua_pushinteger(l, *setting);
     return 1;
 }
-#endif
 
-#if 0 // Defold: unused
 static int json_enum_option(lua_State *l, int optindex, int *setting, const char **options, int bool_true)
 {
     static const char *bool_options[] = { "off", "on", NULL };
@@ -252,9 +246,7 @@ static int json_enum_option(lua_State *l, int optindex, int *setting, const char
         lua_pushstring(l, options[*setting]);
     return 1;
 }
-#endif
 
-#if 0 // Defold: unused
 static int json_cfg_encode_sparse_array(lua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 3);
@@ -263,33 +255,25 @@ static int json_cfg_encode_sparse_array(lua_State *l)
     json_integer_option(l, 3, &cfg->encode_sparse_safe, 0, INT_MAX);
     return 3;
 }
-#endif
 
-#if 0 // Defold: unused
 static int json_cfg_encode_max_depth(lua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
     return json_integer_option(l, 1, &cfg->encode_max_depth, 1, INT_MAX);
 }
-#endif
 
-#if 0 // Defold: unused
 static int json_cfg_decode_max_depth(lua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
     return json_integer_option(l, 1, &cfg->decode_max_depth, 1, INT_MAX);
 }
-#endif
 
-#if 0 // Defold: unused
 static int json_cfg_encode_number_precision(lua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
     return json_integer_option(l, 1, &cfg->encode_number_precision, 1, 14);
 }
-#endif
 
-#if 0 // Defold: unused
 static int json_cfg_encode_keep_buffer(lua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
@@ -305,9 +289,7 @@ static int json_cfg_encode_keep_buffer(lua_State *l)
     }
     return 1;
 }
-#endif
 
-#if 0 // Defold: unused
 #if defined(DISABLE_INVALID_NUMBERS) && !defined(USE_INTERNAL_FPCONV)
 void json_verify_invalid_number_setting(lua_State *l, int *setting)
 {
@@ -320,9 +302,7 @@ void json_verify_invalid_number_setting(lua_State *l, int *setting)
 #else
 #define json_verify_invalid_number_setting(l, s)    do { } while(0)
 #endif
-#endif
 
-#if 0 // Defold: unused
 static int json_cfg_encode_invalid_numbers(lua_State *l)
 {
     static const char *options[] = { "off", "on", "null", NULL };
@@ -331,9 +311,7 @@ static int json_cfg_encode_invalid_numbers(lua_State *l)
     json_verify_invalid_number_setting(l, &cfg->encode_invalid_numbers);
     return 1;
 }
-#endif
 
-#if 0 // Defold: unused
 static int json_cfg_decode_invalid_numbers(lua_State *l)
 {
     json_config_t *cfg = json_arg_init(l, 1);
@@ -341,9 +319,7 @@ static int json_cfg_decode_invalid_numbers(lua_State *l)
     json_verify_invalid_number_setting(l, &cfg->encode_invalid_numbers);
     return 1;
 }
-#endif
 
-#if 0 // Defold: unused
 static int json_destroy_config(lua_State *l)
 {
     // json_config_t *cfg;
@@ -1033,11 +1009,9 @@ static int json_decode(lua_State *l)
     strbuf_free(json.tmp);
     return 1;
 }
-#endif
 
 /* ===== INITIALISATION ===== */
 
-#if 0 // Defold: unused
 #if !defined(LUA_VERSION_NUM) || LUA_VERSION_NUM < 502
 static void luaL_setfuncs (lua_State *l, const luaL_Reg *reg, int nup)
 {
@@ -1054,9 +1028,7 @@ static void luaL_setfuncs (lua_State *l, const luaL_Reg *reg, int nup)
     lua_pop(l, nup);
 }
 #endif
-#endif
 
-#if 0 // Defold: unused
 static int json_protect_conversion(lua_State *l)
 {
     int err;
@@ -1074,9 +1046,7 @@ static int json_protect_conversion(lua_State *l)
     }
     return luaL_error(l, "Memory allocation error in CJSON protected call");
 }
-#endif
 
-#if 0 // Defold: unused
 static int lua_cjson_new(lua_State *l)
 {
     int top = lua_gettop(l);
