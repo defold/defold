@@ -337,7 +337,19 @@ static void CreateGLSurface()
     // We might have tried to create the surface just as we received an APP_CMD_TERM_WINDOW on the looper thread
     if (_glfwWinAndroid.surface != EGL_NO_SURFACE)
     {
+        // This thread attachment is a workaround for this crash 
+        // https://github.com/defold/defold/issues/6956
+        // only on Android 13 
+        JNIEnv* env = g_AndroidApp->activity->env;
+        JavaVM* vm = g_AndroidApp->activity->vm;
+        (*vm)->AttachCurrentThread(vm, &env, NULL);
+
         make_current(&_glfwWinAndroid);
+        
+        if (vm != 0)
+        {
+            (*vm)->DetachCurrentThread(vm);
+        }
         update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
 
         computeIconifiedState();
