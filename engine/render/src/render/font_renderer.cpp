@@ -703,18 +703,18 @@ namespace dmRender
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
         float layout_height = line_count * (line_height * te.m_Leading) - line_height * (te.m_Leading - 1.0f);
 
-        // find X,Y local coordinate of center
-        float center_x = x_offset;
+        // find X,Y local coordinate of text center
+        float center_x = x_offset; // start from the X position of the pivot point
         switch (te.m_Align) {
             case TEXT_ALIGN_LEFT:
-                center_x += layout_width/2;
+                center_x += layout_width/2; // move halfway to the right since we're aligning left
             break;
             case TEXT_ALIGN_RIGHT:
-                center_x -= layout_width/2;
+                center_x -= layout_width/2; // move halfway to the left from pivot since we're aligning right
             break;
-            // nothing to do for TEXT_ALIGN_CENTER
+            // nothing to do for TEXT_ALIGN_CENTER. Pivot is already at the center of the text X-wise
         }
-        float center_y = y_offset + font_map->m_MaxAscent - layout_height/2;
+        float center_y = y_offset + font_map->m_MaxAscent - layout_height/2; // 'y_offset' to move to the baseline of first letter in text. +'MaAscent' to get to the top of the text. -layout_height to get to the center.
 
         // find center and radius for frustum culling
         dmVMath::Vector4 centerpoint_local(center_x, center_y, 0, 1);
