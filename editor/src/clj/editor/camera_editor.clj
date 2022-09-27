@@ -18,16 +18,20 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
+            [editor.geom :as geom]
+            [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.scene-shapes :as scene-shapes]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto Camera$CameraDesc]))
+  (:import [com.dynamo.gamesys.proto Camera$CameraDesc]
+           [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -98,6 +102,48 @@
       :build-fn build-camera
       :user-data {:pb-msg pb-msg}})])
 
+(defn unify-scale [renderable]
+  (let [{:keys [^Quat4d world-rotation
+                ^Vector3d world-scale
+                ^Vector3d world-translation]} renderable
+        min-scale (min (.-x world-scale) (.-y world-scale) (.-z world-scale))
+        physics-world-transform (doto (Matrix4d.)
+                                  (.setIdentity)
+                                  (.setScale min-scale)
+                                  (.setTranslation world-translation)
+                                  (.setRotation world-rotation))]
+    (assoc renderable :world-transform physics-world-transform)))
+
+(defn wrap-uniform-scale [render-fn]
+  (fn [gl render-args renderables n]
+    (render-fn gl render-args (map unify-scale renderables) n)))
+
+(def ^:private render-lines-uniform-scale (wrap-uniform-scale scene-shapes/render-lines))
+
+(g/defnk produce-camera-scene
+  [_node-id]
+  (let [ext-x (* 0.5 2.0)
+        ext-y (* 0.5 2.0)
+        ext-z (* 0.5 2.0)
+        ext [ext-x ext-y ext-z]
+        neg-ext [(- ext-x) (- ext-y) (- ext-z)]
+        aabb (geom/coords->aabb ext neg-ext)
+        point-scale (float-array ext)
+        color [1.0 1.0 1.0 1.0]]
+    {:node-id _node-id
+     :aabb aabb
+     :children [{:node-id _node-id
+                 :aabb aabb
+                 :renderable {:render-fn render-lines-uniform-scale
+                              :tags #{:collision-shape :outline}
+                              :passes [pass/outline]
+                              :user-data (cond-> {:color color
+                                                  :point-scale point-scale
+                                                  :geometry scene-shapes/box-lines}
+
+                                                 (zero? ext-z)
+                                                 (assoc :point-count 8))}}]}))
+
 (defn load-camera [project self resource camera]
   (g/set-property self
     :aspect-ratio (:aspect-ratio camera)
@@ -129,6 +175,7 @@
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
+  (output scene g/Any produce-camera-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn register-resource-types
