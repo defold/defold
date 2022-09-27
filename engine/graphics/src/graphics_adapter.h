@@ -68,6 +68,7 @@ namespace dmGraphics
     typedef uint32_t (*GetHeightFn)(HContext context);
     typedef uint32_t (*GetWindowWidthFn)(HContext context);
     typedef uint32_t (*GetWindowHeightFn)(HContext context);
+    typedef PipelineState (*GetPipelineStateFn)(HContext context);
     typedef float (*GetDisplayScaleFactorFn)(HContext context);
     typedef void (*SetWindowSizeFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*ResizeWindowFn)(HContext context, uint32_t width, uint32_t height);
@@ -117,7 +118,7 @@ namespace dmGraphics
     typedef uint32_t (*GetUniformCountFn)(HProgram prog);
     typedef int32_t (* GetUniformLocationFn)(HProgram prog, const char* name);
     typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int base_register);
+    typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int count, int base_register);
     typedef void (*SetSamplerFn)(HContext context, int32_t location, int32_t unit);
     typedef void (*SetViewportFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*EnableStateFn)(HContext context, State state);
@@ -146,7 +147,7 @@ namespace dmGraphics
     typedef void (*DeleteTextureFn)(HTexture t);
     typedef void (*SetTextureFn)(HTexture texture, const TextureParams& params);
     typedef void (*SetTextureAsyncFn)(HTexture texture, const TextureParams& paramsa);
-    typedef void (*SetTextureParamsFn)(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
+    typedef void (*SetTextureParamsFn)(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     typedef uint32_t (*GetTextureResourceSizeFn)(HTexture texture);
     typedef uint16_t (*GetTextureWidthFn)(HTexture texture);
     typedef uint16_t (*GetTextureHeightFn)(HTexture texture);
@@ -162,6 +163,7 @@ namespace dmGraphics
     typedef bool (*IsExtensionSupportedFn)(HContext context, const char* extension);
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
+    typedef bool (*IsMultiTargetRenderingSupportedFn)(HContext context);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -273,6 +275,8 @@ namespace dmGraphics
         IsExtensionSupportedFn m_IsExtensionSupported;
         GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
         GetSupportedExtensionFn m_GetSupportedExtension;
+        IsMultiTargetRenderingSupportedFn m_IsMultiTargetRenderingSupported;
+        GetPipelineStateFn m_GetPipelineState;
     };
 }
 

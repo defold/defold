@@ -27,6 +27,7 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <malloc.h>
 #endif
 
 #include <dlib/dstrings.h>
@@ -34,6 +35,8 @@
 #include <dlib/log.h>
 #include <dlib/socket.h>
 #include <dlib/path.h>
+#include <dlib/align.h>
+#include <dlib/memory.h>
 #include <resource/resource.h>
 #include "script.h"
 #include "script/sys_ddf.h"
@@ -56,7 +59,7 @@ union SaveLoadBuffer
 {
     uint32_t m_alignment; // This alignment is required for js-web
     char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
-} g_saveload;
+} DM_ALIGNED(16) g_saveload;
 
 #define LIB_NAME "sys"
 
@@ -69,6 +72,28 @@ union SaveLoadBuffer
      * @name System
      * @namespace sys
      */
+
+    char* Sys_SetupTableSerializationBuffer(int required_size)
+    {
+        if (required_size > MAX_BUFFER_SIZE)
+        {
+            char* buffer = 0;
+            dmMemory::Result r = dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
+            return buffer;
+        }
+        else
+        {
+            return g_saveload.m_buffer;
+        }
+    }
+
+    void Sys_FreeTableSerializationBuffer(char* buffer)
+    {
+        if (buffer != g_saveload.m_buffer)
+        {
+            dmMemory::AlignedFree(buffer);
+        }
+    }
 
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
@@ -98,13 +123,23 @@ union SaveLoadBuffer
      * ```
      */
 
-#if !defined(__EMSCRIPTEN__)
     int Sys_Save(lua_State* L)
     {
-        luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
-
         const char* filename = luaL_checkstring(L, 1);
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+
+        uint32_t table_size = CheckTableSize(L, 2);
+
+        char* buffer = Sys_SetupTableSerializationBuffer(table_size);
+        if (!buffer)
+        {
+            return luaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
+        }
+        uint32_t n_used = CheckTable(L, buffer, table_size, 2);
+
+#if !defined(__EMSCRIPTEN__)
+
         char tmp_filename[DMPATH_MAX_PATH];
         // The counter and hash are there to make the files unique enough to avoid that the user
         // accidentally writes to it.
@@ -113,19 +148,22 @@ union SaveLoadBuffer
         int res = dmSnPrintf(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
         if (res == -1)
         {
+            Sys_FreeTableSerializationBuffer(buffer);
             return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
         }
 
         FILE* file = fopen(tmp_filename, "wb");
         if (!file)
         {
+            Sys_FreeTableSerializationBuffer(buffer);
             char errmsg[128] = {};
             dmStrError(errmsg, sizeof(errmsg), errno);
             return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
         }
 
-        bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
+        bool result = fwrite(buffer, 1, n_used, file) == n_used;
         result = (fclose(file) == 0) && result;
+        Sys_FreeTableSerializationBuffer(buffer);
 
         if (!result)
         {
@@ -133,38 +171,38 @@ union SaveLoadBuffer
             return luaL_error(L, "Could not write to the file %s.", filename);
         }
 
-        if (dmSys::RenameFile(filename, tmp_filename) == dmSys::RESULT_OK)
+        if (dmSys::RenameFile(filename, tmp_filename) != dmSys::RESULT_OK)
         {
-            lua_pushboolean(L, result);
-            return 1;
+            return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
         }
-        return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
-    }
+
+        lua_pushboolean(L, result);
+        return 1;
 
 #else // __EMSCRIPTEN__
 
-    int Sys_Save(lua_State* L)
-    {
-        const char* filename = luaL_checkstring(L, 1);
-        luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
         FILE* file = fopen(filename, "wb");
-        if (file != 0x0)
+        if (!file)
         {
-            bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
-            result = (fclose(file) == 0) && result;
-            if (result)
-            {
-                lua_pushboolean(L, result);
-                return 1;
-            }
-
-            dmSys::Unlink(filename);
+            Sys_FreeTableSerializationBuffer(buffer);
+            return luaL_error(L, "Could not write to the file %s.", filename);
         }
-        return luaL_error(L, "Could not write to the file %s.", filename);
+
+        bool result = fwrite(buffer, 1, n_used, file) == n_used;
+        result = (fclose(file) == 0) && result;
+        Sys_FreeTableSerializationBuffer(buffer);
+
+        if (!result)
+        {
+            dmSys::Unlink(filename);
+            return luaL_error(L, "Could not write to the file %s.", filename);
+        }
+
+        lua_pushboolean(L, result);
+        return 1;
+#endif
     }
 
-#endif
 
     /*# loads a lua table from a file on disk
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
@@ -193,22 +231,27 @@ union SaveLoadBuffer
             lua_newtable(L);
             return 1;
         }
-        size_t nread = fread(g_saveload.m_buffer, 1, sizeof(g_saveload.m_buffer), file);
-        bool file_size_ok = feof(file) != 0;
-        bool result = ferror(file) == 0 && file_size_ok;
+
+        fseek(file, 0L, SEEK_END);
+        uint32_t file_size = ftell(file);
+        fseek(file, 0L, SEEK_SET);
+
+        char* buffer = Sys_SetupTableSerializationBuffer(file_size);
+        if (!buffer)
+        {
+            return luaL_error(L, "Could not allocate %d bytes for table deserialization.", file_size);
+        }
+        size_t nread = fread(buffer, 1, file_size, file);
+        bool result = ferror(file) == 0;
         fclose(file);
-        if (result)
+        if (!result)
         {
-            PushTable(L, g_saveload.m_buffer, nread);
-            return 1;
+            Sys_FreeTableSerializationBuffer(buffer);
+            return luaL_error(L, "Could not read from the file %s.", filename);
         }
-        else
-        {
-            if(file_size_ok)
-                return luaL_error(L, "Could not read from the file %s.", filename);
-            else
-                return luaL_error(L, "File size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
-        }
+        PushTable(L, buffer, nread);
+        Sys_FreeTableSerializationBuffer(buffer);
+        return 1;
     }
 
     /*# gets the save-file path
@@ -393,7 +436,7 @@ union SaveLoadBuffer
      *
      * `target`
      * - [type:string] [icon:html5]: Optional. Specifies the target attribute or the name of the window. The following values are supported:
-     * - `_self` - URL replaces the current page. This is default.
+     * - `_self` - (default value) URL replaces the current page.
      * - `_blank` - URL is loaded into a new window, or tab.
      * - `_parent` - URL is loaded into the parent frame.
      * - `_top` - URL replaces any framesets that may be loaded.
@@ -1166,8 +1209,17 @@ union SaveLoadBuffer
     {
         DM_LUA_STACK_CHECK(L, 1);
         luaL_checktype(L, 1, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 1);
-        lua_pushlstring(L, (const char*)g_saveload.m_buffer, n_used);
+
+        uint32_t table_size = CheckTableSize(L, 1);
+        char* buffer = Sys_SetupTableSerializationBuffer(table_size);
+        if (!buffer)
+        {
+            return luaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
+        }
+
+        uint32_t n_used = CheckTable(L, buffer, table_size, 1);
+        lua_pushlstring(L, (const char*)buffer, n_used);
+        Sys_FreeTableSerializationBuffer(buffer);
         return 1;
 
     }

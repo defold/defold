@@ -129,7 +129,7 @@
                 :test-fn (fn [pb targets]
                            (is (= {:color [1.0 1.0 1.0 1.0],
                                    :line-break false,
-                                   :scale [1.0 1.0 1.0 0.0],
+                                   :scale [0.0 0.0 0.0 0.0], ; Default from legacy field added by editor.protobuf/field-desc-default. Not in actual Label$LabelDesc.
                                    :blend-mode :blend-mode-alpha,
                                    :leading 1.0,
                                    :font "/builtins/fonts/system_font.fontc",
@@ -493,7 +493,7 @@
             module (Lua$LuaModule/parseFrom content)
             source (.getSource module)]
         (is (pos? (.size (.getScript source))))
-        (is (= "script/good.script" (.getFilename source))))))
+        (is (= "@script/good.script" (.getFilename source))))))
   (testing "Building a broken script fails"
     (with-build-results "/script/bad.script"
       (let [content (get content-by-source "/script/bad.script")]

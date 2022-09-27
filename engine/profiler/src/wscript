@@ -11,7 +11,7 @@ def build(bld):
     source = 'profiler.cpp profile_render.cpp'
     source_null = 'profiler_null.cpp'
 
-    if 'darwin' in bld.env.PLATFORM:
+    if 'macos' in bld.env.PLATFORM:
         source += ' profiler_cocoa.mm'
     elif 'android' in bld.env.PLATFORM or 'linux' in bld.env.PLATFORM:
         source += ' profiler_linux.cpp'

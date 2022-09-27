@@ -766,9 +766,9 @@
     (let [[workspace project] (setup-scratch world)]
       (let [node-id (project/get-resource-node project "/label/label.label")]
         (is (= "Original" (g/node-value node-id :text)))
-        (is (= [1.0 1.0 1.0] (g/node-value node-id :scale)))
         (is (= [1.0 1.0 1.0 1.0] (g/node-value node-id :color)))
         (is (= [0.0 0.0 0.0 1.0] (g/node-value node-id :outline)))
+        (is (= [0.0 0.0 0.0 1.0] (g/node-value node-id :shadow)))
         (is (= 1.0 (g/node-value node-id :leading)))
         (is (= 0.0 (g/node-value node-id :tracking)))
         (is (= :pivot-center (g/node-value node-id :pivot)))
@@ -777,9 +777,9 @@
       (write-file workspace "/label/label.label" (read-file workspace "/label/new_label.label"))
       (let [node-id (project/get-resource-node project "/label/label.label")]
         (is (= "Modified" (g/node-value node-id :text)))
-        (is (= [2.0 3.0 4.0] (g/node-value node-id :scale)))
         (is (= [1.0 0.0 0.0 1.0] (g/node-value node-id :color)))
         (is (= [1.0 1.0 1.0 1.0] (g/node-value node-id :outline)))
+        (is (= [0.5 0.5 0.5 1.0] (g/node-value node-id :shadow)))
         (is (= 2.0 (g/node-value node-id :leading)))
         (is (= 1.0 (g/node-value node-id :tracking)))
         (is (= :pivot-n (g/node-value node-id :pivot)))

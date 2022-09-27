@@ -20,7 +20,6 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#include "../graphics.h"
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
@@ -49,7 +48,9 @@ namespace dmGraphics
 
     Context* g_VulkanContext = 0;
 
-    static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
+    static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params);
+    static void     VulkanSetTexture(HTexture texture, const TextureParams& params);
+    static void     CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
     static VkFormat GetVulkanFormatFromTextureFormat(TextureFormat format);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
@@ -223,7 +224,8 @@ namespace dmGraphics
         return address_mode_lut[wrap];
     }
 
-    static uint8_t CreateTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
+    static int16_t CreateVulkanTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers,
+        TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         VkFilter             vk_mag_filter;
         VkFilter             vk_min_filter;
@@ -283,12 +285,13 @@ namespace dmGraphics
             assert(0 && "Unsupported type for min filter");
         }
 
-        TextureSampler new_sampler;
-        new_sampler.m_MinFilter    = minfilter;
-        new_sampler.m_MagFilter    = magfilter;
-        new_sampler.m_AddressModeU = uwrap;
-        new_sampler.m_AddressModeV = vwrap;
-        new_sampler.m_MaxLod       = maxLod;
+        TextureSampler new_sampler  = {};
+        new_sampler.m_MinFilter     = minfilter;
+        new_sampler.m_MagFilter     = magfilter;
+        new_sampler.m_AddressModeU  = uwrap;
+        new_sampler.m_AddressModeV  = vwrap;
+        new_sampler.m_MaxLod        = maxLod;
+        new_sampler.m_MaxAnisotropy = max_anisotropy;
 
         uint32_t sampler_index = texture_samplers.Size();
 
@@ -299,14 +302,15 @@ namespace dmGraphics
 
         VkResult res = CreateTextureSampler(vk_device,
             vk_min_filter, vk_mag_filter, vk_mipmap_mode, vk_wrap_u, vk_wrap_v,
-            0.0, max_lod, &new_sampler.m_Sampler);
+            0.0, max_lod, max_anisotropy, &new_sampler.m_Sampler);
         CHECK_VK_ERROR(res);
 
         texture_samplers.Push(new_sampler);
-        return (uint8_t) sampler_index;
+        return (int16_t) sampler_index;
     }
 
-    static int8_t GetTextureSamplerIndex(dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
+    static int16_t GetTextureSamplerIndex(dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter,
+        TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         for (uint32_t i=0; i < texture_samplers.Size(); i++)
         {
@@ -315,7 +319,8 @@ namespace dmGraphics
                 sampler.m_MinFilter     == minfilter &&
                 sampler.m_AddressModeU  == uwrap     &&
                 sampler.m_AddressModeV  == vwrap     &&
-                sampler.m_MaxLod        == maxLod)
+                sampler.m_MaxLod        == maxLod    &&
+                sampler.m_MaxAnisotropy == max_anisotropy)
             {
                 return (uint8_t) i;
             }
@@ -604,31 +609,10 @@ namespace dmGraphics
             context->m_MainDescriptorAllocators.Begin(), context->m_MainScratchBuffers.Begin());
         CHECK_VK_ERROR(res);
 
-        // Create default pipeline state
-        PipelineState vk_default_pipeline;
-        vk_default_pipeline.m_WriteColorMask           = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
-        vk_default_pipeline.m_WriteDepth               = 1;
-        vk_default_pipeline.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
-        vk_default_pipeline.m_DepthTestEnabled         = 1;
-        vk_default_pipeline.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
-        vk_default_pipeline.m_BlendEnabled             = 0;
-        vk_default_pipeline.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_StencilEnabled           = 0;
-        vk_default_pipeline.m_StencilOpFail            = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpDepthFail       = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpPass            = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilTestFunc          = COMPARE_FUNC_ALWAYS;
-        vk_default_pipeline.m_StencilWriteMask         = 0xff;
-        vk_default_pipeline.m_StencilCompareMask       = 0xff;
-        vk_default_pipeline.m_StencilReference         = 0x0;
-        vk_default_pipeline.m_CullFaceEnabled          = 0;
-        vk_default_pipeline.m_CullFaceType             = FACE_TYPE_BACK;
-        vk_default_pipeline.m_PolygonOffsetFillEnabled = 0;
-        context->m_PipelineState = vk_default_pipeline;
+        context->m_PipelineState = GetDefaultPipelineState();
 
         // Create default texture sampler
-        CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
+        CreateVulkanTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
         // Create default dummy texture
         TextureCreationParams default_texture_creation_params;
@@ -645,8 +629,8 @@ namespace dmGraphics
         default_texture_params.m_Data   = default_texture_data;
         default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
 
-        context->m_DefaultTexture = NewTexture(context, default_texture_creation_params);
-        SetTexture(context->m_DefaultTexture, default_texture_params);
+        context->m_DefaultTexture = VulkanNewTexture(context, default_texture_creation_params);
+        VulkanSetTexture(context->m_DefaultTexture, default_texture_params);
 
         for (int i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
         {
@@ -783,6 +767,11 @@ namespace dmGraphics
     static const char* VulkanGetSupportedExtension(HContext context, uint32_t index)
     {
         return context->m_PhysicalDevice.m_DeviceExtensions[index].extensionName;
+    }
+
+    static bool VulkanIsMultiTargetRenderingSupported(HContext context)
+    {
+        return true;
     }
 
     static void SetupSupportedTextureFormats(HContext context)
@@ -2525,7 +2514,7 @@ bail:
         }
     }
 
-    static void VulkanSetConstantM4(HContext context, const dmVMath::Vector4* data, int base_register)
+    static void VulkanSetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
     {
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
@@ -2540,7 +2529,7 @@ bail:
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4 * count);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -2551,7 +2540,7 @@ bail:
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4 * count);
         }
     }
 
@@ -2600,44 +2589,16 @@ bail:
         context->m_ViewportChanged = 1;
     }
 
-    static inline void SetStateValue(PipelineState& pipeline_state, State state, uint8_t value)
-    {
-        if (state == STATE_DEPTH_TEST)
-        {
-            pipeline_state.m_DepthTestEnabled = value;
-        }
-        else if (state == STATE_STENCIL_TEST)
-        {
-            pipeline_state.m_StencilEnabled = value;
-        }
-        else if (state == STATE_BLEND)
-        {
-            pipeline_state.m_BlendEnabled = value;
-        }
-        else if (state == STATE_CULL_FACE)
-        {
-            pipeline_state.m_CullFaceEnabled = value;
-        }
-        else if (state == STATE_POLYGON_OFFSET_FILL)
-        {
-            pipeline_state.m_PolygonOffsetFillEnabled = value;
-        }
-        else
-        {
-            assert(0 && "EnableState: State not supported");
-        }
-    }
-
     static void VulkanEnableState(HContext context, State state)
     {
         assert(context);
-        SetStateValue(context->m_PipelineState, state, 1);
+        SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void VulkanDisableState(HContext context, State state)
     {
         assert(context);
-        SetStateValue(context->m_PipelineState, state, 0);
+        SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void VulkanSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
@@ -2650,10 +2611,10 @@ bail:
     static void VulkanSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
-        uint8_t write_mask = red   ? DMGRAPHICS_STATE_WRITE_R : 0;
-        write_mask        |= green ? DMGRAPHICS_STATE_WRITE_G : 0;
-        write_mask        |= blue  ? DMGRAPHICS_STATE_WRITE_B : 0;
-        write_mask        |= alpha ? DMGRAPHICS_STATE_WRITE_A : 0;
+        uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
 
         context->m_PipelineState.m_WriteColorMask = write_mask;
     }
@@ -2684,29 +2645,52 @@ bail:
     static void VulkanSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
-        context->m_PipelineState.m_StencilTestFunc    = (uint8_t) func;
-        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void VulkanSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
     {
-        // TODO: Make room in pipeline handle for separate stencil states
-        VulkanSetStencilFunc(context, func, ref, mask);
+        assert(context);
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        }
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void VulkanSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
-        context->m_PipelineState.m_StencilOpFail      = sfail;
-        context->m_PipelineState.m_StencilOpDepthFail = dpfail;
-        context->m_PipelineState.m_StencilOpPass      = dppass;
+        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
     static void VulkanSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
-        // TODO: Make room in pipeline handle for separate stencil states
-        VulkanSetStencilOp(context, sfail, dpfail, dppass);
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        }
     }
 
     static void VulkanSetCullFace(HContext context, FaceType face_type)
@@ -2913,7 +2897,7 @@ bail:
                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, new_texture_color);
                 CHECK_VK_ERROR(res);
 
-                SetTextureParams(new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap);
+                SetTextureParams(new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
 
                 texture_color[color_index] = new_texture_color;
                 buffer_types[color_index] = buffer_type;
@@ -3284,7 +3268,7 @@ bail:
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+        SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
         if (params.m_SubUpdate)
         {
@@ -3356,23 +3340,30 @@ bail:
     static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params)
     {
         // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
-        SetTexture(texture, params);
+        VulkanSetTexture(texture, params);
     }
 
-    static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
     {
-        TextureSampler sampler = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex];
+        return dmMath::Min(max_anisotropy_requested, g_VulkanContext->m_PhysicalDevice.m_Properties.limits.maxSamplerAnisotropy);
+    }
 
-        if (sampler.m_MinFilter    != minfilter ||
-            sampler.m_MagFilter    != magfilter ||
-            sampler.m_AddressModeU != uwrap     ||
-            sampler.m_AddressModeV != vwrap     ||
-            sampler.m_MaxLod       != texture->m_MipMapCount)
+    static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    {
+        TextureSampler sampler   = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex];
+        float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
+
+        if (sampler.m_MinFilter     != minfilter              ||
+            sampler.m_MagFilter     != magfilter              ||
+            sampler.m_AddressModeU  != uwrap                  ||
+            sampler.m_AddressModeV  != vwrap                  ||
+            sampler.m_MaxLod        != texture->m_MipMapCount ||
+            sampler.m_MaxAnisotropy != anisotropy_clamped)
         {
-            int8_t sampler_index = GetTextureSamplerIndex(g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+            int16_t sampler_index = GetTextureSamplerIndex(g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(g_VulkanContext->m_LogicalDevice.m_Device, g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+                sampler_index = CreateVulkanTextureSampler(g_VulkanContext->m_LogicalDevice.m_Device, g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
             }
 
             texture->m_TextureSamplerIndex = sampler_index;
@@ -3560,6 +3551,7 @@ bail:
         fn_table.m_IsExtensionSupported = VulkanIsExtensionSupported;
         fn_table.m_GetNumSupportedExtensions = VulkanGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = VulkanGetSupportedExtension;
+        fn_table.m_IsMultiTargetRenderingSupported = VulkanIsMultiTargetRenderingSupported;
         return fn_table;
     }
 }

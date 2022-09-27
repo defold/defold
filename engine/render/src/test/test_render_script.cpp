@@ -1040,6 +1040,72 @@ TEST_F(dmRenderScriptTest, DeltaTime)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_Baseline)
+{
+    const char* script =
+    "local function assert_vec4_equal(a,b)\n"
+    "    assert(a.x == b.x and a.y == b.y and a.z == b.z and a.w == b.w)\n"
+    "end\n"
+    "local function assert_mat4_equal(a,b)\n"
+    "    assert(a.m00 == b.m00 and a.m01 == b.m01 and a.m02 == b.m02 and a.m03 == b.m03 and\n"
+    "        a.m10 == b.m10 and a.m11 == b.m11 and a.m12 == b.m12 and a.m13 == b.m13 and\n"
+    "        a.m20 == b.m20 and a.m21 == b.m21 and a.m22 == b.m22 and a.m23 == b.m23 and\n"
+    "        a.m30 == b.m30 and a.m31 == b.m31 and a.m32 == b.m32 and a.m33 == b.m33)\n"
+    "end\n"
+    "function init(self)\n"
+    "    local cb = render.constant_buffer()\n"
+    "    cb.vec4 = vmath.vector4(1,2,3,4)\n"
+    "    cb.mat4 = vmath.matrix4_translation(vmath.vector3(1,2,3))\n"
+    "    assert_vec4_equal(vmath.vector4(1,2,3,4), cb.vec4)\n"
+    "    assert_mat4_equal(vmath.matrix4_translation(vmath.vector3(1,2,3)), cb.mat4)\n"
+    "    cb.vec4_array    = { vmath.vector4(1,2,3,4), vmath.vector4(4,3,2,1) }\n"
+    "    cb.vec4_array[8] = vmath.vector4(-1, -2, -3, -4)\n"
+    "    cb.mat4_array    = { vmath.matrix4_translation(vmath.vector3(1,2,3)), vmath.matrix4_translation(vmath.vector3(3,2,1))}\n"
+    "    cb.mat4_array[3] = vmath.matrix4_translation(vmath.vector3(-1,-2,-3))\n"
+    "    assert_vec4_equal(vmath.vector4(1,2,3,4),        cb.vec4_array[1])\n"
+    "    assert_vec4_equal(vmath.vector4(4,3,2,1),        cb.vec4_array[2])\n"
+    "    assert_vec4_equal(vmath.vector4(0,0,0,0),        cb.vec4_array[3])\n"
+    "    assert_vec4_equal(vmath.vector4(-1, -2, -3, -4), cb.vec4_array[8])\n"
+    "    assert_mat4_equal(vmath.matrix4_translation(vmath.vector3(1,2,3)),    cb.mat4_array[1])\n"
+    "    assert_mat4_equal(vmath.matrix4_translation(vmath.vector3(3,2,1)),    cb.mat4_array[2])\n"
+    "    assert_mat4_equal(vmath.matrix4_translation(vmath.vector3(-1,-2,-3)), cb.mat4_array[3])\n"
+    "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_InvalidUsage)
+{
+    const char* script = 
+        "function init(self)\n"
+        "    self.cb = render.constant_buffer()\n"
+        "    self.test = 0\n"
+        "end\n"
+        "function update(self)\n"
+        "    self.test = self.test + 1\n"
+        "    if self.test == 1 then self.cb.invalid_key   = { [-1] = vmath.vector4() } end\n"
+        "    if self.test == 2 then self.cb.invalid_key   = { [\"bad_key\"] = vmath.vector4() } end\n"
+        "    if self.test == 3 then self.cb.type_mismatch = { vmath.vector4(), vmath.matrix4() } end\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

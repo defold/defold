@@ -16,12 +16,24 @@ package com.dynamo.bob.bundle;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.BobProjectProperties;
 
 public interface IBundler {
 
-    void bundleApplication(Project project, File bundleDirectory, ICanceled canceled) throws IOException, CompileExceptionError;
+    void bundleApplication(Project project, Platform platform, File bundleDirectory, ICanceled canceled) throws IOException, CompileExceptionError;
 
+    String getMainManifestName(Platform platform);       // the base name: "Info.plist"
+    String getMainManifestTargetPath(Platform platform); // E.g. Contents/Info.plist
+    IResource getManifestResource(Project project, Platform platform) throws IOException;
+
+    void updateManifestProperties(Project project, Platform platform,
+                                BobProjectProperties projectProperties,
+                                Map<String, Map<String, Object>> propertiesMap,
+                                Map<String, Object> properties) throws IOException;
 }

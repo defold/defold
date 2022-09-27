@@ -5,12 +5,13 @@ TimelineWindow = (function()
 {
 	var BORDER = 10;
 
-	function TimelineWindow(wm, name, settings, check_handler)
+	function TimelineWindow(wm, name, settings, check_handler, gl_canvas)
 	{
 		this.Settings = settings;
+		this.glCanvas = gl_canvas;
 
 		// Create timeline window
-		this.Window = wm.AddWindow("Timeline", 10, 20, 100, 100);
+		this.Window = wm.AddWindow("Timeline", 10, 20, 100, 100, null, this);
 		this.Window.SetTitle(name);
 		this.Window.ShowNoAnim();
 
@@ -30,47 +31,15 @@ TimelineWindow = (function()
 		this.TimelineContainer = this.Window.AddControlNew(new WM.Container(10, 10, 800, 160));
 		DOM.Node.AddClass(this.TimelineContainer.Node, "TimelineContainer");
 
-		var mouse_wheel_event = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel";
-		DOM.Event.AddHandler(this.TimelineContainer.Node, mouse_wheel_event, Bind(OnMouseScroll, this));
+		// Setup mouse interaction
+		this.mouseInteraction = new MouseInteraction(this.TimelineContainer.Node);
+		this.mouseInteraction.onClickHandler = (mouse_state) => OnMouseClick(this, mouse_state);
+		this.mouseInteraction.onMoveHandler = (mouse_state, mx, my) => OnMouseMove(this, mouse_state, mx, my);
+		this.mouseInteraction.onHoverHandler = (mouse_state) => OnMouseHover(this, mouse_state);
+		this.mouseInteraction.onScrollHandler = (mouse_state) => OnMouseScroll(this, mouse_state);
 
-		// Setup timeline manipulation
-		this.MouseDown = false;
-		this.LastMouseState = null;
-		this.TimelineMoved = false;
-		DOM.Event.AddHandler(this.TimelineContainer.Node, "mousedown", Bind(OnMouseDown, this));
-		DOM.Event.AddHandler(this.TimelineContainer.Node, "mouseup", Bind(OnMouseUp, this));
-		DOM.Event.AddHandler(this.TimelineContainer.Node, "mousemove", Bind(OnMouseMove, this));
-		DOM.Event.AddHandler(this.TimelineContainer.Node, "mouseleave", Bind(OnMouseLeave, this));
-
-		// Create a canvas for timeline 2D rendering
-		// TODO(don): Port this to shaders
-		this.drawCanvas = document.createElement("canvas");
-		this.drawCanvas.width = this.TimelineContainer.Node.clientWidth;
-		this.drawCanvas.height = this.TimelineContainer.Node.clientHeight;
-		this.TimelineContainer.Node.appendChild(this.drawCanvas);
-		this.drawContext = this.drawCanvas.getContext("2d");
-
-		// Create a canvas for timeline 3D accelerated rendering
-		this.glCanvas = document.createElement("canvas");
-		this.glCanvas.width = this.TimelineContainer.Node.clientWidth;
-		this.glCanvas.height = this.TimelineContainer.Node.clientHeight;
-		this.TimelineContainer.Node.appendChild(this.glCanvas);
-
-		// OVERLAY - add to CSS
-		this.glCanvas.style.position = "absolute";
-		this.glCanvas.style.top = 0;
-		this.glCanvas.style.left = 0;
-
-		// For now a gl context per timeline
-		let gl = this.glCanvas.getContext("webgl2");
-		this.gl = gl;
-
-		const vshader = glCompileShader(gl, gl.VERTEX_SHADER, "TimelineVShader", TimelineVShader);
-		const fshader = glCompileShader(gl, gl.FRAGMENT_SHADER, "TimelineFShader", TimelineFShader);
-		this.Program = glCreateProgram(gl, vshader, fshader);
-
-		this.font = new glFont(gl);
-		this.textBuffer = new glTextBuffer(gl, this.font);
+		// Allow user to click on the thread name to deselect any threads as finding empty space may be difficult
+		DOM.Event.AddHandler(this.TimelineLabels.Node, "mousedown", (evt) => OnLabelMouseDown(this, evt));
 
 		this.Window.SetOnResize(Bind(OnUserResize, this));
 
@@ -84,6 +53,7 @@ TimelineWindow = (function()
 		this.yScrollOffset = 0;
 
 		this.HoverSampleInfo = null;
+		this.lastHoverThreadName = null;
 	}
 
 
@@ -129,10 +99,8 @@ TimelineWindow = (function()
 	TimelineWindow.prototype.OnSamples = function(thread_name, frame_history)
 	{
 		// Shift the timeline to the last entry on this thread
-		// As multiple threads come through here with different end frames, only do this for the latest
 		var last_frame = frame_history[frame_history.length - 1];
-		if (last_frame.EndTime_us > this.TimeRange.End_us)
-			this.TimeRange.SetEnd(last_frame.EndTime_us);
+		this.TimeRange.SetEnd(last_frame.EndTime_us);
 
 		// Search for the index of this thread
 		var thread_index = -1;
@@ -148,7 +116,7 @@ TimelineWindow = (function()
 		// If this thread has not been seen before, add a new row to the list
 		if (thread_index == -1)
 		{
-			var row = new TimelineRow(this.gl, thread_name, this, frame_history, this.CheckHandler);
+			var row = new TimelineRow(this.glCanvas.gl, thread_name, this, frame_history, this.CheckHandler);
 			this.ThreadRows.push(row);
 
 			// Sort thread rows in the collection by name
@@ -171,54 +139,130 @@ TimelineWindow = (function()
 
 	TimelineWindow.prototype.DrawBackground = function()
 	{
-		// TODO(don): Port all this lot to shader, maybe... it's not performance sensitive
+		const gl = this.glCanvas.gl;
+		const program = this.glCanvas.timelineBackgroundProgram;
+		gl.useProgram(program);
 
-		this.drawContext.clearRect(0, 0, this.drawCanvas.width, this.drawCanvas.height);
+        // Set viewport parameters
+        glSetUniform(gl, program, "inViewport.width", gl.canvas.width);
+        glSetUniform(gl, program, "inViewport.height", gl.canvas.height);
+		
+		this.glCanvas.SetContainerUniforms(program, this.TimelineContainer.Node);
 
-		// Draw thread row backgrounds
-		for (let thread_row of this.ThreadRows)
-		{
-			thread_row.DrawBackground(this.HoverSampleInfo, this.yScrollOffset);
-		}
+		// Set row parameters
+		const row_rect = this.TimelineLabels.Node.getBoundingClientRect();
+		glSetUniform(gl, program, "inYOffset", row_rect.top);
+
+		gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
 		this.timelineMarkers.Draw(this.TimeRange);
 	}
 
 
-	TimelineWindow.prototype.DrawAllRows = function()
+	TimelineWindow.prototype.Deselect = function(thread_name)
 	{
-		let gl = this.gl;
+		for (let thread_row of this.ThreadRows)
+		{
+			if (thread_name == thread_row.Name)
+			{
+				thread_row.SelectSampleInfo = null;
+			}
+		}
+	}
 
-		gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-        gl.useProgram(this.Program);
+	TimelineWindow.prototype.DrawSampleHighlights = function()
+	{
+		const gl = this.glCanvas.gl;
+        const program = this.glCanvas.timelineHighlightProgram;
+		gl.useProgram(program);
 
         // Set viewport parameters
-        glSetUniform(gl, this.Program, "inViewport.width", gl.canvas.width);
-        glSetUniform(gl, this.Program, "inViewport.height", gl.canvas.height);
+        glSetUniform(gl, program, "inViewport.width", gl.canvas.width);
+        glSetUniform(gl, program, "inViewport.height", gl.canvas.height);
 
 		// Set time range parameters
 		const time_range = this.TimeRange;
-        time_range.SetAsUniform(gl, this.Program);
+        time_range.SetAsUniform(gl, program);
 
-        // Set text rendering resources
-		// Note it might not be loaded yet so we need the null check
-		if (this.font.atlasTexture != null)
+		for (let thread_row of this.ThreadRows)
 		{
-			glSetUniform(gl, this.Program, "inFontAtlasTextre", this.font.atlasTexture, 0);
-        	this.textBuffer.SetAsUniform(gl, this.Program, "inTextBuffer", 1);
-		}
+			// Draw highlight for hover row
+			if (this.HoverSampleInfo != null && this.HoverSampleInfo[3] == thread_row)
+			{
+				const frame = this.HoverSampleInfo[0];
+				const offset = this.HoverSampleInfo[1];
+				const depth = this.HoverSampleInfo[2];
+				thread_row.DrawSampleHighlight(this.glCanvas, this.TimelineContainer.Node, frame, offset, depth, false);
+			}
 
-		const draw_text = this.Settings.IsPaused;
+			// Draw highlight for any samples selected on this row
+			if (thread_row.SelectSampleInfo != null)
+			{
+				const frame = thread_row.SelectSampleInfo[0];
+				const offset = thread_row.SelectSampleInfo[1];
+				const depth = thread_row.SelectSampleInfo[2];
+				thread_row.DrawSampleHighlight(this.glCanvas, this.TimelineContainer.Node, frame, offset, depth, true);
+			}
+		}
+	}
+
+
+	TimelineWindow.prototype.DrawSampleGpuToCpu = function()
+	{
+		const gl = this.glCanvas.gl;
+		const program = this.glCanvas.timelineGpuToCpuProgram;
+		gl.useProgram(program);
+
+        // Set viewport parameters
+        glSetUniform(gl, program, "inViewport.width", gl.canvas.width);
+        glSetUniform(gl, program, "inViewport.height", gl.canvas.height);
+
+		// Set time range parameters
+		const time_range = this.TimeRange;
+        time_range.SetAsUniform(gl, program);
+
+		// Draw pointer for hover rows
+		for (let thread_row of this.ThreadRows)
+		{
+			if (this.HoverSampleInfo != null && this.HoverSampleInfo[3] == thread_row)
+			{
+				const frame = this.HoverSampleInfo[0];
+				const offset = this.HoverSampleInfo[1];
+				const depth = this.HoverSampleInfo[2];
+				thread_row.DrawSampleGpuToCpu(this.glCanvas, this.TimelineContainer.Node, frame, offset, depth);
+			}
+		}
+	}
+
+
+	TimelineWindow.prototype.Draw = function()
+	{
+		this.DrawBackground();
+
+		const gl = this.glCanvas.gl;
+        const program = this.glCanvas.timelineProgram;
+		gl.useProgram(program);
+
+        // Set viewport parameters
+        glSetUniform(gl, program, "inViewport.width", gl.canvas.width);
+        glSetUniform(gl, program, "inViewport.height", gl.canvas.height);
+
+		// Set time range parameters
+		const time_range = this.TimeRange;
+        time_range.SetAsUniform(gl, program);
+
+        this.glCanvas.SetTextUniforms(program);
+
 		for (let i in this.ThreadRows)
 		{
 			var thread_row = this.ThreadRows[i];
 			thread_row.SetVisibleFrames(time_range);
-			thread_row.Draw(gl, draw_text, this.yScrollOffset);
+			thread_row.Draw(this.glCanvas, this.TimelineContainer.Node);
 		}
 
-		// Render last so that each thread row uses any new time ranges
-		this.DrawBackground();
+		this.DrawSampleHighlights();
+		this.DrawSampleGpuToCpu();
 	}
 
 
@@ -250,23 +294,14 @@ TimelineWindow = (function()
 		self.TimelineLabelScrollClipper.SetSize(offset_x, parent_size[1] - MarkersHeight - 40);
 		self.TimelineLabels.SetSize(offset_x, parent_size[1] - MarkersHeight - 40);
 
-		// Match canvas size to container
-		const width = self.TimelineContainer.Node.clientWidth;
-		const height = self.TimelineContainer.Node.clientHeight;
-		self.drawCanvas.width = width;
-		self.drawCanvas.height = height;
-		self.glCanvas.width = width;
-		self.glCanvas.height = height;
-
 		// Adjust time range to new width
+		const width = self.TimelineContainer.Node.clientWidth;
 		self.TimeRange.SetPixelSpan(width);
-		self.DrawAllRows();
 	}
 
 
-	function OnMouseScroll(self, evt)
+	function OnMouseScroll(self, mouse_state)
 	{
-		let mouse_state = new Mouse.State(evt);
 		let scale = 1.11;
 		if (mouse_state.WheelDelta > 0)
 			scale = 1 / scale;
@@ -280,15 +315,11 @@ TimelineWindow = (function()
 
 		// Scale and offset back to the hover time
 		self.TimeRange.Set(time_start_us * scale + time_us, self.TimeRange.Span_us * scale);
-		self.DrawAllRows();
 
 		if (self.OnMovedHandler)
 		{
 			self.OnMovedHandler(self);
 		}
-
-		// Prevent vertical scrolling on mouse-wheel
-		DOM.Event.StopDefaultAction(evt);
 	}
 
 
@@ -311,7 +342,7 @@ TimelineWindow = (function()
 	}
 
 
-	TimelineWindow.prototype.ScrollVertically = function(y_scroll)
+	TimelineWindow.prototype.MoveVertically = function(y_scroll)
 	{
 		// Calculate the minimum negative value the position of the labels can be to account for scrolling to the bottom
 		// of the label/depth list
@@ -366,140 +397,96 @@ TimelineWindow = (function()
 	}
 
 
-	function OnMouseDown(self, evt)
+	function OnMouseClick(self, mouse_state)
 	{
-		// Only manipulate the timeline when paused
-		if (!self.Settings.IsPaused)
-			return;
-
-		self.MouseDown = true;
-		self.LastMouseState = new Mouse.State(evt);
-		self.TimelineMoved = false;
-		DOM.Event.StopDefaultAction(evt);
-	}
-
-
-	function OnMouseUp(self, evt)
-	{
-		// Only manipulate the timeline when paused
-		if (!self.Settings.IsPaused)
-			return;
-
-		var mouse_state = new Mouse.State(evt);
-
-		self.MouseDown = false;
-
-		if (!self.TimelineMoved)
+		// Are we hovering over a thread row?
+		const mouse_pos = self.TimelineMousePosition(mouse_state);
+		const hover_thread_row = self.GetHoverThreadRow(mouse_pos);
+		if (hover_thread_row != null)
 		{
-			// Are we hovering over a thread row?
-			let mouse_pos = self.TimelineMousePosition(mouse_state);
-			let hover_thread_row = self.GetHoverThreadRow(mouse_pos);
-			if (hover_thread_row != null)
+			// Are we hovering over a sample?
+			const time_us = self.TimeRange.TimeAtPosition(mouse_pos[0]);
+			const sample_info = hover_thread_row.GetSampleAtPosition(time_us, mouse_pos[1]);
+			if (sample_info != null)
 			{
-				// Are we hovering over a sample?
-				let time_us = self.TimeRange.TimeAtPosition(mouse_pos[0]);
-				let sample_info = hover_thread_row.GetSampleAtPosition(time_us, mouse_pos[1]);
-				if (sample_info != null)
+				// Toggle deselect if this sample is already selected
+				if (hover_thread_row.SelectSampleInfo != null &&
+					sample_info[0] == hover_thread_row.SelectSampleInfo[0] && sample_info[1] == hover_thread_row.SelectSampleInfo[1] &&
+					sample_info[2] == hover_thread_row.SelectSampleInfo[2] && sample_info[3] == hover_thread_row.SelectSampleInfo[3])
 				{
-					// Redraw with new select sample
+					hover_thread_row.SetSelectSample(null);
+					self.OnSelectedHandler?.(hover_thread_row.Name, null);
+				}
+
+				// Otherwise select
+				else
+				{
 					hover_thread_row.SetSelectSample(sample_info);
-					self.DrawBackground();
-
-					// Call any selection handlers
-					if (self.OnSelectedHandler)
-					{
-						self.OnSelectedHandler(hover_thread_row.Name, sample_info);
-					}
+					self.OnSelectedHandler?.(hover_thread_row.Name, sample_info);
 				}
 			}
-		}
-	}
 
-
-	function OnMouseMove(self, evt)
-	{
-		// Only manipulate the timeline when paused
-		if (!self.Settings.IsPaused)
-			return;
-
-		var mouse_state = new Mouse.State(evt);
-
-		if (self.MouseDown)
-		{
-			let movement = false;
-
-			// Shift the visible time range with mouse movement
-			let time_offset_us = (mouse_state.Position[0] - self.LastMouseState.Position[0]) / self.TimeRange.usPerPixel;
-			if (time_offset_us != 0)
-			{
-				self.TimeRange.SetStart(self.TimeRange.Start_us - time_offset_us);
-				movement = true;
-			}
-
-			// Control vertical movement
-			let y_offset_px = mouse_state.Position[1] - self.LastMouseState.Position[1];
-			if (y_offset_px != 0)
-			{
-				self.ScrollVertically(y_offset_px);
-				movement = true;
-			}
-
-			// Redraw everything if there is movement
-			if (movement)
-			{
-				self.DrawAllRows();
-				self.TimelineMoved = true;
-
-				if (self.OnMovedHandler)
-				{
-					self.OnMovedHandler(self);
-				}
-			}
-		}
-
-		else
-		{
-			// Are we hovering over a thread row?
-			let mouse_pos = self.TimelineMousePosition(mouse_state);
-			let hover_thread_row = self.GetHoverThreadRow(mouse_pos);
-			if (hover_thread_row != null)
-			{
-				// Are we hovering over a sample?
-				let time_us = self.TimeRange.TimeAtPosition(mouse_pos[0]);
-				self.HoverSampleInfo = hover_thread_row.GetSampleAtPosition(time_us, mouse_pos[1]);
-
-				// Tell listeners which sample we're hovering over
-				if (self.OnHoverHandler != null)
-				{
-					self.OnHoverHandler(hover_thread_row.Name, self.HoverSampleInfo);
-				}
-			}
+			// Deselect if not hovering over a sample
 			else
 			{
-				self.HoverSampleInfo = null;
+				self.OnSelectedHandler?.(hover_thread_row.Name, null);
 			}
-
-			// Redraw to update highlights
-			self.DrawBackground();
 		}
-
-		self.LastMouseState = mouse_state;
 	}
 
 
-	function OnMouseLeave(self, evt)
+	function OnLabelMouseDown(self, evt)
 	{
-		// Only manipulate the timeline when paused
-		if (!self.Settings.IsPaused)
-			return;
-		
-		// Cancel scrolling
-		self.MouseDown = false;
+		// Deselect sample on this thread
+		const mouse_state = new Mouse.State(evt);
+		let mouse_pos = self.TimelineMousePosition(mouse_state);
+		const thread_row = self.GetHoverThreadRow(mouse_pos);
+		self.OnSelectedHandler?.(thread_row.Name, null);
+	}
 
-		// Cancel hovering
-		if (self.OnHoverHandler != null)
+
+	function OnMouseMove(self, mouse_state, move_offset_x, move_offset_y)
+	{
+		// Shift the visible time range with mouse movement
+		const time_offset_us = move_offset_x / self.TimeRange.usPerPixel;
+		self.TimeRange.SetStart(self.TimeRange.Start_us - time_offset_us);
+
+		// Control vertical movement
+		self.MoveVertically(move_offset_y);
+
+		// Notify
+		self.OnMovedHandler?.(self);
+	}
+
+
+	function OnMouseHover(self, mouse_state)
+	{
+		// Check for hover ending
+		if (mouse_state == null)
 		{
-			self.OnHoverHandler(null, null);
+			self.OnHoverHandler?.(self.lastHoverThreadName, null);
+			return;
+		}
+
+		// Are we hovering over a thread row?
+		const mouse_pos = self.TimelineMousePosition(mouse_state);
+		const hover_thread_row = self.GetHoverThreadRow(mouse_pos);
+		if (hover_thread_row != null)
+		{
+			// Are we hovering over a sample?
+			const time_us = self.TimeRange.TimeAtPosition(mouse_pos[0]);
+			self.HoverSampleInfo = hover_thread_row.GetSampleAtPosition(time_us, mouse_pos[1]);
+
+			// Exit hover for the last hover row
+			self.OnHoverHandler?.(self.lastHoverThreadName, null);
+			self.lastHoverThreadName = hover_thread_row.Name;
+
+			// Tell listeners which sample we're hovering over
+			self.OnHoverHandler?.(hover_thread_row.Name, self.HoverSampleInfo);
+		}
+		else
+		{
+			self.HoverSampleInfo = null;
 		}
 	}
 

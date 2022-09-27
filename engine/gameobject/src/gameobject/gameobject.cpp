@@ -159,6 +159,15 @@ namespace dmGameObject
         m_Bool = v;
     }
 
+    PropertyVar::PropertyVar(Matrix4 v)
+    {
+        m_Type   = PROPERTY_TYPE_MATRIX4;
+
+        Vector4& c0 = v[0];
+        float& v0   = c0[0];
+        memcpy(m_M4, &v0, sizeof(m_M4));
+    }
+
     Register::Register()
     {
         m_ComponentTypeCount = 0;
@@ -767,6 +776,7 @@ namespace dmGameObject
             params.m_Instance = instance;
             params.m_Position = component->m_Position;
             params.m_Rotation = component->m_Rotation;
+            params.m_Scale = component->m_Scale;
             params.m_ComponentIndex = i;
             params.m_Resource = component->m_Resource;
             params.m_World = collection->m_ComponentWorlds[component->m_TypeIndex];

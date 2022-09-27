@@ -15,8 +15,8 @@
 (ns editor.buffer
   (:require [dynamo.graph :as g]
             [editor.buffers :as buffers]
+            [editor.code.lang.json :as json]
             [editor.code.resource :as r]
-            [editor.json :as json]
             [editor.pipeline :as pipeline])
   (:import [com.dynamo.gamesys.proto BufferProto$BufferDesc]))
 
@@ -119,6 +119,6 @@
                                  :label "Buffer"
                                  :icon buffer-icon
                                  :view-types [:code :default]
-                                 :view-opts {:code {:grammar json/json-grammar}}
+                                 :view-opts {:code {:grammar json/grammar}}
                                  :node-type BufferNode
                                  :eager-loading? false))

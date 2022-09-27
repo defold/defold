@@ -165,6 +165,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                             }
                         }
                     }
+                    else {
+                        System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
+                    }
                     // Since parsing out the actual error failed, as a backup just
                     // spit out whatever luajit/luac said.
                     inputFile.delete();
@@ -189,6 +192,15 @@ public abstract class LuaBuilder extends Builder<Void> {
             IOUtils.closeQuietly(fo);
             IOUtils.closeQuietly(rdr);
         }
+    }
+
+    // we use the same chunk name across the board
+    // we always use @ + full path
+    // if the path is shorter than 60 characters the runtime will show the full path
+    // if the path is longer than 60 characters the runtime will show ... and the last portion of the path
+    private String getChunkName(Task<Void> task) {
+        String chunkName = "@" + task.input(0).getPath();
+        return chunkName;
     }
 
     public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
@@ -220,7 +232,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             + (bytecode[LUAC_HEADERSIZE + 3] << 24);
 
         // the new chunkname, created from the original filename
-        final String chunkName = "@" + task.input(0).getPath();
+        final String chunkName = getChunkName(task);
         final byte[] chunkNameBytes = chunkName.getBytes();
         final int chunkNameLength = chunkNameBytes.length;
 
@@ -262,11 +274,11 @@ public abstract class LuaBuilder extends Builder<Void> {
         // If a script error occurs in runtime we want Lua to report the end of the filepath
         // associated with the chunk, since this is where the filename is visible.
         //
-        final String chunkName = "@" + task.input(0).getPath();
+        final String chunkName = getChunkName(task);
         List<String> options = new ArrayList<String>();
         options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
         options.add("-b");
-        options.add("-g");
+        options.add("-g"); // Keep debug info
         options.add("-f"); options.add(chunkName);
         options.add(inputFile.getAbsolutePath());
         options.add(outputFile.getAbsolutePath());
@@ -330,7 +342,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         }
 
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
-        srcBuilder.setFilename(task.input(0).getPath());
+        srcBuilder.setFilename(getChunkName(task));
 
         // for platforms using Lua 5.1 we include Lua source code even though
         // there is a constructLuaBytecode() function above

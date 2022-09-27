@@ -56,7 +56,14 @@ static void enableMouseCursor( void )
 
     if( centerPosX != _glfwInput.MousePosX || centerPosY != _glfwInput.MousePosY )
     {
-        _glfwPlatformSetMouseCursorPos( centerPosX, centerPosY );
+        // DEFOLD change
+        // =============
+        // Mouse coordinates are locked to pixel coordinates and doesn't
+        // take high dpi screens into account, which causes a bunch of issues
+        float invDisplayScaleFactor = 1 / _glfwPlatformGetDisplayScaleFactor();
+        int centerPosScreenX = (int) ((float) centerPosX * invDisplayScaleFactor);
+        int centerPosScreenY = (int) ((float) centerPosY * invDisplayScaleFactor);
+        _glfwPlatformSetMouseCursorPos( centerPosScreenX, centerPosScreenY );
 
         _glfwInput.MousePosX = centerPosX;
         _glfwInput.MousePosY = centerPosY;
@@ -78,6 +85,9 @@ static void enableMouseCursor( void )
 
 static void disableMouseCursor( void )
 {
+    int centerPosX, centerPosY;
+    float invDisplayScaleFactor;
+
     if( !_glfwWin.opened || _glfwWin.mouseLock )
     {
         return;
@@ -86,9 +96,16 @@ static void disableMouseCursor( void )
     // Hide mouse cursor
     _glfwPlatformHideMouseCursor();
 
+    // DEFOLD change
+    // =============
+    // Mouse coordinates are locked to pixel coordinates and doesn't
+    // take high dpi screens into account, which causes a bunch of issues
+    invDisplayScaleFactor = 1 / _glfwPlatformGetDisplayScaleFactor();
+    centerPosX = (int) ((float) (_glfwWin.width / 2) * invDisplayScaleFactor);
+    centerPosY = (int) ((float) (_glfwWin.height / 2) * invDisplayScaleFactor);
+
     // Move cursor to the middle of the window
-    _glfwPlatformSetMouseCursorPos( _glfwWin.width >> 1,
-                                    _glfwWin.height >> 1 );
+    _glfwPlatformSetMouseCursorPos(centerPosX, centerPosY);
 
     // From now on the mouse is locked
     _glfwWin.mouseLock = GL_TRUE;

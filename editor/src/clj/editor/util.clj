@@ -14,7 +14,7 @@
 
 (ns editor.util
   (:require [clojure.string :as string])
-  (:import [com.defold.editor Platform]
+  (:import [com.dynamo.bob Platform]
            [java.util Locale Comparator]))
 
 (set! *warn-on-reflection* true)
@@ -111,6 +111,13 @@
         (compare a b)))))
 
 (defn comparator-chain
+  ([^Comparator c1 ^Comparator c2]
+   (reify Comparator
+     (compare [_ a b]
+       (let [ret (.compare c1 a b)]
+         (if (zero? ret)
+           (.compare c2 a b)
+           ret)))))
   ([^Comparator c1 ^Comparator c2 ^Comparator c3]
    (reify Comparator
      (compare [_ a b]
@@ -133,14 +140,14 @@
        (.compare c (f a) (f b))))))
 
 (defn os-raw
-  "Returns :win32, :darwin or :linux"
+  "Returns :win32, :macos or :linux"
   []
   (keyword (.. Platform getHostPlatform getOs)))
 
 (def os (memoize os-raw))
 
 (defn is-mac-os? []
-  (= (os) :darwin))
+  (= (os) :macos))
 
 (defn is-linux? []
   (= (os) :linux))

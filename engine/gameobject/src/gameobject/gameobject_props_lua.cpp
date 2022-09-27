@@ -52,6 +52,10 @@ namespace dmGameObject
                 {
                     return PROPERTY_TYPE_QUAT;
                 }
+                else if ((*userdata = (void*)dmScript::ToMatrix4(L, index)))
+                {
+                    return PROPERTY_TYPE_MATRIX4;
+                }
                 else
                 {
                     dmLogError("Properties type can not be determined.");
@@ -111,6 +115,14 @@ namespace dmGameObject
             case PROPERTY_TYPE_BOOLEAN:
                 out_var.m_Bool = (bool) lua_toboolean(L, index);
                 return PROPERTY_RESULT_OK;
+            case PROPERTY_TYPE_MATRIX4:
+                {
+                    Matrix4* m  = (Matrix4*) userdata;
+                    Vector4& c0 = (*m)[0];
+                    float& v0   = c0[0];
+                    memcpy(out_var.m_M4, &v0, sizeof(out_var.m_M4));
+                }
+                return PROPERTY_RESULT_OK;
             default:
                 return PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
@@ -143,6 +155,13 @@ namespace dmGameObject
             break;
         case PROPERTY_TYPE_BOOLEAN:
             lua_pushboolean(L, var.m_Bool);
+            break;
+        case PROPERTY_TYPE_MATRIX4:
+            dmScript::PushMatrix4(L, dmVMath::Matrix4(
+                dmVMath::Vector4(var.m_M4[0],  var.m_M4[1],  var.m_M4[2],  var.m_M4[3]),
+                dmVMath::Vector4(var.m_M4[4],  var.m_M4[5],  var.m_M4[6],  var.m_M4[7]),
+                dmVMath::Vector4(var.m_M4[8],  var.m_M4[9],  var.m_M4[10], var.m_M4[11]),
+                dmVMath::Vector4(var.m_M4[12], var.m_M4[13], var.m_M4[14], var.m_M4[15])));
             break;
         default:
             break;
@@ -192,6 +211,8 @@ namespace dmGameObject
                     case PROPERTY_TYPE_BOOLEAN:
                         ++params.m_BoolCount;
                         break;
+                    case PROPERTY_TYPE_MATRIX4:
+                        // Not supported
                     case PROPERTY_TYPE_COUNT:
                         lua_pop(L, 3);
                         return 0x0;
@@ -234,6 +255,8 @@ namespace dmGameObject
                     case PROPERTY_TYPE_BOOLEAN:
                         PushBool(builder, id, lua_toboolean(L, -1) != 0);
                         break;
+                    case PROPERTY_TYPE_MATRIX4:
+                        // Not supported
                     case PROPERTY_TYPE_COUNT:
                         assert(false);
                         break;

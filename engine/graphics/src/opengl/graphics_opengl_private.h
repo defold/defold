@@ -38,6 +38,7 @@ namespace dmGraphics
         void*                   m_WindowFocusCallbackUserData;
         WindowIconifyCallback   m_WindowIconifyCallback;
         void*                   m_WindowIconifyCallbackUserData;
+        PipelineState           m_PipelineState;
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
@@ -55,13 +56,15 @@ namespace dmGraphics
         uint64_t                m_TextureFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
+        float                   m_MaxAnisotropy;
+        uint8_t                 m_AnisotropySupport                : 1;
         uint8_t                 m_FrameBufferInvalidateAttachments : 1;
-        uint8_t                 m_PackedDepthStencil : 1;
-        uint8_t                 m_WindowOpened : 1;
-        uint8_t                 m_VerifyGraphicsCalls : 1;
-        uint8_t                 m_RenderDocSupport : 1;
-        uint8_t                 m_IsGles3Version : 1; // 0 == gles 2, 1 == gles 3
-        uint8_t                 m_IsShaderLanguageGles : 1; // 0 == glsl, 1 == gles
+        uint8_t                 m_PackedDepthStencil               : 1;
+        uint8_t                 m_WindowOpened                     : 1;
+        uint8_t                 m_VerifyGraphicsCalls              : 1;
+        uint8_t                 m_RenderDocSupport                 : 1;
+        uint8_t                 m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
+        uint8_t                 m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
     };
 
     static inline void IncreaseModificationVersion(Context* context)

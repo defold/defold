@@ -321,6 +321,146 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     ASSERT_EQ(ctx.m_Z, orders[1]);
 }
 
+struct TestDrawStateDispatchCtx
+{
+    dmRender::HRenderContext       m_Context;
+    dmRender::HMaterial            m_Material;
+    dmRender::RenderObject         m_RenderObjects[2];
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+};
+
+static void TestDrawStateDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
+        TestDrawStateDispatchCtx* user_ctx = (TestDrawStateDispatchCtx*) params.m_UserData;
+        dmRender::RenderObject* ro_0       = &user_ctx->m_RenderObjects[0];
+
+        ro_0->Init();
+        ro_0->m_Material = user_ctx->m_Material;
+        ro_0->m_VertexCount = 1;
+        ro_0->m_VertexDeclaration = user_ctx->m_VertexDeclaration;
+        ro_0->m_VertexBuffer      = user_ctx->m_VertexBuffer;
+
+        // Override blending factors
+        ro_0->m_SetBlendFactors        = true;
+        ro_0->m_SourceBlendFactor      = dmGraphics::BLEND_FACTOR_ONE;
+        ro_0->m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+
+        // Override face winding
+        ro_0->m_SetFaceWinding = true;
+        ro_0->m_FaceWinding    = dmGraphics::FACE_WINDING_CW;
+
+        ro_0->m_SetStencilTest                      = true;
+        ro_0->m_StencilTestParams.m_Front.m_Func    = dmGraphics::COMPARE_FUNC_EQUAL;
+        ro_0->m_StencilTestParams.m_Ref             = 16; // expected: 0xff after render
+        ro_0->m_StencilTestParams.m_RefMask         = 22; // expected: 0x0f after render
+        ro_0->m_StencilTestParams.m_ColorBufferMask = dmGraphics::DM_GRAPHICS_STATE_WRITE_R | dmGraphics::DM_GRAPHICS_STATE_WRITE_A;
+        ro_0->m_StencilTestParams.m_BufferMask      = 1;
+
+        dmRender::RenderObject* ro_1 = &user_ctx->m_RenderObjects[1];
+        ro_1->Init();
+        ro_1->m_Material          = user_ctx->m_Material;
+        ro_1->m_VertexCount       = 1;
+        ro_1->m_VertexDeclaration = user_ctx->m_VertexDeclaration;
+        ro_1->m_VertexBuffer      = user_ctx->m_VertexBuffer;
+
+        ro_1->m_SetStencilTest                         = true;
+        ro_1->m_StencilTestParams.m_SeparateFaceStates = 1;
+
+        // Set some non-specific state values
+        ro_1->m_StencilTestParams.m_Front.m_Func     = dmGraphics::COMPARE_FUNC_NOTEQUAL;
+        ro_1->m_StencilTestParams.m_Front.m_OpSFail  = dmGraphics::STENCIL_OP_INCR_WRAP;
+        ro_1->m_StencilTestParams.m_Front.m_OpDPFail = dmGraphics::STENCIL_OP_DECR;
+        ro_1->m_StencilTestParams.m_Front.m_OpDPPass = dmGraphics::STENCIL_OP_DECR_WRAP;
+
+        ro_1->m_StencilTestParams.m_Back.m_Func     = dmGraphics::COMPARE_FUNC_GEQUAL;
+        ro_1->m_StencilTestParams.m_Back.m_OpSFail  = dmGraphics::STENCIL_OP_REPLACE;
+        ro_1->m_StencilTestParams.m_Back.m_OpDPFail = dmGraphics::STENCIL_OP_INVERT;
+        ro_1->m_StencilTestParams.m_Back.m_OpDPPass = dmGraphics::STENCIL_OP_INCR_WRAP;
+
+        ro_1->m_StencilTestParams.m_Ref     = 127; // expected: 0xff after render
+        ro_1->m_StencilTestParams.m_RefMask = 11; // expected: 0x0f after render
+
+        AddToRender(user_ctx->m_Context, ro_0);
+        AddToRender(user_ctx->m_Context, ro_1);
+    }
+}
+
+static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
+{
+    dmGraphics::ShaderDesc::Shader ddf;
+    memset(&ddf,0,sizeof(ddf));
+    ddf.m_Source.m_Data  = (uint8_t*)data;
+    ddf.m_Source.m_Count = count;
+    return ddf;
+}
+
+TEST_F(dmRenderTest, TestRenderListDrawState)
+{
+    dmRender::RenderListBegin(m_Context);
+
+    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, vp, fp);
+    dmhash_t tag = dmHashString64("tag");
+    dmRender::SetMaterialTags(material, 1, &tag);
+
+    dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    dmGraphics::HVertexBuffer vx_buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+    TestDrawStateDispatchCtx user_ctx;
+    user_ctx.m_Context           = m_Context;
+    user_ctx.m_Material          = material;
+    user_ctx.m_VertexDeclaration = vx_decl;
+    user_ctx.m_VertexBuffer      = vx_buffer;
+
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestDrawStateDispatch, 0, &user_ctx);
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, 1);
+
+    dmRender::RenderListEntry & entry = out[0];
+    entry.m_WorldPosition             = Point3(0,0,0);
+    entry.m_MajorOrder                = 0;
+    entry.m_MinorOrder                = 0;
+    entry.m_TagListKey                = 0;
+    entry.m_Order                     = 1;
+    entry.m_BatchKey                  = 0;
+    entry.m_Dispatch                  = dispatch;
+    entry.m_UserData                  = 0;
+
+    dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_BLEND);
+    dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_STENCIL_TEST);
+
+    dmGraphics::SetBlendFunc(m_GraphicsContext, dmGraphics::BLEND_FACTOR_ZERO, dmGraphics::BLEND_FACTOR_ZERO);
+    dmGraphics::SetStencilFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_NEVER, 0xff, 0xf);
+    dmGraphics::SetFaceWinding(m_GraphicsContext, dmGraphics::FACE_WINDING_CCW);
+    dmGraphics::SetStencilOp(m_GraphicsContext, dmGraphics::STENCIL_OP_ZERO, dmGraphics::STENCIL_OP_ZERO, dmGraphics::STENCIL_OP_ZERO);
+
+    dmGraphics::SetColorMask(m_GraphicsContext, 0, 0, 0, 0);
+    dmGraphics::SetStencilMask(m_GraphicsContext, 0);
+
+    dmGraphics::PipelineState ps_before = dmGraphics::GetPipelineState(m_GraphicsContext);
+
+    dmRender::RenderListSubmit(m_Context, out, out + 1);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+
+    dmGraphics::PipelineState ps_after = dmGraphics::GetPipelineState(m_GraphicsContext);
+
+    ASSERT_EQ(0, memcmp(&ps_before, &ps_after, sizeof(dmGraphics::PipelineState)));
+
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+    dmRender::DeleteMaterial(m_Context, material);
+
+    dmGraphics::DeleteVertexBuffer(vx_buffer);
+    dmGraphics::DeleteVertexDeclaration(vx_decl);
+}
+
 
 static void TestDrawVisibilityDispatch(dmRender::RenderListDispatchParams const & params)
 {
@@ -962,9 +1102,111 @@ TEST(Constants, Constant)
     dmRender::DeleteConstant(constant);
 }
 
+TEST(Constants, NamedConstantsArray)
+{
+    #define ASSERT_VEC4_EPS 0.0001f
+    #define ASSERT_VEC4(exp, act)\
+        ASSERT_NEAR(exp.getX(), act.getX(), ASSERT_VEC4_EPS);\
+        ASSERT_NEAR(exp.getY(), act.getY(), ASSERT_VEC4_EPS);\
+        ASSERT_NEAR(exp.getZ(), act.getZ(), ASSERT_VEC4_EPS);\
+        ASSERT_NEAR(exp.getW(), act.getW(), ASSERT_VEC4_EPS);
+
+    dmHashEnableReverseHash(true);
+    dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
+    ASSERT_TRUE(buffer != 0);
+
+    dmVMath::Vector4* values = 0;
+    uint32_t num_values;
+    bool result;
+
+    dmVMath::Vector4 original_values[] = {
+        dmVMath::Vector4(2,4,8,10),
+        dmVMath::Vector4(1,3,5,7),
+        dmVMath::Vector4(11,12,13,14),
+    };
+
+    dmhash_t name_hash_array = dmHashString64("test_constant_array");
+
+    ////////////////////////////////////////////////////////////
+    // Test 1: set a single value
+    ////////////////////////////////////////////////////////////
+    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, &original_values[0], 1, 0, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
+    result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_EQ(num_values, 1);
+    ASSERT_VEC4(original_values[0], values[0]);
+
+    ////////////////////////////////////////////////////////////
+    // Test 2: set two values
+    ////////////////////////////////////////////////////////////
+    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, &original_values[1], 1, 1, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
+    result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_EQ(num_values, 2);
+    ASSERT_VEC4(original_values[0], values[0]);
+    ASSERT_VEC4(original_values[1], values[1]);
+
+    ////////////////////////////////////////////////////////////
+    // Test 3: set a third value at an offset
+    ////////////////////////////////////////////////////////////
+    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, &original_values[2], 1, 6, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
+    result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_EQ(num_values, 7);
+    ASSERT_VEC4(original_values[0], values[0]);
+    ASSERT_VEC4(original_values[1], values[1]);
+    ASSERT_VEC4(original_values[2], values[6]);
+
+    ////////////////////////////////////////////////////////////
+    // Test 4: add a second constant after array
+    ////////////////////////////////////////////////////////////
+    dmhash_t name_hash_single_value = dmHashString64("test_single_value");
+    dmVMath::Vector4 test_single_value(1337,7331,3311,1133);
+
+    dmRender::SetNamedConstant(buffer, name_hash_single_value, &test_single_value, 1);
+    result = dmRender::GetNamedConstant(buffer, name_hash_single_value, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_EQ(num_values, 1);
+    ASSERT_VEC4(test_single_value, values[0]);
+
+    ////////////////////////////////////////////////////////////
+    // Test 4: resize test_constant_array to a single value, test_single_value should be the same
+    ////////////////////////////////////////////////////////////
+    dmRender::SetNamedConstant(buffer, name_hash_array, original_values, 1);
+    result = dmRender::GetNamedConstant(buffer, name_hash_single_value, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_EQ(num_values, 1);
+    ASSERT_VEC4(test_single_value, values[0]);
+
+    ////////////////////////////////////////////////////////////
+    // Test 5: remove test_single_value constant
+    ////////////////////////////////////////////////////////////
+    dmRender::SetNamedConstantAtIndex(buffer, name_hash_array, &original_values[2], 1, 6, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER);
+    ASSERT_EQ(GetNamedConstantCount(buffer), 2);
+    dmRender::RemoveNamedConstant(buffer, name_hash_single_value);
+    ASSERT_EQ(GetNamedConstantCount(buffer), 1);
+
+    result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
+    ASSERT_TRUE(result);
+    ASSERT_EQ(num_values, 7);
+    
+    // All intermediate vectors should be 0 i.e values of index [1...6]
+    dmVMath::Vector4 test_zero_vec(0,0,0,0);
+    for (int i = 1; i < num_values-1; ++i)
+    {
+        ASSERT_VEC4(test_zero_vec, values[i]);
+    }
+    ASSERT_VEC4(original_values[2], values[6]);
+
+    dmRender::DeleteNamedConstantBuffer(buffer);
+
+    #undef ASSERT_VEC4_EPS
+    #undef ASSERT_VEC4
+}
+
 TEST(Constants, NamedConstants)
 {
-dmHashEnableReverseHash(true);
+    dmHashEnableReverseHash(true);
 
     dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
     ASSERT_TRUE(buffer != 0);
@@ -1020,6 +1262,46 @@ dmHashEnableReverseHash(true);
 
     result = dmRender::GetNamedConstant(buffer, name_hash, &values, &num_values);
     ASSERT_FALSE(result);
+
+    ////////////////////////////////////////////////////////////
+    // Test matrix constants
+    ////////////////////////////////////////////////////////////
+    dmVMath::Matrix4 original_matrix_value[] = {
+        dmVMath::Matrix4::identity(),
+        dmVMath::Matrix4::identity()};
+
+    original_matrix_value[0].setElem(0,0,1.0f).setElem(1,1,2.0f).setElem(2,2,3.0f).setElem(3,3,4.0f);
+    original_matrix_value[1].setElem(0,0,-1.0f).setElem(1,1,-2.0f).setElem(2,2,-3.0f).setElem(3,3,-4.0f);
+
+    dmhash_t matrix_name_hash_1 = dmHashString64("test_matrix_constant_1");
+
+    uint32_t num_values_matrix_test = sizeof(original_matrix_value[0]) / sizeof(dmVMath::Vector4);
+
+    ////////////////////////////////////////////////////////////
+    // Set a single matrix value
+    dmRender::SetNamedConstant(buffer, matrix_name_hash_1, (dmVMath::Vector4*) &original_matrix_value[0],
+        num_values_matrix_test, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+
+    dmRenderDDF::MaterialDesc::ConstantType constant_type;
+    result = dmRender::GetNamedConstant(buffer, matrix_name_hash_1, &values, &num_values, &constant_type);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+    ASSERT_TRUE(num_values == num_values_matrix_test);
+    ASSERT_ARRAY_EQ_LEN(values, (dmVMath::Vector4*) original_matrix_value, num_values);
+
+    ////////////////////////////////////////////////////////////
+    // Remove constant and add the entire array of matrices
+    dmRender::RemoveNamedConstant(buffer, matrix_name_hash_1);
+    dmRender::SetNamedConstant(buffer, name_hash_2, original_values2, DM_ARRAY_SIZE(original_values2));
+
+    num_values_matrix_test *= DM_ARRAY_SIZE(original_matrix_value);
+    dmRender::SetNamedConstant(buffer, matrix_name_hash_1, (dmVMath::Vector4*) original_matrix_value,
+        num_values_matrix_test, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+    result = dmRender::GetNamedConstant(buffer, matrix_name_hash_1, &values, &num_values, &constant_type);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+    ASSERT_TRUE(num_values == num_values_matrix_test);
+    ASSERT_ARRAY_EQ_LEN(values, (dmVMath::Vector4*) original_matrix_value, num_values);
 
     ////////////////////////////////////////////////////////////
     dmRender::DeleteConstant(constant);

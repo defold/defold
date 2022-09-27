@@ -349,9 +349,9 @@ TEST_P(DrawCountTest, DrawCount)
     char project[512];
     dmSnPrintf(project, sizeof(project), "%s%s", CONTENT_ROOT, p.m_ProjectPath);
 
-    char* argv[] = {"dmengine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=display.update_frequency=0", "--config=bootstrap.main_collection=/render/drawcall.collectionc", project};
+    const char* argv[] = {"dmengine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=display.update_frequency=0", "--config=bootstrap.main_collection=/render/drawcall.collectionc", project};
 
-    ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), argv));
+    ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv));
 
     for( int i = 0; i < p.m_NumSkipFrames; ++i )
     {
