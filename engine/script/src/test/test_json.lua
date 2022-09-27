@@ -140,6 +140,10 @@ function test_json_encode()
 
     local f_enc = json.encode(function() end)
     assert(startswith("\"object at", f_enc))
+
+    -- Test passing no arguments, which should fail
+    local ret, msg = pcall(function() json.encode() end)
+    assert(ret == false)
 end
 
 function test_json_decode_encode()

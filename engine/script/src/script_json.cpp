@@ -26,7 +26,9 @@ extern "C"
 {
     #include <lua/lua.h>
     #include <lua/lauxlib.h>
-    #include "luacjson/cjson.h"
+
+    // Defined in luacjson/cjson.c
+    int lua_cjson_encode(lua_State *L);
 }
 
 #include "script_json.h"
@@ -241,7 +243,7 @@ namespace dmScript
      *
      * @examples
      *
-     * Converting a lua table to a JSON string:
+     * Convert a lua table to a JSON string:
      *
      * ```lua
      * function init(self)
@@ -264,7 +266,16 @@ namespace dmScript
      */
     int Json_Encode(lua_State* L)
     {
-        return lua_cjson_encode(L);
+        int top = lua_gettop(L);
+        if (top == 0)
+        {
+            luaL_error(L, "json.encode requires one argument.");
+        }
+
+        int ret = lua_cjson_encode(L);
+        assert(ret == 1);
+        assert(top + 1 == lua_gettop(L));
+        return ret;
     }
 
     static const luaL_reg ScriptJson_methods[] =
