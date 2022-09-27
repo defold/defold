@@ -331,7 +331,7 @@ static int json_destroy_config(lua_State *l)
 }
 #endif
 
-static void json_initialize_config(json_config_t* cfg)
+static int json_initialize_config(json_config_t* cfg)
 {
 	int i;
 	cfg->encode_sparse_convert = DEFAULT_SPARSE_CONVERT;
@@ -344,7 +344,10 @@ static void json_initialize_config(json_config_t* cfg)
     cfg->encode_keep_buffer = DEFAULT_ENCODE_KEEP_BUFFER;
     cfg->encode_number_precision = DEFAULT_ENCODE_NUMBER_PRECISION;
 #if DEFAULT_ENCODE_KEEP_BUFFER > 0
-    strbuf_init(&cfg->encode_buf, 0);
+    if (!strbuf_init(&cfg->encode_buf, 0))
+    {
+        return 0;
+    }
 #endif
     for (i = 0; i < 256; i++)
         cfg->ch2token[i] = T_ERROR;
@@ -381,6 +384,7 @@ static void json_initialize_config(json_config_t* cfg)
     cfg->escape2char['f'] = '\f';
     cfg->escape2char['r'] = '\r';
     cfg->escape2char['u'] = 'u';
+    return 1;
 }
 
 #if 0 // Defold: unused
@@ -399,6 +403,8 @@ static void json_create_config(lua_State *l)
 }
 #endif
 
+#define WRAP_STR_BUF_GENERIC_ERROR(l, stmt) if (!(stmt)) luaL_error(l, "Error when encoding json");
+
 static void json_encode_exception(lua_State *l, json_config_t *cfg, strbuf_t *json, int lindex, const char *reason)
 {
     if (!cfg->encode_keep_buffer)
@@ -413,13 +419,16 @@ static void json_append_string(lua_State *l, strbuf_t *json, int lindex)
     const char *str;
     size_t len;
     str = lua_tolstring(l, lindex, &len);
-    strbuf_ensure_empty_length(json, len * 6 + 2);
+
+    WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_ensure_empty_length(json, len * 6 + 2));
     strbuf_append_char_unsafe(json, '\"');
     for (i = 0; i < len; i++)
     {
         escstr = char2escape[(unsigned char)str[i]];
         if (escstr)
-            strbuf_append_string(json, escstr);
+        {
+            WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_string(json, escstr))
+        }
         else
             strbuf_append_char_unsafe(json, str[i]);
     }
@@ -474,19 +483,22 @@ static void json_append_data(lua_State *l, json_config_t *cfg, int current_depth
 static void json_append_array(lua_State *l, json_config_t *cfg, int current_depth, strbuf_t *json, int array_length)
 {
     int comma, i;
-    strbuf_append_char(json, '[');
+    WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_char(json, '['));
     comma = 0;
     for (i = 1; i <= array_length; i++)
     {
         if (comma)
-            strbuf_append_char(json, ',');
+        {
+            WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_char(json, ','));
+        }
         else
             comma = 1;
         lua_rawgeti(l, -1, i);
         json_append_data(l, cfg, current_depth, json);
         lua_pop(l, 1);
     }
-    strbuf_append_char(json, ']');
+
+    WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_char(json, ']'));
 }
 
 static void json_append_number(lua_State *l, json_config_t *cfg, strbuf_t *json, int lindex)
@@ -501,18 +513,18 @@ static void json_append_number(lua_State *l, json_config_t *cfg, strbuf_t *json,
     {
         if (isnan(num))
         {
-            strbuf_append_mem(json, "nan", 3);
+            WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_mem(json, "nan", 3));
             return;
         }
     } else
     {
         if (isinf(num) || isnan(num))
         {
-            strbuf_append_mem(json, "null", 4);
+            WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_mem(json, "null", 4));
             return;
         }
     }
-    strbuf_ensure_empty_length(json, FPCONV_G_FMT_BUFSIZE);
+    WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_ensure_empty_length(json, FPCONV_G_FMT_BUFSIZE));
     len = fpconv_g_fmt(strbuf_empty_ptr(json), num, cfg->encode_number_precision);
     strbuf_extend_length(json, len);
 }
@@ -520,7 +532,7 @@ static void json_append_number(lua_State *l, json_config_t *cfg, strbuf_t *json,
 static void json_append_object(lua_State *l, json_config_t *cfg, int current_depth, strbuf_t *json)
 {
     int comma, keytype;
-    strbuf_append_char(json, '{');
+    WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_char(json, '{'));
     lua_pushnil(l);
     comma = 0;
     while (lua_next(l, -2) != 0)
@@ -532,13 +544,13 @@ static void json_append_object(lua_State *l, json_config_t *cfg, int current_dep
         keytype = lua_type(l, -2);
         if (keytype == LUA_TNUMBER)
         {
-            strbuf_append_char(json, '"');
+            WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_char(json, '"'));
             json_append_number(l, cfg, json, -2);
             strbuf_append_mem(json, "\":", 2);
         } else if (keytype == LUA_TSTRING)
         {
             json_append_string(l, json, -2);
-            strbuf_append_char(json, ':');
+            WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_char(json, ':'));
         } else
         {
             json_encode_exception(l, cfg, json, -2, "table key must be a number or string");
@@ -546,7 +558,7 @@ static void json_append_object(lua_State *l, json_config_t *cfg, int current_dep
         json_append_data(l, cfg, current_depth, json);
         lua_pop(l, 1);
     }
-    strbuf_append_char(json, '}');
+    WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_char(json, '}'));
 }
 
 static void json_append_data(lua_State *l, json_config_t *cfg, int current_depth, strbuf_t *json)
@@ -562,9 +574,13 @@ static void json_append_data(lua_State *l, json_config_t *cfg, int current_depth
             break;
         case LUA_TBOOLEAN:
             if (lua_toboolean(l, -1))
-                strbuf_append_mem(json, "true", 4);
+            {
+                WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_mem(json, "true", 4));
+            }
             else
-                strbuf_append_mem(json, "false", 5);
+            {
+                WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_mem(json, "false", 5));
+            }
             break;
         case LUA_TTABLE:
             current_depth++;
@@ -576,7 +592,7 @@ static void json_append_data(lua_State *l, json_config_t *cfg, int current_depth
                 json_append_object(l, cfg, current_depth, json);
             break;
         case LUA_TNIL:
-            strbuf_append_mem(json, "null", 4);
+            WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_mem(json, "null", 4));
             break;
         case LUA_TUSERDATA:
         case LUA_TFUNCTION:
@@ -585,15 +601,15 @@ static void json_append_data(lua_State *l, json_config_t *cfg, int current_depth
                 unsigned long long pointer_addr = (unsigned long long)lua_topointer(l, -1);
                 char str_buffer[16];
                 int len = snprintf(str_buffer, 16, "%llx", pointer_addr);
-                strbuf_append_mem(json, "\"object at 0x", 13);
-                strbuf_append_mem(json, str_buffer, len);
-                strbuf_append_mem(json, "\"", 1);
+                WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_mem(json, "\"object at 0x", 13));
+                WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_mem(json, str_buffer, len));
+                WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_mem(json, "\"", 1));
                 break;
             }
         case LUA_TLIGHTUSERDATA:
             if (lua_touserdata(l, -1) == NULL)
             {
-                strbuf_append_mem(json, "null", 4);
+                WRAP_STR_BUF_GENERIC_ERROR(l, strbuf_append_mem(json, "null", 4));
                 break;
             }
         default:
@@ -1097,7 +1113,7 @@ int lua_cjson_encode(lua_State *L)
     if (!cfg.encode_keep_buffer)
     {
         encode_buf = &local_encode_buf;
-        strbuf_init(encode_buf, 0);
+        WRAP_STR_BUF_GENERIC_ERROR(L, strbuf_init(encode_buf, 0));
     } else
     {
         encode_buf = &cfg.encode_buf;
@@ -1111,4 +1127,5 @@ int lua_cjson_encode(lua_State *L)
     return 1;
 }
 
+#undef WRAP_STR_BUF_GENERIC_ERROR
 
