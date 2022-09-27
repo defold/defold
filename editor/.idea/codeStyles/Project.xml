@@ -48,6 +48,7 @@
           <entry key="editor.ui/with-controls" value="-1" />
           <entry key="editor.ui/with-progress" value="-1" />
           <entry key="editor.updater-test/with-server" value="2" />
+          <entry key="editor.yaml/with-error-translation" value="-1" />
           <entry key="integration.build-test/with-build-results" value="-1" />
           <entry key="integration.test-util/with-loaded-project" value="-1" />
           <entry key="integration.test-util/with-logged-calls" value="-1" />

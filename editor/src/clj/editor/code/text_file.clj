@@ -65,9 +65,6 @@
    {:ext "manifest"
     :label "Manifest"
     :icon "icons/32/Icons_11-Script-general.png"}
-   {:ext "appmanifest"
-    :label "App Manifest"
-    :icon "icons/32/Icons_11-Script-general.png"}
    {:ext "defignore"
     :label "Defignore"
     :icon "icons/32/Icons_11-Script-general.png"}])

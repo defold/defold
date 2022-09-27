@@ -35,6 +35,8 @@
 #include <dlib/log.h>
 #include <dlib/socket.h>
 #include <dlib/path.h>
+#include <dlib/align.h>
+#include <dlib/memory.h>
 #include <resource/resource.h>
 #include "script.h"
 #include "script/sys_ddf.h"
@@ -57,7 +59,7 @@ union SaveLoadBuffer
 {
     uint32_t m_alignment; // This alignment is required for js-web
     char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
-} g_saveload;
+} DM_ALIGNED(16) g_saveload;
 
 #define LIB_NAME "sys"
 
@@ -75,7 +77,9 @@ union SaveLoadBuffer
     {
         if (required_size > MAX_BUFFER_SIZE)
         {
-            return (char*)malloc(required_size);
+            char* buffer = 0;
+            dmMemory::Result r = dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
+            return buffer;
         }
         else
         {
@@ -87,7 +91,7 @@ union SaveLoadBuffer
     {
         if (buffer != g_saveload.m_buffer)
         {
-            free(buffer);
+            dmMemory::AlignedFree(buffer);
         }
     }
 
@@ -432,7 +436,7 @@ union SaveLoadBuffer
      *
      * `target`
      * - [type:string] [icon:html5]: Optional. Specifies the target attribute or the name of the window. The following values are supported:
-     * - `_self` - URL replaces the current page. This is default.
+     * - `_self` - (default value) URL replaces the current page.
      * - `_blank` - URL is loaded into a new window, or tab.
      * - `_parent` - URL is loaded into the parent frame.
      * - `_top` - URL replaces any framesets that may be loaded.

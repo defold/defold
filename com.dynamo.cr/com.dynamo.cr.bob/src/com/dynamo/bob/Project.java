@@ -70,15 +70,9 @@ import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 
-import com.dynamo.bob.bundle.AndroidBundler;
 import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.bundle.HTML5Bundler;
 import com.dynamo.bob.bundle.IBundler;
-import com.dynamo.bob.bundle.IOSBundler;
-import com.dynamo.bob.bundle.LinuxBundler;
-import com.dynamo.bob.bundle.OSXBundler;
-import com.dynamo.bob.bundle.Win32Bundler;
-import com.dynamo.bob.bundle.Win64Bundler;
+import com.dynamo.bob.bundle.BundlerParams;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
@@ -133,6 +127,7 @@ public class Project {
     private Map<String, Map<Long, IResource>> hashToResource = new HashMap<>();
 
     private TextureProfiles textureProfiles;
+    private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -295,6 +290,13 @@ public class Project {
                                     ProtoBuilder.addMessageClass(ext, protoParams.srcClass());
                                 }
                             }
+                        }
+                    }
+
+                    if (IBundler.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(IBundler.class)) {
+                            bundlerClasses.add( (Class<? extends IBundler>) klass);
                         }
                     }
                 } catch (Exception e) {
@@ -741,18 +743,32 @@ public class Project {
         }
     }
 
+    private Class<? extends IBundler> getBundlerClass(Platform platform) {
+        for (Class<? extends IBundler> klass : bundlerClasses) {
+            BundlerParams bundlerParams = klass.getAnnotation(BundlerParams.class);
+            if (bundlerParams == null) {
+                logWarning("Bundler class '%s' has no BundlerParams", klass.getName());
+                continue;
+            }
+            for (Platform supportedPlatform : bundlerParams.platforms()) {
+                if (supportedPlatform == platform)
+                    return klass;
+            }
+        }
+        return null;
+    }
 
-    static Map<Platform, Class<? extends IBundler>> bundlers;
-    static {
-        bundlers = new HashMap<>();
-        bundlers.put(Platform.X86_64MacOS, OSXBundler.class);
-        bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
-        bundlers.put(Platform.X86Win32, Win32Bundler.class);
-        bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
-        bundlers.put(Platform.Armv7Android, AndroidBundler.class);
-        bundlers.put(Platform.Arm64Ios, IOSBundler.class);
-        bundlers.put(Platform.X86_64Ios, IOSBundler.class);
-        bundlers.put(Platform.JsWeb, HTML5Bundler.class);
+    public IBundler createBundler(Platform platform) throws CompileExceptionError {
+        Class<? extends IBundler> bundlerClass = getBundlerClass(platform);
+        if (bundlerClass == null) {
+            throw new CompileExceptionError(null, -1, String.format("No bundler registered for platform %s", platform.getPair()));
+        }
+
+        try {
+            return bundlerClass.newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void bundle(IProgress monitor) throws IOException, CompileExceptionError {
@@ -760,18 +776,7 @@ public class Project {
         m.beginTask("Bundling...", 1);
 
         Platform platform = getPlatform();
-        IBundler bundler;
-
-        Class<? extends IBundler> bundlerClass = bundlers.get(platform);
-        if (bundlerClass == null) {
-            throw new CompileExceptionError(null, -1, String.format("No bundler registered for platform %s", platform.getPair()));
-        }
-
-        try {
-            bundler = bundlerClass.newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        IBundler bundler = createBundler(platform);
 
         String bundleOutput = option("bundle-output", null);
         File bundleDir = null;
@@ -782,7 +787,7 @@ public class Project {
         }
         BundleHelper.throwIfCanceled(monitor);
         bundleDir.mkdirs();
-        bundler.bundleApplication(this, bundleDir, monitor);
+        bundler.bundleApplication(this, platform, bundleDir, monitor);
         m.worked(1);
         m.done();
     }
@@ -810,13 +815,15 @@ public class Project {
             // TODO: remove in some future update
             if (pair.equals("x86_64-darwin"))
             {
+                String deprecatedPair = pair;
                 pair = Platform.X86_64MacOS.getPair();
-                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", pair);
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", deprecatedPair, pair);
             }
             else if (pair.equals("arm64-darwin"))
             {
+                String deprecatedPair = pair;
                 pair = Platform.Arm64Ios.getPair();
-                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", pair);
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", deprecatedPair, pair);
             }
             p = Platform.get(pair);
         }
@@ -1099,6 +1106,16 @@ public class Project {
 
         monitor.beginTask("Working...", 100);
 
+        {
+            IProgress mrep = monitor.subProgress(1);
+            mrep.beginTask("Reading classes...", 1);
+            createClassLoaderScanner();
+            registerPipelinePlugins();
+            scan(scanner, "com.dynamo.bob");
+            scan(scanner, "com.dynamo.bob.pipeline");
+            mrep.done();
+        }
+
         loop:
         for (String command : commands) {
             BundleHelper.throwIfCanceled(monitor);
@@ -1181,14 +1198,6 @@ public class Project {
                     IProgress m = monitor.subProgress(99);
 
                     IProgress mrep = m.subProgress(1);
-                    mrep.beginTask("Reading classes...", 1);
-                    createClassLoaderScanner();
-                    registerPipelinePlugins();
-                    scan(scanner, "com.dynamo.bob");
-                    scan(scanner, "com.dynamo.bob.pipeline");
-                    mrep.done();
-
-                    mrep = m.subProgress(1);
                     mrep.beginTask("Reading tasks...", 1);
                     TimeProfiler.start("Create tasks");
                     pruneSources();
@@ -1790,6 +1799,22 @@ run:
 
     public IResource getResource(String path) {
         return fileSystem.get(FilenameUtils.normalize(path, true));
+    }
+
+    public IResource getResource(String category, String key, boolean mustExist) throws IOException {
+        IResource resource = null;
+        String val = this.projectProperties.getStringValue(category, key);
+        if (val != null && val.trim().length() > 0) {
+            resource = this.getResource(val);
+        }
+        if (mustExist && resource == null) {
+            throw new IOException(String.format("Resource does not exist: '%s'  (%s.%s)", resource.getAbsPath(), category, key));
+        }
+        return resource;
+    }
+
+    public IResource getResource(String category, String key) throws IOException {
+        return getResource(category, key, true);
     }
 
     public IResource getGameProjectResource() {
