@@ -886,7 +886,7 @@
   (inherits ShapeNode)
 
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
-            (dynamic read-only? (g/fnk [size-mode] (= :size-mode-manual size-mode)))
+            (dynamic read-only? (g/fnk [size-mode] (not= :size-mode-manual size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
   (display-order (into base-display-order
