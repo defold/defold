@@ -499,6 +499,27 @@ namespace dmRender
 
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
 
+    static dmVMath::Point3 CalcCenterPoint(HFontMap font_map, const TextEntry& te, const TextMetrics& metrics) {
+        float x_offset = OffsetX(te.m_Align, te.m_Width);
+        float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, metrics.m_LineCount);
+
+        // find X,Y local coordinate of text center
+        float center_x = x_offset; // start from the X position of the pivot point
+        switch (te.m_Align) {
+            case TEXT_ALIGN_LEFT:
+                center_x += metrics.m_Width/2; // move halfway to the right since we're aligning left
+            break;
+            case TEXT_ALIGN_RIGHT:
+                center_x -= metrics.m_Height/2; // move halfway to the left from pivot since we're aligning right
+            break;
+            // nothing to do for TEXT_ALIGN_CENTER. Pivot is already at the center of the text X-wise
+        }
+        float center_y = y_offset + font_map->m_MaxAscent - metrics.m_Height/2; // 'y_offset' to move to the baseline of first letter in text. +'MaAscent' to get to the top of the text. -layout_height to get to the center.
+
+        dmVMath::Point3 center_point(center_x, center_y, 0); // fix at Z 0
+        return center_point;
+    }
+
     void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, uint64_t batch_key, const DrawTextParams& params)
     {
         DM_PROFILE("DrawText");
@@ -564,33 +585,16 @@ namespace dmRender
         te.m_DestinationBlendFactor = params.m_DestinationBlendFactor;
 
         TextMetrics metrics;
-        uint32_t line_count = GetTextMetrics(font_map, params.m_Text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, &metrics);
-        float x_offset = OffsetX(te.m_Align, te.m_Width);
-        float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
-
-        // find X,Y local coordinate of text center
-        float center_x = x_offset; // start from the X position of the pivot point
-        switch (te.m_Align) {
-            case TEXT_ALIGN_LEFT:
-                center_x += metrics.m_Width/2; // move halfway to the right since we're aligning left
-            break;
-            case TEXT_ALIGN_RIGHT:
-                center_x -= metrics.m_Height/2; // move halfway to the left from pivot since we're aligning right
-            break;
-            // nothing to do for TEXT_ALIGN_CENTER. Pivot is already at the center of the text X-wise
-        }
-        float center_y = y_offset + font_map->m_MaxAscent - metrics.m_Height/2; // 'y_offset' to move to the baseline of first letter in text. +'MaAscent' to get to the top of the text. -layout_height to get to the center.
+        GetTextMetrics(font_map, params.m_Text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, &metrics);
 
         // find center and radius for frustum culling
-        dmVMath::Vector4 centerpoint_local(center_x, center_y, 0, 1);
-        dmVMath::Vector4 cornerpoint_local(centerpoint_local.getX() + metrics.m_Width/2, centerpoint_local.getY() + metrics.m_Height/2, centerpoint_local.getZ(), centerpoint_local.getW());
+        dmVMath::Point3 centerpoint_local = CalcCenterPoint(font_map, te, metrics);
+        dmVMath::Point3 cornerpoint_local(centerpoint_local.getX() + metrics.m_Width/2, centerpoint_local.getY() + metrics.m_Height/2, centerpoint_local.getZ());
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
         dmVMath::Vector4 cornerpoint_world = te.m_Transform * cornerpoint_local;
 
         te.m_FrustumCullingRadius = Vectormath::Aos::length(cornerpoint_world - centerpoint_world);
-        te.m_FrustumCullingCenter.setX(centerpoint_world.getX());
-        te.m_FrustumCullingCenter.setY(centerpoint_world.getY());
-        te.m_FrustumCullingCenter.setZ(centerpoint_world.getZ());
+        te.m_FrustumCullingCenter = dmVMath::Point3(centerpoint_world.getXYZ());
 
 
         assert( params.m_NumRenderConstants <= dmRender::MAX_FONT_RENDER_CONSTANTS );
@@ -1114,7 +1118,7 @@ namespace dmRender
 
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
-        DM_PROFILE("FrustumCulling"); // TODO - this is the same as in Sprites. Maybe change it ?
+        DM_PROFILE("Label");
 
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
@@ -1206,7 +1210,7 @@ namespace dmRender
         return width;
     }
 
-    uint32_t GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
+    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         metrics->m_MaxAscent = font_map->m_MaxAscent;
         metrics->m_MaxDescent = font_map->m_MaxDescent;
@@ -1231,8 +1235,7 @@ namespace dmRender
         uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
         metrics->m_Width = layout_width;
         metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);
-
-        return num_lines;
+        metrics->m_LineCount = num_lines;
     }
 
     uint32_t GetFontMapResourceSize(HFontMap font_map)

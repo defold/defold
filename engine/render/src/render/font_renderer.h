@@ -128,6 +128,8 @@ namespace dmRender
         float m_MaxAscent;
         /// Max descent of font, positive value
         float m_MaxDescent;
+        /// Number of lines of text
+        uint32_t m_LineCount;
     };
 
     /**
@@ -252,9 +254,8 @@ namespace dmRender
      * @param width max width. used only when line_break is true
      * @param line_break line break characters
      * @param metrics Metrics, out-value
-     * @return line count of text
      */
-    uint32_t GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
 
     /**
      * Get the resource size for fontmap
