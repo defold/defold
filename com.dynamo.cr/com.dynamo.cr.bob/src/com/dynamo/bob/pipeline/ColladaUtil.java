@@ -14,6 +14,8 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -1445,4 +1447,128 @@ public class ColladaUtil {
             throw new IOException("Failed to load Collada scene: " + e.getMessage(), e);
         }
     }
+
+
+// $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ColladaUtil model_asset.dae
+    public static void main(String[] args) throws IOException {
+        if (args.length < 1) {
+            System.err.println("No model specified!");
+            return;
+        }
+
+        File file = new File(args[0]);
+        System.out.printf("Loading '%s'\n", file);
+        if (!file.exists()) {
+            System.out.printf("File '%s' does not exist!\n", file);
+            return;
+        }
+
+        XMLCOLLADA scene;
+        try {
+            long timeStart = System.currentTimeMillis();
+
+            InputStream is = new FileInputStream(file);
+            scene = loadScene(is);
+
+            long timeEnd = System.currentTimeMillis();
+            System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
+
+        } catch (Exception e) {
+            System.out.printf("Failed reading '%s':\n%s\n", file, e.getMessage());
+            return;
+        }
+
+        if (scene == null){
+            System.out.printf("Failed to load '%s'\n", file);
+            return;
+        }
+
+        // System.out.printf("--------------------------------------------\n");
+        // System.out.printf("Scene Nodes:\n");
+
+        // for (Node node : scene.nodes) {
+        //     System.out.printf("  Scene Node: %s  index: %d  id: %d  parent: %s\n", node.name, node.index, ModelImporter.AddressOf(node), node.parent != null ? node.parent.name : "");
+        //     System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(node.local));
+        //     ModelImporter.DebugPrintTransform(node.local, 3);
+        // }
+
+
+        // if (scene.skins.length > 0)
+        // {
+        //     System.out.printf("--------------------------------------------\n");
+        //     System.out.printf("Scene Bones:\n");
+
+        //     for (Bone bone : scene.skins[0].bones) {
+        //         System.out.printf("  Scene Bone: %s  index: %d  id: %d  nodeid: %d  parent: %s\n", bone.name, bone.index,
+        //                                     ModelImporter.AddressOf(bone), ModelImporter.AddressOf(bone.node),
+        //                                     bone.parent != null ? bone.parent.name : "");
+        //         System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(bone.node.local));
+        //         ModelImporter.DebugPrintTransform(bone.node.local, 3);
+        //         System.out.printf("      inv_bind_poser:\n");
+        //         ModelImporter.DebugPrintTransform(bone.invBindPose, 3);
+        //     }
+
+        //     System.out.printf("--------------------------------------------\n");
+        // }
+
+        try {
+            System.out.printf("Bones:\n");
+            ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
+            if (bones != null) {
+                for (ModelImporter.Bone bone : bones) {
+                    System.out.printf("  Bone: %s  index: %d  parent: %s\n", bone.name, bone.index, bone.parent != null ? bone.parent.name : "");
+                    System.out.printf("      local:\n");
+                    ModelImporter.DebugPrintTransform(bone.node.local, 3);
+                }
+                System.out.printf("--------------------------------------------\n");
+            }
+
+            System.out.printf("Materials:\n");
+            ArrayList<String> materials = loadMaterialNames(scene);
+            for (String material : materials) {
+                System.out.printf("  Material: %s\n", material);
+            }
+            System.out.printf("--------------------------------------------\n");
+
+            Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+            loadModels(scene, meshSetBuilder);
+
+            Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+            loadSkeleton(scene, skeletonBuilder);
+
+            System.out.printf("Animations:\n");
+
+            Rig.AnimationSet.Builder animationSetBuilder = Rig.AnimationSet.newBuilder();
+            ArrayList<String> animationIds = new ArrayList<>();
+            loadAnimations(scene, animationSetBuilder, file.getName(), animationIds);
+
+            for (String animation : animationIds) {
+                System.out.printf("  Animation: %s\n", animation);
+            }
+            System.out.printf("--------------------------------------------\n");
+
+
+            // Something a bit more verbose
+            for (int i = 0; i < meshSetBuilder.getModelsCount(); ++i) {
+                Rig.Model model = meshSetBuilder.getModels(i);
+
+                for (int m = 0; m < model.getMeshesCount(); ++m) {
+                    Rig.Mesh mesh = model.getMeshes(m);
+
+                    int positionCount = mesh.getPositionsCount();
+                    if (positionCount > 5)
+                        positionCount = 5;
+                    for (int v = 0; v < positionCount; ++v) {
+                        System.out.printf("pos %d: %f, %f, %f\n", v, mesh.getPositions(v*3+0), mesh.getPositions(v*3+1),mesh.getPositions(v*3+2));
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            System.out.printf("Failed reading '%s':\n%s\n", file, e.getMessage());
+            e.printStackTrace();
+            return;
+        }
+    }
+
 }
