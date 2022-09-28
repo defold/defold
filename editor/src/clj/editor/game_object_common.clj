@@ -60,10 +60,10 @@
       (dissoc :property-decls) ; Only used in built data by the runtime.
       (strip-default-scale-from-component-desc)))
 
-(defn- sanitize-embedded-component-data [embedded-component-desc resource-type-map embed-data-handling]
+(defn- sanitize-embedded-component-data [embedded-component-desc ext->embedded-component-resource-type embed-data-handling]
   ;; GameObject$EmbeddedComponentDesc in map format.
   (let [component-ext (:type embedded-component-desc)
-        resource-type (resource-type-map component-ext)
+        resource-type (ext->embedded-component-resource-type component-ext)
         tag-opts (:tag-opts resource-type)
         sanitize-fn (:sanitize-fn resource-type)
         sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))]
@@ -93,20 +93,20 @@
         (log/warn :msg (str "Failed to sanitize embedded component of type: " (or component-ext "nil")) :exception error)
         embedded-component-desc))))
 
-(defn- sanitize-embedded-component-desc [embedded-component-desc ext->resource-type embed-data-handling]
+(defn- sanitize-embedded-component-desc [embedded-component-desc ext->embedded-component-resource-type embed-data-handling]
   ;; GameObject$EmbeddedComponentDesc in map format.
   (-> embedded-component-desc
-      (sanitize-embedded-component-data ext->resource-type embed-data-handling)
+      (sanitize-embedded-component-data ext->embedded-component-resource-type embed-data-handling)
       (strip-default-scale-from-component-desc)))
 
-(defn sanitize-prototype-desc [prototype-desc ext->resource-type embed-data-handling]
+(defn sanitize-prototype-desc [prototype-desc ext->embedded-component-resource-type embed-data-handling]
   {:pre [(map? prototype-desc)
-         (ifn? ext->resource-type)
+         (ifn? ext->embedded-component-resource-type)
          (case embed-data-handling (:embed-data-as-maps :embed-data-as-strings) true false)]}
   ;; GameObject$PrototypeDesc in map format.
   (-> prototype-desc
       (update :components (partial mapv sanitize-component-desc))
-      (update :embedded-components (partial mapv #(sanitize-embedded-component-desc % ext->resource-type embed-data-handling)))))
+      (update :embedded-components (partial mapv #(sanitize-embedded-component-desc % ext->embedded-component-resource-type embed-data-handling)))))
 
 (defn any-descs->duplicate-ids [any-instance-descs]
   ;; GameObject$ComponentDesc, GameObject$EmbeddedComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
@@ -122,8 +122,8 @@
   (when (not-empty duplicate-ids)
     (g/->error node-id :build-targets :fatal nil (format "The following ids are not unique: %s" (string/join ", " duplicate-ids)))))
 
-(defn- embedded-component-desc->dependencies [{:keys [id type data] :as _embedded-component-desc} ext->resource-type]
-  (when-some [component-resource-type (ext->resource-type type)]
+(defn- embedded-component-desc->dependencies [{:keys [id type data] :as _embedded-component-desc} ext->embedded-component-resource-type]
+  (when-some [component-resource-type (ext->embedded-component-resource-type type)]
     (let [component-read-fn (:read-fn component-resource-type)
           component-dependencies-fn (:dependencies-fn component-resource-type)]
       (try
@@ -134,13 +134,14 @@
           (log/warn :msg (format "Couldn't determine dependencies for embedded component %s." id) :exception error)
           nil)))))
 
-(defn make-game-object-dependencies-fn [workspace]
+(defn make-game-object-dependencies-fn [make-ext->embedded-component-resource-type-fn]
+  {:pre [(ifn? make-ext->embedded-component-resource-type-fn)]}
   ;; TODO: This should probably also consider resource property overrides?
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$PrototypeDesc)]
     (fn [prototype-desc]
-      (let [ext->resource-type (workspace/get-resource-type-map workspace)]
+      (let [ext->embedded-component-resource-type (make-ext->embedded-component-resource-type-fn)]
         (into (default-dependencies-fn prototype-desc)
-              (mapcat #(embedded-component-desc->dependencies % ext->resource-type))
+              (mapcat #(embedded-component-desc->dependencies % ext->embedded-component-resource-type))
               (:embedded-components prototype-desc))))))
 
 (defn embedded-component-instance-data [build-resource embedded-component-desc ^Matrix4d transform-matrix]

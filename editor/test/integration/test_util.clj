@@ -166,7 +166,7 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (get (g/node-value workspace :resource-types) (resource/ext this)))
+  (resource-type [this] (#'resource/get-resource-type workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
@@ -177,6 +177,7 @@
   (workspace [this] workspace)
   (resource-hash [this] (hash (resource/proj-path this)))
   (openable? [this] (= :file source-type))
+  (editable? [this] true)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream content opts))

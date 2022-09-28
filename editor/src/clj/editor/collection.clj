@@ -280,39 +280,54 @@
             (value (g/fnk [source-resource ddf-component-properties]
                           {:resource source-resource
                            :overrides ddf-component-properties}))
-            (set (fn [evaluation-context self old-value new-value]
-                   (concat
-                     (if-let [old-source (g/node-value self :source-id evaluation-context)]
-                       (g/delete-node old-source)
-                       [])
-                     (let [new-resource (:resource new-value)
-                           basis (:basis evaluation-context)
-                           project (project/get-project basis self)
-                           workspace (project/workspace project)]
-                       (when-some [{connect-tx-data :tx-data go-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
-                         (concat
-                           connect-tx-data
-                           ;; TODO: Don't override immutable game objects.
-                           (g/override go-node {:traverse-fn or-go-traverse-fn}
-                                       (fn [evaluation-context id-mapping]
-                                         (let [or-go-node (get id-mapping go-node)
-                                               comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]
-                                           (concat
-                                             (for [[from to] [[:_node-id                        :source-id]
-                                                              [:resource                        :source-resource]
-                                                              [:node-outline                    :source-outline]
-                                                              [:scene                           :scene]
-                                                              [:ddf-component-properties        :ddf-component-properties]
-                                                              [:resource-property-build-targets :resource-property-build-targets]]]
-                                               (g/connect or-go-node from self to))
-                                             (for [[from to] [[:build-targets :source-build-targets]]]
-                                               (g/connect go-node from self to))
-                                             (for [[from to] [[:url :base-url]]]
-                                               (g/connect self from or-go-node to))
-                                             (for [{comp-name :id overrides :properties} (:overrides new-value)
-                                                   :let [refd-comp-node (comp-name->refd-comp-node comp-name)
-                                                         comp-props (:properties (g/node-value refd-comp-node :_properties evaluation-context))]]
-                                               (properties/apply-property-overrides workspace id-mapping comp-props overrides))))))))))))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         base-source-connections [[:resource                        :source-resource]
+                                                  [:node-outline                    :source-outline]
+                                                  [:scene                           :scene]
+                                                  [:ddf-component-properties        :ddf-component-properties]
+                                                  [:resource-property-build-targets :resource-property-build-targets]]
+                         editable-source-connections (conj base-source-connections
+                                                           [:_node-id :source-id])
+                         non-editable-source-connections (conj editable-source-connections
+                                                               [:build-targets :source-build-targets])]
+                     (concat
+                       ;; Delete previous source resource node if it was an override node created by us.
+                       ;; Else, disconnect all connections from the previous source resource node.
+                       (when-some [old-source (g/node-feeding-into basis self :source-resource)]
+                         (if (g/override? basis old-source)
+                           (g/delete-node old-source)
+                           (for [[from to] non-editable-source-connections]
+                             (g/disconnect old-source from self to))))
+
+                       ;; Connect the new source resource node to ourselves. If it is editable, create an override node for it and its dependent nodes.
+                       ;; If it is non-editable, simply connect the source resource directly.
+                       (let [new-resource (:resource new-value)
+                             project (project/get-project basis self)]
+                         (if (some-> new-resource resource/editable?)
+                           ;; This is an editable source resource. Create an override node and make connections to enable full editing.
+                           (let [{connect-tx-data :tx-data go-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                             (concat
+                               connect-tx-data
+                               (let [workspace (project/workspace project evaluation-context)]
+                                 (g/override go-node {:traverse-fn or-go-traverse-fn}
+                                             (fn [evaluation-context id-mapping]
+                                               (let [or-go-node (get id-mapping go-node)]
+                                                 (concat
+                                                   (for [[from to] editable-source-connections]
+                                                     (g/connect or-go-node from self to))
+                                                   (for [[from to] [[:build-targets :source-build-targets]]]
+                                                     (g/connect go-node from self to))
+                                                   (for [[from to] [[:url :base-url]]]
+                                                     (g/connect self from or-go-node to))
+                                                   (let [comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]
+                                                     (for [{comp-name :id overrides :properties} (:overrides new-value)
+                                                           :let [refd-comp-node (comp-name->refd-comp-node comp-name)
+                                                                 comp-props (:properties (g/node-value refd-comp-node :_properties evaluation-context))]]
+                                                       (properties/apply-property-overrides workspace id-mapping comp-props overrides))))))))))
+
+                           ;; This is a non-editable source resource. Connect it directly to our inputs and do not attempt to apply property overrides.
+                           (:tx-data (project/connect-resource-node evaluation-context project new-resource self non-editable-source-connections))))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (path-error _node-id source-resource))))
 
@@ -436,7 +451,7 @@
               (fn [collection-build-target]
                 (collection-common/collection-instance-build-target id transform ddf-properties collection-build-target proj-path->resource-property-build-target))))))
 
-(g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
+(g/defnk produce-coll-inst-outline [_node-id id source-outline source-resource]
   (-> {:node-id _node-id
        :node-outline-key id
        :label id
@@ -467,43 +482,58 @@
                   {:resource source-resource
                    :overrides ddf-properties}))
     (set (fn [evaluation-context self _old-value new-value]
-           (concat
-             (if-let [old-source (g/node-value self :source-id evaluation-context)]
-               (g/delete-node old-source)
-               [])
-             (let [new-resource (:resource new-value)
-                   basis (:basis evaluation-context)
-                   project (project/get-project basis self)
-                   workspace (project/workspace project)]
-               (when-some [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
-                 (concat
-                   connect-tx-data
-                   ;; TODO: Don't override immutable collections.
-                   (g/override coll-node {:traverse-fn or-coll-traverse-fn}
-                               (fn [evaluation-context id-mapping]
-                                 (let [or-coll-node (get id-mapping coll-node)
-                                       go-name->go-node (comp #(g/node-value % :source-id evaluation-context)
-                                                              (g/node-value coll-node :go-inst-ids evaluation-context))]
-                                   (concat
-                                     (for [[from to] [[:_node-id                        :source-id]
-                                                      [:resource                        :source-resource]
-                                                      [:node-outline                    :source-outline]
-                                                      [:scene                           :scene]
-                                                      [:ddf-properties                  :ddf-properties]
-                                                      [:go-inst-ids                     :go-inst-ids]
-                                                      [:resource-property-build-targets :resource-property-build-targets]]]
-                                       (g/connect or-coll-node from self to))
-                                     (for [[from to] [[:build-targets :build-targets]]]
-                                       (g/connect coll-node from self to))
-                                     (for [[from to] [[:url :base-url]]]
-                                       (g/connect self from or-coll-node to))
-                                     (for [{go-name :id overrides :properties} (:overrides new-value)
-                                           :let [go-node (go-name->go-node go-name)
-                                                 comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]
-                                           {comp-name :id overrides :properties} overrides
-                                           :let [refd-comp-node (comp-name->refd-comp-node comp-name)
-                                                 comp-props (:properties (g/node-value refd-comp-node :_properties evaluation-context))]]
-                                       (properties/apply-property-overrides workspace id-mapping comp-props overrides))))))))))))
+           (let [basis (:basis evaluation-context)
+                 base-source-connections [[:resource                        :source-resource]
+                                          [:node-outline                    :source-outline]
+                                          [:scene                           :scene]
+                                          [:ddf-properties                  :ddf-properties]
+                                          [:resource-property-build-targets :resource-property-build-targets]]
+                 editable-source-connections (conj base-source-connections
+                                                   [:_node-id    :source-id]
+                                                   [:go-inst-ids :go-inst-ids])
+                 non-editable-source-connections (conj editable-source-connections
+                                                       [:build-targets :build-targets])]
+             (concat
+               ;; Delete previous source resource node if it was an override node created by us.
+               ;; Else, disconnect all connections from the previous source resource node.
+               (when-some [old-source (g/node-feeding-into basis self :source-resource)]
+                 (if (g/override? basis old-source)
+                   (g/delete-node old-source)
+                   (for [[from to] non-editable-source-connections]
+                     (g/disconnect old-source from self to))))
+
+               ;; Connect the new source resource node to ourselves. If it is editable, create an override node for it and its dependent nodes.
+               ;; If it is non-editable, simply connect the source resource directly.
+               (let [new-resource (:resource new-value)
+                     project (project/get-project basis self)
+                     workspace (project/workspace project)]
+                 (if (some-> new-resource resource/editable?)
+                   ;; This is an editable source resource. Create an override node and make connections to enable full editing.
+                   (let [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                     (concat
+                       connect-tx-data
+                       (g/override coll-node {:traverse-fn or-coll-traverse-fn}
+                                   (fn [evaluation-context id-mapping]
+                                     (let [or-coll-node (get id-mapping coll-node)]
+                                       (concat
+                                         (for [[from to] editable-source-connections]
+                                           (g/connect or-coll-node from self to))
+                                         (for [[from to] [[:build-targets :build-targets]]]
+                                           (g/connect coll-node from self to))
+                                         (for [[from to] [[:url :base-url]]]
+                                           (g/connect self from or-coll-node to))
+                                         (let [go-name->go-node (comp #(g/node-value % :source-id evaluation-context)
+                                                                      (g/node-value coll-node :go-inst-ids evaluation-context))]
+                                           (for [{go-name :id overrides :properties} (:overrides new-value)
+                                                 :let [go-node (go-name->go-node go-name)
+                                                       comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]
+                                                 {comp-name :id overrides :properties} overrides
+                                                 :let [refd-comp-node (comp-name->refd-comp-node comp-name)
+                                                       comp-props (:properties (g/node-value refd-comp-node :_properties evaluation-context))]]
+                                             (properties/apply-property-overrides workspace id-mapping comp-props overrides)))))))))
+
+                   ;; This is a non-editable source resource. Connect it directly to our inputs and do not attempt to apply property overrides.
+                   (:tx-data (project/connect-resource-node evaluation-context project new-resource self non-editable-source-connections))))))))
     (dynamic error (g/fnk [_node-id source-resource]
                           (path-error _node-id source-resource)))
     (dynamic edit-type (g/fnk [source-resource]
@@ -600,9 +630,9 @@
       (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"}))]
         (add-game-object-file collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
-(defn- make-embedded-go [self project type data id position rotation scale parent select-fn]
+(defn- make-embedded-go [self project data id position rotation scale parent select-fn]
   (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project type data)
+        resource (project/make-embedded-resource project :editable "go" data)
         node-type (project/resource-node-type resource)]
     (g/make-nodes graph [go-node [EmbeddedGOInstanceNode :id id :position position :rotation rotation :scale scale]
                          resource-node [node-type :resource resource]]
@@ -634,7 +664,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Game Object")
-        (make-embedded-go coll-node project ext template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent select-fn)))))
+        (make-embedded-go coll-node project template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent select-fn)))))
 
 (handler/defhandler :add :workbench
   (active? [selection] (selection->collection selection))
@@ -667,8 +697,7 @@
                        "Add Game Object File"))
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
-         (let [ext           "collection"
-               resource-type (workspace/get-resource-type workspace ext)
+         (let [ext "collection"
                coll-node-path (resource/proj-path (g/node-value coll-node :resource))
                accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
            (when-let [resource (first (resource-dialog/make workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
@@ -703,7 +732,7 @@
                                (make-ref-go self project source-resource (:id game-object) (:position game-object)
                                             (:rotation game-object) (:scale3 game-object) nil (:component-properties game-object)))
                              (for [embedded (:embedded-instances collection)]
-                               (make-embedded-go self project "go" (:data embedded) (:id embedded)
+                               (make-embedded-go self project (:data embedded) (:id embedded)
                                                  (:position embedded)
                                                  (:rotation embedded)
                                                  (:scale3 embedded)
@@ -727,8 +756,8 @@
                                (:rotation coll-instance) (:scale3 coll-instance) (:instance-properties coll-instance)))))
 
 (defn- sanitize-collection [workspace collection-desc]
-  (let [ext->resource-type (workspace/get-resource-type-map workspace)]
-    (collection-common/sanitize-collection-desc collection-desc ext->resource-type :embed-data-as-strings)))
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
+    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type :embed-data-as-strings)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -737,7 +766,7 @@
     :node-type CollectionNode
     :ddf-type GameObject$CollectionDesc
     :load-fn load-collection
-    :dependencies-fn (collection-common/make-collection-dependencies-fn workspace)
+    :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
     :sanitize-fn (partial sanitize-collection workspace)
     :icon collection-common/collection-icon
     :view-types [:scene :text]

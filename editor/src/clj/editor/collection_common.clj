@@ -54,11 +54,11 @@
       (uniform->non-uniform-scale)
       (game-object-common/sanitize-property-descs-at-path property-descs-path)))
 
-(defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->resource-type embed-data-handling]
+(defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type embed-data-handling]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (try
     (let [unsanitized-prototype-desc (protobuf/str->map GameObject$PrototypeDesc (:data embedded-instance-desc))
-          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->resource-type embed-data-handling)]
+          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type embed-data-handling)]
       (assoc embedded-instance-desc
         :data (case embed-data-handling
                 :embed-data-as-maps sanitized-prototype-desc
@@ -73,31 +73,32 @@
   (-> instance-desc
       (sanitize-any-instance-desc [:component-properties :properties])))
 
-(defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->resource-type embed-data-handling]
+(defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type embed-data-handling]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (cond-> (sanitize-any-instance-desc embedded-instance-desc [:component-properties :properties])
-          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->resource-type embed-data-handling)))
+          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type embed-data-handling)))
 
 (defn- sanitize-collection-instance-desc [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.
   (-> collection-instance-desc
       (sanitize-any-instance-desc [:instance-properties :properties :properties])))
 
-(defn sanitize-collection-desc [collection-desc ext->resource-type embed-data-handling]
+(defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type embed-data-handling]
   {:pre [(map? collection-desc)
-         (ifn? ext->resource-type)
+         (ifn? ext->embedded-component-resource-type)
          (case embed-data-handling (:embed-data-as-maps :embed-data-as-strings) true false)]}
   ;; GameObject$CollectionDesc in map format.
   (-> collection-desc
       (update :instances (partial mapv sanitize-instance-desc))
-      (update :embedded-instances (partial mapv #(sanitize-embedded-instance-desc % ext->resource-type embed-data-handling)))
+      (update :embedded-instances (partial mapv #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type embed-data-handling)))
       (update :collection-instances (partial mapv sanitize-collection-instance-desc))))
 
-(defn make-collection-dependencies-fn [workspace]
+(defn make-collection-dependencies-fn [game-object-resource-type-fn]
+  {:pre [(ifn? game-object-resource-type-fn)]}
   ;; TODO: This should probably also consider resource property overrides?
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
     (fn [source-value]
-      (let [go-resource-type (workspace/get-resource-type workspace "go")
+      (let [go-resource-type (game-object-resource-type-fn)
             go-read-fn (:read-fn go-resource-type)
             go-dependencies-fn (:dependencies-fn go-resource-type)]
         (into (default-dependencies-fn source-value)

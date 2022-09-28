@@ -23,6 +23,7 @@
             [editor.geom :as geom]
             [editor.graph-util :as gu]
             [editor.math :as math]
+            [editor.outline :as outline]
             [editor.protobuf :as protobuf]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -71,12 +72,12 @@
     (or (g/flatten-errors build-targets)
         build-targets)))
 
-(defn- embedded-instance-desc->game-object-instance-build-target [embedded-instance-desc collection-node-id component-build-targets embedded-component-desc->build-resource proj-path->build-target ext->resource-type workspace]
+(defn- embedded-instance-desc->game-object-instance-build-target [embedded-instance-desc collection-node-id component-build-targets embedded-component-desc->build-resource proj-path->build-target ext->embedded-component-resource-type workspace]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (let [prototype-desc (:data embedded-instance-desc)
         component-instance-datas (game-object-data/prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target)
-        embedded-game-object-pb-string (collection-string-data/string-encode-game-object-data ext->resource-type prototype-desc)
-        embedded-game-object-resource (workspace/make-embedded-resource workspace "go" embedded-game-object-pb-string) ; Content determines hash for merging with embedded components in other .go files.
+        embedded-game-object-pb-string (collection-string-data/string-encode-game-object-data ext->embedded-component-resource-type prototype-desc)
+        embedded-game-object-resource (workspace/make-embedded-resource workspace :non-editable "go" embedded-game-object-pb-string) ; Content determines hash for merging with embedded components in other .go files.
         embedded-game-object-build-resource (workspace/make-build-resource embedded-game-object-resource)
         embedded-game-object-build-target (game-object-common/game-object-build-target embedded-game-object-build-resource collection-node-id component-instance-datas component-build-targets)
         transform-matrix (any-instance-desc->transform-matrix embedded-instance-desc)]
@@ -85,10 +86,10 @@
 (g/defnk produce-embedded-game-object-instance-build-targets [_node-id collection-desc embedded-component-resource-data->index embedded-component-build-targets referenced-component-build-targets proj-path->build-target]
   (let [project (project/get-project _node-id)
         workspace (project/workspace project)
-        ext->resource-type (workspace/get-resource-type-map workspace)
+        ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)
         embedded-component-desc->build-resource (game-object-data/make-embedded-component-desc->build-resource embedded-component-build-targets embedded-component-resource-data->index)
         component-build-targets (into embedded-component-build-targets referenced-component-build-targets)]
-    (mapv #(embedded-instance-desc->game-object-instance-build-target % _node-id component-build-targets embedded-component-desc->build-resource proj-path->build-target ext->resource-type workspace)
+    (mapv #(embedded-instance-desc->game-object-instance-build-target % _node-id component-build-targets embedded-component-desc->build-resource proj-path->build-target ext->embedded-component-resource-type workspace)
           (:embedded-instances collection-desc))))
 
 (g/defnk produce-build-targets [_node-id resource collection-desc embedded-game-object-instance-build-targets referenced-game-object-instance-build-targets proj-path->build-target]
@@ -279,10 +280,6 @@
       collection-desc->instance-property-descs
       (instance-property-descs->resources proj-path->resource)))
 
-(g/defnk produce-go-inst-ids []
-  ;; TODO! Can't produce, since we don't have GameObjectInstanceNodes.
-  {})
-
 (g/defnk produce-node-outline [_node-id]
   {:node-id _node-id
    :node-outline-key "Collection Data"
@@ -356,25 +353,25 @@
   ;; Collection interface.
   (output build-targets g/Any :cached produce-build-targets)
   (output ddf-properties g/Any :cached produce-ddf-properties)
-  (output go-inst-ids g/Any produce-go-inst-ids)
-  (output node-outline g/Any produce-node-outline)
+  (output node-outline outline/OutlineData produce-node-outline)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any produce-scene))
 
 (defn- sanitize-collection-data [workspace collection-desc]
-  (let [ext->resource-type (workspace/get-resource-type-map workspace)]
-    (collection-common/sanitize-collection-desc collection-desc ext->resource-type :embed-data-as-maps)))
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
+    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type :embed-data-as-maps)))
 
 (defn- load-collection-data [_project self _resource collection-desc]
   (g/set-property self :collection-desc collection-desc))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
+    :editable false
     :ext "collection"
     :label "Collection Data"
     :node-type CollectionDataNode
     :ddf-type GameObject$CollectionDesc
-    :dependencies-fn (collection-common/make-collection-dependencies-fn workspace)
+    :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
     :sanitize-fn (partial sanitize-collection-data workspace)
     :load-fn load-collection-data
     :auto-connect-save-data? false

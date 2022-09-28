@@ -7,6 +7,7 @@
             [editor.geom :as geom]
             [editor.graph-util :as gu]
             [editor.math :as math]
+            [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -19,9 +20,9 @@
 (def ^:private embedded-component-resource-connections
   [[:build-targets :embedded-component-build-targets]])
 
-(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data ext->resource-type project]
-  (let [embedded-component-pb-string (collection-string-data/string-encoded-data ext->resource-type embedded-component-resource-data)
-        embedded-resource (project/make-embedded-resource project (:type embedded-component-resource-data) embedded-component-pb-string)
+(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data ext->embedded-component-resource-type project]
+  (let [embedded-component-pb-string (collection-string-data/string-encoded-data ext->embedded-component-resource-type embedded-component-resource-data)
+        embedded-resource (project/make-embedded-resource project :non-editable (:type embedded-component-resource-data) embedded-component-pb-string)
         node-type (project/resource-node-type embedded-resource)
         graph (g/node-id->graph-id host-node-id)]
     (g/make-nodes graph [embedded-resource-node-id [node-type :resource embedded-resource]]
@@ -37,13 +38,13 @@
                    (let [basis (:basis evaluation-context)
                          project (project/get-project basis self)
                          workspace (project/workspace project)
-                         ext->resource-type (workspace/get-resource-type-map workspace)]
+                         ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
                      (-> []
                          (into (comp (map gt/source-id)
                                      (distinct)
                                      (mapcat g/delete-node))
                                (ig/explicit-inputs basis self :embedded-component-build-targets))
-                         (into (mapcat #(add-embedded-component-resource-node self (key %) ext->resource-type project))
+                         (into (mapcat #(add-embedded-component-resource-node self (key %) ext->embedded-component-resource-type project))
                                (sort-by val new-value)))))))
 
   (input embedded-component-build-targets g/Any :array :cascade-delete))
@@ -211,24 +212,25 @@
   ;; GameObject interface.
   (output build-targets g/Any :cached produce-build-targets)
   (output ddf-component-properties g/Any :cached produce-ddf-component-properties)
-  (output node-outline g/Any produce-node-outline)
+  (output node-outline outline/OutlineData produce-node-outline)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any produce-scene))
 
 (defn- sanitize-game-object-data [workspace prototype-desc]
-  (let [ext->resource-type (workspace/get-resource-type-map workspace)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->resource-type :embed-data-as-maps)))
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-maps)))
 
 (defn- load-game-object-data [_project self _resource prototype-desc]
   (g/set-property self :prototype-desc prototype-desc))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
+    :editable false
     :ext "go"
     :label "Game Object Data"
     :node-type GameObjectDataNode
     :ddf-type GameObject$PrototypeDesc
-    :dependencies-fn (game-object-common/make-game-object-dependencies-fn workspace)
+    :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
     :sanitize-fn (partial sanitize-game-object-data workspace)
     :load-fn load-game-object-data
     :auto-connect-save-data? false

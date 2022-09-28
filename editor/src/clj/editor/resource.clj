@@ -19,9 +19,9 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.fs :as fs]
-            [util.digest :as digest]
-            [schema.core :as s])
-  (:import [java.io File IOException InputStream FilterInputStream]
+            [schema.core :as s]
+            [util.digest :as digest])
+  (:import [java.io File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile ZipInputStream]
@@ -45,12 +45,18 @@
   (resource-name ^String [this])
   (workspace [this])
   (resource-hash [this])
-  (openable? [this]))
+  (openable? [this])
+  (editable? [this]))
 
 (def resource? (partial satisfies? Resource))
 
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
+
+(defn- get-resource-type [workspace resource]
+  (if (editable? resource)
+    (get (g/node-value workspace :resource-types) (type-ext resource))
+    (get (g/node-value workspace :resource-types-non-editable) (type-ext resource))))
 
 (defn openable-resource? [value]
   ;; A resource is considered openable if its kind can be opened. Typically this
@@ -61,11 +67,11 @@
   (and (satisfies? Resource value)
        (openable? value)))
 
-(defn editable-resource? [value]
+(defn editor-openable-resource? [value]
   ;; A resource is considered editable if the Defold Editor can edit it. Before
   ;; opening, you must also make sure the resource exists.
   (and (openable-resource? value)
-       (true? (:editable? (resource-type value)))))
+       (true? (:editor-openable (resource-type value)))))
 
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
@@ -118,17 +124,17 @@
         (swap! defignore-cache assoc defignore-path {:mtime latest-mtime :pred pred})
         pred))))
 
-(defn ignored-project-path? [^File root path]
-  ((defignore-pred root) path))
+(defn ignored-project-path? [^File root proj-path]
+  ((defignore-pred root) proj-path))
 
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
 ;; FileResource equality tests.
-(defrecord FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type children]
+(defrecord FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable children]
   Resource
   (children [this] children)
   (ext [this] ext)
-  (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
+  (resource-type [this] (get-resource-type workspace this))
   (source-type [this] source-type)
   (exists? [this]
     (try
@@ -159,6 +165,7 @@
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
   (openable? [this] (= :file source-type))
+  (editable? [this] editable)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
@@ -169,14 +176,15 @@
   io/Coercions
   (as-file [this] (File. abs-path)))
 
-(defn make-file-resource [workspace ^String root ^File file children]
+(defn make-file-resource [workspace ^String root ^File file children editable-proj-path?]
   (let [source-type (if (.isDirectory file) :folder :file)
         abs-path (.getAbsolutePath file)
         path (.getPath file)
         name (.getName file)
         project-path (if (= "" name) "" (str "/" (relative-path (File. root) (io/file path))))
-        ext (FilenameUtils/getExtension path)]
-    (FileResource. workspace root abs-path project-path name ext source-type children)))
+        ext (FilenameUtils/getExtension path)
+        editable (editable-proj-path? project-path)]
+    (FileResource. workspace root abs-path project-path name ext source-type editable children)))
 
 (defn file-resource? [resource]
   (instance? FileResource resource))
@@ -184,8 +192,8 @@
 (core/register-read-handler!
   "file-resource"
   (transit/read-handler
-    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type children]}]
-      (FileResource. workspace root abs-path project-path name ext source-type children))))
+    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable children]}]
+      (FileResource. workspace root abs-path project-path name ext source-type editable children))))
 
 (core/register-write-handler!
  FileResource
@@ -198,6 +206,7 @@
      :name (:name r)
      :ext (:ext r)
      :source-type (:source-type r)
+     :editable (:editable r)
      :children (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
@@ -206,11 +215,11 @@
 ;; Note that `data` is used for resource-hash, used to name
 ;; the output of build-resources. So better be unique for the
 ;; data the MemoryResource represents!
-(defrecord MemoryResource [workspace ext data]
+(defrecord MemoryResource [workspace editable ext data]
   Resource
   (children [this] nil)
   (ext [this] ext)
-  (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
+  (resource-type [this] (get-resource-type workspace this))
   (source-type [this] :file)
   (exists? [this] true)
   (read-only? [this] false)
@@ -221,6 +230,7 @@
   (workspace [this] workspace)
   (resource-hash [this] (hash data))
   (openable? [this] false)
+  (editable? [this] editable)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (IOUtils/toInputStream ^String (:data this)) opts))
@@ -234,7 +244,7 @@
   (.write w (format "{:MemoryResource %s}" (pr-str (ext memory-resource)))))
 
 (defn make-memory-resource [workspace resource-type data]
-  (MemoryResource. workspace (:ext resource-type) data))
+  (MemoryResource. workspace (:editable resource-type) (:ext resource-type) data))
 
 (defn- make-zip-resource-input-stream
   ^InputStream [zip-resource]
@@ -250,7 +260,7 @@
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
-  (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
+  (resource-type [this] (get-resource-type workspace this))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
@@ -261,6 +271,7 @@
   (workspace [this] workspace)
   (resource-hash [this] (hash (proj-path this)))
   (openable? [this] (= :file (source-type this)))
+  (editable? [this] true)
 
   io/IOFactory
   (make-input-stream  [this opts] (make-zip-resource-input-stream this))
@@ -400,7 +411,9 @@
 (defn style-classes [resource]
   (into #{"resource"}
         (keep not-empty)
-        [(when (read-only? resource) "resource-read-only")
+        [(when (or (not (editable? resource))
+                   (read-only? resource))
+           "resource-read-only")
          (case (source-type resource)
            :file (some->> resource ext not-empty (str "resource-ext-"))
            :folder "resource-folder"

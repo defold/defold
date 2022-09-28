@@ -496,8 +496,11 @@
         (add-component go-id resource id game-object-common/identity-transform-properties [] select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
-  (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
-                                         (workspace/get-resource-types workspace :embeddable)))]
+  (let [component-exts (keep (fn [[ext {:keys [tags :as _resource-type]}]]
+                               (when (or (contains? tags :component)
+                                         (contains? tags :embeddable))
+                                 ext))
+                             (workspace/get-resource-type-map workspace))]
     (when-let [resource (first (resource-dialog/make workspace project {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource select-fn))))
 
@@ -512,7 +515,7 @@
 
 (defn- add-embedded-component [self project type data id {:keys [position rotation scale]} select-fn]
   (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project type data)
+        resource (project/make-embedded-resource project :editable type data)
         node-type (project/resource-node-type resource)]
     (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]
                          resource-node [node-type :resource resource]]
@@ -548,10 +551,12 @@
       (or (:label rt) (:ext rt)))))
 
 (defn embeddable-component-resource-types [workspace]
-  (->> (workspace/get-resource-types workspace :component)
-       (filter (fn [resource-type]
-                 (and (not (contains? (:tags resource-type) :non-embeddable))
-                      (workspace/has-template? workspace resource-type))))))
+  (keep (fn [[_ext {:keys [tags] :as resource-type}]]
+          (when (and (contains? tags :component)
+                     (not (contains? tags :non-embeddable))
+                     (workspace/has-template? workspace resource-type))
+            resource-type))
+        (workspace/get-resource-type-map workspace)))
 
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
@@ -573,23 +578,25 @@
              (add-embedded-component-options self workspace user-data))))
 
 (defn load-game-object [project self resource prototype]
-  (concat
-    (for [component (:components prototype)
-          :let [source-path (:component component)
-                source-resource (workspace/resolve-resource resource source-path)
-                resource-type (some-> source-resource resource/resource-type)
-                transform-properties (select-transform-properties resource-type component)
-                properties (:properties component)]]
-      (add-component self source-resource (:id component) transform-properties properties nil))
-    (for [embedded (:embedded-components prototype)
-          :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
-                transform-properties (select-transform-properties resource-type embedded)]]
-      (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
+  (let [workspace (project/workspace project)
+        ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
+    (concat
+      (for [component (:components prototype)
+            :let [source-path (:component component)
+                  source-resource (workspace/resolve-resource resource source-path)
+                  resource-type (some-> source-resource resource/resource-type)
+                  transform-properties (select-transform-properties resource-type component)
+                  properties (:properties component)]]
+        (add-component self source-resource (:id component) transform-properties properties nil))
+      (for [{:keys [id type data] :as embedded-component-desc} (:embedded-components prototype)
+            :let [resource-type (ext->embedded-component-resource-type type)
+                  transform-properties (select-transform-properties resource-type embedded-component-desc)]]
+        (add-embedded-component self project type data id transform-properties false)))))
 
 (defn- sanitize-game-object [workspace prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
-  (let [ext->resource-type (workspace/get-resource-type-map workspace)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->resource-type :embed-data-as-strings)))
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-strings)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -598,7 +605,7 @@
     :node-type GameObjectNode
     :ddf-type GameObject$PrototypeDesc
     :load-fn load-game-object
-    :dependencies-fn (game-object-common/make-game-object-dependencies-fn workspace)
+    :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
     :sanitize-fn (partial sanitize-game-object workspace)
     :icon game-object-common/game-object-icon
     :view-types [:scene :text]

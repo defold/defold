@@ -217,13 +217,13 @@
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
 (defn- make-nodes! [project resources]
-  (let [project-graph (graph project)]
+  (let [project-graph (graph project)
+        file-resources (filter #(= :file (resource/source-type %)) resources)]
     (g/tx-nodes-added
       (g/transact
-        (for [[resource-type resources] (group-by resource/resource-type resources)
+        (for [[resource-type resources] (group-by resource/resource-type file-resources)
               :let [node-type (resource-type->node-type resource-type)]
-              resource resources
-              :when (not= :folder (resource/source-type resource))]
+              resource resources]
           (g/make-nodes project-graph [node [node-type :resource resource]]
                         (g/connect node :_node-id project :nodes)
                         (g/connect node :node-id+resource project :node-id+resources)))))))
@@ -278,9 +278,9 @@
                   :transaction-metrics @transaction-metrics}))
        project))))
 
-(defn make-embedded-resource [project type data]
+(defn make-embedded-resource [project editability ext data]
   (let [workspace (g/node-value project :workspace)]
-    (workspace/make-embedded-resource workspace type data)))
+    (workspace/make-embedded-resource workspace editability ext data)))
 
 (defn all-save-data [project]
   (g/node-value project :save-data))
@@ -318,7 +318,8 @@
     (do
       (progress/progress-mapv
         (fn [{:keys [resource content value node-id]} _]
-          (when-not (resource/read-only? resource)
+          (when (and (resource/editable? resource)
+                     (not (resource/read-only? resource)))
             ;; If the file is non-binary, convert line endings to the
             ;; type used by the existing file.
             (if (and (textual-resource-type? (resource/resource-type resource))
@@ -677,7 +678,6 @@
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
   (input resource-map g/Any)
-  (input resource-types g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-id+resources g/Any :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
@@ -707,9 +707,13 @@
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
-  (output dirty-save-data g/Any :cached (g/fnk [save-data] (filterv #(and (:dirty? %)
-                                                                       (when-let [r (:resource %)]
-                                                                         (not (resource/read-only? r)))) save-data)))
+  (output dirty-save-data g/Any :cached (g/fnk [save-data]
+                                          (filterv (fn [save-data]
+                                                     (and (:dirty? save-data)
+                                                          (when-some [resource (:resource save-data)]
+                                                            (and (resource/editable? resource)
+                                                                 (not (resource/read-only? resource))))))
+                                                   save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
@@ -824,7 +828,6 @@
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :resource-list project :resources)
                 (g/connect workspace-id :resource-map project :resource-map)
-                (g/connect workspace-id :resource-types project :resource-types)
                 (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))

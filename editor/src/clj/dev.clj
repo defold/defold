@@ -39,7 +39,7 @@
   0)
 
 (defn project []
-  (ffirst (g/targets-of (workspace) :resource-types)))
+  (ffirst (g/targets-of (workspace) :resource-map)))
 
 (defn app-view []
   (ffirst (g/targets-of (project) :_node-id)))

@@ -51,15 +51,15 @@
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
-  (property editable? g/Bool :unjammable
+  (property editable g/Bool :unjammable
             (default true)
             (dynamic visible (g/constantly false)))
 
   (output undecorated-save-data g/Any produce-undecorated-save-data)
   (output save-data g/Any :cached produce-save-data)
-  (output source-value g/Any :cached (g/fnk [_node-id resource editable?]
+  (output source-value g/Any :cached (g/fnk [_node-id resource editable]
                                        (when-some [read-fn (:read-fn (resource/resource-type resource))]
-                                         (when (and editable? (resource/exists? resource))
+                                         (when (and editable (resource/exists? resource))
                                            (resource-io/with-error-translation resource _node-id :source-value
                                              (read-fn resource))))))
   (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
@@ -68,8 +68,8 @@
   
   (output save-value g/Any (g/constantly nil))
 
-  (output cleaned-save-value g/Any (g/fnk [_node-id resource save-value editable?]
-                                          (when editable?
+  (output cleaned-save-value g/Any (g/fnk [_node-id resource save-value editable]
+                                          (when editable
                                             (let [resource-type (resource/resource-type resource)
                                                   read-fn (:read-fn resource-type)
                                                   write-fn (:write-fn resource-type)]
@@ -78,8 +78,8 @@
                                                   (resource-io/with-error-translation resource _node-id :cleaned-save-value
                                                     (read-fn reader)))
                                                 save-value)))))
-  (output dirty? g/Bool (g/fnk [cleaned-save-value source-value editable?]
-                          (and editable? (some? cleaned-save-value) (not= cleaned-save-value source-value))))
+  (output dirty? g/Bool (g/fnk [cleaned-save-value source-value editable]
+                          (and editable (some? cleaned-save-value) (not= cleaned-save-value source-value))))
   (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
   (output valid-node-id+type+resource g/Any (g/fnk [_node-id _this resource] [_node-id (g/node-type _this) resource])) ; Jammed when defective.
   (output own-build-errors g/Any (g/constantly nil))
@@ -116,7 +116,7 @@
 (g/defnode ImmutableResourceNode
   (inherits ResourceNode)
 
-  (property editable? g/Bool :unjammable
+  (property editable g/Bool :unjammable
             (default false)
             (dynamic visible (g/constantly false)))
 
@@ -170,7 +170,7 @@
             (distinct))
           ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
 
-(defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
+(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
   (let [read-raw-fn (partial protobuf/read-text ddf-type)
         read-fn (cond->> read-raw-fn
                          (some? sanitize-fn) (comp sanitize-fn))
