@@ -41,8 +41,8 @@
 ;;                (model-scene/mesh->vb! (math/->mat4) :vertex-space-world mesh (get user-data :scratch-arrays)))]
 ;;       (is (= (count vb) (alength (get mesh :position-indices)))))))
 
-;; (deftest invalid-scene
-;;   (test-util/with-loaded-project
-;;     (let [node-id (test-util/resource-node project "/mesh/invalid.dae")
-;;           scene (g/node-value node-id :scene)]
-;;       (is (g/error? scene)))))
+(deftest invalid-scene
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/mesh/invalid.dae")
+          scene (g/node-value node-id :scene)]
+      (is (g/error? scene)))))

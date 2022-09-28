@@ -11,7 +11,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.model-loader
-  (:require [clojure.java.io :as io]
+  (:require [dynamo.graph :as g]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource])
@@ -59,9 +60,18 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn load-scene [resource]
+(defn- load-scene-internal [resource]
   (with-open [stream (io/input-stream resource)]
     (let [ext (string/lower-case (resource/ext resource))]
       (if (= "dae" ext)
         (load-collada-scene stream)
         (load-model-scene stream (resource/path resource))))))
+
+(defn load-scene [node-id resource]
+  (try
+    (load-scene-internal resource)
+    (catch Exception e
+      ;; (prn "Exception" (.getMessage e))
+      ;; (.printStackTrace e)
+      (g/->error node-id nil :fatal nil (format "The file '%s' contains invalid data, likely produced by a buggy exporter: '%s'" (resource/proj-path resource) (.getMessage e)) {:type :invalid-content :resource resource})
+      )))

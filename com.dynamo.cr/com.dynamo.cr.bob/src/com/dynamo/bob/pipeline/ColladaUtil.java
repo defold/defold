@@ -1437,6 +1437,12 @@ public class ColladaUtil {
     }
 
     public static void loadModels(XMLCOLLADA scene, Rig.MeshSet.Builder meshSetBuilder) throws IOException, XMLStreamException, LoaderException {
-        loadMesh(scene, meshSetBuilder, true, false);
+        try {
+            loadMesh(scene, meshSetBuilder, true, false);
+        } catch(IOException e) {
+            throw e;
+        } catch(Exception e) {
+            throw new IOException("Failed to load Collada scene: " + e.getMessage(), e);
+        }
     }
 }

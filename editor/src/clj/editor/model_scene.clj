@@ -24,7 +24,6 @@
             [editor.math :as math]
             [editor.render :as render]
             [editor.resource :as resource]
-            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.scene-cache :as scene-cache]
@@ -302,13 +301,7 @@
   (:bones content))
 
 (g/defnk produce-content [_node-id resource]
-  (resource-io/with-error-translation resource _node-id :content
-    (try
-      (model-loader/load-scene resource)
-      (catch Exception e
-        (prn "Exception" (.getMessage e))
-        (.printStackTrace e)
-        (error-values/error-fatal "The scene contains invalid data, likely produced by a buggy exporter." {:type :invalid-content})))))
+      (model-loader/load-scene _node-id resource))
 
 (g/defnk produce-animation-info [resource]
   [{:path (resource/proj-path resource) :parent-id "" :resource resource}])
