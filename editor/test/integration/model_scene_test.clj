@@ -21,15 +21,14 @@
   (:import [javax.vecmath Point3d]))
 
 
-;; (deftest aabb
-;;   (test-util/with-loaded-project
-;;     (let [node-id (test-util/resource-node project "/mesh/test.dae")
-;;           aabb (g/node-value node-id :aabb)
-;;           min ^Point3d (types/min-p aabb)
-;;           max ^Point3d (types/max-p aabb)
-;;           dist (.distance max min)
-;;           dist (/ dist 100)] ; the model is exported in centimeters
-;;       (is (and (> 20 dist) (< 10 dist))))))
+(deftest aabb
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/mesh/test.dae")
+          aabb (g/node-value node-id :aabb)
+          min ^Point3d (types/min-p aabb)
+          max ^Point3d (types/max-p aabb)
+          dist (.distance max min)] ; distance in meters (converted from centimeters in the loader)
+      (is (and (> 20 dist) (< 10 dist))))))
 
 ;; (deftest vbs
 ;;   (test-util/with-loaded-project
