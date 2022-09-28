@@ -117,7 +117,6 @@ namespace dmGameSystem
         uint8_t*                        m_IndexBufferData;
         uint8_t*                        m_IndexBufferWritePtr;
         uint8_t                         m_Is16BitIndex : 1;
-        // uint8_t                         m_UseGeometries : 1;
         uint8_t                         m_ReallocBuffers : 1;
     };
 
@@ -524,7 +523,7 @@ namespace dmGameSystem
     }
 
 
-    static void CreateVertexData(SpriteWorld* sprite_world, SpriteVertex** vb_where, uint8_t** ib_where, /* TextureSetResource* texture_set, */ dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
+    static void CreateVertexData(SpriteWorld* sprite_world, SpriteVertex** vb_where, uint8_t** ib_where, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("CreateVertexData");
 
@@ -748,7 +747,7 @@ namespace dmGameSystem
         uint8_t* ib_begin = (uint8_t*)sprite_world->m_IndexBufferWritePtr;
         SpriteVertex* vb_iter = vb_begin;
         uint8_t* ib_iter = ib_begin;
-        CreateVertexData(sprite_world, &vb_iter, &ib_iter, /*texture_set,*/ buf, begin, end);
+        CreateVertexData(sprite_world, &vb_iter, &ib_iter, buf, begin, end);
 
         sprite_world->m_VertexBufferWritePtr = vb_iter;
         sprite_world->m_IndexBufferWritePtr = ib_iter;
@@ -1418,10 +1417,6 @@ namespace dmGameSystem
                     component->m_CurrentAnimation = 0x0;
                     component->m_CurrentAnimationFrame = 0;
                 }
-                /*
-                sprite_world->m_ReallocBuffers |= (sprite_world->m_UseGeometries == 0 && texture_set->m_TextureSet->m_UseGeometries != 0) ? 1 : 0;
-                sprite_world->m_UseGeometries |= texture_set->m_TextureSet->m_UseGeometries;
-                */
             }
             return res;
         }
