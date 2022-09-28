@@ -34,6 +34,11 @@ namespace dmProfilerExt {
      * Get current CPU usage for process, as reported by OS.
      */
     double GetCpuUsage();
+
+    /**
+     * Call update in platforms implementations to collect platform specific data.
+     */
+    void UpdatePlatformProfiler();
 }
 
 #endif // #ifndef DM_PROFILER_PRIVATE_H
