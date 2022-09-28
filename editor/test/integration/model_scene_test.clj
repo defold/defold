@@ -30,15 +30,18 @@
           dist (.distance max min)] ; distance in meters (converted from centimeters in the loader)
       (is (and (> 20 dist) (< 10 dist))))))
 
-;; (deftest vbs
-;;   (test-util/with-loaded-project
-;;     (let [node-id (test-util/resource-node project "/mesh/test.dae")
-;;           mesh (first (g/node-value node-id :meshes))
-;;           scene (g/node-value node-id :scene)
-;;           user-data (get-in scene [:renderable :user-data])
-;;           vb (-> (model-scene/->vtx-pos-nrm-tex (alength (get-in user-data [:meshes 0 :position-indices])))
-;;                (model-scene/mesh->vb! (math/->mat4) :vertex-space-world mesh (get user-data :scratch-arrays)))]
-;;       (is (= (count vb) (alength (get mesh :position-indices)))))))
+(deftest vbs
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/mesh/test.dae")
+          mesh (first (g/node-value node-id :meshes))
+          scene (g/node-value node-id :scene)
+          user-data (get-in scene [:renderable :user-data])
+          meshes (:meshes user-data)
+          mesh (first meshes)
+          indices (:indices mesh)
+          vb (-> (model-scene/->vtx-pos-nrm-tex (alength ^ints indices))
+               (model-scene/mesh->vb! (math/->mat4) :vertex-space-world mesh (get user-data :scratch-arrays)))]
+      (is (= (count vb) (alength (get mesh :indices)))))))
 
 (deftest invalid-scene
   (test-util/with-loaded-project
