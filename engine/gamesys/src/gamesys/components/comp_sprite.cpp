@@ -888,7 +888,7 @@ namespace dmGameSystem
 
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
-        DM_PROFILE("FrustumCulling");
+        DM_PROFILE("Sprite");
 
         const SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
         const float* radiuses = sprite_world->m_BoundingVolumes.Begin();

@@ -12,25 +12,26 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "profiler_private.h"
-#include "profiler_proc_utils.h"
+#ifndef DM_PROFILER_PROC_PRIVATE_H
+#define DM_PROFILER_PROC_PRIVATE_H
 
-void dmProfilerExt::SampleCpuUsage()
-{
-    dmProfilerExt:SampleProcCpuUsage();
+#include <script/script.h>
+
+namespace dmProfilerExt {
+    /**
+     * Call to sample CPU usage from proc in intevals.
+     */
+    void SampleProcCpuUsage();
+
+    /**
+     * Get current memory usage in bytes from proc (resident/working set) for the process, as reported by OS.
+     */
+    uint64_t GetProcMemoryUsage();
+
+    /**
+     * Get current CPU usage for process from proc, as reported by OS.
+     */
+    double GetProcCpuUsage();
 }
 
-uint64_t dmProfilerExt::GetMemoryUsage()
-{
-    return GetProcMemoryUsage();
-}
-
-double dmProfilerExt::GetCpuUsage()
-{
-    return GetProcCpuUsage();
-}
-
-void dmProfilerExt::UpdatePlatformProfiler()
-{
-    // nop
-}
+#endif // #ifndef DM_PROFILER_PROC_PRIVATE_H

@@ -436,7 +436,7 @@ union SaveLoadBuffer
      *
      * `target`
      * - [type:string] [icon:html5]: Optional. Specifies the target attribute or the name of the window. The following values are supported:
-     * - `_self` - URL replaces the current page. This is default.
+     * - `_self` - (default value) URL replaces the current page.
      * - `_blank` - URL is loaded into a new window, or tab.
      * - `_parent` - URL is loaded into the parent frame.
      * - `_top` - URL replaces any framesets that may be loaded.

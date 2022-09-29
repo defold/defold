@@ -97,3 +97,8 @@ double dmProfilerExt::GetCpuUsage()
 {
     return _sample_cpu_usage;
 }
+
+void dmProfilerExt::UpdatePlatformProfiler()
+{
+    // nop
+}

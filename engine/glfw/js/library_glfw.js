@@ -445,7 +445,9 @@ var LibraryGLFW = {
         if (GLFW.mouseWheelFunc) {
           {{{ makeDynCall('vi', 'GLFW.mouseWheelFunc') }}}(GLFW.wheelPos);
         }
-        event.preventDefault();
+        if (event.cancelable) {
+          event.preventDefault();
+        }
       }
     },
 
@@ -634,8 +636,8 @@ var LibraryGLFW = {
     GLFW.addEventListener("mousemove", GLFW.onMousemove, true);
     GLFW.addEventListener("mousedown", GLFW.onMouseButtonDown, true);
     GLFW.addEventListener("mouseup", GLFW.onMouseButtonUp, true);
-    GLFW.addEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
-    GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, true);
+    GLFW.addEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
+    GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
     GLFW.addEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
     GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
     GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
@@ -652,8 +654,8 @@ var LibraryGLFW = {
         GLFW.removeEventListener("mousemove", GLFW.onMousemove, true);
         GLFW.removeEventListener("mousedown", GLFW.onMouseButtonDown, true);
         GLFW.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
-        GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
-        GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, true);
+        GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
+        GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
         GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
         GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
         GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);

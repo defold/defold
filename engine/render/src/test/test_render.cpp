@@ -908,6 +908,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*7, metrics.m_Width);
     ASSERT_EQ(ExpectedHeight(lineheight, numlines, leading), metrics.m_Height);
+    ASSERT_EQ(numlines, metrics.m_LineCount);
 }
 
 TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)
