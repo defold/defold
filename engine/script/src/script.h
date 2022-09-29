@@ -320,6 +320,13 @@ namespace dmScript
     bool CheckBoolean(lua_State* L, int index);
 
     /**
+     * Push a Boolean value onto the supplied lua state, will increase the stack by 1.
+     * @param L Lua state
+     * @param v boolean value to push
+     */
+    bool PushBoolean(lua_State* L, bool v);
+
+    /**
      * Check if the value at #index is a URL
      * @param L Lua state
      * @param index Index of the value

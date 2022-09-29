@@ -1940,4 +1940,8 @@ namespace dmScript
         return luaL_error(L, "Argument %d must be a boolean", index);
     }
 
+    bool PushBoolean(lua_State* L, bool v)
+    {
+        lua_pushboolean(L, v);
+    }
 } // dmScript
