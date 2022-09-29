@@ -13,35 +13,34 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.engine.native-extensions
-  (:require
-   [clojure.java.io :as io]
-   [clojure.data.json :as json]
-   [dynamo.graph :as g]
-   [editor.connection-properties :refer [connection-properties]]
-   [editor.prefs :as prefs]
-   [editor.defold-project :as project]
-   [editor.engine.build-errors :as engine-build-errors]
-   [editor.fs :as fs]
-   [editor.resource :as resource]
-   [editor.system :as system]
-   [editor.workspace :as workspace]
-   [util.http-client :as http])
-  (:import
-   (java.io File)
-   (java.net URI)
-   (java.util Base64)
-   (java.security MessageDigest)
-   (javax.ws.rs.core MediaType)
-   (org.apache.commons.codec.binary Hex)
-   (org.apache.commons.codec.digest DigestUtils)
-   (org.apache.commons.io IOUtils)
-   (com.dynamo.bob Platform)
-   (com.sun.jersey.api.client.config DefaultClientConfig)
-   (com.sun.jersey.api.client Client ClientResponse WebResource$Builder)
-   (com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider)
-   (com.sun.jersey.multipart FormDataMultiPart)
-   (com.sun.jersey.multipart.impl MultiPartWriter)
-   (com.sun.jersey.multipart.file StreamDataBodyPart)))
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.connection-properties :refer [connection-properties]]
+            [editor.defold-project :as project]
+            [editor.engine.build-errors :as engine-build-errors]
+            [editor.fs :as fs]
+            [editor.prefs :as prefs]
+            [editor.resource :as resource]
+            [editor.system :as system]
+            [editor.workspace :as workspace]
+            [util.http-client :as http])
+  (:import [com.dynamo.bob Platform]
+           [com.sun.jersey.api.client Client ClientResponse WebResource$Builder]
+           [com.sun.jersey.api.client.config DefaultClientConfig]
+           [com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider]
+           [com.sun.jersey.multipart FormDataMultiPart]
+           [com.sun.jersey.multipart.file StreamDataBodyPart]
+           [com.sun.jersey.multipart.impl MultiPartWriter]
+           [java.io File]
+           [java.net URI]
+           [java.security MessageDigest]
+           [java.util Base64]
+           [javax.ws.rs.core MediaType]
+           [org.apache.commons.codec.binary Hex]
+           [org.apache.commons.codec.digest DigestUtils]
+           [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -223,8 +222,8 @@
                 (get info "cached")]))
         ne-cache-info))
 
-(defn- build-engine-archive ^File
-  [server-url server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
+(defn- build-engine-archive
+  ^File [server-url server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
   ;; NOTE:
   ;; sdk-version is likely to be nil unless you're running a bundled editor.
   ;; In this case things will only work correctly if you're running a local
@@ -248,14 +247,13 @@
         ne-cache-info (query-cached-files server-url resource-nodes-by-upload-path evaluation-context)
         ne-cache-info-map (make-cached-info-map ne-cache-info)]
     (.accept builder #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
-    (if (not-empty user-info)
-        (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info)))))
-    (if (and (not-empty extender-username) (not-empty extender-password))
-        (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes (str extender-username ":" extender-password))))))
-    ; SPLIT SERVER HEADERS
-    ; OR EVEN BETTER USE ExtenderClient.build() from bob.jar and get rid of most of this function?
-
-
+    (when (not-empty user-info)
+      (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info)))))
+    (when (and (not-empty extender-username) (not-empty extender-password))
+      (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes (str extender-username ":" extender-password))))))
+    (doseq [header (string/split-lines server-headers)]
+      (let [[key value] (string/split header #"\s*:\s*" 2)]
+        (.header builder key value)))
     (with-open [form (FormDataMultiPart.)]
       ; upload the file to the server, basically telling it what we are sending (and what we aren't)
       (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes ^String (json/write-str {:files ne-cache-info})))))
