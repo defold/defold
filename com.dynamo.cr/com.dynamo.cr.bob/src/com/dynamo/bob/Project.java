@@ -60,6 +60,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.codec.binary.Base64;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
 
 import com.dynamo.bob.archive.EngineVersion;
@@ -127,6 +128,7 @@ public class Project {
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
     private List<String> propertyFiles = new ArrayList<String>();
+    private List<String> buildServerHeaders = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -599,6 +601,10 @@ public class Project {
         }
     }
 
+    public void addBuildServerHeader(String header) {
+        buildServerHeaders.add(header);
+    }
+
     public void addPropertyFile(String filepath) {
         propertyFiles.add(filepath);
     }
@@ -921,7 +927,7 @@ public class Project {
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-                extender.setHeaders(this.option("build-server-headers", ""));
+                extender.setHeaders(buildServerHeaders);
                 File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, asyncBuild);
 
                 cleanEngine(platform, buildDir);
@@ -929,7 +935,10 @@ public class Project {
                 BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
             } catch (ConnectException e) {
                 throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
+            } catch (ExtenderClientException e) {
+                throw new CompileExceptionError("Failed to build engine", e);
             }
+
             m.worked(1);
         }
 
