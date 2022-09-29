@@ -60,7 +60,7 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn- load-scene-internal [resource]
+(defn load-scene-internal [resource]
   (with-open [stream (io/input-stream resource)]
     (let [ext (string/lower-case (resource/ext resource))]
       (if (= "dae" ext)

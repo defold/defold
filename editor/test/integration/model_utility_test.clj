@@ -39,7 +39,7 @@
   (update mesh-set :mesh-entries #(mapv sequence-vertices-in-mesh-entry %)))
 
 (defn- load-scene [workspace file-path]
-  (model-loader/load-scene (workspace/file-resource workspace file-path)))
+  (model-loader/load-scene-internal (workspace/file-resource workspace file-path)))
 
 (deftest mesh-normals
   (test-util/with-loaded-project
@@ -117,6 +117,6 @@
 
 (deftest bones
   (test-util/with-loaded-project
-    (let [{:keys [animation-set skeleton]} (load-scene workspace "/mesh/treasure_chest.dae")]
-      (is (= 3 (count (:bones skeleton))))
-      (is (set/subset? (:bone-list animation-set) (set (map :id (:bones skeleton))))))))
+    (let [{:keys [animation-set bones]} (load-scene workspace "/mesh/treasure_chest.dae")]
+      (is (= 3 (count bones)))
+      (is (set/subset? (:bone-list animation-set) (set (map :id bones)))))))

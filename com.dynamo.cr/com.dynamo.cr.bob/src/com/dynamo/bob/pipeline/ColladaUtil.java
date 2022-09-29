@@ -1516,9 +1516,11 @@ public class ColladaUtil {
             ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
             if (bones != null) {
                 for (ModelImporter.Bone bone : bones) {
-                    System.out.printf("  Bone: %s  index: %d  parent: %s\n", bone.name, bone.index, bone.parent != null ? bone.parent.name : "");
-                    System.out.printf("      local:\n");
-                    ModelImporter.DebugPrintTransform(bone.node.local, 3);
+                    System.out.printf("  Bone: %s  index: %d  parent: %s node: %s\n", bone.name, bone.index, bone.parent != null ? bone.parent.name : "null", bone.node != null ? bone.node.name : "null");
+                    if (bone.node != null) {
+                        System.out.printf("      local:\n");
+                        ModelImporter.DebugPrintTransform(bone.node.local, 3);
+                    }
                 }
                 System.out.printf("--------------------------------------------\n");
             }
