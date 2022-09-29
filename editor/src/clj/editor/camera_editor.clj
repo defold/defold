@@ -190,7 +190,6 @@
           m))
 
 (defn- camera-perspective-projection-matrix [near far fov]
-  ;(println near far fov)
   (let [fov-deg (math/rad->deg fov)
         fov-x  fov-deg
         fov-y  fov-deg
@@ -229,6 +228,41 @@
     (set! (. m m33) 0.0)
     m))
 
+(defn- camera-orthographic-projection-matrix [near far fov]
+        (let [fov-deg (math/rad->deg fov)
+              fov-x  fov-deg
+              fov-y  fov-deg
+              right  (/ fov-x 2.0)
+              left   (- right)
+              top    (/ fov-y 2.0)
+              bottom (- top)
+              m      (Matrix4d.)]
+          (set! (. m m00) (/ 2.0 (- right left)))
+          (set! (. m m01) 0.0)
+          (set! (. m m02) 0.0)
+          (set! (. m m03) (/ (- (+ right left)) (- right left)))
+
+          (set! (. m m10) 0.0)
+          (set! (. m m11) (/ 2.0 (- top bottom)))
+          (set! (. m m12) 0.0)
+          (set! (. m m13) (/ (- (+ top bottom)) (- top bottom)))
+
+          (set! (. m m20) 0.0)
+          (set! (. m m21) 0.0)
+          (set! (. m m22) (/ 2.0 (- near far)))
+          (set! (. m m23) (/ (+ near far) (- near far)))
+
+          (set! (. m m30) 0.0)
+          (set! (. m m31) 0.0)
+          (set! (. m m32) 0.0)
+          (set! (. m m33) 1.0)
+          m))
+
+(defn- camera-projection-matrix [is-orthographic near far fov]
+  (if (true? is-orthographic)
+    (camera-orthographic-projection-matrix near far fov)
+    (camera-perspective-projection-matrix near far fov)))
+
 (defn- gen-outline-vertex-buffer
   [renderables count]
   (let [tmp-point (Point3d.)]
@@ -243,7 +277,7 @@
               world-transform (:world-transform renderable)
               world-translation (:world-translation renderable)
               world-rotation (:world-rotation renderable)
-              ^Matrix4d proj-matrix (camera-perspective-projection-matrix (:near-z user-data) (:far-z user-data) (:fov user-data))
+              ^Matrix4d proj-matrix (camera-projection-matrix (:is-orthographic user-data) (:near-z user-data) (:far-z user-data) (:fov user-data))
               ^Matrix4d view-matrix (camera-view-matrix world-translation world-rotation)
               ^Matrix4d proj-view-matrix (doto (Matrix4d. proj-matrix) (.mul view-matrix))
               ^Matrix4d inv-view-proj-matrix (math/inverse proj-view-matrix)]
@@ -257,7 +291,7 @@
                          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 24)))))
 
 (g/defnk produce-camera-scene
-  [_node-id fov near-z far-z]
+  [_node-id fov near-z far-z orthographic-projection]
   (let [ext-x (* 0.5 2.0)
         ext-y (* 0.5 2.0)
         ext-z (* 0.5 2.0)
@@ -274,7 +308,8 @@
                               :select-batch-key _node-id
                               :user-data {:fov fov
                                           :near-z near-z
-                                          :far-z far-z}
+                                          :far-z far-z
+                                          :is-orthographic orthographic-projection}
                               :passes [pass/outline]}}]}))
 
 (defn load-camera [project self resource camera]
