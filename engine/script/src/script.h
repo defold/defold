@@ -324,7 +324,7 @@ namespace dmScript
      * @param L Lua state
      * @param v boolean value to push
      */
-    bool PushBoolean(lua_State* L, bool v);
+    void PushBoolean(lua_State* L, bool v);
 
     /**
      * Check if the value at #index is a URL
