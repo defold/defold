@@ -145,24 +145,26 @@
     (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
 
 (defn- conj-outline-frustum! [vbuf ^Vector3d camera-pos ^Matrix4d inv-proj-view cr cg cb]
-  (let [far0 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0 -1.0 1.0 1.0))
-        far1 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0  1.0 1.0 1.0))
-        far2 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0  1.0 1.0 1.0))
-        far3 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0 -1.0 1.0 1.0))
-        ; near positions
-        near0 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0 -1.0 -1.0 1.0))
-        near1 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0  1.0 -1.0 1.0))
-        near2 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0  1.0 -1.0 1.0))
-        near3 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0 -1.0 -1.0 1.0))
-        far-v0 (gen-outline-vertex-raw (.x far0) (.y far0) (.z far0) (.w far0) cr cg cb)
-        far-v1 (gen-outline-vertex-raw (.x far1) (.y far1) (.z far1) (.w far1) cr cg cb)
-        far-v2 (gen-outline-vertex-raw (.x far2) (.y far2) (.z far2) (.w far2) cr cg cb)
-        far-v3 (gen-outline-vertex-raw (.x far3) (.y far3) (.z far3) (.w far3) cr cg cb)
-        near-v0 (gen-outline-vertex-raw (.x near0) (.y near0) (.z near0) (.w near0) cr cg cb)
-        near-v1 (gen-outline-vertex-raw (.x near1) (.y near1) (.z near1) (.w near1) cr cg cb)
-        near-v2 (gen-outline-vertex-raw (.x near2) (.y near2) (.z near2) (.w near2) cr cg cb)
-        near-v3 (gen-outline-vertex-raw (.x near3) (.y near3) (.z near3) (.w near3) cr cg cb)
-        ; camera center position
+  (let [far-p0 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0 -1.0 1.0 1.0))
+        far-p1 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0  1.0 1.0 1.0))
+        far-p2 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0  1.0 1.0 1.0))
+        far-p3 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0 -1.0 1.0 1.0))
+        ;; near positions
+        near-p0 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0 -1.0 -1.0 1.0))
+        near-p1 (math/transform-vector-v4 inv-proj-view (Vector4d. -1.0  1.0 -1.0 1.0))
+        near-p2 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0  1.0 -1.0 1.0))
+        near-p3 (math/transform-vector-v4 inv-proj-view (Vector4d.  1.0 -1.0 -1.0 1.0))
+        ;; far vertices
+        far-v0 (gen-outline-vertex-raw (.x far-p0) (.y far-p0) (.z far-p0) (.w far-p0) cr cg cb)
+        far-v1 (gen-outline-vertex-raw (.x far-p1) (.y far-p1) (.z far-p1) (.w far-p1) cr cg cb)
+        far-v2 (gen-outline-vertex-raw (.x far-p2) (.y far-p2) (.z far-p2) (.w far-p2) cr cg cb)
+        far-v3 (gen-outline-vertex-raw (.x far-p3) (.y far-p3) (.z far-p3) (.w far-p3) cr cg cb)
+        ;; near vertices
+        near-v0 (gen-outline-vertex-raw (.x near-p0) (.y near-p0) (.z near-p0) (.w near-p0) cr cg cb)
+        near-v1 (gen-outline-vertex-raw (.x near-p1) (.y near-p1) (.z near-p1) (.w near-p1) cr cg cb)
+        near-v2 (gen-outline-vertex-raw (.x near-p2) (.y near-p2) (.z near-p2) (.w near-p2) cr cg cb)
+        near-v3 (gen-outline-vertex-raw (.x near-p3) (.y near-p3) (.z near-p3) (.w near-p3) cr cg cb)
+        ;: camera center position
         camera-v0 (gen-outline-vertex-raw (.x camera-pos) (.y camera-pos) (.z camera-pos) 1 cr cg cb)
         ]
     ; Add square for near plane
