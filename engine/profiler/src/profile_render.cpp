@@ -414,14 +414,13 @@ namespace dmProfileRender
                 params.m_WorldTransform.setElem(3, 1, y);
 
                 const char* name = dmHashReverseSafe32(property.m_NameHash);
-                if (name[0]=='r' && name[1]=='m' && name[2]=='t' && name[3]=='p' && name[4]=='_')
+                if (strstr(name, "rmtp_") == name)
                 {
                     name = name + 5;
                 }
                 params.m_Text = name;
 
-                if (name[0]=='D' && name[1]=='r' && name[2]=='a' && name[3]=='w' && name[4]=='C' && name[5]=='a' && name[6]=='l'
-                    && name[7]=='l' && name[8]=='s')
+                if (strstr(name, "DrawCalls") == name)
                 {
                     drawcalls = property.m_Value.m_U32;
                 }
