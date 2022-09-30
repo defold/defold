@@ -63,59 +63,6 @@
   (test-util/with-loaded-project
     (is (thrown? NumberFormatException (load-scene workspace "/mesh/test_autodesk_dae.dae")))))
 
-
-
-; The animations aren't loaded using the load-scene, since they need a set of bones
-;; (defn- remove-empty-channels [track]
-;;   (into {} (filter (comp seq val)) track))
-;;
-;; (deftest animations
-;;   (test-util/with-loaded-project
-;;     (let [{:keys [animation-set skeleton]} (load-scene workspace "/mesh/treasure_chest.dae")
-;;           bone-count (count (:bones skeleton))]
-;;       (is (= 1 (-> animation-set :animations count)))
-;;       (let [animation (-> animation-set :animations first)]
-;;         (is (= "" (:id animation)))
-;;         (is (= 0 (count (:event-tracks animation))))
-;;         (is (= 0 (count (:mesh-tracks animation))))
-;;         (is (= 0 (count (:ik-tracks animation))))
-
-;;         (testing "All bones are animated"
-;;           (is (<= bone-count (count (:tracks animation)))))
-
-;;         ; Tracks contain keyframes for position, rotation and scale channels.
-;;         ; Several tracks can target the same bone, but there should not be
-;;         ; multiple tracks that target the same channel for a bone.
-;;         (doseq [[bone-index data-by-channel] (->> (:tracks animation)
-;;                                                   (group-by :bone-index)
-;;                                                   (sort-by key)
-;;                                                   (map (fn [[bone-index bone-tracks]]
-;;                                                          [bone-index (->> bone-tracks
-;;                                                                           (map #(dissoc % :bone-index))
-;;                                                                           (map remove-empty-channels)
-;;                                                                           (apply merge-with (constantly ::conflicting-data)))])))]
-;;           (testing "Bone exists in skeleton"
-;;             (is (< bone-index bone-count)))
-
-;;           (testing "Channels are not animated by multiple tracks"
-;;             (doseq [[channel data] data-by-channel]
-;;               (is (not= ::conflicting-data data)
-;;                   (str "Found multiple tracks targetting " channel " for bone " bone-index))))
-
-;;           (testing "Channel data matches expected strides"
-;;             (are [stride channel]
-;;               (= 0 (mod (count (data-by-channel channel)) stride))
-;;               3 :positions
-;;               4 :rotations
-;;               3 :scale))
-
-;;           (testing "At least two keys per channel"
-;;             (are [stride channel]
-;;               (<= (* 2 stride) (count (data-by-channel channel)))
-;;               3 :positions
-;;               4 :rotations
-;;               3 :scale)))))))
-
 (deftest bones
   (test-util/with-loaded-project
     (let [{:keys [animation-set bones]} (load-scene workspace "/mesh/treasure_chest.dae")]
