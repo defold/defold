@@ -59,9 +59,10 @@
             vs (map second (partition 2 (:texcoord0 c)))]
         (is (= vs (map (fn [y] (- 1.0 (* (+ y 1.0) 0.5))) zs)))))))
 
-;; (deftest comma-decimal-points-throws-number-format-exception
-;;   (test-util/with-loaded-project
-;;     (is (thrown? NumberFormatException (load-scene workspace "/mesh/test_autodesk_dae.dae")))))
+(deftest comma-decimal-points-throws-number-format-exception
+  (test-util/with-loaded-project
+    (is (thrown? NumberFormatException (load-scene workspace "/mesh/test_autodesk_dae.dae")))))
+
 
 
 ; The animations aren't loaded using the load-scene, since they need a set of bones
