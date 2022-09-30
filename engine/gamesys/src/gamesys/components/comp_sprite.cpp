@@ -130,12 +130,12 @@ namespace dmGameSystem
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
     // and since there's 2 triangles per quad and 9 quads in total,
     // the amount of indices is 6 per quad and 9 quads = 54 indices in total
-    static const uint8_t DM_VERTEX_COUNT_SLICE9 = 16;
-    static const uint8_t DM_INDEX_COUNT_SLICE9  = 9 * 6;
+    static const uint8_t SPRITE_VERTEX_COUNT_SLICE9 = 16;
+    static const uint8_t SPRITE_INDEX_COUNT_SLICE9  = 9 * 6;
     // For the legacy version, we produce a single quad with 4 vertices
     // and 6 indices, 2 triangles per quad and three points each.
-    static const uint8_t DM_VERTEX_COUNT_LEGACY = 4;
-    static const uint8_t DM_INDEX_COUNT_LEGACY  = 6;
+    static const uint8_t SPRITE_VERTEX_COUNT_LEGACY = 4;
+    static const uint8_t SPRITE_INDEX_COUNT_LEGACY  = 6;
 
     static float GetCursor(SpriteComponent* component);
     static void SetCursor(SpriteComponent* component, float cursor);
@@ -657,9 +657,9 @@ namespace dmGameSystem
                         dmGraphics::GetTextureHeight(texture_set->m_Texture),
                         flipx, flipy);
 
-                    indices       += index_type_size * DM_INDEX_COUNT_SLICE9;
-                    vertices      += DM_VERTEX_COUNT_SLICE9;
-                    vertex_offset += DM_VERTEX_COUNT_SLICE9;
+                    indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
+                    vertices      += SPRITE_VERTEX_COUNT_SLICE9;
+                    vertex_offset += SPRITE_VERTEX_COUNT_SLICE9;
                 }
                 else
                 {
@@ -708,9 +708,9 @@ namespace dmGameSystem
                         indices_32[5] = vertex_offset + 0;
                     }
 
-                    vertices      += DM_VERTEX_COUNT_LEGACY;
-                    vertex_offset += DM_VERTEX_COUNT_LEGACY;
-                    indices       += DM_INDEX_COUNT_LEGACY * index_type_size;
+                    vertices      += SPRITE_VERTEX_COUNT_LEGACY;
+                    vertex_offset += SPRITE_VERTEX_COUNT_LEGACY;
+                    indices       += SPRITE_INDEX_COUNT_LEGACY * index_type_size;
                 }
             }
         }
@@ -1025,13 +1025,13 @@ namespace dmGameSystem
             {
                 if (GetUseSlice9(component))
                 {
-                    num_vertices += DM_VERTEX_COUNT_SLICE9;
-                    num_indices  += DM_INDEX_COUNT_SLICE9;
+                    num_vertices += SPRITE_VERTEX_COUNT_SLICE9;
+                    num_indices  += SPRITE_INDEX_COUNT_SLICE9;
                 }
                 else
                 {
-                    num_vertices += DM_VERTEX_COUNT_LEGACY;
-                    num_indices  += DM_INDEX_COUNT_LEGACY;
+                    num_vertices += SPRITE_VERTEX_COUNT_LEGACY;
+                    num_indices  += SPRITE_INDEX_COUNT_LEGACY;
                 }
             }
         }
