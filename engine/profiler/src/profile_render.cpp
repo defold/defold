@@ -291,13 +291,11 @@ namespace dmProfileRender
         return Area(p, s);
     }
 
-    static Area GetPropertiesArea(DisplayMode display_mode, const Area& profiler_area, int counters_count, float scale)
+    static Area GetPropertiesArea(DisplayMode display_mode, const Area& profiler_area, int counters_count)
     {
-        Size s(COUNTERS_NAME_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + counters_count));
-        s.w *= scale;
-        s.h *= scale;
+        Size s(COUNTERS_NAME_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * counters_count);
 
-        Position p(profiler_area.p.x + profiler_area.s.w - s.w, profiler_area.p.y + profiler_area.s.h - s.h);
+        Position p(profiler_area.p.x + profiler_area.s.w - s.w, profiler_area.p.y + profiler_area.s.h  - s.h);
         return Area(p, s);
     }
 
@@ -352,26 +350,103 @@ namespace dmProfileRender
         const Area header_area  = GetHeaderArea(display_mode, profiler_area);
         const Area details_area = GetDetailsArea(display_mode, profiler_area, header_area);
 
+        ProfilerFrame* frame = render_profile->m_ActiveFrame ? render_profile->m_ActiveFrame : render_profile->m_CurrentFrame;
+        std::sort(frame->m_Threads.Begin(), frame->m_Threads.End(), ThreadSortTimePred());
+
+        const uint32_t properties_count  = frame->m_Properties.Size();
+        const uint32_t extra_lines = 3; // a few extra lines for "Properties" word and offset in top
+
+        const Area properties_area    = GetPropertiesArea(display_mode, profiler_area, properties_count + extra_lines);
+        const Area samples_area       = GetSamplesArea(display_mode, details_area);
+        const Area sample_frames_area = GetSampleFramesArea(display_mode, SAMPLE_FRAMES_NAME_WIDTH, samples_area, properties_area);
+
         char buffer[256];
 
         dmRender::DrawTextParams params;
         params.m_FaceColor   = TITLE_FACE_COLOR;
         params.m_ShadowColor = TITLE_SHADOW_COLOR;
 
-        ProfilerFrame* frame = render_profile->m_ActiveFrame ? render_profile->m_ActiveFrame : render_profile->m_CurrentFrame;
-        std::sort(frame->m_Threads.Begin(), frame->m_Threads.End(), ThreadSortTimePred());
-
-
         ProfilerThread* thread = GetSelectedThread(render_profile, frame);
 
         uint64_t ticks_per_second   = render_profile->m_TicksPerSecond;
         uint64_t max_frame_time     = render_profile->m_MaxFrameTime;
         uint64_t frame_time         = thread->m_SamplesTotalTime;
+        uint32_t drawcalls          = 0;
 
         float frame_time_f = frame_time / (float)ticks_per_second;
         float max_frame_time_f = max_frame_time / (float)ticks_per_second;
 
-        int l = dmSnPrintf(buffer, sizeof(buffer), "Frame: %6.3f Max: %6.3f", frame_time_f, max_frame_time_f);
+        {
+            // Properties
+            int y = properties_area.p.y + properties_area.s.h - LINE_SPACING;
+
+            int name_x  = properties_area.p.x;
+            int count_x = name_x + COUNTERS_NAME_WIDTH + CHARACTER_WIDTH;
+
+            params.m_FaceColor = TITLE_FACE_COLOR;
+            params.m_Text      = "Properties:";
+            params.m_WorldTransform.setElem(3, 0, name_x);
+            params.m_WorldTransform.setElem(3, 1, y);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+
+            for (uint32_t i = 0; i < frame->m_Properties.Size(); ++i)
+            {
+                const ProfilerProperty& property = frame->m_Properties[i];
+
+                y -= LINE_SPACING;
+
+                if (y < (properties_area.p.y + LINE_SPACING))
+                {
+                    break;
+                }
+
+                float col[3];
+                uint32_t color_index = (property.m_NameHash >> 6) & 0x1f;
+                HslToRgb2(color_index / 31.0f, 1.0f, 0.65f, col);
+
+                if (property.m_Type == dmProfile::PROPERTY_TYPE_GROUP)
+                    params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
+                else
+                    params.m_FaceColor = Vector4(1.0f);
+
+                float x = property.m_Indent * INDENT_WIDTH;
+                params.m_WorldTransform.setElem(3, 0, name_x + x);
+                params.m_WorldTransform.setElem(3, 1, y);
+
+                const char* name = dmHashReverseSafe32(property.m_NameHash);
+                if (strstr(name, "rmtp_") == name)
+                {
+                    name = name + 5;
+                }
+                params.m_Text = name;
+
+                if (strstr(name, "DrawCalls") == name)
+                {
+                    drawcalls = property.m_Value.m_U32;
+                }
+
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+
+                switch(property.m_Type)
+                {
+                case dmProfile::PROPERTY_TYPE_BOOL:  dmSnPrintf(buffer, sizeof(buffer), "%s", property.m_Value.m_Bool?"True":"False"); break;
+                case dmProfile::PROPERTY_TYPE_S32:   dmSnPrintf(buffer, sizeof(buffer), "%d", property.m_Value.m_S32); break;
+                case dmProfile::PROPERTY_TYPE_U32:   dmSnPrintf(buffer, sizeof(buffer), "%u", property.m_Value.m_U32); break;
+                case dmProfile::PROPERTY_TYPE_F32:   dmSnPrintf(buffer, sizeof(buffer), "%f", property.m_Value.m_F32); break;
+                case dmProfile::PROPERTY_TYPE_S64:   dmSnPrintf(buffer, sizeof(buffer), "%lld", (long long)property.m_Value.m_S64); break;
+                case dmProfile::PROPERTY_TYPE_U64:   dmSnPrintf(buffer, sizeof(buffer), "%llx", (unsigned long long)property.m_Value.m_U64); break;
+                case dmProfile::PROPERTY_TYPE_F64:   dmSnPrintf(buffer, sizeof(buffer), "%g", property.m_Value.m_F64); break;
+                case dmProfile::PROPERTY_TYPE_GROUP: dmSnPrintf(buffer, sizeof(buffer), ""); break;
+                default: break;
+                }
+
+                params.m_Text = buffer;
+                params.m_WorldTransform.setElem(3, 0, count_x);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
+            }
+        }
+
+        int l = dmSnPrintf(buffer, sizeof(buffer), "Frame: %6.3f Max: %6.3f DrawCalls: %5u", frame_time_f, max_frame_time_f, drawcalls);
 
         switch (render_profile->m_Mode)
         {
@@ -404,13 +479,6 @@ namespace dmProfileRender
         {
             return;
         }
-
-        const uint32_t properties_count  = frame->m_Properties.Size();
-
-        float properties_scale        = 1.0f;
-        const Area properties_area    = GetPropertiesArea(display_mode, profiler_area, properties_count, properties_scale);
-        const Area samples_area       = GetSamplesArea(display_mode, details_area);
-        const Area sample_frames_area = GetSampleFramesArea(display_mode, SAMPLE_FRAMES_NAME_WIDTH, samples_area, properties_area);
 
         FillArea(render_context, sample_frames_area, SAMPLES_BG_COLOR);
 
@@ -508,71 +576,6 @@ namespace dmProfileRender
 
                 dmRender::Square2d(render_context, x, y - CHARACTER_HEIGHT, x + w, y, Vector4(r, g, b, 1.0f));
 
-            }
-        }
-
-        {
-            // Properties
-            int y = properties_area.p.y + properties_area.s.h - LINE_SPACING * properties_scale;
-
-            int name_x  = properties_area.p.x;
-            int count_x = name_x + COUNTERS_NAME_WIDTH + CHARACTER_WIDTH;
-
-            params.m_FaceColor = TITLE_FACE_COLOR;
-            params.m_Text      = "Properties:";
-            params.m_WorldTransform.setElem(3, 0, name_x);
-            params.m_WorldTransform.setElem(3, 1, y);
-            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-            for (uint32_t i = 0; i < frame->m_Properties.Size(); ++i)
-            {
-                const ProfilerProperty& property = frame->m_Properties[i];
-
-                y -= LINE_SPACING;
-
-                if (y < (properties_area.p.y + LINE_SPACING))
-                {
-                    break;
-                }
-
-                float col[3];
-                uint32_t color_index = (property.m_NameHash >> 6) & 0x1f;
-                HslToRgb2(color_index / 31.0f, 1.0f, 0.65f, col);
-
-                if (property.m_Type == dmProfile::PROPERTY_TYPE_GROUP)
-                    params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
-                else
-                    params.m_FaceColor = Vector4(1.0f);
-
-                float x = property.m_Indent * INDENT_WIDTH;
-                params.m_WorldTransform.setElem(3, 0, name_x + x);
-                params.m_WorldTransform.setElem(3, 1, y);
-
-                const char* name = dmHashReverseSafe32(property.m_NameHash);
-                if (name[0]=='r' && name[1]=='m' && name[2]=='t' && name[3]=='p' && name[4]=='_')
-                {
-                    name = name + 5;
-                }
-                params.m_Text = name;
-
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
-
-                switch(property.m_Type)
-                {
-                case dmProfile::PROPERTY_TYPE_BOOL:  dmSnPrintf(buffer, sizeof(buffer), "%s", property.m_Value.m_Bool?"True":"False"); break;
-                case dmProfile::PROPERTY_TYPE_S32:   dmSnPrintf(buffer, sizeof(buffer), "%d", property.m_Value.m_S32); break;
-                case dmProfile::PROPERTY_TYPE_U32:   dmSnPrintf(buffer, sizeof(buffer), "%u", property.m_Value.m_U32); break;
-                case dmProfile::PROPERTY_TYPE_F32:   dmSnPrintf(buffer, sizeof(buffer), "%f", property.m_Value.m_F32); break;
-                case dmProfile::PROPERTY_TYPE_S64:   dmSnPrintf(buffer, sizeof(buffer), "%lld", (long long)property.m_Value.m_S64); break;
-                case dmProfile::PROPERTY_TYPE_U64:   dmSnPrintf(buffer, sizeof(buffer), "%llx", (unsigned long long)property.m_Value.m_U64); break;
-                case dmProfile::PROPERTY_TYPE_F64:   dmSnPrintf(buffer, sizeof(buffer), "%g", property.m_Value.m_F64); break;
-                case dmProfile::PROPERTY_TYPE_GROUP: dmSnPrintf(buffer, sizeof(buffer), ""); break;
-                default: break;
-                }
-
-                params.m_Text = buffer;
-                params.m_WorldTransform.setElem(3, 0, count_x);
-                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             }
         }
     }
