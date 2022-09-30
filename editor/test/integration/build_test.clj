@@ -141,60 +141,64 @@
                                    :shadow [0.0 0.0 0.0 1.0],
                                    :text "Label"}
                                  pb)))}
-              ;;  {:label "Model"
-              ;;   :path "/model/book_of_defold.model"
-              ;;   :pb-class ModelProto$Model
-              ;;   :resource-fields [:rig-scene :material]
-              ;;   :test-fn (fn [pb targets]
-              ;;              (let [rig-scene (target (:rig-scene pb) targets)
-              ;;                    mesh-set (target (:mesh-set rig-scene) targets)]
-              ;;                (is (= "" (:animation-set rig-scene)))
-              ;;                (is (= "" (:skeleton rig-scene)))
-              ;;                (is (= "" (:texture-set rig-scene)))
-              ;;                (is (= (murmur/hash64 "Book") (-> mesh-set :mesh-entries first :id)))))}
-              ;;  {:label "Model with animations"
-              ;;   :path "/model/treasure_chest.model"
-              ;;   :pb-class ModelProto$Model
-              ;;   :resource-fields [:rig-scene :material]
-              ;;   :test-fn (fn [pb targets]
-              ;;              (let [rig-scene (target (:rig-scene pb) targets)
-              ;;                    animation-set (target (:animation-set rig-scene) targets)
-              ;;                    mesh-set (target (:mesh-set rig-scene) targets)
-              ;;                    skeleton (target (:skeleton rig-scene) targets)]
-              ;;                (is (= "" (:texture-set rig-scene)))
+               {:label "Model"
+                :path "/model/book_of_defold.model"
+                :pb-class ModelProto$Model
+                :resource-fields [:rig-scene :material]
+                :test-fn (fn [pb targets]
+                           (let [rig-scene (target (:rig-scene pb) targets)
+                                 mesh-set (target (:mesh-set rig-scene) targets)]
+                             (is (= "" (:animation-set rig-scene)))
+                             (is (= "" (:skeleton rig-scene)))
+                             (is (= "" (:texture-set rig-scene)))
+                             (is (= (murmur/hash64 "Book") (-> mesh-set :models first :id)))))}
+               {:label "Model with animations"
+                :path "/model/treasure_chest.model"
+                :pb-class ModelProto$Model
+                :resource-fields [:rig-scene :material]
+                :test-fn (fn [pb targets]
+                           (let [rig-scene (target (:rig-scene pb) targets)
+                                 animation-set (target (:animation-set rig-scene) targets)
+                                 mesh-set (target (:mesh-set rig-scene) targets)
+                                 skeleton (target (:skeleton rig-scene) targets)]
+                             (is (= "" (:texture-set rig-scene)))
 
-              ;;                (let [animations (-> animation-set :animations)]
-              ;;                  (is (= 2 (count animations)))
-              ;;                  (is (= #{(murmur/hash64 "treasure_chest")
-              ;;                           (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")}
-              ;;                         (set (map :id animations)))))
+                             (let [animations (-> animation-set :animations)]
+                               (is (= 2 (count animations)))
+                               (is (= #{(murmur/hash64 "treasure_chest")
+                                        (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")}
+                                      (set (map :id animations)))))
 
-              ;;                (let [mesh (-> mesh-set :mesh-attachments first)]
-              ;;                  (is (< 2 (-> mesh :position-indices count))))
+                             (let [mesh (-> mesh-set :models first :meshes first)
+                                   size (.size (:indices mesh))
+                                   icount (/ size 2)] ; we know it's 16-bit indices
+                               (is (< 2 icount)))
+                             ; The mesh isn't connected to a node in the visual scene, thus it gets the geopmetry name
+                             (is (= (murmur/hash64 "Cube.006") (-> mesh-set :models first :id)))
 
-              ;;                (is (= (murmur/hash64 "chest") (-> mesh-set :mesh-entries first :id)))
+                             (is (= 3 (count (:bones skeleton))))
+                             (is (= (set (:bone-list mesh-set)) (set (:bone-list animation-set))))
+                             (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}]
+               "/collection_proxy/with_collection.collectionproxy"
+               [{:label "Collection proxy"
+                 :path "/collection_proxy/with_collection.collectionproxy"
+                 :pb-class GameSystem$CollectionProxyDesc
+                 :resource-fields [:collection]}]
+               "/model/book_of_defold_no_tex.model"
+               [{:label "Model with empty texture"
+                 :path "/model/book_of_defold_no_tex.model"
+                 :pb-class ModelProto$Model
+                 :resource-fields [:rig-scene :material]
+                 :test-fn (fn [pb targets]
+                            (let [rig-scene (target (:rig-scene pb) targets)
+                                  mesh-set (target (:mesh-set rig-scene) targets)]
+                              (is (= "" (:texture-set rig-scene)))
+                              (is (= [""] (:textures pb)))
 
-              ;;                (is (= 4 (count (:bones skeleton))))
-              ;;                (is (= (:bone-list mesh-set) (:bone-list animation-set)))
-              ;;                (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}]
-              ;;  "/collection_proxy/with_collection.collectionproxy"
-              ;;  [{:label "Collection proxy"
-              ;;    :path "/collection_proxy/with_collection.collectionproxy"
-              ;;    :pb-class GameSystem$CollectionProxyDesc
-              ;;    :resource-fields [:collection]}]
-              ;;  "/model/book_of_defold_no_tex.model"
-              ;;  [{:label "Model with empty texture"
-              ;;    :path "/model/book_of_defold_no_tex.model"
-              ;;    :pb-class ModelProto$Model
-              ;;    :resource-fields [:rig-scene :material]
-              ;;    :test-fn (fn [pb targets]
-              ;;               (let [rig-scene (target (:rig-scene pb) targets)
-              ;;                     mesh-set (target (:mesh-set rig-scene) targets)]
-              ;;                 (is (= "" (:texture-set rig-scene)))
-              ;;                 (is (= [""] (:textures pb)))
-
-              ;;                 (let [mesh (-> mesh-set :mesh-attachments first)]
-              ;;                   (is (< 2 (-> mesh :position-indices count))))))}
+                              (let [mesh (-> mesh-set :models first :meshes first)
+                                    size (.size (:indices mesh))
+                                    icount (/ size 2)]
+                                (is (< 2 icount)))))}
               ]})
 
 (defn- run-pb-case [case content-by-source content-by-target]

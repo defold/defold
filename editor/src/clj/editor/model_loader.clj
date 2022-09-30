@@ -60,6 +60,7 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
+; only exposed for some unit tests which doesn't have a node-id
 (defn load-scene-internal [resource]
   (with-open [stream (io/input-stream resource)]
     (let [ext (string/lower-case (resource/ext resource))]
