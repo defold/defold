@@ -914,7 +914,15 @@ public class ColladaUtil {
             modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh, materials));
         }
 
-        modelBuilder.setId(0);
+        String name = sceneNode != null ? sceneNode.name : null;
+        if (name == null) {
+            name = geom.name;
+        }
+        if (name == null) {
+            name = "unnamed";
+        }
+
+        modelBuilder.setId(MurmurHash.hash64(name));
 
         Matrix4d transformd = new Matrix4d();
         transformd.setIdentity();
