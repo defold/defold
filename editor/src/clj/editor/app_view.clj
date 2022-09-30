@@ -791,7 +791,6 @@
         (fn start-engine-build! []
           (assert (ui/on-ui-thread?))
           (cancel-engine-build!)
-          (println "START ENGINE BUILD")
           (when engine?
             (let [evaluation-context (g/make-evaluation-context)
                   platform (engine/current-platform)]
