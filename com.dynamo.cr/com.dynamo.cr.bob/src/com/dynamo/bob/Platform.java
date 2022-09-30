@@ -36,10 +36,12 @@ public enum Platform {
     Arm64Android("arm64",   true,   "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "arm64-android"}, PlatformArchitectures.Android, "arm64-android"),
     JsWeb(       "js",      true,   "web",     new String[] {".js"}, "", "lib", "", new String[] {"web", "js-web"}, PlatformArchitectures.Web, "js-web"),
     WasmWeb(     "wasm",    true,   "web",     new String[] {".js", ".wasm"}, "", "lib", "", new String[] {"web", "wasm-web"}, PlatformArchitectures.Web, "wasm-web"),
-    Arm64NX64(   "arm64",   true,   "nx64",    new String[] {".nso"}, "", "", "", new String[] {"nx64", "arm64-nx64"}, PlatformArchitectures.NX64, "arm64-nx64");
+    Arm64NX64(   "arm64",   true,   "nx64",    new String[] {".nso"}, "", "", "", new String[] {"nx64", "arm64-nx64"}, PlatformArchitectures.NX64, "arm64-nx64"),
+    X86_64PS4(   "x86_64",  true,   "ps4",     new String[] {".elf"}, "", "", "", new String[] {"ps4", "x86_64-ps4"}, PlatformArchitectures.PS4, "x86_64-ps4");
 
     private static HashMap<OS, String> platformPatterns = new HashMap<OS, String>();
     static {
+        // See graphics_ddf.proto
         platformPatterns.put(PlatformProfile.OS.OS_ID_GENERIC, "^$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WINDOWS, "^x86(_64)?-win32$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^x86(_64)?-macos$");
@@ -48,6 +50,7 @@ public enum Platform {
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^arm((v7)|(64))-android$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^((js)|(wasm))-web$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_SWITCH,  "^(arm64-nx64)$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_PS4,     "^(x86_64-ps4)$");
     }
 
 
