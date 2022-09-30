@@ -40,21 +40,20 @@
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
-(g/defnk produce-animation-set-build-target [_node-id resource animations-resource animation-set]
-  (when-not (or (= 0 (count animation-set))
-                (animation-set/is-animation-set? animations-resource))
-    (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set)))
+(g/defnk produce-animation-set-build-target-single [_node-id resource animations-resource animation-set]
+  (let [is-single-anim (or (empty? animation-set)
+                           (not (animation-set/is-animation-set? animations-resource)))]
+    (when is-single-anim
+      (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set))))
 
 (g/defnk produce-animation-ids [_node-id resource animations-resource animation-set-info animation-set]
-  (let [anim-ids-single (if (not (nil? animations-resource))
-                          [(resource/base-name animations-resource)] ; single animation file
-                          [])
-        anim-ids-set (:animation-ids animation-set-info)
-        is-single-anim (or (= 0 (count animation-set))
+  (let [is-single-anim (or (empty? animation-set)
                            (not (animation-set/is-animation-set? animations-resource)))]
     (if is-single-anim
-      anim-ids-single
-      anim-ids-set)))
+      (if animations-resource
+        [(resource/base-name animations-resource)] ; single animation file
+        [])
+      (:animation-ids animation-set-info))))
 
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
   (cond-> {:mesh (resource/resource->proj-path mesh)
@@ -176,8 +175,7 @@
             (dynamic error (g/fnk [_node-id mesh]
                                   (prop-resource-error :fatal _node-id :mesh mesh "Scene")))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext model-scene/model-file-types
-                                              })))
+                                              :ext model-scene/model-file-types})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -218,8 +216,7 @@
             (dynamic error (g/fnk [_node-id skeleton]
                                   (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext model-scene/model-file-types
-                                              })))
+                                              :ext model-scene/model-file-types})))
   (property animations resource/Resource
             (value (gu/passthrough animations-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -228,13 +225,11 @@
                                             [:bones :animations-bones]
                                             [:animation-ids :animation-ids]
                                             [:animation-info :animation-infos]
-                                            [:animation-set-build-target :animation-set-build-target]
-                                            )))
+                                            [:animation-set-build-target :animation-set-build-target])))
             (dynamic error (g/fnk [_node-id animations]
                                   (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")))
             (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext model-scene/animation-file-types
-                                              })))
+                                              :ext model-scene/animation-file-types})))
   (property default-animation g/Str
             (dynamic error (g/fnk [_node-id default-animation animation-ids]
                                   (validate-default-animation _node-id default-animation animation-ids)))
@@ -258,26 +253,28 @@
 
   (input skeleton-bones g/Any)
   (input animations-bones g/Any)
-  (output bones g/Any produce-bones)
-  
-  (output animation-resources g/Any (g/fnk [animations-resource] [animations-resource]))
 
   (input animation-infos g/Any :array)
+  (input animation-ids g/Any)
+  (input aabb AABB)
+
+  (output bones g/Any produce-bones)
+
+  (output animation-resources g/Any (g/fnk [animations-resource] [animations-resource]))
+
   (output animation-info g/Any :cached animation-set/produce-animation-info)
   (output animation-set-info g/Any :cached animation-set/produce-animation-set-info)
   (output animation-set g/Any :cached animation-set/produce-animation-set)
   (output animation-ids g/Any :cached produce-animation-ids)
 
   ; if we're referencing a single animation file
-  (output animation-set-build-target-single g/Any :cached produce-animation-set-build-target)
+  (output animation-set-build-target-single g/Any :cached produce-animation-set-build-target-single)
 
-  (input animation-ids g/Any)
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-textures g/Any :cached produce-gpu-textures)
   (output scene g/Any :cached produce-scene)
-  (input aabb AABB)
   (output aabb AABB (gu/passthrough aabb))
   (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties textures samplers]
                                                   (let [resource-type (get-in _declared-properties [:properties :material :type])

@@ -17,8 +17,8 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [integration.test-util :as test-util]
-            [editor.model-scene :as model-scene]
             [editor.math :as math]
+            [editor.model-scene :as model-scene]
             [editor.types :as types])
   (:import [javax.vecmath Point3d]))
 
@@ -38,7 +38,7 @@
           scene (g/node-value node-id :scene)
           user-data (get-in scene [:renderable :user-data])
           vb (-> (model-scene/->vtx-pos-nrm-tex (alength (get-in user-data [:meshes 0 :position-indices])))
-               (model-scene/mesh->vb! (math/->mat4) :vertex-space-world mesh (get user-data :scratch-arrays)))]
+                 (model-scene/mesh->vb! (math/->mat4) :vertex-space-world mesh (get user-data :scratch-arrays)))]
       (is (= (count vb) (alength (get mesh :position-indices)))))))
 
 (deftest invalid-scene

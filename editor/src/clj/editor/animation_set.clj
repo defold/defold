@@ -24,6 +24,7 @@
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [service.log :as log]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AnimationSetBuilder LoaderException]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$AnimationSetDesc]
@@ -44,30 +45,24 @@
             :animations (mapv animation-instance-desc-pb-msg animation-resources)}]
     pb))
 
-;; animations-resource is nil when resource is an animation set
-(defn- get-animation-set-resource [resource animations-resource]
-  (cond
-    (nil? animations-resource)
-    resource
-
-    :else
-    animations-resource))
-
 (defn- update-animation-info [resource animations-resource info]
   (let [parent-resource (:parent-resource info)
-        animation-set-resource (get-animation-set-resource resource animations-resource)
+        animation-set-resource (or animations-resource resource) ; animations-resource is nil when resource is an animation set
         ;; If we're at the top level, the parent id should be ""
         parent-id (if (or (nil? parent-resource)
-                          (= parent-resource animation-set-resource)) "" (resource/base-name parent-resource))]
+                          (= parent-resource animation-set-resource))
+                    ""
+                    (resource/base-name parent-resource))]
     (-> info
         (assoc :parent-id parent-id)
-        (assoc :parent-resource (if (nil? parent-resource) resource parent-resource)))))
+        (assoc :parent-resource (or parent-resource resource)))))
   
 ;; Also used by model.clj
 (g/defnk produce-animation-info [resource animations-resource animation-infos]
-  (let [infos (reduce into [] animation-infos)
-        resolved-infos (mapv (partial update-animation-info resource animations-resource) infos)]
-    resolved-infos))
+  (into []
+        (comp cat
+              (map (partial update-animation-info resource animations-resource)))
+        animation-infos))
 
 (defn- load-and-validate-animation-set [resource animations-resource bones animation-info]
   (let [animations-resource (if (nil? animations-resource) resource animations-resource)
@@ -83,7 +78,7 @@
     (AnimationSetBuilder/buildAnimations paths bones streams parent-ids animation-set-builder animation-ids)
     (let [animation-set (protobuf/pb->map (.build animation-set-builder))]
       {:animation-set animation-set
-       :animation-ids animation-ids})))
+       :animation-ids (vec animation-ids)})))
 
 ;; Also used by model.clj
 (g/defnk produce-animation-set-info [_node-id bones resource animations-resource skeleton-resource animation-info]
@@ -94,8 +89,7 @@
        :animation-ids []}
       (load-and-validate-animation-set resource animations-resource bones animation-info))
     (catch LoaderException e
-      (prn "Error loading :" (resource/resource->proj-path resource))
-      (prn (.getMessage e)) ; need to print since the error value doesn't propagate property up in unit tests
+      (log/error :message (str "Error loading: " (resource/resource->proj-path resource)) :exception e)
       (g/->error _node-id :animations :fatal resource
                  (str "Failed to build " (resource/resource->proj-path resource)
                       ": " (.getMessage e))))))
@@ -116,7 +110,7 @@
 
 (g/defnk produce-animation-set-build-target [_node-id resource bones animation-set]
   (when (not (or (nil? bones)
-                (= 0 (count animation-set))))
+                (empty? animation-set)))
     (bt/with-content-hash
        {:node-id _node-id
         :resource (workspace/make-build-resource resource)
@@ -201,8 +195,8 @@
   (output desc-pb-msg g/Any :cached produce-desc-pb-msg)
   (output save-value g/Any (gu/passthrough desc-pb-msg))
   (output animation-set-info g/Any :cached produce-animation-set-info)
-  (output animation-set g/Any :cached produce-animation-set)
-  (output animation-ids g/Any :cached produce-animation-ids)
+  (output animation-set g/Any produce-animation-set)
+  (output animation-ids g/Any produce-animation-ids)
   (output animation-set-build-target g/Any :cached produce-animation-set-build-target))
 
 (defn- load-animation-set [_project self resource pb]

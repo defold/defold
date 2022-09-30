@@ -173,7 +173,7 @@
                                    size (.size (:indices mesh))
                                    icount (/ size 2)] ; we know it's 16-bit indices
                                (is (< 2 icount)))
-                             ; The mesh isn't connected to a node in the visual scene, thus it gets the geopmetry name
+                             ; The mesh isn't connected to a node in the visual scene, thus it gets the geometry name
                              (is (= (murmur/hash64 "Cube.006") (-> mesh-set :models first :id)))
 
                              (is (= 3 (count (:bones skeleton))))
@@ -198,8 +198,7 @@
                               (let [mesh (-> mesh-set :models first :meshes first)
                                     size (.size (:indices mesh))
                                     icount (/ size 2)]
-                                (is (< 2 icount)))))}
-              ]})
+                                (is (< 2 icount)))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))

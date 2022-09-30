@@ -14,9 +14,9 @@
 
 (ns integration.animation-set-test
   (:require [clojure.test :refer :all]
-            [util.murmur :as murmur]
             [dynamo.graph :as g]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.murmur :as murmur]))
 
 (defn- remove-empty-channels [track]
   (into {} (filter (comp seq val)) track))
@@ -25,8 +25,6 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/model/treasure_chest.animationset")
           {:keys [animations bone-list]} (g/node-value node-id :animation-set)]
-      (prn "MAWE #bone-list" (count bone-list) bone-list)
-      ;(prn "MAWE #animations" (count animations) animations)
       (is (= 3 (count bone-list)))
       (is (= 3 (count animations)))
       (is (= #{(murmur/hash64 "treasure_chest")
@@ -71,6 +69,4 @@
                  (<= (* 2 stride) (count (data-by-channel channel)))
               3 :positions
               4 :rotations
-              3 :scale)))
-
-          ))))
+              3 :scale)))))))

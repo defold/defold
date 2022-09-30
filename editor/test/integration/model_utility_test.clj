@@ -13,8 +13,9 @@
 (ns integration.model-utility-test
   (:require [clojure.set :as set]
             [clojure.test :refer :all]
-            [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.model-loader :as model-loader]
+            [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]))
 
@@ -38,12 +39,14 @@
 (defn- sequence-vertices-in-mesh-set [mesh-set]
   (update mesh-set :mesh-entries #(mapv sequence-vertices-in-mesh-entry %)))
 
-(defn- load-scene [workspace file-path]
-  (model-loader/load-scene-internal (workspace/file-resource workspace file-path)))
+(defn- load-scene [workspace project file-path]
+  (let [resource (workspace/file-resource workspace file-path)
+        node-id (project/get-resource-node project resource)]
+    (model-loader/load-scene node-id resource)))
 
 (deftest mesh-normals
   (test-util/with-loaded-project
-    (let [{:keys [mesh-set]} (load-scene workspace "/mesh/box_blender.dae")
+    (let [{:keys [mesh-set]} (load-scene workspace project "/mesh/box_blender.dae")
           content (sequence-vertices-in-mesh-set mesh-set)]
       (is (every? (fn [[x y z]]
                     (< (Math/abs (- (Math/sqrt (+ (* x x) (* y y) (* z z))) 1.0)) 0.000001))
@@ -52,7 +55,7 @@
 
 (deftest mesh-texcoords
   (test-util/with-loaded-project
-    (let [{:keys [mesh-set]} (load-scene workspace "/mesh/plane.dae")
+    (let [{:keys [mesh-set]} (load-scene workspace project "/mesh/plane.dae")
           content (sequence-vertices-in-mesh-set mesh-set)]
       (let [c (get-in content [:mesh-entries 0 :meshes 0])
             zs (map #(nth % 2) (partition 3 (:positions c)))
@@ -61,10 +64,10 @@
 
 (deftest comma-decimal-points-throws-number-format-exception
   (test-util/with-loaded-project
-    (is (thrown? NumberFormatException (load-scene workspace "/mesh/test_autodesk_dae.dae")))))
+    (is (g/error? (load-scene workspace project "/mesh/test_autodesk_dae.dae")))))
 
 (deftest bones
   (test-util/with-loaded-project
-    (let [{:keys [animation-set bones]} (load-scene workspace "/mesh/treasure_chest.dae")]
+    (let [{:keys [animation-set bones]} (load-scene workspace project "/mesh/treasure_chest.dae")]
       (is (= 3 (count bones)))
       (is (set/subset? (:bone-list animation-set) (set (map :id bones)))))))

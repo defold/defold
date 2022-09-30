@@ -11,11 +11,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.model-loader
-  (:require [dynamo.graph :as g]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
-            [editor.resource :as resource])
+            [editor.resource :as resource]
+            [service.log :as log])
   (:import [com.dynamo.bob.pipeline ColladaUtil]
            [com.dynamo.bob.pipeline ModelUtil]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
@@ -60,8 +61,7 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-; only exposed for some unit tests which doesn't have a node-id
-(defn load-scene-internal [resource]
+(defn- load-scene-internal [resource]
   (with-open [stream (io/input-stream resource)]
     (let [ext (string/lower-case (resource/ext resource))]
       (if (= "dae" ext)
@@ -72,7 +72,6 @@
   (try
     (load-scene-internal resource)
     (catch Exception e
-      ;; (prn "Exception" (.getMessage e))
-      ;; (.printStackTrace e)
-      (g/->error node-id nil :fatal nil (format "The file '%s' contains invalid data, likely produced by a buggy exporter: '%s'" (resource/proj-path resource) (.getMessage e)) {:type :invalid-content :resource resource})
-      )))
+      (let [msg (format "The file '%s' contains invalid data, likely produced by a buggy exporter: '%s'" (resource/proj-path resource) (.getMessage e))]
+        (log/error :message msg :exception e)
+        (g/->error node-id nil :fatal nil msg {:type :invalid-content :resource resource})))))

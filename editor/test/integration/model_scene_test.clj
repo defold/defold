@@ -10,16 +10,14 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-
 (ns integration.model-scene-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [integration.test-util :as test-util]
-            [editor.model-scene :as model-scene]
             [editor.math :as math]
+            [editor.model-scene :as model-scene]
             [editor.types :as types])
   (:import [javax.vecmath Point3d]))
-
 
 (deftest aabb
   (test-util/with-loaded-project
@@ -28,7 +26,7 @@
           min ^Point3d (types/min-p aabb)
           max ^Point3d (types/max-p aabb)
           dist (.distance max min)] ; distance in meters (converted from centimeters in the loader)
-      (is (and (> 20 dist) (< 10 dist))))))
+      (is (< 10 dist 20)))))
 
 (deftest vbs
   (test-util/with-loaded-project

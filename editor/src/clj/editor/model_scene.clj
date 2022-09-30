@@ -14,7 +14,6 @@
 
 (ns editor.model-scene
   (:require [dynamo.graph :as g]
-            [editor.model-loader :as model-loader]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -22,6 +21,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.math :as math]
+            [editor.model-loader :as model-loader]
             [editor.render :as render]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
