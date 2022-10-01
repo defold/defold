@@ -34,6 +34,7 @@ local coroutines = {}; setmetatable(coroutines, {__mode = "k"}) -- "weak" keys
 local continue_execution = true
 local exit_current_lua_stack = true
 local last_co = nil
+local stack_after_suspend = 0
 
 local function set_breakpoint(line, file)
   -- Mobdebug save breakpoints in [line][file] table
@@ -143,6 +144,18 @@ local function command_hook(command)
   if command == "RUN" then
     continue_execution = true
     set_lightweight_hook()
+    stack_after_suspend = 0
+  elseif command == "SUSPEND" then
+    if stack_after_suspend == 0 then
+      stack_after_suspend = 1
+    end
+  elseif command == "STACK" then
+    if stack_after_suspend == 1 then
+      stack_after_suspend = 0
+      restore_mobdebug_hook()
+    end
+  else
+    stack_after_suspend = 0
   end
 end
 

@@ -597,6 +597,12 @@ local function get_server_data(file)
     if not status and res then
       error(res, 2) -- report any other (internal) errors back to the application 
     end
+    -- handle 'stack' command that provides stack() information to the debugger
+    while status and res == 'stack' do
+      -- resume with the stack trace and variables
+      if vars then restore_vars(vars) end -- restore vars so they are reflected in stack values
+      status, res = cororesume(coro_debugger, events.STACK, stack(4), file, line)
+    end
     handle_breakpoint(server)
   end
 end
