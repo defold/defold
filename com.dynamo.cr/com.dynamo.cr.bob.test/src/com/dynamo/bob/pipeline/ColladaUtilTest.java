@@ -1056,6 +1056,23 @@ public class ColladaUtilTest {
     }
 
     /*
+     * Tests that an invalid collada file is handled
+     */
+    @Test
+    public void testInvalidFile() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        boolean hasThrown = false;
+        try {
+            ColladaUtil.load(load("invalid.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+        } catch (java.lang.IndexOutOfBoundsException e) {
+            hasThrown = true;
+        }
+        assertTrue(hasThrown);
+    }
+
+    /*
      * TODO
      * Future tests:
      * - Position and scale animation on bones.

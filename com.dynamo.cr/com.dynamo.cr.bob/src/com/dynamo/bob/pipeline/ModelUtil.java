@@ -85,7 +85,9 @@ public class ModelUtil {
         if (options == null)
             options = new Options();
         Scene scene = ModelImporter.LoadFromBuffer(options, path, content);
-        return loadInternal(scene, options);
+        if (scene != null)
+            return loadInternal(scene, options);
+        return scene;
     }
 
     public static Scene loadScene(InputStream stream, String path, Options options) throws IOException {
