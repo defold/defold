@@ -1141,7 +1141,7 @@
   (output input-handler Runnable :cached (g/constantly (make-input-handler)))
   (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions]
                             (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)]
-                              (format "Cell: %d, %d" (+ 1 x) (+ 1 y))))))
+                              (format "Cell: %d, %d" (+ (1 + :x @mouse-coordinates / :tile-width) x) (+ (1 + :y @mouse-coordinates / :tile-height) y))))))
 
 (defmethod scene/attach-tool-controller ::TileMapController
   [_ tool-id view-id resource-id]
