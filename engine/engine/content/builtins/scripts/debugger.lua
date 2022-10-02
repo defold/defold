@@ -71,6 +71,7 @@ local function lightweight_hook()
   mobdebug.get_server_data(file)
   local brk = breakpoints[file]
   local co = coroutine.running()
+  local in_co = false
   if co then
     -- If it's the first call after the [C] call - save function metricks
     if caller.lastlinedefined ~= -1 and coroutines[co] == false then
@@ -86,17 +87,16 @@ local function lightweight_hook()
     if not coroutines[co] and caller.lastlinedefined == -1 then
       coroutines[co] = false
     end
-  end
-  local inCo = false
-  if not brk and co then
-    -- If it's a coroutine we should use pre-saved data
-    -- because resuming of the coroutine doesn't profide needed information 
-    brk = coroutines[co] and breakpoints[coroutines[co].file]
-    inCo = true
+    if not brk then
+      -- If it's a coroutine we should use pre-saved data
+      -- because resuming of the coroutine doesn't profide needed information 
+      brk = coroutines[co] and breakpoints[coroutines[co].file]
+      in_co = true
+    end
   end
   if brk then
     local lines = nil
-    if not inCo then
+    if not in_co then
       lines = debug.getinfo(2,"L")
     else
       lines = coroutines[co].lines
