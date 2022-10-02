@@ -41,8 +41,8 @@
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
 (g/defnk produce-animation-set-build-target-single [_node-id resource animations-resource animation-set]
-  (let [is-single-anim (or (empty? animation-set)
-                           (not (animation-set/is-animation-set? animations-resource)))]
+  (let [is-single-anim (and (not (empty? animation-set))
+                            (not (animation-set/is-animation-set? animations-resource)))]
     (when is-single-anim
       (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set))))
 
