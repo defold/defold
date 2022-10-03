@@ -282,7 +282,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         cgltf_node* gltf_node = &gltf_data->nodes[i];
 
         Node* node = &scene->m_Nodes[i];
-        node->m_Name = strdup(gltf_node->name);
+        node->m_Name = strdup(gltf_node->name ? gltf_node->name : "unknown");
         node->m_Index = i;
 
         // We link them together later
@@ -363,7 +363,7 @@ static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
     {
         cgltf_primitive* prim = &gltf_mesh->primitives[i];
         Mesh* mesh = &model->m_Meshes[i];
-        mesh->m_Name = strdup(gltf_mesh->name);
+        mesh->m_Name = strdup(gltf_mesh->name ? gltf_mesh->name : "unknown");
 
         mesh->m_Material = strdup(prim->material ? prim->material->name : "no_material");
         mesh->m_VertexCount = 0;
@@ -461,7 +461,7 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
     {
         cgltf_mesh* gltf_mesh = &gltf_data->meshes[i]; // our "Model"
         Model* model = &scene->m_Models[i];
-        model->m_Name = strdup(gltf_mesh->name);
+        model->m_Name = strdup(gltf_mesh->name ? gltf_mesh->name : "unknown");
         model->m_Index = i;
 
         LoadPrimitives(model, gltf_mesh); // Our "Meshes"
@@ -496,7 +496,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
         cgltf_skin* gltf_skin = &gltf_data->skins[i];
 
         Skin* skin = &scene->m_Skins[i];
-        skin->m_Name = strdup(gltf_skin->name);
+        skin->m_Name = strdup(gltf_skin->name ? gltf_skin->name : "unknown");
         skin->m_Index = i;
 
         skin->m_BonesCount = gltf_skin->joints_count;
@@ -508,7 +508,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
         {
             cgltf_node* gltf_joint = gltf_skin->joints[j];
             Bone* bone = &skin->m_Bones[j];
-            bone->m_Name = strdup(gltf_joint->name);
+            bone->m_Name = strdup(gltf_joint->name ? gltf_joint->name : "unknown");
             bone->m_Index = j;
             bone->m_ParentIndex = FindBoneIndex(gltf_skin, gltf_joint->parent);
             // Cannot translate the bones here, since they're not created yet
@@ -764,10 +764,7 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
         cgltf_animation* gltf_animation = &gltf_data->animations[i];
         Animation* animation = &scene->m_Animations[i];
 
-        const char* anim_name = "default";
-        if (gltf_animation->name != 0)
-            anim_name = gltf_animation->name;
-        animation->m_Name = strdup(anim_name);
+        animation->m_Name = strdup(gltf_animation->name ? gltf_animation->name : "default");
 
         dmHashTable64<uint32_t> node_name_to_index;
         animation->m_NodeAnimationsCount = CountAnimatedNodes(gltf_animation, node_name_to_index);
