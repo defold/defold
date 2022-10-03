@@ -813,7 +813,13 @@
         (let [internal-paths (map resource/proj-path (filter (fn [r] (not (:stateless? (resource/resource-type r)))) all-files))
               saved-paths (set (map (fn [s] (resource/proj-path (:resource s))) (g/node-value project :save-data)))
               missing (filter #(not (contains? saved-paths %)) internal-paths)]
-          (is (empty? missing)))))))
+          ;; If some editable resource is missing from the save data, it means
+          ;; an ErrorValue has infected the save-data. A likely culprit would be
+          ;; that you've introduced a dependency on a missing or broken resource
+          ;; into the save-value dependency chain. A resource should never fail
+          ;; to produce a save-value for itself as a result of a bad reference.
+          (when-not (is (empty? missing))
+            (prn 'missing missing)))))))
 
 (deftest new-collection-modified-script
   ;; used to provoke exception because load steps of collection tried to access non-loaded script
