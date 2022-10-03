@@ -89,7 +89,8 @@ namespace dmGameSystem
         uint16_t                    m_FlipVertical : 1;
         uint16_t                    m_AddedToUpdate : 1;
         uint16_t                    m_ReHash : 1;
-        uint16_t                    m_Padding : 7;
+        uint16_t                    m_UseSlice9 : 1;
+        uint16_t                    m_Padding : 6;
     };
 
     struct SpriteVertex
@@ -234,12 +235,6 @@ namespace dmGameSystem
         return result;
     }
 
-    static inline bool GetUseSlice9(const SpriteComponent* component)
-    {
-        return sum(component->m_Resource->m_DDF->m_Slice9) != 0 &&
-            component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL;
-    }
-
     static inline dmRender::HMaterial GetMaterial(const SpriteComponent* component, const SpriteResource* resource) {
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
@@ -369,8 +364,9 @@ namespace dmGameSystem
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_FunctionRef = 0;
-
         component->m_ReHash = 1;
+        component->m_UseSlice9 = sum(component->m_Resource->m_DDF->m_Slice9) != 0 &&
+                component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL;
 
         component->m_Size = Vector3(0.0f, 0.0f, 0.0f);
         component->m_AnimationID = 0;
@@ -647,7 +643,7 @@ namespace dmGameSystem
                 //      as outputting a single quad since the density of the texture coordinates
                 //      are the same everywhere across the surface, and we would just be
                 //      submitting more vertices than needed.
-                if (GetUseSlice9(component))
+                if (component->m_UseSlice9)
                 {
                     int flipx = animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal;
                     int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
@@ -1023,7 +1019,7 @@ namespace dmGameSystem
             }
             else
             {
-                if (GetUseSlice9(component))
+                if (component->m_UseSlice9)
                 {
                     num_vertices += SPRITE_VERTEX_COUNT_SLICE9;
                     num_indices  += SPRITE_INDEX_COUNT_SLICE9;
