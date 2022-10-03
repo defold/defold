@@ -25,8 +25,13 @@ namespace dmHID
     // detect sloppy init/final usage
     dmHashTable<uintptr_t, char*>* g_DummyData = 0x0;
 
+    // Mostly used for tests
+    static uint8_t g_MouseVisible = 0;
+
     bool Init(HContext context)
     {
+        g_MouseVisible = 1;
+
         if (g_DummyData == 0x0)
         {
             g_DummyData = new dmHashTable<uintptr_t, char*>();
@@ -94,5 +99,20 @@ namespace dmHID
 
     void EnableAccelerometer()
     {
+    }
+
+    void ShowMouseCursor(HContext context)
+    {
+        g_MouseVisible = 1;
+    }
+
+    void HideMouseCursor(HContext context)
+    {
+        g_MouseVisible = 0;
+    }
+
+    bool GetCursorVisible(HContext context)
+    {
+        return g_MouseVisible;
     }
 }

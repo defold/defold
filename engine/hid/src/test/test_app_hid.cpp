@@ -155,7 +155,6 @@ static UpdateResult EngineUpdate(void* _engine)
 
 
 #define LOG if (packet_changed) printf
-//#define LOG
 
     for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_COUNT; ++i)
     {
