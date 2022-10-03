@@ -524,17 +524,9 @@ var LibraryGLFW = {
     },
 
     onPointerLockEventChange: function(event) {
-      var pointerLockElement = document["pointerLockElement"] ||
-                            document["mozPointerLockElement"] ||
-                            document["webkitIsPointerLockElement"] ||
-                            document["msIsPointerLockElement"];
-      GLFW.isPointerLocked = !!pointerLockElement;
-
+      GLFW.isPointerLocked = !!document["pointerLockElement"];
       if (!GLFW.isPointerLocked) {
         document.removeEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
-        document.removeEventListener('mozpointerlockchange', GLFW.onPointerLockEventChange, true);
-        document.removeEventListener('webkitpointerlockchange', GLFW.onPointerLockEventChange, true);
-        document.removeEventListener('mspointerlockchange', GLFW.onPointerLockEventChange, true);
       }
     },
 
@@ -547,26 +539,14 @@ var LibraryGLFW = {
       if (!GLFW.isPointerLocked)
       {
         document.addEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
-        document.addEventListener('mozpointerlockchange', GLFW.onPointerLockEventChange, true);
-        document.addEventListener('webkitpointerlockchange', GLFW.onPointerLockEventChange, true);
-        document.addEventListener('mspointerlockchange', GLFW.onPointerLockEventChange, true);
-
-        var RPL = element.requestPointerLock ||
-                  element.mozRequestPointerLock ||
-                  element.webkitRequestPointerLock ||
-                  element.msRequestPointerLock ||
-            (function() {});
-          RPL.apply(element, []);
+        var RPL = element.requestPointerLock || (function() {});
+        RPL.apply(element, []);
       }
     },
 
     cancelPointerLock: function() {
-      var EPL = document.exitPointerLock ||
-                document.mozExitPointerLock ||
-                document.webkitExitPointerLock ||
-                document.msExitPointerLock ||
-          (function() {});
-        EPL.apply(document, []);
+      var EPL = document.exitPointerLock || (function() {});
+      EPL.apply(document, []);
     },
     disconnectJoystick: function (joy) {
       _free(GLFW.joys[joy].id);
