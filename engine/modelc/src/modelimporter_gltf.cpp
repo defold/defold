@@ -448,6 +448,13 @@ static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
                     mesh->m_Weights = fdata;
             }
         }
+
+        if (!mesh->m_TexCoord0)
+        {
+            mesh->m_TexCoord0NumComponents = 2;
+            mesh->m_TexCoord0 = new float[mesh->m_VertexCount * mesh->m_TexCoord0NumComponents];
+            memset(mesh->m_TexCoord0, 0, mesh->m_VertexCount * mesh->m_TexCoord0NumComponents);
+        }
     }
 }
 
