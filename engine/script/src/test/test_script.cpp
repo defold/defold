@@ -1060,16 +1060,6 @@ TEST_F(ScriptTest, InstanceId)
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
 }
 
-static bool g_panic_function_called = false;
-static jmp_buf g_env_buffer;
-static int boolean_panic_fn(lua_State *L)
-{
-    g_panic_function_called = true;
-    fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s) (boolean_panic_fn)\n", lua_tostring(L, -1));
-    longjmp(g_env_buffer, 1);
-    return 0;
-}
-
 TEST_F(ScriptTest, LuaBooleanFunctions)
 {
     DM_LUA_STACK_CHECK(L, 0);
@@ -1085,28 +1075,18 @@ TEST_F(ScriptTest, LuaBooleanFunctions)
     ASSERT_TRUE(dmScript::CheckBoolean(L, -1));
     lua_pop(L, 1);
 
-    /////////////////////////////////////////////
-    // Test checking something that isn't boolean
-    //   this requires us to use a special panic fn
-    //   we need to use longjmp for that since
-    //   lua will automatically exit
-    /////////////////////////////////////////////
-    lua_CFunction current_panic = lua_atpanic(L, boolean_panic_fn);
-
-    int val;
-    val = setjmp(g_env_buffer);
-
-    if (val == 0)
+    bool error_check_occured = false;
+    lua_pushnumber(L, 123);
+    try
     {
-        lua_pushnumber(L, 123);
         dmScript::CheckBoolean(L, -1);
     }
-
-    ASSERT_TRUE(g_panic_function_called);
-    // lua_pushnumber + error message + error function
+    catch (...)
+    {
+        error_check_occured = true;
+    }
+    ASSERT_TRUE(error_check_occured);
     lua_pop(L, 3);
-
-    lua_atpanic(L, current_panic);
 
     /////////////////////////////////////
     // Test PushBoolean with simple value
@@ -1115,6 +1095,8 @@ TEST_F(ScriptTest, LuaBooleanFunctions)
     ASSERT_TRUE(lua_toboolean(L, -1));
     lua_pop(L, 1);
 }
+
+#undef USE_PANIC_FN
 
 int main(int argc, char **argv)
 {
