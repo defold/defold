@@ -72,6 +72,6 @@
   (try
     (load-scene-internal resource)
     (catch Exception e
-      (let [msg (format "The file '%s' contains invalid data, likely produced by a buggy exporter: '%s'" (resource/proj-path resource) (.getMessage e))]
+      (let [msg (format "The file '%s' contains invalid data, likely produced by a buggy exporter." (resource/proj-path resource))]
         (log/error :message msg :exception e)
         (g/->error node-id nil :fatal nil msg {:type :invalid-content :resource resource})))))

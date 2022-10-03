@@ -173,7 +173,7 @@
                                             [:mesh-set-build-target :mesh-set-build-target]
                                             [:scene :scene])))
             (dynamic error (g/fnk [_node-id mesh]
-                                  (prop-resource-error :fatal _node-id :mesh mesh "Scene")))
+                                  (prop-resource-error :fatal _node-id :mesh mesh "Mesh")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types})))
   (property material resource/Resource
