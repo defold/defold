@@ -31,6 +31,13 @@ def _to_str(x):
         x = str(x, encoding='utf-8')
     return x
 
+def _to_str(x):
+    if x is None:
+        return ''
+    elif isinstance(x, (bytes, bytearray)):
+        x = str(x, encoding='utf-8')
+    return x
+
 def _exec_command(arg_list, **kwargs):
     arg_str = arg_list
     if not isinstance(arg_str, str):

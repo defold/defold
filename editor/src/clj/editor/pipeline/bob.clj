@@ -360,9 +360,10 @@
       {:code 302
        :headers {"Location" (str html5-url-prefix "/index.html")}}
 
-      (let [served-file   (try-resolve-html5-file project url)
+      (let [url-without-query-params  (.getPath (java.net.URL. (str "http://" url)))
+            served-file   (try-resolve-html5-file project url-without-query-params)
             extra-headers {"Content-Type" (html5-mime-types
-                                            (FilenameUtils/getExtension (clojure.string/lower-case url))
+                                            (FilenameUtils/getExtension (clojure.string/lower-case url-without-query-params))
                                             "application/octet-stream")}]
         (cond
           ;; The requested URL is a directory or located outside build-html5-output-path.
