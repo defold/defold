@@ -952,6 +952,95 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
     dmScript::DeleteScriptWorld(script_world);
 }
 
+TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
+{
+    int top = lua_gettop(L);
+    LuaInit(L);
+
+    dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
+
+    const char pre_script[] =
+        "handle_1 = timer.delay(1, true, function() end)\n"
+        "handle_2 = timer.delay(2, false, function() end)\n";
+    //0
+    const char check_1[] =
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1.delay == 1)\n"
+        "assert(data1.time_remaining == 1)\n"
+        "assert(data1.repeating == true)\n"
+
+        "local data2 = timer.get_info(handle_2)\n"
+        "assert(data2.delay == 2)\n"
+        "assert(data2.time_remaining == 2)\n"
+        "assert(data2.repeating == false)\n";
+    //0.5
+    const char check_2[] =
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1.delay == 1)\n"
+        "assert(data1.time_remaining == 0.5)\n"
+        "assert(data1.repeating == true)\n"
+        "local data2 = timer.get_info(handle_2)\n"
+        "assert(data2.delay == 2)\n"
+        "assert(data2.time_remaining == 1.5)\n"
+        "assert(data2.repeating == false)\n";
+    //1
+     const char check_3[] =
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1.delay == 1)\n"
+        "assert(data1.time_remaining == 1)\n"
+        "assert(data1.repeating == true)\n"
+        "local data2 = timer.get_info(handle_2)\n"
+        "assert(data2.delay == 2)\n"
+        "assert(data2.time_remaining == 1)\n"
+        "assert(data2.repeating == false)\n";    
+    //2
+    const char check_4[] =
+        "local data1 = timer.get_info(handle_1)\n"
+        "assert(data1.delay == 1)\n"
+        "assert(data1.time_remaining == 1)\n"
+        "assert(data1.repeating == true)\n"
+        "local data2 = timer.get_info(handle_2)\n"
+        "assert(data2 == nil)\n";
+    const char* SCRIPTINSTANCE = "TestScriptInstance";
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    CreateScriptInstance(L, SCRIPTINSTANCE);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+    dmScript::InitializeInstance(script_world);
+
+    ASSERT_TRUE(RunString(L, pre_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_TRUE(RunString(L, check_1));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateScriptWorld(script_world, 0.5f);
+    ASSERT_TRUE(RunString(L, check_2));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateScriptWorld(script_world, 0.5f);
+    ASSERT_TRUE(RunString(L, check_3));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateScriptWorld(script_world, 1.0f);
+    ASSERT_TRUE(RunString(L, check_4));
+    ASSERT_EQ(top, lua_gettop(L));
+
+
+    FinalizeInstance(script_world);
+
+    dmScript::GetInstance(L);
+    DeleteScriptInstance(L);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    dmScript::DeleteScriptWorld(script_world);
+}
+
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
