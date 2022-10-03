@@ -13,50 +13,58 @@
 // specific language governing permissions and limitations under the License.
 
 #include "rig.h"
+#include "rig_private.h"
 
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <dlib/profile.h>
-#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/object_pool.h>
 #include <graphics/graphics.h>
+
+
+#include <stdio.h>
 
 namespace dmRig
 {
     using namespace dmVMath;
 
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
-    static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
-    static const int SIGNAL_DELTA_UNCHANGED = 0x10cced; // Used to indicate if a draw order was unchanged for a certain slot
-    static const uint32_t INVALID_ATTACHMENT_INDEX = 0xffffffffu;
-
-    static const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
 
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt);
     static bool DoPostUpdate(RigInstance* instance);
-    static void UpdateSlotDrawOrder(dmArray<int32_t>& draw_order, dmArray<int32_t>& deltas, int changed, dmArray<int32_t>& unchanged);
 
-    Result NewContext(const NewContextParams& params)
+    struct RigContext
     {
-        *params.m_Context = new RigContext();
-        RigContext* context = *params.m_Context;
+        dmObjectPool<HRigInstance>      m_Instances;
+        // Temporary scratch buffers used for store pose as transform and matrices
+        // (avoids modifying the real pose transform data during rendering).
+        dmArray<dmVMath::Matrix4>       m_ScratchPoseMatrixBuffer;
+        // Temporary scratch buffers used when transforming the vertex buffer,
+        // used to creating primitives from indices.
+        dmArray<dmVMath::Vector3>       m_ScratchPositionBuffer;
+        dmArray<dmVMath::Vector3>       m_ScratchNormalBuffer;
+        dmArray<dmVMath::Vector3>       m_ScratchTangentBuffer;
+    };
+
+
+    Result NewContext(const NewContextParams& params, HRigContext* out)
+    {
+        RigContext* context = new RigContext;
         if (!context) {
             return dmRig::RESULT_ERROR;
         }
 
         context->m_Instances.SetCapacity(params.m_MaxRigInstanceCount);
-        context->m_ScratchPoseTransformBuffer.SetCapacity(0);
         context->m_ScratchPoseMatrixBuffer.SetCapacity(0);
-
+        *out = context;
         return dmRig::RESULT_OK;
     }
 
     void DeleteContext(HRigContext context)
     {
-        if (context) {
-            delete context;
-        }
+        delete context;
     }
 
     static const dmRigDDF::RigAnimation* FindAnimation(const dmRigDDF::AnimationSet* anim_set, dmhash_t animation_id)
@@ -91,34 +99,13 @@ namespace dmRig
         return &instance->m_Players[instance->m_CurrentPlayer];
     }
 
-    static void ResetMeshSlotPose(HRigInstance instance)
-    {
-        if (instance->m_MeshEntry != 0x0) {
-
-            int32_t slot_count = instance->m_MeshSet->m_SlotCount;
-            for (int32_t slot_index = 0; slot_index < slot_count; slot_index++)
-            {
-                // Update mesh pose
-                MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
-                const dmRigDDF::MeshSlot* mesh_slot = mesh_slot_pose->m_MeshSlot;
-                mesh_slot_pose->m_ActiveAttachment = mesh_slot->m_ActiveIndex;
-
-                // Get color for slot
-                const float* slot_color = mesh_slot->m_SlotColor.m_Count ? mesh_slot->m_SlotColor.m_Data : white;
-
-                mesh_slot_pose->m_SlotColor[0] = slot_color[0];
-                mesh_slot_pose->m_SlotColor[1] = slot_color[1];
-                mesh_slot_pose->m_SlotColor[2] = slot_color[2];
-                mesh_slot_pose->m_SlotColor[3] = slot_color[3];
-            }
-        }
-    }
-
     Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate)
     {
         const dmRigDDF::RigAnimation* anim = FindAnimation(instance->m_AnimationSet, animation_id);
         if (anim == 0x0)
         {
+            RigPlayer* player = GetPlayer(instance);
+            player->m_Playing = 0;
             return dmRig::RESULT_ANIM_NOT_FOUND;
         }
 
@@ -135,8 +122,6 @@ namespace dmRig
         }
 
         RigPlayer* player = SwitchPlayer(instance);
-        player->m_Initial = 1;
-        player->m_BlendFinished = blend_duration > 0.0f ? 0 : 1;
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
         player->m_Playing = 1;
@@ -151,7 +136,6 @@ namespace dmRig
 
         SetCursor(instance, offset, true);
         SetPlaybackRate(instance, playback_rate);
-
         return dmRig::RESULT_OK;
     }
 
@@ -169,82 +153,27 @@ namespace dmRig
         return player->m_AnimationId;
     }
 
-    dmhash_t GetMesh(HRigInstance instance)
+    dmhash_t GetModel(HRigInstance instance)
     {
-        return instance->m_MeshId;
+        return instance->m_ModelId;
     }
 
-    Result SetMesh(HRigInstance instance, dmhash_t mesh_id)
+    Result SetModel(HRigInstance instance, dmhash_t model_id)
     {
-        const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
-        for (uint32_t i = 0; i < mesh_set->m_MeshEntries.m_Count; ++i)
+        for (uint32_t i = 0; i < instance->m_MeshSet->m_Models.m_Count; ++i)
         {
-            if (mesh_id == mesh_set->m_MeshEntries[i].m_Id)
+            const dmRigDDF::Model* model = &instance->m_MeshSet->m_Models[i];
+            if (model->m_Id == model_id)
             {
-                instance->m_MeshEntry = &mesh_set->m_MeshEntries[i];
-                instance->m_MeshId = mesh_id;
-                instance->m_DoRender = 0;
-
-                // Go through all slot poses and fetch correct meshslot from skin.
-                if (instance->m_MeshEntry != 0x0) {
-                    int32_t slot_count = instance->m_MeshSet->m_SlotCount;
-                    for (int32_t slot_index = 0; slot_index < slot_count; slot_index++)
-                    {
-                        // Reset draw order list
-                        instance->m_DrawOrder[slot_index] = slot_index;
-
-                        // Set mesh slot pose to correct MeshSlot pointer
-                        MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
-                        mesh_slot_pose->m_MeshSlot = &instance->m_MeshEntry->m_MeshSlots[slot_index];
-                    }
-                    instance->m_DoRender = 1;
-                }
-
-                ResetMeshSlotPose(instance);
+                instance->m_Model = model;
+                instance->m_ModelId = model_id;
+                instance->m_DoRender = 1;
                 return dmRig::RESULT_OK;
             }
         }
-        return dmRig::RESULT_ERROR;
-    }
-
-    Result SetMeshSlot(HRigInstance instance, dmhash_t mesh_id, dmhash_t slot_id)
-    {
-        const dmRigDDF::MeshSet* mesh_set = instance->m_MeshSet;
-        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
-
-        // Find slot
-        for (uint32_t i = 0; i < mesh_entry->m_MeshSlots.m_Count; ++i)
-        {
-            if (slot_id == mesh_entry->m_MeshSlots[i].m_Id)
-            {
-                // Find skin
-                for (uint32_t j = 0; j < mesh_set->m_MeshEntries.m_Count; ++j)
-                {
-                    if (mesh_id == mesh_set->m_MeshEntries[j].m_Id)
-                    {
-                        const dmRigDDF::MeshSlot* mesh_slot = &mesh_set->m_MeshEntries[j].m_MeshSlots[i];
-                        MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[i];
-
-                        // Update mesh pose
-                        mesh_slot_pose->m_ActiveAttachment = mesh_slot->m_ActiveIndex;
-                        mesh_slot_pose->m_MeshSlot = mesh_slot;
-
-                        // Get color for slot
-                        const float* slot_color = mesh_slot->m_SlotColor.m_Count ? mesh_slot->m_SlotColor.m_Data : white;
-
-                        mesh_slot_pose->m_SlotColor[0] = slot_color[0];
-                        mesh_slot_pose->m_SlotColor[1] = slot_color[1];
-                        mesh_slot_pose->m_SlotColor[2] = slot_color[2];
-                        mesh_slot_pose->m_SlotColor[3] = slot_color[3];
-
-                        return dmRig::RESULT_OK;
-                    }
-                }
-
-                return dmRig::RESULT_ERROR;
-            }
-        }
-
+        instance->m_Model = 0;
+        instance->m_ModelId = 0;
+        instance->m_DoRender = 0;
         return dmRig::RESULT_ERROR;
     }
 
@@ -429,13 +358,6 @@ namespace dmRig
         return lerp(frac, Vector3(data[i0+0], data[i0+1], data[i0+2]), Vector3(data[i1+0], data[i1+1], data[i1+2]));
     }
 
-    static Vector4 SampleVec4(uint32_t sample, float frac, float* data)
-    {
-        uint32_t i0 = sample*4;
-        uint32_t i1 = i0+4;
-        return lerp(frac, Vector4(data[i0+0], data[i0+1], data[i0+2], data[i0+3]), Vector4(data[i1+0], data[i1+1], data[i1+2], data[i1+3]));
-    }
-
     static Quat SampleQuat(uint32_t sample, float frac, float* data)
     {
         uint32_t i = sample*4;
@@ -454,81 +376,16 @@ namespace dmRig
         return t;
     }
 
-    static inline dmTransform::Transform GetPoseTransform(const dmArray<RigBone>& bind_pose, const dmArray<dmTransform::Transform>& pose, dmTransform::Transform transform, const uint32_t index) {
-        if(bind_pose[index].m_ParentIndex == INVALID_BONE_INDEX)
-            return transform;
-        transform = dmTransform::Mul(pose[bind_pose[index].m_ParentIndex], transform);
-        return GetPoseTransform(bind_pose, pose, transform, bind_pose[index].m_ParentIndex);
-    }
-
-    static inline float ToEulerZ(const dmTransform::Transform& t)
-    {
-        Quat q(t.GetRotation());
-        return dmVMath::QuatToEuler(q.getZ(), q.getY(), q.getX(), q.getW()).getZ() * (M_PI/180.0f);
-    }
-
-    static void ApplyOneBoneIKConstraint(const dmRigDDF::IK* ik, const dmArray<RigBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const float mix)
-    {
-        if (mix == 0.0f)
-            return;
-        const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
-        dmTransform::Transform& parent_t = pose[ik->m_Parent];
-        float parentRotation = ToEulerZ(parent_bt);
-        // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
-        float rotationIK = atan2(target_wp.getY() - parent_wp.getY(), target_wp.getX() - parent_wp.getX());
-        parentRotation = parentRotation + (rotationIK - parentRotation) * mix;
-        parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
-    }
-
-    // Based on http://www.ryanjuckett.com/programming/analytic-two-bone-ik-in-2d/
-    static void ApplyTwoBoneIKConstraint(const dmRigDDF::IK* ik, const dmArray<RigBone>& bind_pose, dmArray<dmTransform::Transform>& pose, const Vector3 target_wp, const Vector3 parent_wp, const bool bend_positive, const float mix)
-    {
-        if (mix == 0.0f)
-            return;
-        const dmTransform::Transform& parent_bt = bind_pose[ik->m_Parent].m_LocalToParent;
-        const dmTransform::Transform& child_bt = bind_pose[ik->m_Child].m_LocalToParent;
-        dmTransform::Transform& parent_t = pose[ik->m_Parent];
-        dmTransform::Transform& child_t = pose[ik->m_Child];
-        float childRotation = ToEulerZ(child_bt), parentRotation = ToEulerZ(parent_bt);
-
-        // recalc target position to local (relative parent)
-        const Vector3 target(target_wp.getX() - parent_wp.getX(), target_wp.getY() - parent_wp.getY(), 0.0f);
-        const Vector3 child_p = child_bt.GetTranslation();
-        const float childX = child_p.getX(), childY = child_p.getY();
-        const float offset = atan2(childY, childX);
-        const float len1 = (float)sqrt(childX * childX + childY * childY);
-        const float len2 = bind_pose[ik->m_Child].m_Length;
-
-        // Based on code by Ryan Juckett with permission: Copyright (c) 2008-2009 Ryan Juckett, http://www.ryanjuckett.com/
-        const float cosDenom = 2.0f * len1 * len2;
-        if (cosDenom < 0.0001f) {
-            childRotation = childRotation + ((float)atan2(target.getY(), target.getX()) - parentRotation - childRotation) * mix;
-            child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
-            return;
-        }
-        float cosValue = (target.getX() * target.getX() + target.getY() * target.getY() - len1 * len1 - len2 * len2) / cosDenom;
-        cosValue = dmMath::Max(-1.0f, dmMath::Min(1.0f, cosValue));
-        const float childAngle = (float)acos(cosValue) * (bend_positive ? 1.0f : -1.0f);
-        const float adjacent = len1 + len2 * cosValue;
-        const float opposite = len2 * sin(childAngle);
-        const float parentAngle = (float)atan2(target.getY() * adjacent - target.getX() * opposite, target.getX() * adjacent + target.getY() * opposite);
-        parentRotation = ((parentAngle - offset) - parentRotation) * mix;
-        childRotation = ((childAngle + offset) - childRotation) * mix;
-        parent_t.SetRotation( dmVMath::QuatFromAngle(2, parentRotation) );
-        child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
-    }
-
-    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose, const dmArray<uint32_t>& track_idx_to_pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshSlotPose>& mesh_slot_pose, bool update_draw_order, dmArray<int32_t>& draw_order, int& slot_changed, float blend_weight)
+    static void ApplyAnimation(RigPlayer* player, dmArray<BonePose>& pose, dmArray<IKAnimation>& ik_animation, float blend_weight)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
-        if (animation == 0x0)
+        if (!animation)
             return;
         float duration = GetCursorDuration(player, animation);
         float t = CursorToTime(player->m_Cursor, duration, player->m_Backwards, player->m_Playback == dmRig::PLAYBACK_ONCE_PINGPONG);
 
         float fraction = t * animation->m_SampleRate;
         uint32_t sample = (uint32_t)fraction;
-        uint32_t rounded_sample = (uint32_t)(fraction + 0.5f);
         fraction -= sample;
         // Sample animation tracks
         uint32_t track_count = animation->m_Tracks.m_Count;
@@ -536,71 +393,41 @@ namespace dmRig
         {
             const dmRigDDF::AnimationTrack* track = &animation->m_Tracks[ti];
             uint32_t bone_index = track->m_BoneIndex;
-            if (bone_index >= track_idx_to_pose.Size()) {
+            if (bone_index >= pose.Size()) {
                 continue;
             }
-            uint32_t pose_index = track_idx_to_pose[bone_index];
-            dmTransform::Transform& transform = pose[pose_index];
+
+            dmTransform::Transform& transform = pose[bone_index].m_Local;
+
             if (track->m_Positions.m_Count > 0)
             {
-                transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), SampleVec3(sample, fraction, track->m_Positions.m_Data)));
+                Vector3 v;
+                if (track->m_Positions.m_Count == 3)
+                    v = Vector3(track->m_Positions.m_Data[0], track->m_Positions.m_Data[1], track->m_Positions.m_Data[2]);
+                else
+                    v = SampleVec3(sample, fraction, track->m_Positions.m_Data);
+
+                transform.SetTranslation(lerp(blend_weight, transform.GetTranslation(), v));
             }
             if (track->m_Rotations.m_Count > 0)
             {
-                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
+                Quat q;
+                if (track->m_Rotations.m_Count == 4)
+                    q = Quat(track->m_Rotations.m_Data[0], track->m_Rotations.m_Data[1], track->m_Rotations.m_Data[2], track->m_Rotations.m_Data[3]);
+                else
+                    q = SampleQuat(sample, fraction, track->m_Rotations.m_Data);
+
+                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), q));
             }
             if (track->m_Scale.m_Count > 0)
             {
-                transform.SetScale(lerp(blend_weight, transform.GetScale(), SampleVec3(sample, fraction, track->m_Scale.m_Data)));
-            }
-        }
+                Vector3 s;
+                if (track->m_Scale.m_Count == 3)
+                    s = Vector3(track->m_Scale.m_Data[0], track->m_Scale.m_Data[1], track->m_Scale.m_Data[2]);
+                else
+                    s = SampleVec3(sample, fraction, track->m_Scale.m_Data);
 
-        track_count = animation->m_IkTracks.m_Count;
-        for (uint32_t ti = 0; ti < track_count; ++ti)
-        {
-            const dmRigDDF::IKAnimationTrack* track = &animation->m_IkTracks[ti];
-            uint32_t ik_index = track->m_IkIndex;
-            IKAnimation& anim = ik_animation[ik_index];
-            if (track->m_Mix.m_Count > 0)
-            {
-                anim.m_Mix = dmMath::LinearBezier(blend_weight, anim.m_Mix, dmMath::LinearBezier(fraction, track->m_Mix.m_Data[sample], track->m_Mix.m_Data[sample+1]));
-            }
-            if (track->m_Positive.m_Count > 0)
-            {
-                if (blend_weight >= 0.5f)
-                {
-                    anim.m_Positive = track->m_Positive[sample];
-                }
-            }
-        }
-
-        track_count = animation->m_MeshTracks.m_Count;
-        for (uint32_t ti = 0; ti < track_count; ++ti) {
-            const dmRigDDF::MeshAnimationTrack* track = &animation->m_MeshTracks[ti];
-
-            if (track->m_SlotColors.m_Count > 0) {
-                MeshSlotPose& mesh_slot = mesh_slot_pose[track->m_MeshSlot];
-                Vector4 color(mesh_slot.m_SlotColor[0], mesh_slot.m_SlotColor[1], mesh_slot.m_SlotColor[2], mesh_slot.m_SlotColor[3]);
-                color = lerp(blend_weight, color, SampleVec4(sample, fraction, track->m_SlotColors.m_Data));
-                mesh_slot.m_SlotColor[0] = color[0];
-                mesh_slot.m_SlotColor[1] = color[1];
-                mesh_slot.m_SlotColor[2] = color[2];
-                mesh_slot.m_SlotColor[3] = color[3];
-            }
-
-            if (track->m_MeshAttachment.m_Count > 0) {
-                if (update_draw_order) {
-                    MeshSlotPose& mesh_slot = mesh_slot_pose[track->m_MeshSlot];
-                    mesh_slot.m_ActiveAttachment = track->m_MeshAttachment[rounded_sample];
-                }
-            }
-
-            if (track->m_OrderOffset.m_Count > 0) {
-                if (update_draw_order) {
-                    int32_t* order = &draw_order[track->m_MeshSlot];
-                    *order = track->m_OrderOffset[rounded_sample];
-                    slot_changed++;
-                }
+                transform.SetScale(lerp(blend_weight, transform.GetScale(), s));
             }
         }
     }
@@ -618,171 +445,114 @@ namespace dmRig
         }
     }
 
+    static void ResetPose(const dmRigDDF::Skeleton* skeleton, dmArray<BonePose>& pose)
+    {
+        uint32_t bone_count = pose.Size();
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        {
+            const dmRigDDF::Bone* bone = &skeleton->m_Bones[bi];
+            pose[bi].m_Local = bone->m_Local;
+            pose[bi].m_World.SetIdentity();
+        }
+    }
+
+    static void UpdatePoseTransforms(dmArray<BonePose>& pose)
+    {
+        uint32_t bone_count = pose.Size();
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        {
+            BonePose& bp = pose[bi];
+
+            if (bp.m_ParentIndex != INVALID_BONE_INDEX)
+                bp.m_World = dmTransform::Mul(pose[bp.m_ParentIndex].m_World, bp.m_Local);
+            else
+                bp.m_World = bp.m_Local;
+        }
+    }
+
+    static void PoseToMatrix(const dmArray<BonePose>& pose, dmArray<Matrix4>& out_matrices)
+    {
+        uint32_t bone_count = pose.Size();
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        {
+            out_matrices[bi] = dmTransform::ToMatrix4(pose[bi].m_World);
+        }
+    }
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
-            // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
-            if (instance->m_Pose.Empty() || !instance->m_Enabled)
-                return;
+        // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
+        RigPlayer* player = GetPlayer(instance);
 
-            const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
-            const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
-            const dmArray<uint32_t>& track_idx_to_pose = *instance->m_TrackIdxToPose;
-            dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-            // Reset pose
+        if (!player->m_Playing || !instance->m_Enabled || !player->m_Animation)
+            return;
+
+        const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+
+        dmArray<BonePose>& pose = instance->m_Pose;
+        ResetPose(skeleton, pose);
+
+        // Reset IK animation
+        dmArray<IKAnimation>& ik_animation = instance->m_IKAnimation;
+        uint32_t ik_animation_count = ik_animation.Size();
+        for (uint32_t ii = 0; ii < ik_animation_count; ++ii)
+        {
+            const dmRigDDF::IK* ik = &skeleton->m_Iks[ii];
+            ik_animation[ii].m_Mix = ik->m_Mix;
+            ik_animation[ii].m_Positive = ik->m_Positive;
+        }
+
+        UpdateBlend(instance, dt);
+
+        if (instance->m_Blending)
+        {
+            float fade_rate = instance->m_BlendTimer / instance->m_BlendDuration;
+            // How much to blend the pose, 1 first time to overwrite the bind pose, either fade_rate or 1 - fade_rate second depending on which one is the current player
+            float alpha = 1.0f;
+            for (uint32_t pi = 0; pi < 2; ++pi)
+            {
+                RigPlayer* p = &instance->m_Players[pi];
+                // How much relative blending between the two players
+                float blend_weight = fade_rate;
+                if (player != p) {
+                    blend_weight = 1.0f - fade_rate;
+                }
+
+                UpdatePlayer(instance, p, dt, blend_weight);
+                ApplyAnimation(p, pose, ik_animation, alpha);
+                if (player == p)
+                {
+                    alpha = 1.0f - fade_rate;
+                }
+                else
+                {
+                    alpha = fade_rate;
+                }
+            }
+        }
+        else
+        {
+            UpdatePlayer(instance, player, dt, 1.0f);
+            ApplyAnimation(player, pose, ik_animation, 1.0f);
+        }
+
+        // Normalize quaternions while we blend
+        if (instance->m_Blending)
+        {
             uint32_t bone_count = pose.Size();
             for (uint32_t bi = 0; bi < bone_count; ++bi)
             {
-                pose[bi].SetIdentity();
-            }
-            // Reset IK animation
-            dmArray<IKAnimation>& ik_animation = instance->m_IKAnimation;
-            uint32_t ik_animation_count = ik_animation.Size();
-            for (uint32_t ii = 0; ii < ik_animation_count; ++ii)
-            {
-                const dmRigDDF::IK* ik = &skeleton->m_Iks[ii];
-                ik_animation[ii].m_Mix = ik->m_Mix;
-                ik_animation[ii].m_Positive = ik->m_Positive;
-            }
-
-            UpdateBlend(instance, dt);
-
-            RigPlayer* player = GetPlayer(instance);
-
-            // If the animation has just started, we reset mesh properties (color, draw order etc)
-            if (player->m_Initial) {
-                ResetMeshSlotPose(instance);
-                player->m_Initial = 0;
-            }
-
-            // Make sure we have enough space in the draw order deltas scratch buffer.
-            uint32_t slot_count = instance->m_MeshSet->m_SlotCount;
-            int slot_changed = 0;
-            if (context->m_ScratchDrawOrderDeltas.Capacity() < slot_count) {
-                context->m_ScratchDrawOrderDeltas.OffsetCapacity(slot_count - context->m_ScratchDrawOrderDeltas.Capacity());
-            }
-            context->m_ScratchDrawOrderDeltas.SetSize(slot_count);
-
-            // Reset draw order deltas to "unchanged" constant.
-            for (uint32_t i = 0; i < slot_count; i++) {
-                instance->m_DrawOrder[i] = i;
-                context->m_ScratchDrawOrderDeltas[i] = SIGNAL_DELTA_UNCHANGED;
-            }
-
-            if (instance->m_Blending)
-            {
-                float fade_rate = instance->m_BlendTimer / instance->m_BlendDuration;
-                // How much to blend the pose, 1 first time to overwrite the bind pose, either fade_rate or 1 - fade_rate second depending on which one is the current player
-                float alpha = 1.0f;
-                for (uint32_t pi = 0; pi < 2; ++pi)
+                BonePose& bp = pose[bi];
                 {
-                    RigPlayer* p = &instance->m_Players[pi];
-                    // How much relative blending between the two players
-                    float blend_weight = fade_rate;
-                    if (player != p) {
-                        blend_weight = 1.0f - fade_rate;
-                    }
-
-                    // Check if we should reset the mesh slot pose.
-                    // This needs to be done once we are past 0.5 in blending, if the new player/animation
-                    // don't have a mesh animation track it would otherwise be the same from previous animation.
-                    if (p->m_BlendFinished == 0 && blend_weight > 0.5) {
-                        p->m_BlendFinished = 1;
-                        ResetMeshSlotPose(instance);
-                    }
-
-                    UpdatePlayer(instance, p, dt, blend_weight);
-                    bool draw_order = player == p ? fade_rate >= 0.5f : fade_rate < 0.5f;
-                    ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, instance->m_MeshSlotPose, draw_order, context->m_ScratchDrawOrderDeltas, slot_changed, alpha);
-                    if (player == p)
-                    {
-                        alpha = 1.0f - fade_rate;
-                    }
-                    else
-                    {
-                        alpha = fade_rate;
-                    }
-                }
-            }
-            else
-            {
-                UpdatePlayer(instance, player, dt, 1.0f);
-                ApplyAnimation(player, pose, track_idx_to_pose, ik_animation, instance->m_MeshSlotPose, true, context->m_ScratchDrawOrderDeltas, slot_changed, 1.0f);
-            }
-
-            // Update draw order after animation
-            if (slot_changed > 0) {
-                UpdateSlotDrawOrder(instance->m_DrawOrder, context->m_ScratchDrawOrderDeltas, slot_changed, context->m_ScratchDrawOrderUnchanged);
-            }
-
-            for (uint32_t bi = 0; bi < bone_count; ++bi)
-            {
-                dmTransform::Transform& t = pose[bi];
-                // Normalize quaternions while we blend
-                if (instance->m_Blending)
-                {
-                    Quat rotation = t.GetRotation();
+                    Quat rotation = bp.m_Local.GetRotation();
                     if (dot(rotation, rotation) > 0.001f)
                         rotation = normalize(rotation);
-                    t.SetRotation(rotation);
-                }
-                const dmTransform::Transform& bind_t = bind_pose[bi].m_LocalToParent;
-                t.SetTranslation(bind_t.GetTranslation() + t.GetTranslation());
-                t.SetRotation(bind_t.GetRotation() * t.GetRotation());
-                t.SetScale(mulPerElem(bind_t.GetScale(), t.GetScale()));
-            }
-
-            if (skeleton->m_Iks.m_Count > 0) {
-                DM_PROFILE("RigIK");
-                const uint32_t count = skeleton->m_Iks.m_Count;
-                dmArray<IKTarget>& ik_targets = instance->m_IKTargets;
-
-
-                for (uint32_t i = 0; i < count; ++i) {
-                    const dmRigDDF::IK* ik = &skeleton->m_Iks[i];
-
-                    // transform local space hiearchy for pose
-                    dmTransform::Transform parent_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Parent], ik->m_Parent);
-                    dmTransform::Transform target_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Target], ik->m_Target);
-                    const uint32_t parent_parent_index = skeleton->m_Bones[ik->m_Parent].m_Parent;
-                    dmTransform::Transform parent_parent_t;
-                    if(parent_parent_index != INVALID_BONE_INDEX)
-                    {
-                        parent_parent_t = dmTransform::Inv(GetPoseTransform(bind_pose, pose, pose[skeleton->m_Bones[ik->m_Parent].m_Parent], skeleton->m_Bones[ik->m_Parent].m_Parent));
-                        parent_t = dmTransform::Mul(parent_parent_t, parent_t);
-                        target_t = dmTransform::Mul(parent_parent_t, target_t);
-                    }
-                    Vector3 parent_position = parent_t.GetTranslation();
-                    Vector3 target_position = target_t.GetTranslation();
-
-                    if(ik_targets[i].m_Mix != 0.0f)
-                    {
-                        // get custom target position either from go or vector position
-                        Vector3 user_target_position = target_position;
-                        if(ik_targets[i].m_Callback != 0)
-                        {
-                            user_target_position = ik_targets[i].m_Callback(&ik_targets[i]);
-                        } else {
-                            // instance have been removed, disable animation
-                            ik_targets[i].m_UserHash = 0;
-                            ik_targets[i].m_Mix = 0.0f;
-                        }
-
-                        const float target_mix = ik_targets[i].m_Mix;
-
-                        if (parent_parent_index != INVALID_BONE_INDEX) {
-                            user_target_position = dmTransform::Apply(parent_parent_t, user_target_position);
-                        }
-
-                        // blend default target pose and target pose
-                        target_position = target_mix == 1.0f ? user_target_position : lerp(target_mix, target_position, user_target_position);
-                    }
-
-                    if(ik->m_Child == ik->m_Parent)
-                        ApplyOneBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Mix);
-                    else
-                        ApplyTwoBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Positive, ik_animation[i].m_Mix);
+                    bp.m_Local.SetRotation(rotation);
                 }
             }
+        }
+
+        UpdatePoseTransforms(pose);
     }
 
     static Result PostUpdate(HRigContext context)
@@ -804,7 +574,7 @@ namespace dmRig
     static bool DoPostUpdate(RigInstance* instance)
     {
             // If pose is empty, there are no bones to update
-            dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+            dmArray<BonePose>& pose = instance->m_Pose;
             if (pose.Empty())
                 return false;
 
@@ -826,13 +596,6 @@ namespace dmRig
         return PostUpdate(context);
     }
 
-    static void AllocateMeshSlotPose(const dmRig::MeshSet* mesh_set, dmArray<MeshSlotPose>& mesh_slot_pose, dmArray<int32_t>& draw_order) {
-        mesh_slot_pose.SetCapacity(mesh_set->m_SlotCount);
-        mesh_slot_pose.SetSize(mesh_set->m_SlotCount);
-        draw_order.SetCapacity(mesh_set->m_SlotCount);
-        draw_order.SetSize(mesh_set->m_SlotCount);
-    }
-
     static dmRig::Result CreatePose(HRigContext context, HRigInstance instance)
     {
         if(!instance->m_Skeleton)
@@ -844,7 +607,12 @@ namespace dmRig
         instance->m_Pose.SetSize(bone_count);
         for (uint32_t i = 0; i < bone_count; ++i)
         {
-            instance->m_Pose[i].SetIdentity();
+            const dmRigDDF::Bone* bone = &skeleton->m_Bones[i];
+            instance->m_Pose[i].m_Length = bone->m_Length;
+            instance->m_Pose[i].m_ParentIndex = bone->m_Parent;
+            // If we won't play an animation, then use the skeleton transforms
+            instance->m_Pose[i].m_Local = bone->m_Local;
+            instance->m_Pose[i].m_World = bone->m_World;
         }
 
         instance->m_IKTargets.SetCapacity(skeleton->m_Iks.m_Count);
@@ -857,7 +625,7 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-    dmArray<dmTransform::Transform>* GetPose(HRigInstance instance)
+    dmArray<BonePose>* GetPose(HRigInstance instance)
     {
         return &instance->m_Pose;
     }
@@ -974,150 +742,126 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-    // Slot ordering is based on the official Spine runtime
-    // https://github.com/EsotericSoftware/spine-runtimes/blob/387b0afb80a775970c48099042be769e50258440/spine-c/spine-c/src/spine/SkeletonJson.c#L430
-    static void UpdateSlotDrawOrder(dmArray<int32_t>& draw_order, dmArray<int32_t>& deltas, int changed, dmArray<int32_t>& unchanged)
-    {
-        int slot_count = draw_order.Size();
-
-        // Make sure we have enough capacity to store our unchanged slots list.
-        if (unchanged.Capacity() < (uint32_t)slot_count) {
-            unchanged.OffsetCapacity(slot_count - unchanged.Capacity());
-        }
-        unchanged.SetSize(slot_count);
-
-        for (int i = 0; i < slot_count; i++) {
-            draw_order[i] = -1;
-        }
-
-        int original_index = 0;
-        int unchanged_index = 0;
-        for (int slot_index = 0; slot_index < slot_count; slot_index++)
-        {
-            int32_t delta = deltas[slot_index];
-            if (delta != SIGNAL_DELTA_UNCHANGED) {
-                while (original_index != slot_index) {
-                    unchanged[unchanged_index++] = original_index++;
-                }
-
-                draw_order[original_index + delta] = original_index;
-                original_index++;
-            }
-        }
-
-        while (original_index < slot_count) {
-            unchanged[unchanged_index++] = original_index++;
-        }
-
-        for (int i = slot_count - 1; i >= 0; i--)
-        {
-            if (draw_order[i] == -1) {
-                draw_order[i] = unchanged[--unchanged_index];
-            }
-        }
-
-    }
-
     uint32_t GetVertexCount(HRigInstance instance)
     {
-        if (!instance->m_MeshEntry || !instance->m_DoRender) {
+        if (!instance->m_Model || !instance->m_DoRender) {
             return 0;
         }
 
         uint32_t vertex_count = 0;
-        int32_t slot_count = instance->m_MeshSet->m_SlotCount;
-        for (int32_t slot_index = 0; slot_index < slot_count; slot_index++)
+        for (uint32_t i = 0; i < instance->m_Model->m_Meshes.m_Count; ++i)
         {
-            MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
+            const dmRigDDF::Mesh& mesh = instance->m_Model->m_Meshes[i];
 
-            // Get attachment index for current slot
-            uint32_t active_attachment = mesh_slot_pose->m_ActiveAttachment;
-            if (active_attachment != INVALID_ATTACHMENT_INDEX) {
-
-                // Check if there is any mesh on current attachment
-                uint32_t mesh_attachment_index = mesh_slot_pose->m_MeshSlot->m_MeshAttachments[active_attachment];
-                if (mesh_attachment_index != INVALID_ATTACHMENT_INDEX) {
-                    const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
-                    vertex_count += mesh_attachment->m_PositionIndices.m_Count;
-                }
-            }
+            vertex_count += mesh.m_Positions.m_Count/3;
         }
 
         return vertex_count;
     }
 
-    static float* GenerateNormalData(const dmRigDDF::Mesh* mesh, const Matrix4& normal_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer)
+    static void GenerateNormalData(const dmRigDDF::Mesh* mesh, const Matrix4& normal_matrix, const dmArray<Matrix4>& pose_matrices, float* normals_buffer, float* tangents_buffer)
     {
         const float* normals_in = mesh->m_Normals.m_Data;
-        const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Data;
-        uint32_t index_count = mesh->m_PositionIndices.m_Count;
-        Vector4 v;
+        bool has_tangents = mesh->m_Tangents.m_Count > 0;
+        const float* tangents_in = has_tangents ? mesh->m_Tangents.m_Data : 0;
+        const uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
+        Vector4 normal;
+        Vector4 tangent;
 
+        // Non skinned data
         if (!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
-            for (uint32_t ii = 0; ii < index_count; ++ii)
+            for (uint32_t i = 0; i < vertex_count; ++i)
             {
-                uint32_t ni = normal_indices[ii];
-                Vector3 normal_in(normals_in[ni*3+0], normals_in[ni*3+1], normals_in[ni*3+2]);
-                v = normal_matrix * normal_in;
-                if (lengthSqr(v) > 0.0f) {
-                    normalize(v);
+                Vector3 normal_in(normals_in[i*3+0], normals_in[i*3+1], normals_in[i*3+2]);
+                normal = normal_matrix * normal_in;
+                if (lengthSqr(normal) > 0.0f) {
+                    normalize(normal);
                 }
-                *out_buffer++ = v[0];
-                *out_buffer++ = v[1];
-                *out_buffer++ = v[2];
+
+                *normals_buffer++ = normal[0];
+                *normals_buffer++ = normal[1];
+                *normals_buffer++ = normal[2];
+
+                if (has_tangents)
+                {
+                    Vector3 tangent_in(tangents_in[i*3+0], tangents_in[i*3+1], tangents_in[i*3+2]);
+                    tangent = normal_matrix * tangent_in;
+                    if (lengthSqr(tangent) > 0.0f) {
+                        normalize(tangent);
+                    }
+                    *tangents_buffer++ = tangent[0];
+                    *tangents_buffer++ = tangent[1];
+                    *tangents_buffer++ = tangent[2];
+                }
             }
-            return out_buffer;
+            return;
         }
 
+        // Skinned data
         const uint32_t* indices = mesh->m_BoneIndices.m_Data;
         const float* weights = mesh->m_Weights.m_Data;
-        const uint32_t* vertex_indices = mesh->m_PositionIndices.m_Data;
-        for (uint32_t ii = 0; ii < index_count; ++ii)
+        for (uint32_t i = 0; i < vertex_count; ++i)
         {
-            const uint32_t ni = normal_indices[ii]*3;
-            const Vector3 normal_in(normals_in[ni+0], normals_in[ni+1], normals_in[ni+2]);
+            const Vector3 normal_in(normals_in[i*3+0], normals_in[i*3+1], normals_in[i*3+2]);
             Vector4 normal_out(0.0f, 0.0f, 0.0f, 0.0f);
 
-            const uint32_t bi_offset = vertex_indices[ii] << 2;
+            const Vector3 tangent_in = has_tangents ? Vector3(tangents_in[i*3+0], tangents_in[i*3+1], tangents_in[i*3+2]) : Vector3(0,0,0);
+            Vector4 tangent_out(0.0f, 0.0f, 0.0f, 0.0f);
+
+            const uint32_t bi_offset = i * 4;
             const uint32_t* bone_indices = &indices[bi_offset];
             const float* bone_weights = &weights[bi_offset];
 
             if (bone_weights[0])
             {
                 normal_out += (pose_matrices[bone_indices[0]] * normal_in) * bone_weights[0];
+                tangent_out += (pose_matrices[bone_indices[0]] * tangent_in) * bone_weights[0];
                 if (bone_weights[1])
                 {
                     normal_out += (pose_matrices[bone_indices[1]] * normal_in) * bone_weights[1];
+                    tangent_out += (pose_matrices[bone_indices[1]] * tangent_in) * bone_weights[1];
                     if (bone_weights[2])
                     {
                         normal_out += (pose_matrices[bone_indices[2]] * normal_in) * bone_weights[2];
+                        tangent_out += (pose_matrices[bone_indices[2]] * tangent_in) * bone_weights[2];
                         if (bone_weights[3])
                         {
                             normal_out += (pose_matrices[bone_indices[3]] * normal_in) * bone_weights[3];
+                            tangent_out += (pose_matrices[bone_indices[3]] * tangent_in) * bone_weights[3];
                         }
                     }
                 }
             }
 
-            v = normal_matrix * Vector3(normal_out.getX(), normal_out.getY(), normal_out.getZ());
-            if (lengthSqr(v) > 0.0f) {
-                normalize(v);
+            normal = normal_matrix * normal_out.getXYZ();
+            if (lengthSqr(normal) > 0.0f) {
+                normalize(normal);
             }
-            *out_buffer++ = v[0];
-            *out_buffer++ = v[1];
-            *out_buffer++ = v[2];
-        }
+            *normals_buffer++ = normal[0];
+            *normals_buffer++ = normal[1];
+            *normals_buffer++ = normal[2];
 
-        return out_buffer;
+            if (has_tangents)
+            {
+                tangent = normal_matrix * normal_out;
+                if (lengthSqr(tangent) > 0.0f) {
+                    normalize(tangent);
+                }
+                *tangents_buffer++ = tangent[0];
+                *tangents_buffer++ = tangent[1];
+                *tangents_buffer++ = tangent[2];
+            }
+        }
     }
 
     static float* GeneratePositionData(const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer)
     {
-        const float *positions = mesh->m_Positions.m_Data;
-        const size_t vertex_count = mesh->m_Positions.m_Count / 3;
+        const float* positions = mesh->m_Positions.m_Data;
+        const uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
         Point3 in_p;
         Vector4 v;
+
         if(!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
         {
             for (uint32_t i = 0; i < vertex_count; ++i)
@@ -1144,7 +888,7 @@ namespace dmRig
             in_v.setW(1.0f);
 
             Vector4 out_p(0.0f, 0.0f, 0.0f, 0.0f);
-            const uint32_t bi_offset = i << 2;
+            const uint32_t bi_offset = i * 4;
             const uint32_t* bone_indices = &indices[bi_offset];
             const float* bone_weights = &weights[bi_offset];
 
@@ -1173,119 +917,76 @@ namespace dmRig
         return out_buffer;
     }
 
-    static void PoseToMatrix(const dmArray<dmTransform::Transform>& pose, dmArray<Matrix4>& out_matrices)
+    static RigModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, RigModelVertex* out_write_ptr)
     {
-        uint32_t bone_count = pose.Size();
-        for (uint32_t bi = 0; bi < bone_count; ++bi)
-        {
-            out_matrices[bi] = dmTransform::ToMatrix4(pose[bi]);
-        }
-    }
+        uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
-    static void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<dmTransform::Transform>& pose, dmArray<dmTransform::Transform>& out_pose)
-    {
-        const dmRigDDF::Bone* bones = skeleton->m_Bones.m_Data;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-        for (uint32_t bi = 0; bi < bone_count; ++bi)
-        {
-            const dmTransform::Transform& transform = pose[bi];
-            dmTransform::Transform& out_transform = out_pose[bi];
-            out_transform = transform;
-            if (bi > 0) {
-                const dmRigDDF::Bone* bone = &bones[bi];
-                if (bone->m_InheritScale)
-                {
-                    out_transform = dmTransform::Mul(out_pose[bone->m_Parent], transform);
-                }
-                else
-                {
-                    Vector3 scale = transform.GetScale();
-                    out_transform = dmTransform::Mul(out_pose[bone->m_Parent], transform);
-                    out_transform.SetScale(scale);
-                }
-            }
-        }
-    }
+        const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
+        const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
+        const float* colors = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
 
-    static void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<Matrix4>& pose, dmArray<Matrix4>& out_pose)
-    {
-        const dmRigDDF::Bone* bones = skeleton->m_Bones.m_Data;
-        uint32_t bone_count = skeleton->m_Bones.m_Count;
-        for (uint32_t bi = 0; bi < bone_count; ++bi)
+        if (mesh->m_Indices.m_Count == 0)
         {
-            const Matrix4& transform = pose[bi];
-            Matrix4& out_transform = out_pose[bi];
-            out_transform = transform;
-            if (bi > 0) {
-                const dmRigDDF::Bone* bone = &bones[bi];
-                if (bone->m_InheritScale)
-                {
-                    out_transform = out_pose[bone->m_Parent] * transform;
-                }
-                else
-                {
-                    Vector3 scale = dmTransform::ExtractScale(out_pose[bone->m_Parent]);
-                    out_transform.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * transform.getUpper3x3());
-                    out_transform = out_pose[bone->m_Parent] * transform;
-                }
-            }
-        }
-    }
-
-    static void PoseToInfluence(const dmArray<uint32_t>& pose_idx_to_influence, const dmArray<Matrix4>& in_pose, dmArray<Matrix4>& out_pose)
-    {
-        for (uint32_t i = 0; i < pose_idx_to_influence.Size(); ++i)
-        {
-            uint32_t j = pose_idx_to_influence[i];
-            out_pose[j] = in_pose[i];
-        }
-    }
-
-    // NOTE: We have two different vertex data write functions, since we expose two different vertex formats (spine and model).
-    // This is a temporary fix until we have better support for custom vertex formats.
-    static RigModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, RigModelVertex* out_write_ptr)
-    {
-        uint32_t indices_count = mesh->m_PositionIndices.m_Count;
-        const uint32_t* indices = mesh->m_PositionIndices.m_Data;
-        const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_PositionIndices.m_Data;
-        const float* uv0 = mesh->m_Texcoord0.m_Data;
-
-        if (mesh->m_NormalsIndices.m_Count)
-        {
-            for (uint32_t i = 0; i < indices_count; ++i)
+            for (uint32_t i = 0; i < vertex_count; ++i)
             {
-                uint32_t vi = indices[i];
-                uint32_t e = vi * 3;
-                out_write_ptr->x = positions[e];
-                out_write_ptr->y = positions[++e];
-                out_write_ptr->z = positions[++e];
-                vi = uv0_indices[i];
-                e = vi << 1;
-                out_write_ptr->u = uv0[e+0];
-                out_write_ptr->v = uv0[e+1];
-                e = i * 3;
-                out_write_ptr->nx = normals[e];
-                out_write_ptr->ny = normals[++e];
-                out_write_ptr->nz = normals[++e];
+                for (int c = 0; c < 3; ++c)
+                {
+                    out_write_ptr->pos[c] = *positions++;
+                    out_write_ptr->normal[c] = *normals++;
+                    out_write_ptr->tangent[c] = *tangents++;
+                }
+
+                for (int c = 0; c < 4; ++c)
+                {
+                    out_write_ptr->color[c] = colors ? *colors++ : 1.0f;
+                }
+
+                for (int c = 0; c < 2; ++c)
+                {
+                    out_write_ptr->uv0[c] = uv0 ? *uv0++ : 0.0f;
+                    out_write_ptr->uv1[c] = uv1 ? *uv1++ : 0.0f;
+                }
+
                 out_write_ptr++;
             }
         }
-        else
-        {
-            for (uint32_t i = 0; i < indices_count; ++i)
+        else { // Use the index buffer to write out all the vertices
+            uint32_t* indices32 = 0;
+            uint16_t* indices16 = 0;
+            uint32_t num_indices;
+            if (mesh->m_IndicesFormat == dmRigDDF::INDEXBUFFER_FORMAT_32)
             {
-                uint32_t vi = indices[i];
-                uint32_t e = vi * 3;
-                out_write_ptr->x = positions[e];
-                out_write_ptr->y = positions[++e];
-                out_write_ptr->z = positions[++e];
-                vi = uv0_indices[i];
-                e = vi << 1;
-                out_write_ptr->u = uv0[e+0];
-                out_write_ptr->v = uv0[e+1];
-                out_write_ptr->nx = 0.0f;
-                out_write_ptr->ny = 0.0f;
-                out_write_ptr->nz = 1.0f;
+                indices32 = (uint32_t*)mesh->m_Indices.m_Data;
+                num_indices = mesh->m_Indices.m_Count / 4;
+            }
+            else
+            {
+                indices16 = (uint16_t*)mesh->m_Indices.m_Data;
+                num_indices = mesh->m_Indices.m_Count / 2;
+            }
+
+            for (uint32_t i = 0; i < num_indices; ++i)
+            {
+                uint32_t idx = indices32?indices32[i]:indices16[i];
+
+                for (int c = 0; c < 3; ++c)
+                {
+                    out_write_ptr->pos[c] = positions[idx*3+c];
+                    out_write_ptr->normal[c] = normals[idx*3+c];
+                    out_write_ptr->tangent[c] = tangents[idx*3+c];
+                }
+
+                for (int c = 0; c < 4; ++c)
+                {
+                    out_write_ptr->color[c] = colors ? colors[idx*4+c] : 1.0f;
+                }
+
+                for (int c = 0; c < 2; ++c)
+                {
+                    out_write_ptr->uv0[c] = uv0 ? uv0[idx*2+c] : 0.0f;
+                    out_write_ptr->uv1[c] = uv1 ? uv1[idx*2+c] : 0.0f;
+                }
+
                 out_write_ptr++;
             }
         }
@@ -1293,62 +994,33 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    static RigSpineModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, const Vector4 color, RigSpineModelVertex* out_write_ptr)
+    static void EnsureSize(dmArray<Vector3>& array, uint32_t size)
     {
-        uint32_t indices_count = mesh->m_PositionIndices.m_Count;
-        const uint32_t* indices = mesh->m_PositionIndices.m_Data;
-        const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_PositionIndices.m_Data;
-        const float* uv0 = mesh->m_Texcoord0.m_Data;
-
-        for (uint32_t i = 0; i < indices_count; ++i)
-        {
-            uint32_t vi = indices[i];
-            uint32_t e = vi*3;
-            out_write_ptr->x = positions[e+0];
-            out_write_ptr->y = positions[e+1];
-            out_write_ptr->z = positions[e+2];
-            vi = uv0_indices[i];
-            e = vi << 1;
-            out_write_ptr->u = (uv0[e+0]);
-            out_write_ptr->v = (uv0[e+1]);
-            out_write_ptr->r = color.getX();
-            out_write_ptr->g = color.getY();
-            out_write_ptr->b = color.getZ();
-            out_write_ptr->a = color.getW();
-            out_write_ptr++;
+        if (array.Capacity() < size) {
+            array.OffsetCapacity(size - array.Capacity());
         }
-        return out_write_ptr;
+        array.SetSize(size);
     }
 
-    void* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out)
+    RigModelVertex* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const Matrix4& world_matrix, RigModelVertex* vertex_data_out)
     {
-        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
-        if (!instance->m_MeshEntry || !instance->m_DoRender) {
-            return vertex_data_out;
-        }
+        // TODO: Separate out the instance part.
+        // to do that we need to pass in the updated pose matrices
+        const dmRigDDF::Model* model = instance->m_Model;
 
-        // Early exit for rigs that has no mesh or only one mesh that is not visible.
-        int mesh_slot_count = mesh_entry->m_MeshSlots.m_Count;
-        if (mesh_slot_count == 0) {
+        if (!model || !mesh || !instance->m_DoRender) {
             return vertex_data_out;
-
-        } else if (mesh_slot_count == 1) {
-            uint32_t active_attachment = instance->m_MeshSlotPose[0].m_ActiveAttachment;
-            if (active_attachment == INVALID_ATTACHMENT_INDEX || mesh_entry->m_MeshSlots[0].m_MeshAttachments[active_attachment] == INVALID_ATTACHMENT_INDEX) {
-                return vertex_data_out;
-            }
         }
 
         dmArray<Matrix4>& pose_matrices      = context->m_ScratchPoseMatrixBuffer;
-        dmArray<Matrix4>& influence_matrices = context->m_ScratchInfluenceMatrixBuffer;
         dmArray<Vector3>& positions          = context->m_ScratchPositionBuffer;
         dmArray<Vector3>& normals            = context->m_ScratchNormalBuffer;
+        dmArray<Vector3>& tangents           = context->m_ScratchTangentBuffer;
 
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
-        influence_matrices.SetSize(0);
-        if (bone_count && instance->m_PoseIdxToInfluence->Size() > 0) {
-
+        if (bone_count)
+        {
             // Make sure pose scratch buffers have enough space
             if (pose_matrices.Capacity() < bone_count) {
                 uint32_t size_offset = bone_count - pose_matrices.Capacity();
@@ -1356,34 +1028,7 @@ namespace dmRig
             }
             pose_matrices.SetSize(bone_count);
 
-            // Make sure influence scratch buffers have enough space sufficient for max bones to be indexed
-            uint32_t max_bone_count = instance->m_MaxBoneCount;
-            if (influence_matrices.Capacity() < max_bone_count) {
-                uint32_t capacity = influence_matrices.Capacity();
-                uint32_t size_offset = max_bone_count - capacity;
-                influence_matrices.OffsetCapacity(size_offset);
-                influence_matrices.SetSize(max_bone_count);
-                for(uint32_t i = capacity; i < capacity+size_offset; ++i)
-                    influence_matrices[i] = Matrix4::identity();
-            }
-            influence_matrices.SetSize(max_bone_count);
-
-            const dmArray<dmTransform::Transform>& pose = instance->m_Pose;
-            const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
-            if (skeleton->m_LocalBoneScaling) {
-
-                dmArray<dmTransform::Transform>& pose_transforms = context->m_ScratchPoseTransformBuffer;
-                if (pose_transforms.Capacity() < bone_count) {
-                    pose_transforms.OffsetCapacity(bone_count - pose_transforms.Capacity());
-                }
-                pose_transforms.SetSize(bone_count);
-
-                PoseToModelSpace(skeleton, pose, pose_transforms);
-                PoseToMatrix(pose_transforms, pose_matrices);
-            } else {
-                PoseToMatrix(pose, pose_matrices);
-                PoseToModelSpace(skeleton, pose_matrices, pose_matrices);
-            }
+            PoseToMatrix(instance->m_Pose, pose_matrices);
 
             // Premultiply pose matrices with the bind pose inverse so they
             // can be directly be used to transform each vertex.
@@ -1393,92 +1038,32 @@ namespace dmRig
                 Matrix4& pose_matrix = pose_matrices[bi];
                 pose_matrix = pose_matrix * bind_pose[bi].m_ModelToLocal;
             }
-
-            // Rearrange pose matrices to indices that the mesh vertices understand.
-            PoseToInfluence(*instance->m_PoseIdxToInfluence, pose_matrices, influence_matrices);
+        } else {
+            pose_matrices.SetSize(0);
         }
 
-        // Loop that generates actual vertex data for current mesh entry.
-        // We loop over the slots in the mesh entry, check which attachment point is active,
-        // then locate the actual mesh that has been assigned to that attatchment point.
-        // (Instead of looping over the default slot orders directly, we go through the
-        // draw order array to render the slots in the correct order.)
-        int32_t slot_count = instance->m_MeshSet->m_SlotCount;
-        for (int32_t i = 0; i < slot_count; i++)
-        {
-            int32_t slot_index = instance->m_DrawOrder[i];
+        Matrix4 normal_matrix = Vectormath::Aos::inverse(world_matrix);
+        normal_matrix = Vectormath::Aos::transpose(normal_matrix);
 
-            MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
-            const dmRigDDF::MeshSlot* mesh_slot = mesh_slot_pose->m_MeshSlot;
+        // TODO: Currently, we only have support for a single material so we bake all meshes into one
+        uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
-            // Get active attachment in the current slot.
-            uint32_t active_attachment = mesh_slot_pose->m_ActiveAttachment;
-            if (active_attachment != INVALID_ATTACHMENT_INDEX) {
+        // Bump scratch buffers capacity to handle current vertex count
+        EnsureSize(positions, vertex_count);
+        EnsureSize(normals, vertex_count);
+        EnsureSize(tangents, vertex_count);
 
-                // Check if the attachment point has a mesh assigned
-                uint32_t mesh_attachment_index = mesh_slot->m_MeshAttachments[active_attachment];
-                if (mesh_attachment_index != INVALID_ATTACHMENT_INDEX)
-                {
-                    // Lookup the mesh from the list of all the available meshes.
-                    const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
+        float* positions_buffer = (float*)positions.Begin();
+        float* normals_buffer = (float*)normals.Begin();
+        float* tangents_buffer = (float*)tangents.Begin();
 
-                    // Bump scratch buffer capacity to handle current vertex count
-                    uint32_t index_count = mesh_attachment->m_PositionIndices.m_Count;
-                    if (positions.Capacity() < index_count) {
-                        positions.OffsetCapacity(index_count - positions.Capacity());
-                    }
-                    positions.SetSize(index_count);
-
-                    if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh_attachment->m_NormalsIndices.m_Count) {
-                        if (normals.Capacity() < index_count) {
-                            normals.OffsetCapacity(index_count - normals.Capacity());
-                        }
-                        normals.SetSize(index_count);
-                    }
-
-                    // Fill scratch buffers for positions, and normals if applicable, using pose matrices.
-                    float* positions_buffer = (float*)positions.Begin();
-                    float* normals_buffer = (float*)normals.Begin();
-                    dmRig::GeneratePositionData(mesh_attachment, model_matrix, influence_matrices, positions_buffer);
-                    if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh_attachment->m_NormalsIndices.m_Count) {
-                        dmRig::GenerateNormalData(mesh_attachment, normal_matrix, influence_matrices, normals_buffer);
-                    }
-
-                    // NOTE: We expose two different vertex format that GenerateVertexData can output.
-                    // This is a temporary fix until we have better support for custom vertex formats.
-                    if (vertex_format == RIG_VERTEX_FORMAT_MODEL) {
-                        vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, normals_buffer, (RigModelVertex*)vertex_data_out);
-                    } else {
-                        Vector4 slot_color = Vector4(mesh_slot_pose->m_SlotColor[0], mesh_slot_pose->m_SlotColor[1], mesh_slot_pose->m_SlotColor[2], mesh_slot_pose->m_SlotColor[3]);
-                        const float* mesh_color = mesh_attachment->m_MeshColor.m_Count ? mesh_attachment->m_MeshColor.m_Data : white;
-                        slot_color[0] = mesh_color[0] * slot_color[0];
-                        slot_color[1] = mesh_color[1] * slot_color[1];
-                        slot_color[2] = mesh_color[2] * slot_color[2];
-                        slot_color[3] = mesh_color[3] * slot_color[3];
-                        slot_color = mulPerElem(color, slot_color);
-                        vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, slot_color, (RigSpineModelVertex*)vertex_data_out);
-                    }
-                }
-            }
+        // Transform the mesh data into world space
+        dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer);
+        if (mesh->m_Normals.m_Count) {
+            dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        // DEF-3610
-        // Using Wasm on Microsoft Edge this function returns NULL after a couple of runs.
-        // There is no code path that could result in NULL, leading us to suspect it has
-        // to do with some runtime optimization.
-        // If we add some logic that touches vertex_data_out the function keeps returning
-        // valid values, so we add an assert to verify vertex_data_out never is NULL.
-        // However this means we need assert on Emscripten, so for now we output a
-        // compile error if the engine is built with NDEBUG.
-#ifdef __EMSCRIPTEN__
-#ifdef NDEBUG
-        #error "DEF-3610 - Can't compile with NDEBUG since dmRig::GenerateVertexData currently depends on assert() to work on Emscripten builds."
-#else
-        assert(vertex_data_out != 0x0);
-#endif
-#endif
-
-        return vertex_data_out;
+        return WriteVertexData(mesh, positions_buffer, normals_buffer, tangents_buffer, vertex_data_out);
     }
 
     static uint32_t FindIKIndex(HRigInstance instance, dmhash_t ik_constraint_id)
@@ -1509,7 +1094,7 @@ namespace dmRig
 
     bool IsValid(HRigInstance instance)
     {
-        return (instance->m_MeshEntry != 0x0);
+        return instance->m_Model != 0;
     }
 
     uint32_t GetBoneCount(HRigInstance instance)
@@ -1584,29 +1169,25 @@ namespace dmRig
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
         instance->m_IKTargets.SetCapacity(0);
-        instance->m_MeshSlotPose.SetCapacity(0);
         delete instance;
         context->m_Instances.Free(index, true);
     }
 
-    Result InstanceCreate(const InstanceCreateParams& params)
+    Result InstanceCreate(HRigContext context, const InstanceCreateParams& params, HRigInstance* out_instance)
     {
-        RigContext* context = (RigContext*)params.m_Context;
-
         if (context->m_Instances.Full())
         {
             dmLogError("Rig instance could not be created since the buffer is full (%d).", context->m_Instances.Capacity());
             return dmRig::RESULT_ERROR_BUFFER_FULL;
         }
 
-        *params.m_Instance = new RigInstance;
-        RigInstance* instance = *params.m_Instance;
+        RigInstance* instance = new RigInstance;
 
         uint32_t index = context->m_Instances.Alloc();
         memset(instance, 0, sizeof(RigInstance));
         instance->m_Index = index;
         context->m_Instances.Set(index, instance);
-        instance->m_MeshId = params.m_MeshId;
+        instance->m_ModelId = params.m_ModelId;
 
         instance->m_PoseCallback     = params.m_PoseCallback;
         instance->m_PoseCBUserData1  = params.m_PoseCBUserData1;
@@ -1619,13 +1200,10 @@ namespace dmRig
         instance->m_Skeleton           = params.m_Skeleton;
         instance->m_MeshSet            = params.m_MeshSet;
         instance->m_AnimationSet       = params.m_AnimationSet;
-        instance->m_PoseIdxToInfluence = params.m_PoseIdxToInfluence;
-        instance->m_TrackIdxToPose     = params.m_TrackIdxToPose;
 
         instance->m_Enabled = 1;
 
-        AllocateMeshSlotPose(params.m_MeshSet, instance->m_MeshSlotPose, instance->m_DrawOrder);
-        SetMesh(instance, instance->m_MeshId);
+        SetModel(instance, instance->m_ModelId);
 
         instance->m_MaxBoneCount = dmMath::Max(instance->m_MeshSet->m_MaxBoneCount, instance->m_Skeleton == 0x0 ? 0 : instance->m_Skeleton->m_Bones.m_Count);
         Result result = CreatePose(context, instance);
@@ -1649,20 +1227,22 @@ namespace dmRig
             DoAnimate(context, instance, 0.0f);
         }
 
+        *out_instance = instance;
+
         return dmRig::RESULT_OK;
     }
 
-    Result InstanceDestroy(const InstanceDestroyParams& params)
+    Result InstanceDestroy(HRigContext context, HRigInstance instance)
     {
-        if (!params.m_Context || !params.m_Instance) {
+        if (!context || !instance) {
             return dmRig::RESULT_ERROR;
         }
 
-        DestroyInstance((RigContext*)params.m_Context, params.m_Instance->m_Index);
+        DestroyInstance(context, instance->m_Index);
         return dmRig::RESULT_OK;
     }
 
-    void CreateBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose)
+    void CopyBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose)
     {
         uint32_t bone_count = skeleton.m_Bones.m_Count;
         bind_pose.SetCapacity(bone_count);
@@ -1671,82 +1251,10 @@ namespace dmRig
         {
             dmRig::RigBone* bind_bone = &bind_pose[i];
             dmRigDDF::Bone* bone = &skeleton.m_Bones[i];
-            bind_bone->m_LocalToParent = dmTransform::Transform(Vector3(bone->m_Position), bone->m_Rotation, bone->m_Scale);
-            if (i > 0)
-            {
-                bind_bone->m_LocalToModel = dmTransform::Mul(bind_pose[bone->m_Parent].m_LocalToModel, bind_bone->m_LocalToParent);
-                if (!bone->m_InheritScale)
-                {
-                    bind_bone->m_LocalToModel.SetScale(bind_bone->m_LocalToParent.GetScale());
-                }
-            }
-            else
-            {
-                bind_bone->m_LocalToModel = bind_bone->m_LocalToParent;
-            }
-            bind_bone->m_ModelToLocal = inverse(dmTransform::ToMatrix4(bind_bone->m_LocalToModel));
+            bind_bone->m_ModelToLocal = dmTransform::ToMatrix4(bone->m_InverseBindPose);
+
             bind_bone->m_ParentIndex = bone->m_Parent;
             bind_bone->m_Length = bone->m_Length;
         }
     }
-
-    static const uint32_t INVALID_BONE_IDX = 0xffffffff;
-    static uint32_t FindBoneInList(uint64_t* list, uint32_t count, uint64_t bone_id)
-    {
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            uint64_t entry = list[i];
-            if (bone_id == entry) {
-                return i;
-            }
-        }
-
-        return INVALID_BONE_IDX;
-    }
-
-    void FillBoneListArrays(const dmRigDDF::MeshSet& meshset, const dmRigDDF::AnimationSet& animationset, const dmRigDDF::Skeleton& skeleton, dmArray<uint32_t>& track_idx_to_pose, dmArray<uint32_t>& pose_idx_to_influence)
-    {
-        // Create lookup arrays
-        // - track-to-pose, used to convert animation track bonde index into correct pose transform index
-        // - pose-to-influence, used during vertex generation to convert pose transform index into influence index
-        uint32_t bone_count = skeleton.m_Bones.m_Count;
-
-        track_idx_to_pose.SetCapacity(bone_count);
-        track_idx_to_pose.SetSize(bone_count);
-        memset((void*)track_idx_to_pose.Begin(), 0x0, track_idx_to_pose.Size()*sizeof(uint32_t));
-        pose_idx_to_influence.SetCapacity(bone_count);
-        pose_idx_to_influence.SetSize(bone_count);
-
-        uint32_t anim_bone_list_count = animationset.m_BoneList.m_Count;
-        uint32_t mesh_bone_list_count = meshset.m_BoneList.m_Count;
-
-        for (uint32_t bi = 0; bi < bone_count; ++bi)
-        {
-            uint64_t bone_id = skeleton.m_Bones[bi].m_Id;
-
-            if (anim_bone_list_count) {
-                uint32_t track_idx = FindBoneInList(animationset.m_BoneList.m_Data, animationset.m_BoneList.m_Count, bone_id);
-                if (track_idx != INVALID_BONE_IDX) {
-                    track_idx_to_pose[track_idx] = bi;
-                }
-            } else {
-                track_idx_to_pose[bi] = bi;
-            }
-
-            if (mesh_bone_list_count) {
-                uint32_t influence_idx = FindBoneInList(meshset.m_BoneList.m_Data, meshset.m_BoneList.m_Count, bone_id);
-                if (influence_idx != INVALID_BONE_IDX) {
-                    pose_idx_to_influence[bi] = influence_idx;
-                } else {
-                    // If there is no influence index for the current bone
-                    // we still need to put the pose matrix somewhere during
-                    // pose-to-influence rearrangement so just put it last.
-                    pose_idx_to_influence[bi] = bone_count - 1;
-                }
-            } else {
-                pose_idx_to_influence[bi] = bi;
-            }
-        }
-    }
-
 }

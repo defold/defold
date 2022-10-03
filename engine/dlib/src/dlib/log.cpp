@@ -533,6 +533,11 @@ void dmLogSetLevel(LogSeverity severity)
     dmLog::g_LogLevel = severity;
 }
 
+LogSeverity dmLogGetLevel()
+{
+    return dmLog::g_LogLevel;
+}
+
 // Deprecated. Try to move back to the C api
 namespace dmLog {
     void RegisterLogListener(FLogListener listener)     { dmLogRegisterListener(listener); }

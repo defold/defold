@@ -1,0 +1,57 @@
+#! /usr/bin/env python
+
+VERSION='0.1'
+APPNAME='modelc'
+
+srcdir = '.'
+blddir = 'build'
+
+import sys, os
+import waf_dynamo
+import waflib.Options
+import TestContext
+
+test_context = None
+
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.load('waf_dynamo')
+
+def configure(conf):
+    conf.load('waf_dynamo')
+    conf.load('java')
+
+    conf.recurse('src')
+
+    conf.env.append_value('CPPPATH', "default/src")
+    conf.env['STLIB_DLIB'] = 'dlib'
+    conf.env['STLIB_DDF'] = 'ddf'
+
+    if 'JAVA_HOME' in os.environ:
+
+        host = 'windows'
+        if 'linux' in sys.platform:
+            host = 'linux'
+        elif 'darwin' in sys.platform:
+            host = 'darwin'
+
+        conf.env['CPPPATH_JDK'] = [os.path.join(os.environ['JAVA_HOME'], 'include'), os.path.join(os.environ['JAVA_HOME'], 'include', host)]
+        conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
+        #conf.env['LIB_JDK'] = ['native']
+        conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
+
+    platform = conf.env['PLATFORM']
+
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="MODELC"')
+
+def build(bld):
+    global test_context
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
+
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)

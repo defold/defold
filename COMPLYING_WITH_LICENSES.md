@@ -39,6 +39,7 @@ The following software has licenses which require inclusion of their respective 
     * XHR2
     * wslay
     * microsoft_craziness.h
+    * cgltf
   * Simplified BSD license (2-clause license)
     * LZ4
   * BSD 2.0 license (3-clause license)

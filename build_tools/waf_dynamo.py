@@ -1364,23 +1364,23 @@ Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
                       after='dSYM') # Not sure how I could ensure this task running after the dSYM task /MAWE
 
 @feature('extract_symbols')
-@after('cprogram', 'cxxprogram')
+@after('cprogram', 'cxxprogram', 'cshlib', 'cxxshlib')
+@after('apply_link')
 def extract_symbols(self):
     platform = self.env['PLATFORM']
     if not ('macos' in platform or 'ios' in platform):
         return
 
-    engine = self.path.find_or_declare(self.target)
-    dsym = engine.change_ext('.dSYM')
+    link_output = self.link_task.outputs[0]
+    dsym = link_output.change_ext('.dSYM')
     dsymtask = self.create_task('dSYM')
-    dsymtask.set_inputs(engine)
+    dsymtask.set_inputs(link_output)
     dsymtask.set_outputs(dsym)
 
-    archive = engine.change_ext('.dSYM.zip')
+    archive = link_output.change_ext('.dSYM.zip')
     ziptask = self.create_task('DSYMZIP')
     ziptask.set_inputs(dsymtask.outputs[0])
     ziptask.set_outputs(archive)
-    ziptask.install_path = self.install_path
 
 def remove_flag_at_index(arr, index, count):
     for i in range(count):

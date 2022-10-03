@@ -37,9 +37,6 @@ namespace dmGameSystem
         MeshSetResource*        m_MeshSetRes;
         AnimationSetResource*   m_AnimationSetRes;
         TextureSetResource*     m_TextureSet;
-
-        dmArray<uint32_t>       m_PoseIdxToInfluence;
-        dmArray<uint32_t>       m_TrackIdxToPose;
     };
 }
 

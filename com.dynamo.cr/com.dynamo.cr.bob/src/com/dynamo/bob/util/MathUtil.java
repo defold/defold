@@ -27,6 +27,8 @@ import javax.vecmath.Vector4d;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Matrix4;
+import com.dynamo.proto.DdfMath.Transform;
 
 public class MathUtil {
     public static Point3d ddfToVecmath(Point3 p) {
@@ -54,6 +56,25 @@ public class MathUtil {
     public static Vector3 vecmathToDDF(Vector3d p) {
         Vector3.Builder b = Vector3.newBuilder();
         return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
+    }
+
+    public static Transform vecmathToDDF(Vector3d t, Quat4d r, Vector3d s) {
+        Transform.Builder b = Transform.newBuilder();
+        return b.setTranslation(vecmathToDDF(t)).setRotation(vecmathToDDF(r)).setScale(vecmathToDDF(s)).build();
+    }
+
+    public static Matrix4 vecmathToDDF(Matrix4d m) {
+        Matrix4.Builder b = Matrix4.newBuilder();
+        b.setM00((float)m.m00); b.setM01((float)m.m01); b.setM02((float)m.m02); b.setM03((float)m.m03);
+        b.setM10((float)m.m10); b.setM11((float)m.m11); b.setM12((float)m.m12); b.setM13((float)m.m13);
+        b.setM20((float)m.m20); b.setM21((float)m.m21); b.setM22((float)m.m22); b.setM23((float)m.m23);
+        b.setM30((float)m.m30); b.setM31((float)m.m31); b.setM32((float)m.m32); b.setM33((float)m.m33);
+        return b.build();
+    }
+
+    public static Transform vecmathIdentityTransform() {
+        Transform.Builder b = Transform.newBuilder();
+        return b.setTranslation(vecmathToDDF(new Vector3d(0, 0, 0))).setRotation(vecmathToDDF(new Quat4d(0, 0, 0, 1))).setScale(vecmathToDDF(new Vector3d(1,1,1))).build();
     }
 
     public static void rotate(Quat4d rotation, Point3d p) {
