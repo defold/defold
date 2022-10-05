@@ -524,14 +524,16 @@ public class AndroidBundler implements IBundler {
                 ExtenderUtil.writeResourceToFile(resource, file);
                 BundleHelper.throwIfCanceled(canceled);
             }
+            if (BundleHelper.isResourcesNeeded(project)) {
             // copy Defold archive files to the assets/ dir
-            File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
-            for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
-                File source = new File(buildDir, name);
-                File dest = new File(assetsDir, name);
-                log("Copying asset " + source + " to " + dest);
-                FileUtils.copyFile(source, dest);
-                BundleHelper.throwIfCanceled(canceled);
+                File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
+                for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+                    File source = new File(buildDir, name);
+                    File dest = new File(assetsDir, name);
+                    log("Copying asset " + source + " to " + dest);
+                    FileUtils.copyFile(source, dest);
+                    BundleHelper.throwIfCanceled(canceled);
+                }
             }
             // copy assets from extender (from resolved gradle dependencies)
             for(File asset : getExtenderAssets(project)) {

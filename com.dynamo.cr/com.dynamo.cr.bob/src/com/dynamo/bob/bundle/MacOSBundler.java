@@ -137,9 +137,11 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy archive and game.projectc
-        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
-            FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
+        if (BundleHelper.isResourcesNeeded(project)) {
+            // Copy archive and game.projectc
+            for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+                FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
+            }
         }
 
         BundleHelper.throwIfCanceled(canceled);

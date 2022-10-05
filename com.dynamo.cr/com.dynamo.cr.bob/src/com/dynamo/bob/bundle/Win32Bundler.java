@@ -86,7 +86,7 @@ public class Win32Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        String title = projectProperties.getStringValue("project", "title", "htmlUnnamed");
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title);
@@ -96,9 +96,11 @@ public class Win32Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy archive and game.projectc
-        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
-            FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
+        if (BundleHelper.isResourcesNeeded(project)) {
+            // Copy archive and game.projectc
+            for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+                FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
+            }
         }
 
         BundleHelper.throwIfCanceled(canceled);

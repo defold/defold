@@ -864,4 +864,8 @@ public class BundleHelper {
         ExtenderUtil.storeResources(new File(pluginsDir), sources);
     }
 
+    public static boolean isResourcesNeeded(Project project) {
+        return project.option("no-archive", "false").equals("false");
+    }
+
 }

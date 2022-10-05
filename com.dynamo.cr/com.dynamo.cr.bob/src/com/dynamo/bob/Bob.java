@@ -471,6 +471,7 @@ public class Bob {
         addOption(options, "v", "verbose", false, "Verbose output", false);
         addOption(options, "h", "help", false, "This help message", false);
         addOption(options, "a", "archive", false, "Build archive", false);
+        addOption(options, "na", "no-archive", false, "Ignore resource archives on bundling stage", false);
         addOption(options, "e", "email", true, "User email", false);
         addOption(options, "u", "auth", true, "User auth token", false);
 
