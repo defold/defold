@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright 2020-2022 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
@@ -25,6 +25,7 @@ import google.protobuf.message
 
 import gamesys.texture_set_ddf_pb2
 import rig.rig_ddf_pb2
+import resource.liveupdate_ddf_pb2
 
 BUILDERS = {}
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
@@ -32,6 +33,29 @@ BUILDERS['.meshsetc']       = rig.rig_ddf_pb2.MeshSet
 BUILDERS['.animationsetc']  = rig.rig_ddf_pb2.AnimationSet
 BUILDERS['.rigscenec']      = rig.rig_ddf_pb2.RigScene
 BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
+BUILDERS['.dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
+
+
+
+def print_dmanifest(manifest_file):
+    for field, data in manifest_file.ListFields():
+        if field.name == 'data':
+            t = resource.liveupdate_ddf_pb2.ManifestData()
+            t.MergeFromString(data)
+            print(field.name, ":")
+            print(t)
+
+        else:
+            print(field.name, ":", data)
+
+def text_printer(obj):
+    out = text_format.MessageToString(obj)
+    print(out)
+
+PRINTERS = {}
+PRINTERS['.dmanifest']      = print_dmanifest
+
+
 
 if __name__ == "__main__":
     path = sys.argv[1]
@@ -47,6 +71,6 @@ if __name__ == "__main__":
         obj = builder()
         obj.ParseFromString(content)
 
-        out = text_format.MessageToString(obj)
-        print(out)
+        printer = PRINTERS.get(ext, text_printer)
+        printer(obj)
 
