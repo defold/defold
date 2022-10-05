@@ -24,6 +24,7 @@
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.game-project-core :as game-project-core]
             [editor.jfx :as jfx]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -35,7 +36,6 @@
             [editor.ui.updater :as ui.updater]
             [schema.core :as s]
             [util.net :as net]
-            [util.thread-util :refer [preset!]]
             [util.time :as time])
   (:import [clojure.lang ExceptionInfo]
            [java.io File FileOutputStream PushbackReader]
@@ -141,7 +141,7 @@
         (-> project-file
             read-project-settings
             (settings-core/set-setting ["project" "title"] title)
-            settings-core/settings->str)))
+            (settings-core/settings->str game-project-core/meta-settings :multi-line-list))))
 
 ;; -----------------------------------------------------------------------------
 ;; Preferences management
@@ -279,8 +279,8 @@
             window (.getWindow scene)
             initial-directory (some-> directory-text ui/text not-empty io/as-file)
             initial-directory (when (some-> initial-directory (.exists)) initial-directory)]
-        (when-some [directory-path (ui/choose-directory dialog-title initial-directory window)]
-          (ui/text! directory-text directory-path))))))
+        (when-some [directory (dialogs/make-directory-dialog dialog-title initial-directory window)]
+          (ui/text! directory-text (.getAbsolutePath directory)))))))
 
 (defn- setup-location-field! [^HBox location-field dialog-title ^File directory]
   (doto location-field
@@ -327,12 +327,9 @@
   (let [^Node button (.getSource event)
         scene (.getScene button)
         window (.getWindow scene)
-        opts {:title "Open Project"
-              :owner-window window
-              :directory (some-> last-opened-project-directory .getAbsolutePath)
-              :filters [{:description "Defold Project Files"
-                         :exts ["*.project"]}]}]
-    (when-some [project-file (ui/choose-file opts)]
+        filter-descs [["Defold Project Files" "*.project"]]
+        initial-file (some-> last-opened-project-directory (io/file "game.project"))]
+    (when-some [project-file (dialogs/make-file-dialog "Open Project" filter-descs initial-file window)]
       (close-dialog-and-open-project! project-file false))))
 
 (defn- timestamp-label [timestamp]

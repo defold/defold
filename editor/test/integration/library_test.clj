@@ -19,6 +19,7 @@
             [editor.editor-extensions :as extensions]
             [editor.defold-project :as project]
             [editor.game-project :as game-project]
+            [editor.game-project-core :as game-project-core]
             [editor.gui :as gui]
             [editor.library :as library]
             [editor.progress :as progress]
@@ -119,10 +120,11 @@
 (defn- write-deps! [game-project deps]
   (let [settings (with-open [game-project-reader (io/reader game-project)]
                    (settings-core/parse-settings game-project-reader))]
-    (spit-until-new-mtime game-project (-> settings
-                                         (settings-core/set-setting ["project" "dependencies"] deps)
-                                         settings-core/settings-with-value
-                                         settings-core/settings->str))))
+    (spit-until-new-mtime game-project
+                          (-> settings
+                              (settings-core/set-setting ["project" "dependencies"] deps)
+                              (settings-core/settings-with-value)
+                              (settings-core/settings->str game-project-core/meta-settings :multi-line-list)))))
 
 (deftest open-project
   (with-clean-system

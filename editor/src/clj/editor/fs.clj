@@ -103,6 +103,11 @@
       (catch Exception _
         false))))
 
+(defn below-directory?
+  "Returns true if the file system entry is located below the directory."
+  [^File entry ^File directory]
+  (-> entry .toPath .toAbsolutePath (.startsWith (-> directory .toPath .toAbsolutePath))))
+
 (defn empty-directory?
   "Returns true if the argument refers to an existing empty directory."
   [^File directory]

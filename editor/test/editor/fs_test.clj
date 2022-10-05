@@ -666,3 +666,12 @@
         (is (= ["destination.txt"] (test-util/file-tree dir)))
         (is (= src-contents (slurp tgt)))))))
 
+(deftest below-directory-test
+  (test-util/with-temp-dir! project-dir
+    (is (true? (fs/below-directory? (io/file project-dir "file.txt") project-dir)))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory") project-dir)))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") project-dir)))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory" ".." "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (false? (fs/below-directory? (io/file project-dir "file.txt") (io/file project-dir "subdirectory"))))
+    (is (false? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") (io/file project-dir "subdirectory" ".."))))))
