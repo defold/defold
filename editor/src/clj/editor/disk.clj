@@ -178,7 +178,7 @@
       true
       (throw exception))))
 
-(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! task-cancelled? render-build-error! bob-commands bob-args project changes-view callback!]
+(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! task-cancelled? render-build-error! bob-commands bob-args build-server-headers project changes-view callback!]
   (disk-availability/push-busy!)
   (future
     (try
@@ -223,7 +223,7 @@
                              (let [evaluation-context (g/make-evaluation-context)]
                                (future
                                  (try
-                                   (let [result (bob/bob-build! project evaluation-context bob-commands bob-args render-build-progress! task-cancelled?)]
+                                   (let [result (bob/bob-build! project evaluation-context bob-commands bob-args build-server-headers render-build-progress! task-cancelled?)]
                                      (extensions/execute-hook!
                                        project
                                        :on-bundle-finished

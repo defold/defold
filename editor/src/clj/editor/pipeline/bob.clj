@@ -152,7 +152,7 @@
 (defn build-in-progress? []
   @build-in-progress-atom)
 
-(defn bob-build! [project evaluation-context bob-commands bob-args render-progress! task-cancelled?]
+(defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! task-cancelled?]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
@@ -170,6 +170,8 @@
             bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
         (doseq [[key val] bob-args]
           (.setOption bob-project key val))
+        (doseq [header (string/split-lines build-server-headers)]
+          (.addBuildServerHeader bob-project header))
         (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
         (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
           (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
@@ -198,7 +200,6 @@
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
   (let [build-server-url (native-extensions/get-build-server-url prefs)
-        build-server-headers (native-extensions/get-build-server-headers prefs)
         editor-texture-compression (if (prefs/get-prefs prefs "general-enable-texture-compression" false) "true" "false")
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
@@ -217,7 +218,6 @@
 
              ;; From BundleGenericHandler
              "build-server" build-server-url
-             "build-server-headers" build-server-headers
              "defoldsdk" defold-sdk-sha1
 
              ;; Bob uses these to set X-Email/X-Auth HTTP headers,
@@ -299,7 +299,6 @@
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
         build-server-url (native-extensions/get-build-server-url prefs)
-        build-server-headers (native-extensions/get-build-server-headers prefs)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
         compress-archive? (get proj-settings ["project" "compress_archive"])]
     (cond-> {"platform" "js-web"
@@ -307,7 +306,6 @@
              "archive" "true"
              "bundle-output" (str output-path)
              "build-server" build-server-url
-             "build-server-headers" build-server-headers
              "defoldsdk" defold-sdk-sha1
              "local-launch" "true"
              "email" ""
