@@ -26,6 +26,7 @@ import google.protobuf.message
 import gamesys.texture_set_ddf_pb2
 import rig.rig_ddf_pb2
 import resource.liveupdate_ddf_pb2
+import graphics.graphics_ddf_pb2
 
 BUILDERS = {}
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
@@ -34,6 +35,8 @@ BUILDERS['.animationsetc']  = rig.rig_ddf_pb2.AnimationSet
 BUILDERS['.rigscenec']      = rig.rig_ddf_pb2.RigScene
 BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
 BUILDERS['.dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
+BUILDERS['.vpc']            = graphics.graphics_ddf_pb2.ShaderDesc
+BUILDERS['.fpc']            = graphics.graphics_ddf_pb2.ShaderDesc
 
 
 
@@ -48,12 +51,31 @@ def print_dmanifest(manifest_file):
         else:
             print(field.name, ":", data)
 
+def print_shader(shader):
+    print("{")
+    for field, data in shader.ListFields():
+        if field.name == 'source':
+            lines = str(data.strip(), encoding="ascii").split("\n")
+            data = '\n    '.join(['']+lines)
+        print(field.name, ":", data)
+    print("}")
+
+def print_shader_file(shader_file):
+    def print_shader_code(text):
+        pass
+    print("shaders:")
+    for field, data in shader_file.ListFields():
+        for shader in data:
+            print_shader(shader)
+
 def text_printer(obj):
     out = text_format.MessageToString(obj)
     print(out)
 
 PRINTERS = {}
-PRINTERS['.dmanifest']      = print_dmanifest
+PRINTERS['.dmanifest']  = print_dmanifest
+PRINTERS['.vpc']        = print_shader_file
+PRINTERS['.fpc']        = print_shader_file
 
 
 
