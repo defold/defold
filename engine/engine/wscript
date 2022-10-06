@@ -177,7 +177,7 @@ def build(bld):
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
 
-    if build_util.get_target_os() in ['web', 'osx', 'ios']:
+    if build_util.get_target_os() in ['web', 'macos', 'ios']:
         srcPath = os.path.join('build', 'src')
         builds = ['','_release', '_headless']
         for build in builds:

@@ -70,3 +70,8 @@ double dmProfilerExt::GetCpuUsage()
 
     return double(total_cpu) / double(TH_USAGE_SCALE);
 }
+
+void dmProfilerExt::UpdatePlatformProfiler()
+{
+    // nop
+}

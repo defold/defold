@@ -16,6 +16,7 @@
 #include <jc_test/jc_test.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/align.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <resource/resource.h>
@@ -246,7 +247,7 @@ TEST_F(PropsTest, PropsSpawn)
     lua_pushliteral(L, "quat");
     dmScript::PushQuat(L, Quat(1, 2, 3, 4));
     lua_rawset(L, -3);
-    uint8_t buffer[1024];
+    uint8_t DM_ALIGNED(16) buffer[1024];
     uint32_t buffer_size = 1024;
     uint32_t size_used = dmScript::CheckTable(L, (char*)buffer, buffer_size, -1);
     lua_pop(L, 1);

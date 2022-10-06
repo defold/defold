@@ -62,8 +62,10 @@ def get_issue_timeline(issue, reverse = True):
 
 
 def get_closing_pull_request(issue):
+    # is this in fact already a pr and not an issue?
     if "pull_request" in issue:
         return issue
+    # find pr in issue timeline
     timeline = get_issue_timeline(issue)
     for t in timeline:
         if t["event"] in [ "connected", "cross-referenced"]:
@@ -74,6 +76,22 @@ def get_closing_pull_request(issue):
                 continue
             if "merged_at" in issue["pull_request"]:
                 return issue
+
+
+def get_linked_issue(pr):
+    KEYWORDS = [ "close","closes","closed","fix","fixes","fixed","resolve","resolves","resolved" ]
+    # is this in fact already an issue and not a pr?
+    if "issue" in pr["html_url"]:
+        return pr
+    # is it possible to find this in the timeline somehow?
+    body = pr["body"] if pr["body"] != None else ""
+    for kw in KEYWORDS:
+        pattern = kw + " #(\d\d\d\d)"
+        match = re.search(pattern, body, re.IGNORECASE)
+        if match:
+            return github.get("https://api.github.com/repos/defold/defold/issues/" + match.group(1), token)
+    return pr
+
 
 def was_issue_pr_merged(issue):
     pr = issue["pull_request"]
@@ -103,7 +121,6 @@ def issue_to_markdown(issue, hide_details = True, title_only = False):
     return md
 
 
-
 def generate(version, hide_details = False):
     print("Generating release notes for %s" % version)
     project = get_project(version)
@@ -124,23 +141,31 @@ def generate(version, hide_details = False):
             })
             continue
 
-        # get the issue associated with the card
-        issue = github.get(content_url, token)
-        print("Processing issue %s" % issue["html_url"])
+        # get the issue or pr associated with the card
+        issue_or_pr = github.get(content_url, token)
+        print("Processing %s" % issue_or_pr["html_url"])
 
         # only include issues that are closed
         # since we're getting issues from the "Done" column there really should be only closed issues..
-        if issue["state"] != "closed":
-            print("  Error: Issue is in the Done column but is not closed.")
+        if issue_or_pr["state"] != "closed":
+            print("  Error: Issue or PR is in the Done column but is not closed.")
             continue
 
-        # get the pr that closed the issue
-        entry = None
-        pr = get_closing_pull_request(issue)
+        issue = None
+        pr = None
+        if "issue" in issue_or_pr["html_url"]:
+            issue = issue_or_pr
+            pr = get_closing_pull_request(issue_or_pr)
+        else:
+            pr = issue_or_pr
+            issue = get_linked_issue(issue_or_pr)
 
+        # do not process if the PR wasn't merged (it could be closed as invalid/duplicate/etc)
+        if pr and not was_issue_pr_merged(pr):
+            continue
+
+        entry = None
         if pr:
-            if not was_issue_pr_merged(pr):
-                continue
             entry = {
                 "title": pr["title"],
                 "body": pr["body"] if pr["body"] != None else "",
@@ -159,6 +184,7 @@ def generate(version, hide_details = False):
                 "labels": get_issue_labels(issue),
                 "type": get_issue_type(issue)
             }
+
         entry["body"] = re.sub("Fixes #....", "", entry["body"]).strip()
         entry["body"] = re.sub("Fixes https.*", "", entry["body"]).strip()
         entry["body"] = re.sub("Fix #....", "", entry["body"]).strip()

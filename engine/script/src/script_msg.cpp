@@ -500,7 +500,7 @@ namespace dmScript
             message_id = CheckHash(L, 2);
         }
 
-        DM_ALIGNED(16) char data[MAX_MESSAGE_DATA_SIZE];
+        char DM_ALIGNED(16) data[MAX_MESSAGE_DATA_SIZE];
         uint32_t data_size = 0;
 
 

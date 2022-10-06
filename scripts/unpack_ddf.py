@@ -48,5 +48,5 @@ if __name__ == "__main__":
         obj.ParseFromString(content)
 
         out = text_format.MessageToString(obj)
-        print out
+        print(out)
 

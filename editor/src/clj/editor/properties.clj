@@ -416,6 +416,7 @@
                                                                 (cond (some? prop-kw) prop-kw
                                                                       (vector? k) (first k)
                                                                       :else k)) v)
+                                              :tooltip (some :tooltip v)
                                               :values (mapv (fn [{:keys [value]}]
                                                              (when-not (g/error? value)
                                                                value)) v)
@@ -478,6 +479,9 @@
       (let [k (:key property)
             k (if (vector? k) (last k) k)]
         (keyword->name k))))
+
+(defn tooltip [property]
+  (:tooltip property))
 
 (defn read-only? [property]
   (:read-only? property))

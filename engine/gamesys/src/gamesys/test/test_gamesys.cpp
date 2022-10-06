@@ -867,7 +867,41 @@ TEST_P(CursorTest, Cursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(WindowEventTest, Test)
+TEST_F(WindowTest, MouseLock)
+{
+    dmHID::NewContextParams hid_params = {};
+    dmHID::HContext hid_context = dmHID::NewContext(hid_params);
+    dmHID::Init(hid_context);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_HidContext = hid_context;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/mouse_lock.goc", dmHashString64("/mouse_lock"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // cleanup
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+
+    dmHID::DeleteContext(hid_context);
+}
+
+TEST_F(WindowTest, Events)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory = m_Factory;

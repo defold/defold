@@ -14,45 +14,44 @@
 
 (ns editor.sprite
   (:require [clojure.string :as str]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.colors :as colors]
-            [editor.graph-util :as gu]
+            [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
-            [editor.defold-project :as project]
+            [editor.graph-util :as gu]
             [editor.material :as material]
-            [editor.properties :as properties]
-            [editor.scene :as scene]
-            [editor.scene-picking :as scene-picking]
-            [editor.workspace :as workspace]
-            [editor.validation :as validation]
             [editor.pipeline :as pipeline]
+            [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.scene-picking :as scene-picking]
+            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]
-            [editor.gl.pass :as pass]
-            [editor.types :as types])
-  (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+            [editor.types :as types]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d Vector4d]))
+           [editor.types AABB]
+           [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
 
 (def sprite-icon "icons/32/Icons_14-Sprite.png")
 
-; Render assets
+(defn- v3->v4 [v]
+  (conj v 0.0))
 
+(defn- v4->v3 [v4]
+  (subvec v4 0 3))
+
+; Render assets
 (vtx/defvertex texture-vtx
   (vec4 position)
   (vec2 texcoord0 true))
@@ -62,7 +61,7 @@
   (attribute vec2 texcoord0)
   (varying vec2 var_texcoord0)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position.xyz 1.0)))
     (setq var_texcoord0 texcoord0)))
 
 (shader/defshader fragment-shader
@@ -95,15 +94,21 @@
 (def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
 
 (defn- conj-animation-data!
-  [vbuf animation frame-index world-transform]
-  (reduce conj! vbuf (texture-set/vertex-data (get-in animation [:frames frame-index]) world-transform)))
+  [vbuf animation frame-index world-transform size-mode size slice9]
+  (let [animation-frame (get-in animation [:frames frame-index])]
+    (reduce conj! vbuf (if (= :size-mode-auto size-mode)
+                         (texture-set/vertex-data animation-frame world-transform)
+                         (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
+                               positions (geom/transf-p4 world-transform (:position-data slice9-data))
+                               uvs (:uv-data slice9-data)]
+                           (mapv into positions uvs))))))
 
 (defn- gen-vertex-buffer
   [renderables count]
   (persistent! (reduce (fn [vbuf {:keys [world-transform updatable user-data]}]
-                         (let [{:keys [animation]} user-data
+                         (let [{:keys [animation size-mode size slice9]} user-data
                                frame (get-in updatable [:state :frame] 0)]
-                           (conj-animation-data! vbuf animation frame world-transform)))
+                           (conj-animation-data! vbuf animation frame world-transform size-mode size slice9)))
                        (->texture-vtx (* count 6))
                        renderables)))
 
@@ -123,21 +128,31 @@
         v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
     (-> vbuf (conj! v0) (conj! v1) (conj! v1) (conj! v2) (conj! v2) (conj! v3) (conj! v3) (conj! v0))))
 
+(defn- conj-outline-slice9-quad! [vbuf line-data ^Matrix4d world-transform tmp-point cr cg cb]
+  (transduce (map (fn [[x y]]
+                    (gen-outline-vertex world-transform tmp-point x y cr cg cb)))
+             conj!
+             vbuf
+             line-data))
+
 (defn- gen-outline-vertex-buffer
   [renderables count]
   (let [tmp-point (Point3d.)]
     (loop [renderables renderables
            vbuf (->color-vtx (* count 8))]
       (if-let [renderable (first renderables)]
-        (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
-              cr (get color 0)
-              cg (get color 1)
-              cb (get color 2)
+        (let [[cr cg cb] (if (:selected renderable) colors/selected-outline-color colors/outline-color)
               world-transform (:world-transform renderable)
-              user-data (:user-data renderable)
-              anim-width (-> user-data :animation :width)
-              anim-height (-> user-data :animation :height)]
-          (recur (rest renderables) (conj-outline-quad! vbuf world-transform tmp-point anim-width anim-height cr cg cb)))
+              {:keys [animation size size-mode slice9]} (:user-data renderable)
+              [quad-width quad-height] size
+              animation-frame-index (or (some-> renderable :updatable :state :frame) 0)
+              animation-frame (get-in animation [:frames animation-frame-index])]
+          (recur (rest renderables)
+                 (if (= :size-mode-auto size-mode)
+                   (conj-outline-quad! vbuf world-transform tmp-point quad-width quad-height cr cg cb)
+                   (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
+                         line-data (:line-data slice9-data)]
+                     (conj-outline-slice9-quad! vbuf line-data world-transform tmp-point cr cg cb)))))
         (persistent! vbuf)))))
 
 ; Rendering
@@ -163,41 +178,67 @@
 
 (def id-shader (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader sprite-id-fragment-shader {"view_proj" :view-proj "id" :id}))
 
+(defn- quad-count [size-mode slice9]
+  (let [[^double x0 ^double y0 ^double x1 ^double y1] slice9
+        columns (cond-> 1 (pos? x0) inc (pos? x1) inc)
+        rows (cond-> 1 (pos? y0) inc (pos? y1) inc)]
+    (if (= :size-mode-auto size-mode)
+      1
+      (* columns rows))))
+
+(defn- count-quads [renderables]
+  (transduce (map (comp :quad-count :user-data))
+             +
+             0
+             renderables))
+
 (defn render-sprites [^GL2 gl render-args renderables count]
   (let [user-data (:user-data (first renderables))
         gpu-texture (:gpu-texture user-data)
-        pass (:pass render-args)]
+        pass (:pass render-args)
+        num-quads (count-quads renderables)]
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
-            vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables count) shader)
+            vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables num-quads) shader)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
           (gl/set-blend-mode gl blend-mode)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
       pass/selection
-      (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) id-shader)]
+      (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables num-quads) id-shader)]
         (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6)))))))
 
 (defn- render-sprite-outlines [^GL2 gl render-args renderables count]
   (assert (= pass/outline (:pass render-args)))
-  (let [outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
+  (let [num-quads (count-quads renderables)
+        outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables num-quads) outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8)))))
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* num-quads 8)))))
 
 ; Node defs
 
-(g/defnk produce-save-value [image default-animation material blend-mode]
-  {:tile-set (resource/resource->proj-path image)
-   :default-animation default-animation
-   :material (resource/resource->proj-path material)
-   :blend-mode blend-mode})
+(g/defnk produce-save-value [image default-animation material blend-mode size-mode size slice9]
+  (cond-> {:tile-set (resource/resource->proj-path image)
+           :default-animation default-animation
+           :material (resource/resource->proj-path material)
+           :blend-mode blend-mode}
+
+          (not= [0.0 0.0 0.0 0.0] slice9)
+          (assoc :slice9 slice9)
+
+          (not= :size-mode-auto size-mode)
+          (cond-> :always
+                  (assoc :size-mode size-mode)
+
+                  (not= [0.0 0.0 0.0] size)
+                  (assoc :size (v3->v4 size)))))
 
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture material-shader animation blend-mode]
+  [_node-id aabb gpu-texture material-shader animation blend-mode size-mode size slice9]
   (cond-> {:node-id _node-id
            :aabb aabb
            :renderable {:passes [pass/selection]}}
@@ -209,7 +250,11 @@
                         :user-data {:gpu-texture gpu-texture
                                     :shader material-shader
                                     :animation animation
-                                    :blend-mode blend-mode}
+                                    :blend-mode blend-mode
+                                    :size-mode size-mode
+                                    :size size
+                                    :slice9 slice9
+                                    :quad-count (quad-count size-mode slice9)}
                         :passes [pass/transparent pass/selection]})
 
     (and (:width animation) (:height animation))
@@ -219,13 +264,17 @@
                                     :batch-key [outline-shader]
                                     :tags #{:sprite :outline}
                                     :select-batch-key _node-id
-                                    :user-data {:animation animation}
+                                    :user-data {:animation animation
+                                                :size-mode size-mode
+                                                :size size
+                                                :slice9 slice9
+                                                :quad-count (quad-count size-mode slice9)}
                                     :passes [pass/outline]}}])
 
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode size-mode size slice9 dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
                               (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
@@ -238,7 +287,10 @@
                                             {:tile-set          image
                                              :default-animation default-animation
                                              :material          material
-                                             :blend-mode        blend-mode}
+                                             :blend-mode        blend-mode
+                                             :size-mode         size-mode
+                                             :size              (v3->v4 size)
+                                             :slice9            slice9}
                                             [:tile-set :material])]))
 
 (defn- sort-anim-ids
@@ -259,7 +311,9 @@
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id image anim-data]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
-                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image"))))
+                                      (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")
+                                      (when (nil? anim-data) ; nil from :substitute on input.
+                                        (g/->error _node-id :image :fatal image "the assigned Image has internal errors")))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]})))
@@ -287,9 +341,22 @@
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
+  (property size-mode g/Keyword (default :size-mode-auto)
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
+  (property size types/Vec3 (default [0.0 0.0 0.0])
+            (value (g/fnk [size size-mode animation]
+                     (if (and (some? animation)
+                              (or (= :size-mode-auto size-mode)
+                                  (= [0.0 0.0 0.0] size)))
+                       [(double (:width animation)) (double (:height animation)) 0.0]
+                       size)))
+            (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
+  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
+            (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
+            (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
   (input image-resource resource/Resource)
-  (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))
+  (input anim-data g/Any :substitute nil)
   (input anim-ids g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
@@ -303,6 +370,9 @@
                              (or (some-> material-samplers first material/sampler->tex-params)
                                  default-tex-params)))
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
+  (output texture-size g/Any (g/fnk [animation]
+                                    (when (some? animation)
+                                      [(double (:width animation)) (double (:height animation)) 0.0])))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
                                          (let [animation-width (* 0.5 (:width animation))
@@ -322,7 +392,10 @@
       (g/set-property self :image image)
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)
-      (g/set-property self :blend-mode (:blend-mode sprite)))))
+      (g/set-property self :blend-mode (:blend-mode sprite))
+      (g/set-property self :size-mode (:size-mode sprite))
+      (g/set-property self :size (v4->v3 (:size sprite)))
+      (g/set-property self :slice9 (:slice9 sprite)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

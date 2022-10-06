@@ -146,14 +146,12 @@
                 :pb-class ModelProto$Model
                 :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
-                           (let [rig-scene (target (:rig-scene pb) targets)]
+                           (let [rig-scene (target (:rig-scene pb) targets)
+                                 mesh-set (target (:mesh-set rig-scene) targets)]
                              (is (= "" (:animation-set rig-scene)))
                              (is (= "" (:skeleton rig-scene)))
                              (is (= "" (:texture-set rig-scene)))
-
-                             ;; TODO - id must be 0 currently because of the runtime
-                             ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
-                             (is (= 0 (-> rig-scene :mesh-set (target targets) :mesh-entries first :id)))))}
+                             (is (= (murmur/hash64 "Book") (-> mesh-set :models first :id)))))}
                {:label "Model with animations"
                 :path "/model/treasure_chest.model"
                 :pb-class ModelProto$Model
@@ -171,15 +169,15 @@
                                         (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")}
                                       (set (map :id animations)))))
 
-                             (let [mesh (-> mesh-set :mesh-attachments first)]
-                               (is (< 2 (-> mesh :position-indices count))))
-
-                             ;; TODO - id must be 0 currently because of the runtime
-                             ;; (is (= (murmur/hash64 "Book") (get-in pb [:mesh-entries 0 :id])))
-                             (is (= 0 (-> mesh-set :mesh-entries first :id)))
+                             (let [mesh (-> mesh-set :models first :meshes first)
+                                   size (.size (:indices mesh))
+                                   icount (/ size 2)] ; we know it's 16-bit indices
+                               (is (< 2 icount)))
+                             ; The mesh isn't connected to a node in the visual scene, thus it gets the geometry name
+                             (is (= (murmur/hash64 "Cube.006") (-> mesh-set :models first :id)))
 
                              (is (= 3 (count (:bones skeleton))))
-                             (is (= (:bone-list mesh-set) (:bone-list animation-set)))
+                             (is (= (set (:bone-list mesh-set)) (set (:bone-list animation-set))))
                              (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}]
                "/collection_proxy/with_collection.collectionproxy"
                [{:label "Collection proxy"
@@ -197,8 +195,10 @@
                               (is (= "" (:texture-set rig-scene)))
                               (is (= [""] (:textures pb)))
 
-                              (let [mesh (-> mesh-set :mesh-attachments first)]
-                                (is (< 2 (-> mesh :position-indices count))))))}]})
+                              (let [mesh (-> mesh-set :models first :meshes first)
+                                    size (.size (:indices mesh))
+                                    icount (/ size 2)]
+                                (is (< 2 icount)))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))

@@ -91,7 +91,8 @@
   (ui/with-controls tool-bar [^TextField search-console ^Button prev-console ^Button next-console ^Button clear-console]
     (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node} nil)
     (.bindBidirectional (.textProperty search-console) find-term-property)
-    (ui/bind-keys! search-console {KeyCode/ENTER :find-next})
+    (ui/bind-key-commands! search-console {"Enter" :find-next
+                                           "Shift+Enter" :find-prev})
     (ui/bind-action! prev-console :find-prev)
     (ui/bind-action! next-console :find-next)
     (ui/bind-action! clear-console :clear-console))

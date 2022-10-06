@@ -395,6 +395,10 @@
    :help "max number of models, 128 by default",
    :default 128,
    :path ["model" "max_count"]}
+  {:type :boolean,
+   :help "Split meshes with more than 65536 vertices into new meshes. 0 by default",
+   :default false,
+   :path ["model" "split_meshes"]}
   {:type :integer,
    :help "max number of mesh components, 128 by default",
    :default 128,

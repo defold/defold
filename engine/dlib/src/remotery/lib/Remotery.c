@@ -32,7 +32,7 @@
     @OBJALLOC:      Reusable Object Allocator
     @DYNBUF:        Dynamic Buffer
     @HASHTABLE:     Integer pair hash map for inserts/finds. No removes for added simplicity.
-    @STRINGTABLE:   Map from string hash to string offset in local buffer
+    @STRINGTABLE:	Map from string hash to string offset in local buffer
     @SOCKETS:       Sockets TCP/IP Wrapper
     @SHA1:          SHA-1 Cryptographic Hash Function
     @BASE64:        Base-64 encoder
@@ -64,12 +64,6 @@
 #pragma comment(lib, "winmm.lib")
 #endif
 
-// DEFOLD
-#include <dmsdk/dlib/log.h>
-static const char* g_EmptyString = "<empty>"; // As seen in profile_remotery.cpp _rmt_HashString32()
-static rmtU32 g_EmptyHash = 0x89abcdef; // Unlikely anything else would collide with this
-// END DEFOLD
-
 #if RMT_ENABLED
 
 // Global settings
@@ -91,8 +85,8 @@ static rmtBool g_SettingsInitialized = RMT_FALSE;
 //
 #if RMT_USE_TINYCRT
 
-    #include <TinyCRT/TinyCRT.h>
-    #include <TinyCRT/TinyWinsock.h>
+	#include <TinyCRT/TinyCRT.h>
+	#include <TinyCRT/TinyWinsock.h>
     #include <Memory/Memory.h>
 
     #define CreateFileMapping CreateFileMappingA
@@ -171,6 +165,26 @@ static rmtBool g_SettingsInitialized = RMT_FALSE;
 
 #if RMT_USE_CUDA
     #include <cuda.h>
+#endif
+
+#if RMT_USE_LEGACY_ATOMICS==0
+    #if __cplusplus >= 199711L
+        #if !defined(RMT_USE_CPP_ATOMICS)
+            #define RMT_USE_CPP_ATOMICS
+        #endif
+    #elif __STDC_VERSION__ >= 201112L
+        #if !defined(__STDC_NO_ATOMICS__)
+            #if !defined(RMT_USE_C11_ATOMICS)
+                #define RMT_USE_C11_ATOMICS
+            #endif
+        #endif
+    #endif
+#endif
+
+#if defined(RMT_USE_C11_ATOMICS)
+    #include <stdatomic.h>
+#elif defined(RMT_USE_CPP_ATOMICS)
+    #include <atomic>
 #endif
 
 // clang-format on
@@ -506,7 +520,7 @@ static void* tlsGet(rmtTLS handle)
 static rmtTLS g_lastErrorMessageTlsHandle = TLS_INVALID_HANDLE;
 static const rmtU32 g_errorMessageSize = 1024;
 
-static rmtError rmtMakeError(rmtError error, rmtPStr error_message)
+static rmtError rmtMakeError(rmtError in_error, rmtPStr error_message)
 {
     char* thread_message_ptr;
     rmtU32 error_len;
@@ -532,12 +546,12 @@ static rmtError rmtMakeError(rmtError error, rmtPStr error_message)
     }
 
     // Safe copy of the error text without going via strcpy_s down below
-    error_len = strlen(error_message);
+    error_len = (rmtU32)strlen(error_message);
     error_len = error_len >= g_errorMessageSize ? g_errorMessageSize - 1 : error_len;
     memcpy(thread_message_ptr, error_message, error_len);
     thread_message_ptr[error_len] = 0;
 
-    return error;
+    return in_error;
 }
 
 RMT_API rmtPStr rmt_GetLastErrorMessage()
@@ -627,33 +641,64 @@ static void mtxDelete(rmtMutex* mutex)
 // be used to update the old value and an initial load only made once before the loop starts.
 
 // TODO(don): Vary these types across versions of C and C++
-typedef volatile rmtS32 rmtAtomicS32;
-typedef volatile rmtU32 rmtAtomicU32;
-typedef volatile rmtU64 rmtAtomicU64;
+#if defined(RMT_USE_C11_ATOMICS)
+    typedef _Atomic(rmtS32)     rmtAtomicS32;
+    typedef _Atomic(rmtU32)     rmtAtomicU32;
+    typedef _Atomic(rmtU64)     rmtAtomicU64;
+    typedef _Atomic(rmtBool)    rmtAtomicBool;
+    #define rmtAtomicPtr(type)  _Atomic(type *)
+#elif defined(RMT_USE_CPP_ATOMICS)
+    typedef std::atomic< rmtS32 >   rmtAtomicS32;
+    typedef std::atomic< rmtU32 >   rmtAtomicU32;
+    typedef std::atomic< rmtU64 >   rmtAtomicU64;
+    typedef std::atomic< rmtBool >  rmtAtomicBool;
+    #define rmtAtomicPtr(type)      std::atomic< type * >
+#else
+    typedef volatile rmtS32     rmtAtomicS32;
+    typedef volatile rmtU32     rmtAtomicU32;
+    typedef volatile rmtU64     rmtAtomicU64;
+    typedef volatile rmtBool    rmtAtomicBool;
+    #define rmtAtomicPtr(type)  volatile type*
+#endif
 
-static rmtBool AtomicCompareAndSwapU32(rmtU32 volatile* val, long old_val, long new_val)
+typedef rmtAtomicPtr(void)      rmtAtomicVoidPtr;
+
+static rmtBool AtomicCompareAndSwapU32(rmtAtomicU32 volatile* val, rmtU32 old_val, rmtU32 new_val)
 {
-#if defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+#if defined(RMT_USE_C11_ATOMICS)
+    return atomic_compare_exchange_strong(val, &old_val, new_val);
+#elif defined(RMT_USE_CPP_ATOMICS)
+    return val->compare_exchange_strong(old_val, new_val);
+#elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
     return _InterlockedCompareExchange((long volatile*)val, new_val, old_val) == old_val ? RMT_TRUE : RMT_FALSE;
 #elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
     return __sync_bool_compare_and_swap(val, old_val, new_val) ? RMT_TRUE : RMT_FALSE;
 #endif
 }
 
-static rmtBool AtomicCompareAndSwapU64(rmtAtomicU64* val, rmtU64 old_value, rmtU64 new_val)
+
+static rmtBool AtomicCompareAndSwapU64(rmtAtomicU64 volatile* val, rmtU64 old_val, rmtU64 new_val)
 {
-    #if defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
-    return _InterlockedCompareExchange64((volatile LONG64*)val, (LONG64)new_val, (LONG64)old_value) == (LONG64)old_value
+#if defined(RMT_USE_C11_ATOMICS)
+    return atomic_compare_exchange_strong(val, &old_val, new_val);
+#elif defined(RMT_USE_CPP_ATOMICS)
+    return val->compare_exchange_strong(old_val, new_val);
+#elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+    return _InterlockedCompareExchange64((volatile LONG64*)val, (LONG64)new_val, (LONG64)old_val) == (LONG64)old_val
         ? RMT_TRUE
         : RMT_FALSE;
-    #elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
-    return __sync_bool_compare_and_swap(val, old_value, new_val) ? RMT_TRUE : RMT_FALSE;
-    #endif
+#elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
+    return __sync_bool_compare_and_swap(val, old_val, new_val) ? RMT_TRUE : RMT_FALSE;
+#endif
 }
 
-static rmtBool AtomicCompareAndSwapPointer(long* volatile* ptr, long* old_ptr, long* new_ptr)
+static rmtBool AtomicCompareAndSwapPointer(rmtAtomicVoidPtr volatile* ptr, void* old_ptr, void* new_ptr)
 {
-#if defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+#if defined(RMT_USE_C11_ATOMICS)
+    return atomic_compare_exchange_strong(ptr, &old_ptr, new_ptr);
+#elif defined(RMT_USE_CPP_ATOMICS)
+    return ptr->compare_exchange_strong(old_ptr, new_ptr);
+#elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
 #ifdef _WIN64
     return _InterlockedCompareExchange64((__int64 volatile*)ptr, (__int64)new_ptr, (__int64)old_ptr) == (__int64)old_ptr
                ? RMT_TRUE
@@ -674,7 +719,11 @@ static rmtBool AtomicCompareAndSwapPointer(long* volatile* ptr, long* old_ptr, l
 //
 static rmtS32 AtomicAddS32(rmtAtomicS32* value, rmtS32 add)
 {
-#if defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+#if defined(RMT_USE_C11_ATOMICS)
+    return atomic_fetch_add(value, add);
+#elif defined(RMT_USE_CPP_ATOMICS)
+    return value->fetch_add(add);
+#elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
     return _InterlockedExchangeAdd((long volatile*)value, (long)add);
 #elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
     return __sync_fetch_and_add(value, add);
@@ -683,7 +732,11 @@ static rmtS32 AtomicAddS32(rmtAtomicS32* value, rmtS32 add)
 
 static rmtU32 AtomicAddU32(rmtAtomicU32* value, rmtU32 add)
 {
-#if defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+#if defined(RMT_USE_C11_ATOMICS)
+    return atomic_fetch_add(value, add);
+#elif defined(RMT_USE_CPP_ATOMICS)
+    return value->fetch_add(add);
+#elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
     return (rmtU32)_InterlockedExchangeAdd((long volatile*)value, (long)add);
 #elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
     return (rmtU32)__sync_fetch_and_add(value, add);
@@ -694,6 +747,32 @@ static void AtomicSubS32(rmtAtomicS32* value, rmtS32 sub)
 {
     // Not all platforms have an implementation so just negate and add
     AtomicAddS32(value, -sub);
+}
+
+static rmtU32 AtomicStoreU32(rmtAtomicU32* value, rmtU32 set)
+{
+#if defined(RMT_USE_C11_ATOMICS)
+    return atomic_exchange(value, set);
+#elif defined(RMT_USE_CPP_ATOMICS)
+    return value->exchange(set);
+#elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+    return (rmtU32)_InterlockedExchange((long volatile*)value, (long) set);
+#elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
+    return (rmtU32)__sync_lock_test_and_set(value, set);
+#endif
+}
+
+static rmtU32 AtomicLoadU32(rmtAtomicU32* value)
+{
+#if defined(RMT_USE_C11_ATOMICS)
+    return atomic_load(value);
+#elif defined(RMT_USE_CPP_ATOMICS)
+    return value->load();
+#elif defined(RMT_PLATFORM_WINDOWS) && !defined(__MINGW32__)
+    return (rmtU32)_InterlockedExchangeAdd((long volatile*)value, (long)0);
+#elif defined(RMT_PLATFORM_POSIX) || defined(__MINGW32__)
+    return (rmtU32)__sync_fetch_and_add(value, 0);
+#endif
 }
 
 static void CompilerWriteFence()
@@ -826,20 +905,20 @@ static rmtU32 Well512_RandomOpenLimit(rmtU32 limit)
 
 static rmtU32 Log2i(rmtU32 x)
 {
-    static const rmtU8 MultiplyDeBruijnBitPosition[32] =
-    {
-        0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
-        8, 12, 20, 28, 15, 17, 24, 7, 19, 27, 23, 6, 26, 5, 4, 31
-    };
+	static const rmtU8 MultiplyDeBruijnBitPosition[32] =
+	{
+		0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
+		8, 12, 20, 28, 15, 17, 24, 7, 19, 27, 23, 6, 26, 5, 4, 31
+	};
 
     // First round down to one less than a power of two
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16;
 
-    return MultiplyDeBruijnBitPosition[(rmtU32)(x * 0x07C4ACDDU) >> 27];
+	return MultiplyDeBruijnBitPosition[(rmtU32)(x * 0x07C4ACDDU) >> 27];
 }
 
 static rmtU32 GaloisLFSRMask(rmtU32 table_size_log2)
@@ -2043,14 +2122,7 @@ const char* GetStartAddressModuleName(DWORD_PTR start_address)
 }
 #endif
 
-static void rmtGetThreadNameFallback(char* out_thread_name, rmtU32 thread_name_size)
-{
-    // In cases where we can't get a thread name from the OS
-    static rmtS32 countThreads = 0;
-    out_thread_name[0] = 0;
-    strncat_s(out_thread_name, thread_name_size, "Thread", 6);
-    itoahex_s(out_thread_name + 6, thread_name_size - 6, AtomicAddS32(&countThreads, 1));
-}
+static void rmtGetThreadNameFallback(char* out_thread_name, rmtU32 thread_name_size);
 
 static void rmtGetThreadName(rmtThreadId thread_id, rmtThreadHandle thread_handle, char* out_thread_name, rmtU32 thread_name_size)
 {
@@ -2143,7 +2215,7 @@ struct Thread_t
     rmtError error;
 
     // External threads can set this to request an exit
-    volatile rmtBool request_exit;
+    rmtAtomicBool request_exit;
 };
 
 #if defined(RMT_PLATFORM_WINDOWS)
@@ -2269,6 +2341,8 @@ typedef struct ObjectLink_s
     struct ObjectLink_s* volatile next;
 } ObjectLink;
 
+typedef rmtAtomicPtr(ObjectLink)    rmtAtomicObjectLinkPtr;
+
 static void ObjectLink_Constructor(ObjectLink* link)
 {
     assert(link != NULL);
@@ -2294,7 +2368,7 @@ typedef struct
     // Total allocation count
     rmtAtomicS32 nb_allocated;
 
-    ObjectLink* first_free;
+    rmtAtomicObjectLinkPtr first_free;
 } ObjectAllocator;
 
 static rmtError ObjectAllocator_Constructor(ObjectAllocator* allocator, rmtU32 object_size, ObjConstructor constructor,
@@ -2306,7 +2380,7 @@ static rmtError ObjectAllocator_Constructor(ObjectAllocator* allocator, rmtU32 o
     allocator->nb_free = 0;
     allocator->nb_inuse = 0;
     allocator->nb_allocated = 0;
-    allocator->first_free = NULL;
+    allocator->first_free = (ObjectLink*)0;
     return RMT_ERROR_NONE;
 }
 
@@ -2319,10 +2393,10 @@ static void ObjectAllocator_Destructor(ObjectAllocator* allocator)
     // Destroy all objects released to the allocator
     while (allocator->first_free != NULL)
     {
-        ObjectLink* next = allocator->first_free->next;
+        ObjectLink* next = ((ObjectLink*)allocator->first_free)->next;
         assert(allocator->destructor != NULL);
-        allocator->destructor(allocator->first_free);
-        rmtFree(allocator->first_free);
+        allocator->destructor((void*)allocator->first_free);
+        rmtFree((void*)allocator->first_free);
         allocator->first_free = next;
     }
 }
@@ -2338,7 +2412,7 @@ static void ObjectAllocator_Push(ObjectAllocator* allocator, ObjectLink* start, 
     {
         ObjectLink* old_link = (ObjectLink*)allocator->first_free;
         end->next = old_link;
-        if (AtomicCompareAndSwapPointer((long* volatile*)&allocator->first_free, (long*)old_link, (long*)start) ==
+        if (AtomicCompareAndSwapPointer((rmtAtomicVoidPtr*)&allocator->first_free, (void*)old_link, (void*)start) ==
             RMT_TRUE)
             break;
     }
@@ -2359,10 +2433,10 @@ static ObjectLink* ObjectAllocator_Pop(ObjectAllocator* allocator)
             return NULL;
         }
         ObjectLink* next_link = old_link->next;
-        if (AtomicCompareAndSwapPointer((long* volatile*)&allocator->first_free, (long*)old_link, (long*)next_link) ==
+        if (AtomicCompareAndSwapPointer((rmtAtomicVoidPtr*)&allocator->first_free, (void*)old_link, (void*)next_link) ==
             RMT_TRUE)
         {
-            link = old_link;
+            link = (ObjectLink*)old_link;
             break;
         }
     }
@@ -2705,13 +2779,6 @@ static rmtError rmtHashTable_Insert(rmtHashTable* table, rmtU32 key, rmtU64 valu
     // Calculate initial slot location for this key
     rmtU32 index_mask = table->maxNbSlots - 1;
     rmtU32 index = key & index_mask;
-
-// DEFOLD
-    if (key == 0) {
-        key = g_EmptyHash;
-        dmLogError("REMOTERY: DEFOLD: rmtHashTable_Insert: The hash was 0x%08x. Setting it to 0x%08x ('%s')", key, g_EmptyHash, g_EmptyString);
-    }
-// END DEFOLD
 
     assert(key != 0);
     assert(value != RMT_NOT_FOUND);
@@ -3833,8 +3900,6 @@ static rmtError WebSocketHandshake(TCPSocket* tcp_socket, rmtPStr limit_host)
 
 static rmtError WebSocket_Constructor(WebSocket* web_socket, TCPSocket* tcp_socket)
 {
-    rmtError error = RMT_ERROR_NONE;
-
     assert(web_socket != NULL);
     web_socket->tcp_socket = tcp_socket;
     web_socket->mode = WEBSOCKET_NONE;
@@ -3849,7 +3914,7 @@ static rmtError WebSocket_Constructor(WebSocket* web_socket, TCPSocket* tcp_sock
     if (web_socket->tcp_socket == NULL)
         rmtTryNew(TCPSocket, web_socket->tcp_socket);
 
-    return error;
+    return RMT_ERROR_NONE;
 }
 
 static void WebSocket_Destructor(WebSocket* web_socket)
@@ -4052,16 +4117,18 @@ static rmtError WebSocket_Receive(WebSocket* web_socket, void* data, rmtU32* msg
     SocketStatus status;
     char* cur_data;
     char* end_data;
-    rmtU32 start_ms, now_ms;
+    rmtU32 start_ms;
+    rmtU32 now_ms;
     rmtU32 bytes_to_read;
-    rmtError error;
 
     assert(web_socket != NULL);
 
     // Can't read with any socket errors
     status = WebSocket_PollStatus(web_socket);
     if (status.error_state != RMT_ERROR_NONE)
+    {
         return status.error_state;
+    }
 
     cur_data = (char*)data;
     end_data = cur_data + length;
@@ -4076,22 +4143,32 @@ static rmtError WebSocket_Receive(WebSocket* web_socket, void* data, rmtU32* msg
 
             // Set output message length only on initial receive
             if (msg_len != NULL)
+            {
                 *msg_len = web_socket->frame_bytes_remaining;
+            }
         }
 
-        // Read as much required data as possible
-        bytes_to_read = web_socket->frame_bytes_remaining < length ? web_socket->frame_bytes_remaining : length;
-        error = TCPSocket_Receive(web_socket->tcp_socket, cur_data, bytes_to_read, 20);
-        if (error == RMT_ERROR_SOCKET_RECV_FAILED)
-            return error;
-
-        // If there's a stall receiving the data, check for timeout
-        if (error == RMT_ERROR_SOCKET_RECV_NO_DATA || error == RMT_ERROR_SOCKET_RECV_TIMEOUT)
         {
-            now_ms = msTimer_Get();
-            if (now_ms - start_ms > timeout_ms)
-                return RMT_ERROR_SOCKET_RECV_TIMEOUT;
-            continue;
+            rmtError error;
+
+            // Read as much required data as possible
+            bytes_to_read = web_socket->frame_bytes_remaining < length ? web_socket->frame_bytes_remaining : length;
+            error = TCPSocket_Receive(web_socket->tcp_socket, cur_data, bytes_to_read, 20);
+            if (error == RMT_ERROR_SOCKET_RECV_FAILED)
+            {
+                return error;
+            }
+
+            // If there's a stall receiving the data, check for timeout
+            if (error == RMT_ERROR_SOCKET_RECV_NO_DATA || error == RMT_ERROR_SOCKET_RECV_TIMEOUT)
+            {
+                now_ms = msTimer_Get();
+                if (now_ms - start_ms > timeout_ms)
+                {
+                    return RMT_ERROR_SOCKET_RECV_TIMEOUT;
+                }
+                continue;
+            }
         }
 
         // Apply data mask
@@ -4240,11 +4317,14 @@ static Message* rmtMessageQueue_AllocMessage(rmtMessageQueue* queue, rmtU32 payl
 
 static void rmtMessageQueue_CommitMessage(Message* message, MessageID id)
 {
+    MessageID r;
     assert(message != NULL);
 
     // Setting the message ID signals to the consumer that the message is ready
-    assert(LoadAcquire((rmtU32*)&message->id) == MsgID_NotReady);
-    StoreRelease((rmtU32*)&message->id, id);
+    r = (MessageID)LoadAcquire((rmtAtomicU32*)&message->id);
+    RMT_UNREFERENCED_PARAMETER(r);
+    assert(r == MsgID_NotReady);
+    StoreRelease((rmtAtomicU32*)&message->id, id);
 }
 
 Message* rmtMessageQueue_PeekNextMessage(rmtMessageQueue* queue)
@@ -4266,7 +4346,7 @@ Message* rmtMessageQueue_PeekNextMessage(rmtMessageQueue* queue)
     // the next one in the queue is ready.
     r = r & (queue->size - 1);
     ptr = (Message*)(queue->data->ptr + r);
-    id = (MessageID)LoadAcquire((rmtU32*)&ptr->id);
+    id = (MessageID)LoadAcquire((rmtAtomicU32*)&ptr->id);
     if (id != MsgID_NotReady)
         return ptr;
 
@@ -5051,12 +5131,6 @@ static rmtBool QueueAddToStringTable(rmtMessageQueue* queue, rmtU32 hash, const 
         return RMT_FALSE;
     }
 
-// DEFOLD
-    if (hash == 0 || length == 0) {
-        dmLogError("REMOTERY: DEFOLD: QueueAddToStringTable: The hash is 0x%08x! String is '%s' len: %u", hash, string, (uint32_t)length);
-    }
-// END DEFOLD
-
     // Populate and commit
     payload = (Msg_AddToStringTable*)message->payload;
     payload->hash = hash;
@@ -5257,9 +5331,9 @@ static rmtBool ThreadProfiler_Pop(ThreadProfiler* thread_profiler, rmtMessageQue
         SampleTree partial_tree;
         if (MakePartialTreeCopy(tree, sample->us_start + sample->us_length, &partial_tree) == RMT_ERROR_NONE)
         {
-            Sample* sample = partial_tree.root->first_child;
-            assert(sample != NULL);
-            QueueSampleTree(queue, sample, partial_tree.allocator, thread_profiler->threadName, msg_user_data, thread_profiler, RMT_TRUE);
+            Sample* root_sample = partial_tree.root->first_child;
+            assert(root_sample != NULL);
+            QueueSampleTree(queue, root_sample, partial_tree.allocator, thread_profiler->threadName, msg_user_data, thread_profiler, RMT_TRUE);
         }
 
         // Tree has been copied away to the message queue so free up the samples
@@ -5283,23 +5357,17 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
     if (hash_cache != NULL)
     {
         // Calculate the hash first time round only
-        name_hash = *hash_cache;
+        name_hash = AtomicLoadU32((rmtAtomicU32*)hash_cache);
         if (name_hash == 0)
         {
             assert(name != NULL);
             name_len = strnlen_s(name, 256);
             name_hash = _rmt_HashString32(name, name_len, 0);
 
-// DEFOLD
-    if (name_hash == 0 || name_len == 0) {
-        dmLogError("REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(a): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
-    }
-// END DEFOLD
-
             // Queue the string for the string table and only cache the hash if it succeeds
             if (QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler) == RMT_TRUE)
             {
-                *hash_cache = name_hash;
+                AtomicStoreU32((rmtAtomicU32*)hash_cache, name_hash);
             }
         }
 
@@ -5309,13 +5377,6 @@ static rmtU32 ThreadProfiler_GetNameHash(ThreadProfiler* thread_profiler, rmtMes
     // Have to recalculate and speculatively insert the name every time when no cache storage exists
     name_len = strnlen_s(name, 256);
     name_hash = _rmt_HashString32(name, name_len, 0);
-
-// DEFOLD
-    if (name_hash == 0 || name_len == 0) {
-        dmLogError("REMOTERY: DEFOLD: ThreadProfiler_GetNameHash(b): The hash is 0x%08x! String is '%s' len: %u", name_hash, name, (uint32_t)name_len);
-    }
-// END DEFOLD
-
     QueueAddToStringTable(queue, name_hash, name, name_len, thread_profiler);
     return name_hash;
 }
@@ -5445,6 +5506,12 @@ static rmtError ThreadProfilers_GetThreadProfiler(ThreadProfilers* thread_profil
             mtxUnlock(&thread_profilers->threadProfilerMutex);
             return RMT_ERROR_NONE;
         }
+    }
+
+    if (thread_profilers->nbThreadProfilers+1 > thread_profilers->maxNbThreadProfilers)
+    {
+        mtxUnlock(&thread_profilers->threadProfilerMutex);
+        return RMT_ERROR_MALLOC_FAIL;
     }
 
     // Thread info not found so create a new one at the end
@@ -5625,7 +5692,8 @@ static void QueueProcessorThreads(rmtMessageQueue* queue, rmtU64 message_index, 
     rmtMessageQueue_CommitMessage(message, MsgID_ProcessorThreads);
 }
 
-#ifdef RMT_ARCH_32BIT
+#ifdef RMT_PLATFORM_WINDOWS
+#if defined(RMT_ARCH_32BIT)
 __declspec(naked) static void SampleCallback()
 {
     //
@@ -5731,7 +5799,6 @@ static rmtU8 SampleCallbackBytes[] =
     // Pops the original EIP off the stack and jmps to origin suspend point in the thread
     0xC3                                            // ret
 };
-#ifdef RMT_PLATFORM_WINDOWS
 static void* CreateSampleCallback(rmtU32* out_size)
 {
     // Allocate page for the generated code
@@ -6165,6 +6232,8 @@ struct Remotery
 
     // Frame used to determine age of property changes
     rmtU32 propertyFrame;
+
+    rmtAtomicS32 countThreads;
 };
 
 //
@@ -6177,6 +6246,14 @@ static Remotery* g_Remotery = NULL;
 // only the creating EXE/DLL to destroy the remotery instance.
 //
 static rmtBool g_RemoteryCreated = RMT_FALSE;
+
+static void rmtGetThreadNameFallback(char* out_thread_name, rmtU32 thread_name_size)
+{
+    // In cases where we can't get a thread name from the OS
+    out_thread_name[0] = 0;
+    strncat_s(out_thread_name, thread_name_size, "Thread", 6);
+    itoahex_s(out_thread_name + 6, thread_name_size - 6, AtomicAddS32(&g_Remotery->countThreads, 1));
+}
 
 static double saturate(double v)
 {
@@ -6238,7 +6315,6 @@ static void PostProcessSamples(Sample* sample, rmtU32* nb_samples)
 
 static rmtError Remotery_SendLogTextMessage(Remotery* rmt, Message* message)
 {
-    rmtError error = RMT_ERROR_NONE;
     Buffer* bin_buf;
     rmtU32 write_start_offset;
 
@@ -6252,16 +6328,16 @@ static rmtError Remotery_SendLogTextMessage(Remotery* rmt, Message* message)
     rmtTry(bin_MessageFooter(bin_buf, write_start_offset));
 
     // Pass to either the server or the log file
-    if (Server_IsClientConnected(rmt->server) == RMT_TRUE)
-    {
-        error = Server_Send(rmt->server, bin_buf->data, bin_buf->bytes_used, 20);
-    }
     if (rmt->logfile != NULL)
     {
         rmtWriteFile(rmt->logfile, bin_buf->data + WEBSOCKET_MAX_FRAME_HEADER_SIZE, bin_buf->bytes_used - WEBSOCKET_MAX_FRAME_HEADER_SIZE);
     }
+    if (Server_IsClientConnected(rmt->server) == RMT_TRUE)
+    {
+        rmtTry(Server_Send(rmt->server, bin_buf->data, bin_buf->bytes_used, 20));
+    }
 
-    return error;
+    return RMT_ERROR_NONE;
 }
 
 static rmtError bin_SampleName(Buffer* buffer, const char* name, rmtU32 name_hash, rmtU32 name_length)
@@ -6446,7 +6522,6 @@ static rmtError Remotery_SendSampleTreeMessage(Remotery* rmt, Message* message)
 static rmtError Remotery_SendProcessorThreads(Remotery* rmt, Message* message)
 {
     rmtU32 processor_index;
-    rmtError error = RMT_ERROR_NONE;
 
     Msg_ProcessorThreads* processor_threads = (Msg_ProcessorThreads*)message->payload;
 
@@ -6532,7 +6607,7 @@ static rmtError Remotery_SerialisePropertySnapshots(Buffer* bin_buf, Msg_Propert
             case RMT_PropertyType_rmtGroup:
                 rmtTry(Buffer_Write(bin_buf, empty_group, 16));
                 break;
-
+            
             // All value ranges here are double-representable, so convert them early in C where it's cheap
             case RMT_PropertyType_rmtBool:
                 rmtTry(Buffer_WriteF64(bin_buf, snapshot->value.Bool));
@@ -6955,6 +7030,7 @@ static rmtError Remotery_Constructor(Remotery* rmt)
     assert(g_Remotery == NULL);
     g_Remotery = rmt;
     g_RemoteryCreated = RMT_TRUE;
+    g_Remotery->countThreads = 0;
 
     // Ensure global instance writes complete before other threads get a chance to use it
     CompilerWriteFence();
@@ -7005,7 +7081,7 @@ static void Remotery_Destructor(Remotery* rmt)
     rmtDelete(rmtMessageQueue, rmt->mq_to_rmt_thread);
 
     rmtDelete(Server, rmt->server);
-
+    
     // Free the error message TLS
     // TODO(don): The allocated messages will need to be freed as well
     if (g_lastErrorMessageTlsHandle != TLS_INVALID_HANDLE)
@@ -7013,7 +7089,7 @@ static void Remotery_Destructor(Remotery* rmt)
         tlsFree(g_lastErrorMessageTlsHandle);
         g_lastErrorMessageTlsHandle = TLS_INVALID_HANDLE;
     }
-
+    
     mtxDelete(&rmt->propertyMutex);
 }
 
@@ -7417,7 +7493,7 @@ typedef struct
 static void MapMessageQueueAndWait(Remotery* rmt, void (*map_message_queue_fn)(Remotery* rmt, Message*), void* data)
 {
     // Basic spin lock on the map function itself
-    while (AtomicCompareAndSwapPointer((long* volatile*)&rmt->map_message_queue_fn, NULL,
+    while (AtomicCompareAndSwapPointer((rmtAtomicVoidPtr*)&rmt->map_message_queue_fn, NULL,
                                        (long*)map_message_queue_fn) == RMT_FALSE)
         msSleep(1);
 
@@ -8516,7 +8592,7 @@ static rmtError CreateQueryHeap(D3D12BindImpl* bind, ID3D12Device* d3d_device, I
         {
             return rmtMakeError(RMT_ERROR_INVALID_INPUT, "Copy queues on this device do not support timestamps");
         }
-
+        
         query_heap_type = D3D12_QUERY_HEAP_TYPE_COPY_QUEUE_TIMESTAMP;
     }*/
     #else
@@ -8710,7 +8786,7 @@ static rmtError D3D12MarkFrame(D3D12BindImpl* bind)
 
     // Chain to the next bind here so that root calling code doesn't need to know the definition of D3D12BindImpl
     rmtTry(D3D12MarkFrame(bind->next));
-
+    
     return RMT_ERROR_NONE;
 }
 
@@ -8857,7 +8933,7 @@ RMT_API void _rmt_BeginD3D12Sample(rmtD3D12Bind* bind, void* command_list, rmtPS
 
     if (g_Remotery == NULL || bind == NULL)
         return;
-
+    
     assert(command_list != NULL);
 
     if (ThreadProfilers_GetCurrentThreadProfiler(g_Remotery->threadProfilers, &thread_profiler) == RMT_ERROR_NONE)
@@ -9544,12 +9620,13 @@ static rmtError Metal_Create(Metal** metal)
 {
     assert(metal != NULL);
 
-    rmtTryMallocArray(Metal, *metal);
+    rmtTryMalloc(Metal, *metal);
 
     (*metal)->mq_to_metal_main = NULL;
 
     rmtTryNew(rmtMessageQueue, (*metal)->mq_to_metal_main, g_Settings.messageQueueSizeInBytes);
-    return error;
+
+    return RMT_ERROR_NONE;
 }
 
 static void Metal_Destructor(Metal* metal)
@@ -9676,12 +9753,14 @@ static void UpdateOpenGLFrame(void);
     }
 }*/
 
-RMT_API void _rmt_BeginMetalSample(rmtPStr name, rmtU32* hash_cache)
+RMT_API rmtError _rmt_BeginMetalSample(rmtPStr name, rmtU32* hash_cache)
 {
     ThreadProfiler* thread_profiler;
 
     if (g_Remotery == NULL)
-        return;
+    {
+        return RMT_ERROR_UNKNOWN;
+    }
 
     if (ThreadProfilers_GetCurrentThreadProfiler(g_Remotery->threadProfilers, &thread_profiler) == RMT_ERROR_NONE)
     {
@@ -9693,11 +9772,8 @@ RMT_API void _rmt_BeginMetalSample(rmtPStr name, rmtU32* hash_cache)
         SampleTree** metal_tree = &thread_profiler->sampleTrees[RMT_SampleType_Metal];
         if (*metal_tree == NULL)
         {
-            rmtError error;
             rmtTryNew(SampleTree, *metal_tree, sizeof(MetalSample), (ObjConstructor)MetalSample_Constructor,
-                  (ObjDestructor)MetalSample_Destructor);
-            if (error != RMT_ERROR_NONE)
-                return;
+                      (ObjDestructor)MetalSample_Destructor);
         }
 
         // Push the sample and activate the timestamp
@@ -9708,6 +9784,8 @@ RMT_API void _rmt_BeginMetalSample(rmtPStr name, rmtU32* hash_cache)
             MetalTimestamp_Begin(metal_sample->timestamp);
         }
     }
+
+    return RMT_ERROR_NONE;
 }
 
 static rmtBool GetMetalSampleTimes(Sample* sample)
@@ -10014,10 +10092,6 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
             name_len = strnlen_s(name, 256);
             property->nameHash = _rmt_HashString32(name, name_len, 0);
 
-            if (property->nameHash == 0 || name_len == 0) {
-                dmLogError("REMOTERY: DEFOLD: RegisterProperty: The hash is 0x%08x! String is '%s' len: %u", property->nameHash, name, (uint32_t)name_len);
-            }
-
             QueueAddToStringTable(g_Remotery->mq_to_rmt_thread, property->nameHash, name, name_len, NULL);
 /// END DEFOLD
 
@@ -10061,6 +10135,8 @@ RMT_API void _rmt_PropertyAddValue(rmtProperty* property, rmtPropertyValue add_v
 
     RegisterProperty(property, RMT_TRUE);
 
+    RMT_UNREFERENCED_PARAMETER(add_value);
+
     // use `add_value` to determine how much this property was changed
 
     // on this thread, create a new sample that encodes the delta and parents itself to `property`
@@ -10090,7 +10166,7 @@ static rmtError TakePropertySnapshot(rmtProperty* property, PropertySnapshot* pa
     snapshot->nameHash = property->nameHash;
     snapshot->uniqueID = property->uniqueID;
     snapshot->nbChildren = 0;
-    snapshot->depth = depth;
+    snapshot->depth = (rmtU8)depth;
     snapshot->nextSnapshot = NULL;
 
     // Keep count of the number of children in the parent

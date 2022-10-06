@@ -199,9 +199,6 @@ def build(bld):
     # ******************************************************************
 
     remotery_defines = []
-    if '64' in build_util.get_target_architecture():
-        remotery_defines.append('RMT_ARCH_64BIT')
-
     if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
         libremotery = bld.stlib(features     = 'c cxx',
                                 includes     = '. ./remotery/lib',
@@ -257,6 +254,7 @@ def build(bld):
 
             if 'linux' in bld.env['PLATFORM']:
                 dlib_memprofile.env.append_value('LINKFLAGS', [ '-ldl' ])
+
 
     # Basis libraries
 

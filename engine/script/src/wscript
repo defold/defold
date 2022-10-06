@@ -43,6 +43,10 @@ def build(bld):
         else:
             script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'wsocket.c'))
 
+
+    # luacjson
+    script.source += bld.path.ant_glob('luacjson/*.c')
+
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     # We must manually install script_doc_ddf_pb2.py as intall_path is None above

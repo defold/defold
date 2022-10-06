@@ -128,6 +128,8 @@ namespace dmRender
         float m_MaxAscent;
         /// Max descent of font, positive value
         float m_MaxDescent;
+        /// Number of lines of text
+        uint32_t m_LineCount;
     };
 
     /**
