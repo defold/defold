@@ -471,7 +471,7 @@ public class Bob {
         addOption(options, "v", "verbose", false, "Verbose output", false);
         addOption(options, "h", "help", false, "This help message", false);
         addOption(options, "a", "archive", false, "Build archive", false);
-        addOption(options, "ea", "exclude-archive", false, "Ignore resource archives on bundling stage", false);
+        addOption(options, "ea", "exclude-archive", false, "Exclude resource archives from application bundle. Use this to create an empty Defold application for use as a build target", false);
         addOption(options, "e", "email", true, "User email", false);
         addOption(options, "u", "auth", true, "User auth token", false);
 
