@@ -279,7 +279,7 @@
      :generate-build-report? (ui/value generate-build-report-check-box)
      :publish-live-update-content? (and (ui/value publish-live-update-content-check-box)
                                         (ui/editable publish-live-update-content-check-box))
-     :ignore-resource-archive? (ui/value bundle-contentless-check-box)}))
+     :bundle-contentless? (ui/value bundle-contentless-check-box)}))
 
 (defn- set-generic-options! [view options workspace]
   (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box bundle-contentless-check-box]
@@ -289,7 +289,7 @@
     (ui/value! generate-build-report-check-box (:generate-build-report? options))
     (doto publish-live-update-content-check-box
       (ui/value! (:publish-live-update-content? options)))
-    (ui/value! bundle-contentless-check-box (:ignore-resource-archive? options))))
+    (ui/value! bundle-contentless-check-box (:bundle-contentless? options))))
 
 (deftype GenericBundleOptionsPresenter [workspace view title platform variant-choices compression-choices]
   BundleOptionsPresenter

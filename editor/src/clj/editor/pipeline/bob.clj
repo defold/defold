@@ -225,7 +225,7 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? ignore-resource-archive? platform ^File output-directory] :as _bundle-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? bundle-contentless? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
@@ -240,7 +240,7 @@
              "variant" variant
 
              ;; From AbstractBundleHandler
-             (if ignore-resource-archive? "exclude-archive" "archive") "true"
+             (if bundle-contentless? "exclude-archive" "archive") "true"
              "bundle-output" bundle-output-path
              "texture-compression" (case texture-compression
                                      "enabled" "true"
