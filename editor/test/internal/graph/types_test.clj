@@ -13,11 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.types-test
-  (:require [clojure.test.check :as tc]
+  (:require [clojure.test :refer :all]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
-            [clojure.test :refer :all]
             [internal.graph.types :as gt]))
 
 (defspec unpacking
@@ -28,3 +27,44 @@
                   (and
                    (= g (gt/node-id->graph-id id))
                    (= n (gt/node-id->nid id))))))
+
+(deftest endpoint-comparable
+  (is (thrown? NullPointerException
+               (.compareTo nil
+                           (gt/endpoint 0 :a))))
+  (is (thrown? NullPointerException
+               (.compareTo (gt/endpoint 0 :a)
+                           nil)))
+  (is (thrown? ClassCastException
+               (.compareTo ""
+                           (gt/endpoint 0 :a))))
+  (is (thrown? ClassCastException
+               (.compareTo (gt/endpoint 0 :a)
+                           "")))
+
+  (is (neg? (.compareTo (gt/endpoint 0 :a)
+                        (gt/endpoint 1 :a))))
+  (is (zero? (.compareTo (gt/endpoint 0 :a)
+                         (gt/endpoint 0 :a))))
+  (is (pos? (.compareTo (gt/endpoint 1 :a)
+                        (gt/endpoint 0 :a))))
+  (is (neg? (.compareTo (gt/endpoint 1 :a)
+                        (gt/endpoint 1 :b))))
+  (is (zero? (.compareTo (gt/endpoint 1 :a)
+                         (gt/endpoint 1 :a))))
+  (is (pos? (.compareTo (gt/endpoint 1 :b)
+                        (gt/endpoint 1 :a))))
+
+  (is (= [(gt/endpoint 0 :a)
+          (gt/endpoint 0 :b)
+          (gt/endpoint 1 :a)
+          (gt/endpoint 1 :b)]
+         (vec (into (sorted-set)
+                    [(gt/endpoint 1 :b)
+                     (gt/endpoint 0 :b)
+                     (gt/endpoint 1 :a)
+                     (gt/endpoint 0 :a)
+                     (gt/endpoint 1 :b)
+                     (gt/endpoint 0 :b)
+                     (gt/endpoint 1 :a)
+                     (gt/endpoint 0 :a)])))))

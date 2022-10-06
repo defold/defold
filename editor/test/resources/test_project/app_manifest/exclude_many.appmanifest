@@ -1,0 +1,101 @@
+# App manifest generated Fri Sep 02 2022 16:18:07 GMT+0200 (Central European Summer Time)
+# Settings: Record,Profiler,Sound,Input,LiveUpdate,Basis Transcoder,OpenGL
+platforms:
+    x86_64-osx:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            frameworks: []
+            linkFlags: []
+
+    x86_64-linux:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            linkFlags: []
+
+    js-web:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeJsLibs: []
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            linkFlags: []
+
+    wasm-web:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeJsLibs: []
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            linkFlags: []
+
+    x86-win32:
+        context:
+            excludeLibs: ["librecord","vpx","libprofilerext","libsound","libtremolo","libhid","libliveupdate","libgraphics_transcoder_basisu","libbasis_transcoder"]
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["librecord_null.lib","libprofilerext_null.lib","libsound_null.lib","libhid_null.lib","libliveupdate_null.lib","libgraphics_transcoder_null.lib"]
+            linkFlags: []
+
+    x86_64-win32:
+        context:
+            excludeLibs: ["librecord","vpx","libprofilerext","libsound","libtremolo","libhid","libliveupdate","libgraphics_transcoder_basisu","libbasis_transcoder"]
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["librecord_null.lib","libprofilerext_null.lib","libsound_null.lib","libhid_null.lib","libliveupdate_null.lib","libgraphics_transcoder_null.lib"]
+            linkFlags: []
+
+    armv7-android:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeJars: []
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            linkFlags: []
+            jetifier: true
+
+    arm64-android:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeJars: []
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            linkFlags: []
+            jetifier: true
+
+    armv7-ios:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            frameworks: []
+            linkFlags: []
+
+    arm64-ios:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            frameworks: []
+            linkFlags: []
+
+    x86_64-ios:
+        context:
+            excludeLibs: ["record","vpx","profilerext","sound","tremolo","hid","liveupdate","graphics_transcoder_basisu","basis_transcoder"]
+            excludeSymbols: ["ProfilerExt","DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            symbols: []
+            libs: ["record_null","profilerext_null","sound_null","hid_null","liveupdate_null","graphics_transcoder_null"]
+            frameworks: []
+            linkFlags: []
+

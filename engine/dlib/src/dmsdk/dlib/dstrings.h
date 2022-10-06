@@ -132,4 +132,23 @@ size_t dmStrlCat(char *dst, const char *src, size_t size);
  */
 int dmStrCaseCmp(const char *s1, const char *s2);
 
+/*# Error code to string representation
+ *
+ * Error code to string representation. Wrapper for thread-safe strerror_s/r variants.
+ * If the size of the buffer is too small, the message will be truncated to fit the buffer.
+ * If the buffer is null, or if size is zero, nothing will happen.
+ *
+ * @name dmStrError
+ * @param dst Destination string that carries the error message
+ * @param size Max size of destination string in bytes
+ * @return a null-terminated error message
+ * @examples
+ *
+ * ```cpp
+ * char buf[128];
+ * dmStrError(buf, sizeof(buf), ENOENT); // buf => "No such file or directory"
+ * ```
+ */
+void dmStrError(char* dst, size_t size, int err);
+
 #endif //DMSDK_DSTRINGS_H

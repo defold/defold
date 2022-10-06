@@ -32,6 +32,8 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+#define MODEL_MODULE_NAME "model"
+
 namespace dmGameSystem
 {
     /*# Model API documentation
@@ -162,6 +164,8 @@ namespace dmGameSystem
 
     int LuaModelComp_Play(lua_State* L)
     {
+        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, MODEL_MODULE_NAME, "play", MODEL_MODULE_NAME, "play_anim");
+
         int top = lua_gettop(L);
         // default values
         float offset = 0.0f;
@@ -284,7 +288,7 @@ namespace dmGameSystem
      */
     int LuaModelComp_PlayAnim(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0)
+        DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
@@ -336,7 +340,6 @@ namespace dmGameSystem
         msg.m_PlaybackRate = playback_rate;
 
         dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
         return 0;
     }
 
@@ -531,7 +534,7 @@ namespace dmGameSystem
 
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
-            {"play",    LuaModelComp_Play},
+            {"play",    LuaModelComp_Play}, // Deprecated
             {"play_anim", LuaModelComp_PlayAnim},
             {"cancel",  LuaModelComp_Cancel},
             {"get_go",  LuaModelComp_GetGO},
@@ -543,7 +546,7 @@ namespace dmGameSystem
     void ScriptModelRegister(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
-        luaL_register(L, "model", MODEL_COMP_FUNCTIONS);
+        luaL_register(L, MODEL_MODULE_NAME, MODEL_COMP_FUNCTIONS);
         lua_pop(L, 1);
     }
 

@@ -153,6 +153,11 @@
   (assert (gt/node-id? node-id))
   (some-> errors (flatten-packages node-id) flatten-errors (assoc :_node-id node-id) ->ErrorPackage))
 
+(defn package-if-error [node-id maybe-error]
+  (if (error? maybe-error)
+    (package-errors node-id maybe-error)
+    maybe-error))
+
 (defn unpack-errors [error-package]
   (assert (or (nil? error-package) (instance? ErrorPackage error-package)))
   (some-> error-package :packaged-errors))

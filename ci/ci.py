@@ -24,7 +24,7 @@ from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_repo_private
 
 # The platforms we deploy our editor on
-PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-darwin')
+PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
 
 def call(args, failonerror = True):
     print(args)
@@ -50,7 +50,7 @@ def platform_from_host():
     if system == "Linux":
         return "x86_64-linux"
     elif system == "Darwin":
-        return "x86_64-darwin"
+        return "x86_64-macos"
     else:
         return "x86_64-win32"
 
@@ -175,7 +175,7 @@ def install(args):
             setup_windows_cert(args)
 
 
-def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
+def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
     args = 'python scripts/build.py distclean install_sdk install_ext'.split()
 
     opts = []
@@ -207,6 +207,8 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         waf_opts.append('--with-valgrind')
     if with_asan:
         waf_opts.append('--with-asan')
+    if with_ubsan:
+        waf_opts.append('--with-ubsan')
     if with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
 
@@ -289,7 +291,7 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
     args = 'python scripts/build.py notarize_editor2'.split()
     opts = []
 
-    opts.append('--platform=x86_64-darwin')
+    opts.append('--platform=x86_64-macos')
 
     opts.append('--notarization-username="%s"' % notarization_username)
     opts.append('--notarization-password="%s"' % notarization_password)
@@ -366,11 +368,11 @@ def smoke_test():
 def get_branch():
     # The name of the head branch. Only set for pull request events.
     branch = os.environ.get('GITHUB_HEAD_REF', '')
-    if branch is '':
+    if branch == '':
         # The branch or tag name that triggered the workflow run.
         branch = os.environ.get('GITHUB_REF_NAME', '')
 
-    if branch is '':
+    if branch == '':
         # https://stackoverflow.com/a/55276236/1266551
         branch = call("git rev-parse --abbrev-ref HEAD").strip()
         if branch == "HEAD":
@@ -396,6 +398,7 @@ def main(argv):
     parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, notarize-editor, archive-editor, bob, sdk, install, smoke)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
+    parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-valgrind", dest="with_valgrind", action='store_true', help="")
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
@@ -485,6 +488,7 @@ def main(argv):
                 engine_channel,
                 with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ]),
                 with_asan = args.with_asan,
+                with_ubsan = args.with_ubsan,
                 with_vanilla_lua = args.with_vanilla_lua,
                 archive = args.archive,
                 skip_tests = args.skip_tests,

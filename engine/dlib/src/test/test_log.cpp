@@ -20,10 +20,10 @@
 #include "../dlib/dlib.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
+#include "../dlib/mutex.h"
 #include "../dlib/dstrings.h"
 #include "../dlib/socket.h"
 #include "../dlib/thread.h"
-#include "../dlib/time.h"
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
 #define JC_TEST_IMPLEMENTATION
@@ -52,6 +52,45 @@ static void LogThread(void* arg)
     dmLogInfo("%s", s);
     delete[] s;
 }
+
+struct ThreadContext
+{
+    int m_ThreadID;
+    int m_LoopCount;
+};
+
+static void LogThreadSmall(void* arg)
+{
+    ThreadContext ctx = *(ThreadContext*)arg;
+    int threadid = ctx.m_ThreadID;
+    int n = ctx.m_LoopCount;
+    for (int i = 0; i < n; ++i) {
+        dmLogInfo("%d", threadid);
+    }
+}
+
+struct CustomLogContext
+{
+    int             m_NumWritten; // full message with log domain, severity + newline
+    dmMutex::HMutex m_Mutex;
+} g_CustomLogContext;
+
+static void CustomLogListener(LogSeverity severity, const char* domain, const char* formatted_string)
+{
+    CustomLogContext* ctx = &g_CustomLogContext;
+
+    bool result = dmMutex::TryLock(ctx->m_Mutex);
+    assert(result && "The lock was already taken for log listener");
+    if (!result)
+        return;
+    ctx->m_NumWritten += strlen(formatted_string);
+    dmMutex::Unlock(ctx->m_Mutex);
+
+    // This is not supported, and should be sent to the void
+    dmLogInfo("Calling dmLog::LogInternal from the Log Listener");
+}
+
+
 
 #if !(defined(__EMSCRIPTEN__) || defined(__NX__))
 TEST(dmLog, Client)
@@ -93,6 +132,51 @@ TEST(dmLog, Client)
 }
 #endif
 
+TEST(dmLog, Stress)
+{
+    dLib::SetDebugMode(false);
+
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
+    CustomLogContext& log_ctx = g_CustomLogContext;
+    memset(&log_ctx, 0, sizeof(log_ctx));
+    log_ctx.m_Mutex = dmMutex::New();
+
+    dmLogRegisterListener(CustomLogListener);
+
+    const int loop_count = 100;
+    const int num_threads = 4;
+    dmThread::Thread threads[num_threads] = {0};
+    ThreadContext thread_ctx[num_threads];
+
+    for (int i = 0; i < num_threads; ++i)
+    {
+        ThreadContext& ctx = thread_ctx[i];
+        ctx.m_ThreadID = i;
+        ctx.m_LoopCount = loop_count;
+        threads[i] = dmThread::New(LogThreadSmall, 0x80000, &ctx, "test");
+    }
+
+    for (int i = 0; i < num_threads; ++i)
+    {
+        dmThread::Join(threads[i]);
+    }
+
+    // wait for thread to join, thus making sure we get all the pending log messages
+    dmLog::LogFinalize();
+
+    dmLogInfo("Regular output reenabled.");
+    dmLogInfo("  Custom log listener printed %d characters", log_ctx.m_NumWritten);
+
+    // Size of each message should be 13: 'INFO:DLIB: %d\n'
+    int expected_count_listener = 13 * num_threads * loop_count;
+    ASSERT_EQ(expected_count_listener, log_ctx.m_NumWritten);
+
+    dmMutex::Delete(log_ctx.m_Mutex);
+    dLib::SetDebugMode(true);
+}
+
 TEST(dmLog, LogFile)
 {
     if (!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
@@ -122,35 +206,44 @@ TEST(dmLog, LogFile)
     dmSys::Unlink(path);
 }
 
-static void TestLogCaptureCallback(void* user_data, const char* log)
+dmArray<char> g_LogListenerOutput;
+
+static void TestLogCaptureCallback(LogSeverity severity, const char* domain, const char* formatted_string)
 {
-    dmArray<char>* log_output = (dmArray<char>*)user_data;
-    uint32_t len = (uint32_t)strlen(log);
+    if (strstr(formatted_string, "Log server started on port") != 0)
+        return;
+
+    dmArray<char>* log_output = &g_LogListenerOutput;
+    uint32_t len = (uint32_t)strlen(formatted_string);
     log_output->SetCapacity(log_output->Size() + len + 1);
-    log_output->PushArray(log, len);
+    log_output->PushArray(formatted_string, len);
 }
 
 TEST(dmLog, TestCapture)
 {
-    dmArray<char> log_output;
-    dmLog::SetCustomLogCallback(TestLogCaptureCallback, &log_output);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLogRegisterListener(TestLogCaptureCallback);
     dmLogDebug("This is a debug message");
     dmLogInfo("This is a info message");
     dmLogWarning("This is a warning message");
     dmLogError("This is a error message");
-    dmLogFatal("This is a fata message");
+    dmLogFatal("This is a fatal message");
 
-    log_output.Push(0);
+    // wait for thread to join, thus making sure we get all the pending log messages
+    dmLog::LogFinalize();
+
+    // Make the string null terminated
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size()+1);
+    g_LogListenerOutput.Push(0);
 
     const char* ExpectedOutput =
                 "INFO:DLIB: This is a info message\n"
                 "WARNING:DLIB: This is a warning message\n"
                 "ERROR:DLIB: This is a error message\n"
-                "FATAL:DLIB: This is a fata message\n";
+                "FATAL:DLIB: This is a fatal message\n";
 
-    ASSERT_STREQ(ExpectedOutput,
-                log_output.Begin());
-    dmLog::SetCustomLogCallback(0x0, 0x0);
+    ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
 }
 
 int main(int argc, char **argv)

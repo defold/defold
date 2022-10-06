@@ -37,9 +37,6 @@
             [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
-            [cljfx.lifecycle :as fx.lifecycle]
-            [cljfx.mutator :as fx.mutator]
-            [cljfx.prop :as fx.prop]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -51,6 +48,7 @@
             [editor.icons :as icons]
             [editor.handler :as handler]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
             [editor.ui :as ui]
             [editor.url :as url]
@@ -59,7 +57,7 @@
             [internal.util :as util])
   (:import [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control Cell ComboBox ListView$EditEvent ScrollPane TableColumn$CellEditEvent TableView ListView]
+           [javafx.scene.control Cell ComboBox ListView$EditEvent TableColumn$CellEditEvent TableView ListView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter]))
 
@@ -242,23 +240,26 @@
 
 ;; region boolean input
 
-(defmethod form-input-view :boolean [{:keys [value on-value-changed]}]
+(defn- ensure-value [value field]
+  (if (nil? value) (form/field-default field) value))
+
+(defmethod form-input-view :boolean [{:keys [value on-value-changed] :as field}]
   {:fx/type fx.check-box/lifecycle
    :style-class ["check-box" "cljfx-form-check-box"]
-   :selected value
+   :selected (ensure-value value field)
    :on-selected-changed on-value-changed})
 
 ;; endregion
 
 ;; region integer input
 
-(defmethod form-input-view :integer [{:keys [value on-value-changed]}]
+(defmethod form-input-view :integer [{:keys [value on-value-changed] :as field}]
   {:fx/type text-field
    :alignment :center-right
    :max-width 80
    :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter int-converter
-                    :value (int value)
+                    :value (int (ensure-value value field))
                     :on-value-changed on-value-changed}})
 
 (defmethod cell-input-view :integer [field]
@@ -268,13 +269,13 @@
 
 ;; region number input
 
-(defmethod form-input-view :number [{:keys [value on-value-changed]}]
+(defmethod form-input-view :number [{:keys [value on-value-changed] :as field}]
   {:fx/type text-field
    :alignment :center-right
    :max-width 80
    :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter number-converter
-                    :value value
+                    :value (ensure-value value field)
                     :on-value-changed on-value-changed}})
 
 (defmethod cell-input-view :number [field]
@@ -306,8 +307,9 @@
 (defmethod handle-event :on-vec4-element-change [{:keys [value index on-value-changed fx/event]}]
   {:dispatch (assoc on-value-changed :fx/event (assoc value index event))})
 
-(defmethod form-input-view :vec4 [{:keys [value on-value-changed]}]
-  (let [labels ["X" "Y" "Z" "W"]]
+(defmethod form-input-view :vec4 [{:keys [value on-value-changed] :as field}]
+  (let [labels ["X" "Y" "Z" "W"]
+        value (ensure-value value field)]
     {:fx/type fx.h-box/lifecycle
      :padding {:left 5}
      :spacing 5
@@ -436,8 +438,8 @@
                                                     on-added
                                                     state-path
                                                     ui-state]}]
-  (let [resources (dialogs/make-resource-dialog workspace project {:ext filter
-                                                                   :selection :multiple})]
+  (let [resources (resource-dialog/make workspace project {:ext filter
+                                                           :selection :multiple})]
     (when-not (empty? resources)
       (let [value-count (count value)
             added-count (count resources)
@@ -637,7 +639,7 @@
                                                        project
                                                        filter
                                                        on-value-changed]}]
-  (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext filter}))]
+  (when-let [resource (first (resource-dialog/make workspace project {:ext filter}))]
     {:dispatch (assoc on-value-changed :fx/event resource)}))
 
 (defmethod form-input-view :resource [{:keys [value

@@ -680,6 +680,10 @@ namespace dmSys
 #endif
     }
 
+    void GetSecureInfo(SystemInfo* info)
+    {
+    }
+
 #elif defined(__ANDROID__)
 
     void GetSystemInfo(SystemInfo* info)
@@ -742,7 +746,16 @@ namespace dmSys
             dmStrlCpy(info->m_SystemVersion, release, sizeof(info->m_SystemVersion));
             env->ReleaseStringUTFChars(releaseObj, release);
         }
+    }
 
+    void GetSecureInfo(SystemInfo* info)
+    {
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return;
+        }
         jclass activity_class = env->FindClass("android/app/NativeActivity");
         jmethodID get_content_resolver_method = env->GetMethodID(activity_class, "getContentResolver", "()Landroid/content/ContentResolver;");
         jobject content_resolver = env->CallObjectMethod(thread.GetActivity()->clazz, get_content_resolver_method);
@@ -788,6 +801,10 @@ namespace dmSys
         }
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
     }
 #endif
 

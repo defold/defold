@@ -15,6 +15,7 @@
 #include "profiler.h"
 
 #include <dlib/dlib.h>
+#include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
@@ -26,6 +27,10 @@
 #include "profile_render.h"
 
 #include <algorithm> // std::sort
+
+DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
+DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);
+DM_PROPERTY_U32(rmtp_Memory, 0, FrameReset, "Memory usage in kb", &rmtp_Profiler);
 
 namespace dmProfiler
 {
@@ -39,10 +44,6 @@ namespace dmProfiler
  * @name Profiler
  * @namespace profiler
  */
-
-DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
-DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);
-DM_PROPERTY_U32(rmtp_Memory, 0, FrameReset, "Memory usage in kb", &rmtp_Profiler);
 
 static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library
 static bool g_TrackCpuUsage = false;
@@ -541,7 +542,8 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     out.m_Count = dmProfile::SampleGetCallCount(sample);
     out.m_Color = dmProfile::SampleGetColor(sample);
     out.m_Indent = (uint8_t)indent;
-    out.m_NameHash = dmProfile::SampleGetNameHash(sample);
+    const char* name = dmProfile::SampleGetName(sample);
+    out.m_NameHash = dmHashString32(name?name:"<empty_sample_name>");
 
     if (thread->m_Samples.Full())
         thread->m_Samples.OffsetCapacity(32);
@@ -594,7 +596,9 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
 
 static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfile::HProperty property)
 {
-    uint32_t name_hash = dmProfile::PropertyGetNameHash(property);
+    const char* name = dmProfile::PropertyGetName(property);
+    uint32_t name_hash = dmHashString32(name?name:"<empty_property_name>");
+
     dmProfile::PropertyType type = dmProfile::PropertyGetType(property);
     dmProfile::PropertyValue value = dmProfile::PropertyGetValue(property);
 
@@ -691,6 +695,8 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
         DM_PROPERTY_SET_U32(rmtp_Memory, dmProfilerExt::GetMemoryUsage() / 1024u);
     }
 
+    dmProfilerExt::UpdatePlatformProfiler();
+
     return dmExtension::RESULT_OK;
 }
 
@@ -714,6 +720,7 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 
     dmProfile::Options options;
     options.m_Port = g_ProfilerPort;
+    options.m_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.sleep_between_server_updates", 0);
     dmProfile::Initialize(&options);
 
     if (!dmProfile::IsInitialized()) // We might use the null implementation

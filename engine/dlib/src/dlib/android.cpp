@@ -27,7 +27,6 @@ ThreadAttacher::ThreadAttacher()
 , m_Env(NULL)
 , m_IsAttached(false)
 {
-    JNIEnv* env = 0;
     if (m_Activity->vm->GetEnv((void **)&m_Env, JNI_VERSION_1_6) != JNI_OK)
     {
         m_Activity->vm->AttachCurrentThread(&m_Env, 0);

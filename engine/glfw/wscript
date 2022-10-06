@@ -37,11 +37,11 @@ def configure(conf):
         conf.fatal("DYNAMO_HOME not set")
     dynamo_ext = os.path.join(dynamo_home, "ext")
 
-    if platform == 'darwin' or platform == 'x86_64-darwin':
+    if platform in ('x86_64-macos','x86_64-macos'):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'IOKit', '-framework', 'CoreVideo'])
         if not waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGL', '-framework', 'AGL'])
-    elif platform in ('arm64-darwin', 'x86_64-ios'):
+    elif platform in ('arm64-ios', 'x86_64-ios'):
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
         if not waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGLES'])

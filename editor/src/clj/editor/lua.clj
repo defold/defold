@@ -19,7 +19,8 @@
             [clojure.string :as string]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
-            [schema.core :as s])
+            [schema.core :as s]
+            [service.log :as log])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Type ScriptDoc$Document ScriptDoc$Element ScriptDoc$Parameter ScriptDoc$ReturnValue]
            [org.apache.commons.io FilenameUtils]))
 
@@ -39,10 +40,10 @@
          nil
          elements)))
     (catch Exception e
-      (.printStackTrace e)
+      (log/warn :message "Failed to load documentation resource." :path path :exception e)
       {})))
 
-(def ^:private docs (string/split "base bit buffer builtins camera collectionfactory collectionproxy coroutine crash debug facebook factory go gui html5 http iac iap image io json label math model msg os package particlefx physics profiler push render resource socket sound spine sprite string sys table tilemap timer vmath webview window zlib" #" "))
+(def ^:private docs (string/split "base bit buffer builtins camera collectionfactory collectionproxy coroutine crash debug facebook factory go gui html5 http iac iap image io json label math model msg os package particlefx physics profiler push render resource socket sound sprite string sys table tilemap timer vmath webview window zlib" #" "))
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))

@@ -20,7 +20,6 @@
             [editor.code.script :as script]
             [editor.core :as core]
             [editor.defold-project :as project]
-            [editor.dialogs :as dialogs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
@@ -31,6 +30,7 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.validation :as validation]
@@ -226,7 +226,7 @@
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
   (output node-outline-extras g/Any (g/constantly {}))
-  (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
+  (output build-resource resource/Resource :abstract)
   (output build-targets g/Any produce-go-build-targets)
   (output build-error g/Err (g/constantly nil))
 
@@ -336,7 +336,9 @@
   (output ddf-message g/Any (g/fnk [id child-ids source-resource position rotation scale ddf-component-properties]
                                    (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties)))
   (output build-error g/Err (g/fnk [_node-id source-resource]
-                                   (path-error _node-id source-resource))))
+                                   (path-error _node-id source-resource)))
+  (output build-resource resource/Resource (g/fnk [source-build-targets]
+                                             (:resource (first source-build-targets)))))
 
 (g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   {:name name
@@ -344,6 +346,18 @@
    :instances ref-inst-ddf
    :embedded-instances embed-inst-ddf
    :collection-instances ref-coll-ddf})
+
+(g/defnk produce-save-value [proto-msg]
+  (update proto-msg :embedded-instances
+          (fn [embedded-instance-descs]
+            (mapv (fn [embedded-instance-desc]
+                    (update embedded-instance-desc :data
+                            (fn [string-encoded-prototype-desc]
+                              (-> (protobuf/str->map GameObject$PrototypeDesc string-encoded-prototype-desc)
+                                  (game-object/strip-default-scale-from-components-in-prototype-desc)
+                                  (as-> prototype-desc
+                                        (protobuf/map->str GameObject$PrototypeDesc prototype-desc false))))))
+                  embedded-instance-descs))))
 
 (defn- build-transform [transform]
   (let [pos (Point3d.)
@@ -481,7 +495,7 @@
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output base-url g/Str (gu/passthrough base-url))
   (output proto-msg g/Any produce-proto-msg)
-  (output save-value g/Any (gu/passthrough proto-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output node-outline outline/OutlineData :cached produce-coll-outline)
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
@@ -694,7 +708,7 @@
                       (concat
                         (g/operation-label "Add Game Object")
                         (g/operation-sequence op-seq)
-                        (make-ref-go coll-node project resource id [0 0 0] [0 0 0 1] [1 1 1] parent []))))]
+                        (make-ref-go coll-node project resource id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent []))))]
     ;; Selection
     (g/transact
       (concat
@@ -703,14 +717,14 @@
         (select-fn [go-node])))))
 
 (defn- select-go-file [workspace project]
-  (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"})))
+  (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"})))
 
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->collection selection))
   (label [selection] "Add Game Object File")
   (run [workspace project app-view selection]
     (let [collection (selection->collection selection)]
-      (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
+      (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"}))]
         (add-game-object-file collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
 (defn- make-embedded-go [self project type data id position rotation scale parent select-fn]
@@ -748,7 +762,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Game Object")
-        (make-embedded-go coll-node project ext template id [0 0 0] [0 0 0 1] [1 1 1] parent select-fn)))))
+        (make-embedded-go coll-node project ext template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent select-fn)))))
 
 (handler/defhandler :add :workbench
   (active? [selection] (selection->collection selection))
@@ -785,7 +799,7 @@
                resource-type (workspace/get-resource-type workspace ext)
                coll-node-path (resource/proj-path (g/node-value coll-node :resource))
                accept (fn [x] (not= (resource/proj-path x) coll-node-path))]
-           (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
+           (when-let [resource (first (resource-dialog/make workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    op-seq (gensym)
@@ -794,7 +808,7 @@
                                         (concat
                                           (g/operation-label "Add Collection")
                                           (g/operation-sequence op-seq)
-                                          (add-collection-instance coll-node resource id [0 0 0] [0 0 0 1] [1 1 1] []))))]
+                                          (add-collection-instance coll-node resource id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] []))))]
                ; Selection
                (g/transact
                  (concat
@@ -844,20 +858,60 @@
   [{:keys [scale3 scale] :as pb-map}]
   ;; scale is the legacy uniform scale
   ;; check if scale3 has default value and if so, use legacy uniform scale
-  (if (and (= scale3 [0.0 0.0 0.0]) (some? scale) (not= scale 0.0))
+  (if (and (protobuf/default-read-scale-value? scale3)
+           (some? scale)
+           (not (zero? scale)))
     [scale scale scale]
     scale3))
 
-(defn- uniform->non-uniform-scale [v]
-  (-> v
-    (assoc :scale3 (read-scale3-or-scale v))
-    (dissoc :scale)))
+(defn- uniform->non-uniform-scale [any-instance-desc]
+  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  (-> any-instance-desc
+      (assoc :scale3 (read-scale3-or-scale any-instance-desc))
+      (dissoc :scale)))
 
-(defn- sanitize-instances [is]
-  (mapv uniform->non-uniform-scale is))
+(defn- sanitize-instance-data [any-instance-desc property-descs-path]
+  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  (-> any-instance-desc
+      (uniform->non-uniform-scale)
+      (game-object/sanitize-property-descs-at-path property-descs-path)))
 
-(defn- sanitize-collection [c]
-  (reduce (fn [c f] (update c f sanitize-instances)) c [:instances :embedded-instances :collection-instances]))
+(defn- sanitize-embedded-game-object-data [embedded-instance-desc resource-type-map]
+  ;; GameObject$EmbeddedInstanceDesc in map format.
+  (let [{:keys [read-fn write-fn]} (resource-type-map "go")]
+    (try
+      (let [data (:data embedded-instance-desc)
+            sanitized-data (with-open [reader (StringReader. data)]
+                             (write-fn (read-fn reader)))]
+        (assoc embedded-instance-desc :data sanitized-data))
+      (catch Exception e
+        ;; Leave unsanitized.
+        (log/warn :msg "Failed to sanitize embedded game object" :exception e)
+        embedded-instance-desc))))
+
+(defn- sanitize-referenced-game-object-instance [instance-desc]
+  ;; GameObject$InstanceDesc in map format.
+  (-> instance-desc
+      (sanitize-instance-data [:component-properties :properties])))
+
+(defn- sanitize-embedded-game-object-instance [embedded-instance-desc resource-type-map]
+  ;; GameObject$EmbeddedInstanceDesc in map format.
+  (-> embedded-instance-desc
+      (sanitize-instance-data [:component-properties :properties])
+      (sanitize-embedded-game-object-data resource-type-map)))
+
+(defn- sanitize-referenced-collection-instance [collection-instance-desc]
+  ;; GameObject$CollectionInstanceDesc in map format.
+  (-> collection-instance-desc
+      (sanitize-instance-data [:instance-properties :properties :properties])))
+
+(defn- sanitize-collection [workspace collection-desc]
+  ;; GameObject$CollectionDesc in map format.
+  (let [resource-type-map (workspace/get-resource-type-map workspace)]
+    (-> collection-desc
+        (update :instances (partial mapv sanitize-referenced-game-object-instance))
+        (update :embedded-instances (partial mapv #(sanitize-embedded-game-object-instance % resource-type-map)))
+        (update :collection-instances (partial mapv sanitize-referenced-collection-instance)))))
 
 (defn- make-dependencies-fn [workspace]
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
@@ -883,7 +937,7 @@
                                     :ddf-type GameObject$CollectionDesc
                                     :load-fn load-collection
                                     :dependencies-fn (make-dependencies-fn workspace)
-                                    :sanitize-fn sanitize-collection
+                                    :sanitize-fn (partial sanitize-collection workspace)
                                     :icon collection-icon
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))

@@ -32,7 +32,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testModel() throws Exception {
+    public void testModelDae() throws Exception {
         addFile("/test_meshset.dae", "");
         addFile("/test_skeleton.dae", "");
         addFile("/test_animationset.dae", "");
@@ -55,5 +55,31 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
         assertEquals("/test_skeleton.skeletonc", rigScene.getSkeleton());
         assertEquals("/test_animationset_generated_0.animationsetc", rigScene.getAnimationSet());
+    }
+
+    @Test
+    public void testModelGltf() throws Exception {
+        addFile("/test_meshset.gltf", "");
+        addFile("/test_skeleton.gltf", "");
+        addFile("/test_animation.gltf", "");
+        addFile("/test.material", "");
+
+        StringBuilder src = new StringBuilder();
+        src.append(" mesh: \"/test_meshset.gltf\"");
+        src.append(" material: \"/test.material\"");
+        src.append(" skeleton: \"/test_skeleton.gltf\"");
+        src.append(" animations: \"/test_animation.gltf\"");
+        src.append(" default_animation: \"test_animation\"");
+        List<Message> outputs = build("/test.model", src.toString());
+
+        Model model = (Model)outputs.get(0);
+        assertEquals("/test.rigscenec", model.getRigScene());
+        assertEquals("/test.materialc", model.getMaterial());
+        assertEquals("test_animation", model.getDefaultAnimation());
+
+        RigScene rigScene = (RigScene)outputs.get(1);
+        assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
+        assertEquals("/test_skeleton.skeletonc", rigScene.getSkeleton());
+        assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
     }
 }

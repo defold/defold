@@ -1544,7 +1544,10 @@
   (node-id [this] node-id)
   (node-type [this] node-type)
   (get-property [this basis property]
-    (get properties property (gt/get-property (gt/node-by-id-at basis original-id) basis property)))
+    (let [value (get properties property ::not-found)]
+      (if (identical? ::not-found value)
+        (gt/get-property (gt/node-by-id-at basis original-id) basis property)
+        value)))
   (set-property [this basis property value]
     (if (= :_output-jammers property)
       (throw (ex-info "Not possible to mark override nodes as defective" {}))

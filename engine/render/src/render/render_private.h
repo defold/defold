@@ -50,6 +50,8 @@ namespace dmRender
         dmGraphics::TextureWrap m_UWrap;
         dmGraphics::TextureWrap m_VWrap;
 
+        float m_MaxAnisotropy;
+
         Sampler(int32_t unit)
             : m_NameHash(0)
             , m_Location(-1)
@@ -60,7 +62,9 @@ namespace dmRender
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
-        {}
+            , m_MaxAnisotropy(1.0f)
+        {
+        }
     };
 
     struct Material
@@ -143,6 +147,8 @@ namespace dmRender
         float               m_Tracking;
         int32_t             m_Next;
         int32_t             m_Tail;
+        dmVMath::Point3     m_FrustumCullingCenter;
+        float               m_FrustumCullingRadius;
         uint32_t            m_Align : 2;
         uint32_t            m_VAlign : 2;
         uint32_t            m_StencilTestParamsSet : 1;

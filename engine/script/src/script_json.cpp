@@ -24,8 +24,11 @@
 
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+    #include <lua/lua.h>
+    #include <lua/lauxlib.h>
+
+    // Defined in luacjson/cjson.c
+    int lua_cjson_encode(lua_State *L);
 }
 
 #include "script_json.h"
@@ -230,9 +233,55 @@ namespace dmScript
         return luaL_error(L, "Failed to parse json '%s' (%d).", json, r);
     }
 
+    /*# encode a lua table to a JSON string
+     * Encode a lua table to a JSON string.
+     * A Lua error is raised for syntax errors.
+     *
+     * @name json.encode
+     * @param tbl [type:table] lua table to encode
+     * @return json [type:string] encoded json
+     *
+     * @examples
+     *
+     * Convert a lua table to a JSON string:
+     *
+     * ```lua
+     * function init(self)
+     *      local tbl = {
+     *           persons = {
+     *                { name = "John Doe"},
+     *                { name = "Darth Vader"}
+     *           }
+     *      }
+     *      local jsonstring = json.encode(tbl)
+     *      pprint(jsonstring)
+     * end
+     * ```
+     *
+     * Results in the following printout:
+     *
+     * ```
+     * {"persons":[{"name":"John Doe"},{"name":"Darth Vader"}]}
+     * ```
+     */
+    int Json_Encode(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        if (top == 0)
+        {
+            luaL_error(L, "json.encode requires one argument.");
+        }
+
+        int ret = lua_cjson_encode(L);
+        assert(ret == 1);
+        assert(top + 1 == lua_gettop(L));
+        return ret;
+    }
+
     static const luaL_reg ScriptJson_methods[] =
     {
         {"decode", Json_Decode},
+        {"encode", Json_Encode},
         {0, 0}
     };
 

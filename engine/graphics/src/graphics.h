@@ -99,46 +99,6 @@ namespace dmGraphics
         STATE_ALPHA_TEST_SUPPORTED = 7,
     };
 
-    // Texture format
-    enum TextureFormat
-    {
-        TEXTURE_FORMAT_LUMINANCE            = 0,
-        TEXTURE_FORMAT_LUMINANCE_ALPHA      = 1,
-        TEXTURE_FORMAT_RGB                  = 2,
-        TEXTURE_FORMAT_RGBA                 = 3,
-        TEXTURE_FORMAT_RGB_16BPP            = 4,
-        TEXTURE_FORMAT_RGBA_16BPP           = 5,
-        TEXTURE_FORMAT_DEPTH                = 6,
-        TEXTURE_FORMAT_STENCIL              = 7,
-        // Compressed formats
-        TEXTURE_FORMAT_RGB_PVRTC_2BPPV1     = 8,
-        TEXTURE_FORMAT_RGB_PVRTC_4BPPV1     = 9,
-        TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1    = 10,
-        TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1    = 11,
-        TEXTURE_FORMAT_RGB_ETC1             = 12,
-        TEXTURE_FORMAT_R_ETC2               = 13,
-        TEXTURE_FORMAT_RG_ETC2              = 14,
-        TEXTURE_FORMAT_RGBA_ETC2            = 15,
-        TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
-        TEXTURE_FORMAT_RGB_BC1              = 17,
-        TEXTURE_FORMAT_RGBA_BC3             = 18,
-        TEXTURE_FORMAT_R_BC4                = 19,
-        TEXTURE_FORMAT_RG_BC5               = 20,
-        TEXTURE_FORMAT_RGBA_BC7             = 21,
-
-        // Floating point texture formats
-        TEXTURE_FORMAT_RGB16F               = 22,
-        TEXTURE_FORMAT_RGB32F               = 23,
-        TEXTURE_FORMAT_RGBA16F              = 24,
-        TEXTURE_FORMAT_RGBA32F              = 25,
-        TEXTURE_FORMAT_R16F                 = 26,
-        TEXTURE_FORMAT_RG16F                = 27,
-        TEXTURE_FORMAT_R32F                 = 28,
-        TEXTURE_FORMAT_RG32F                = 29,
-
-        TEXTURE_FORMAT_COUNT
-    };
-
     // Translation table to translate RenderTargetAttachment to BufferType
     struct AttachmentToBufferType
     {
@@ -340,6 +300,50 @@ namespace dmGraphics
         uint8_t       : 5;
     };
 
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_A = 0x8;
+
+    struct PipelineState
+    {
+        uint64_t m_WriteColorMask           : 4;
+        uint64_t m_WriteDepth               : 1;
+        uint64_t m_PrimtiveType             : 3;
+        // Depth Test
+        uint64_t m_DepthTestEnabled         : 1;
+        uint64_t m_DepthTestFunc            : 3;
+        // Stencil Test
+        uint64_t m_StencilEnabled           : 1;
+
+        // Front
+        uint64_t m_StencilFrontOpFail       : 3;
+        uint64_t m_StencilFrontOpPass       : 3;
+        uint64_t m_StencilFrontOpDepthFail  : 3;
+        uint64_t m_StencilFrontTestFunc     : 3;
+
+        // Back
+        uint64_t m_StencilBackOpFail        : 3;
+        uint64_t m_StencilBackOpPass        : 3;
+        uint64_t m_StencilBackOpDepthFail   : 3;
+        uint64_t m_StencilBackTestFunc      : 3;
+
+        uint64_t m_StencilWriteMask         : 8;
+        uint64_t m_StencilCompareMask       : 8;
+        uint64_t m_StencilReference         : 8;
+        // Blending
+        uint64_t m_BlendEnabled             : 1;
+        uint64_t m_BlendSrcFactor           : 4;
+        uint64_t m_BlendDstFactor           : 4;
+        // Culling
+        uint64_t m_CullFaceEnabled          : 1;
+        uint64_t m_CullFaceType             : 2;
+        // Face winding
+        uint64_t m_FaceWinding              : 1;
+        // Polygon offset
+        uint64_t m_PolygonOffsetFillEnabled : 1;
+    };
+
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context
@@ -460,6 +464,13 @@ namespace dmGraphics
     void ResizeWindow(HContext context, uint32_t width, uint32_t height);
 
     /**
+     * Get the scale factor of the display.
+     * The display scale factor is usally 1.0 but will for instance be 2.0 on a macOS Retina display.
+     * @return Scale factor
+     */
+    float GetDisplayScaleFactor(HContext context);
+
+    /**
      * Return the default texture filtering modes.
      * @param context Graphics context handle
      * @param out_min_filter Out parameter to write the default min filtering mode to
@@ -542,9 +553,8 @@ namespace dmGraphics
     int32_t  GetUniformLocation(HProgram prog, const char* name);
 
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
-    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int base_register);
+    void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
     void SetSampler(HContext context, int32_t location, int32_t* units, int count);
-
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void EnableState(HContext context, State state);
@@ -571,8 +581,9 @@ namespace dmGraphics
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
+    bool IsMultiTargetRenderingSupported(HContext context);
+    PipelineState GetPipelineState(HContext context);
 
-    bool IsTextureFormatSupported(HContext context, TextureFormat format);
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
@@ -595,7 +606,7 @@ namespace dmGraphics
      */
     void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
 
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
+    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     uint32_t GetTextureResourceSize(HTexture texture);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);

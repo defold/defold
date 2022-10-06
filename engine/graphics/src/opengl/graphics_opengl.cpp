@@ -28,6 +28,7 @@
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
+    #include <emscripten/html5.h>
 #endif
 
 #include "graphics_opengl_defines.h"
@@ -357,6 +358,9 @@ static void LogFrameBufferError(GLenum status)
     typedef void (* DM_PFNGLINVALIDATEFRAMEBUFFERPROC) (GLenum target, GLsizei numAttachments, const GLenum *attachments);
     DM_PFNGLINVALIDATEFRAMEBUFFERPROC PFN_glInvalidateFramebuffer = NULL;
 
+    typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
+    DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
+
     Context* g_Context = 0x0;
 
     Context::Context(const ContextParams& params)
@@ -578,7 +582,6 @@ static void LogFrameBufferError(GLenum status)
             if (context->m_Extensions.Full())
                 context->m_Extensions.OffsetCapacity(4);
             context->m_Extensions.Push(next);
-
             next = dmStrTok(0, " ", &iter);
         }
     }
@@ -607,6 +610,11 @@ static void LogFrameBufferError(GLenum status)
     static const char* OpenGLGetSupportedExtension(HContext context, uint32_t index)
     {
         return context->m_Extensions[index];
+    }
+
+    static bool OpenGLIsMultiTargetRenderingSupported(HContext context)
+    {
+        return PFN_glDrawBuffers != 0x0;
     }
 
 
@@ -638,13 +646,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             break;
         }
     }
-#if !defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)
+#if !defined(__EMSCRIPTEN__)
     if(func == 0 && core_name)
     {
         // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
         func = (uintptr_t) glfwGetProcAddress(core_name);
     }
 #endif
+
     return func;
 }
 
@@ -890,16 +899,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         context->m_WindowFocusCallbackUserData    = params->m_FocusCallbackUserData;
         context->m_WindowIconifyCallback          = params->m_IconifyCallback;
         context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
-        context->m_WindowOpened = 1;
-        context->m_Width = params->m_Width;
-        context->m_Height = params->m_Height;
+        context->m_WindowOpened                   = 1;
+        context->m_Width                          = params->m_Width;
+        context->m_Height                         = params->m_Height;
+
         // read back actual window size
         int width, height;
         glfwGetWindowSize(&width, &height);
-        context->m_WindowWidth = (uint32_t)width;
-        context->m_WindowHeight = (uint32_t)height;
-        context->m_Dpi = 0;
+        context->m_WindowWidth    = (uint32_t) width;
+        context->m_WindowHeight   = (uint32_t) height;
+        context->m_Dpi            = 0;
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
+        context->m_PipelineState  = GetDefaultPipelineState();
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
         context->m_IsShaderLanguageGles = 1;
@@ -919,6 +930,50 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_IsGles3Version = 1;
             context->m_IsShaderLanguageGles = 0;
         #endif
+#endif
+
+#if defined(__EMSCRIPTEN__)
+        EMSCRIPTEN_WEBGL_CONTEXT_HANDLE emscripten_ctx = emscripten_webgl_get_current_context();
+        assert(emscripten_ctx != 0 && "Unable to get GL context from emscripten.");
+
+        // These are all the available official webgl extensions, taken from this list:
+        // https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Using_Extensions
+        emscripten_webgl_enable_extension(emscripten_ctx, "ANGLE_instanced_arrays");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_blend_minmax");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_color_buffer_half_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_disjoint_timer_query");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_float_blend");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_frag_depth");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_shader_texture_lod");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_sRGB");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_bptc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_compression_rgtc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_filter_anisotropic");
+        emscripten_webgl_enable_extension(emscripten_ctx, "EXT_texture_norm16");
+        emscripten_webgl_enable_extension(emscripten_ctx, "KHR_parallel_shader_compile");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_element_index_uint");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_fbo_render_mipmap");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_standard_derivatives");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_float_linear");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_texture_half_float_linear");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OES_vertex_array_object");
+        emscripten_webgl_enable_extension(emscripten_ctx, "OVR_multiview2");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_color_buffer_float");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_astc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_etc1");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_pvrtc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_compressed_texture_s3tc_srgb");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_renderer_info");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_debug_shaders");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_depth_texture");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_draw_buffers");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
+        emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
 
         if (params->m_PrintDeviceInfo)
@@ -992,6 +1047,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers, "glDrawBuffers", "draw_buffers", "glDrawBuffers", DM_PFNGLDRAWBUFFERSPROC, context);
 
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
@@ -1145,6 +1201,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
         }
 
+        if (OpenGLIsExtensionSupported(context, "GL_EXT_texture_filter_anisotropic"))
+        {
+            context->m_AnisotropySupport = 1;
+            glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &context->m_MaxAnisotropy);
+        }
+
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
         if ((OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint")))
         {
@@ -1238,6 +1300,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             return 0;
     }
 
+    static PipelineState OpenGLGetPipelineState(HContext context)
+    {
+        return context->m_PipelineState;
+    }
+
     static uint32_t OpenGLGetDisplayDpi(HContext context)
     {
         assert(context);
@@ -1260,6 +1327,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         assert(context);
         return context->m_WindowWidth;
+    }
+
+    static float OpenGLGetDisplayScaleFactor(HContext context)
+    {
+        assert(context);
+        return glfwGetDisplayScaleFactor();
     }
 
     static uint32_t OpenGLGetWindowHeight(HContext context)
@@ -1976,10 +2049,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int base_register)
+    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
     {
         assert(context);
-        glUniformMatrix4fv(base_register, 1, 0, (const GLfloat*) data);
+        glUniformMatrix4fv(base_register, count, 0, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 
@@ -2073,24 +2146,15 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             rt->m_BufferTextureParams[i].m_DataSize = 0;
         }
 
-    #ifdef GL_ES_VERSION_2_0
-        if(buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR0_BIT)
-        {
-            uint32_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR0_BIT);
-            rt->m_ColorBufferTexture[0] = NewTexture(context, creation_params[color_buffer_index]);
-            SetTexture(rt->m_ColorBufferTexture[0], params[color_buffer_index]);
-            // attach the texture to FBO color attachment point
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rt->m_ColorBufferTexture[0]->m_TextureIds[0], 0);
-            CHECK_GL_ERROR;
-        }
-    #else
         BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
             BUFFER_TYPE_COLOR1_BIT,
             BUFFER_TYPE_COLOR2_BIT,
             BUFFER_TYPE_COLOR3_BIT,
         };
-        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+
+        uint8_t max_color_attachments = PFN_glDrawBuffers != 0x0 ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
+        for (int i = 0; i < max_color_attachments; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
             {
@@ -2102,7 +2166,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 CHECK_GL_ERROR;
             }
         }
-    #endif
 
         if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
         {
@@ -2212,8 +2275,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR;
 
-#ifndef GL_ES_VERSION_2_0
-        if (render_target != NULL)
+        if (render_target != NULL && PFN_glDrawBuffers != 0x0)
         {
             uint32_t num_buffers = 0;
             GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
@@ -2233,10 +2295,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
             if (num_buffers > 1)
             {
-                glDrawBuffers(num_buffers, buffers);
+                PFN_glDrawBuffers(num_buffers, buffers);
             }
         }
-#endif
 
         CHECK_GL_FRAMEBUFFER_ERROR;
     }
@@ -2421,7 +2482,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return texture_filter_lut[texture_filter];
     }
 
-    static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         GLenum type = GetOpenGLTextureType(texture->m_Type);
 
@@ -2436,6 +2497,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glTexParameteri(type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
         CHECK_GL_ERROR
+
+        if (g_Context->m_AnisotropySupport && max_anisotropy > 1.0f)
+        {
+            glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, g_Context->m_MaxAnisotropy));
+            CHECK_GL_ERROR
+        }
     }
 
     static uint8_t OpenGLGetNumTextureHandles(HTexture texture)
@@ -2548,7 +2615,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
         GLenum type = GetOpenGLTextureType(texture->m_Type);
-
         GLenum gl_format;
         GLenum gl_type = GL_UNSIGNED_BYTE; // only used of uncompressed formats
         GLint internal_format = -1; // // Only used for uncompressed formats
@@ -2884,7 +2950,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glBindTexture(texture_type, texture->m_TextureIds[i]);
             CHECK_GL_ERROR;
 
-            SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap);
+            SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap, 1.0f);
         }
     }
 
@@ -2929,6 +2995,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     #endif
         glEnable(GetOpenGLState(state));
         CHECK_GL_ERROR
+
+        SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void OpenGLDisableState(HContext context, State state)
@@ -2943,6 +3011,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     #endif
         glDisable(GetOpenGLState(state));
         CHECK_GL_ERROR
+
+        SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void OpenGLSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
@@ -2975,6 +3045,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glBlendFunc(blend_factor_lut[source_factor], blend_factor_lut[destinaton_factor]);
         CHECK_GL_ERROR
+
+        context->m_PipelineState.m_BlendSrcFactor = source_factor;
+        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
     static void OpenGLSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
@@ -2982,6 +3055,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glColorMask(red, green, blue, alpha);
         CHECK_GL_ERROR;
+
+        uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
+        context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
     static void OpenGLSetDepthMask(HContext context, bool mask)
@@ -2989,6 +3068,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glDepthMask(mask);
         CHECK_GL_ERROR;
+
+        context->m_PipelineState.m_WriteDepth = mask;
     }
 
     static GLenum GetOpenGLCompareFunc(CompareFunc func)
@@ -3023,6 +3104,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glDepthFunc(GetOpenGLCompareFunc(func));
         CHECK_GL_ERROR
+
+        context->m_PipelineState.m_DepthTestFunc = func;
     }
 
     static void OpenGLSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -3037,6 +3120,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glStencilMask(mask);
         CHECK_GL_ERROR;
+
+        context->m_PipelineState.m_StencilWriteMask = mask;
     }
 
     static void OpenGLSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
@@ -3044,6 +3129,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glStencilFunc(GetOpenGLCompareFunc(func), ref, mask);
         CHECK_GL_ERROR
+
+        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void OpenGLSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
@@ -3051,6 +3141,17 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glStencilFuncSeparate(GetOpenGLFaceTypeFunc(face_type), GetOpenGLCompareFunc(func), ref, mask);
         CHECK_GL_ERROR
+
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        }
+        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
     }
 
     static void OpenGLSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
@@ -3069,6 +3170,13 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glStencilOp(stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
         CHECK_GL_ERROR;
+
+        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
     static void OpenGLSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
@@ -3087,6 +3195,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         glStencilOpSeparate(GetOpenGLFaceTypeFunc(face_type), stencil_op_lut[sfail], stencil_op_lut[dpfail], stencil_op_lut[dppass]);
         CHECK_GL_ERROR;
+
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;   
+        }
     }
 
     static void OpenGLSetCullFace(HContext context, FaceType face_type)
@@ -3094,6 +3215,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(context);
         glCullFace(GetOpenGLFaceTypeFunc(face_type));
         CHECK_GL_ERROR
+
+        context->m_PipelineState.m_CullFaceType = face_type;
     }
 
     static void OpenGLSetFaceWinding(HContext context, FaceWinding face_winding)
@@ -3106,6 +3229,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         };
 
         glFrontFace(face_winding_lut[face_winding]);
+
+        context->m_PipelineState.m_FaceWinding = face_winding;
     }
 
     static void OpenGLSetPolygonOffset(HContext context, float factor, float units)
@@ -3170,6 +3295,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_GetHeight = OpenGLGetHeight;
         fn_table.m_GetWindowWidth = OpenGLGetWindowWidth;
         fn_table.m_GetWindowHeight = OpenGLGetWindowHeight;
+        fn_table.m_GetDisplayScaleFactor = OpenGLGetDisplayScaleFactor;
         fn_table.m_SetWindowSize = OpenGLSetWindowSize;
         fn_table.m_ResizeWindow = OpenGLResizeWindow;
         fn_table.m_GetDefaultTextureFilters = OpenGLGetDefaultTextureFilters;
@@ -3260,6 +3386,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_GetNumSupportedExtensions = OpenGLGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = OpenGLGetSupportedExtension;
         fn_table.m_GetNumTextureHandles = OpenGLGetNumTextureHandles;
+        fn_table.m_IsMultiTargetRenderingSupported = OpenGLIsMultiTargetRenderingSupported;
+        fn_table.m_GetPipelineState = OpenGLGetPipelineState;
         return fn_table;
     }
 }

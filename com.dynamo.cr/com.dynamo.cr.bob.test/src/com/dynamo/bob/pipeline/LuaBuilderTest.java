@@ -16,13 +16,16 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 import org.junit.Test;
 
+import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
+import com.dynamo.script.proto.Lua.LuaSource;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 
@@ -92,5 +95,113 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         } catch (CompileExceptionError e) {
             assertEquals(2, e.getLineNumber());
         }
+    }
+
+    @Test
+    public void testUseUncompressedLuaSource() throws Exception {
+        Project p = GetProject();
+        p.setOption("use-uncompressed-lua-source", "true");
+
+        final String path = "/test.script";
+        final String scriptSource = "function foo() print('foo') end";
+        LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript() != null);
+        assertTrue(luaSource.getScript().size() > 0);
+        assertTrue(luaSource.getBytecode().size() == 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
+    }
+
+    @Test
+    public void testCompressedLuaSourceForHTML5() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "js-web");
+
+        final String path = "/test.script";
+        final String scriptSource = "function foo() print('foo') end";
+        LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript() != null);
+        assertTrue(luaSource.getScript().size() > 0);
+        assertTrue(luaSource.getBytecode().size() == 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+        assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.ENCRYPTED));
+        assertFalse(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
+    }
+
+    // Leaving these tests in case we decide to reintroduce bytecode generation for Lua 5.1.5
+    //
+    // @Test
+    // public void testVanillaLuaBytecode() throws Exception {
+    //     Project p = GetProject();
+    //     p.setOption("platform", "js-web");
+
+    //     StringBuilder src = new StringBuilder();
+    //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+    //     LuaSource luaSource = luaModule.getSource();
+    //     assertTrue(luaSource.getScript().size() == 0);
+    //     assertTrue(luaSource.getBytecode().size() > 0);
+    //     assertTrue(luaSource.getBytecode64().size() == 0);
+    //     assertTrue(luaSource.getDelta().size() == 0);
+    // }
+
+    // @Test
+    // public void testVanillaLuaBytecodeChunkname() throws Exception {
+    //     Project p = GetProject();
+    //     p.setOption("platform", "js-web");
+
+    //     StringBuilder src = new StringBuilder();
+    //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+    //     LuaSource luaSource = luaModule.getSource();
+    //     String chunkname = luaSource.getBytecode().substring(12+4, 12+4+12).toStringUtf8();
+    //     assertEquals("@test.script", chunkname);
+    // }
+
+    @Test
+    public void testLuaJITBytecode64WithoutDelta() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "armv7-android");
+        p.setOption("architectures", "arm64-android");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript().size() == 0);
+        assertTrue(luaSource.getBytecode().size() > 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+    }
+
+    @Test
+    public void testLuaJITBytecode32WithoutDelta() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "armv7-android");
+        p.setOption("architectures", "armv7-android");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript().size() == 0);
+        assertTrue(luaSource.getBytecode().size() > 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+    }
+
+    @Test
+    public void testLuaJITBytecode64WithDelta() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "armv7-android");
+        p.setOption("architectures", "armv7-android,arm64-android");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript().size() == 0);
+        assertTrue(luaSource.getBytecode().size() > 0);
+        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertTrue(luaSource.getDelta().size() > 0);
     }
 }

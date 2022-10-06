@@ -156,9 +156,10 @@ namespace dmGameSystem
     {
         ScriptLibContext();
 
-        lua_State* m_LuaState;
-        dmResource::HFactory m_Factory;
+        lua_State*              m_LuaState;
+        dmResource::HFactory    m_Factory;
         dmGameObject::HRegister m_Register;
+        dmHID::HContext         m_HidContext;
     };
 
 

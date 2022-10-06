@@ -294,6 +294,21 @@ namespace dmHID
         glfwAccelerometerEnable();
     }
 
+    void ShowMouseCursor(HContext context)
+    {
+        glfwEnable(GLFW_MOUSE_CURSOR);
+    }
+
+    void HideMouseCursor(HContext context)
+    {
+        glfwDisable(GLFW_MOUSE_CURSOR);
+    }
+
+    bool GetCursorVisible(HContext context)
+    {
+        return !glfwGetMouseLocked();
+    }
+
     const char* GetKeyName(Key key)
     {
         return KEY_NAMES[key];

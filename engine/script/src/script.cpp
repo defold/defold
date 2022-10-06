@@ -1820,7 +1820,7 @@ namespace dmScript
     // to calculate the length of the input string or output string
     static char* ConcatString(char* w_ptr, const char* w_ptr_end, const char* str)
     {
-        while ((w_ptr != w_ptr_end) && *str)
+        while ((w_ptr != w_ptr_end) && str && *str)
         {
             *w_ptr++ = *str++;
         }
@@ -1850,7 +1850,10 @@ namespace dmScript
             LuaFunctionInfo fi;
             if (dmScript::GetLuaFunctionRefInfo(L, optional_callback_index, &fi))
             {
-                function_source = fi.m_FileName;
+                if (fi.m_FileName)
+                {
+                    function_source = fi.m_FileName;
+                }
                 if (fi.m_OptionalName)
                 {
                     w_ptr = ConcatString(w_ptr, w_ptr_end, fi.m_OptionalName);
@@ -1928,4 +1931,17 @@ namespace dmScript
         return r;
     }
 
+    bool CheckBoolean(lua_State* L, int index)
+    {
+        if (lua_isboolean(L, index))
+        {
+            return lua_toboolean(L, index);
+        }
+        return luaL_error(L, "Argument %d must be a boolean", index);
+    }
+
+    void PushBoolean(lua_State* L, bool v)
+    {
+        lua_pushboolean(L, v);
+    }
 } // dmScript

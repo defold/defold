@@ -87,16 +87,7 @@ namespace dmGameSystem
 
         if (result == dmResource::RESULT_OK && resource->m_SkeletonRes)
         {
-            dmRig::CreateBindPose(*resource->m_SkeletonRes->m_Skeleton, resource->m_BindPose);
-            if(resource->m_AnimationSetRes)
-            {
-                dmRig::FillBoneListArrays(*resource->m_MeshSetRes->m_MeshSet, *resource->m_AnimationSetRes->m_AnimationSet, *resource->m_SkeletonRes->m_Skeleton, resource->m_TrackIdxToPose, resource->m_PoseIdxToInfluence);
-            }
-            else
-            {
-                resource->m_TrackIdxToPose.SetSize(0);
-                resource->m_PoseIdxToInfluence.SetSize(0);
-            }
+            dmRig::CopyBindPose(*resource->m_SkeletonRes->m_Skeleton, resource->m_BindPose);
         }
         return result;
     }
@@ -121,8 +112,6 @@ namespace dmGameSystem
         uint32_t size = sizeof(RigSceneResource);
         size += ddf_size;
         size += res->m_BindPose.Capacity()*sizeof(dmRig::RigBone);
-        size += res->m_PoseIdxToInfluence.Capacity()*sizeof(uint32_t);
-        size += res->m_TrackIdxToPose.Capacity()*sizeof(uint32_t);
         return size;
     }
 

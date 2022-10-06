@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
+#include <dlib/time.h>
 
 #include <string.h>
 
@@ -41,19 +42,37 @@ extern "C"
 class ScriptTest : public jc_test_base_class
 {
 protected:
+
+    static ScriptTest* s_LogListenerContext;
+
     virtual void SetUp()
     {
-        dmLog::SetCustomLogCallback(LogCallback, this);
+        s_LogListenerContext = this;
+        dmLog::LogParams params;
+        dmLog::LogInitialize(&params);
+        dmLogRegisterListener(LogCallback);
         m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
+    }
+
+    void FinalizeLogs()
+    {
+        if (s_LogListenerContext != 0)
+        {
+            dmLog::LogFinalize();
+            s_LogListenerContext = 0;
+        }
     }
 
     virtual void TearDown()
     {
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
-        dmLog::SetCustomLogCallback(0x0, 0x0);
+
+        if (s_LogListenerContext)
+            dmLogUnregisterListener(LogCallback);
+        FinalizeLogs();
     }
 
     const char* RemoveTableAddresses(char* str)
@@ -89,27 +108,33 @@ protected:
 
     char* GetLog()
     {
+        FinalizeLogs(); // Waits for the log thread to close
+
+        m_Log.SetCapacity(m_Log.Size() + 1);
         m_Log.Push('\0');
         return m_Log.Begin();
     }
 
     void AppendToLog(const char* log)
     {
+        if (strstr(log, "Log server started on port") != 0)
+            return;
         uint32_t len = strlen(log);
         m_Log.SetCapacity(m_Log.Size() + len + 1);
         m_Log.PushArray(log, len);
     }
 
-    static void LogCallback(void* user_data, const char* log)
+    static void LogCallback(LogSeverity severity, const char* domain, const char* formatted_string)
     {
-        ScriptTest* i = (ScriptTest*)user_data;
-        i->AppendToLog(log);
+        ScriptTest* i = (ScriptTest*)s_LogListenerContext;
+        i->AppendToLog(formatted_string);
     }
 
     dmScript::HContext m_Context;
     lua_State* L;
     dmArray<char> m_Log;
 };
+ScriptTest* ScriptTest::s_LogListenerContext = 0;
 
 bool RunFile(lua_State* L, const char* filename)
 {
@@ -1035,6 +1060,78 @@ TEST_F(ScriptTest, InstanceId)
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
 }
 
+#if defined(_WIN32)
+    #define USE_PANIC_FN 0
+#else
+    #define USE_PANIC_FN 1
+    static jmp_buf g_env_buffer;
+    static bool g_panic_function_called = false;
+    static int boolean_panic_fn(lua_State *L)
+    {
+        g_panic_function_called = true;
+        fprintf(stderr, "PANIC: unprotected error in call to Lua API (%s) (custom boolean_panic_fn)\n", lua_tostring(L, -1));
+        longjmp(g_env_buffer, 1);
+        return 0;
+    }
+#endif
+
+TEST_F(ScriptTest, LuaBooleanFunctions)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    ///////////////////////////////
+    // Test simple CheckBoolean fn
+    ///////////////////////////////
+    lua_pushboolean(L, true);
+    ASSERT_TRUE(dmScript::CheckBoolean(L, -1));
+    lua_pop(L, 1);
+
+    lua_pushboolean(L, true);
+    ASSERT_TRUE(dmScript::CheckBoolean(L, -1));
+    lua_pop(L, 1);
+
+    /////////////////////////////////////////////
+    // Test checking something that isn't boolean
+    /////////////////////////////////////////////
+#if USE_PANIC_FN
+    lua_CFunction current_panic = lua_atpanic(L, boolean_panic_fn);
+
+    // Val will be zero first time the code reaches here,
+    // but the longjmp from the error handler will return 1
+    // after it has been called
+    int val = setjmp(g_env_buffer);
+
+    if (val == 0)
+    {
+        lua_pushnumber(L, 123);
+        dmScript::CheckBoolean(L, -1);
+    }
+    lua_atpanic(L, current_panic);
+    ASSERT_TRUE(g_panic_function_called);
+#else
+    bool error_check_occured = false;
+    lua_pushnumber(L, 123);
+    try
+    {
+        dmScript::CheckBoolean(L, -1);
+    }
+    catch (...)
+    {
+        error_check_occured = true;
+    }
+    ASSERT_TRUE(error_check_occured);
+#endif
+    lua_pop(L, 3);
+
+    /////////////////////////////////////
+    // Test PushBoolean with simple value
+    /////////////////////////////////////
+    dmScript::PushBoolean(L, true);
+    ASSERT_TRUE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+}
+
+#undef USE_PANIC_FN
 
 int main(int argc, char **argv)
 {

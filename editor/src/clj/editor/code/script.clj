@@ -468,7 +468,7 @@
                     Lua$LuaModule
                     {:source {:script (ByteString/copyFromUtf8
                                         (slurp (data/lines-reader cleaned-lines)))
-                              :filename (resource/proj-path (:resource resource))}
+                              :filename (str "@" (luajit/luajit-path-to-chunk-name (resource/proj-path (:resource resource))))}
                      :modules modules
                      :resources (mapv lua/lua-module->build-path modules)
                      :properties (properties/go-props->decls go-props true)

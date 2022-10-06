@@ -13,18 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.settings
-  (:require [clojure.string :as string]
-            [clojure.java.io :as io]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.string :as string]
             [dynamo.graph :as g]
-            [util.murmur :as murmur]
-            [editor.graph-util :as gu]
             [editor.core :as core]
-            [editor.settings-core :as settings-core]
             [editor.defold-project :as project]
-            [camel-snake-kebab :as camel]
-            [editor.workspace :as workspace]
+            [editor.graph-util :as gu]
             [editor.resource :as resource]
-            [service.log :as log]))
+            [editor.resource-node :as resource-node]
+            [editor.settings-core :as settings-core]
+            [editor.workspace :as workspace]))
 
 (g/defnode ResourceSettingNode
   (property resource-connections g/Any) ; [target-node-id [connections]]
@@ -225,3 +223,30 @@
                         (when resource
                           (g/set-property resource-setting-node :value resource))
                         (g/connect resource-setting-node :resource-setting-reference self :resource-setting-references)))))))
+
+(g/defnode SimpleSettingsResourceNode
+  (inherits resource-node/ResourceNode)
+
+  (input form-data g/Any)
+  (output form-data g/Any (gu/passthrough form-data))
+
+  (input save-value g/Any)
+  (output save-value g/Any (gu/passthrough save-value)))
+
+(defn- load-simple-settings-resource-node [meta-info project self resource source-value]
+  (let [graph-id (g/node-id->graph-id self)]
+    (concat
+      (g/make-nodes graph-id [settings-node SettingsNode]
+        (g/connect settings-node :_node-id self :nodes)
+        (g/connect settings-node :save-value self :save-value)
+        (g/connect settings-node :form-data self :form-data)
+        (load-settings-node settings-node resource source-value meta-info nil)))))
+
+(defn register-simple-settings-resource-type [workspace & {:keys [ext label icon meta-info]}]
+  (resource-node/register-settings-resource-type workspace
+    :ext ext
+    :label label
+    :icon icon
+    :node-type SimpleSettingsResourceNode
+    :load-fn (partial load-simple-settings-resource-node meta-info)
+    :view-types [:cljfx-form-view :text]))

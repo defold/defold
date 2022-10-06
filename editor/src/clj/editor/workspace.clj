@@ -20,12 +20,14 @@ ordinary paths."
             [clojure.string :as string]
             [clojure.edn :as edn]
             [dynamo.graph :as g]
+            [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.library :as library]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
+            [editor.ui :as ui]
             [editor.url :as url]
             [editor.util :as util]
             [service.log :as log])
@@ -49,8 +51,11 @@ ordinary paths."
 (defn- skip-first-char [path]
   (subs path 1))
 
-(defn build-path [workspace]
-  (io/file (project-path workspace) (skip-first-char build-dir)))
+(defn build-path
+  (^File [workspace]
+   (io/file (project-path workspace) (skip-first-char build-dir)))
+  (^File [workspace build-resource-path]
+   (io/file (build-path workspace) (skip-first-char build-resource-path))))
 
 (defn plugin-path
   (^File [workspace]
@@ -97,12 +102,15 @@ ordinary paths."
    (BuildResource. resource prefix)))
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
-  (let [sorted-children (sort-by (fn [r]
-                                   [(resource/file-resource? r)
-                                    ({:folder 0 :file 1} (resource/source-type r))
-                                    (some-> (resource/resource-name r) util/natural-order-key)])
-                                 (map sort-resource-tree children))]
-    (assoc tree :children (vec sorted-children))))
+  (let [sorted-children (->> children
+                             (map sort-resource-tree)
+                             (sort
+                               (util/comparator-chain
+                                 (util/comparator-on editor.resource/file-resource?)
+                                 (util/comparator-on #({:folder 0 :file 1} (editor.resource/source-type %)))
+                                 (util/comparator-on util/natural-order editor.resource/resource-name)))
+                             vec)]
+    (assoc tree :children sorted-children)))
 
 (g/defnk produce-resource-tree [_node-id root resource-snapshot]
   (sort-resource-tree
@@ -114,15 +122,19 @@ ordinary paths."
 (g/defnk produce-resource-map [resource-list]
   (into {} (map #(do [(resource/proj-path %) %]) resource-list)))
 
-(defn get-view-type [workspace id]
-  (get (g/node-value workspace :view-types) id))
+(defn get-view-type
+  ([workspace id]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-view-type workspace id evaluation-context)))
+  ([workspace id evaluation-context]
+   (get (g/node-value workspace :view-types evaluation-context) id)))
 
 (defn- editable-view-type? [view-type]
   (case view-type
     (:default :text) false
     true))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
   (let [resource-type {:textual? (true? textual?)
                        :editable? (some? (some editable-view-type? view-types))
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
@@ -131,6 +143,8 @@ ordinary paths."
                        :dependencies-fn dependencies-fn
                        :write-fn write-fn
                        :read-fn read-fn
+                       :read-raw-fn (or read-raw-fn read-fn)
+                       :sanitize-fn sanitize-fn
                        :icon icon
                        :view-types (map (partial get-view-type workspace) view-types)
                        :view-opts view-opts
@@ -272,13 +286,23 @@ ordinary paths."
     resources))
 
 (defn- load-plugin! [workspace resource]
-  ; TODO Handle Exceptions!
   (log/info :msg (str "Loading plugin " (resource/path resource)))
-  (if-let [plugin-fn (load-string (slurp resource))]
-    (do
-      (plugin-fn workspace)
-      (log/info :msg (str "Loaded plugin " (resource/path resource))))
-    (log/info :msg (str "Unable to load plugin " (resource/path resource)))))
+  (try
+    (if-let [plugin-fn (load-string (slurp resource))]
+      (do
+        (plugin-fn workspace)
+        (log/info :msg (str "Loaded plugin " (resource/path resource))))
+      (log/error :msg (str "Unable to load plugin " (resource/path resource))))
+    (catch Exception e
+      (log/error :msg (str "Exception while loading plugin: " (.getMessage e))
+                 :exception e)
+      (ui/run-later
+        (dialogs/make-info-dialog
+          {:title "Unable to Load Plugin"
+           :icon :icon/triangle-error
+           :always-on-top true
+           :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
+      false)))
 
 (defn- load-editor-plugins! [workspace added]
   (let [added-resources (set (map resource/proj-path added))
@@ -577,7 +601,48 @@ ordinary paths."
                 :resource-listeners (atom [])
                 :build-settings build-settings))
 
-(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn dispose-preview-fn focus-fn text-selection-fn]}]
+(defn register-view-type
+  "Register a new view type that can be used by resources
+
+  Required kv-args:
+    :id       keyword identifying the view type
+    :label    a label for the view type shown in the editor
+
+  Optional kv-args:
+    :make-view-fn          fn of graph, parent (AnchorPane), resource node and
+                           opts that should create new view node, set it up and
+                           return the node id; opts is a map that will contain:
+                           - :app-view
+                           - :select-fn
+                           - :prefs
+                           - :project
+                           - :workspace
+                           - :tab (Tab instance)
+                           - all opts from resource-type's :view-opts
+                           - any extra opts passed from the code
+                           if not present, the resource will be opened in
+                           an external editor
+    :make-preview-fn       fn of graph, resource node, opts, width and height
+                           that should return a node id with :image output (with
+                           value of type Image); opts is a map with:
+                           - :app-view
+                           - :select-fn
+                           - :project
+                           - :workspace
+                           - all opts from resource-type's :view-opts
+                           This preview will be used in select resource dialog
+                           on hover over resources
+    :dispose-preview-fn    fn of node id returned by :make-preview-fn, will be
+                           invoked on preview dispose
+    :focus-fn              fn of node id returned by :make-view-fn and opts,
+                           will be called on resource open request, opts will
+                           only contain data passed from the code (e.g.
+                           :cursor-range)
+    :text-selection-fn     fn of node id returned by :make-view-fn, should
+                           return selected text as a string or nil; will be used
+                           to pre-populate Open Assets and Search in Files
+                           dialogs"
+  [workspace & {:keys [id label make-view-fn make-preview-fn dispose-preview-fn focus-fn text-selection-fn]}]
   (let [view-type (merge {:id    id
                           :label label}
                          (when make-view-fn

@@ -23,6 +23,13 @@ DataViewReader = (function ()
         return v;
     }
 
+    DataViewReader.prototype.GetUInt8 = function ()
+    {
+        let v = this.DataView.getUint8(this.Offset);
+        this.Offset++;
+        return v;
+    }
+
     DataViewReader.prototype.GetInt32 = function ()
     {
         let v = this.DataView.getInt32(this.Offset, true);

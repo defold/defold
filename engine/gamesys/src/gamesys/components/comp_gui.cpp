@@ -1081,7 +1081,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < first_emitter_render_data->m_RenderConstantsSize; ++i)
         {
             dmParticle::RenderConstant* c = &first_emitter_render_data->m_RenderConstants[i];
-            dmGameSystem::SetRenderConstant(render_constants, c->m_NameHash, &c->m_Value, 1);
+            dmGameSystem::SetRenderConstant(render_constants, c->m_NameHash, (dmVMath::Vector4*) &c->m_Value, c->m_IsMatrix4 ? 4 : 1);
         }
 
         if (render_constants) {
@@ -2075,7 +2075,9 @@ namespace dmGameSystem
 
         gui_world->m_DT = params.m_UpdateContext->m_DT;
         dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
-        for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
+        const uint32_t count = gui_world->m_Components.Size();
+        DM_PROPERTY_ADD_U32(rmtp_Gui, count);
+        for (uint32_t i = 0; i < count; ++i)
         {
             GuiComponent* gui_component = gui_world->m_Components[i];
             if (gui_component->m_Enabled && gui_component->m_AddedToUpdate)
@@ -2227,6 +2229,8 @@ namespace dmGameSystem
             gui_input_action.m_IsGamepad = params.m_InputAction->m_IsGamepad;
             gui_input_action.m_GamepadDisconnected = params.m_InputAction->m_GamepadDisconnected;
             gui_input_action.m_GamepadConnected = params.m_InputAction->m_GamepadConnected;
+            gui_input_action.m_GamepadPacket = params.m_InputAction->m_GamepadPacket;
+            gui_input_action.m_HasGamepadPacket = params.m_InputAction->m_HasGamepadPacket;
             gui_input_action.m_AccX = params.m_InputAction->m_AccX;
             gui_input_action.m_AccY = params.m_InputAction->m_AccY;
             gui_input_action.m_AccZ = params.m_InputAction->m_AccZ;

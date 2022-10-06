@@ -77,9 +77,9 @@ and add the "BETA" tag to the headline
 
  1. Fetch editor via:
 
-    http://d.defold.com/archive/editor-alpha/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-darwin.dmg
+    http://d.defold.com/archive/editor-alpha/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-macos.dmg
 
-    http://d.defold.com/editor-alpha/editor2/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-win32.zip
+    http://d.defold.com/archive/editor-alpha/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-win32.zip
 
     http://d.defold.com/archive/editor-alpha/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-linux.zip
 

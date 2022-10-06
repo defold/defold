@@ -66,7 +66,8 @@ Label.emphasis {
   -df-component: #464c55;
   -df-component-light: derive(#464c55, 10%);
   -df-component-lighter: derive(#464c55, 20%);
-  -df-text-dark: derive(#b4bac1, -10%);
+  -df-text-darker: derive(#b4bac1, -20%);
+  -df-text-dark: derive(#b4bac1, -40%);
   -df-text: #b4bac1;
   -df-text-selected: derive(#b4bac1, 20%);
   -df-defold-red-dark: derive(#e32f44, -10%);

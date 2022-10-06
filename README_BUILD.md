@@ -36,11 +36,11 @@ When working on a new feature or fixing a bug you start by first building the en
 The following platforms are supported:
 
 * `x86_64-linux`
-* `x86_64-darwin`
+* `x86_64-macos`
 * `win32`
 * `x86_64-win32`
 * `x86_64-ios`
-* `arm64-darwin`
+* `arm64-ios`
 * `armv7-android`
 * `arm64-android`
 * `js-web`
@@ -106,7 +106,7 @@ You can also use rebuild a specific part of the engine and create a new executab
 
 ```sh
 # Rebuild dlib and sound modules and create a new executable
-$ ./scripts/submodule.sh x86_64-darwin dlib sound
+$ ./scripts/submodule.sh x86_64-macos dlib sound
 ```
 
 ---
