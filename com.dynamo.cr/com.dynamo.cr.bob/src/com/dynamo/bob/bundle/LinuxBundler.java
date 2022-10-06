@@ -108,7 +108,7 @@ public class LinuxBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (BundleHelper.isResourcesNeeded(project)) {
+        if (BundleHelper.isArchiveExcluded(project)) {
             // Copy archive and game.projectc
             for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));

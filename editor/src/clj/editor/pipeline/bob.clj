@@ -240,7 +240,7 @@
              "variant" variant
 
              ;; From AbstractBundleHandler
-             (if ignore-resource-archive? "no-archive" "archive") "true"
+             (if ignore-resource-archive? "exclude-archive" "archive") "true"
              "bundle-output" bundle-output-path
              "texture-compression" (case texture-compression
                                      "enabled" "true"
