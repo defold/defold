@@ -550,12 +550,12 @@ namespace dmGameSystem
             dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
             dmGameSystemDDF::TextureSetAnimation* animations    = texture_set_ddf->m_Animations.m_Data;
             dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
+            uint32_t* frame_indices                             = texture_set_ddf->m_FrameIndices.m_Data;
             uint32_t* page_indices                              = texture_set_ddf->m_PageIndices.m_Data;
 
             if (texture_set_ddf->m_UseGeometries != 0)
             {
                 const dmGameSystemDDF::SpriteGeometry* geometries = texture_set_ddf->m_Geometries.m_Data;
-                uint32_t* frame_indices                           = texture_set_ddf->m_FrameIndices.m_Data;
                 uint32_t frame_index                              = frame_indices[animation_ddf->m_Start + component->m_CurrentAnimationFrame];
                 uint32_t page_index                               = page_indices[frame_index];
 
@@ -667,10 +667,10 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    #define SET_SPRITE_VERTEX(vert, p, tc_index)   \
-                        vert.x = p.getX();                         \
-                        vert.y = p.getY();                         \
-                        vert.z = p.getZ();                         \
+                    #define SET_SPRITE_VERTEX(vert, vp, tc_index)   \
+                        vert.x = vp.getX();                         \
+                        vert.y = vp.getY();                         \
+                        vert.z = vp.getZ();                         \
                         vert.u = tc[tex_lookup[tc_index] * 2 + 0]; \
                         vert.v = tc[tex_lookup[tc_index] * 2 + 1]; \
                         vert.p = (float) page_index;

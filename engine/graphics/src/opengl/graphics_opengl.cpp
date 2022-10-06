@@ -2390,7 +2390,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         HTexture texture = (HTexture)context;
         glDeleteTextures(texture->m_NumTextureIds, texture->m_TextureIds);
         CHECK_GL_ERROR;
-        free(texture->m_NumTextureIds);
+        free(texture->m_TextureIds);
         delete texture;
     }
 
@@ -2729,7 +2729,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             CHECK_GL_ERROR;
 
             if (!params.m_SubUpdate) {
-                SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+                SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
             }
 
             switch (params.m_Format)
