@@ -819,7 +819,7 @@ namespace dmRender
             if (constant_buffer) // from render script
                 ApplyNamedConstantBuffer(render_context, material, constant_buffer);
 
-            ApplyRenderState(render_context, render_context->m_GraphicsContext, ps_orig, ro);
+            ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
@@ -831,6 +831,7 @@ namespace dmRender
                     dmGraphics::EnableTexture(context, i, texture);
                     ApplyMaterialSampler(render_context, material, i, texture);
                 }
+
             }
 
             dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
