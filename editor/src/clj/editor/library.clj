@@ -13,17 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.library
-  (:require [editor.progress :as progress]
-            [editor.settings-core :as settings-core]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor.fs :as fs]
-            [clojure.java.io :as io]
-            [clojure.string :as str])
+            [editor.progress :as progress]
+            [editor.settings-core :as settings-core])
   (:import [java.io File InputStream]
+           [java.net HttpURLConnection URI]
            [java.util Base64]
            [java.util.zip ZipInputStream]
-           [java.net URI HttpURLConnection]
-           [org.apache.commons.io FilenameUtils]
-           [org.apache.commons.codec.digest DigestUtils]))
+           [org.apache.commons.codec.digest DigestUtils]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 

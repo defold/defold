@@ -142,7 +142,7 @@
   (when raw
     (let [element-meta-setting (get meta-setting :element default-list-element-meta-setting)]
       (into []
-            (map #(parse-setting-value element-meta-setting %))
+            (keep #(parse-setting-value element-meta-setting %))
             (text-util/parse-comma-separated-string raw)))))
 
 (defmethod parse-setting-value :list [meta-setting raw]
