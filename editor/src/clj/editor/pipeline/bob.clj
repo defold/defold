@@ -168,7 +168,7 @@
       (WriterOutputStream. StandardCharsets/UTF_8 1024 true)
       (PrintStream. true StandardCharsets/UTF_8)))
 
-(defn bob-build! [project evaluation-context bob-commands bob-args render-progress! show-build-log-stream! task-cancelled?]
+(defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! show-build-log-stream! task-cancelled?]
   {:pre [(vector? bob-commands)
          (every? string? bob-commands)
          (map? bob-args)
@@ -201,6 +201,8 @@
                 bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
             (doseq [[key val] bob-args]
               (.setOption bob-project key val))
+            (doseq [header (string/split-lines build-server-headers)]
+              (.addBuildServerHeader bob-project header))
             (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
             (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
               (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
