@@ -164,7 +164,8 @@ namespace dmGraphics
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
     typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
-    typedef bool (*IsMultiTargetRenderingSupportedFn)(HContext context);
+    // typedef bool (*IsMultiTargetRenderingSupportedFn)(HContext context);
+    typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -277,8 +278,9 @@ namespace dmGraphics
         GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
         GetSupportedExtensionFn m_GetSupportedExtension;
         GetNumTextureHandlesFn m_GetNumTextureHandles;
-        IsMultiTargetRenderingSupportedFn m_IsMultiTargetRenderingSupported;
+        // IsMultiTargetRenderingSupportedFn m_IsMultiTargetRenderingSupported;
         GetPipelineStateFn m_GetPipelineState;
+        IsContextFeatureSupportedFn m_IsContextFeatureSupported;
     };
 }
 

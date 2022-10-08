@@ -285,6 +285,12 @@ namespace dmGraphics
         uint32_t                m_BackgroundColor;
     };
 
+    enum ContextFeature
+    {
+        CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
+        CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
+    };
+
     // Parameters structure for NewContext
     struct ContextParams
     {
@@ -580,8 +586,8 @@ namespace dmGraphics
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
-    bool IsMultiTargetRenderingSupported(HContext context);
     PipelineState GetPipelineState(HContext context);
+    bool IsContextFeatureSupported(HContext context, ContextFeature feature);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);

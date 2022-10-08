@@ -178,15 +178,23 @@ namespace dmGraphics
     {
         ShaderDesc::Language language = GetShaderProgramLanguage(context);
         assert(shader_desc);
+
+        ShaderDesc::Shader* selected_shader = 0x0;
+
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
             if(shader->m_Language == language)
             {
-                return shader;
+                // JG: Maybe we need a better way of deciding this
+                if (shader->m_VariantTextureArray && !IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
+                {
+                    return shader;
+                }
+                selected_shader = shader;
             }
         }
-        return 0x0;
+        return selected_shader;
     }
 
     // For estimating resource size
@@ -418,8 +426,6 @@ namespace dmGraphics
         {
             return true;
         }
-
-        dmLogInfo("JHONNY IS THE BEST");
 
         AdapterType adapter_type;
         bool result = GetAdapterFromString(adapter_name_str, &adapter_type);
@@ -874,9 +880,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetSupportedExtension(context, index);
     }
-    bool IsMultiTargetRenderingSupported(HContext context)
+    bool IsContextFeatureSupported(HContext context, ContextFeature feature)
     {
-        return g_functions.m_IsMultiTargetRenderingSupported(context);
+        return g_functions.m_IsContextFeatureSupported(context, feature);
     }
     PipelineState GetPipelineState(HContext context)
     {

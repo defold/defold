@@ -594,9 +594,21 @@ static void LogFrameBufferError(GLenum status)
         return context->m_Extensions[index];
     }
 
+    /*
     static bool OpenGLIsMultiTargetRenderingSupported(HContext context)
     {
         return PFN_glDrawBuffers != 0x0;
+    }
+    */
+
+    static bool OpenGLIsContextFeatureSupported(HContext context, ContextFeature feature)
+    {
+        switch (feature)
+        {
+            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return PFN_glDrawBuffers != 0x0;
+            case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
+        }
+        return false;
     }
 
 
@@ -3371,8 +3383,9 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         fn_table.m_GetNumSupportedExtensions = OpenGLGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = OpenGLGetSupportedExtension;
         fn_table.m_GetNumTextureHandles = OpenGLGetNumTextureHandles;
-        fn_table.m_IsMultiTargetRenderingSupported = OpenGLIsMultiTargetRenderingSupported;
+        //fn_table.m_IsMultiTargetRenderingSupported = OpenGLIsMultiTargetRenderingSupported;
         fn_table.m_GetPipelineState = OpenGLGetPipelineState;
+        fn_table.m_IsContextFeatureSupported = OpenGLIsContextFeatureSupported;
         return fn_table;
     }
 }

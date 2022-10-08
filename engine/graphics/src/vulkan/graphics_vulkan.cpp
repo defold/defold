@@ -3557,7 +3557,7 @@ bail:
         fn_table.m_IsExtensionSupported = VulkanIsExtensionSupported;
         fn_table.m_GetNumSupportedExtensions = VulkanGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = VulkanGetSupportedExtension;
-        fn_table.m_IsMultiTargetRenderingSupported = VulkanIsMultiTargetRenderingSupported;
+        // fn_table.m_IsMultiTargetRenderingSupported = VulkanIsMultiTargetRenderingSupported;
         fn_table.m_GetPipelineState = VulkanGetPipelineState;
         return fn_table;
     }
