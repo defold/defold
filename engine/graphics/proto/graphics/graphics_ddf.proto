@@ -195,10 +195,11 @@ message ShaderDesc
 
     message Shader
     {
-        required Language        language   = 1;
-        optional bytes           source     = 2;
-        repeated ResourceBinding uniforms   = 4;
-        repeated ResourceBinding attributes = 5;
+        required Language        language              = 1;
+        optional bytes           source                = 2;
+        repeated ResourceBinding uniforms              = 4;
+        repeated ResourceBinding attributes            = 5;
+        optional bool            variant_texture_array = 6;
     }
 
     repeated Shader shaders = 1;

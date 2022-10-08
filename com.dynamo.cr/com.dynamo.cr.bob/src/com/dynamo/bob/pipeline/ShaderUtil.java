@@ -145,14 +145,16 @@ public class ShaderUtil {
         }
     }
 
-    public static class ES2Converter {
+    public static class ES2Variants {
         private static final String glSampler2DArrayStr   = "sampler2DArray";
         private static final String glSampler2DArrayRegex = "(.+)sampler2DArray\\s+(\\w+);";
 
-        // TODO: Get this value from somewhere..
-        private static final int maxArraySliceCount = 4;
+        public static String variantTextureArrayFallback(String shaderSource, int maxArraySliceCount) {
+            if (!shaderSource.contains(glSampler2DArrayStr))
+            {
+                return null;
+            }
 
-        public static String transform(String shaderSource) {
             String result = shaderSource;
 
             // For texture array support, we need to convert texture2DArray functions

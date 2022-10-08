@@ -39,143 +39,137 @@
 #include "graphics_opengl_private.h"
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-// Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-#include <Carbon/Carbon.h>
+    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
+    #include <Carbon/Carbon.h>
 #endif
 
 #include <dmsdk/graphics/glfw/glfw.h>
 #include <graphics/glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
-#include <GL/glext.h>
-
+    #include <GL/glext.h>
 #elif defined (ANDROID)
-#define GL_GLEXT_PROTOTYPES
-#include <GLES2/gl2ext.h>
-
+    #define GL_GLEXT_PROTOTYPES
+    #include <GLES2/gl2ext.h>
 #elif defined (__MACH__)
-
+    // NOP
 #elif defined (_WIN32)
+    #ifdef GL_GLEXT_PROTOTYPES
+        #undef GL_GLEXT_PROTOTYPES
+        #include "win32/glext.h"
+        #define GL_GLEXT_PROTOTYPES
+    #else
+        #include "win32/glext.h"
+    #endif
 
-#ifdef GL_GLEXT_PROTOTYPES
-#undef GL_GLEXT_PROTOTYPES
-#include "win32/glext.h"
-#define GL_GLEXT_PROTOTYPES
-#else
-#include "win32/glext.h"
-#endif
+    // VBO Extension for OGL 1.4.1
+    typedef void (APIENTRY * PFNGLGENPROGRAMARBPROC) (GLenum, GLuint *);
+    typedef void (APIENTRY * PFNGLBINDPROGRAMARBPROC) (GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLDELETEPROGRAMSARBPROC) (GLsizei, const GLuint*);
+    typedef void (APIENTRY * PFNGLPROGRAMSTRINGARBPROC) (GLenum, GLenum, GLsizei, const GLvoid *);
+    typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat, GLfloat, GLfloat, GLfloat);
+    typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
+    typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid *);
+    typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
+    typedef void (APIENTRY * PFNGLCOMPRTEXSUB2DPROC) (GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLsizei, const GLvoid *);
+    typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
+    typedef void (APIENTRY * PFNGLBINDRENDERBUFFERPROC) (GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLRENDERBUFFERSTORAGEPROC) (GLenum, GLenum, GLsizei, GLsizei);
+    typedef void (APIENTRY * PFNGLRENDERBUFFERTEXTURE2DPROC) (GLenum, GLenum, GLenum, GLuint, GLint);
+    typedef void (APIENTRY * PFNGLFRAMEBUFFERRENDERBUFFERPROC) (GLenum, GLenum, GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLBINDFRAMEBUFFERPROC) (GLenum, GLuint);
+    typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, const GLvoid*);
+    typedef void* (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
+    typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
+    typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
+    typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
+    typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
+    typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei, const GLenum*);
+    typedef GLint (APIENTRY * PFNGLGETFRAGDATALOCATIONPROC) (GLuint, const char*);
+    typedef void (APIENTRY * PFNGLBINDFRAGDATALOCATIONPROC) (GLuint, GLuint, const char*);
 
+    PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
+    PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
+    PFNGLDELETEPROGRAMSARBPROC glDeleteProgramsARB = NULL;
+    PFNGLPROGRAMSTRINGARBPROC glProgramStringARB = NULL;
+    PFNGLVERTEXPARAMFLOAT4ARBPROC glProgramLocalParameter4fARB = NULL;
+    PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
+    PFNGLVERTEXATTRIBSETPROC glDisableVertexAttribArray = NULL;
+    PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
+    PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
+    PFNGLCOMPRTEXSUB2DPROC glCompressedTexSubImage2D = NULL;
+    PFNGLGENBUFFERSPROC glGenBuffersARB = NULL;
+    PFNGLDELETEBUFFERSPROC glDeleteBuffersARB = NULL;
+    PFNGLBINDBUFFERPROC glBindBufferARB = NULL;
+    PFNGLBUFFERDATAPROC glBufferDataARB = NULL;
+    PFNGLGENRENDERBUFFERSPROC glGenRenderbuffers = NULL;
+    PFNGLBINDRENDERBUFFERPROC glBindRenderbuffer = NULL;
+    PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage = NULL;
+    PFNGLRENDERBUFFERTEXTURE2DPROC glFramebufferTexture2D = NULL;
+    PFNGLFRAMEBUFFERRENDERBUFFERPROC glFramebufferRenderbuffer = NULL;
+    PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers = NULL;
+    PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = NULL;
+    PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = NULL;
+    PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = NULL;
+    PFNGLBUFFERSUBDATAPROC glBufferSubDataARB = NULL;
+    PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
+    PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
+    PFNGLACTIVETEXTUREPROC glActiveTexture = NULL;
+    PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
+    PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate = NULL;
+    PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate = NULL;
 
+    PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
+    PFNGLCREATESHADERPROC glCreateShader = NULL;
+    PFNGLSHADERSOURCEPROC glShaderSource = NULL;
+    PFNGLCOMPILESHADERPROC glCompileShader = NULL;
+    PFNGLGETSHADERIVPROC glGetShaderiv = NULL;
+    PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = NULL;
+    PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = NULL;
+    PFNGLDELETESHADERPROC glDeleteShader = NULL;
+    PFNGLCREATEPROGRAMPROC glCreateProgram = NULL;
+    PFNGLATTACHSHADERPROC glAttachShader = NULL;
+    PFNGLLINKPROGRAMPROC glLinkProgram = NULL;
+    PFNGLDELETEPROGRAMPROC glDeleteProgram = NULL;
+    PFNGLUSEPROGRAMPROC glUseProgram = NULL;
+    PFNGLGETPROGRAMIVPROC glGetProgramiv = NULL;
+    PFNGLGETACTIVEUNIFORMPROC glGetActiveUniform = NULL;
+    PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = NULL;
+    PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
+    PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
+    PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
-// VBO Extension for OGL 1.4.1
-typedef void (APIENTRY * PFNGLGENPROGRAMARBPROC) (GLenum, GLuint *);
-typedef void (APIENTRY * PFNGLBINDPROGRAMARBPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLDELETEPROGRAMSARBPROC) (GLsizei, const GLuint*);
-typedef void (APIENTRY * PFNGLPROGRAMSTRINGARBPROC) (GLenum, GLenum, GLsizei, const GLvoid *);
-typedef void (APIENTRY * PFNGLVERTEXPARAMFLOAT4ARBPROC) (GLenum, GLuint, GLfloat, GLfloat, GLfloat, GLfloat);
-typedef void (APIENTRY * PFNGLVERTEXATTRIBSETPROC) (GLuint);
-typedef void (APIENTRY * PFNGLVERTEXATTRIBPTRPROC) (GLuint, GLint, GLenum, GLboolean, GLsizei, const GLvoid *);
-typedef void (APIENTRY * PFNGLTEXPARAM2DPROC) (GLenum, GLint, GLenum, GLsizei, GLsizei, GLint, GLsizei, const GLvoid *);
-typedef void (APIENTRY * PFNGLCOMPRTEXSUB2DPROC) (GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLsizei, const GLvoid *);
-typedef void (APIENTRY * PFNGLBINDBUFFERPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLBUFFERDATAPROC) (GLenum, GLsizeiptr, const GLvoid*, GLenum);
-typedef void (APIENTRY * PFNGLBINDRENDERBUFFERPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLRENDERBUFFERSTORAGEPROC) (GLenum, GLenum, GLsizei, GLsizei);
-typedef void (APIENTRY * PFNGLRENDERBUFFERTEXTURE2DPROC) (GLenum, GLenum, GLenum, GLuint, GLint);
-typedef void (APIENTRY * PFNGLFRAMEBUFFERRENDERBUFFERPROC) (GLenum, GLenum, GLenum, GLuint);
-typedef void (APIENTRY * PFNGLBINDFRAMEBUFFERPROC) (GLenum, GLuint);
-typedef void (APIENTRY * PFNGLBUFFERSUBDATAPROC) (GLenum, GLintptr, GLsizeiptr, const GLvoid*);
-typedef void* (APIENTRY * PFNGLMAPBUFFERPROC) (GLenum, GLenum);
-typedef GLboolean (APIENTRY * PFNGLUNMAPBUFFERPROC) (GLenum);
-typedef void (APIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum);
-typedef void (APIENTRY * PFNGLSTENCILFUNCSEPARATEPROC) (GLenum, GLenum, GLint, GLuint);
-typedef void (APIENTRY * PFNGLSTENCILOPSEPARATEPROC) (GLenum, GLenum, GLenum, GLenum);
-typedef void (APIENTRY * PFNGLDRAWBUFFERSPROC) (GLsizei, const GLenum*);
-typedef GLint (APIENTRY * PFNGLGETFRAGDATALOCATIONPROC) (GLuint, const char*);
-typedef void (APIENTRY * PFNGLBINDFRAGDATALOCATIONPROC) (GLuint, GLuint, const char*);
-
-PFNGLGENPROGRAMARBPROC glGenProgramsARB = NULL;
-PFNGLBINDPROGRAMARBPROC glBindProgramARB = NULL;
-PFNGLDELETEPROGRAMSARBPROC glDeleteProgramsARB = NULL;
-PFNGLPROGRAMSTRINGARBPROC glProgramStringARB = NULL;
-PFNGLVERTEXPARAMFLOAT4ARBPROC glProgramLocalParameter4fARB = NULL;
-PFNGLVERTEXATTRIBSETPROC glEnableVertexAttribArray = NULL;
-PFNGLVERTEXATTRIBSETPROC glDisableVertexAttribArray = NULL;
-PFNGLVERTEXATTRIBPTRPROC glVertexAttribPointer = NULL;
-PFNGLTEXPARAM2DPROC glCompressedTexImage2D = NULL;
-PFNGLCOMPRTEXSUB2DPROC glCompressedTexSubImage2D = NULL;
-PFNGLGENBUFFERSPROC glGenBuffersARB = NULL;
-PFNGLDELETEBUFFERSPROC glDeleteBuffersARB = NULL;
-PFNGLBINDBUFFERPROC glBindBufferARB = NULL;
-PFNGLBUFFERDATAPROC glBufferDataARB = NULL;
-PFNGLGENRENDERBUFFERSPROC glGenRenderbuffers = NULL;
-PFNGLBINDRENDERBUFFERPROC glBindRenderbuffer = NULL;
-PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage = NULL;
-PFNGLRENDERBUFFERTEXTURE2DPROC glFramebufferTexture2D = NULL;
-PFNGLFRAMEBUFFERRENDERBUFFERPROC glFramebufferRenderbuffer = NULL;
-PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers = NULL;
-PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = NULL;
-PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = NULL;
-PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = NULL;
-PFNGLBUFFERSUBDATAPROC glBufferSubDataARB = NULL;
-PFNGLMAPBUFFERPROC glMapBufferARB = NULL;
-PFNGLUNMAPBUFFERPROC glUnmapBufferARB = NULL;
-PFNGLACTIVETEXTUREPROC glActiveTexture = NULL;
-PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus = NULL;
-PFNGLSTENCILFUNCSEPARATEPROC glStencilFuncSeparate = NULL;
-PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate = NULL;
-
-PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = NULL;
-PFNGLCREATESHADERPROC glCreateShader = NULL;
-PFNGLSHADERSOURCEPROC glShaderSource = NULL;
-PFNGLCOMPILESHADERPROC glCompileShader = NULL;
-PFNGLGETSHADERIVPROC glGetShaderiv = NULL;
-PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = NULL;
-PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = NULL;
-PFNGLDELETESHADERPROC glDeleteShader = NULL;
-PFNGLCREATEPROGRAMPROC glCreateProgram = NULL;
-PFNGLATTACHSHADERPROC glAttachShader = NULL;
-PFNGLLINKPROGRAMPROC glLinkProgram = NULL;
-PFNGLDELETEPROGRAMPROC glDeleteProgram = NULL;
-PFNGLUSEPROGRAMPROC glUseProgram = NULL;
-PFNGLGETPROGRAMIVPROC glGetProgramiv = NULL;
-PFNGLGETACTIVEUNIFORMPROC glGetActiveUniform = NULL;
-PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = NULL;
-PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
-PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
-PFNGLUNIFORM1IPROC glUniform1i = NULL;
-
-#if !defined(GL_ES_VERSION_2_0)
-PFNGLGETSTRINGIPROC glGetStringi = NULL;
-PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
-PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
-PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
-PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = NULL;
-PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
-#endif
-
+    #if !defined(GL_ES_VERSION_2_0)
+        PFNGLGETSTRINGIPROC glGetStringi = NULL;
+        PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
+        PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
+        PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
+        PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = NULL;
+        PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
+    #endif
 #elif defined(__EMSCRIPTEN__)
-#include <GL/glext.h>
-#if defined GL_ES_VERSION_2_0
-#undef GL_ARRAY_BUFFER_ARB
-#undef GL_ELEMENT_ARRAY_BUFFER_ARB
-#endif
+    #include <GL/glext.h>
+    #if defined GL_ES_VERSION_2_0
+        #undef GL_ARRAY_BUFFER_ARB
+        #undef GL_ELEMENT_ARRAY_BUFFER_ARB
+    #endif
 #else
-#error "Platform not supported."
+    #error "Platform not supported."
 #endif
 
 // OpenGLES compatibility
 #if defined(GL_ES_VERSION_2_0)
-#define glClearDepth glClearDepthf
-#define glGenBuffersARB glGenBuffers
-#define glDeleteBuffersARB glDeleteBuffers
-#define glBindBufferARB glBindBuffer
-#define glBufferDataARB glBufferData
-#define glBufferSubDataARB glBufferSubData
-#define glMapBufferARB glMapBufferOES
-#define glUnmapBufferARB glUnmapBufferOES
-#define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
-#define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
+    #define glClearDepth glClearDepthf
+    #define glGenBuffersARB glGenBuffers
+    #define glDeleteBuffersARB glDeleteBuffers
+    #define glBindBufferARB glBindBuffer
+    #define glBufferDataARB glBufferData
+    #define glBufferSubDataARB glBufferSubData
+    #define glMapBufferARB glMapBufferOES
+    #define glUnmapBufferARB glUnmapBufferOES
+    #define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
+    #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
@@ -383,12 +377,6 @@ static void LogFrameBufferError(GLenum status)
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
-    static inline bool IsTextureArraySupported()
-    {
-        // TODO
-        return false;
-    }
-
     static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
     {
         const GLenum primitive_type_lut[] = {
@@ -466,10 +454,8 @@ static void LogFrameBufferError(GLenum status)
                 return TYPE_FLOAT_MAT4;
             case GL_SAMPLER_2D:
                 return TYPE_SAMPLER_2D;
-        #if !defined(ANDROID)
             case GL_SAMPLER_2D_ARRAY:
                 return TYPE_SAMPLER_2D_ARRAY;
-        #endif
             case GL_SAMPLER_CUBE:
                 return TYPE_SAMPLER_CUBE;
             default:break;
@@ -478,16 +464,12 @@ static void LogFrameBufferError(GLenum status)
         return (Type) -1;
     }
 
-    static GLenum GetOpenGLTextureType(TextureType type)
+    static GLenum GetOpenGLTextureType(HContext context, TextureType type)
     {
         switch(type)
         {
             case TEXTURE_TYPE_2D:       return GL_TEXTURE_2D;
-        #if defined(ANDROID)
-            case TEXTURE_TYPE_2D_ARRAY: return GL_TEXTURE_2D;
-        #else
-            case TEXTURE_TYPE_2D_ARRAY: return IsTextureArraySupported() ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D;
-        #endif
+            case TEXTURE_TYPE_2D_ARRAY: return context->m_TextureArraySupport ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D;
             case TEXTURE_TYPE_CUBE_MAP: return GL_TEXTURE_CUBE_MAP;
             default:break;
         }
@@ -752,11 +734,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
 #elif defined(__MACH__)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-            #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
-            #else
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
-            #endif
+    #if ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
+    #else
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
+    #endif
 #endif
 
         bool is_desktop = false;
@@ -1205,6 +1187,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             context->m_AnisotropySupport = 1;
             glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &context->m_MaxAnisotropy);
+        }
+
+        if (context->m_IsGles3Version || OpenGLIsExtensionSupported(context, "GL_EXT_texture_array"))
+        {
+            context->m_TextureArraySupport = 1;
         }
 
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
@@ -2354,7 +2341,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         uint16_t num_texture_ids = 1;
 
-        if (params.m_Type == TEXTURE_TYPE_2D_ARRAY && !IsTextureArraySupported())
+        if (params.m_Type == TEXTURE_TYPE_2D_ARRAY && !context->m_TextureArraySupport)
         {
             num_texture_ids = params.m_Depth;
         }
@@ -2484,7 +2471,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        GLenum type = GetOpenGLTextureType(texture->m_Type);
+        GLenum type = GetOpenGLTextureType(g_Context, texture->m_Type);
 
         glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GetOpenGLTextureFilter(minfilter));
         CHECK_GL_ERROR;
@@ -2614,7 +2601,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        GLenum type = GetOpenGLTextureType(texture->m_Type);
+        GLenum type = GetOpenGLTextureType(g_Context, texture->m_Type);
         GLenum gl_format;
         GLenum gl_type = GL_UNSIGNED_BYTE; // only used of uncompressed formats
         GLint internal_format = -1; // // Only used for uncompressed formats
@@ -2757,8 +2744,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                     }
                     CHECK_GL_ERROR;
                 } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
-                #if !defined(ANDROID)
-                    if (IsTextureArraySupported())
+                    if (g_Context->m_TextureArraySupport)
                     {
                         if (params.m_SubUpdate) {
                             glTexSubImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
@@ -2767,7 +2753,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                         }
                     }
                     else
-                #endif
                     {
                         assert(texture->m_NumTextureIds == params.m_Depth);
                         const char* p = (const char*) params.m_Data;
@@ -2942,7 +2927,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
 #endif
 
-        GLenum texture_type = GetOpenGLTextureType(texture->m_Type);
+        GLenum texture_type = GetOpenGLTextureType(context, texture->m_Type);
         for (int i = 0; i < texture->m_NumTextureIds; ++i)
         {
             glActiveTexture(TEXTURE_UNIT_NAMES[unit + i]);
@@ -2967,7 +2952,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             glActiveTexture(TEXTURE_UNIT_NAMES[unit + i]);
             CHECK_GL_ERROR;
-            glBindTexture(GetOpenGLTextureType(texture->m_Type), 0);
+            glBindTexture(GetOpenGLTextureType(context, texture->m_Type), 0);
             CHECK_GL_ERROR;
         }
     }
