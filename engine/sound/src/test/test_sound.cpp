@@ -25,6 +25,7 @@
 #include <dlib/time.h>
 #include <dlib/math.h>
 #include "../sound.h"
+#include "../sound_private.h"
 #include "../sound_codec.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
@@ -805,6 +806,21 @@ TEST_P(dmSoundTestSpeedTest, Speed)
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
+    // We create a muted instance, to make sure that they end at the same time
+    dmSound::HSoundInstance muted_instance = 0;
+    r = dmSound::NewSoundInstance(sd, &muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, muted_instance);
+
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0,0,0,0)); // gain 0
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+
     float mix_rate = params.m_MixRate / 44100.0f;
     uint32_t buffer_count = params.m_BufferFrameCount * params.m_Speed;
     int expected_count = params.m_FrameCount / buffer_count;
@@ -817,6 +833,9 @@ TEST_P(dmSoundTestSpeedTest, Speed)
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
         ASSERT_LT(g_LoopbackDevice->m_NumWrites, 500); // probably will never end
+
+        int64_t pos_1 = dmSound::GetInternalPos(instance);
+        int64_t pos_2 = dmSound::GetInternalPos(muted_instance);
     } while (dmSound::IsPlaying(instance));
 
     // The loop back device will have time to write out another output buffer while the
@@ -826,6 +845,8 @@ TEST_P(dmSoundTestSpeedTest, Speed)
     ASSERT_NEAR((float)expected_count, (float)g_LoopbackDevice->m_NumWrites, 1.0f);
 
     r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundInstance(muted_instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::DeleteSoundData(sd);
@@ -976,6 +997,59 @@ TEST_P(dmSoundVerifyOggTest, Kill)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::DeleteSoundInstance(instanceA);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+// Verifies that the Skip function skips the correct number of samples
+TEST_P(dmSoundVerifyOggTest, SkipSync)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    // We create a muted instance, to make sure that they end at the same time
+    dmSound::HSoundInstance muted_instance = 0;
+    r = dmSound::NewSoundInstance(sd, &muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, muted_instance);
+
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0,0,0,0)); // gain 0
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+        int64_t pos_1 = dmSound::GetInternalPos(instance);
+        int64_t pos_2 = dmSound::GetInternalPos(muted_instance);
+        ASSERT_EQ(pos_1, pos_2); // If these numbers differ, then the Skip function isn't working correctly
+    } while (dmSound::IsPlaying(instance));
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundInstance(muted_instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::DeleteSoundData(sd);

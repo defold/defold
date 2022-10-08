@@ -1197,6 +1197,7 @@ namespace dmSound
                     }
                     else
                     {
+                        assert(false);
                         r = dmSoundCodec::Skip(sound->m_CodecContext, instance->m_Decoder, n * stride, &decoded);
                         memset(((char*) instance->m_Frames) + instance->m_FrameCount * stride, 0x00, n * stride);
                     }
@@ -1516,4 +1517,10 @@ namespace dmSound
         }
     }
 
+    // Unit tests
+    int64_t GetInternalPos(HSoundInstance instance)
+    {
+        SoundSystem* sound = g_SoundSystem;
+        return dmSoundCodec::GetInternalPos(sound->m_CodecContext, instance->m_Decoder);
+    }
 }
