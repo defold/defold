@@ -134,18 +134,12 @@ namespace dmGraphics
         TEXTURE_WRAP_REPEAT          = 3,
     };
 
-
     // Face type
     enum FaceType
     {
         FACE_TYPE_FRONT          = 0,
         FACE_TYPE_BACK           = 1,
         FACE_TYPE_FRONT_AND_BACK = 2,
-    };
-
-    enum MemoryType
-    {
-        MEMORY_TYPE_MAIN = 0,
     };
 
     enum WindowState
@@ -584,8 +578,8 @@ namespace dmGraphics
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
-    inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
-    inline const char* GetBufferTypeLiteral(BufferType buffer_type);
+    uint32_t GetBufferTypeIndex(BufferType buffer_type);
+    const char* GetBufferTypeLiteral(BufferType buffer_type);
     PipelineState GetPipelineState(HContext context);
     bool IsContextFeatureSupported(HContext context, ContextFeature feature);
 
@@ -657,36 +651,6 @@ namespace dmGraphics
      * @param buffer_size buffer size
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
-
-    const char* GetBufferTypeLiteral(BufferType buffer_type)
-    {
-        switch(buffer_type)
-        {
-            case BUFFER_TYPE_COLOR0_BIT:  return "BUFFER_TYPE_COLOR_BIT";
-            case BUFFER_TYPE_COLOR1_BIT:  return "BUFFER_TYPE_COLOR1_BIT";
-            case BUFFER_TYPE_COLOR2_BIT:  return "BUFFER_TYPE_COLOR2_BIT";
-            case BUFFER_TYPE_COLOR3_BIT:  return "BUFFER_TYPE_COLOR3_BIT";
-            case BUFFER_TYPE_DEPTH_BIT:   return "BUFFER_TYPE_DEPTH_BIT";
-            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
-            default:break;
-        }
-        return "<unknown buffer type>";
-    }
-
-    uint32_t GetBufferTypeIndex(BufferType buffer_type)
-    {
-        switch(buffer_type)
-        {
-            case BUFFER_TYPE_COLOR0_BIT:  return 0;
-            case BUFFER_TYPE_COLOR1_BIT:  return 1;
-            case BUFFER_TYPE_COLOR2_BIT:  return 2;
-            case BUFFER_TYPE_COLOR3_BIT:  return 3;
-            case BUFFER_TYPE_DEPTH_BIT:   return 4;
-            case BUFFER_TYPE_STENCIL_BIT: return 5;
-            default: break;
-        }
-        return ~0u;
-    }
 }
 
 #endif // DM_GRAPHICS_H

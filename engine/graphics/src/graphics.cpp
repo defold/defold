@@ -197,6 +197,36 @@ namespace dmGraphics
         return selected_shader;
     }
 
+    const char* GetBufferTypeLiteral(BufferType buffer_type)
+    {
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR0_BIT:  return "BUFFER_TYPE_COLOR_BIT";
+            case BUFFER_TYPE_COLOR1_BIT:  return "BUFFER_TYPE_COLOR1_BIT";
+            case BUFFER_TYPE_COLOR2_BIT:  return "BUFFER_TYPE_COLOR2_BIT";
+            case BUFFER_TYPE_COLOR3_BIT:  return "BUFFER_TYPE_COLOR3_BIT";
+            case BUFFER_TYPE_DEPTH_BIT:   return "BUFFER_TYPE_DEPTH_BIT";
+            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
+            default:break;
+        }
+        return "<unknown buffer type>";
+    }
+
+    uint32_t GetBufferTypeIndex(BufferType buffer_type)
+    {
+        switch(buffer_type)
+        {
+            case BUFFER_TYPE_COLOR0_BIT:  return 0;
+            case BUFFER_TYPE_COLOR1_BIT:  return 1;
+            case BUFFER_TYPE_COLOR2_BIT:  return 2;
+            case BUFFER_TYPE_COLOR3_BIT:  return 3;
+            case BUFFER_TYPE_DEPTH_BIT:   return 4;
+            case BUFFER_TYPE_STENCIL_BIT: return 5;
+            default: break;
+        }
+        return ~0u;
+    }
+
     // For estimating resource size
     uint32_t GetTextureFormatBitsPerPixel(TextureFormat format)
     {

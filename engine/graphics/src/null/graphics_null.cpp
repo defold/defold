@@ -1450,7 +1450,6 @@ namespace dmGraphics
         fn_table.m_RunApplicationLoop = NullRunApplicationLoop;
         fn_table.m_GetTextureHandle = NullGetTextureHandle;
         fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
-        // fn_table.m_IsMultiTargetRenderingSupported = NullIsMultiTargetRenderingSupported;
         fn_table.m_GetPipelineState = NullGetPipelineState;
         fn_table.m_SetStencilFuncSeparate = NullSetStencilFuncSeparate;
         fn_table.m_SetStencilOpSeparate = NullSetStencilOpSeparate;
