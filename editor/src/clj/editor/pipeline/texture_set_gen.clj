@@ -25,7 +25,8 @@
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
            [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback TextureSetProto$SpriteGeometry]
            [editor.types Image]
-           [java.awt.image BufferedImage]))
+           [java.awt.image BufferedImage]
+           [javax.vecmath Matrix3d Matrix4d Point2d]))
 
 (set! *warn-on-reflection* true)
 
@@ -56,11 +57,13 @@
 
 (defn- TextureSetResult->result
   [^TextureSetGenerator$TextureSetResult tex-set-result]
-  {:texture-set (protobuf/pb->map (.build (.builder tex-set-result)))
-   :uv-transforms (vec (.uvTransforms tex-set-result))
-   :layout (.layoutResult tex-set-result)
-   :size [(.. tex-set-result layoutResult layout getWidth) (.. tex-set-result layoutResult layout getHeight)]
-   :rects (into [] (map Rect->map) (.. tex-set-result layoutResult layout getRectangles))})
+  (let [layouts (.. tex-set-result layoutResult layouts)
+        layout-first (get 0 layouts)]
+    {:texture-set (protobuf/pb->map (.build (.builder tex-set-result)))
+     :uv-transforms (vec (.uvTransforms tex-set-result))
+     :layout (.layoutResult tex-set-result)
+     :size [(.. layout-first getWidth) (.. layout-first getHeight)]
+     :rects (into [] (map Rect->map) (.. layout-first getRectangles))}))
 
 (defn layout-images
   [layout-result id->image]
@@ -137,9 +140,10 @@
                               (reset! anim-imgs-atom [])))
             rects (mapv texture-set-layout-rect images)
             use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 0 1)
+            ^Point2d max-page-size (Point2d. 0.0 0.0)
             result (TextureSetGenerator/calculateLayout
                      rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
-                     true false nil)]
+                     true false nil max-page-size)]
         (doto (.builder result)
           (.setTexture "unknown"))
         (TextureSetResult->result result)))))
@@ -249,6 +253,7 @@
                                    (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
                                image-rects)
         use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode tile-source-attributes)) 1 0)
+        ^Point2d max-page-size (Point2d. 0.0 0.0)
         result (TextureSetGenerator/calculateLayout
                  image-rects
                  sprite-geometries
@@ -257,7 +262,7 @@
                  (:margin tile-source-attributes)
                  (:inner-padding tile-source-attributes)
                  (:extrude-borders tile-source-attributes)
-                 false true grid)]
+                 false true grid max-page-size)]
     (doto (.builder result)
       (.setTileWidth (:width tile-source-attributes))
       (.setTileHeight (:height tile-source-attributes))
