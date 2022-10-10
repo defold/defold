@@ -870,6 +870,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetOriginalTextureHeight(texture);
     }
+    TextureType GetTextureType(HTexture texture)
+    {
+        return g_functions.m_GetTextureType(texture);
+    }
     void EnableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         g_functions.m_EnableTexture(context, unit, texture);

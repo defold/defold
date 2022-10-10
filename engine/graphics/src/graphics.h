@@ -605,16 +605,17 @@ namespace dmGraphics
      */
     void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
 
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
-    uint32_t GetTextureResourceSize(HTexture texture);
-    uint16_t GetTextureWidth(HTexture texture);
-    uint16_t GetTextureHeight(HTexture texture);
-    uint16_t GetOriginalTextureWidth(HTexture texture);
-    uint16_t GetOriginalTextureHeight(HTexture texture);
-    uint8_t GetNumTextureHandles(HTexture texture);
-    void EnableTexture(HContext context, uint32_t unit, HTexture texture);
-    void DisableTexture(HContext context, uint32_t unit, HTexture texture);
-    uint32_t GetMaxTextureSize(HContext context);
+    void        SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
+    uint32_t    GetTextureResourceSize(HTexture texture);
+    uint16_t    GetTextureWidth(HTexture texture);
+    uint16_t    GetTextureHeight(HTexture texture);
+    uint16_t    GetOriginalTextureWidth(HTexture texture);
+    uint16_t    GetOriginalTextureHeight(HTexture texture);
+    uint32_t    GetMaxTextureSize(HContext context);
+    uint8_t     GetNumTextureHandles(HTexture texture);
+    TextureType GetTextureType(HTexture texture);
+    void        EnableTexture(HContext context, uint32_t unit, HTexture texture);
+    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
 
     /**
      * Get status of texture.

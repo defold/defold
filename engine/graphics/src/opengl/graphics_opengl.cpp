@@ -594,13 +594,6 @@ static void LogFrameBufferError(GLenum status)
         return context->m_Extensions[index];
     }
 
-    /*
-    static bool OpenGLIsMultiTargetRenderingSupported(HContext context)
-    {
-        return PFN_glDrawBuffers != 0x0;
-    }
-    */
-
     static bool OpenGLIsContextFeatureSupported(HContext context, ContextFeature feature)
     {
         switch (feature)
@@ -1535,6 +1528,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static uint32_t OpenGLGetMaxElementIndices(HContext context)
     {
         return context->m_MaxElementIndices;
+    }
+
+    // NOTE: This function doesn't seem to be used anywhere?
+    static uint32_t OpenGLGetMaxElementsIndices(HContext context)
+    {
+        return -1;
     }
 
     static uint32_t GetTypeSize(dmGraphics::Type type)
@@ -2929,6 +2928,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return texture->m_OriginalHeight;
     }
 
+    static TextureType OpenGLGetTextureType(HTexture texture)
+    {
+        return texture->m_Type;
+    }
+
     static void OpenGLEnableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(context);
@@ -3277,115 +3281,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable()
     {
-        GraphicsAdapterFunctionTable fn_table;
-        fn_table.m_NewContext = OpenGLNewContext;
-        fn_table.m_DeleteContext = OpenGLDeleteContext;
-        fn_table.m_Initialize = OpenGLInitialize;
-        fn_table.m_Finalize = OpenGLFinalize;
-        fn_table.m_GetWindowRefreshRate = OpenGLGetWindowRefreshRate;
-        fn_table.m_OpenWindow = OpenGLOpenWindow;
-        fn_table.m_CloseWindow = OpenGLCloseWindow;
-        fn_table.m_IconifyWindow = OpenGLIconifyWindow;
-        fn_table.m_GetWindowState = OpenGLGetWindowState;
-        fn_table.m_GetDisplayDpi = OpenGLGetDisplayDpi;
-        fn_table.m_GetWidth = OpenGLGetWidth;
-        fn_table.m_GetHeight = OpenGLGetHeight;
-        fn_table.m_GetWindowWidth = OpenGLGetWindowWidth;
-        fn_table.m_GetWindowHeight = OpenGLGetWindowHeight;
-        fn_table.m_GetDisplayScaleFactor = OpenGLGetDisplayScaleFactor;
-        fn_table.m_SetWindowSize = OpenGLSetWindowSize;
-        fn_table.m_ResizeWindow = OpenGLResizeWindow;
-        fn_table.m_GetDefaultTextureFilters = OpenGLGetDefaultTextureFilters;
-        fn_table.m_BeginFrame = OpenGLBeginFrame;
-        fn_table.m_Flip = OpenGLFlip;
-        fn_table.m_SetSwapInterval = OpenGLSetSwapInterval;
-        fn_table.m_Clear = OpenGLClear;
-        fn_table.m_NewVertexBuffer = OpenGLNewVertexBuffer;
-        fn_table.m_DeleteVertexBuffer = OpenGLDeleteVertexBuffer;
-        fn_table.m_SetVertexBufferData = OpenGLSetVertexBufferData;
-        fn_table.m_SetVertexBufferSubData = OpenGLSetVertexBufferSubData;
-        fn_table.m_GetMaxElementsVertices = OpenGLGetMaxElementsVertices;
-        fn_table.m_NewIndexBuffer = OpenGLNewIndexBuffer;
-        fn_table.m_DeleteIndexBuffer = OpenGLDeleteIndexBuffer;
-        fn_table.m_SetIndexBufferData = OpenGLSetIndexBufferData;
-        fn_table.m_SetIndexBufferSubData = OpenGLSetIndexBufferSubData;
-        fn_table.m_IsIndexBufferFormatSupported = OpenGLIsIndexBufferFormatSupported;
-        fn_table.m_NewVertexDeclaration = OpenGLNewVertexDeclaration;
-        fn_table.m_NewVertexDeclarationStride = OpenGLNewVertexDeclarationStride;
-        fn_table.m_SetStreamOffset = OpenGLSetStreamOffset;
-        fn_table.m_DeleteVertexDeclaration = OpenGLDeleteVertexDeclaration;
-        fn_table.m_EnableVertexDeclaration = OpenGLEnableVertexDeclaration;
-        fn_table.m_EnableVertexDeclarationProgram = OpenGLEnableVertexDeclarationProgram;
-        fn_table.m_DisableVertexDeclaration = OpenGLDisableVertexDeclaration;
-        fn_table.m_HashVertexDeclaration = OpenGLHashVertexDeclaration;
-        fn_table.m_DrawElements = OpenGLDrawElements;
-        fn_table.m_Draw = OpenGLDraw;
-        fn_table.m_NewVertexProgram = OpenGLNewVertexProgram;
-        fn_table.m_NewFragmentProgram = OpenGLNewFragmentProgram;
-        fn_table.m_NewProgram = OpenGLNewProgram;
-        fn_table.m_DeleteProgram = OpenGLDeleteProgram;
-        fn_table.m_ReloadVertexProgram = OpenGLReloadVertexProgram;
-        fn_table.m_ReloadFragmentProgram = OpenGLReloadFragmentProgram;
-        fn_table.m_DeleteVertexProgram = OpenGLDeleteVertexProgram;
-        fn_table.m_DeleteFragmentProgram = OpenGLDeleteFragmentProgram;
-        fn_table.m_GetShaderProgramLanguage = OpenGLGetShaderProgramLanguage;
-        fn_table.m_EnableProgram = OpenGLEnableProgram;
-        fn_table.m_DisableProgram = OpenGLDisableProgram;
-        fn_table.m_ReloadProgram = OpenGLReloadProgram;
-        fn_table.m_GetUniformName = OpenGLGetUniformName;
-        fn_table.m_GetUniformCount = OpenGLGetUniformCount;
-        fn_table.m_GetUniformLocation = OpenGLGetUniformLocation;
-        fn_table.m_SetConstantV4 = OpenGLSetConstantV4;
-        fn_table.m_SetConstantM4 = OpenGLSetConstantM4;
-        fn_table.m_SetSampler = OpenGLSetSampler;
-        fn_table.m_SetViewport = OpenGLSetViewport;
-        fn_table.m_EnableState = OpenGLEnableState;
-        fn_table.m_DisableState = OpenGLDisableState;
-        fn_table.m_SetBlendFunc = OpenGLSetBlendFunc;
-        fn_table.m_SetColorMask = OpenGLSetColorMask;
-        fn_table.m_SetDepthMask = OpenGLSetDepthMask;
-        fn_table.m_SetDepthFunc = OpenGLSetDepthFunc;
-        fn_table.m_SetScissor = OpenGLSetScissor;
-        fn_table.m_SetStencilMask = OpenGLSetStencilMask;
-        fn_table.m_SetStencilFunc = OpenGLSetStencilFunc;
-        fn_table.m_SetStencilFuncSeparate = OpenGLSetStencilFuncSeparate;
-        fn_table.m_SetStencilOp = OpenGLSetStencilOp;
-        fn_table.m_SetStencilOpSeparate = OpenGLSetStencilOpSeparate;
-        fn_table.m_SetCullFace = OpenGLSetCullFace;
-        fn_table.m_SetFaceWinding = OpenGLSetFaceWinding;
-        fn_table.m_SetPolygonOffset = OpenGLSetPolygonOffset;
-        fn_table.m_NewRenderTarget = OpenGLNewRenderTarget;
-        fn_table.m_DeleteRenderTarget = OpenGLDeleteRenderTarget;
-        fn_table.m_SetRenderTarget = OpenGLSetRenderTarget;
-        fn_table.m_GetRenderTargetTexture = OpenGLGetRenderTargetTexture;
-        fn_table.m_GetRenderTargetSize = OpenGLGetRenderTargetSize;
-        fn_table.m_SetRenderTargetSize = OpenGLSetRenderTargetSize;
-        fn_table.m_IsTextureFormatSupported = OpenGLIsTextureFormatSupported;
-        fn_table.m_NewTexture = OpenGLNewTexture;
-        fn_table.m_DeleteTexture = OpenGLDeleteTexture;
-        fn_table.m_SetTexture = OpenGLSetTexture;
-        fn_table.m_SetTextureAsync = OpenGLSetTextureAsync;
-        fn_table.m_SetTextureParams = OpenGLSetTextureParams;
-        fn_table.m_GetTextureResourceSize = OpenGLGetTextureResourceSize;
-        fn_table.m_GetTextureWidth = OpenGLGetTextureWidth;
-        fn_table.m_GetTextureHeight = OpenGLGetTextureHeight;
-        fn_table.m_GetOriginalTextureWidth = OpenGLGetOriginalTextureWidth;
-        fn_table.m_GetOriginalTextureHeight = OpenGLGetOriginalTextureHeight;
-        fn_table.m_EnableTexture = OpenGLEnableTexture;
-        fn_table.m_DisableTexture = OpenGLDisableTexture;
-        fn_table.m_GetMaxTextureSize = OpenGLGetMaxTextureSize;
-        fn_table.m_GetTextureStatusFlags = OpenGLGetTextureStatusFlags;
-        fn_table.m_ReadPixels = OpenGLReadPixels;
-        fn_table.m_RunApplicationLoop = OpenGLRunApplicationLoop;
-        fn_table.m_GetTextureHandle = OpenGLGetTextureHandle;
-        fn_table.m_GetMaxElementsIndices = OpenGLGetMaxElementIndices;
-        fn_table.m_IsExtensionSupported = OpenGLIsExtensionSupported;
-        fn_table.m_GetNumSupportedExtensions = OpenGLGetNumSupportedExtensions;
-        fn_table.m_GetSupportedExtension = OpenGLGetSupportedExtension;
-        fn_table.m_GetNumTextureHandles = OpenGLGetNumTextureHandles;
-        //fn_table.m_IsMultiTargetRenderingSupported = OpenGLIsMultiTargetRenderingSupported;
-        fn_table.m_GetPipelineState = OpenGLGetPipelineState;
-        fn_table.m_IsContextFeatureSupported = OpenGLIsContextFeatureSupported;
+        GraphicsAdapterFunctionTable fn_table = {};
+        DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, OpenGL);
         return fn_table;
     }
 }
