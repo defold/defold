@@ -154,6 +154,9 @@
                        :instance-data game-object-instance-data)]
     (bt/with-content-hash build-target)))
 
+(defn- source-resource-component-property-desc [component-property-desc]
+  (update component-property-desc :properties properties/source-resource-go-props))
+
 (defn override-property-descs [original-property-descs overridden-property-descs]
   ;; GameObject$PropertyDescs in map format.
   (-> (into {}
@@ -167,6 +170,7 @@
   (let [{:keys [resource instance-msg ^Matrix4d transform]} game-object-instance-data
         {:keys [id children component-properties]} instance-msg
         build-target-go-props (partial properties/build-target-go-props proj-path->resource-property-build-target)
+        component-properties (map source-resource-component-property-desc component-properties)
         component-properties (override-property-descs component-properties (game-object-instance-id->component-property-descs id))
         component-property-infos (map (comp build-target-go-props :properties) component-properties)
         component-go-props (map first component-property-infos)
@@ -198,13 +202,9 @@
   (let [game-object-instance-datas (-> collection-build-target :user-data :instance-data)
 
         child-game-object-instance-id?
-        (reduce (fn [child-game-object-instance-ids game-object-instance-data]
-                  ;; InstanceDesc or EmbeddedInstanceDesc in map format.
-                  (let [any-instance-desc (:instance-msg game-object-instance-data)]
-                    (into child-game-object-instance-ids
-                          (:children any-instance-desc))))
-                #{}
-                game-object-instance-datas)
+        (into #{}
+              (mapcat (comp :children :instance-msg)) ; instance-msg is InstanceDesc or EmbeddedInstanceDesc in map format.
+              game-object-instance-datas)
 
         game-object-instance-id->component-property-descs
         (into {}
