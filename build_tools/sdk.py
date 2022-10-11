@@ -39,7 +39,9 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 VERSION_XCODE="13.2.1"
 VERSION_MACOSX="12.1"
 VERSION_IPHONEOS="15.2"
+VERSION_XCODE_CLANG="13.0.0"
 VERSION_IPHONESIMULATOR="15.2"
+MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib" % VERSION_XCODE_CLANG
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
@@ -380,6 +382,8 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
         info['xcode-clang'] = defold_info['xcode-clang']
+        info['asan'] = {}
+        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH)
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, 'xcode')
@@ -401,6 +405,8 @@ def _get_local_sdk_info(platform):
         info['xcode'] = {}
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
+        info['asan'] = {}
+        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH)
         info[platform] = {}
         info[platform]['version'] = get_local_darwin_sdk_version(platform)
         info[platform]['path'] = get_local_darwin_sdk_path(platform)
