@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,6 +26,7 @@ import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 
 public class ShaderUtil {
@@ -145,20 +147,89 @@ public class ShaderUtil {
         }
     }
 
-    public static class ES2Variants {
-        private static final String glSampler2DArrayStr   = "sampler2DArray";
-        private static final String glSampler2DArrayRegex = "(.+)sampler2DArray\\s+(\\w+);";
+    public static class Common {
+        public static final String glSampler2DArrayRegex       = "(.+)sampler2DArray\\s+(\\w+);";
+        public static final Pattern regexUniformKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
+        public static final Pattern regexLineBreakPattern      = Pattern.compile("(?<=;)|(?<=\\{)|(?<=\\})|(?<=(#(.{0,1024}\\n)))");
 
-        public static String variantTextureArrayFallback(String shaderSource, int maxArraySliceCount) {
-            if (!shaderSource.contains(glSampler2DArrayStr))
-            {
-                return null;
+        private static class ShaderDataTypeConversionEntry {
+            public String                    asStr;
+            public ShaderDesc.ShaderDataType asDataType;
+            public ShaderDataTypeConversionEntry(String str, ShaderDesc.ShaderDataType dataType) {
+                this.asStr      = str;
+                this.asDataType = dataType;
+            }
+        }
+
+        private static final ArrayList<ShaderDataTypeConversionEntry> shaderDataTypeConversionLut = new ArrayList<>(Arrays.asList(
+                new ShaderDataTypeConversionEntry("int", ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
+                new ShaderDataTypeConversionEntry("uint", ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
+                new ShaderDataTypeConversionEntry("float", ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
+                new ShaderDataTypeConversionEntry("vec2", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
+                new ShaderDataTypeConversionEntry("vec3", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
+                new ShaderDataTypeConversionEntry("vec4", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
+                new ShaderDataTypeConversionEntry("mat2", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
+                new ShaderDataTypeConversionEntry("mat3", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
+                new ShaderDataTypeConversionEntry("mat4", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
+                new ShaderDataTypeConversionEntry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
+                new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
+                new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
+                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)));
+
+        public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
+
+            for (ShaderDataTypeConversionEntry e : shaderDataTypeConversionLut) {
+                if (e.asStr.equals(typeAsString)) {
+                    return e.asDataType;
+                }
+            }
+            return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
+        }
+
+        public static String shaderTypeToString(ShaderDesc.ShaderDataType dataType) {
+            for (ShaderDataTypeConversionEntry e : shaderDataTypeConversionLut) {
+                if (e.asDataType == dataType) {
+                    return e.asStr;
+                }
+            }
+            return null;
+        }
+
+        public static boolean hasUniformType(String source, ShaderDesc.ShaderDataType dataType) {
+            String strDataType = shaderTypeToString(dataType);
+            if (strDataType == null) {
+                return false;
             }
 
+            String[] inputLines = regexLineBreakPattern.split(source);
+
+            for(String line : inputLines) {
+                if(line.contains("uniform") && !line.contains("{")) {
+                    Matcher uniformMatcher = regexUniformKeywordPattern.matcher(line);
+                    if(uniformMatcher.find()) {
+                        String keyword = uniformMatcher.group("keyword");
+                        if (keyword != null)
+                        {
+                            String type = uniformMatcher.group("type");
+                            if (type.equals(strDataType))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+    }
+
+    public static class ES2Variants {
+        public static String variantTextureArrayFallback(String shaderSource, int maxArraySliceCount) {
             String result = shaderSource;
 
             // For texture array support, we need to convert texture2DArray functions
-            if (shaderSource.contains(glSampler2DArrayStr)) {
+            if (Common.hasUniformType(shaderSource, ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)) {
                 ArrayList<String> texture2DArrayFn = new ArrayList<>();
                 texture2DArrayFn.add(String.format("vec4 texture2DArray(sampler2D dm_texture_arrays[%d], vec3 dm_texture_array_args) {", maxArraySliceCount));
                 texture2DArrayFn.add("    int page_index = int(dm_texture_array_args.z);");
@@ -178,13 +249,13 @@ public class ShaderUtil {
                     sb.append(line).append(System.lineSeparator());
                 }
                 shaderSource = sb.toString() + shaderSource;
-                shaderSource = shaderSource.replaceAll(glSampler2DArrayRegex, "$1 sampler2D $2[" + maxArraySliceCount + "];");
+                shaderSource = shaderSource.replaceAll(Common.glSampler2DArrayRegex, "$1 sampler2D $2[" + maxArraySliceCount + "];");
 
                 ArrayList<String> output = new ArrayList<String>(shaderSource.length());
 
                 String[] lines = shaderSource.split(System.getProperty("line.separator"));
                 for(String sourceLine : lines) {
-                    if (!sourceLine.contains(glSampler2DArrayStr)) {
+                    if (!sourceLine.contains(Common.shaderTypeToString(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY))) {
                         output.add(sourceLine);
                     }
                 }
@@ -239,10 +310,8 @@ public class ShaderUtil {
         private static final String[] opaqueUniformTypesPrefix = { "sampler", "image", "atomic_uint" };
 
         private static final String  regexCommentRemovePattern = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
-        private static final Pattern regexLineBreakPattern = Pattern.compile("(?<=;)|(?<=\\{)|(?<=\\})|(?<=(#(.{0,1024}\\n)))");
         private static final Pattern regexVersionStringPattern = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
-        private static final Pattern regexUniformKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
         private static final Pattern regexFragDataArrayPattern = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
 
         private static final String[][] vsKeywordReps = {{"varying", "out"}, {"attribute", "in"}, {"texture2D", "texture"}, {"texture2DArray", "texture"}, {"textureCube", "texture"}};
@@ -322,7 +391,7 @@ public class ShaderUtil {
 
             // Split into slices separated by semicolon, curly bracket scopes and preprocessor definition lines: ";", "{", "}" and "#..<\n>"
             // This to reduce parsing complexity
-            String[] inputLines = regexLineBreakPattern.split(input);
+            String[] inputLines = Common.regexLineBreakPattern.split(input);
 
             // Find the first non directive line
             Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
@@ -349,7 +418,7 @@ public class ShaderUtil {
                 if(line.contains("uniform") && !line.contains("{") && useLatestFeatures)
                 {
                     // Transform non-opaque uniforms into uniform blocks (UB's). Do not process existing UB's
-                    Matcher uniformMatcher = regexUniformKeywordPattern.matcher(line);
+                    Matcher uniformMatcher = Common.regexUniformKeywordPattern.matcher(line);
                     if(uniformMatcher.find()) {
                         String keyword = uniformMatcher.group("keyword");
                         if(keyword != null) {

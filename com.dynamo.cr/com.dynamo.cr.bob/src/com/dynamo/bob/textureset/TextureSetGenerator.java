@@ -461,7 +461,7 @@ public class TextureSetGenerator {
 
             BufferedImage imgOut = composite(layoutImages, layout.getWidth(), layout.getHeight(), layoutRects);
             result.images.add(imgOut);
-
+            /*
             try {
                 File outputfile = new File(String.format("image%d.png", debugImageCount));
                 ++debugImageCount;
@@ -470,6 +470,7 @@ public class TextureSetGenerator {
             } catch (IOException e) {
                 System.out.println(String.format("Unable to write debug image due to:\n%s", e.getMessage()));
             }
+            */
         }
 
         return result;

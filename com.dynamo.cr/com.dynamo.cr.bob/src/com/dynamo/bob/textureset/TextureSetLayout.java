@@ -237,11 +237,13 @@ public class TextureSetLayout {
                 }
             }
 
+            /*
             int l_i = 0;
             for (Layout l : layouts)
             {
                 System.out.println("Layout " + (l_i++) + " w/h: " + l.getWidth() + ", " + l.getHeight());
             }
+            */
 
             return layouts;
         } else {

@@ -17,20 +17,24 @@ package com.dynamo.bob.pipeline;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
@@ -46,6 +50,7 @@ import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
+import com.dynamo.gamesys.proto.AtlasProto.Atlas;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
@@ -74,6 +79,49 @@ public class ProtoBuilders {
             out = BuilderUtil.replaceExt(out, extReplacement[0], extReplacement[1]);
         }
         return out;
+    }
+
+    private static void validateMaterialAtlasCompatability(Project project, IResource resource, String material, String textureSet) throws IOException, CompileExceptionError {
+        if (textureSet.endsWith("atlas")) {
+            IResource atlasResource    = project.getResource(textureSet);
+            Atlas.Builder atlasBuilder = Atlas.newBuilder();
+            ProtoUtil.merge(atlasResource, atlasBuilder);
+
+            // JG: The atlas texture has the type which we can use instead, but will it be super slow?
+            //     For now, just check the max texture dimensions value.
+            //     This doesn't cover cube maps, which I think we might want to as well?
+            Point3 atlasMaxTextureDimensions  = atlasBuilder.getMaxTextureDimensions();
+            boolean textureSetHasArrayTexture = atlasMaxTextureDimensions.getX() > 0 && atlasMaxTextureDimensions.getY() > 0;
+
+            IResource materialResource           = project.getResource(material);
+            MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
+            ProtoUtil.merge(materialResource, materialBuilder);
+
+            IResource vsResource = project.getResource(materialBuilder.getVertexProgram());
+            IResource fsResource = project.getResource(materialBuilder.getFragmentProgram());
+
+            if (textureSetHasArrayTexture)
+            {
+                boolean fsHasArraySampler = Common.hasUniformType(new String(fsResource.getContent()), ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
+                boolean vsHasArraySampler = Common.hasUniformType(new String(vsResource.getContent()), ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
+
+                if (!(fsHasArraySampler || vsHasArraySampler))
+                {
+                    throw new CompileExceptionError(resource, 0,
+                        String.format("Texture %s is not compatible with material %s, texture is array but none of the shader has any 'sampler2DArray' samplers.", textureSet, material));
+                }
+            }
+            else
+            {
+                boolean fsHas2DSampler = Common.hasUniformType(new String(fsResource.getContent()), ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
+                boolean vsHas2DSampler = Common.hasUniformType(new String(vsResource.getContent()), ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
+                if (!(fsHas2DSampler || vsHas2DSampler))
+                {
+                    throw new CompileExceptionError(resource, 0,
+                        String.format("Texture %s is not compatible with material %s, material has no 'sampler2D' samplers.", textureSet, material));
+                }
+            }
+        }
     }
 
     @ProtoParams(srcClass = CollectionProxyDesc.class, messageClass = CollectionProxyDesc.class)
@@ -214,10 +262,25 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
     public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> {
+
+        /*
+        private List<ShaderDesc.Shader> getShaderList(String shader) throws IOException, CompileExceptionError {
+            IResource shaderResource = this.project.getResource(shader);
+            ShaderDesc.Builder builder = ShaderDesc.newBuilder();
+
+            IResource shaderOutputResource = this.project.getResource(shaderResource.output().changeExt(".vpc").getPath());
+            builder.mergeFrom(shaderOutputResource.getContent());
+            return builder.getShadersList();
+        }
+        */
+
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
+
+            validateMaterialAtlasCompatability(this.project, resource, messageBuilder.getMaterial(), messageBuilder.getTileSet());
+
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "t.texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "t.texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));

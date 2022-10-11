@@ -50,6 +50,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2Variants;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
@@ -219,28 +220,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         }
     }
 
-    static private ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
-        switch(typeAsString)
-        {
-            case "int"            : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
-            case "uint"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
-            case "float"          : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
-            case "vec2"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
-            case "vec3"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
-            case "vec4"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
-            case "mat2"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
-            case "mat3"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
-            case "mat4"           : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
-            case "sampler2D"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
-            case "sampler3D"      : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
-            case "samplerCube"    : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
-            case "sampler2DArray" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY;
-            default: break;
-        }
-
-        return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
-    }
-
     static private boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type) {
         return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
                data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
@@ -375,7 +354,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 uniform.set          = ubo.set;
                 bindingEntry.add(uniform);
 
-                ShaderDesc.ShaderDataType type = stringTypeToShaderType(uniform.type);
+                ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(uniform.type);
 
                 int issue_count = shaderIssues.size();
                 if (type == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
@@ -405,7 +384,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 setEntry.put(tex.binding, bindingEntry);
             }
 
-            ShaderDesc.ShaderDataType type = stringTypeToShaderType(tex.type);
+            ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(tex.type);
             if (!isShaderTypeTexture(type)) {
                 shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
             } else {
@@ -488,7 +467,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         for (SPIRVReflector.Resource input : compile_res.attributes) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(input.name);
-            resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
+            resourceBindingBuilder.setType(Common.stringTypeToShaderType(input.type));
             resourceBindingBuilder.setSet(input.set);
             resourceBindingBuilder.setBinding(input.binding);
             builder.addAttributes(resourceBindingBuilder);
@@ -498,7 +477,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         for (SPIRVReflector.Resource res : compile_res.resource_list) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(res.name);
-            resourceBindingBuilder.setType(stringTypeToShaderType(res.type));
+            resourceBindingBuilder.setType(Common.stringTypeToShaderType(res.type));
             resourceBindingBuilder.setElementCount(res.elementCount);
             resourceBindingBuilder.setSet(res.set);
             resourceBindingBuilder.setBinding(res.binding);
