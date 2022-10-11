@@ -513,6 +513,9 @@
                                                    (update res id (fn [id] (inc (or id 0)))))
                                                  {} ids))))
 
+(defn- source-resource-component-property-desc [component-property-desc]
+  (update component-property-desc :properties properties/source-resource-go-props))
+
 (defn- merge-component-properties
   [original-properties overridden-properties]
   (let [xf (comp cat (map (juxt :id identity)))]
@@ -525,6 +528,7 @@
         {:keys [id children component-properties]} instance-msg
         is-child? (contains? all-child-ids id)
         build-target-go-props (partial properties/build-target-go-props resource-property-build-targets)
+        component-properties (map source-resource-component-property-desc component-properties)
         component-properties (merge-component-properties component-properties (ddf-properties id))
         component-property-infos (map (comp build-target-go-props :properties) component-properties)
         component-go-props (map first component-property-infos)
@@ -556,7 +560,9 @@
     (let [ddf-properties (into {} (map (juxt :id :properties)) ddf-properties)
           base-id (str id path-sep)
           instance-data (get-in build-targets [0 :user-data :instance-data])
-          child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
+          child-ids (into #{}
+                          (mapcat (comp :children :instance-msg))
+                          instance-data)]
       (update build-targets 0
               (fn [build-target]
                 (bt/with-content-hash
