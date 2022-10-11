@@ -174,12 +174,27 @@ namespace dmRender
                 }
                 m->m_Constants.Push(constant);
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
             {
                 m->m_NameHashToLocation.Put(name_hash, location);
                 Sampler& s           = m->m_Samplers[sampler_index];
                 s.m_UnitValueCount   = num_values;
                 s.m_UnitValueIndex   = sampler_value_index;
+
+                switch(type)
+                {
+                    case dmGraphics::TYPE_SAMPLER_2D:
+                        s.m_Type = dmGraphics::TEXTURE_TYPE_2D;
+                        break;
+                    case dmGraphics::TYPE_SAMPLER_2D_ARRAY:
+                        s.m_Type = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+                        break;
+                    case dmGraphics::TYPE_SAMPLER_CUBE:
+                        s.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+                        break;
+                    default: assert(0);
+                }
+
                 sampler_value_index += num_values;
                 sampler_index++;
             }
@@ -574,7 +589,6 @@ namespace dmRender
         *list = *value;
     }
 
-
     void SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags)
     {
         material->m_TagListKey = RegisterMaterialTagList(material->m_RenderContext, tag_count, tags);
@@ -605,5 +619,23 @@ namespace dmRender
                 return false;
         }
         return tag_count > 0; // don't render anything with no matches at all
+    }
+
+    bool GetMaterialIsCompatible(HMaterial material, dmGraphics::HTexture texture)
+    {
+        // Check that we have at least one sampler that we can use for the texture
+        for (int i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            const Sampler& s = material->m_Samplers[i];
+            assert(s.m_Type == dmGraphics::TEXTURE_TYPE_2D   ||
+                   s.m_Type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ||
+                   s.m_Type == dmGraphics::TEXTURE_TYPE_2D_ARRAY);
+
+            if (s.m_Type == dmGraphics::GetTextureType(texture))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }

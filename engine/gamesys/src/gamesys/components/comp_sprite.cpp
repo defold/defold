@@ -1411,6 +1411,17 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
+
+                // The current material might not be able to use the new image
+                // JG: Hm, with this you can still bind the texture to an incorrect slot..
+                //     But maybe this high level check is fine?
+                if (!dmRender::GetMaterialIsCompatible(GetMaterial(component, component->m_Resource), texture_set->m_Texture))
+                {
+                    dmLogError("Unable to set texture %s, the texture is not compatible with the assigned material.",
+                        dmHashReverseSafe64(texture_set->m_TexturePath));
+                    return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
+                }
+
                 uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
                 if (anim_id)
                 {
@@ -1483,8 +1494,13 @@ namespace dmGameSystem
             Vector4 value;
             switch(index)
             {
-                case 0: value = Vector4(transform.GetTranslation()); break;
-                case 1: value = Vector4(transform.GetRotation()); type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4; break;
+                case 0:
+                    value = Vector4(transform.GetTranslation());
+                    break;
+                case 1:
+                    value = Vector4(transform.GetRotation());
+                    type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4;
+                    break;
                 case 2:
                     {
                         // Since the size is baked into the matrix, we divide by it here
@@ -1492,9 +1508,11 @@ namespace dmGameSystem
                         value = Vector4(Vectormath::Aos::divPerElem(transform.GetScale(), size));
                     }
                     break;
-                case 3: value = Vector4(transform.GetScale()); break; // the size is baked into this matrix as the scale
-                default:
-                    return false;
+                case 3:
+                    // the size is baked into this matrix as the scale
+                    value = Vector4(transform.GetScale());
+                    break;
+                default: return false;
             }
 
             pit->m_Property.m_Type = type;

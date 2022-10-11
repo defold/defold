@@ -39,30 +39,30 @@ namespace dmRender
 
     struct Sampler
     {
-        dmhash_t m_NameHash;
-        int32_t  m_Location       : 24;
-        int32_t  m_Unit           : 8;
-        int32_t  m_UnitValueCount : 8;
-        int32_t  m_UnitValueIndex : 24;
-
+        dmhash_t                  m_NameHash;
+        dmGraphics::TextureType   m_Type;
         dmGraphics::TextureFilter m_MinFilter;
         dmGraphics::TextureFilter m_MagFilter;
-        dmGraphics::TextureWrap m_UWrap;
-        dmGraphics::TextureWrap m_VWrap;
-
-        float m_MaxAnisotropy;
+        dmGraphics::TextureWrap   m_UWrap;
+        dmGraphics::TextureWrap   m_VWrap;
+        float                     m_MaxAnisotropy;
+        int32_t                   m_Location       : 24;
+        int32_t                   m_Unit           : 8;
+        int32_t                   m_UnitValueCount : 8;
+        int32_t                   m_UnitValueIndex : 24;
 
         Sampler(int32_t unit)
             : m_NameHash(0)
-            , m_Location(-1)
-            , m_Unit(unit)
-            , m_UnitValueCount(0)
-            , m_UnitValueIndex(0)
+            , m_Type(dmGraphics::TEXTURE_TYPE_2D)
             , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_MaxAnisotropy(1.0f)
+            , m_Location(-1)
+            , m_Unit(unit)
+            , m_UnitValueCount(0)
+            , m_UnitValueIndex(0)
         {
         }
     };

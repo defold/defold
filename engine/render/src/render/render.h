@@ -219,6 +219,7 @@ namespace dmRender
      * @return True if a constant or element was found
      */
     bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_num_components);
+    bool                            GetMaterialIsCompatible(HMaterial material, dmGraphics::HTexture texture);
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
