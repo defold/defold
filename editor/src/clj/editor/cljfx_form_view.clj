@@ -430,17 +430,23 @@
     (workspace/as-proj-path workspace file)
     (.getAbsolutePath file)))
 
-(defn query-added-list-elements-or-dialog-type [element ^Event event workspace project]
+(defn- add-list-elements [added-list-elements {:keys [on-added state-path ui-state value]}]
+  (let [old-element-count (count value)
+        new-element-count (+ old-element-count (count added-list-elements))
+        added-indices (vec (range old-element-count new-element-count))]
+    [[:dispatch (assoc on-added :fx/event added-list-elements)]
+     [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) added-indices)]]))
+
+(defmethod handle-event :add-list-element [{:keys [element fx/event project workspace] :as map-event}]
   (case (:type element)
     :directory
     (when-some [selected-directory (dialogs/make-directory-dialog
                                      (or (:title element) "Select Directory")
                                      (workspace/project-path workspace)
                                      (fxui/event->window event))]
-      (or (some-> selected-directory
-                  (absolute-or-maybe-proj-path workspace (:in-project element))
-                  (vector))
-          :directory-not-in-project))
+      (if-some [valid-directory-path (absolute-or-maybe-proj-path selected-directory workspace (:in-project element))]
+        (add-list-elements [valid-directory-path] map-event)
+        {:show-dialog :directory-not-in-project}))
 
     :file
     (when-some [selected-file (dialogs/make-file-dialog
@@ -448,47 +454,26 @@
                                 (:filter element)
                                 nil
                                 (fxui/event->window event))]
-      (or (some-> selected-file
-                  (absolute-or-maybe-proj-path workspace (:in-project element))
-                  (vector))
-          :file-not-in-project))
+      (if-some [valid-file-path (absolute-or-maybe-proj-path selected-file workspace (:in-project element))]
+        (add-list-elements [valid-file-path] map-event)
+        {:show-dialog :file-not-in-project}))
 
     :resource
-    (resource-dialog/make
-      workspace project
-      {:ext (:filter element)
-       :selection :multiple})
+    (when-some [selected-resources (not-empty (resource-dialog/make
+                                                workspace project
+                                                {:ext (:filter element)
+                                                 :selection :multiple}))]
+      (add-list-elements selected-resources map-event))
 
     ;; default
-    [(form/field-default element)]))
-
-(defmethod handle-event :add-list-element [{:keys [element
-                                                   fx/event
-                                                   on-added
-                                                   project
-                                                   state-path
-                                                   ui-state
-                                                   value
-                                                   workspace]}]
-  (let [added-list-elements-or-dialog-type
-        (query-added-list-elements-or-dialog-type element event workspace project)]
-    (cond
-      (keyword? added-list-elements-or-dialog-type)
-      (let [dialog-type added-list-elements-or-dialog-type]
-        {:show-dialog dialog-type})
-
-      (seq added-list-elements-or-dialog-type)
-      (let [added-list-elements added-list-elements-or-dialog-type
-            old-element-count (count value)
-            new-element-count (+ old-element-count (count added-list-elements))
-            added-indices (vec (range old-element-count new-element-count))]
-        [[:dispatch (assoc on-added :fx/event added-list-elements)]
-         [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) added-indices)]]))))
+    (add-list-elements [(form/field-default element)] map-event)))
 
 (defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state]}]
   (let [indices-path (conj state-path :selected-indices)]
     [[:dispatch (assoc on-removed :fx/event (set (get-in ui-state indices-path)))]
-     [:set-ui-state (assoc-in ui-state indices-path [])]]))
+     [:set-ui-state (-> ui-state
+                        (assoc-in indices-path [])
+                        (update-in state-path dissoc :edit))]]))
 
 (defmethod handle-event :list-select [{:keys [state-path fx/event ui-state]}]
   {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
@@ -711,12 +696,12 @@
                                                    title
                                                    in-project
                                                    workspace]}]
-  (when-some [file (dialogs/make-file-dialog (or title "Select File")
-                                             filter
-                                             nil
-                                             (fxui/event->window event))]
-    (if-some [path (absolute-or-maybe-proj-path file workspace in-project)]
-      {:dispatch (assoc on-value-changed :fx/event path)}
+  (when-some [selected-file (dialogs/make-file-dialog (or title "Select File")
+                                                      filter
+                                                      nil
+                                                      (fxui/event->window event))]
+    (if-some [valid-file-path (absolute-or-maybe-proj-path selected-file workspace in-project)]
+      {:dispatch (assoc on-value-changed :fx/event valid-file-path)}
       {:show-dialog :file-not-in-project})))
 
 (defmethod form-input-view :file [{:keys [on-value-changed value filter title in-project]}]
@@ -741,9 +726,9 @@
 ;; region directory input
 
 (defmethod handle-event :on-directory-selected [{:keys [on-value-changed title fx/event in-project workspace]}]
-  (when-some [file (dialogs/make-directory-dialog (or title "Select Directory") nil (fxui/event->window event))]
-    (if-some [path (absolute-or-maybe-proj-path file workspace in-project)]
-      {:dispatch (assoc on-value-changed :fx/event path)}
+  (when-some [selected-directory (dialogs/make-directory-dialog (or title "Select Directory") nil (fxui/event->window event))]
+    (if-some [valid-directory-path (absolute-or-maybe-proj-path selected-directory workspace in-project)]
+      {:dispatch (assoc on-value-changed :fx/event valid-directory-path)}
       {:show-dialog :directory-not-in-project})))
 
 (defmethod form-input-view :directory [{:keys [on-value-changed value title in-project]}]

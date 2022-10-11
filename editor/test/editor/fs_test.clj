@@ -672,6 +672,12 @@
     (is (true? (fs/below-directory? (io/file project-dir "subdirectory") project-dir)))
     (is (true? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") project-dir)))
     (is (true? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
-    (is (true? (fs/below-directory? (io/file project-dir "subdirectory" ".." "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (true? (fs/below-directory? (io/file project-dir "otherdirectory" ".." "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (false? (fs/below-directory? (io/file project-dir ".." "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
     (is (false? (fs/below-directory? (io/file project-dir "file.txt") (io/file project-dir "subdirectory"))))
-    (is (false? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") (io/file project-dir "subdirectory" ".."))))))
+    (is (false? (fs/below-directory? (io/file project-dir "subdirectory") (io/file project-dir "subdir"))))
+    (is (false? (fs/below-directory? project-dir project-dir)))
+
+    (if fs/case-sensitive?
+      (is (false? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory"))))
+      (is (true? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory")))))))
