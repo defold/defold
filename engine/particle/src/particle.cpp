@@ -1244,7 +1244,7 @@ namespace dmParticle
             {
                 ParticleGuiVertex* vertex = &((ParticleGuiVertex*)vertex_buffer)[vertex_index];
 
-#define SET_VERTEX_GUI(vertex, p, c, u, v, page)\
+#define SET_VERTEX_GUI(vertex, p, c, u, v)\
     vertex->m_Position[0] = p.getX();\
     vertex->m_Position[1] = p.getY();\
     vertex->m_Position[2] = p.getZ();\
@@ -1254,19 +1254,18 @@ namespace dmParticle
     vertex->m_Color[3] = c.getW(); \
     vertex->m_UV[0] = u;\
     vertex->m_UV[1] = v;\
-    vertex->m_PageIndex = page;
 
-                SET_VERTEX_GUI(vertex, p0, c, tex_coord[tex_lookup[0] * 2], tex_coord[tex_lookup[0] * 2 + 1], page_index)
+                SET_VERTEX_GUI(vertex, p0, c, tex_coord[tex_lookup[0] * 2], tex_coord[tex_lookup[0] * 2 + 1])
                 ++vertex;
-                SET_VERTEX_GUI(vertex, p1, c, tex_coord[tex_lookup[1] * 2], tex_coord[tex_lookup[1] * 2 + 1], page_index)
+                SET_VERTEX_GUI(vertex, p1, c, tex_coord[tex_lookup[1] * 2], tex_coord[tex_lookup[1] * 2 + 1])
                 ++vertex;
-                SET_VERTEX_GUI(vertex, p3, c, tex_coord[tex_lookup[2] * 2], tex_coord[tex_lookup[2] * 2 + 1], page_index)
+                SET_VERTEX_GUI(vertex, p3, c, tex_coord[tex_lookup[2] * 2], tex_coord[tex_lookup[2] * 2 + 1])
                 ++vertex;
-                SET_VERTEX_GUI(vertex, p3, c, tex_coord[tex_lookup[3] * 2], tex_coord[tex_lookup[3] * 2 + 1], page_index)
+                SET_VERTEX_GUI(vertex, p3, c, tex_coord[tex_lookup[3] * 2], tex_coord[tex_lookup[3] * 2 + 1])
                 ++vertex;
-                SET_VERTEX_GUI(vertex, p2, c, tex_coord[tex_lookup[4] * 2], tex_coord[tex_lookup[4] * 2 + 1], page_index)
+                SET_VERTEX_GUI(vertex, p2, c, tex_coord[tex_lookup[4] * 2], tex_coord[tex_lookup[4] * 2 + 1])
                 ++vertex;
-                SET_VERTEX_GUI(vertex, p0, c, tex_coord[tex_lookup[5] * 2], tex_coord[tex_lookup[5] * 2 + 1], page_index)
+                SET_VERTEX_GUI(vertex, p0, c, tex_coord[tex_lookup[5] * 2], tex_coord[tex_lookup[5] * 2 + 1])
 #undef SET_VERTEX_GUI
             }
 

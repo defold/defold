@@ -46,12 +46,11 @@ namespace dmGameSystem
     struct BoxVertex
     {
         inline BoxVertex() {}
-        inline BoxVertex(const dmVMath::Vector4& p, float u, float v, const dmVMath::Vector4& color, float page_index)
+        inline BoxVertex(const dmVMath::Vector4& p, float u, float v, const dmVMath::Vector4& color)
         {
             SetPosition(p);
             SetUV(u, v);
             SetColor(color);
-            SetTexturePageIndex(page_index);
         }
 
         inline void SetPosition(const dmVMath::Vector4& p)
@@ -75,15 +74,9 @@ namespace dmGameSystem
             m_Color[3] = c.getW();
         }
 
-        inline void SetTexturePageIndex(float ix)
-        {
-            m_PageIndex = ix;
-        }
-
         float m_Position[3];
         float m_UV[2];
         float m_Color[4];
-        float m_PageIndex;
     };
 
     struct GuiRenderObject

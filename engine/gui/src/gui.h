@@ -88,8 +88,6 @@ namespace dmGui
 
         const float*    m_TexCoords;
         const void*     m_TextureSet;
-        const uint32_t* m_FrameIndices;
-        const uint32_t* m_PageIndices;
         uint8_t m_FlipHorizontal : 1;
         uint8_t m_FlipVertical : 1;
         uint8_t : 6;
@@ -902,7 +900,6 @@ namespace dmGui
     void GetNodeFlipbookAnimUVFlip(HScene scene, HNode node, bool& flip_horizontal, bool& flip_vertical);
     int32_t GetNodeAnimationFrame(HScene scene, HNode node);
     int32_t GetNodeAnimationFrameCount(HScene scene, HNode node);
-    uint32_t GetNodeTexturePageIndex(HScene scene, HNode node);
     TextureSetAnimDesc* GetNodeTextureSet(HScene scene, HNode node);
 
     void* GetNodeFont(HScene scene, HNode node);

@@ -236,7 +236,6 @@ namespace dmParticle
         // Offset 20
         float    m_Color[4];
         // Offset 36
-        float m_PageIndex;
     };
 
     // For tests
