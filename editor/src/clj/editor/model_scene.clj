@@ -34,7 +34,7 @@
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
            [java.nio ByteOrder ByteBuffer FloatBuffer]
-           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3f Vector3f]
+           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3d Point3f Vector3d Vector3f Quat4d]
            [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
@@ -150,8 +150,7 @@
           (if (not= (alength normals) 0)
             (.put fb normals (umul 3 vi) 3)
             (.put fb normal 0 3))
-          (.put fb texcoords (umul 2 vi) 2)
-          )))
+          (.put fb texcoords (umul 2 vi) 2))))
 
     ;; Since we have bypassed the vb and internal ByteBuffer, manually update the position
     (vtx/position! vb vcount)))
@@ -168,9 +167,15 @@
         shader (:shader user-data)
         textures (:textures user-data)
         vertex-space (:vertex-space user-data)
+        meshes (:meshes user-data)
+        mesh (first meshes)
+        local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
+        world-transform (:world-transform renderable)
+        world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))
+
         vertex-space-world-transform (if (= vertex-space :vertex-space-world)
                                        (doto (Matrix4d.) (.setIdentity)) ; already applied the world transform to vertices
-                                       (:world-transform renderable))
+                                       world-matrix)
         render-args (merge render-args
                            (math/derive-render-transforms vertex-space-world-transform
                                                           (:view render-args)
@@ -188,7 +193,10 @@
                     user-data (:user-data renderable)
                     scratch (:scratch-arrays user-data)
                     meshes (:meshes user-data)
-                    world-transform (:world-transform renderable)]
+                    mesh (first meshes)
+                    local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
+                    world-transform world-matrix
+                    world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))]
               mesh meshes
               :let [vb (request-vb! gl node-id mesh world-transform vertex-space scratch)
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
@@ -201,9 +209,7 @@
 
 (defn- render-scene-opaque-selection [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
-        node-id (:node-id renderable)
         user-data (:user-data renderable)
-        meshes (:meshes user-data)
         textures (:textures user-data)]
     (gl/gl-enable gl GL/GL_CULL_FACE)
     (gl/gl-cull-face gl GL/GL_BACK)
@@ -212,14 +218,17 @@
                   user-data (:user-data renderable)
                   scratch (:scratch-arrays user-data)
                   meshes (:meshes user-data)
+                  mesh (first meshes)
+                  local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
                   world-transform (:world-transform renderable)
+                  world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))
                   render-args (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))]]
       (gl/with-gl-bindings gl render-args [id-shader]
         (doseq [[name t] textures]
           (gl/bind gl t render-args)
           (shader/set-uniform id-shader gl name (- (:unit t) GL/GL_TEXTURE0)))
         (doseq [mesh meshes
-                :let [vb (request-vb! gl node-id mesh world-transform :vertex-space-world scratch)
+                :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-world scratch)
                       vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]]
           (gl/with-gl-bindings gl render-args [vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))
@@ -277,10 +286,15 @@
       (update :indices (fn [bytes] (bytes-to-indices bytes (:indices-format mesh))))))
 
 (defn- get-and-update-meshes [model]
-  (let [transform (:transform model) ; :rotation [0.0 0.0 0.0 1.0], :translation [0.0 0.0 0.0], :scale [1.0 1.0 1.0]}
+  (let [transform (:local model) ; {:rotation [0.0 0.0 0.0 1.0], :translation [0.0 0.0 0.0], :scale [1.0 1.0 1.0]}
+        local-translation (Vector3d. (get (:translation transform) 0) (get (:translation transform) 1) (get (:translation transform) 2))
+        local-rotation (Quat4d. (get (:rotation transform) 0) (get (:rotation transform) 1) (get (:rotation transform) 2) (get (:rotation transform) 3))
+        local-scale (Vector3d. (get (:scale transform) 0) (get (:scale transform) 1) (get (:scale transform) 2))
+        ^Matrix4d local-matrix (math/->mat4-non-uniform local-translation local-rotation local-scale)
+
         meshes (:meshes model)
         out (map arrayify meshes)
-        out (map (fn [mesh] (assoc mesh :transform transform)) out)]
+        out (map (fn [mesh] (assoc mesh :transform local-matrix)) out)]
     out))
 
 (g/defnk produce-meshes [mesh-set]
@@ -362,14 +376,17 @@
                                      meshes meshes]
                                 (if-let [m (first meshes)]
                                   (let [^floats ps (:positions m)
-                                        c (alength ps)]
+                                        c (alength ps)
+                                        local-transform (:transform m)] ; Each mesh uses the local matrix of the model it belongs to
                                     (loop [i 0
                                            aabb aabb]
                                       (if (< i c)
                                         (let [x (aget ps i)
                                               y (aget ps (+ 1 i))
-                                              z (aget ps (+ 2 i))]
-                                          (recur (+ i 3) (geom/aabb-incorporate aabb x y z)))
+                                              z (aget ps (+ 2 i))
+                                              p (Point3d. x y z)
+                                              _ (.transform local-transform p)]
+                                          (recur (+ i 3) (geom/aabb-incorporate aabb p)))
                                         aabb)))
                                   aabb))))
   (output bones g/Any produce-bones)
@@ -391,10 +408,11 @@
                                     :view-types [:scene :text]))
 
 (defn- update-vb [^GL2 gl ^VertexBuffer vb data]
-  (let [{:keys [mesh world-transform vertex-space scratch]} data]
+  (let [{:keys [mesh world-transform vertex-space scratch]} data
+        world-transform (doto (Matrix4d.) (math/clj->vecmath world-transform))]
     (-> vb
       (vtx/clear!)
-      (mesh->vb! (doto (Matrix4d.) (math/clj->vecmath world-transform)) vertex-space mesh scratch)
+      (mesh->vb! world-transform vertex-space mesh scratch)
       (vtx/flip!))))
 
 (defn- make-vb [^GL2 gl data]
