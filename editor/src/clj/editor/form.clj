@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.form
-  (:require [editor.util :as util]))
+  (:require [editor.util :as util])
+  (:import [java.net URI]))
 
 (set! *warn-on-reflection* true)
 
@@ -30,6 +31,9 @@
   {:table []
    :string ""
    :resource nil
+   :file ""
+   :directory ""
+   :url (URI. "https://example.com")
    :boolean false
    :integer 0
    :number 0.0

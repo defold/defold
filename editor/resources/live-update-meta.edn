@@ -43,7 +43,9 @@
    :help "List of supported engine versions",
    :default ["0.0.0"],
    :presentation-category "Manifest"
-   :path ["liveupdate" "supported-versions"]}]
+   :path ["liveupdate" "supported-versions"]
+   :element {:type :string
+             :default "0.0.0"}}]
  :categories
  {"liveupdate" {:title "Live Update"}
   "Amazon" {}

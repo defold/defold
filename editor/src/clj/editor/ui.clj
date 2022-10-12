@@ -206,27 +206,6 @@
            (.initOwner stage owner)))
      stage)))
 
-(defn ^File choose-file [{:keys [^String title ^String directory filters ^Window owner-window] :or {title "Choose File"}}]
-  (let [chooser (doto (FileChooser.)
-                  (.setTitle title))]
-    (when-let [initial-directory (some-> directory (File.))]
-      (when (.isDirectory initial-directory)
-        (.setInitialDirectory chooser initial-directory)))
-    (doseq [{:keys [^String description exts]} filters]
-      (let [ext-array (into-array exts)]
-        (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. description ^"[Ljava.lang.String;" ext-array))))
-    (.showOpenDialog chooser owner-window)))
-
-(defn choose-directory
-  ([title ^File initial-dir] (choose-directory title initial-dir @*main-stage*))
-  ([title ^File initial-dir parent]
-   (let [chooser (DirectoryChooser.)]
-     (when initial-dir
-       (.setInitialDirectory chooser initial-dir))
-     (.setTitle chooser title)
-     (let [file (.showDialog chooser parent)]
-       (when file (.getAbsolutePath file))))))
-
 (defn collect-controls [^Parent root keys]
   (let [controls (zipmap (map keyword keys) (map #(.lookup root (str "#" %)) keys))
         missing (->> controls
