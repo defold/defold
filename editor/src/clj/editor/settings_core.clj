@@ -16,6 +16,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as s]
+            [editor.url :as url]
             [util.text-util :as text-util])
   (:import [java.io BufferedReader PushbackReader Reader StringReader]))
 
@@ -71,20 +72,33 @@
   (when-let [[_ new-category] (re-find #"^\s*\[([^\]]*)\]" line)]
     (assoc parse-state :current-category new-category)))
 
-(defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]
-  (when-let [[_ key val] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
-    (let [cleaned-path (first (seq (non-blank (s/split key #"\#"))))]
+(defn- parse-setting-line [parse-state line]
+  (when-let [[_ key value] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
+    (let [[cleaned-path index-string] (non-blank (s/split key #"\#"))]
       (when-let [setting-path (seq (non-blank (s/split cleaned-path #"\.")))]
-        (let [full-path (into [current-category] setting-path)]
-          (if-let [existing-value (get-setting settings full-path)]
-            (update parse-state :settings set-setting full-path (str existing-value "," val))
-            (update parse-state :settings conj {:path full-path :value val})))))))
+        (let [full-path (into [(:current-category parse-state)] setting-path)]
+          ;; For non-list values, the value will be a string.
+          ;; For list values, we build up a vector of strings that we then join
+          ;; into comma-separated strings in the parse-state->settings function.
+          (if (nil? index-string)
+            (update parse-state :settings conj {:path full-path :value value})
+            (update parse-state :settings (fn [settings]
+                                            (let [entries (or (get-setting settings full-path) [])]
+                                              (set-setting settings full-path (conj entries value)))))))))))
 
 (defn- parse-error [line]
   (throw (Exception. (format "Invalid setting line: %s" line))))
 
-(defn- parse-state->settings [{:keys [settings]}]
-  settings)
+(defn- parse-state->settings [parse-state]
+  ;; After parsing, list values will be vectors of strings.
+  ;; Join them into comma-separated string values.
+  (into []
+        (map (fn [setting]
+               (update setting :value (fn [value]
+                                        (if (vector? value)
+                                          (text-util/join-comma-separated-string value)
+                                          value)))))
+        (:settings parse-state)))
 
 (defn parse-settings [reader]
   (parse-state->settings (reduce
@@ -95,7 +109,7 @@
                           (empty-parse-state)
                           (read-setting-lines reader))))
 
-(defmulti parse-setting-value (fn [type ^String raw] type))
+(defmulti parse-setting-value (fn [meta-setting ^String raw] (:type meta-setting)))
 
 (defmethod parse-setting-value :string [_ raw]
   raw)
@@ -119,18 +133,29 @@
 (defmethod parse-setting-value :directory [_ raw]
   raw)
 
-(defmethod parse-setting-value :comma-separated-list [_ raw]
+(defmethod parse-setting-value :url [_ raw]
+  (some-> raw url/try-parse))
+
+(def ^:private default-list-element-meta-setting {:type :string})
+
+(defn- parse-list-setting-value [meta-setting raw]
   (when raw
-    (into [] (text-util/parse-comma-separated-string raw))))
+    (let [element-meta-setting (get meta-setting :element default-list-element-meta-setting)]
+      (into []
+            (keep #(parse-setting-value element-meta-setting %))
+            (text-util/parse-comma-separated-string raw)))))
+
+(defmethod parse-setting-value :list [meta-setting raw]
+  (parse-list-setting-value meta-setting raw))
+
+(defmethod parse-setting-value :comma-separated-list [meta-setting raw]
+  (parse-list-setting-value meta-setting raw))
 
 (def ^:private type-defaults
   {:string ""
    :boolean false
    :integer 0
-   :number 0.0
-   :resource nil
-   :file nil
-   :directory nil})
+   :number 0.0})
 
 (defn- add-type-defaults [meta-info]
   (update-in meta-info [:settings]
@@ -143,10 +168,9 @@
              (fn [settings]
                (map (fn [meta-setting]
                       (if (contains? meta-setting :options)
-                        (let [type (:type meta-setting)]
-                          (assoc meta-setting
-                                 :from-string #(parse-setting-value type %)
-                                 :to-string #(render-raw-setting-value meta-setting %)))
+                        (assoc meta-setting
+                          :from-string #(parse-setting-value meta-setting %)
+                          :to-string #(render-raw-setting-value meta-setting %))
                         meta-setting))
                     settings))))
 
@@ -199,10 +223,10 @@
     value))
 
 (defn- sanitize-setting [meta-settings-map {:keys [path] :as setting}]
-  (when-let [{:keys [type] :as meta-setting} (meta-settings-map path)]
+  (when-some [meta-setting (meta-settings-map path)]
     (update setting :value
             #(do (->> %
-                     (parse-setting-value type)
+                     (parse-setting-value meta-setting)
                      (sanitize-value meta-setting))))))
 
 (defn sanitize-settings [meta-settings settings]
@@ -210,7 +234,8 @@
 
 (defn make-default-settings [meta-settings]
   (mapv (fn [meta-setting]
-         {:path (:path meta-setting) :value (:default meta-setting)})
+          {:path (:path meta-setting)
+           :value (:default meta-setting)})
        meta-settings))
 
 (def setting-category (comp first :path))
@@ -232,30 +257,46 @@
 (defn- category->str [category settings]
   (s/join "\n" (cons (str "[" category "]") (map setting->str settings))))
 
-(defn split-multi-line-setting [category key settings]
-  (let [path [category key]]
-    (if-let [comma-separated-setting (not-empty (get-setting settings path))]
-      (let [comma-separated-setting-parts (non-blank (s/split comma-separated-setting #","))
-            comma-separated-setting-count (count comma-separated-setting-parts)
-            cleaned-settings (remove-setting settings path)]
-        (reduce
-          (fn [settings i]
-            (set-setting settings [category (str key "#" i)] (nth comma-separated-setting-parts i)))
+(defn- split-multi-line-setting-at-path [settings setting-path]
+  (let [comma-separated-setting (get-setting settings setting-path)]
+    (if (empty? comma-separated-setting)
+      settings
+      (let [list-element-strings (text-util/parse-comma-separated-string comma-separated-setting)
+            cleaned-settings (remove-setting settings setting-path)
+            [category key] setting-path]
+        (reduce-kv
+          (fn [settings index list-element-string]
+            (set-setting settings [category (str key "#" index)] list-element-string))
           cleaned-settings
-          (range 0 comma-separated-setting-count)))
-      settings)))
+          list-element-strings)))))
 
-(defn settings->str [settings]
-  (let [split-settings (split-multi-line-setting "project" "dependencies" (vec settings))
+(defn- split-multi-line-settings [settings meta-settings]
+  (transduce (keep (fn [meta-setting]
+                     (when (= :list (:type meta-setting))
+                       (:path meta-setting))))
+             (completing split-multi-line-setting-at-path)
+             settings
+             meta-settings))
+
+(defn settings->str
+  ^String [settings meta-settings list-format]
+  (let [split-settings (case list-format
+                         :comma-separated-list settings
+                         :multi-line-list (split-multi-line-settings (vec settings) meta-settings))
         cat-order (category-order split-settings)
         cat-grouped-settings (category-grouped-settings split-settings)]
 
     ;; Here we interleave categories with \n\n rather than join to make sure the file also ends with
     ;; two consecutive newlines. This is purely to avoid whitespace diffs when loading a project
     ;; created in the old editor and saving.
-    (s/join (interleave (map #(category->str % (cat-grouped-settings %)) cat-order) (repeat "\n\n")))))
+    (s/join (interleave (map #(category->str % (cat-grouped-settings %))
+                             cat-order)
+                        (repeat "\n\n")))))
 
 (defmulti render-raw-setting-value (fn [meta-setting value] (:type meta-setting)))
+
+(defmethod render-raw-setting-value :default [_ value]
+  (str value))
 
 (defmethod render-raw-setting-value :boolean [_ value]
   (if value "1" "0"))
@@ -266,11 +307,33 @@
     (str value "c")
     value))
 
-(defmethod render-raw-setting-value :default [_ value]
-  (str value))
+(defmulti quoted-list-element-setting? (fn [meta-setting] (:type meta-setting)))
 
-(defmethod render-raw-setting-value :comma-separated-list [_ value]
-  (when (seq value) (text-util/join-comma-separated-string value)))
+(defmethod quoted-list-element-setting? :default [_] false)
+
+(defmethod quoted-list-element-setting? :string [_] true)
+
+(defmethod quoted-list-element-setting? :resource [_] true)
+
+(defmethod quoted-list-element-setting? :file [_] true)
+
+(defmethod quoted-list-element-setting? :directory [_] true)
+
+(defmethod quoted-list-element-setting? :url [_] true)
+
+(defn- render-raw-list-setting-value [meta-setting value]
+  (when (seq value)
+    (let [element-meta-setting (get meta-setting :element default-list-element-meta-setting)
+          string-values (map #(render-raw-setting-value element-meta-setting %) value)]
+      (if (quoted-list-element-setting? element-meta-setting)
+        (text-util/join-comma-separated-string string-values)
+        (s/join ", " string-values)))))
+
+(defmethod render-raw-setting-value :list [meta-setting value]
+  (render-raw-list-setting-value meta-setting value))
+
+(defmethod render-raw-setting-value :comma-separated-list [meta-setting value]
+  (render-raw-list-setting-value meta-setting value))
 
 (defn make-settings-map [settings]
   (into {} (map (juxt :path :value) settings)))
