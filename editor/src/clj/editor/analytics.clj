@@ -124,7 +124,7 @@
   (let [config @config-atom
         cid (get config :cid)
         payload { :client_id cid :events batch }
-        payload-json (json/write-str payload)]
+        ^String payload-json (json/write-str payload)]
     (.getBytes payload-json StandardCharsets/UTF_8)))
 
 (defn- get-response-code!
