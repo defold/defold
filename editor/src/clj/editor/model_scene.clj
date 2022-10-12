@@ -287,9 +287,9 @@
 
 (defn- get-and-update-meshes [model]
   (let [transform (:local model)
-        local-translation (Vector3d. (get (:translation transform) 0) (get (:translation transform) 1) (get (:translation transform) 2))
-        local-rotation (Quat4d. (get (:rotation transform) 0) (get (:rotation transform) 1) (get (:rotation transform) 2) (get (:rotation transform) 3))
-        local-scale (Vector3d. (get (:scale transform) 0) (get (:scale transform) 1) (get (:scale transform) 2))
+        local-translation (doto (Vector3d.) (math/clj->vecmath (:translation transform)))
+        local-rotation (doto (Quat4d.) (math/clj->vecmath (:rotation transform)))
+        local-scale (doto (Vector3d.) (math/clj->vecmath (:scale transform)))
         ^Matrix4d local-matrix (math/->mat4-non-uniform local-translation local-rotation local-scale)
 
         meshes (:meshes model)
