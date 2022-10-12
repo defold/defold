@@ -239,25 +239,53 @@
   (output ddf-message g/Any (g/fnk [id child-ids position rotation scale proto-msg]
                               (gen-embed-ddf id child-ids position rotation scale proto-msg))))
 
-(defn- component-resource [comp-id basis]
-  (when (g/node-instance? basis game-object/ComponentNode comp-id)
-    (g/node-value comp-id :source-resource (g/make-evaluation-context {:basis basis :cache c/null-cache}))))
+(defn- component-source-resource [basis component-node-id]
+  (g/node-value component-node-id :source-resource (g/make-evaluation-context {:basis basis :cache c/null-cache})))
 
-(defn- overridable-component? [basis node-id]
-  (some-> node-id
-    (component-resource basis)
-    resource/resource-type
-    :tags
-    (contains? :overridable-properties)))
+(defn- overridable-resource-type? [resource-type]
+  (some-> resource-type :tags (contains? :overridable-properties)))
 
-(def ^:private or-go-traverse-fn
+(defn- overridable-resource? [resource]
+  (some-> resource resource/resource-type overridable-resource-type?))
+
+(def ^:private override-traverse-fn
   (g/make-override-traverse-fn
-    (fn or-go-traverse-fn [basis ^Arc arc]
-      (let [source-node-id (.source-id arc)]
-        (or (overridable-component? basis source-node-id)
-            (g/node-instance-of-any? basis source-node-id
-                                     [resource-node/ResourceNode
-                                      script/ScriptPropertyNode]))))))
+    (fn override-traverse-fn [basis ^Arc arc]
+      (let [source-node-id (.source-id arc)
+            source-node-type (g/node-instance-match basis source-node-id
+                                                    [game-object/EmbeddedComponent
+                                                     game-object/ReferencedComponent
+                                                     resource-node/ResourceNode
+                                                     script/ScriptPropertyNode
+                                                     InstanceNode])]
+        (when (some? source-node-type)
+          (condp = source-node-type
+            InstanceNode
+            true
+
+            game-object/EmbeddedComponent
+            (overridable-resource? (component-source-resource basis source-node-id))
+
+            game-object/ReferencedComponent
+            true ; Always create an override node, because the source-resource might be assigned later.
+
+            resource-node/ResourceNode ; Potentially a component (e.g. a .script), .go, or .collection file.
+            (let [target-node-type (g/node-instance-match basis (.target-id arc)
+                                                          [game-object/EmbeddedComponent
+                                                           game-object/ReferencedComponent
+                                                           InstanceNode])]
+              (condp = target-node-type
+                InstanceNode
+                true
+
+                game-object/EmbeddedComponent
+                (overridable-resource? (resource-node/resource basis source-node-id))
+
+                game-object/ReferencedComponent
+                (overridable-resource? (resource-node/resource basis source-node-id))))
+
+            script/ScriptPropertyNode
+            true))))))
 
 (defn- path-error [node-id resource]
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
@@ -310,7 +338,7 @@
                              (concat
                                connect-tx-data
                                (let [workspace (project/workspace project evaluation-context)]
-                                 (g/override go-node {:traverse-fn or-go-traverse-fn}
+                                 (g/override go-node {:traverse-fn override-traverse-fn}
                                              (fn [evaluation-context id-mapping]
                                                (let [or-go-node (get id-mapping go-node)]
                                                  (concat
@@ -463,16 +491,6 @@
              :outline-reference? true
              :alt-outline source-outline))))
 
-(def ^:private or-coll-traverse-fn
-  (g/make-override-traverse-fn
-    (fn or-coll-traverse-fn [basis ^Arc arc]
-      (let [source-node-id (.source-id arc)]
-        (or (overridable-component? basis source-node-id)
-            (g/node-instance-of-any? basis source-node-id
-                                     [resource-node/ResourceNode
-                                      script/ScriptPropertyNode
-                                      InstanceNode]))))))
-
 (g/defnode CollectionInstanceNode
   (inherits scene/SceneNode)
   (inherits InstanceNode)
@@ -512,7 +530,7 @@
                    (let [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
                      (concat
                        connect-tx-data
-                       (g/override coll-node {:traverse-fn or-coll-traverse-fn}
+                       (g/override coll-node {:traverse-fn override-traverse-fn}
                                    (fn [evaluation-context id-mapping]
                                      (let [or-coll-node (get id-mapping coll-node)]
                                        (concat
