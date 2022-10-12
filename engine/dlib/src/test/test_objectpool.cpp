@@ -47,7 +47,7 @@ TEST(dmObjectPool, Test)
     uint32_t sum = 0;
     uint32_t sum2 = 0;
     for (uint32_t i = 0; i < n; i++) {
-        sum += pool.m_Objects[i].m_Value;
+        sum += pool.GetRawObjects()[i].m_Value;
     }
     for (std::map<uint32_t, uint32_t>::iterator i = mapping.begin(); i != mapping.end(); ++i) {
         sum2 += pool.Get(i->first).m_Value;
@@ -64,7 +64,7 @@ TEST(dmObjectPool, Test)
 
     sum = 0;
     for (uint32_t i = 0; i < n - 2; i++) {
-        sum += pool.m_Objects[i].m_Value;
+        sum += pool.GetRawObjects()[i].m_Value;
     }
 
     sum2 = 0;
@@ -85,7 +85,7 @@ TEST(dmObjectPool, Test)
 
     sum = 0;
     for (uint32_t i = 0; i < n; i++) {
-        sum += pool.m_Objects[i].m_Value;
+        sum += pool.GetRawObjects()[i].m_Value;
     }
     sum2 = 0;
     for (std::map<uint32_t, uint32_t>::iterator i = mapping.begin(); i != mapping.end(); ++i) {
@@ -108,7 +108,7 @@ TEST(dmObjectPool, Test)
 
     sum = 0;
     for (uint32_t i = 0; i < n + 2; i++) {
-        sum += pool.m_Objects[i].m_Value;
+        sum += pool.GetRawObjects()[i].m_Value;
     }
     sum2 = 0;
     for (std::map<uint32_t, uint32_t>::iterator i = mapping.begin(); i != mapping.end(); ++i) {
