@@ -286,7 +286,7 @@
       (update :indices (fn [bytes] (bytes-to-indices bytes (:indices-format mesh))))))
 
 (defn- get-and-update-meshes [model]
-  (let [transform (:local model) ; {:rotation [0.0 0.0 0.0 1.0], :translation [0.0 0.0 0.0], :scale [1.0 1.0 1.0]}
+  (let [transform (:local model)
         local-translation (Vector3d. (get (:translation transform) 0) (get (:translation transform) 1) (get (:translation transform) 2))
         local-rotation (Quat4d. (get (:rotation transform) 0) (get (:rotation transform) 1) (get (:rotation transform) 2) (get (:rotation transform) 3))
         local-scale (Vector3d. (get (:scale transform) 0) (get (:scale transform) 1) (get (:scale transform) 2))
