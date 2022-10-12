@@ -33,9 +33,6 @@ def build(bld):
     if bld.env.PLATFORM in ('arm64-nx64') and 'DMGLFW' in graphics_lib:
         graphics_lib.remove('DMGLFW')
 
-    if 'DMGLFW' in graphics_lib:
-        graphics_lib.append('CARES')
-
     exported_symbols = [graphics_lib_symbols]
 
     web_libs = ['library_glfw.js', 'library_sys.js']
