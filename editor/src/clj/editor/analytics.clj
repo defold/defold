@@ -284,12 +284,12 @@
 (defn track-exception! [^Throwable exception]
   (append-event! {:name "exception"
                   :params {:name (.getSimpleName (class exception)) 
-                  	        :engagement_time_msec "100"
+                           :engagement_time_msec "100"
                            :session_id session-id}}))
 
 (defn track-screen! [^String screen-name]
     (append-event! {:name "page_view"
                     :params {:page_location screen-name
-                    	        :engagement_time_msec "100"
+                             :engagement_time_msec "100"
                              :session_id session-id}}))
 
