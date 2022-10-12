@@ -769,11 +769,6 @@ namespace dmGraphics
         return context->m_PhysicalDevice.m_DeviceExtensions[index].extensionName;
     }
 
-    static bool VulkanIsMultiTargetRenderingSupported(HContext context)
-    {
-        return true;
-    }
-
     static PipelineState VulkanGetPipelineState(HContext context)
     {
         return context->m_PipelineState;

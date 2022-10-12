@@ -355,6 +355,23 @@ static void LogFrameBufferError(GLenum status)
     typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
     DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
 
+    // JG: This is necessary for webgl to work since we can't load core functions,
+    //     but maybe we should do it the other way around? i.e have an exception for emscripten
+    //     and not android. Android needs to load these functions explicitly
+#ifdef ANDROID
+    typedef void (* DM_PFNGLTEXSUBIMAGE3DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels);
+    DM_PFNGLTEXSUBIMAGE3DPROC PFN_glTexSubImage3D = NULL;
+
+    typedef void (* DM_PFNGLTEXIMAGE3DPROC) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels);
+    DM_PFNGLTEXIMAGE3DPROC PFN_glTexImage3D = NULL;
+
+    typedef void (* DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC) (GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void *data);
+    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC PFN_glCompressedTexImage3D = NULL;
+
+    typedef void (* DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);
+    DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC PFN_glCompressedTexSubImage3D = NULL;
+#endif
+
     Context* g_Context = 0x0;
 
     Context::Context(const ContextParams& params)
@@ -426,6 +443,7 @@ static void LogFrameBufferError(GLenum status)
             GL_FLOAT_MAT4,
             GL_SAMPLER_2D,
             GL_SAMPLER_CUBE,
+            DMGRAPHICS_SAMPLER_2D_ARRAY,
         };
         return type_lut[type];
     }
@@ -454,7 +472,7 @@ static void LogFrameBufferError(GLenum status)
                 return TYPE_FLOAT_MAT4;
             case GL_SAMPLER_2D:
                 return TYPE_SAMPLER_2D;
-            case GL_SAMPLER_2D_ARRAY:
+            case DMGRAPHICS_SAMPLER_2D_ARRAY:
                 return TYPE_SAMPLER_2D_ARRAY;
             case GL_SAMPLER_CUBE:
                 return TYPE_SAMPLER_CUBE;
@@ -1035,6 +1053,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers, "glDrawBuffers", "draw_buffers", "glDrawBuffers", DM_PFNGLDRAWBUFFERSPROC, context);
+    #ifdef ANDROID
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D, "glTexSubImage3D", "", "glTexSubImage3D", DM_PFNGLTEXSUBIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D, "glTexImage3D", "", "glTexImage3D", DM_PFNGLTEXIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "", "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D, "glCompressedTexImage3D", "", "glCompressedTexImage3D", DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC, context);
+    #endif
 
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
@@ -1207,6 +1231,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #else
         context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
 #endif
+
+        if (params->m_PrintDeviceInfo)
+        {
+            dmLogInfo("Context features:");
+            if (IsContextFeatureSupported(context, CONTEXT_FEATURE_MULTI_TARGET_RENDERING))
+            {
+                dmLogInfo("  CONTEXT_FEATURE_MULTI_TARGET_RENDERING");
+            }
+            if (IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
+            {
+                dmLogInfo("  CONTEXT_FEATURE_TEXTURE_ARRAY");
+            }
+        }
 
         JobQueueInitialize();
         if(JobQueueIsAsync())
@@ -2757,11 +2794,20 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
                     if (g_Context->m_TextureArraySupport)
                     {
+                    #ifdef ANDROID
+                        #define TEX_SUB_IMAGE_3D PFN_glTexSubImage3D
+                        #define TEX_IMAGE_3D     PFN_glTexImage3D
+                    #else
+                        #define TEX_SUB_IMAGE_3D glTexSubImage3D
+                        #define TEX_IMAGE_3D     glTexImage3D
+                    #endif
                         if (params.m_SubUpdate) {
-                            glTexSubImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                            TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Z, params.m_Y, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
                         } else {
-                            glTexImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
+                            TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, internal_format, params.m_Width, params.m_Height, params.m_Depth, 0, gl_format, gl_type, params.m_Data);
                         }
+                    #undef TEX_SUB_IMAGE_3D
+                    #undef TEX_IMAGE_3D
                     }
                     else
                     {
@@ -2832,14 +2878,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                         }
                         CHECK_GL_ERROR;
                     } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
-                        #if !defined(ANDROID)
+                    #ifdef __ANDROID__
+                        #define COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
+                        #define COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
+                    #else
+                        #define COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
+                        #define COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
+                    #endif
                         if (params.m_SubUpdate) {
-                            glCompressedTexSubImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
+                            COMPRESSED_TEX_SUB_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, params.m_X, params.m_Y, params.m_Z, params.m_Width, params.m_Height, params.m_Depth, gl_format, gl_type, params.m_Data);
                         } else {
-                            glCompressedTexImage3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
+                            COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, params.m_MipMap, gl_format, params.m_Width, params.m_Height, params.m_Depth, 0, params.m_DataSize, params.m_Data);
                         }
                         CHECK_GL_ERROR;
-                        #endif
+                    #undef COMPRESSED_TEX_SUB_IMAGE_3D
+                    #undef COMPRESSED_TEX_IMAGE_3D
                     } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                         const char* p = (const char*) params.m_Data;
                         if (params.m_SubUpdate) {
