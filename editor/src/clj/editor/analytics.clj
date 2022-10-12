@@ -41,6 +41,7 @@
 (defonce ^:private payload-content-type "application/json")
 (defonce ^:private shutdown-timeout 1000)
 (defonce ^:private worker-atom (atom nil))
+(defonce ^:private session-id (rand))
 
 ;; -----------------------------------------------------------------------------
 ;; Validation
@@ -270,16 +271,25 @@
 (defn track-event!
   ([^String category ^String action]
    (append-event! {:name "select_content"
-                   :params {:content_type (str category "-" action)}}))
+                   :params {:content_type (str category "-" action)
+                            :engagement_time_msec "100"
+                            :session_id session-id}}))
   ([^String category ^String action ^String label]
    (append-event! {:name "select_content"
-                   :params {:content_type (str category "-" action) :item_id label}})))
+                   :params {:content_type (str category "-" action)
+                            :item_id label
+                            :engagement_time_msec "100"
+                            :session_id session-id}})))
 
 (defn track-exception! [^Throwable exception]
   (append-event! {:name "exception"
-                  :params {:name (.getSimpleName (class exception)) }}))
+                  :params {:name (.getSimpleName (class exception)) 
+                  	        :engagement_time_msec "100"
+                           :session_id session-id}}))
 
 (defn track-screen! [^String screen-name]
     (append-event! {:name "page_view"
-                    :params {:page_location screen-name}}))
+                    :params {:page_location screen-name
+                    	        :engagement_time_msec "100"
+                             :session_id session-id}}))
 
