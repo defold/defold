@@ -195,10 +195,10 @@
                     meshes (:meshes user-data)
                     mesh (first meshes)
                     local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
-                    world-transform world-matrix
+                    world-transform (:world-transform renderable)
                     world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))]
               mesh meshes
-              :let [vb (request-vb! gl node-id mesh world-transform vertex-space scratch)
+              :let [vb (request-vb! gl node-id mesh world-matrix vertex-space scratch)
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
           (gl/with-gl-bindings gl render-args [vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))
