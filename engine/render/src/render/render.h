@@ -34,6 +34,7 @@ namespace dmRender
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
+    typedef uint64_t                        HSampler;
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
@@ -198,8 +199,9 @@ namespace dmRender
     // Material
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
+    HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
-    void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, uint32_t unit, dmGraphics::HTexture texture);
+    void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
 
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
     dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);

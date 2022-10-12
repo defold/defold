@@ -229,7 +229,7 @@ static void LogGLError(GLint err, const char* fnname, int line)
 
 #endif
 
-static void _ClearGLError()
+static void OpenGLClearGLError()
 {
     GLint err = glGetError();
     while (err != 0)
@@ -238,7 +238,7 @@ static void _ClearGLError()
     }
 }
 
-#define CLEAR_GL_ERROR { if(g_Context->m_VerifyGraphicsCalls) _ClearGLError(); }
+#define CLEAR_GL_ERROR { if(g_Context->m_VerifyGraphicsCalls) OpenGLClearGLError(); }
 
 
 static void LogFrameBufferError(GLenum status)
@@ -487,7 +487,7 @@ static void LogFrameBufferError(GLenum status)
         switch(type)
         {
             case TEXTURE_TYPE_2D:       return GL_TEXTURE_2D;
-            case TEXTURE_TYPE_2D_ARRAY: return context->m_TextureArraySupport ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D;
+            case TEXTURE_TYPE_2D_ARRAY: return GL_TEXTURE_2D_ARRAY;
             case TEXTURE_TYPE_CUBE_MAP: return GL_TEXTURE_CUBE_MAP;
             default:break;
         }
@@ -623,48 +623,44 @@ static void LogFrameBufferError(GLenum status)
     }
 
 
-static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext context)
-{
-    /*
-        Check in order
-        1) ARB - Extensions officially approved by the OpenGL Architecture Review Board
-        2) EXT - Extensions agreed upon by multiple OpenGL vendors
-        3) OES - Vendor specific code for the OpenGL ES working group
-        4) Optionally check as core function (if not GLES and core_name is set)
-    */
-    uintptr_t func = 0x0;
-    static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
-    static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
-    char proc_str[256];
-    for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
+    static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext context)
     {
-        // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
-        size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
-        dmStrlCpy(proc_str + l, extension_name, 256-l);
-        if(!OpenGLIsExtensionSupported(context, proc_str))
-            continue;
-        l = dmStrlCpy(proc_str, name, 255);
-        dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
-        func = (uintptr_t) glfwGetProcAddress(proc_str);
-        if(func != 0x0)
+        /*
+            Check in order
+            1) ARB - Extensions officially approved by the OpenGL Architecture Review Board
+            2) EXT - Extensions agreed upon by multiple OpenGL vendors
+            3) OES - Vendor specific code for the OpenGL ES working group
+            4) Optionally check as core function (if not GLES and core_name is set)
+        */
+        uintptr_t func = 0x0;
+        static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
+        static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
+        char proc_str[256];
+        for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
         {
-            break;
+            // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
+            size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
+            dmStrlCpy(proc_str + l, extension_name, 256-l);
+            if(!OpenGLIsExtensionSupported(context, proc_str))
+                continue;
+            l = dmStrlCpy(proc_str, name, 255);
+            dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
+            func = (uintptr_t) glfwGetProcAddress(proc_str);
+            if(func != 0x0)
+            {
+                break;
+            }
         }
-    }
-#if !defined(__EMSCRIPTEN__)
-    if(func == 0 && core_name)
-    {
-        // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
-        func = (uintptr_t) glfwGetProcAddress(core_name);
-    }
-#endif
+    #if !defined(__EMSCRIPTEN__)
+        if(func == 0 && core_name)
+        {
+            // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
+            func = (uintptr_t) glfwGetProcAddress(core_name);
+        }
+    #endif
 
-    return func;
-}
-
-#define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, context)\
-    if (function == 0x0)\
-        function = (type) GetExtProcAddress(name, extension_name, core_name, context);
+        return func;
+    }
 
     static bool ValidateAsyncJobProcessing(HContext context)
     {
@@ -730,6 +726,29 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 
         return true;
+    }
+
+    static void OpenGLPrintDeviceInfo(HContext context)
+    {
+        dmLogInfo("Device: OpenGL");
+        dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
+        dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
+        dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
+
+        dmLogInfo("Extensions:");
+        for (uint32_t i = 0; i < OpenGLGetNumSupportedExtensions(context); ++i)
+        {
+            dmLogInfo("  %s", OpenGLGetSupportedExtension(context, i));
+        }
+
+        dmLogInfo("Context features:");
+
+        #define PRINT_FEATURE_IF_SUPPORTED(feature) \
+            if (IsContextFeatureSupported(context, feature)) \
+                dmLogInfo("  %s", #feature);
+        PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
+        PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_TEXTURE_ARRAY);
+        #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
     static WindowResult OpenGLOpenWindow(HContext context, WindowParams *params)
@@ -927,14 +946,14 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             context->m_IsGles3Version = 1;
         }
 #else
-        #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
-            // iOS
-            context->m_IsGles3Version = 1;
-            context->m_IsShaderLanguageGles = 1;
-        #else
-            context->m_IsGles3Version = 1;
-            context->m_IsShaderLanguageGles = 0;
-        #endif
+    #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
+        // iOS
+        context->m_IsGles3Version = 1;
+        context->m_IsShaderLanguageGles = 1;
+    #else
+        context->m_IsGles3Version = 1;
+        context->m_IsShaderLanguageGles = 0;
+    #endif
 #endif
 
 #if defined(__EMSCRIPTEN__)
@@ -980,14 +999,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
-
-        if (params->m_PrintDeviceInfo)
-        {
-            dmLogInfo("Device: OpenGL");
-            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
-            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
-            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
-        }
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR) )
         ProcessSerialNumber psn;
@@ -1041,24 +1052,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         StoreExtensions(context, extensions);
 #endif
 
-        if (params->m_PrintDeviceInfo)
-        {
-            dmLogInfo("Extensions:");
-            uint32_t num_extensions = OpenGLGetNumSupportedExtensions(context);
-            for (uint32_t i = 0; i < num_extensions; ++i)
-            {
-                dmLogInfo("  %s", OpenGLGetSupportedExtension(context, i));
-            }
-        }
+        #define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, context)\
+            if (function == 0x0)\
+                function = (type) GetExtProcAddress(name, extension_name, core_name, context);
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers, "glDrawBuffers", "draw_buffers", "glDrawBuffers", DM_PFNGLDRAWBUFFERSPROC, context);
-    #ifdef ANDROID
+        #ifdef ANDROID
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D, "glTexSubImage3D", "", "glTexSubImage3D", DM_PFNGLTEXSUBIMAGE3DPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D, "glTexImage3D", "", "glTexImage3D", DM_PFNGLTEXIMAGE3DPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "", "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D, "glCompressedTexImage3D", "", "glCompressedTexImage3D", DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC, context);
-    #endif
+        #endif
+        #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
 
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
@@ -1234,15 +1240,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         if (params->m_PrintDeviceInfo)
         {
-            dmLogInfo("Context features:");
-            if (IsContextFeatureSupported(context, CONTEXT_FEATURE_MULTI_TARGET_RENDERING))
-            {
-                dmLogInfo("  CONTEXT_FEATURE_MULTI_TARGET_RENDERING");
-            }
-            if (IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
-            {
-                dmLogInfo("  CONTEXT_FEATURE_TEXTURE_ARRAY");
-            }
+            OpenGLPrintDeviceInfo(context);
         }
 
         JobQueueInitialize();
@@ -2091,10 +2089,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetSampler(HContext context, int32_t location, int32_t* units, int count)
+    static void OpenGLSetSampler(HContext context, int32_t location, int32_t unit)
     {
         assert(context);
-        glUniform1iv(location, count, units);
+        glUniform1i(location, unit);
         CHECK_GL_ERROR;
     }
 
@@ -2388,10 +2386,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     static HTexture OpenGLNewTexture(HContext context, const TextureCreationParams& params)
     {
         uint16_t num_texture_ids = 1;
+        TextureType texture_type = params.m_Type;
 
         if (params.m_Type == TEXTURE_TYPE_2D_ARRAY && !context->m_TextureArraySupport)
         {
             num_texture_ids = params.m_Depth;
+            texture_type    = TEXTURE_TYPE_2D;
         }
 
         GLuint* t = (GLuint*) malloc(num_texture_ids * sizeof(GLuint));
@@ -2399,7 +2399,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
 
         Texture* tex         = new Texture;
-        tex->m_Type          = params.m_Type;
+        tex->m_Type          = texture_type;
         tex->m_TextureIds    = t;
         tex->m_Width         = params.m_Width;
         tex->m_Height        = params.m_Height;
@@ -2784,16 +2784,16 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             case TEXTURE_FORMAT_RG16F:
             case TEXTURE_FORMAT_RG32F:
                 if (texture->m_Type == TEXTURE_TYPE_2D) {
-                    assert(texture->m_NumTextureIds == 1);
+                    const char* p = (const char*) params.m_Data;
                     if (params.m_SubUpdate) {
-                        glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, params.m_Data);
+                        glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * i);
                     } else {
-                        glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, params.m_Data);
+                        glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * i);
                     }
                     CHECK_GL_ERROR;
                 } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
-                    if (g_Context->m_TextureArraySupport)
-                    {
+                    assert(g_Context->m_TextureArraySupport);
+                    // JG: Maybe move this to defines
                     #ifdef ANDROID
                         #define TEX_SUB_IMAGE_3D PFN_glTexSubImage3D
                         #define TEX_IMAGE_3D     PFN_glTexImage3D
@@ -2808,17 +2808,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                         }
                     #undef TEX_SUB_IMAGE_3D
                     #undef TEX_IMAGE_3D
-                    }
-                    else
-                    {
-                        assert(texture->m_NumTextureIds == params.m_Depth);
-                        const char* p = (const char*) params.m_Data;
-                        if (params.m_SubUpdate) {
-                            glTexSubImage2D(GL_TEXTURE_2D, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, gl_type, p + params.m_DataSize * i);
-                        } else {
-                            glTexImage2D(GL_TEXTURE_2D, params.m_MipMap, internal_format, params.m_Width, params.m_Height, 0, gl_format, gl_type, p + params.m_DataSize * i);
-                        }   
-                    }
                     CHECK_GL_ERROR;
                 } else if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP) {
                     assert(texture->m_NumTextureIds == 1);
@@ -2986,10 +2975,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return texture->m_Type;
     }
 
-    static void OpenGLEnableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void OpenGLEnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
         assert(context);
         assert(texture);
+        assert(id_index < texture->m_NumTextureIds);
 
 #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
         glEnable(GL_TEXTURE_2D);
@@ -2997,15 +2987,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 #endif
 
         GLenum texture_type = GetOpenGLTextureType(context, texture->m_Type);
-        for (int i = 0; i < texture->m_NumTextureIds; ++i)
-        {
-            glActiveTexture(TEXTURE_UNIT_NAMES[unit + i]);
-            CHECK_GL_ERROR;
-            glBindTexture(texture_type, texture->m_TextureIds[i]);
-            CHECK_GL_ERROR;
+        glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
+        CHECK_GL_ERROR;
+        glBindTexture(texture_type, texture->m_TextureIds[id_index]);
+        CHECK_GL_ERROR;
 
-            SetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap, 1.0f);
-        }
+        OpenGLSetTextureParams(texture, texture->m_Params.m_MinFilter, texture->m_Params.m_MagFilter, texture->m_Params.m_UWrap, texture->m_Params.m_VWrap, 1.0f);
     }
 
     static void OpenGLDisableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -3017,13 +3004,10 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         CHECK_GL_ERROR;
 #endif
 
-        for (int i = 0; i < texture->m_NumTextureIds; ++i)
-        {
-            glActiveTexture(TEXTURE_UNIT_NAMES[unit + i]);
-            CHECK_GL_ERROR;
-            glBindTexture(GetOpenGLTextureType(context, texture->m_Type), 0);
-            CHECK_GL_ERROR;
-        }
+        glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
+        CHECK_GL_ERROR;
+        glBindTexture(GetOpenGLTextureType(context, texture->m_Type), 0);
+        CHECK_GL_ERROR;
     }
 
     static void OpenGLReadPixels(HContext context, void* buffer, uint32_t buffer_size)

@@ -47,11 +47,9 @@ namespace dmRender
         dmGraphics::TextureWrap   m_VWrap;
         float                     m_MaxAnisotropy;
         int32_t                   m_Location       : 24;
-        int32_t                   m_Unit           : 8;
         int32_t                   m_UnitValueCount : 8;
-        int32_t                   m_UnitValueIndex : 24;
 
-        Sampler(int32_t unit)
+        Sampler()
             : m_NameHash(0)
             , m_Type(dmGraphics::TEXTURE_TYPE_2D)
             , m_MinFilter(dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
@@ -60,9 +58,7 @@ namespace dmRender
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_MaxAnisotropy(1.0f)
             , m_Location(-1)
-            , m_Unit(unit)
             , m_UnitValueCount(0)
-            , m_UnitValueIndex(0)
         {
         }
     };
@@ -87,7 +83,6 @@ namespace dmRender
         dmHashTable64<int32_t>                  m_NameHashToLocation;
         dmArray<MaterialConstant>               m_Constants;
         dmArray<Sampler>                        m_Samplers;
-        dmArray<int32_t>                        m_SamplerUnitData;
         uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()
         uint64_t                                m_UserData1;
         uint64_t                                m_UserData2;

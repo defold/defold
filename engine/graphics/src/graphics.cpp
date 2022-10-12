@@ -187,13 +187,21 @@ namespace dmGraphics
             if(shader->m_Language == language)
             {
                 // JG: Maybe we need a better way of deciding this
-                if (shader->m_VariantTextureArray && !IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
+                if (shader->m_VariantTextureArray)
                 {
-                    return shader;
+                    // Only select this variant if we don't support texture arrays natively
+                    if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_TEXTURE_ARRAY))
+                    {
+                        return shader;
+                    }
                 }
-                selected_shader = shader;
+                else
+                {
+                    selected_shader = shader;
+                }
             }
         }
+        assert(selected_shader);
         return selected_shader;
     }
 
@@ -734,9 +742,9 @@ namespace dmGraphics
     {
         g_functions.m_SetConstantM4(context, data, count, base_register);
     }
-    void SetSampler(HContext context, int32_t location, int32_t* units, int count)
+    void SetSampler(HContext context, int32_t location, int32_t unit)
     {
-        g_functions.m_SetSampler(context, location, units, count);
+        g_functions.m_SetSampler(context, location, unit);
     }
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
@@ -874,9 +882,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetTextureType(texture);
     }
-    void EnableTexture(HContext context, uint32_t unit, HTexture texture)
+    void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
-        g_functions.m_EnableTexture(context, unit, texture);
+        g_functions.m_EnableTexture(context, unit, id_index, texture);
     }
     void DisableTexture(HContext context, uint32_t unit, HTexture texture)
     {

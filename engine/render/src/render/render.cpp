@@ -821,7 +821,7 @@ namespace dmRender
 
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
-            uint8_t next_bind_point = 0;
+            uint8_t next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
@@ -829,13 +829,18 @@ namespace dmRender
                     texture = render_context->m_Textures[i];
                 if (texture)
                 {
-                    dmGraphics::EnableTexture(context, next_bind_point, texture);
-                    // TODO: Use next_bind_point for applymaterialsampler
-                    ApplyMaterialSampler(render_context, material, i, texture);
+                    HSampler sampler = GetMaterialSampler(material, i);
 
-                    next_bind_point += dmGraphics::GetNumTextureHandles(texture);
+                    // NOTE: in the case of texture arrays on platforms that doesn't support them,
+                    //       we need to separate between texture units and samplers. Otherwise,
+                    //       we would need separate texture samplers for every sub-texture.
+                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    {
+                        dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
+                        ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
+                        next_texture_unit++;
+                    }
                 }
-
             }
 
             dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
@@ -847,13 +852,20 @@ namespace dmRender
 
             dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
 
+            next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
                 if (render_context->m_Textures[i])
                     texture = render_context->m_Textures[i];
                 if (texture)
-                    dmGraphics::DisableTexture(context, i, texture);
+                {
+                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    {
+                        dmGraphics::DisableTexture(context, next_texture_unit, texture);
+                        next_texture_unit++;
+                    }
+                }
             }
         }
 

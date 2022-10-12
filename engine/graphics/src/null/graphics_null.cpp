@@ -886,7 +886,7 @@ namespace dmGraphics
         memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4 * count);
     }
 
-    static void NullSetSampler(HContext context, int32_t location, int32_t* units, int count)
+    static void NullSetSampler(HContext context, int32_t location, int32_t unit)
     {
     }
 
@@ -1155,7 +1155,7 @@ namespace dmGraphics
         return texture->m_OriginalHeight;
     }
 
-    static void NullEnableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void NullEnableTexture(HContext context, uint32_t unit, uint8_t value_index, HTexture texture)
     {
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);

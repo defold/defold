@@ -74,16 +74,9 @@ namespace dmRender
         if (samplers_count > 0)
         {
             m->m_Samplers.SetCapacity(samplers_count);
-            m->m_SamplerUnitData.SetCapacity(samplers_value_count);
-
-            for (uint32_t i = 0; i < samplers_value_count; ++i)
-            {
-                m->m_SamplerUnitData.Push(i);
-            }
-
             for (uint32_t i = 0; i < samplers_count; ++i)
             {
-                m->m_Samplers.Push(Sampler(i));
+                m->m_Samplers.Push(Sampler());
             }
         }
 
@@ -179,7 +172,6 @@ namespace dmRender
                 m->m_NameHashToLocation.Put(name_hash, location);
                 Sampler& s           = m->m_Samplers[sampler_index];
                 s.m_UnitValueCount   = num_values;
-                s.m_UnitValueIndex   = sampler_value_index;
 
                 switch(type)
                 {
@@ -336,30 +328,35 @@ namespace dmRender
         }
     }
 
-    void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, uint32_t unit, dmGraphics::HTexture texture)
+    HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
     {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        dmArray<Sampler>& samplers = material->m_Samplers;
-        dmArray<int32_t>& sampler_unit_values = material->m_SamplerUnitData;
-
-        uint32_t n = samplers.Size();
-
-        if (unit < n)
+        if (unit < material->m_Samplers.Size())
         {
-            const Sampler& s = samplers[unit];
+            return (HSampler) &material->m_Samplers[unit];
+        }
+        return 0x0;
+    }
 
-            if (s.m_Location != -1)
-            {
-                dmGraphics::SetSampler(graphics_context, s.m_Location, &sampler_unit_values[s.m_UnitValueIndex], s.m_UnitValueCount);
-
-                if (s.m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
-                    s.m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
-                {
-                    dmGraphics::SetTextureParams(texture, s.m_MinFilter, s.m_MagFilter, s.m_UWrap, s.m_VWrap, s.m_MaxAnisotropy);
-                }
-            }
+    void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
+    {
+        if (!sampler)
+        {
+            return;
         }
 
+        Sampler* s = (Sampler*) sampler;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+
+        if (s->m_Location != -1)
+        {
+            dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
+
+            if (s->m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
+                s->m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
+            {
+                dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
+            }
+        }
     }
 
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)
@@ -478,38 +475,18 @@ namespace dmRender
     void SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
         dmArray<Sampler>& samplers = material->m_Samplers;
-
         uint32_t n = samplers.Size();
-        uint32_t i = unit;
 
-        bool readjust_value_indices = false;
         if (unit < n && name_hash != 0 && material->m_NameHashToLocation.Get(name_hash) != 0)
         {
-            Sampler& s = samplers[i];
-            readjust_value_indices = s.m_Unit != unit;
-
-            s.m_NameHash = name_hash;
-            s.m_Location = *material->m_NameHashToLocation.Get(name_hash);
-            s.m_Unit = unit;
-            s.m_UWrap = u_wrap;
-            s.m_VWrap = v_wrap;
-            s.m_MinFilter = min_filter;
-            s.m_MagFilter = mag_filter;
+            Sampler& s        = samplers[unit];
+            s.m_NameHash      = name_hash;
+            s.m_Location      = *material->m_NameHashToLocation.Get(name_hash);
+            s.m_UWrap         = u_wrap;
+            s.m_VWrap         = v_wrap;
+            s.m_MinFilter     = min_filter;
+            s.m_MagFilter     = mag_filter;
             s.m_MaxAnisotropy = max_anisotropy;
-        }
-
-        if (readjust_value_indices)
-        {
-            uint32_t num_values = material->m_SamplerUnitData.Size();
-            uint32_t value_index = 0;
-
-            for (int i = 0; i < n; ++i)
-            {
-                assert(value_index < num_values);
-                Sampler& s         = samplers[i];
-                s.m_UnitValueIndex = value_index;
-                value_index       += s.m_UnitValueCount;
-            }
         }
     }
 

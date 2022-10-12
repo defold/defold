@@ -2550,9 +2550,8 @@ bail:
         }
     }
 
-    static void VulkanSetSampler(HContext context, int32_t location, int32_t* units, int count)
+    static void VulkanSetSampler(HContext context, int32_t location, int32_t unit)
     {
-        assert(count == 1 && "TODO: SetSampler with count != not implemented..");
         assert(context && context->m_CurrentProgram);
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
@@ -2565,7 +2564,7 @@ bail:
             ShaderResourceBinding& res = program_ptr->m_VertexModule->m_Uniforms[index_vs];
             assert(index_vs < program_ptr->m_VertexModule->m_UniformCount);
             assert(IsUniformTextureSampler(res));
-            program_ptr->m_VertexModule->m_Uniforms[index_vs].m_TextureUnit = (uint16_t) units[0];
+            program_ptr->m_VertexModule->m_Uniforms[index_vs].m_TextureUnit = (uint16_t) unit;
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -2573,7 +2572,7 @@ bail:
             ShaderResourceBinding& res = program_ptr->m_FragmentModule->m_Uniforms[index_fs];
             assert(index_fs < program_ptr->m_FragmentModule->m_UniformCount);
             assert(IsUniformTextureSampler(res));
-            program_ptr->m_FragmentModule->m_Uniforms[index_fs].m_TextureUnit = (uint16_t) units[0];
+            program_ptr->m_FragmentModule->m_Uniforms[index_fs].m_TextureUnit = (uint16_t) unit;
         }
     }
 
@@ -3429,7 +3428,7 @@ bail:
         return 1;
     }
 
-    static void VulkanEnableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void VulkanEnableTexture(HContext context, uint32_t unit, uint8_t value_index, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);
         context->m_TextureUnits[unit] = texture;
