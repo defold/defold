@@ -1229,6 +1229,8 @@ static void LogFrameBufferError(GLenum status)
             context->m_TextureArraySupport = 1;
         }
 
+        context->m_TextureArraySupport = 0;
+
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
         if ((OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint")))
         {
@@ -1665,12 +1667,13 @@ static void LogFrameBufferError(GLenum status)
 
     static void BindVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HProgram program)
     {
+        GLuint p_id = ((Program*) program)->m_Id;
 
         uint32_t n = vertex_declaration->m_StreamCount;
         VertexDeclaration::Stream* streams = &vertex_declaration->m_Streams[0];
         for (uint32_t i=0; i < n; i++)
         {
-            GLint location = glGetAttribLocation(program, streams[i].m_Name);
+            GLint location = glGetAttribLocation(p_id, streams[i].m_Name);
             if (location != -1)
             {
                 streams[i].m_PhysicalIndex = location;
@@ -1684,7 +1687,7 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        vertex_declaration->m_BoundForProgram = program;
+        vertex_declaration->m_BoundForProgram = p_id;
         vertex_declaration->m_ModificationVersion = context->m_ModificationVersion;
     }
 
@@ -1694,7 +1697,7 @@ static void LogFrameBufferError(GLenum status)
         assert(vertex_buffer);
         assert(vertex_declaration);
 
-        if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == program))
+        if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == ((Program*) program)->m_Id))
         {
             BindVertexDeclarationProgram(context, vertex_declaration, program);
         }
@@ -1784,60 +1787,134 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    static uint32_t CreateShader(GLenum type, const void* program, uint32_t program_size)
+    static GLuint DoCreateShader(GLenum type, const void* program, uint32_t program_size)
     {
-        GLuint s = glCreateShader(type);
+        GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
         GLint size = program_size;
-        glShaderSource(s, 1, (const GLchar**) &program, &size);
+        glShaderSource(shader_id, 1, (const GLchar**) &program, &size);
         CHECK_GL_ERROR;
-        glCompileShader(s);
+        glCompileShader(shader_id);
         CHECK_GL_ERROR;
 
         GLint status;
-        glGetShaderiv(s, GL_COMPILE_STATUS, &status);
+        glGetShaderiv(shader_id, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
 #ifndef NDEBUG
             GLint logLength;
-            glGetShaderiv(s, GL_INFO_LOG_LENGTH, &logLength);
+            glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &logLength);
             if (logLength > 0)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
-                glGetShaderInfoLog(s, logLength, &logLength, log);
+                glGetShaderInfoLog(shader_id, logLength, &logLength, log);
                 dmLogError("%s\n", log);
                 free(log);
             }
 #endif
-            glDeleteShader(s);
+            glDeleteShader(shader_id);
             return 0;
         }
 
-        return s;
+        return shader_id;
+    }
+
+    static Shader* CreateShader(GLenum type, ShaderDesc::Shader* ddf) // const void* program, uint32_t program_size)
+    {
+        if (ddf->m_VariantTextureArray)
+        {
+            Shader* shader = new Shader();
+            shader->m_VariantTextureArrayData     = (char*) malloc(ddf->m_Source.m_Count);
+            shader->m_VariantTextureArrayDataSize = ddf->m_Source.m_Count;
+            memcpy(shader->m_VariantTextureArrayData, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+            return shader;
+        }
+        else
+        {
+            GLuint shader_id = DoCreateShader(type, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+            if (!shader_id)
+            {
+                return 0;
+            }
+            Shader* shader = new Shader();
+            shader->m_Id = shader_id;
+            return shader;
+        }
     }
 
     static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(ddf);
-        return CreateShader(GL_VERTEX_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf); // ddf->m_Source.m_Data, ddf->m_Source.m_Count);
     }
 
     static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        assert(ddf);
-        return CreateShader(GL_FRAGMENT_SHADER, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf); // ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+    }
+
+    static GLuint CreateShaderVariantTextureArray(Shader* shader, GLenum type)
+    {
+        char* source_copy = (char*) malloc(shader->m_VariantTextureArrayDataSize);
+        memcpy(source_copy, shader->m_VariantTextureArrayData, shader->m_VariantTextureArrayDataSize);
+
+        // This is what shaderutil.java adds in bob, we need to replace val with our max value
+        const char* DM_ARRAY_DEFINE = "#define DM_MAX_PAGE_COUNT VAL";
+
+        char* array_define_start = strstr(source_copy, DM_ARRAY_DEFINE);
+        assert(array_define_start);
+
+        char array_define_buf[32] = {0};
+        uint32_t max_page_size = 4;
+
+        snprintf(array_define_buf, sizeof(array_define_buf), "#define DM_MAX_PAGE_COUNT %3d", max_page_size); // %3d == sizeof("VAL")
+        strncpy(array_define_start, array_define_buf, strlen(array_define_buf));
+
+        GLuint handle = DoCreateShader(type, source_copy, shader->m_VariantTextureArrayDataSize);
+        free(source_copy);
+
+        return handle;
     }
 
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         IncreaseModificationVersion(context);
 
+        Program* program = new Program();
+
         (void) context;
         GLuint p = glCreateProgram();
         CHECK_GL_ERROR;
-        glAttachShader(p, vertex_program);
+
+        Shader* vertex_shader   = (Shader*) vertex_program;
+        Shader* fragment_shader = (Shader*) fragment_program;
+
+        GLuint vertex_id   = vertex_shader->m_Id;
+        GLuint fragment_id = fragment_shader->m_Id;
+
+        uint32_t variant_count = 0;
+        variant_count += vertex_shader->m_VariantTextureArrayData ? 1 : 0;
+        variant_count += fragment_shader->m_VariantTextureArrayData ? 1 : 0;
+
+        if (variant_count != 0)
+        {
+            program->m_VariantIds.SetCapacity(variant_count);
+        }
+
+        if (vertex_shader->m_VariantTextureArrayData != 0)
+        {
+            vertex_id = CreateShaderVariantTextureArray(vertex_shader, GL_VERTEX_SHADER);
+            program->m_VariantIds.Push(vertex_id);
+        }
+
+        if (fragment_shader->m_VariantTextureArrayData != 0)
+        {
+            fragment_id = CreateShaderVariantTextureArray(fragment_shader, GL_FRAGMENT_SHADER);
+            program->m_VariantIds.Push(fragment_id);
+        }
+
+        glAttachShader(p, vertex_id);
         CHECK_GL_ERROR;
-        glAttachShader(p, fragment_program);
+        glAttachShader(p, fragment_id);
         CHECK_GL_ERROR;
 
         // For MRT bindings to work correctly on all platforms,
@@ -1869,19 +1946,25 @@ static void LogFrameBufferError(GLenum status)
                 free(log);
             }
 #endif
+            delete program;
+
             glDeleteProgram(p);
             CHECK_GL_ERROR;
             return 0;
         }
 
+        program->m_Id = p;
+
         CHECK_GL_ERROR;
-        return p;
+        return (HProgram) program;
     }
 
     static void OpenGLDeleteProgram(HContext context, HProgram program)
     {
         (void) context;
-        glDeleteProgram(program);
+        Program* p = (Program*) program;
+        glDeleteProgram(p->m_Id);
+        delete p;
     }
 
     // Tries to compile a shader (either a vertex or fragment) program.
@@ -1928,9 +2011,10 @@ static void LogFrameBufferError(GLenum status)
 
         if (success)
         {
-            glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            GLuint id = ((Shader*) prog)->m_Id;
+            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
             CHECK_GL_ERROR;
-            glCompileShader(prog);
+            glCompileShader(id);
             CHECK_GL_ERROR;
         }
 
@@ -1949,9 +2033,10 @@ static void LogFrameBufferError(GLenum status)
 
         if (success)
         {
-            glShaderSource(prog, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            GLuint id = ((Shader*) prog)->m_Id;
+            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
             CHECK_GL_ERROR;
-            glCompileShader(prog);
+            glCompileShader(id);
             CHECK_GL_ERROR;
         }
 
@@ -1961,15 +2046,17 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        glDeleteShader(program);
+        glDeleteShader(((Shader*) program)->m_Id);
         CHECK_GL_ERROR;
+        delete (Shader*) program;
     }
 
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        glDeleteShader(program);
+        glDeleteShader(((Shader*) program)->m_Id);
         CHECK_GL_ERROR;
+        delete (Shader*) program;
     }
 
     static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext context)
@@ -1983,7 +2070,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLEnableProgram(HContext context, HProgram program)
     {
         (void) context;
-        glUseProgram(program);
+        glUseProgram(((Program*) program)->m_Id);
         CHECK_GL_ERROR;
     }
 
@@ -1997,9 +2084,9 @@ static void LogFrameBufferError(GLenum status)
     {
         GLuint tmp_program = glCreateProgram();
         CHECK_GL_ERROR;
-        glAttachShader(tmp_program, vert_program);
+        glAttachShader(tmp_program, ((Shader*) vert_program)->m_Id);
         CHECK_GL_ERROR;
-        glAttachShader(tmp_program, frag_program);
+        glAttachShader(tmp_program, ((Shader*) frag_program)->m_Id);
         CHECK_GL_ERROR;
         glLinkProgram(tmp_program);
 
@@ -2030,7 +2117,7 @@ static void LogFrameBufferError(GLenum status)
         {
             return false;
         }
-        glLinkProgram(program);
+        glLinkProgram(((Program*) program)->m_Id);
         CHECK_GL_ERROR;
         return true;
     }
@@ -2038,7 +2125,7 @@ static void LogFrameBufferError(GLenum status)
     static uint32_t OpenGLGetUniformCount(HProgram prog)
     {
         GLint count;
-        glGetProgramiv(prog, GL_ACTIVE_UNIFORMS, &count);
+        glGetProgramiv(((Program*) prog)->m_Id, GL_ACTIVE_UNIFORMS, &count);
         CHECK_GL_ERROR;
         return count;
     }
@@ -2048,7 +2135,7 @@ static void LogFrameBufferError(GLenum status)
         GLint uniform_size;
         GLenum uniform_type;
         GLsizei uniform_name_length;
-        glGetActiveUniform(prog, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
+        glGetActiveUniform(((Program*) prog)->m_Id, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
         *type = GetGraphicsType(uniform_type);
         *size = uniform_size;
         CHECK_GL_ERROR;
@@ -2057,7 +2144,7 @@ static void LogFrameBufferError(GLenum status)
 
     static int32_t OpenGLGetUniformLocation(HProgram prog, const char* name)
     {
-        GLint location = glGetUniformLocation(prog, name);
+        GLint location = glGetUniformLocation(((Program*) prog)->m_Id, name);
         if (location == -1)
         {
             // Clear error if uniform isn't found

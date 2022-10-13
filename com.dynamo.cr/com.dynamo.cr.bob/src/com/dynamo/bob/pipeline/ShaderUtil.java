@@ -226,14 +226,28 @@ public class ShaderUtil {
 
     public static class ES2Variants {
         public static String variantTextureArrayFallback(String shaderSource, int maxArraySliceCount) {
-            String result = shaderSource;
-
             // For texture array support, we need to convert texture2DArray functions
             if (Common.hasUniformType(shaderSource, ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)) {
                 ArrayList<String> texture2DArrayFn = new ArrayList<>();
-                texture2DArrayFn.add(String.format("vec4 texture2DArray(sampler2D dm_texture_arrays[%d], vec3 dm_texture_array_args) {", maxArraySliceCount));
-                texture2DArrayFn.add("    int page_index = int(dm_texture_array_args.z);");
 
+                /*
+                texture2DArrayFn.add("#define DM_MAX_PAGE_COUNT VAL");
+                texture2DArrayFn.add("vec4 texture2DArray(sampler2D dm_texture_arrays[DM_MAX_PAGE_COUNT], vec3 dm_texture_array_args) {");
+                texture2DArrayFn.add("    int page_index = int(dm_texture_array_args.z);");
+                texture2DArrayFn.add("    for (int i = 0; i < DM_MAX_PAGE_COUNT; ++i)");
+                texture2DArrayFn.add("    {");
+                texture2DArrayFn.add("        if (i == page_index)");
+                texture2DArrayFn.add("        {");
+                texture2DArrayFn.add("            return texture2D(dm_texture_arrays[i], dm_texture_array_args.st);");
+                texture2DArrayFn.add("        }");
+                texture2DArrayFn.add("    }");
+                texture2DArrayFn.add("    return vec4(0.0);");
+                texture2DArrayFn.add( "}");
+                */
+
+                texture2DArrayFn.add("#define DM_MAX_PAGE_COUNT VAL");
+                texture2DArrayFn.add("vec4 texture2DArray(sampler2D dm_texture_arrays[DM_MAX_PAGE_COUNT], vec3 dm_texture_array_args) {");
+                texture2DArrayFn.add("    int page_index = int(dm_texture_array_args.z);");
                 for (int i=0; i < maxArraySliceCount; i++) {
                     if (i == 0) {
                         texture2DArrayFn.add("    if (page_index == 0) return texture2D(dm_texture_arrays[0], dm_texture_array_args.st);");
@@ -249,7 +263,7 @@ public class ShaderUtil {
                     sb.append(line).append(System.lineSeparator());
                 }
                 shaderSource = sb.toString() + shaderSource;
-                shaderSource = shaderSource.replaceAll(Common.glSampler2DArrayRegex, "$1 sampler2D $2[" + maxArraySliceCount + "];");
+                shaderSource = shaderSource.replaceAll(Common.glSampler2DArrayRegex, "$1 sampler2D $2[DM_MAX_PAGE_COUNT];");
 
                 ArrayList<String> output = new ArrayList<String>(shaderSource.length());
 
@@ -260,9 +274,9 @@ public class ShaderUtil {
                     }
                 }
 
-                result = String.join("\n", output);
+                return String.join("\n", output);
             }
-            return result;
+            return null;
         }
     }
 

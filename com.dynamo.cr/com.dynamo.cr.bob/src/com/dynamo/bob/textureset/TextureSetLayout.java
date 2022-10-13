@@ -112,12 +112,12 @@ public class TextureSetLayout {
 
     }
 
-    public static List<Layout> packedLayout(int margin, List<Rect> rectangles, boolean rotate, Point2d maxPageSize) {
+    public static List<Layout> packedLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) {
         if (rectangles.size() == 0) {
             return Arrays.asList(new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>()));
         }
 
-        return createMaxRectsLayout(margin, rectangles, rotate, maxPageSize);
+        return createMaxRectsLayout(margin, rectangles, rotate, maxPageSizeW, maxPageSizeH);
     }
 
     private static int getExponentNextOrMatchingPowerOfTwo(int value) {
@@ -169,7 +169,7 @@ public class TextureSetLayout {
      * @param rotate
      * @return
      */
-    public static List<Layout> createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate, Point2d maxPageSize) {
+    public static List<Layout> createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) {
         // Sort by area first, then longest side
         Collections.sort(rectangles, new Comparator<Rect>() {
             @Override
@@ -185,15 +185,13 @@ public class TextureSetLayout {
             }
         });
 
-        int maxPageWidth             = (int) maxPageSize.getX();
-        int maxPageHeight            = (int) maxPageSize.getY();
-        boolean useMaxPageSize       = maxPageWidth > 0 && maxPageHeight > 0;
+        boolean useMaxPageSize       = maxPageSizeW > 0 && maxPageSizeH > 0;
         final int defaultMinPageSize = 16;
 
         if (useMaxPageSize) {
             MaxRectsLayoutStrategy.Settings settings = new MaxRectsLayoutStrategy.Settings();
-            settings.maxPageHeight = maxPageHeight;
-            settings.maxPageWidth  = maxPageWidth;
+            settings.maxPageHeight = (int) maxPageSizeH;
+            settings.maxPageWidth  = (int) maxPageSizeW;
             settings.minPageHeight = defaultMinPageSize;
             settings.minPageWidth  = defaultMinPageSize;
             settings.paddingX      = margin;
@@ -236,14 +234,6 @@ public class TextureSetLayout {
                     }
                 }
             }
-
-            /*
-            int l_i = 0;
-            for (Layout l : layouts)
-            {
-                System.out.println("Layout " + (l_i++) + " w/h: " + l.getWidth() + ", " + l.getHeight());
-            }
-            */
 
             return layouts;
         } else {

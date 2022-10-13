@@ -180,6 +180,10 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                                 shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
+
+        // FOR TESTING REMOVE LATER
+        gles2Standard = true;
+
         if (gles2Standard) {
             ///////////////////////////////////////////////////////
             // Texture array variant

@@ -111,18 +111,21 @@ namespace dmGraphics
         uint16_t    m_Stride;
         HProgram    m_BoundForProgram;
         uint32_t    m_ModificationVersion;
-
-    };
-    // TODO: Why this one here!? Not used?
-    struct VertexBuffer
-    {
-        GLuint      m_VboId;
     };
 
-    // TODO: Why this one here!? Not used?
-    struct IndexBuffer
+    struct Program
     {
-        GLuint      m_VboId;
+        GLuint          m_Id;
+        dmArray<GLuint> m_VariantIds;
+    };
+
+    struct Shader
+    {
+        GLuint   m_Id;
+        // JG: We need to runtime patch the variant data to be able to support
+        //     different max page counts per material, is this a good representation?
+        char*    m_VariantTextureArrayData;
+        uint32_t m_VariantTextureArrayDataSize;
     };
 
     struct RenderTarget

@@ -33,4 +33,5 @@ message Atlas
     optional uint32 extrude_borders                = 4 [default = 0];
     optional uint32 inner_padding                  = 5 [default = 0];
     optional dmMath.Point3 max_texture_dimensions  = 6;
+    optional uint32 max_page_count                 = 7;
 }

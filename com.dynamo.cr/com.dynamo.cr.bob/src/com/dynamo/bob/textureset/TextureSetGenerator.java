@@ -298,9 +298,8 @@ public class TextureSetGenerator {
      * 4. Create vertex data for each frame (image) in each animation
      */
     public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int use_geometries,
-                                                AnimIterator iterator,
-                                               int margin, int innerPadding, int extrudeBorders,
-                                               boolean rotate, boolean useTileGrid, Grid gridSize, Point2d maxPageSize) {
+                AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
+               boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
 
         int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
 
@@ -327,7 +326,7 @@ public class TextureSetGenerator {
             layouts = new ArrayList<Layout>();
             layouts.add(layout);
         } else {
-            List<Layout> packedLayouts = TextureSetLayout.packedLayout(margin, resizedImages, rotate, maxPageSize);
+            List<Layout> packedLayouts = TextureSetLayout.packedLayout(margin, resizedImages, rotate, maxPageSizeW, maxPageSizeH);
             layoutRects = new ArrayList<Rect>();
 
             int page_index = 0;
@@ -421,7 +420,8 @@ public class TextureSetGenerator {
      * @return {@link AtlasMap}
      */
     public static TextureSetResult generate(List<BufferedImage> images, List<Integer> imageHullSizes, List<String> paths, AnimIterator iterator,
-            int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize, Point2d maxPageSize) {
+            int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize,
+            float maxPageSizeW, float maxPageSizeH) {
 
         List<Rect> imageRects = rectanglesFromImages(images, paths);
 
@@ -437,7 +437,7 @@ public class TextureSetGenerator {
 
         // The layout step will expand the rect, and possibly rotate them
         TextureSetResult result = calculateLayout(imageRects, imageHulls, use_geometries, iterator,
-            margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize, maxPageSize);
+            margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
 
         for (Layout layout : result.layoutResult.layouts) {
             List<BufferedImage> layoutImages = new ArrayList<>();
