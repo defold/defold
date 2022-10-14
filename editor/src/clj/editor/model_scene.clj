@@ -30,12 +30,12 @@
             [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
-  (:import [com.jogamp.opengl GL GL2]
+  (:import [com.google.protobuf ByteString]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
-           [java.nio ByteOrder ByteBuffer FloatBuffer]
-           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3d Point3f Vector3d Vector3f Quat4d]
-           [com.google.protobuf ByteString]))
+           [java.nio ByteBuffer ByteOrder FloatBuffer IntBuffer ShortBuffer]
+           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3d Point3f Quat4d Vector3d Vector3f]))
 
 (set! *warn-on-reflection* true)
 
@@ -169,8 +169,8 @@
         vertex-space (:vertex-space user-data)
         meshes (:meshes user-data)
         mesh (first meshes)
-        local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
-        world-transform (:world-transform renderable)
+        ^Matrix4d local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
+        ^Matrix4d world-transform (:world-transform renderable)
         world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))
 
         vertex-space-world-transform (if (= vertex-space :vertex-space-world)
@@ -194,8 +194,8 @@
                     scratch (:scratch-arrays user-data)
                     meshes (:meshes user-data)
                     mesh (first meshes)
-                    local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
-                    world-transform (:world-transform renderable)
+                    ^Matrix4d local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
+                    ^Matrix4d world-transform (:world-transform renderable)
                     world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))]
               mesh meshes
               :let [vb (request-vb! gl node-id mesh world-matrix vertex-space scratch)
@@ -219,8 +219,8 @@
                   scratch (:scratch-arrays user-data)
                   meshes (:meshes user-data)
                   mesh (first meshes)
-                  local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
-                  world-transform (:world-transform renderable)
+                  ^Matrix4d local-transform (:transform mesh) ; Each mesh uses the local matrix of the model it belongs to
+                  ^Matrix4d world-transform (:world-transform renderable)
                   world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))
                   render-args (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))]]
       (gl/with-gl-bindings gl render-args [id-shader]
@@ -273,9 +273,12 @@
         count (if (= :indexbuffer-format-16 index-format)
                 (/ num-bytes 2)
                 (/ num-bytes 4))
-        ia (int-array count)
-        _ (dotimes [i count]
-            (aset ia i (int (.get bo i))))]
+        ia (int-array count)]
+    (if (= :indexbuffer-format-16 index-format)
+      (dotimes [i count]
+        (aset ia i (int (.get ^ShortBuffer bo i))))
+      (dotimes [i count]
+        (aset ia i (.get ^IntBuffer bo i))))
     ia))
 
 (defn- arrayify [mesh]
@@ -377,7 +380,7 @@
                                 (if-let [m (first meshes)]
                                   (let [^floats ps (:positions m)
                                         c (alength ps)
-                                        local-transform (:transform m)] ; Each mesh uses the local matrix of the model it belongs to
+                                        ^Matrix4d local-transform (:transform m)] ; Each mesh uses the local matrix of the model it belongs to
                                     (loop [i 0
                                            aabb aabb]
                                       (if (< i c)
