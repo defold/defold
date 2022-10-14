@@ -374,7 +374,6 @@
     :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
     :sanitize-fn (partial sanitize-collection-data workspace)
     :load-fn load-collection-data
-    :auto-connect-save-data? false
     :icon collection-common/collection-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

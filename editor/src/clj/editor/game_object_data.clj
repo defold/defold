@@ -233,7 +233,6 @@
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
     :sanitize-fn (partial sanitize-game-object-data workspace)
     :load-fn load-game-object-data
-    :auto-connect-save-data? false
     :icon game-object-common/game-object-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

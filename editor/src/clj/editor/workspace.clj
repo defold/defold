@@ -655,14 +655,9 @@ ordinary paths."
     (fs/delete-file! file)
     nil))
 
-(defn non-editable-directory-proj-path? [value]
-  ;; Value must be a string starting with "/", but not ending with "/".
-  (and (string? value)
-       (re-matches #"^\/.*(?<!\/)$" value)))
-
 (defn- make-editable-proj-path-predicate [non-editable-directory-proj-paths]
   {:pre [(vector? non-editable-directory-proj-paths)
-         (every? non-editable-directory-proj-path? non-editable-directory-proj-paths)]}
+         (every? string? non-editable-directory-proj-paths)]}
   (fn editable-proj-path? [proj-path]
     (not-any? (fn [non-editable-directory-proj-path]
                 ;; A proj-path is considered non-editable if it matches or is
@@ -677,9 +672,10 @@ ordinary paths."
                   false))
               non-editable-directory-proj-paths)))
 
-(defn make-workspace [graph project-path build-settings]
-  (let [non-editable-directory-proj-paths ["/main/generated"] ; TODO! Parse from project.shared_editor_settings.
-        editable-proj-path? (make-editable-proj-path-predicate non-editable-directory-proj-paths)]
+(defn make-workspace [graph project-path build-settings workspace-config]
+  (let [editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
+                              (make-editable-proj-path-predicate non-editable-directory-proj-paths)
+                              (constantly true))]
     (g/make-node! graph Workspace
                   :root project-path
                   :resource-snapshot (resource-watch/empty-snapshot)

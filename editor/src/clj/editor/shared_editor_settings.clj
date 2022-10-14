@@ -66,44 +66,65 @@
                               :text sub-header-message}]}
          :content (str file-info-message "\n\n" exception-message)}))))
 
-(defn- read-raw-settings-or-exception [^File shared-editor-settings-file]
-  (try
-    (with-open [reader (io/reader shared-editor-settings-file)]
-      (settings-core/parse-settings reader))
-    (catch Exception exception
-      exception)))
+(defn- load-config [^File shared-editor-settings-file parse-config-fn]
+  (let [raw-settings-or-exception (try
+                                    (with-open [reader (io/reader shared-editor-settings-file)]
+                                      (settings-core/parse-settings reader))
+                                    (catch Exception exception
+                                      exception))]
+    (if (ex-message raw-settings-or-exception)
+      (report-load-error! shared-editor-settings-file raw-settings-or-exception)
+      (let [meta-settings (:settings @shared-editor-settings-meta-info)
+            config-or-exception (try
+                                  (let [settings (settings-core/sanitize-settings meta-settings raw-settings-or-exception)]
+                                    (parse-config-fn settings))
+                                  (catch Exception exception
+                                    exception))]
+        (if (ex-message config-or-exception)
+          (report-load-error! shared-editor-settings-file config-or-exception)
+          (when (not-empty config-or-exception)
+            config-or-exception))))))
 
-(defn- parse-system-config-or-exception [raw-settings]
-  (try
-    (let [meta-settings (:settings @shared-editor-settings-meta-info)
-          settings (settings-core/sanitize-settings meta-settings raw-settings)
-          cache-capacity (settings-core/get-setting settings ["performance" "cache_capacity"])]
-      (when (some? cache-capacity)
-        (if (<= -1 cache-capacity)
-          {:cache-size cache-capacity}
-          (throw (ex-info "performance.cache_capacity must be -1 (unlimited), 0 (disabled), or positive."
-                          {:cache-capacity cache-capacity})))))
-    (catch Exception exception
-      exception)))
+(defn- load-project-config [project-directory config-type parse-config-fn]
+  {:pre [(keyword? config-type)
+         (ifn? parse-config-fn)]}
+  (let [shared-editor-settings-file (io/file project-directory project-shared-editor-settings-filename)]
+    (when (.isFile shared-editor-settings-file)
+      (log/info :message (str "Loading " (name config-type) " from Shared Editor Settings file."))
+      (when-some [config (not-empty (load-config shared-editor-settings-file parse-config-fn))]
+        (log/info :message (str "Using " (name config-type) " from Shared Editor Settings file.") config-type config)
+        config))))
+
+(defn- parse-system-config [settings]
+  (let [cache-capacity (settings-core/get-setting settings ["performance" "cache_capacity"])]
+    (when (some? cache-capacity)
+      (if (<= -1 cache-capacity)
+        {:cache-size cache-capacity}
+        (throw (ex-info "performance.cache_capacity must be -1 (unlimited), 0 (disabled), or positive."
+                        {:cache-capacity cache-capacity}))))))
+
+(defn non-editable-directory-proj-path? [value]
+  ;; Value must be a string starting with "/", but not ending with "/".
+  (and (string? value)
+       (re-matches #"^\/.*(?<!\/)$" value)))
+
+(defn- parse-workspace-config [settings]
+  (let [non-editable-directories (settings-core/get-setting settings ["performance" "non_editable_directories"])]
+    (when (seq non-editable-directories)
+      (if (every? non-editable-directory-proj-path? non-editable-directories)
+        {:non-editable-directories non-editable-directories}
+        (throw (ex-info "Every entry in performance.non_editable_directories must be a proj-path starting with `/`, but not ending with `/`."
+                        {:non-editable-directories non-editable-directories}))))))
 
 (def ^:private default-system-config {})
 
-(defn- load-system-config [^File shared-editor-settings-file]
-  (log/info :message "Loading system config from Shared Editor Settings file.")
-  (let [raw-settings-or-exception (read-raw-settings-or-exception shared-editor-settings-file)]
-    (or (if (ex-message raw-settings-or-exception)
-          (report-load-error! shared-editor-settings-file raw-settings-or-exception)
-          (let [system-config-or-exception (parse-system-config-or-exception raw-settings-or-exception)]
-            (if (ex-message system-config-or-exception)
-              (report-load-error! shared-editor-settings-file system-config-or-exception)
-              (when (not-empty system-config-or-exception)
-                (log/info :message "Using system config from Shared Editor Settings file." :config system-config-or-exception)
-                system-config-or-exception))))
-        default-system-config)))
+(def ^:private default-workspace-config {})
 
 ;; Called through reflection.
 (defn load-project-system-config [project-directory]
-  (let [shared-editor-settings-file (io/file project-directory project-shared-editor-settings-filename)]
-    (if (.isFile shared-editor-settings-file)
-      (load-system-config shared-editor-settings-file)
-      default-system-config)))
+  (or (load-project-config project-directory :system-config parse-system-config)
+      default-system-config))
+
+(defn load-project-workspace-config [project-directory]
+  (or (load-project-config project-directory :workspace-config parse-workspace-config)
+      default-workspace-config))

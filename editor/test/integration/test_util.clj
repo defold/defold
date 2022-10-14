@@ -34,6 +34,7 @@
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
@@ -110,9 +111,11 @@
   ([graph]
    (setup-workspace! graph project-path))
   ([graph project-path]
-   (let [workspace (workspace/make-workspace graph
+   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path)
+         workspace (workspace/make-workspace graph
                                              (.getAbsolutePath (io/file project-path))
-                                             {})]
+                                             {}
+                                             workspace-config)]
      (g/transact
        (concat
          (scene/register-view-types workspace)))
