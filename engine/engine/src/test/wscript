@@ -21,7 +21,11 @@ def run_bob(task):
         platform = env['PLATFORM']
         if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
             sdkinfo = sdk.get_sdk_info(sdk.SDK_ROOT, platform)
-            env['DYLD_INSERT_LIBRARIES'] = sdkinfo['asan']['path']
+            if 'DYLD_INSERT_LIBRARIES' in env:
+                env['DYLD_INSERT_LIBRARIES'] += os.pathsep
+            else:
+                env['DYLD_INSERT_LIBRARIES'] = ""
+            env['DYLD_INSERT_LIBRARIES'] += sdkinfo['asan']['path']
 
     args = task.generator.run_args
     output = run.env_command(env, args.split())

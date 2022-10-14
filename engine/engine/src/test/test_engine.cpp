@@ -119,10 +119,10 @@ static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
     *((uint32_t*) ctx) = stats.m_FrameCount;
 }
 
-static void PostRunGetStats(dmEngine::HEngine engine, void* stats)
-{
-    dmEngine::GetStats(engine, *((dmEngine::Stats*)stats));
-}
+// static void PostRunGetStats(dmEngine::HEngine engine, void* stats)
+// {
+//     dmEngine::GetStats(engine, *((dmEngine::Stats*)stats));
+// }
 
 TEST_F(EngineTest, Project)
 {
