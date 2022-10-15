@@ -84,12 +84,16 @@ namespace dmRender
             }
         }
 
-        HMaterial material3d = NewMaterial(render_context, vertex_program, fragment_program);
+        dmGraphics::ProgramCreationParams params = {};
+        params.m_VertexProgram   = vertex_program;
+        params.m_FragmentProgram = fragment_program;
+
+        HMaterial material3d = NewMaterial(render_context, params);
         SetMaterialProgramConstantType(material3d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         dmhash_t debug_tag_3d = dmHashString64(DEBUG_3D_NAME);
         SetMaterialTags(material3d, 1, &debug_tag_3d);
 
-        HMaterial material2d = NewMaterial(render_context, vertex_program, fragment_program);
+        HMaterial material2d = NewMaterial(render_context, params);
         SetMaterialProgramConstantType(material2d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
         dmhash_t debug_tag_2d = dmHashString64(DEBUG_2D_NAME);
         SetMaterialTags(material2d, 1, &debug_tag_2d);

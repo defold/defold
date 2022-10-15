@@ -60,10 +60,15 @@ namespace dmGameSystem
 
     struct MaterialResources
     {
-        MaterialResources() : m_FragmentProgram(0), m_VertexProgram(0) {}
+        MaterialResources()
+            : m_FragmentProgram(0)
+            , m_VertexProgram(0)
+            , m_MaxPagesCount(0)
+        {}
 
         dmGraphics::HFragmentProgram m_FragmentProgram;
-        dmGraphics::HVertexProgram m_VertexProgram;
+        dmGraphics::HVertexProgram   m_VertexProgram;
+        uint8_t                      m_MaxPagesCount;
     };
 
     bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
@@ -89,6 +94,8 @@ namespace dmGameSystem
             resources->m_VertexProgram = 0x0;
             return factory_e;
         }
+
+        resources->m_MaxPagesCount = ddf->m_MaxPageCount;
 
         return dmResource::RESULT_OK;
     }
@@ -197,7 +204,13 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources);
         if (r == dmResource::RESULT_OK)
         {
-            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
+            // JG: This is the exact same as "MaterialResources" right now, conform them into one?
+            dmGraphics::ProgramCreationParams material_create_params = {};
+            material_create_params.m_VertexProgram   = resources.m_VertexProgram;
+            material_create_params.m_FragmentProgram = resources.m_FragmentProgram;
+            material_create_params.m_MaxPagesCount   = resources.m_MaxPagesCount;
+
+            dmRender::HMaterial material = dmRender::NewMaterial(render_context, material_create_params);
 
             dmResource::SResourceDescriptor desc;
             dmResource::Result factory_e;

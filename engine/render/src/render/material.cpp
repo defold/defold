@@ -27,14 +27,14 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
+    HMaterial NewMaterial(dmRender::HRenderContext render_context, const dmGraphics::ProgramCreationParams& creation_params) // dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
     {
         Material* m = new Material;
         m->m_RenderContext = render_context;
-        m->m_VertexProgram = vertex_program;
-        m->m_FragmentProgram = fragment_program;
+        m->m_VertexProgram = creation_params.m_VertexProgram;
+        m->m_FragmentProgram = creation_params.m_FragmentProgram;
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        m->m_Program = dmGraphics::NewProgram(graphics_context, vertex_program, fragment_program);
+        m->m_Program = dmGraphics::NewProgram(graphics_context, creation_params);
 
         uint32_t total_constants_count = dmGraphics::GetUniformCount(m->m_Program);
         const uint32_t buffer_size = 128;
@@ -598,21 +598,29 @@ namespace dmRender
         return tag_count > 0; // don't render anything with no matches at all
     }
 
-    bool GetMaterialIsCompatible(HMaterial material, dmGraphics::HTexture texture)
+    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler)
     {
-        // Check that we have at least one sampler that we can use for the texture
-        for (int i = 0; i < material->m_Samplers.Size(); ++i)
-        {
-            const Sampler& s = material->m_Samplers[i];
-            assert(s.m_Type == dmGraphics::TEXTURE_TYPE_2D   ||
-                   s.m_Type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ||
-                   s.m_Type == dmGraphics::TEXTURE_TYPE_2D_ARRAY);
+        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture);
+        Sampler* s = (Sampler*) sampler;
 
-            if (s.m_Type == dmGraphics::GetTextureType(texture))
+        if (texture_type != s->m_Type)
+        {
+            dmLogError("Unable to bind texture with type %s to a sampler with type %s.",
+                dmGraphics::GetTextureTypeLiteral(texture_type),
+                dmGraphics::GetTextureTypeLiteral(s->m_Type));
+            return false;
+        }
+
+        if (texture_type == dmGraphics::TEXTURE_TYPE_2D_ARRAY)
+        {
+            uint8_t num_sub_handles = dmGraphics::GetNumTextureHandles(texture);
+            if (num_sub_handles > s->m_UnitValueCount)
             {
-                return true;
+                dmLogError("Unable to bind array texture with %d handles to a sampler with %d bind slots",
+                    num_sub_handles, s->m_UnitValueCount);
+                return false;
             }
         }
-        return false;
+        return true;
     }
 }

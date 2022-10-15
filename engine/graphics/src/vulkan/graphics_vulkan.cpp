@@ -2259,10 +2259,10 @@ bail:
         }
     }
 
-    static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    static HProgram VulkanNewProgram(HContext context, const ProgramCreationParams& params)
     {
         Program* program = new Program;
-        CreateProgram(context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
+        CreateProgram(context, program, (ShaderModule*) params.m_VertexProgram, (ShaderModule*) params.m_FragmentProgram);
         return (HProgram) program;
     }
 

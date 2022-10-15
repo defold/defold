@@ -1410,19 +1410,7 @@ namespace dmGameSystem
             // Since the animation referred to the old texture, we need to update it
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
-
-                // The current material might not be able to use the new image
-                // JG: Hm, with this you can still bind the texture to an incorrect slot..
-                //     But maybe this high level check is fine?
-                if (!dmRender::GetMaterialIsCompatible(GetMaterial(component, component->m_Resource), texture_set->m_Texture))
-                {
-                    dmLogError("Unable to set texture %s, the texture is not compatible with the assigned material.",
-                        dmHashReverseSafe64(texture_set->m_TexturePath));
-                    return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
-                }
-
-                uint32_t* anim_id = texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+                uint32_t* anim_id =  GetTextureSet(component, component->m_Resource)->m_AnimationIds.Get(component->m_CurrentAnimation);
                 if (anim_id)
                 {
                     PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);

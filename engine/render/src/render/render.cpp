@@ -831,6 +831,11 @@ namespace dmRender
                 {
                     HSampler sampler = GetMaterialSampler(material, i);
 
+                    if (!GetCanBindTexture(texture, sampler))
+                    {
+                        return RESULT_TYPE_MISMATCH;
+                    }
+
                     // NOTE: in the case of texture arrays on platforms that doesn't support them,
                     //       we need to separate between texture units and samplers. Otherwise,
                     //       we would need separate texture samplers for every sub-texture.

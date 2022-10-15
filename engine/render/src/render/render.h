@@ -197,7 +197,7 @@ namespace dmRender
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 
     // Material
-    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
+    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, const dmGraphics::ProgramCreationParams& creation_params); // dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
@@ -221,7 +221,7 @@ namespace dmRender
      * @return True if a constant or element was found
      */
     bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_num_components);
-    bool                            GetMaterialIsCompatible(HMaterial material, dmGraphics::HTexture texture);
+    // bool                            GetMaterialIsCompatible(HMaterial material, dmGraphics::HTexture texture);
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);

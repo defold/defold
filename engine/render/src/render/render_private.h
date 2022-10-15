@@ -267,6 +267,8 @@ namespace dmRender
     // Gets the list associated with a hash of all the tags (see RegisterMaterialTagList)
     void                            GetMaterialTagList(HRenderContext context, uint32_t list_hash, MaterialTagList* list);
 
+    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler);
+
     // Exposed here for unit testing
     struct RenderListEntrySorter
     {

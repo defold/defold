@@ -205,6 +205,18 @@ namespace dmGraphics
         return selected_shader;
     }
 
+    const char* GetTextureTypeLiteral(TextureType texture_type)
+    {
+        switch(texture_type)
+        {
+            case TEXTURE_TYPE_2D:       return "TEXTURE_TYPE_2D";
+            case TEXTURE_TYPE_2D_ARRAY: return "TEXTURE_TYPE_2D_ARRAY";
+            case TEXTURE_TYPE_CUBE_MAP: return "TEXTURE_TYPE_CUBE_MAP";
+            default:break;
+        }
+        return "<unknown texture type>";
+    }
+
     const char* GetBufferTypeLiteral(BufferType buffer_type)
     {
         switch(buffer_type)
@@ -682,9 +694,9 @@ namespace dmGraphics
     {
         return g_functions.m_NewFragmentProgram(context, ddf);
     }
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    HProgram NewProgram(HContext context, const ProgramCreationParams& params)
     {
-        return g_functions.m_NewProgram(context, vertex_program, fragment_program);
+        return g_functions.m_NewProgram(context, params);
     }
     void DeleteProgram(HContext context, HProgram program)
     {

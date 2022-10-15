@@ -123,7 +123,7 @@ namespace dmGraphics
     {
         GLuint   m_Id;
         // JG: We need to runtime patch the variant data to be able to support
-        //     different max page counts per material, is this a good representation?
+        //     different max page counts per material, is this really a good representation?
         char*    m_VariantTextureArrayData;
         uint32_t m_VariantTextureArrayDataSize;
     };

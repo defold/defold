@@ -299,6 +299,13 @@ namespace dmGraphics
         uint8_t       : 5;
     };
 
+    struct ProgramCreationParams
+    {
+        HVertexProgram   m_VertexProgram;
+        HFragmentProgram m_FragmentProgram;
+        uint8_t          m_MaxPagesCount;
+    };
+
     const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
@@ -531,10 +538,10 @@ namespace dmGraphics
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
+    HVertexProgram   NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
     HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
-    void DeleteProgram(HContext context, HProgram program);
+    HProgram         NewProgram(HContext context, const ProgramCreationParams& params); // HVertexProgram vertex_program, HFragmentProgram fragment_program);
+    void             DeleteProgram(HContext context, HProgram program);
 
     bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
     bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
@@ -614,6 +621,7 @@ namespace dmGraphics
     uint32_t    GetMaxTextureSize(HContext context);
     uint8_t     GetNumTextureHandles(HTexture texture);
     TextureType GetTextureType(HTexture texture);
+    const char* GetTextureTypeLiteral(TextureType texture_type);
     void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
     void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
 

@@ -225,13 +225,12 @@ public class ShaderUtil {
     }
 
     public static class ES2Variants {
-        public static String variantTextureArrayFallback(String shaderSource, int maxArraySliceCount) {
+        public static String variantTextureArrayFallback(String shaderSource) {
             // For texture array support, we need to convert texture2DArray functions
             if (Common.hasUniformType(shaderSource, ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)) {
                 ArrayList<String> texture2DArrayFn = new ArrayList<>();
 
-                /*
-                texture2DArrayFn.add("#define DM_MAX_PAGE_COUNT VAL");
+                texture2DArrayFn.add("#define DM_MAX_PAGE_COUNT ###");
                 texture2DArrayFn.add("vec4 texture2DArray(sampler2D dm_texture_arrays[DM_MAX_PAGE_COUNT], vec3 dm_texture_array_args) {");
                 texture2DArrayFn.add("    int page_index = int(dm_texture_array_args.z);");
                 texture2DArrayFn.add("    for (int i = 0; i < DM_MAX_PAGE_COUNT; ++i)");
@@ -241,20 +240,6 @@ public class ShaderUtil {
                 texture2DArrayFn.add("            return texture2D(dm_texture_arrays[i], dm_texture_array_args.st);");
                 texture2DArrayFn.add("        }");
                 texture2DArrayFn.add("    }");
-                texture2DArrayFn.add("    return vec4(0.0);");
-                texture2DArrayFn.add( "}");
-                */
-
-                texture2DArrayFn.add("#define DM_MAX_PAGE_COUNT VAL");
-                texture2DArrayFn.add("vec4 texture2DArray(sampler2D dm_texture_arrays[DM_MAX_PAGE_COUNT], vec3 dm_texture_array_args) {");
-                texture2DArrayFn.add("    int page_index = int(dm_texture_array_args.z);");
-                for (int i=0; i < maxArraySliceCount; i++) {
-                    if (i == 0) {
-                        texture2DArrayFn.add("    if (page_index == 0) return texture2D(dm_texture_arrays[0], dm_texture_array_args.st);");
-                    } else {
-                        texture2DArrayFn.add(String.format("    else if (page_index == %d) return texture2D(dm_texture_arrays[%d], dm_texture_array_args.st);", i, i));
-                    }
-                }
                 texture2DArrayFn.add("    return vec4(0.0);");
                 texture2DArrayFn.add( "}");
 

@@ -181,14 +181,11 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                                 shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
 
-        // FOR TESTING REMOVE LATER
-        gles2Standard = true;
-
         if (gles2Standard) {
             ///////////////////////////////////////////////////////
             // Texture array variant
             ///////////////////////////////////////////////////////
-            String sourceVariantTextureArray = ES2Variants.variantTextureArrayFallback(source, 4); // TODO: get max page count?
+            String sourceVariantTextureArray = ES2Variants.variantTextureArrayFallback(source);
             if (sourceVariantTextureArray != null) {
                 ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
                 sourceVariantTextureArray = compileGLSL(sourceVariantTextureArray, shaderType, shaderLanguage, resourceOutput, isDebug);

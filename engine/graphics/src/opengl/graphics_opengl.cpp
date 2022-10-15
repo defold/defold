@@ -1052,19 +1052,19 @@ static void LogFrameBufferError(GLenum status)
         StoreExtensions(context, extensions);
 #endif
 
-        #define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, context)\
-            if (function == 0x0)\
-                function = (type) GetExtProcAddress(name, extension_name, core_name, context);
+    #define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, context)\
+        if (function == 0x0)\
+            function = (type) GetExtProcAddress(name, extension_name, core_name, context);
 
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers, "glDrawBuffers", "draw_buffers", "glDrawBuffers", DM_PFNGLDRAWBUFFERSPROC, context);
-        #ifdef ANDROID
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D, "glTexSubImage3D", "", "glTexSubImage3D", DM_PFNGLTEXSUBIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D, "glTexImage3D", "", "glTexImage3D", DM_PFNGLTEXIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "", "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D, "glCompressedTexImage3D", "", "glCompressedTexImage3D", DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC, context);
-        #endif
-        #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer,   "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers,             "glDrawBuffers",        "draw_buffers",        "glDrawBuffers",           DM_PFNGLDRAWBUFFERSPROC, context);
+    #ifdef ANDROID
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D,           "glTexSubImage3D",           "texture_array", "glTexSubImage3D",           DM_PFNGLTEXSUBIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array", "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "texture_array", "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D,    "glCompressedTexImage3D",    "texture_array", "glCompressedTexImage3D",    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC, context);
+    #endif
+    #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
 
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_pvrtc"))
@@ -1227,9 +1227,13 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_IsGles3Version || OpenGLIsExtensionSupported(context, "GL_EXT_texture_array"))
         {
             context->m_TextureArraySupport = 1;
+        #ifdef ANDROID
+            context->m_TextureArraySupport &= PFN_glTexSubImage3D;
+            context->m_TextureArraySupport &= PFN_glTexImage3D;
+            context->m_TextureArraySupport &= PFN_glCompressedTexSubImage3D;
+            context->m_TextureArraySupport &= PFN_glCompressedTexImage3D;
+        #endif
         }
-
-        context->m_TextureArraySupport = 0;
 
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
         if ((OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint")))
@@ -1819,7 +1823,7 @@ static void LogFrameBufferError(GLenum status)
         return shader_id;
     }
 
-    static Shader* CreateShader(GLenum type, ShaderDesc::Shader* ddf) // const void* program, uint32_t program_size)
+    static Shader* CreateShader(GLenum type, ShaderDesc::Shader* ddf)
     {
         if (ddf->m_VariantTextureArray)
         {
@@ -1844,29 +1848,30 @@ static void LogFrameBufferError(GLenum status)
 
     static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf); // ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf);
     }
 
     static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf); // ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf);
     }
 
-    static GLuint CreateShaderVariantTextureArray(Shader* shader, GLenum type)
+    static GLuint CreateShaderVariantTextureArray(Shader* shader, GLenum type, uint8_t max_page_count)
     {
+        assert(max_page_count > 0);
+
         char* source_copy = (char*) malloc(shader->m_VariantTextureArrayDataSize);
         memcpy(source_copy, shader->m_VariantTextureArrayData, shader->m_VariantTextureArrayDataSize);
 
-        // This is what shaderutil.java adds in bob, we need to replace val with our max value
-        const char* DM_ARRAY_DEFINE = "#define DM_MAX_PAGE_COUNT VAL";
+        // This is what shaderutil.java adds in bob when producing the variant, we need to replace val with our max value
+        const char* dm_array_define_str = "#define DM_MAX_PAGE_COUNT ###";
 
-        char* array_define_start = strstr(source_copy, DM_ARRAY_DEFINE);
+        char* array_define_start = strstr(source_copy, dm_array_define_str);
         assert(array_define_start);
 
         char array_define_buf[32] = {0};
-        uint32_t max_page_size = 4;
 
-        snprintf(array_define_buf, sizeof(array_define_buf), "#define DM_MAX_PAGE_COUNT %3d", max_page_size); // %3d == sizeof("VAL")
+        snprintf(array_define_buf, sizeof(array_define_buf), "#define DM_MAX_PAGE_COUNT %3d", max_page_count); // %3d == sizeof("###")
         strncpy(array_define_start, array_define_buf, strlen(array_define_buf));
 
         GLuint handle = DoCreateShader(type, source_copy, shader->m_VariantTextureArrayDataSize);
@@ -1875,7 +1880,7 @@ static void LogFrameBufferError(GLenum status)
         return handle;
     }
 
-    static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
+    static HProgram OpenGLNewProgram(HContext context, const ProgramCreationParams& params)
     {
         IncreaseModificationVersion(context);
 
@@ -1885,8 +1890,8 @@ static void LogFrameBufferError(GLenum status)
         GLuint p = glCreateProgram();
         CHECK_GL_ERROR;
 
-        Shader* vertex_shader   = (Shader*) vertex_program;
-        Shader* fragment_shader = (Shader*) fragment_program;
+        Shader* vertex_shader   = (Shader*) params.m_VertexProgram;
+        Shader* fragment_shader = (Shader*) params.m_FragmentProgram;
 
         GLuint vertex_id   = vertex_shader->m_Id;
         GLuint fragment_id = fragment_shader->m_Id;
@@ -1902,13 +1907,13 @@ static void LogFrameBufferError(GLenum status)
 
         if (vertex_shader->m_VariantTextureArrayData != 0)
         {
-            vertex_id = CreateShaderVariantTextureArray(vertex_shader, GL_VERTEX_SHADER);
+            vertex_id = CreateShaderVariantTextureArray(vertex_shader, GL_VERTEX_SHADER, params.m_MaxPagesCount);
             program->m_VariantIds.Push(vertex_id);
         }
 
         if (fragment_shader->m_VariantTextureArrayData != 0)
         {
-            fragment_id = CreateShaderVariantTextureArray(fragment_shader, GL_FRAGMENT_SHADER);
+            fragment_id = CreateShaderVariantTextureArray(fragment_shader, GL_FRAGMENT_SHADER, params.m_MaxPagesCount);
             program->m_VariantIds.Push(fragment_id);
         }
 
@@ -1964,6 +1969,10 @@ static void LogFrameBufferError(GLenum status)
         (void) context;
         Program* p = (Program*) program;
         glDeleteProgram(p->m_Id);
+        for (int i = 0; i < p->m_VariantIds.Size(); ++i)
+        {
+            glDeleteShader(p->m_VariantIds[i]);
+        }
         delete p;
     }
 
