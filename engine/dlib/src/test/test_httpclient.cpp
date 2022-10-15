@@ -23,11 +23,12 @@
 #include "dlib/math.h"
 #include "dlib/thread.h"
 #include "dlib/uri.h"
+#include "dlib/sys.h"
 #include "dlib/socket.h"
 #include "dlib/sslsocket.h"
 #include "dlib/http_client.h"
 #include "dlib/http_cache_verify.h"
-#include "testutil.h"
+#include "dlib/testutil.h"
 
 #define JC_TEST_IMPLEMENTATION
 #define JC_TEST_NO_DEATH_TEST
@@ -43,10 +44,20 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket:
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
 }
 
+
+#if defined(_WIN32)
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
+    #define DM_DISABLE_HTTPCLIENT_TESTS
+#endif
+#endif
+
+
 int g_HttpPort = -1;
 int g_HttpPortSSL = -1;
 int g_HttpPortSSLTest = -1;
+char SERVER_IP[64] = "localhost";
 
+#define NAME_SERVER_IP "localhost"
 #define NAME_SOCKET "{server_socket}"
 #define NAME_SOCKET_SSL "{server_socket_ssl}"
 #define NAME_SOCKET_SSL_TEST "{server_socket_ssl_test}"
@@ -61,6 +72,7 @@ public:
     int m_StatusCode;
     int m_XScale;
     dmURI::Parts m_URI;
+    char m_CacheDir[256];
 
     static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
@@ -98,6 +110,36 @@ public:
         return dmHttpClient::WriteHeader(response, "X-Scale", scale);
     }
 
+    void CreateFile(const char* path, const char* content)
+    {
+        char apppath[256];
+        dmTestUtil::MakeHostPath(apppath, sizeof(apppath), path);
+
+        FILE* f = fopen(apppath, "wb");
+        ASSERT_NE((FILE*)0, f);
+        fwrite(content, 1, strlen(content), f);
+        fclose(f);
+    }
+
+    void SetupTestData()
+    {
+        char tmp_dir[256];
+        char http_files[256];
+        dmTestUtil::MakeHostPath(tmp_dir, sizeof(tmp_dir), "tmp");
+        dmTestUtil::MakeHostPath(m_CacheDir, sizeof(m_CacheDir), "tmp/cache");
+        dmTestUtil::MakeHostPath(http_files, sizeof(http_files), "tmp/http_files");
+
+        dmSys::RmTree(tmp_dir);
+
+        dmSys::Mkdir(tmp_dir, 0755);
+        dmSys::Mkdir(m_CacheDir, 0755);
+        dmSys::Mkdir(http_files, 0755);
+
+        CreateFile("tmp/http_files/a.txt", "You will find this data in a.txt and d.txt");
+        CreateFile("tmp/http_files/b.txt", "Some data in file b");
+        CreateFile("tmp/http_files/c.txt", "Some data in file c");
+        CreateFile("tmp/http_files/d.txt", "You will find this data in a.txt and d.txt");
+    }
 
     virtual void SetUp()
     {
@@ -105,6 +147,17 @@ public:
 
         char url[1024];
         strcpy(url, GetParam());
+
+        bool is_https = strstr(url, "https://") != 0;
+
+        char* host = strstr(url, NAME_SERVER_IP);
+        if (host != 0) {
+            char urlcopy[1024];
+            // poor mans replace
+            const char* rest = host + strlen(NAME_SERVER_IP);
+            dmSnPrintf(urlcopy, sizeof(urlcopy), "%s://%s%s", is_https?"https":"http", SERVER_IP, rest);
+            memcpy(url, urlcopy, sizeof(url));
+        }
 
         char* portstr = strrchr(url, ':');
         ++portstr;
@@ -131,15 +184,12 @@ public:
             sprintf(portstr, "%d", port);
         }
 
+
         dmURI::Result parse_r = dmURI::Parse(url, &m_URI);
         ASSERT_EQ(dmURI::RESULT_OK, parse_r);
 
-#if !defined(DM_NO_SYSTEM_FUNCTION)
-        int ret = system("python src/test/test_httpclient.py");
-#else
-        int ret = -1;
-#endif
-        ASSERT_EQ(0, ret);
+        SetupTestData();
+
 
         dmHttpClient::NewParams params;
         params.m_Userdata = this;
@@ -374,15 +424,19 @@ TEST_F(dmHttpClientParserTest, TestNoContent)
     ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
 }
 
-#ifndef _WIN32
+#ifndef DM_DISABLE_HTTPCLIENT_TESTS
 
-// NOTE: Tests disabled. Currently we need bash to start and shutdown http server.
+#if defined(__SCE__)
+    #define NUM_ITERATIONS 25
+#else
+    #define NUM_ITERATIONS 100
+#endif
 
 TEST_P(dmHttpClientTest, Simple)
 {
     char buf[128];
 
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
         m_Content = "";
         sprintf(buf, "/add/%d/1000", i);
@@ -427,7 +481,7 @@ static void HttpStressThread(void* param)
     char buf[128];
     int c = rand() % 3359;
     HttpStressHelper* h = (HttpStressHelper*) param;
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < NUM_ITERATIONS; ++i) {
         h->m_Content = "";
         sprintf(buf, "/add/%d/1000", i * c);
         dmHttpClient::Result r;
@@ -444,10 +498,10 @@ TEST_P(dmHttpClientTest, ThreadStress)
     ASSERT_EQ(0u, dmHttpClient::ShutdownConnectionPool());
     dmHttpClient::ReopenConnectionPool();
 
-#if defined(GITHUB_CI)
+#if defined(GITHUB_CI) || defined(__SCE__)
     const int thread_count = 2;    // 32 is the maximum number of items in the connection pool, stay below that
 #else
-    const int thread_count = 16;    // 32 is the maximum number of items in the connection pool, stay below that
+    const int thread_count = 16;   // 32 is the maximum number of items in the connection pool, stay below that
 #endif
     dmThread::Thread threads[thread_count];
     HttpStressHelper* helpers[thread_count];
@@ -468,7 +522,7 @@ TEST_P(dmHttpClientTest, NoKeepAlive)
 {
     char buf[128];
 
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
         m_Content = "";
         sprintf(buf, "/no-keep-alive");
@@ -484,7 +538,7 @@ TEST_P(dmHttpClientTest, CustomRequestHeaders)
     char buf[128];
 
     m_XScale = 123;
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
         m_Content = "";
         sprintf(buf, "/add/%d/1000", i);
@@ -520,7 +574,13 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     // The TCP + SSL connection handshake take up a considerable amount of time on linux (peaks of 60+ ms), and
     // since we don't want to enable the TCP_NODELAY at this time, we increase the timeout values for these tests.
     // We also want to keep the unit tests below a certain amount of seconds, so we also decrease the number of iterations in this loop.
-    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 500 * 1000); // microseconds
+
+    #if defined(__SCE__)
+        const int timeout = 1000 * 1000;
+    #else
+        const int timeout = 500 * 1000;
+    #endif
+    dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
 
     char buf[128];
     for (int i = 0; i < 3; ++i)
@@ -543,40 +603,6 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     }
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 0);
 }
-
-TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
-{
-    for( int i = 0; i < 3; ++i )
-    {
-        uint64_t timeout = 130 * 1000;
-        dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
-
-        uint64_t timestart = dmTime::GetTime();
-        dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
-        uint64_t timeend = dmTime::GetTime();
-
-        ASSERT_NE(dmHttpClient::RESULT_OK, r);
-        ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
-        ASSERT_EQ(-1, m_StatusCode);
-        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
-
-        uint64_t elapsed = timeend - timestart;
-
-        if(elapsed < timeout)
-        {
-            dmLogError("The test was too short! It cannot possibly have timed out!\n");
-            ASSERT_TRUE(0);
-        }
-
-        if( elapsed / 1000000 > 10)
-        {
-            dmLogError("The test timed out\n");
-            ASSERT_TRUE(0);
-        }
-    }
-}
-
-
 
 TEST_P(dmHttpClientTest, ServerClose)
 {
@@ -637,6 +663,7 @@ TEST_P(dmHttpClientTest, ClientThreadedShutdown)
     dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/10");
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
 }
+
 
 TEST_P(dmHttpClientTest, ContentSizes)
 {
@@ -769,13 +796,13 @@ TEST_P(dmHttpClientTest, Cache)
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
     dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
+    cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
     ASSERT_NE((void*) 0, m_Client);
 
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < NUM_ITERATIONS; ++i)
     {
         m_Content = "";
         dmHttpClient::Result r;
@@ -795,8 +822,8 @@ TEST_P(dmHttpClientTest, Cache)
     dmHttpClient::Statistics stats;
     dmHttpClient::GetStatistics(m_Client, &stats);
     // NOTE: m_Responses is increased for every request. Therefore we must compensate for potential re-connections
-    ASSERT_EQ(100U, stats.m_Responses - stats.m_Reconnections);
-    ASSERT_EQ(99U, stats.m_CachedResponses);
+    ASSERT_EQ(uint32_t(NUM_ITERATIONS), stats.m_Responses - stats.m_Reconnections);
+    ASSERT_EQ(uint32_t(NUM_ITERATIONS - 1), stats.m_CachedResponses);
     cache_r = dmHttpCache::Close(params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
@@ -813,7 +840,7 @@ TEST_P(dmHttpClientTest, MaxAgeCache)
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
     dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
+    cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port, strcmp(m_URI.m_Scheme, "https") == 0, 0);
@@ -862,7 +889,6 @@ TEST_P(dmHttpClientTest, PathWithSpaces)
     ASSERT_STREQ(message, m_Content.c_str());
 }
 
-
 TEST_P(dmHttpClientTestExternal, PostExternal)
 {
     int n = 17000;
@@ -892,10 +918,15 @@ TEST_P(dmHttpClientTestExternal, PostExternal)
     printf("CONTENT:\n%s\n", m_Content.c_str());
 }
 
+// Until we've figured out how to access the local server on windows from the PS4
+#if !(defined(__SCE__))
+
 const char* params_http_client_test[] = {"http://localhost:" NAME_SOCKET, "https://localhost:" NAME_SOCKET_SSL};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(params_http_client_test));
 
-#if !defined(GITHUB_CI)
+#endif
+
+#if !(defined(GITHUB_CI) || defined(__SCE__))
 // For easier debugging, we can use external sites to monitor their responses
 // NOTE: These buckets might expire. If so, we'll have to disable that server test
 const char* params_http_client_external_test[] = {  // They expire after a few days, but I keep it here in case you wish to test with it
@@ -905,10 +936,45 @@ const char* params_http_client_external_test[] = {  // They expire after a few d
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestExternal, dmHttpClientTestExternal, jc_test_values_in(params_http_client_external_test));
 #endif
 
+TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
+{
+    for( int i = 0; i < 3; ++i )
+    {
+        uint64_t timeout = 130 * 1000;
+        dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
+
+        uint64_t timestart = dmTime::GetTime();
+        dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
+        uint64_t timeend = dmTime::GetTime();
+
+        ASSERT_NE(dmHttpClient::RESULT_OK, r);
+        ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);
+        ASSERT_EQ(-1, m_StatusCode);
+        ASSERT_EQ(dmSocket::RESULT_WOULDBLOCK, dmHttpClient::GetLastSocketResult(m_Client));
+
+        uint64_t elapsed = timeend - timestart;
+
+        if(elapsed < timeout)
+        {
+            dmLogError("The test was too short! It cannot possibly have timed out!\n");
+            ASSERT_TRUE(0);
+        }
+
+        if( elapsed / 1000000 > 10)
+        {
+            dmLogError("The test timed out\n");
+            ASSERT_TRUE(0);
+        }
+    }
+}
+
+// Until we've figured out how to access the local server on windows from the PS4
+#if !(defined(__SCE__))
 
 const char* params_http_client_test_ssl[] = {"https://localhost:" NAME_SOCKET_SSL_TEST};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestSSL, dmHttpClientTestSSL, jc_test_values_in(params_http_client_test_ssl));
 
+#endif
 
 class dmHttpClientTestCache : public dmHttpClientTest
 {
@@ -959,7 +1025,7 @@ TEST_P(dmHttpClientTestCache, DirectFromCache)
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
     dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
+    cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
@@ -999,7 +1065,7 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
     dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
+    cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
@@ -1035,7 +1101,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     params.m_HttpContent = dmHttpClientTest::HttpContent;
     params.m_HttpHeader = dmHttpClientTest::HttpHeader;
     dmHttpCache::NewParams cache_params;
-    cache_params.m_Path = "tmp/cache";
+    cache_params.m_Path = m_CacheDir;
     dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &params.m_HttpCache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
     m_Client = dmHttpClient::New(&params, m_URI.m_Hostname, m_URI.m_Port);
@@ -1071,7 +1137,10 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(100U, stats.m_DirectFromCache);
 
     // Change a.txt file.
-    FILE* a_file = fopen("tmp/http_files/a.txt", "wb");
+    char path[512];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/http_files/a.txt");
+
+    FILE* a_file = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, a_file);
     fwrite("foo", 1, 3, a_file);
     fclose(a_file);
@@ -1086,7 +1155,7 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(200U, stats.m_DirectFromCache);
 
     // Change a.txt file again
-    a_file = fopen("tmp/http_files/a.txt", "wb");
+    a_file = fopen(path, "wb");
     ASSERT_NE((FILE*) 0, a_file);
     fwrite("bar", 1, 3, a_file);
     fclose(a_file);
@@ -1107,10 +1176,17 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+// Until we've figured out how to access the local server on windows from the PS4
+#if !(defined(__SCE__))
+
 const char* params_http_client_cache[] = {"http://localhost:" NAME_SOCKET};
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestCache, dmHttpClientTestCache, jc_test_values_in(params_http_client_cache));
 
-#endif // #ifndef _WIN32
+#endif
+
+#else
+
+#endif // #ifndef DM_DISABLE_HTTPCLIENT_TESTS
 
 TEST(dmHttpClient, HostNotFound)
 {
@@ -1128,7 +1204,7 @@ TEST(dmHttpClient, ConnectionRefused)
     ASSERT_EQ(dmHttpClient::RESULT_SOCKET_ERROR, r);
     #if defined(WIN32)
     ASSERT_EQ(dmSocket::RESULT_ADDRNOTAVAIL, dmHttpClient::GetLastSocketResult(client));
-    #elif defined(__linux__)
+    #elif defined(__linux__) || defined(__SCE__)
     ASSERT_EQ(dmSocket::RESULT_HOST_NOT_FOUND, dmHttpClient::GetLastSocketResult(client));
     #else
     ASSERT_EQ(dmSocket::RESULT_CONNREFUSED, dmHttpClient::GetLastSocketResult(client));
@@ -1147,13 +1223,20 @@ int main(int argc, char **argv)
 {
     if(argc > 1)
     {
+        char path[512];
+        dmTestUtil::MakeHostPath(path, sizeof(path), argv[1]);
+
         dmConfigFile::HConfig config;
-        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
         {
             dmLogError("Could not read config file '%s'", argv[1]);
             Usage();
             return 1;
         }
+
+        const char* ip = dmConfigFile::GetString(config, "server.ip", "localhost");
+        memcpy(SERVER_IP, ip, sizeof(SERVER_IP));
+
         dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
         dmConfigFile::Delete(config);
     }

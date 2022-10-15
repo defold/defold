@@ -235,7 +235,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
   bld-eng-ps4:
@@ -260,7 +260,7 @@ jobs:
        uses: homoluctus/slatify@master,
        if: failure(),
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.GITHUB_TOKEN_READONLY }}' }
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
 
 # ---- BUILD BOB AND SDK ------------------

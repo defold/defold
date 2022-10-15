@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,8 +26,14 @@
 #include "../dlib/thread.h"
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
+#include "../dlib/testutil.h"
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+#define HAS_SYSTEM_FUNCTION
+#if defined(DM_NO_SYSTEM_FUNCTION)
+    #undef HAS_SYSTEM_FUNCTION
+#endif
 
 TEST(dmLog, Init)
 {
@@ -92,7 +98,8 @@ static void CustomLogListener(LogSeverity severity, const char* domain, const ch
 
 
 
-#if !(defined(__EMSCRIPTEN__) || defined(__NX__))
+#if defined(HAS_SYSTEM_FUNCTION)
+
 TEST(dmLog, Client)
 {
     char buf[256];
@@ -130,7 +137,8 @@ TEST(dmLog, Client)
     dmThread::Join(log_thread);
     dmLog::LogFinalize();
 }
-#endif
+
+#endif // HAS_SYSTEM_FUNCTION
 
 TEST(dmLog, Stress)
 {
@@ -189,21 +197,25 @@ TEST(dmLog, LogFile)
     dmSys::GetLogPath(path, sizeof(path));
     dmStrlCat(path, "log.txt", sizeof(path));
 
+    char apppath[DMPATH_MAX_PATH];
+    dmTestUtil::MakeHostPath(apppath, sizeof(apppath), path);
+
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
-    dmLog::SetLogFile(path);
+    dmLog::SetLogFile(apppath);
     dmLogInfo("TESTING_LOG");
     dmLog::LogFinalize();
 
     char tmp[1024];
-    FILE* f = fopen(path, "rb");
+
+    FILE* f = fopen(apppath, "rb");
     ASSERT_NE((FILE*) 0, f);
     if (f) {
         fread(tmp, 1, sizeof(tmp), f);
         ASSERT_TRUE(strstr(tmp, "TESTING_LOG") != 0);
         fclose(f);
     }
-    dmSys::Unlink(path);
+    dmSys::Unlink(apppath);
 }
 
 dmArray<char> g_LogListenerOutput;

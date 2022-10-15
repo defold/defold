@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,11 +26,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#if defined(__NX__)
-    #define CONTENT_ROOT "host:/src/test/build/default"
-#else
-    #define CONTENT_ROOT "src/test/build/default"
-#endif
+#define CONTENT_ROOT DM_HOSTFS "src/test/build/default"
 
 typedef void (*PreRun)(dmEngine::HEngine engine, void* context);
 typedef void (*PostRun)(dmEngine::HEngine engine, void* context);
@@ -38,6 +34,16 @@ typedef void (*PostRun)(dmEngine::HEngine engine, void* context);
 PreRun g_PreRun = 0;
 PostRun g_PostRun = 0;
 void* g_TextCtx = 0;
+
+#if !defined(__SCE__)
+    bool EngineTest_PlatformInit()
+    {
+        return true;
+    }
+    void EngineTest_PlatformExit()
+    {
+    }
+#endif
 
 static void TestEngineInitialize(void* _ctx)
 {
@@ -206,7 +212,7 @@ static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
     http_ctx->m_PreCount++;
 }
 
-#if !defined(__NX__)
+#if !(defined(__NX__) || defined(__SCE__))
 TEST_F(EngineTest, HttpPost)
 {
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/http_post/http_post.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
@@ -278,7 +284,7 @@ TEST_F(EngineTest, BufferResources)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
-// #if !defined(__NX__) // until we've added support for it
+// #if !(defined(__NX__) || defined(__SCE__)) // until we've added support for it
 // TEST_F(EngineTest, MemCpuProfiler)
 // {
 //     #ifndef SANITIZE_ADDRESS
@@ -328,7 +334,7 @@ TEST_F(EngineTest, RunScript)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv5), (char**)argv5, 0, 0, 0));
 }
 
-#if !defined(__NX__) // until we support connections
+#if !(defined(__NX__) || defined(__SCE__)) // until we support connections
 TEST_F(EngineTest, ConnectionRunScript)
 {
     const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game_connection.collectionc", CONTENT_ROOT "/game.projectc"};

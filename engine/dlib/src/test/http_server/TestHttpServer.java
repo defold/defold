@@ -145,6 +145,7 @@ public class TestHttpServer extends AbstractHandler
 
         if (target.equals("/"))
         {
+            response.getWriter().print("TestHttpServer running!");
             response.setStatus(HttpServletResponse.SC_OK);
             baseRequest.setHandled(true);
         }

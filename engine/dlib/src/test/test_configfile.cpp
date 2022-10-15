@@ -14,12 +14,16 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <dlib/configfile.h>
 #include <dlib/log.h>
+#include <dlib/configfile.h>
+#include <dlib/testutil.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include "dlib/configfile.h"
-#include "testutil.h"
+
+// We're currently disabling some tests on win32 host
+#if defined(_WIN32) || defined(__SCE__) || defined(__NX__)
+#define HOST_WIN32
+#endif
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
 int g_HttpPort = -1;
@@ -63,9 +67,12 @@ public:
         m_Buffer = new char[buffer_size];
         const TestParam& param = GetParam();
 
+        char path[1024];
+        dmTestUtil::MakeHostPath(path, sizeof(path), param.m_Url);
+
         if (param.m_FromBuffer)
         {
-            FILE* f = fopen(param.m_Url, "rb");
+            FILE* f = fopen(path, "rb");
             ASSERT_NE((FILE*) 0, f);
             size_t file_size = fread(m_Buffer, 1, buffer_size, f);
             fclose(f);
@@ -74,11 +81,12 @@ public:
         }
         else
         {
-            char url[1024];
-            sprintf(url, param.m_Url, g_HttpPort);
-            r = dmConfigFile::Load(url, param.m_Argc, param.m_Argv, &config);
-        }
+            if (strstr(param.m_Url, "http") != 0) {
+                sprintf(path, param.m_Url, g_HttpPort);
+            }
 
+            r = dmConfigFile::Load(path, param.m_Argc, param.m_Argv, &config);
+        }
 
         if (r != dmConfigFile::RESULT_OK)
         {
@@ -107,7 +115,7 @@ TEST_P(Empty, Empty)
 const TestParam params_empty[] = {
     TestParam("src/test/data/empty.config"),
     TestParam("src/test/data/empty.config",false),
-#ifndef _WIN32
+#ifndef HOST_WIN32
     TestParam("http://localhost:%d/src/test/data/test.config")
 #endif
 };
@@ -123,7 +131,7 @@ TEST_P(MissingFile, MissingFile)
 
 const TestParam params_missing_file[] = {
     TestParam("does_not_exist"),
-#ifndef _WIN32
+#ifndef HOST_WIN32
     TestParam("http://localhost:%d/does_not_exist")
 #endif
 };
@@ -142,7 +150,7 @@ TEST_P(NoSection, NoSection)
 const TestParam params_no_section[] = {
     TestParam("src/test/data/nosection.config"),
     TestParam("src/test/data/nosection.config", true),
-#ifndef _WIN32
+#ifndef HOST_WIN32
     TestParam("http://localhost:%d/src/test/data/nosection.config")
 #endif
 };
@@ -158,7 +166,7 @@ TEST_P(SectionError, SectionError)
 const TestParam params_section_error[] = {
     TestParam("src/test/data/section_error.config"),
     TestParam("src/test/data/section_error.config", true),
-#ifndef _WIN32
+#ifndef HOST_WIN32
     TestParam("http://localhost:%d/src/test/data/section_error.config")
 #endif
 };
@@ -191,7 +199,7 @@ TEST_P(Test01, Test01)
 const TestParam params_test01[] = {
     TestParam("src/test/data/test.config"),
     TestParam("src/test/data/test.config", true),
-#ifndef _WIN32
+#ifndef HOST_WIN32
     TestParam("http://localhost:%d/src/test/data/test.config")
 #endif
 };
@@ -210,7 +218,7 @@ TEST_P(MissingTrailingNewline, MissingTrailingNewline)
 const TestParam params_missing_trailing_nl[] = {
     TestParam("src/test/data/missing_trailing_nl.config"),
     TestParam("src/test/data/missing_trailing_nl.config", true),
-#ifndef _WIN32
+#ifndef HOST_WIN32
     TestParam("http://localhost:%d/src/test/data/missing_trailing_nl.config")
 #endif
 };
@@ -248,7 +256,7 @@ int COMMAND_LINE_ARGC = sizeof(COMMAND_LINE_ARGV) / sizeof(COMMAND_LINE_ARGV[0])
 const TestParam params_command_line[] = {
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV),
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV, true),
-#ifndef _WIN32
+#ifndef HOST_WIN32
     TestParam("http://localhost:%d/src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV)
 #endif
 };
@@ -285,8 +293,11 @@ int main(int argc, char **argv)
 {
     if(argc > 1)
     {
+        char path[512];
+        dmTestUtil::MakeHostPath(path, sizeof(path), argv[1]);
+
         dmConfigFile::HConfig config;
-        if( dmConfigFile::Load(argv[1], argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
+        if( dmConfigFile::Load(path, argc, (const char**)argv, &config) != dmConfigFile::RESULT_OK )
         {
             dmLogError("Could not read config file '%s'", argv[1]);
             Usage();

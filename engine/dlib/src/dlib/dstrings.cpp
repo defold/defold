@@ -174,7 +174,7 @@ size_t dmStrlCpy(char *dst, const char *src, size_t siz)
             if ((*d++ = *s++) == 0)
                 break;
         } while (--n != 0);
-}
+    }
 
     /* Not enough room in dst, add NUL and traverse rest of src */
     if (n == 0) {
@@ -232,20 +232,22 @@ int dmStrCaseCmp(const char *s1, const char *s2)
 #endif
 }
 
-#if defined(ANDROID)
-    #if defined(__USE_GNU) && __ANDROID_API__ >= 23
-        #define DM_STRERROR_USE_GNU
+#if !(defined(DM_STRERROR_USE_POSIX) || defined(DM_STRERROR_USE_GNU))
+    #if defined(ANDROID)
+        #if defined(__USE_GNU) && __ANDROID_API__ >= 23
+            #define DM_STRERROR_USE_GNU
+        #else
+            #define DM_STRERROR_USE_POSIX
+        #endif
+    #elif defined(__EMSCRIPTEN__)
+        // Emscripten wraps strerror_r as strerror anyway
+        #define DM_STRERROR_USE_UNSAFE
     #else
-        #define DM_STRERROR_USE_POSIX
-    #endif
-#elif defined(__EMSCRIPTEN__)
-    // Emscripten wraps strerror_r as strerror anyway
-    #define DM_STRERROR_USE_UNSAFE
-#else
-    #if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
-        #define DM_STRERROR_USE_POSIX
-    #else
-        #define DM_STRERROR_USE_GNU
+        #if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
+            #define DM_STRERROR_USE_POSIX
+        #else
+            #define DM_STRERROR_USE_GNU
+        #endif
     #endif
 #endif
 

@@ -265,21 +265,26 @@ TEST_F(dmHttpServerParserTest, TestHeaders)
     ASSERT_EQ((size_t) 3, m_Headers.size());
 }
 
-int g_PythonTestResult;
-void RunPythonThread(void*)
-{
-#if !defined(DM_NO_SYSTEM_FUNCTION)
-    g_PythonTestResult = system("python src/test/test_httpserver.py");
-#else
-    g_PythonTestResult = -1;
+
+#define HAS_SYSTEM_FUNCTION
+#if defined(DM_NO_SYSTEM_FUNCTION)
+    #undef HAS_SYSTEM_FUNCTION
 #endif
+
+#if defined(HAS_SYSTEM_FUNCTION)
+
+void RunPythonThread(void* ctx)
+{
+    int* result = (int*)ctx;
+    *result = system("python src/test/test_httpserver.py");
 }
 
 #if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
 
 TEST_F(dmHttpServerTest, TestServer)
 {
-    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0, "test");
+    int python_result = -1;
+    dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, &python_result, "test");
     int iter = 0;
     while (!m_Quit && iter < 1000)
     {
@@ -289,10 +294,11 @@ TEST_F(dmHttpServerTest, TestServer)
     }
     ASSERT_LE(iter, 1000);
     dmThread::Join(thread);
-    ASSERT_EQ(0, g_PythonTestResult);
+    ASSERT_EQ(0, python_result);
 }
 
 #endif
+#endif // HAS_SYSTEM_FUNCTION
 
 TEST_F(dmHttpServerTest, TestServerClient)
 {

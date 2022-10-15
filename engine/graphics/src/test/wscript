@@ -8,14 +8,14 @@ def build(bld):
                     includes = ['../../src', '../../proto'],
                     exported_symbols = ['GraphicsAdapterNull'],
                     source = name + '.cpp',
-                    use = 'TESTMAIN DDF DLIB PROFILE_NULL graphics_null graphics_transcoder_null',
+                    use = 'TESTMAIN DDF DLIB PLATFORM_SOCKET PROFILE_NULL graphics_null graphics_transcoder_null',
                     target = name)
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and not bld.env.PLATFORM in ('x86_64-linux','x86_64-ios'):
 
         extra_libs = []
         if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
-            extra_libs += ['CARES', 'OPENGL']
+            extra_libs += ['OPENGL']
 
         bld.program(features = 'cxx cprogram test skip_test',
                     includes = ['../../src', '../../proto'],

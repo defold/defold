@@ -19,7 +19,7 @@
 #include <jc_test/jc_test.h>
 #include "../record/record.h"
 
-#if !defined(__NX__) // disabled platforms
+#if !(defined(__NX__) || defined(__SCE__)) // disabled platforms
 
 TEST(dmRecord, InvalidWidth1)
 {

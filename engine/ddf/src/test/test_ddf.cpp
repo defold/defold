@@ -31,6 +31,7 @@
 #include "../ddf/ddf.h"
 #include <dlib/memory.h>
 #include <dlib/dstrings.h>
+#include <dlib/testutil.h>
 
 /*
  * TODO:
@@ -51,17 +52,6 @@ enum MyEnum
 {
     MYENUM,
 };
-
-static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
-{
-#if defined(__NX__)
-    dmStrlCpy(dst, "host:/", dst_len);
-    dmStrlCat(dst, path, dst_len);
-    return dst;
-#else
-    return path;
-#endif
-}
 
 static bool DDFStringSaveFunction(void* context, const void* buffer, uint32_t buffer_size)
 {
@@ -161,7 +151,7 @@ TEST(Simple, LoadFromFile)
         simple.set_a(test_values[i]);
 
         char path[512];
-        const char* file_name = MakeHostPath(path, sizeof(path), "__TEMPFILE__");
+        const char* file_name = dmTestUtil::MakeHostPath(path, sizeof(path), "__TEMPFILE__");
         {
             std::fstream output(file_name,  std::ios::out | std::ios::trunc | std::ios::binary);
             ASSERT_EQ(true, simple.SerializeToOstream(&output));
@@ -188,7 +178,7 @@ TEST(Simple, LoadFromFile)
 TEST(Simple, LoadFromFile2)
 {
     char path[512];
-    const char* file_name = MakeHostPath(path, sizeof(path), "DOES_NOT_EXISTS");
+    const char* file_name = dmTestUtil::MakeHostPath(path, sizeof(path), "DOES_NOT_EXISTS");
     void *message;
     dmDDF::Result e = dmDDF::LoadMessageFromFile(file_name, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
     ASSERT_EQ(dmDDF::RESULT_IO_ERROR, e);
