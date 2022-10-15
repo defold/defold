@@ -1173,8 +1173,12 @@ namespace dmParticle
             tile += start_tile;
             float* tex_coord = &tex_coords[tile << 3];
 
-            uint32_t page_indices_index = frame_indices[tile];
-            float page_index            = (float) page_indices[page_indices_index];
+            float page_index = 0.0f;
+            if (frame_indices != 0x0)
+            {
+                uint32_t page_indices_index = frame_indices[tile];
+                page_index                  = (float) page_indices[page_indices_index];
+            }
 
             particle_transform.SetTranslation(Vector3(particle->GetPosition()));
             particle_transform.SetRotation(particle->GetRotation());

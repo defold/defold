@@ -1377,6 +1377,13 @@ namespace dmGraphics
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Null);
+
+        // Add test functions
+        fn_table.m_MapVertexBuffer   = NullMapVertexBuffer;
+        fn_table.m_UnmapVertexBuffer = NullUnmapVertexBuffer;
+        fn_table.m_MapIndexBuffer    = NullMapIndexBuffer;
+        fn_table.m_UnmapIndexBuffer  = NullUnmapIndexBuffer;
+
         return fn_table;
     }
 }

@@ -1228,10 +1228,10 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_TextureArraySupport = 1;
         #ifdef ANDROID
-            context->m_TextureArraySupport &= PFN_glTexSubImage3D;
-            context->m_TextureArraySupport &= PFN_glTexImage3D;
-            context->m_TextureArraySupport &= PFN_glCompressedTexSubImage3D;
-            context->m_TextureArraySupport &= PFN_glCompressedTexImage3D;
+            context->m_TextureArraySupport &= PFN_glTexSubImage3D           != 0;
+            context->m_TextureArraySupport &= PFN_glTexImage3D              != 0;
+            context->m_TextureArraySupport &= PFN_glCompressedTexSubImage3D != 0;
+            context->m_TextureArraySupport &= PFN_glCompressedTexImage3D    != 0;
         #endif
         }
 

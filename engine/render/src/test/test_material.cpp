@@ -52,7 +52,8 @@ TEST(dmMaterialTest, TestTags)
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, &shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, &shader);
 
-    dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
+    dmGraphics::ProgramCreationParams program_params = {vp, fp, 0};
+    dmRender::HMaterial material = dmRender::NewMaterial(render_context, program_params);
 
     dmhash_t tags[] = {dmHashString64("tag1"), dmHashString64("tag2")};
     dmRender::SetMaterialTags(material, DM_ARRAY_SIZE(tags), tags);
@@ -83,7 +84,8 @@ TEST(dmMaterialTest, TestMaterialConstants)
 
     dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, &fp_shader);
-    dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
+    dmGraphics::ProgramCreationParams program_params = {vp, fp, 0};
+    dmRender::HMaterial material = dmRender::NewMaterial(render_context, program_params);
 
     // Constants buffer
     dmRender::HNamedConstantBuffer constants = dmRender::NewNamedConstantBuffer();
@@ -131,14 +133,16 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, &vp_shader);
     dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, &fp_shader);
-    dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
+    dmGraphics::ProgramCreationParams program_params = {vp, fp, 0};
+    dmRender::HMaterial material = dmRender::NewMaterial(render_context, program_params);
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
 
     // create override material which contains tint, but at a different location
     vp_shader = MakeDDFShader("uniform vec4 dummy;\nuniform vec4 tint;\n", 40);
     dmGraphics::HVertexProgram vp_ovr = dmGraphics::NewVertexProgram(context, &vp_shader);
     dmGraphics::HFragmentProgram fp_ovr = dmGraphics::NewFragmentProgram(context, &fp_shader);
-    dmRender::HMaterial material_ovr = dmRender::NewMaterial(render_context, vp_ovr, fp_ovr);
+    program_params = {vp_ovr, fp_ovr, 0};
+    dmRender::HMaterial material_ovr = dmRender::NewMaterial(render_context, program_params);
     dmGraphics::HProgram program_ovr = dmRender::GetMaterialProgram(material_ovr);
 
     // Constants

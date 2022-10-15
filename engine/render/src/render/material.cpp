@@ -611,15 +611,12 @@ namespace dmRender
             return false;
         }
 
-        if (texture_type == dmGraphics::TEXTURE_TYPE_2D_ARRAY)
+        uint8_t num_sub_handles = dmGraphics::GetNumTextureHandles(texture);
+        if (num_sub_handles > s->m_UnitValueCount)
         {
-            uint8_t num_sub_handles = dmGraphics::GetNumTextureHandles(texture);
-            if (num_sub_handles > s->m_UnitValueCount)
-            {
-                dmLogError("Unable to bind array texture with %d handles to a sampler with %d bind slots",
-                    num_sub_handles, s->m_UnitValueCount);
-                return false;
-            }
+            dmLogError("Unable to bind array texture with %d handles to a sampler with %d bind slots",
+                num_sub_handles, s->m_UnitValueCount);
+            return false;
         }
         return true;
     }

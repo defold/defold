@@ -405,7 +405,8 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
 
-    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, vp, fp);
+    dmGraphics::ProgramCreationParams program_params = {vp, fp, 0};
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program_params);
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
 
