@@ -837,6 +837,7 @@ namespace dmEngine
         window_params.m_PrintDeviceInfo = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
         window_params.m_BackgroundColor = clear_color;
+        window_params.m_LinearColorSpace = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.linear_color_space", 0);
 
         dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
         if (window_result != dmGraphics::WINDOW_RESULT_OK)

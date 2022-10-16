@@ -137,6 +137,7 @@ namespace dmGameSystem
             creation_params.m_OriginalWidth = image->m_OriginalWidth;
             creation_params.m_OriginalHeight = image->m_OriginalHeight;
             creation_params.m_MipMapCount = image->m_MipMapOffset.m_Count;
+            creation_params.m_LinearColorSpace = image->m_LinearColorSpace;
 
             if (!texture)
                 texture = dmGraphics::NewTexture(context, creation_params);

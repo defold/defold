@@ -69,6 +69,7 @@ public class TextureBuilder extends Builder<Void> {
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);
         texture.writeTo(out);
+
         out.close();
         task.output(0).setContent(out.toByteArray());
     }

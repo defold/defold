@@ -201,7 +201,8 @@ namespace dmGraphics
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
-        uint8_t     m_MipMapCount;
+        uint8_t     m_MipMapCount      : 7;
+        uint8_t     m_LinearColorSpace : 1;
     };
 
     struct TextureParams
@@ -274,6 +275,8 @@ namespace dmGraphics
         bool                    m_PrintDeviceInfo;
 
         bool                    m_HighDPI;
+
+        bool                    m_LinearColorSpace;
 
         // Window background color, RGB 0x00BBGGRR
         uint32_t                m_BackgroundColor;

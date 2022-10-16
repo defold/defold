@@ -1222,6 +1222,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         }
 #endif
 
+        context->m_LinearColorSpace = params->m_LinearColorSpace;
+        if (context->m_LinearColorSpace)
+        {
+            glEnable(GL_FRAMEBUFFER_SRGB);
+        }
+
         return WINDOW_RESULT_OK;
     }
 
@@ -2287,6 +2293,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             }
         }
 
+        if (context->m_LinearColorSpace)
+        {
+            if (render_target)
+            {
+                glDisable(GL_FRAMEBUFFER_SRGB);
+            }
+            else
+            {
+                glEnable(GL_FRAMEBUFFER_SRGB);
+            }
+        }
+
         CHECK_GL_FRAMEBUFFER_ERROR;
     }
 
@@ -2362,6 +2380,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         tex->m_MipMapCount = 0;
         tex->m_DataState = 0;
         tex->m_ResourceSize = 0;
+        tex->m_LinearColorSpace = params.m_LinearColorSpace;
         return (HTexture) tex;
     }
 
@@ -2586,7 +2605,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
             CHECK_GL_ERROR;
         }
-        texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+        texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint8_t)(params.m_MipMap+1));
 
         GLenum type = GetOpenGLTextureType(texture->m_Type);
         glBindTexture(type, texture->m_Texture);
@@ -2622,10 +2641,18 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         case TEXTURE_FORMAT_RGB:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB;
+            if (texture->m_LinearColorSpace)
+            {
+                internal_format = GL_SRGB;
+            }
             break;
         case TEXTURE_FORMAT_RGBA:
             gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
+            if (texture->m_LinearColorSpace)
+            {
+                internal_format = GL_SRGB_ALPHA;
+            }
             break;
         case TEXTURE_FORMAT_RGB_16BPP:
             gl_type = DMGRAPHICS_TYPE_UNSIGNED_SHORT_565;

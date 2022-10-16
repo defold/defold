@@ -65,6 +65,7 @@ namespace dmGraphics
         uint8_t                 m_RenderDocSupport                 : 1;
         uint8_t                 m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
         uint8_t                 m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
+        uint8_t                 m_LinearColorSpace                 : 1;
     };
 
     static inline void IncreaseModificationVersion(Context* context)
@@ -82,7 +83,8 @@ namespace dmGraphics
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
-        uint16_t    m_MipMapCount;
+        uint8_t     m_MipMapCount;
+        uint8_t     m_LinearColorSpace;
 
         // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         volatile uint16_t    m_DataState;
