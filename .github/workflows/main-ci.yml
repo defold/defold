@@ -2,24 +2,24 @@ name: CI - Main
 
 on:
   push:
-     branches:
-       - '*'
-       - '!skip-ci-*'
-       - '!DEFEDIT-*'
-       - '!editor-dev'
+    branches:
+      - 'hotfix-*'
+      - 'dev'
+      - 'beta'
+      - 'master'
   pull_request:
-     branches:
+    branches:
        - '*'
        - '!skip-ci-*'
        - '!DEFEDIT-*'
        - '!editor-dev'
   pull_request_target:
-     branches:
+    branches:
        - '*'
        - '!skip-ci-*'
        - '!DEFEDIT-*'
        - '!editor-dev'
-     types: [labeled]
+    types: [labeled]
   repository_dispatch: {}
 
 env:
