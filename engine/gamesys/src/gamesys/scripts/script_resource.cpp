@@ -896,7 +896,7 @@ static int GetTextMetrics(lua_State* L)
 #define DEPRECATE_LU_FUNCTION(LUA_NAME, CPP_NAME) \
     static int Deprecated_ ## CPP_NAME(lua_State* L) \
     { \
-        dmLogOnceWarning("Function `resource.%s` is deprecated. Please use `liveupdate.%s` instead.", LUA_NAME, LUA_NAME); \
+        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "resource", LUA_NAME, "liveupdate", LUA_NAME); \
         return dmLiveUpdate:: CPP_NAME (L); \
     }
 

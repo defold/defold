@@ -413,6 +413,49 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    public static File getSharedLib(String name) throws IOException {
+        init();
+
+        Platform platform = Platform.getHostPlatform();
+        String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
+        File f = new File(rootFolder, libName);
+        if (!f.exists()) {
+            URL url = Bob.class.getResource("/lib/" + libName);
+            if (url == null) {
+                throw new RuntimeException(String.format("/lib/%s not found", libName));
+            }
+
+            atomicCopy(url, f, true);
+        }
+        return f;
+    }
+
+    static void addToPath(String variable, String path) {
+        String newPath = null;
+
+        // Check if jna.library.path is set externally.
+        if (System.getProperty(variable) != null) {
+            newPath = System.getProperty(variable);
+        }
+
+        if (newPath == null) {
+            // Set path where model_shared library is found.
+            newPath = path;
+        } else {
+            // Append path where model_shared library is found.
+            newPath += File.pathSeparator + path;
+        }
+
+        // Set the concatenated jna.library path
+        System.setProperty(variable, newPath);
+    }
+
+    static public void addToPaths(String dir) {
+        addToPath("jni.library.path", dir);
+        addToPath("jna.library.path", dir);
+        addToPath("java.library.path", dir);
+    }
+
     private static void addOption(Options options, String shortOpt, String longOpt, boolean hasArg, String description, boolean usedByResourceCacheKey) {
         options.addOption(shortOpt, longOpt, hasArg, description);
         if (usedByResourceCacheKey) {
@@ -431,7 +474,7 @@ public class Bob {
         addOption(options, "e", "email", true, "User email", false);
         addOption(options, "u", "auth", true, "User auth token", false);
 
-        addOption(options, "p", "platform", true, "Platform (when bundling)", true);
+        addOption(options, "p", "platform", true, "Platform (when building and bundling)", true);
         addOption(options, "bo", "bundle-output", true, "Bundle output directory", false);
         addOption(options, "bf", "bundle-format", true, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')", false);
 

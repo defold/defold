@@ -303,7 +303,7 @@ def default_flags(self):
         opt_level = "d" # how to disable optimizations in windows
 
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
-    if Options.options.with_asan and opt_level != '0':
+    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
         opt_level = 1
 
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
@@ -584,10 +584,14 @@ def asan_cxxflags(self):
         self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
-    if Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android'):
+    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined'])
         self.env.append_value('CFLAGS', ['-fsanitize=undefined'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
+    elif Options.options.with_tsan and build_util.get_target_os() in ('macos','ios','android'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=thread'])
+        self.env.append_value('CFLAGS', ['-fsanitize=thread'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -1360,23 +1364,23 @@ Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
                       after='dSYM') # Not sure how I could ensure this task running after the dSYM task /MAWE
 
 @feature('extract_symbols')
-@after('cprogram', 'cxxprogram')
+@after('cprogram', 'cxxprogram', 'cshlib', 'cxxshlib')
+@after('apply_link')
 def extract_symbols(self):
     platform = self.env['PLATFORM']
     if not ('macos' in platform or 'ios' in platform):
         return
 
-    engine = self.path.find_or_declare(self.target)
-    dsym = engine.change_ext('.dSYM')
+    link_output = self.link_task.outputs[0]
+    dsym = link_output.change_ext('.dSYM')
     dsymtask = self.create_task('dSYM')
-    dsymtask.set_inputs(engine)
+    dsymtask.set_inputs(link_output)
     dsymtask.set_outputs(dsym)
 
-    archive = engine.change_ext('.dSYM.zip')
+    archive = link_output.change_ext('.dSYM.zip')
     ziptask = self.create_task('DSYMZIP')
     ziptask.set_inputs(dsymtask.outputs[0])
     ziptask.set_outputs(archive)
-    ziptask.install_path = self.install_path
 
 def remove_flag_at_index(arr, index, count):
     for i in range(count):
@@ -1773,6 +1777,7 @@ def options(opt):
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
+    opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
     opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')

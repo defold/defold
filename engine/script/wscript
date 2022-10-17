@@ -58,7 +58,6 @@ def shutdown(self):
 
     serv = None
     if not getattr(waflib.Options.options, 'skip_tests', False):
-        print("SERVER")
         serv = server.Server()
         serv.start()
     try:
