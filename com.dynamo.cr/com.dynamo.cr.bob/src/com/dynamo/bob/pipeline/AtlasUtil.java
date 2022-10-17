@@ -229,7 +229,7 @@ public class AtlasUtil {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
 
-        Point3 maxPageSizeP3 = atlas.getMaxTextureDimensions();
+        Point3 maxPageSizeP3 = atlas.getMaxPageSize();
         int maxPageCount = Math.max(1, atlas.getMaxPageCount());
 
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);

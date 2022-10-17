@@ -27,11 +27,11 @@ message AtlasAnimation
 
 message Atlas
 {
-    repeated AtlasImage images                     = 1;
-    repeated AtlasAnimation animations             = 2;
-    optional uint32 margin                         = 3 [default = 0];
-    optional uint32 extrude_borders                = 4 [default = 0];
-    optional uint32 inner_padding                  = 5 [default = 0];
-    optional dmMath.Point3 max_texture_dimensions  = 6;
-    optional uint32 max_page_count                 = 7;
+    repeated AtlasImage images           = 1;
+    repeated AtlasAnimation animations   = 2;
+    optional uint32 margin               = 3 [default = 0];
+    optional uint32 extrude_borders      = 4 [default = 0];
+    optional uint32 inner_padding        = 5 [default = 0];
+    optional dmMath.Point3 max_page_size = 6;
+    optional uint32 max_page_count       = 7;
 }

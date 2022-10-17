@@ -90,8 +90,8 @@ public class ProtoBuilders {
             // JG: The atlas texture has the type which we can use instead, but will it be super slow?
             //     For now, just check the max texture dimensions value.
             //     This doesn't cover cube maps, which I think we might want to as well?
-            Point3 atlasMaxTextureDimensions  = atlasBuilder.getMaxTextureDimensions();
-            boolean textureSetHasArrayTexture = atlasMaxTextureDimensions.getX() > 0 && atlasMaxTextureDimensions.getY() > 0;
+            Point3 atlasMaxPageSize           = atlasBuilder.getMaxPageSize();
+            boolean textureSetHasArrayTexture = atlasMaxPageSize.getX() > 0 && atlasMaxPageSize.getY() > 0;
 
             IResource materialResource           = project.getResource(material);
             MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();

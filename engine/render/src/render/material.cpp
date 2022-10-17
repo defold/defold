@@ -598,16 +598,24 @@ namespace dmRender
         return tag_count > 0; // don't render anything with no matches at all
     }
 
-    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler)
+    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit)
     {
         dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture);
         Sampler* s = (Sampler*) sampler;
 
+        if (s == 0x0)
+        {
+            dmLogError("Unable to bind texture with type %s to a null sampler to texture unit %d.",
+                dmGraphics::GetTextureTypeLiteral(texture_type), unit);
+            return false;
+        }
+
         if (texture_type != s->m_Type)
         {
-            dmLogError("Unable to bind texture with type %s to a sampler with type %s.",
+            dmLogError("Unable to bind texture with type %s to a sampler with type %s to texture unit %d.",
                 dmGraphics::GetTextureTypeLiteral(texture_type),
-                dmGraphics::GetTextureTypeLiteral(s->m_Type));
+                dmGraphics::GetTextureTypeLiteral(s->m_Type),
+                unit);
             return false;
         }
 

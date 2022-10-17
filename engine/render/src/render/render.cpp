@@ -837,20 +837,17 @@ namespace dmRender
                 if (texture)
                 {
                     HSampler sampler = GetMaterialSampler(material, i);
-
-                    if (!GetCanBindTexture(texture, sampler))
+                    if (GetCanBindTexture(texture, sampler, i))
                     {
-                        return RESULT_TYPE_MISMATCH;
-                    }
-
-                    // NOTE: in the case of texture arrays on platforms that doesn't support them,
-                    //       we need to separate between texture units and samplers. Otherwise,
-                    //       we would need separate texture samplers for every sub-texture.
-                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
-                    {
-                        dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
-                        ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
-                        next_texture_unit++;
+                        // NOTE: in the case of texture arrays on platforms that doesn't support them,
+                        //       we need to separate between texture units and samplers. Otherwise,
+                        //       we would need separate texture samplers for every sub-texture.
+                        for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                        {
+                            dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
+                            ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
+                            next_texture_unit++;
+                        }
                     }
                 }
             }
