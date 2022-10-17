@@ -15,7 +15,7 @@ def build(bld):
 
         extra_libs = []
         if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
-            extra_libs += ['CARES', 'OPENGL']
+            extra_libs += ['OPENGL']
 
         bld.program(features = 'cxx cprogram test skip_test',
                     includes = ['../../src', '../../proto'],

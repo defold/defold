@@ -168,7 +168,7 @@
       (WriterOutputStream. StandardCharsets/UTF_8 1024 true)
       (PrintStream. true StandardCharsets/UTF_8)))
 
-(defn bob-build! [project evaluation-context bob-commands bob-args render-progress! show-build-log-stream! task-cancelled?]
+(defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! show-build-log-stream! task-cancelled?]
   {:pre [(vector? bob-commands)
          (every? string? bob-commands)
          (map? bob-args)
@@ -201,6 +201,8 @@
                 bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
             (doseq [[key val] bob-args]
               (.setOption bob-project key val))
+            (doseq [header (string/split-lines build-server-headers)]
+              (.addBuildServerHeader bob-project header))
             (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
             (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
               (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
@@ -225,7 +227,7 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? bundle-contentless? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
@@ -240,12 +242,12 @@
              "variant" variant
 
              ;; From AbstractBundleHandler
-             "archive" "true"
+             (if bundle-contentless? "exclude-archive" "archive") "true"
              "bundle-output" bundle-output-path
              "texture-compression" (case texture-compression
-                                    "enabled" "true"
-                                    "disabled" "false"
-                                    "editor" editor-texture-compression)
+                                     "enabled" "true"
+                                     "disabled" "false"
+                                     "editor" editor-texture-compression)
 
              ;; From BundleGenericHandler
              "build-server" build-server-url

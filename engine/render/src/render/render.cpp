@@ -434,6 +434,13 @@ namespace dmRender
                 ps_now.m_StencilBackOpDepthFail = stp.m_Back.m_OpDPFail;
                 ps_now.m_StencilBackOpPass      = stp.m_Back.m_OpDPPass;
             }
+            else
+            {
+                ps_now.m_StencilBackTestFunc    = stp.m_Front.m_Func;
+                ps_now.m_StencilBackOpFail      = stp.m_Front.m_OpSFail;
+                ps_now.m_StencilBackOpDepthFail = stp.m_Front.m_OpDPFail;
+                ps_now.m_StencilBackOpPass      = stp.m_Front.m_OpDPPass;
+            }
         }
 
         ResetRenderStateIfChanged(graphics_context, ps_now, ps_default);
