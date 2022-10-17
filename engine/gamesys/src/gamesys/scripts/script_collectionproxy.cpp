@@ -65,7 +65,7 @@ namespace dmGameSystem
         lua_settable(L, -3);
     }
 
-    // See doc in comp_cxollection_proxy.cpp
+    // See doc in comp_collection_proxy.cpp
     static int CollectionProxy_MissingResources(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -87,7 +87,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    // See doc in comp_cxollection_proxy.cpp
+    // See doc in comp_collection_proxy.cpp
     static int CollectionProxy_GetResources(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
