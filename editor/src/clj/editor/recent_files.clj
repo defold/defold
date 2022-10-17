@@ -25,9 +25,14 @@
             [editor.workspace :as workspace])
   (:import [javafx.scene.control TabPane]))
 
-(def ^:private history-size 64)
+(def ^:private history-size 32)
 
-(def ^:private prefs-key "recent-files-by-workspace-root")
+(defn- make-prefs-key
+  ([workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (make-prefs-key workspace evaluation-context)))
+  ([workspace evaluation-context]
+   (str "recent-files-by-workspace-root-" (hash (g/node-value workspace :root evaluation-context)))))
 
 (defn- conj-history-item [items x]
   (let [new-items (into [] (remove #(= x %)) items)
@@ -40,10 +45,9 @@
 (defn add! [prefs workspace resource view-type]
   {:pre [(resource/openable? resource)
          (some? (:id view-type))]}
-  (let [item [(resource/proj-path resource) (:id view-type)]]
-    (prefs/set-prefs prefs prefs-key (-> prefs
-                                         (prefs/get-prefs prefs-key {})
-                                         (update (g/node-value workspace :root) conj-history-item item)))
+  (let [item [(resource/proj-path resource) (:id view-type)]
+        k (make-prefs-key workspace)]
+    (prefs/set-prefs prefs k (conj-history-item (prefs/get-prefs prefs k []) item))
     nil))
 
 (defn- project-path+view-type-id->resource+view-type [workspace evaluation-context [project-path view-type-id]]
@@ -53,8 +57,7 @@
         [res view-type]))))
 
 (defn- ordered-resource+view-types [prefs workspace evaluation-context]
-  (-> (prefs/get-prefs prefs prefs-key {})
-      (get (g/node-value workspace :root evaluation-context) [])
+  (-> (prefs/get-prefs prefs (make-prefs-key workspace evaluation-context) [])
       rseq
       (->> (keep #(project-path+view-type-id->resource+view-type workspace evaluation-context %)))))
 

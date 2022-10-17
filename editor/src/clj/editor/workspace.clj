@@ -63,6 +63,13 @@ ordinary paths."
   (^File [workspace path]
    (io/file (project-path workspace) (str (skip-first-char plugins-dir) (skip-first-char path)))))
 
+(defn as-proj-path
+  ^String [workspace file-or-path]
+  (let [file (io/as-file file-or-path)
+        project-directory (project-path workspace)]
+    (when (fs/below-directory? file project-directory)
+      (resource/file->proj-path project-directory file))))
+
 (defrecord BuildResource [resource prefix]
   resource/Resource
   (children [this] nil)

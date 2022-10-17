@@ -23,10 +23,12 @@
    :help "compress archive (not for Android)",
    :default true,
    :path ["project" "compress_archive"]}
-  {:type :library-list,
+  {:type :list,
    :help
    "a comma separated list of URL:s to projects required by this project",
-   :path ["project" "dependencies"]}
+   :path ["project" "dependencies"]
+   :element {:type :url
+             :default "https://url.to/library"}}
   {:type :string,
    :help
    "a comma separated list of resources that will be included in the project. If directories are specified, all files and directories in that directory are recursively included",
