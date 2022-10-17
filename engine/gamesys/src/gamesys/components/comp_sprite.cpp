@@ -1012,10 +1012,15 @@ namespace dmGameSystem
             TextureSetResource* texture_set = GetTextureSet(component, component->m_Resource);
             if (texture_set->m_TextureSet->m_UseGeometries != 0)
             {
-                const dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
-                const dmGameSystemDDF::SpriteGeometry* geometries  = texture_set_ddf->m_Geometries.m_Data;
-                num_vertices += geometries->m_Vertices.m_Count / 2; // (x,y) coordinates
-                num_indices  += geometries->m_Indices.m_Count;
+                dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
+                dmGameSystemDDF::TextureSetAnimation* animations    = texture_set_ddf->m_Animations.m_Data;
+                dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
+                uint32_t* frame_indices                             = texture_set_ddf->m_FrameIndices.m_Data;
+                uint32_t frame_index                                = frame_indices[animation_ddf->m_Start + component->m_CurrentAnimationFrame];
+                dmGameSystemDDF::SpriteGeometry* geometries         = texture_set_ddf->m_Geometries.m_Data;
+                dmGameSystemDDF::SpriteGeometry* geometry           = &geometries[frame_index];
+                num_vertices += geometry->m_Vertices.m_Count / 2; // (x,y) coordinates
+                num_indices  += geometry->m_Indices.m_Count;
             }
             else
             {
