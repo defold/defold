@@ -126,11 +126,11 @@
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))
         updater (updater/start!)
-        analytics-url "https://www.google-analytics.com/batch"
+        analytics-url (get connection-properties :analytics-url)
         analytics-send-interval 300]
     (when (some? updater)
       (updater/delete-backup-files! updater))
-    (analytics/start! analytics-url analytics-send-interval true)
+    (analytics/start! analytics-url analytics-send-interval)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
       (let [game-project-path (get-in opts [:arguments 0])]
