@@ -64,6 +64,8 @@
                 <include name="com/dynamo/bob/**/*.yml"/>
                 <include name="com/dynamo/bob/**/*.png"/>
                 <include name="com/dynamo/bob/**/*.dae"/>
+                <include name="com/dynamo/bob/**/*.gltf"/>
+                <include name="com/dynamo/bob/**/*.glb"/>
                 <include name="com/dynamo/bob/**/*.lua"/>
                 <include name="com/dynamo/bob/**/*.fnt"/>
                 <include name="com/dynamo/bob/**/*.ttf"/>

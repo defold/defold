@@ -20,7 +20,6 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#include "../graphics.h"
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
@@ -610,28 +609,7 @@ namespace dmGraphics
             context->m_MainDescriptorAllocators.Begin(), context->m_MainScratchBuffers.Begin());
         CHECK_VK_ERROR(res);
 
-        // Create default pipeline state
-        PipelineState vk_default_pipeline;
-        vk_default_pipeline.m_WriteColorMask           = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
-        vk_default_pipeline.m_WriteDepth               = 1;
-        vk_default_pipeline.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
-        vk_default_pipeline.m_DepthTestEnabled         = 1;
-        vk_default_pipeline.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
-        vk_default_pipeline.m_BlendEnabled             = 0;
-        vk_default_pipeline.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_StencilEnabled           = 0;
-        vk_default_pipeline.m_StencilOpFail            = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpDepthFail       = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpPass            = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilTestFunc          = COMPARE_FUNC_ALWAYS;
-        vk_default_pipeline.m_StencilWriteMask         = 0xff;
-        vk_default_pipeline.m_StencilCompareMask       = 0xff;
-        vk_default_pipeline.m_StencilReference         = 0x0;
-        vk_default_pipeline.m_CullFaceEnabled          = 0;
-        vk_default_pipeline.m_CullFaceType             = FACE_TYPE_BACK;
-        vk_default_pipeline.m_PolygonOffsetFillEnabled = 0;
-        context->m_PipelineState = vk_default_pipeline;
+        context->m_PipelineState = GetDefaultPipelineState();
 
         // Create default texture sampler
         CreateVulkanTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
@@ -794,6 +772,11 @@ namespace dmGraphics
     static bool VulkanIsMultiTargetRenderingSupported(HContext context)
     {
         return true;
+    }
+
+    static PipelineState VulkanGetPipelineState(HContext context)
+    {
+        return context->m_PipelineState;
     }
 
     static void SetupSupportedTextureFormats(HContext context)
@@ -2611,44 +2594,16 @@ bail:
         context->m_ViewportChanged = 1;
     }
 
-    static inline void SetStateValue(PipelineState& pipeline_state, State state, uint8_t value)
-    {
-        if (state == STATE_DEPTH_TEST)
-        {
-            pipeline_state.m_DepthTestEnabled = value;
-        }
-        else if (state == STATE_STENCIL_TEST)
-        {
-            pipeline_state.m_StencilEnabled = value;
-        }
-        else if (state == STATE_BLEND)
-        {
-            pipeline_state.m_BlendEnabled = value;
-        }
-        else if (state == STATE_CULL_FACE)
-        {
-            pipeline_state.m_CullFaceEnabled = value;
-        }
-        else if (state == STATE_POLYGON_OFFSET_FILL)
-        {
-            pipeline_state.m_PolygonOffsetFillEnabled = value;
-        }
-        else
-        {
-            assert(0 && "EnableState: State not supported");
-        }
-    }
-
     static void VulkanEnableState(HContext context, State state)
     {
         assert(context);
-        SetStateValue(context->m_PipelineState, state, 1);
+        SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void VulkanDisableState(HContext context, State state)
     {
         assert(context);
-        SetStateValue(context->m_PipelineState, state, 0);
+        SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void VulkanSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
@@ -2661,10 +2616,10 @@ bail:
     static void VulkanSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
-        uint8_t write_mask = red   ? DMGRAPHICS_STATE_WRITE_R : 0;
-        write_mask        |= green ? DMGRAPHICS_STATE_WRITE_G : 0;
-        write_mask        |= blue  ? DMGRAPHICS_STATE_WRITE_B : 0;
-        write_mask        |= alpha ? DMGRAPHICS_STATE_WRITE_A : 0;
+        uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
 
         context->m_PipelineState.m_WriteColorMask = write_mask;
     }
@@ -2695,29 +2650,52 @@ bail:
     static void VulkanSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
-        context->m_PipelineState.m_StencilTestFunc    = (uint8_t) func;
-        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void VulkanSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
     {
-        // TODO: Make room in pipeline handle for separate stencil states
-        VulkanSetStencilFunc(context, func, ref, mask);
+        assert(context);
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        }
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void VulkanSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
-        context->m_PipelineState.m_StencilOpFail      = sfail;
-        context->m_PipelineState.m_StencilOpDepthFail = dpfail;
-        context->m_PipelineState.m_StencilOpPass      = dppass;
+        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
     static void VulkanSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
-        // TODO: Make room in pipeline handle for separate stencil states
-        VulkanSetStencilOp(context, sfail, dpfail, dppass);
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        }
     }
 
     static void VulkanSetCullFace(HContext context, FaceType face_type)
@@ -3579,6 +3557,7 @@ bail:
         fn_table.m_GetNumSupportedExtensions = VulkanGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = VulkanGetSupportedExtension;
         fn_table.m_IsMultiTargetRenderingSupported = VulkanIsMultiTargetRenderingSupported;
+        fn_table.m_GetPipelineState = VulkanGetPipelineState;
         return fn_table;
     }
 }

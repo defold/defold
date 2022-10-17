@@ -45,30 +45,13 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Transform;
 import com.dynamo.rig.proto.Rig;
-import com.dynamo.rig.proto.Rig.MeshVertexIndices;
 import com.dynamo.rig.proto.Rig.RigAnimation;
 
 public class ColladaUtilTest {
 
     static double EPSILON = 0.0001;
-
-    private List<Float> bake(List<Integer> indices, List<Float> values, int elemCount) {
-        List<Float> result = new ArrayList<Float>(indices.size() * elemCount);
-        for (Integer idx : indices) {
-            for (int offset = 0; offset < elemCount; ++offset) {
-                result.add(values.get(idx * elemCount + offset));
-            }
-        }
-        return result;
-    }
-
-    private void assertVtx(List<MeshVertexIndices>  vertexIndices, int i, int position,  int texcoord0,  int normal) {
-        MeshVertexIndices v = vertexIndices.get(i);
-        assertEquals(v.getPosition(), position);
-        assertEquals(v.getTexcoord0(), texcoord0);
-        assertEquals(v.getNormal(), normal);
-    }
 
     private void assertVtx(List<Float> pos, int i, double xe, double ye, double ze) {
         float x = pos.get(i * 3 + 0);
@@ -99,12 +82,30 @@ public class ColladaUtilTest {
     }
 
     private void assertV(Tuple3d expected, Tuple3d actual) {
+        if ((expected.x - actual.x) > EPSILON ||
+            (expected.y - actual.y) > EPSILON ||
+            (expected.z - actual.z) > EPSILON )
+        {
+            System.err.printf("Expected: %f, %f, %f  but got %f, %f, %f\n",
+                expected.x, expected.y, expected.z,
+                actual.x, actual.y, actual.z);
+        }
         assertEquals(expected.x, actual.x, EPSILON);
         assertEquals(expected.y, actual.y, EPSILON);
         assertEquals(expected.z, actual.z, EPSILON);
     }
 
     private void assertV(Tuple4d expected, Tuple4d actual) {
+        if ((expected.x - actual.x) > EPSILON ||
+            (expected.y - actual.y) > EPSILON ||
+            (expected.z - actual.z) > EPSILON ||
+            (expected.w - actual.w) > EPSILON )
+        {
+            System.err.printf("Expected: %f, %f, %f, %f  but got %f, %f, %f, %f\n",
+                expected.x, expected.y, expected.z, expected.w,
+                actual.x, actual.y, actual.z, actual.w);
+        }
+
         assertEquals(expected.x, actual.x, EPSILON);
         assertEquals(expected.y, actual.y, EPSILON);
         assertEquals(expected.z, actual.z, EPSILON);
@@ -134,8 +135,8 @@ public class ColladaUtilTest {
      * Helper to test that a bone has the expected position and rotation.
      */
     private void assertBone(Rig.Bone bone, Vector3d expectedPosition, Quat4d expectedRotation) {
-        assertV(expectedPosition, MathUtil.ddfToVecmath(bone.getPosition()));
-        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getRotation()));
+        assertV(expectedPosition, MathUtil.ddfToVecmath(bone.getLocal().getTranslation()));
+        assertV(expectedRotation, MathUtil.ddfToVecmath(bone.getLocal().getRotation()));
     }
 
     /*
@@ -157,19 +158,35 @@ public class ColladaUtilTest {
     }
 
     /*
-     * Helper to test that no animation is performed on either position or scale of a track.
+     * Testing that it's the same key through out the track
      */
-    private void assertAnimationNoPosScale(Rig.AnimationTrack track) {
-        if (track.getPositionsCount() > 0) {
+    private void assertAnimationSamePosScale(Rig.AnimationTrack track) {
+        if (track.getPositionsCount() > 3) {
             int posCount = track.getPositionsCount();
-            for (int i = 0; i < posCount; i++) {
-                assertEquals(0.0, track.getPositions(i), EPSILON);
+            float x = track.getPositions(0);
+            float y = track.getPositions(1);
+            float z = track.getPositions(2);
+            for (int i = 3; i < posCount; i += 3) {
+                assertEquals(x, track.getPositions(i+0), EPSILON);
+                assertEquals(y, track.getPositions(i+1), EPSILON);
+                assertEquals(z, track.getPositions(i+2), EPSILON);
             }
-        } else if (track.getScaleCount() > 0) {
+        } else {
+            assertEquals(0, track.getPositionsCount());
+        }
+
+        if (track.getScaleCount() > 3) {
+            float x = track.getScale(0);
+            float y = track.getScale(1);
+            float z = track.getScale(2);
             int scaleCount = track.getScaleCount();
-            for (int i = 0; i < scaleCount; i++) {
-                assertEquals(1.0, track.getScale(i), EPSILON);
+            for (int i = 3; i < scaleCount; i += 3) {
+                assertEquals(x, track.getScale(i+0), EPSILON);
+                assertEquals(y, track.getScale(i+1), EPSILON);
+                assertEquals(z, track.getScale(i+2), EPSILON);
             }
+        } else {
+            assertEquals(0, track.getScaleCount());
         }
     }
 
@@ -204,10 +221,11 @@ public class ColladaUtilTest {
     public void testMayaQuad() throws Exception {
         Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
         ColladaUtil.loadMesh(load("maya_quad.dae"), meshSet);
-        Rig.Mesh mesh = meshSet.getMeshAttachments(0);
-        List<Float> pos = bake(mesh.getPositionIndicesList(), mesh.getPositionsList(), 3);
-        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
-        List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
+        Rig.Mesh mesh = meshSet.getModels(0).getMeshes(0);
+
+        List<Float> pos = mesh.getPositionsList();
+        List<Float> nrm = mesh.getNormalsList();
+        List<Float> uvs = mesh.getTexcoord0List();
         assertThat(2 * 3 * 3, is(pos.size()));
         assertThat(2 * 3 * 3, is(nrm.size()));
 
@@ -237,11 +255,11 @@ public class ColladaUtilTest {
     public void testBlenderPolylistQuad() throws Exception {
         Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
         ColladaUtil.loadMesh(load("blender_polylist_quad.dae"), meshSet);
-        Rig.Mesh mesh = meshSet.getMeshAttachments(0);
+        Rig.Mesh mesh = meshSet.getModels(0).getMeshes(0);
 
-        List<Float> pos = bake(mesh.getPositionIndicesList(), mesh.getPositionsList(), 3);
-        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
-        List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
+        List<Float> pos = mesh.getPositionsList();
+        List<Float> nrm = mesh.getNormalsList();
+        List<Float> uvs = mesh.getTexcoord0List();
 
         assertThat(2 * 3 * 3, is(pos.size()));
         assertThat(2 * 3 * 3, is(nrm.size()));
@@ -278,10 +296,10 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(getClass().getResourceAsStream("quad_normals.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
-        Rig.Mesh mesh = meshSetBuilder.getMeshAttachments(0);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
-        List<Float> pos = bake(mesh.getPositionIndicesList(), mesh.getPositionsList(), 3);
-        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
+        List<Float> pos = mesh.getPositionsList();
+        List<Float> nrm = mesh.getNormalsList();
 
         // face 0:
         assertVtx(pos, 0, -1,  0, -1);
@@ -305,12 +323,16 @@ public class ColladaUtilTest {
      */
     @Test
     public void testScaledMeshNode() throws Exception {
-        Rig.MeshSet.Builder mesh = Rig.MeshSet.newBuilder();
-        ColladaUtil.loadMesh(load("chest_model.dae"), mesh);
-        Rig.MeshSet.Builder meshNoSkin = Rig.MeshSet.newBuilder();
-        ColladaUtil.loadMesh(load("chest_model_noskin.dae"), meshNoSkin);
-        List<Float> pos = mesh.getMeshAttachments(0).getPositionsList();
-        List<Float> posNoSkin = meshNoSkin.getMeshAttachments(0).getPositionsList();
+        Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
+        ColladaUtil.loadMesh(load("chest_model.dae"), meshSet);
+        Rig.MeshSet.Builder meshSetNoSkin = Rig.MeshSet.newBuilder();
+        ColladaUtil.loadMesh(load("chest_model_noskin.dae"), meshSetNoSkin);
+
+        Rig.Mesh mesh = meshSet.getModels(0).getMeshes(0);
+        Rig.Mesh meshNoSkin = meshSetNoSkin.getModels(0).getMeshes(0);
+
+        List<Float> pos = mesh.getPositionsList();
+        List<Float> posNoSkin = meshNoSkin.getPositionsList();
         for(int i = 0; i < pos.size(); ++i) {
             assertEquals(pos.get(i), posNoSkin.get(i));
         }
@@ -325,15 +347,15 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(load("bone_influences.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
-        Rig.Mesh mesh = meshSetBuilder.getMeshAttachments(0);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
         // Should have exactly 4 influences per vertex
-        int vertCount = mesh.getPositionIndicesCount();
+        int vertCount = mesh.getPositionsCount() / 3;
         assertEquals(vertCount*4, mesh.getBoneIndicesCount());
         assertEquals(vertCount*4, mesh.getWeightsCount());
 
-        List<Integer>boneIndices = mesh.getBoneIndicesList();
-        List<Float>boneWeights = mesh.getWeightsList();
+        List<Integer> boneIndices = mesh.getBoneIndicesList();
+        List<Float> boneWeights = mesh.getWeightsList();
 
         // Test the max bone count is correct, should be 4 for this mesh, which is the highest indexed bone + 1 in any of the meshes in the mesh set
         assertEquals(Collections.max(boneIndices).longValue(), meshSetBuilder.getMaxBoneCount()-1);
@@ -344,19 +366,20 @@ public class ColladaUtilTest {
          * -------------------------
          * | Vert | (Bone, Weight) |
          * -------------------------
-         * |  v0  |     0: 0.25    |
-         * -------------------------
-         * |  v1  |     0: 0.5     |
+         * |  v0  |     0: 0.5     |
          * |      |     1: 0.1     |
          * |      |     2: 0.2     |
          * |      |     3: 0.3     |
          * |      |     4: 0.4     |
          * -------------------------
-         * |  v2  |     0: 0.1     |
+         * |  v1  |     0: 0.1     |
          * |      |     1: 0.2     |
          * |      |     2: 0.3     |
          * |      |     3: 0.4     |
          * |      |     4: 0.5     |
+         * -------------------------
+         * -------------------------
+         * |  v2  |     0: 0.25    |
          * -------------------------
          *
          * Influences for v0 will be expanded into 3 more with zero weights.
@@ -364,14 +387,14 @@ public class ColladaUtilTest {
          * Influences for v2 will be reordered, influence of bone 0 (lowest weight) will be skipped.
          */
 
-        assertVertBone(new Point4i(0, 0, 0, 0), boneIndices.subList(0, 4));
-        assertVertWeight(new Vector4f(0.25f, 0.0f, 0.0f, 0.0f), boneWeights.subList(0, 4));
+        assertVertBone(new Point4i(0, 4, 3, 2), boneIndices.subList(0, 4));
+        assertVertWeight(new Vector4f(0.5f, 0.4f, 0.3f, 0.2f), boneWeights.subList(0, 4));
 
-        assertVertBone(new Point4i(0, 4, 3, 2), boneIndices.subList(4, 8));
+        assertVertBone(new Point4i(4, 3, 2, 1), boneIndices.subList(4, 8));
         assertVertWeight(new Vector4f(0.5f, 0.4f, 0.3f, 0.2f), boneWeights.subList(4, 8));
 
-        assertVertBone(new Point4i(4, 3, 2, 1), boneIndices.subList(8, 12));
-        assertVertWeight(new Vector4f(0.5f, 0.4f, 0.3f, 0.2f), boneWeights.subList(8, 12));
+        assertVertBone(new Point4i(0, 0, 0, 0), boneIndices.subList(8, 12));
+        assertVertWeight(new Vector4f(0.25f, 0.0f, 0.0f, 0.0f), boneWeights.subList(8, 12));
     }
 
     @Test
@@ -404,7 +427,7 @@ public class ColladaUtilTest {
             Rig.Bone bone = bones.get(index);
             long id = MurmurHash.hash64(boneIds[index]);
             assertEquals(id, bone.getId());
-            assertEquals(idToIndex.getOrDefault(parentIds[index], 65535).intValue(), bone.getParent());
+            assertEquals(idToIndex.getOrDefault(parentIds[index], -1).intValue(), bone.getParent());
         }
     }
 
@@ -448,12 +471,7 @@ public class ColladaUtilTest {
         assertEquals(1, skeletonBuilder.getBonesCount());
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
 
-        /*
-         *  The bone is animated with a matrix track in the DAE,
-         *  which expands into 3 separate tracks in our format;
-         *  position, rotation and scale.
-         */
-        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(1, animSetBuilder.getAnimations(0).getTracksCount());
 
         /*
          *  We go through all tracks and verify they behave as expected.
@@ -471,11 +489,11 @@ public class ColladaUtilTest {
              *  but since the input animations are matrices we don't "know" that. But we
              *  will verify that they do not change.
              */
-            assertAnimationNoPosScale(track);
+            assertAnimationSamePosScale(track);
 
             if (track.getRotationsCount() > 0) {
                 // Assert that the rotation keyframes keeps increasing rotation around X
-                assertAnimationRotationChanges(track, 1.0f, 0.0f, 0.0f);
+                assertAnimationRotationChanges(track, -1.0f, 1.0f, -1.0f);
             }
         }
     }
@@ -493,10 +511,9 @@ public class ColladaUtilTest {
 
         /*
          *  The file includes two bones with a matrix animation on each.
-         *  Each matrix animation expands into 3 different component animations; 2*3 = 6 animation tracks.
          */
         assertEquals(2, skeletonBuilder.getBonesCount());
-        assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(2, animSetBuilder.getAnimations(0).getTracksCount());
 
         // Bone 0 is located at origo an has no rotation (after up-axis has been applied).
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
@@ -525,7 +542,7 @@ public class ColladaUtilTest {
             int boneIndex = track.getBoneIndex();
 
             // There should be no position or scale animation.
-            assertAnimationNoPosScale(track);
+            assertAnimationSamePosScale(track);
 
             if (track.getRotationsCount() > 0) {
                 if (boneIndex == 0) {
@@ -560,10 +577,9 @@ public class ColladaUtilTest {
 
         /*
          *  The file includes two bones with a matrix animation on each.
-         *  Each matrix animation expands into 3 different component animations; 2*3 = 6 animation tracks.
          */
         assertEquals(2, skeletonBuilder.getBonesCount());
-        assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(2, animSetBuilder.getAnimations(0).getTracksCount());
 
         // Bone 0 is located at origo an has no rotation (after up-axis has been applied).
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
@@ -598,9 +614,9 @@ public class ColladaUtilTest {
 
             } else if (boneIndex == 1 && track.getPositionsCount() > 0) {
                 // Verify animation on secondary bone
-                assertAnimationPosition(track, 0, new Vector3d(0.0, 0.0, 0.0));
-                assertAnimationPosition(track, keyframeCount/2, new Vector3d(0.0, 0.0, -1.0));
-                assertAnimationPosition(track, keyframeCount, new Vector3d(0.0, 0.0, -1.0));
+                assertAnimationPosition(track, 0, new Vector3d(0.0, 1.0, 1.0));
+                assertAnimationPosition(track, keyframeCount/2, new Vector3d(0.0, 1.0, 0.0));
+                assertAnimationPosition(track, keyframeCount, new Vector3d(0.0, 1.0, 0.0));
 
             }
         }
@@ -618,10 +634,10 @@ public class ColladaUtilTest {
         assertEquals(1, animSetBuilder.getAnimationsCount());
 
         /*
-         *  The file includes three bones, but only two of them have animations; 2*3 = 6 animation tracks.
+         *  The file includes three bones, but only two of them have animations
          */
         assertEquals(3, skeletonBuilder.getBonesCount());
-        assertEquals(6, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(2, animSetBuilder.getAnimations(0).getTracksCount());
 
         // Bone 0 is located at origo an has no rotation (after up-axis has been applied).
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.0, 0.0, 0.0, 1.0));
@@ -645,12 +661,7 @@ public class ColladaUtilTest {
         assertEquals(1, skeletonBuilder.getBonesCount());
         assertBone(skeletonBuilder.getBones(0), new Vector3d(0.0, 0.0, 0.0), new Quat4d(0.5, 0.5, 0.5, -0.5));
 
-        /*
-         *  The bone is animated with a matrix track in the DAE,
-         *  which expands into 3 separate tracks in our format;
-         *  position, rotation and scale.
-         */
-        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(1, animSetBuilder.getAnimations(0).getTracksCount());
 
         /*
          *  We go through all tracks and verify they behave as expected.
@@ -668,25 +679,22 @@ public class ColladaUtilTest {
              *  but since the input animations are matrices we don't "know" that. But we
              *  will verify that they do not change.
              */
-            assertAnimationNoPosScale(track);
+            assertAnimationSamePosScale(track);
 
             if (track.getRotationsCount() > 0) {
 
-                // Verify that the first keyframe is not rotated.
-                assertAnimationRotation(track, 0, new Quat4d(0.0, 0.0, 0.0, 1.0));
-
-                // Assert that the rotation keyframes keeps decreasing rotation around X
+                // Assert that the rotation keyframes keeps decreasing rotation around Y
                 Quat4d rQ = new Quat4d(track.getRotations(8), track.getRotations(9), track.getRotations(10), track.getRotations(11));
-                double lastXRot = rQ.getX();
+                double lastRot = rQ.getY();
 
                 int rotCount = track.getRotationsCount() / 4;
                 for (int i = 2; i < rotCount; i++) {
                     rQ = new Quat4d(track.getRotations(i*4), track.getRotations(i*4+1), track.getRotations(i*4+2), track.getRotations(i*4+3));
-                    if (rQ.getX() < lastXRot) {
-                        fail("Rotation is not decreasing. Previously: " + lastXRot + ", now: " + rQ.getX());
+                    if (rQ.getY() < lastRot) {
+                        fail("Rotation is not decreasing. Previously: " + lastRot + ", now: " + rQ.getY());
                     }
 
-                    lastXRot = rQ.getX();
+                    lastRot = rQ.getY();
                 }
             }
         }
@@ -705,11 +713,7 @@ public class ColladaUtilTest {
 
         assertEquals(3, skeletonBuilder.getBonesCount());
 
-        /*
-         *  Each bone is animated with a matrix track in the DAE,
-         *  which expands into 3 separate tracks in our format.
-         */
-        assertEquals(9, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
 
         /*
          *  We go through all tracks and verify they behave as expected.
@@ -725,14 +729,14 @@ public class ColladaUtilTest {
              *  but since the input animations are matrices we don't "know" that. But we
              *  will verify that they do not change.
              */
-            assertAnimationNoPosScale(track);
+            assertAnimationSamePosScale(track);
 
             if (boneIndex == 0) {
                 // Bone 0 doesn't have any "real" rotation animation.
-                Quat4d rotIdentity = new Quat4d(0.0, 0.0, 0.0, 1.0);
+                Quat4d rotKey = new Quat4d(-0.495852, 0.499983, 0.499983, 0.504148);
                 int rotationKeys = track.getRotationsCount() / 4;
                 for (int i = 0; i < rotationKeys; i++) {
-                    assertAnimationRotation(track, i, rotIdentity);
+                    assertAnimationRotation(track, i, rotKey);
                 }
 
             } else if (boneIndex == 1) {
@@ -763,7 +767,7 @@ public class ColladaUtilTest {
         assertEquals(1, animSetBuilder.getAnimationsCount());
 
         assertEquals(2, skeletonBuilder.getBonesCount());
-        assertEquals(3, animSetBuilder.getAnimations(0).getTracksCount());
+        assertEquals(1, animSetBuilder.getAnimations(0).getTracksCount());
 
         /*
          *  We go through all tracks and verify they behave as expected.
@@ -779,7 +783,7 @@ public class ColladaUtilTest {
              *  but since the input animations are matrices we don't "know" that. But we
              *  will verify that they do not change.
              */
-            assertAnimationNoPosScale(track);
+            assertAnimationSamePosScale(track);
 
             if (boneIndex == 1) {
                 if (track.getRotationsCount() > 0) {
@@ -808,10 +812,9 @@ public class ColladaUtilTest {
         assertEquals(3, meshBoneListCount);
         assertEquals(3, animBoneListCount);
 
-        // The bone lists are inverted between the meshset and animationset.
         for (int i = 0; i < meshBoneListCount; i++) {
             Long meshBone = meshSetBuilder.getBoneList(i);
-            Long animBone = animSetBuilder.getBoneList(meshBoneListCount-i-1);
+            Long animBone = animSetBuilder.getBoneList(i);
             assertEquals(meshBone, animBone);
         }
     }
@@ -841,18 +844,14 @@ public class ColladaUtilTest {
             if (track.getBoneIndex() == 1) {
 
                 if (track.getRotationsCount() > 0) {
-
-                    // Rotation don't change, but is the inverse of the bind pose
-                    Quat bindPoseRot = skeletonBuilder.getBones(track.getBoneIndex()).getRotation();
-                    Quat4d bindPoseInverse = new Quat4d(bindPoseRot.getX(), bindPoseRot.getY(), bindPoseRot.getZ(), bindPoseRot.getW());
-                    bindPoseInverse.inverse();
+                    Quat4d rotIdentity = new Quat4d(0.0, 0.0, 0.0, 1.0);
 
                     int rotCount = track.getRotationsCount() / 4;
                     for (int i = 0; i < rotCount; i++) {
-                        assertEquals(bindPoseInverse.getX(), track.getRotations(i*4), EPSILON);
-                        assertEquals(bindPoseInverse.getY(), track.getRotations(i*4+1), EPSILON);
-                        assertEquals(bindPoseInverse.getZ(), track.getRotations(i*4+2), EPSILON);
-                        assertEquals(bindPoseInverse.getW(), track.getRotations(i*4+3), EPSILON);
+                        assertEquals(rotIdentity.getX(), track.getRotations(i*4), EPSILON);
+                        assertEquals(rotIdentity.getY(), track.getRotations(i*4+1), EPSILON);
+                        assertEquals(rotIdentity.getZ(), track.getRotations(i*4+2), EPSILON);
+                        assertEquals(rotIdentity.getW(), track.getRotations(i*4+3), EPSILON);
                     }
                 } else if (track.getPositionsCount() > 0) {
 
@@ -912,7 +911,7 @@ public class ColladaUtilTest {
      * Test collada file with scale applied on its skeleton.
      */
     @Test
-    public void testSceletonScale() throws Exception {
+    public void testSkeletonScale() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
@@ -920,7 +919,7 @@ public class ColladaUtilTest {
 
         RigAnimation animation = animSetBuilder.getAnimations(0);
 
-        Vector3 boneScale = skeletonBuilder.getBones(0).getScale();
+        Vector3 boneScale = skeletonBuilder.getBones(0).getLocal().getScale();
         assertEquals(0.1, boneScale.getX(), EPSILON);
         assertEquals(0.1, boneScale.getY(), EPSILON);
         assertEquals(0.1, boneScale.getZ(), EPSILON);
@@ -934,7 +933,7 @@ public class ColladaUtilTest {
                 List<Float> scales = track.getScaleList();
 
                 for (int i = 0; i < scalesCount; ++i) {
-                    assertEquals(10.0, scales.get(i), EPSILON);
+                    assertEquals(1.0, scales.get(i), EPSILON);
                 }
             }
         }
@@ -984,21 +983,23 @@ public class ColladaUtilTest {
         double expectedUnit = 0.01;
 
         // Bone scale should be unaffected
-        Vector3 boneScale = skeletonBuilder.getBones(0).getScale();
+        Vector3 boneScale = skeletonBuilder.getBones(0).getLocal().getScale();
         assertEquals(1.0, boneScale.getX(), EPSILON);
         assertEquals(1.0, boneScale.getY(), EPSILON);
         assertEquals(1.0, boneScale.getZ(), EPSILON);
 
         // Bone positions should be orig_position * unit
-        Point3 bonePosition = skeletonBuilder.getBones(0).getPosition();
+        Vector3 bonePosition = skeletonBuilder.getBones(0).getLocal().getTranslation();
         assertEquals(0.0, bonePosition.getX(), EPSILON);
         assertEquals(1.0 * expectedUnit, bonePosition.getY(), EPSILON);
         assertEquals(0.0, bonePosition.getZ(), EPSILON);
 
         // Mesh vertex position should also be scaled with unit
-        float vertPosX = meshSetBuilder.getMeshAttachments(0).getPositions(0);
-        float vertPosY = meshSetBuilder.getMeshAttachments(0).getPositions(1);
-        float vertPosZ = meshSetBuilder.getMeshAttachments(0).getPositions(2);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
+
+        float vertPosX = mesh.getPositions(0);
+        float vertPosY = mesh.getPositions(1);
+        float vertPosZ = mesh.getPositions(2);
         assertEquals(0.0, vertPosX, EPSILON);
         assertEquals(1.0 * expectedUnit, vertPosY, EPSILON);
         assertEquals(0.0, vertPosZ, EPSILON);
@@ -1013,16 +1014,21 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(load("chest_open.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
         // Check that we get all the positions, since some have the "-1.#IND00" value in the Collada file.
         // Invalid <float_array> values will be replaced with 0.0.
         // (Without the fix in XMLFloatArray.java this would have thrown an exception.)
-        int positionsCount = meshSetBuilder.getMeshAttachments(0).getPositionsCount();
-        assertEquals(414, positionsCount);
+
+        int vertexCount = mesh.getPositionsCount() / 3;
+        assertEquals(786, vertexCount);
+
+        //MAWE/ There's no good way of knowing which index it ended up on
+        //and as the comment above says, it would have thrown an exception. So I disabled this test.
 
         // The test file has the first Z component of the positions array set to "-1.#IND00",
         // make sure it was parsed as 0.0 instead.
-        assertEquals(0.0, meshSetBuilder.getMeshAttachments(0).getPositions(2), EPSILON);
+        //assertEquals(0.0, mesh.getPositions(2), EPSILON);
     }
 
     /*
@@ -1034,16 +1040,11 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(load("maya_quad.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
-        Rig.Mesh mesh = meshSetBuilder.getMeshAttachments(0);
-        assertEquals(4, mesh.getVerticesCount());
+        Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
+
+        assertEquals(4, mesh.getPositionsCount()/3);
         assertEquals(6, mesh.getIndices().size()>>1);
         assertEquals(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16, mesh.getIndicesFormat());
-
-        List<MeshVertexIndices> vertices = mesh.getVerticesList();
-        assertVtx(vertices, 0,  0, 0, 0);
-        assertVtx(vertices, 1,  1, 1, 1);
-        assertVtx(vertices, 2,  2, 2, 2);
-        assertVtx(vertices, 3,  3, 3, 3);
 
         ShortBuffer indices = mesh.getIndices().asReadOnlyByteBuffer().order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
         assertEquals(0, indices.get(0));
@@ -1052,6 +1053,23 @@ public class ColladaUtilTest {
         assertEquals(2, indices.get(3));
         assertEquals(1, indices.get(4));
         assertEquals(3, indices.get(5));
+    }
+
+    /*
+     * Tests that an invalid collada file is handled
+     */
+    @Test
+    public void testInvalidFile() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        boolean hasThrown = false;
+        try {
+            ColladaUtil.load(load("invalid.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+        } catch (java.lang.IndexOutOfBoundsException e) {
+            hasThrown = true;
+        }
+        assertTrue(hasThrown);
     }
 
     /*

@@ -82,7 +82,7 @@ platforms:
       # C++
       defines:          ['DDF_EXPOSE_DESCRIPTORS']
       cxxFlags:         []
-      cxxShFlags:       []
+      cxxShFlags:       ['-fno-rtti']
       cxxLinkFlags:     []
       cxxLinkShFlags:   []
       cxxLibs:          []

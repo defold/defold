@@ -28,3 +28,8 @@ double dmProfilerExt::GetCpuUsage()
 {
     return 0.0;
 }
+
+void dmProfilerExt::UpdatePlatformProfiler()
+{
+    // nop
+}

@@ -190,8 +190,10 @@
          :or {labels ["X" "Y" "Z"]}} edit-type]
     (create-multi-textfield! labels property-fn)))
 
-(defmethod create-property-control! types/Vec4 [_ _ property-fn]
-  (create-multi-textfield! ["X" "Y" "Z" "W"] property-fn))
+(defmethod create-property-control! types/Vec4 [edit-type _ property-fn]
+  (let [{:keys [labels]
+         :or {labels ["X" "Y" "Z" "W"]}} edit-type]
+    (create-multi-textfield! labels property-fn)))
 
 (defn- create-multi-keyed-textfield! [fields property-fn]
   (let [text-fields  (mapv (fn [_] (TextField.)) fields)

@@ -293,6 +293,50 @@ namespace dmGraphics
         uint8_t       : 5;
     };
 
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_A = 0x8;
+
+    struct PipelineState
+    {
+        uint64_t m_WriteColorMask           : 4;
+        uint64_t m_WriteDepth               : 1;
+        uint64_t m_PrimtiveType             : 3;
+        // Depth Test
+        uint64_t m_DepthTestEnabled         : 1;
+        uint64_t m_DepthTestFunc            : 3;
+        // Stencil Test
+        uint64_t m_StencilEnabled           : 1;
+
+        // Front
+        uint64_t m_StencilFrontOpFail       : 3;
+        uint64_t m_StencilFrontOpPass       : 3;
+        uint64_t m_StencilFrontOpDepthFail  : 3;
+        uint64_t m_StencilFrontTestFunc     : 3;
+
+        // Back
+        uint64_t m_StencilBackOpFail        : 3;
+        uint64_t m_StencilBackOpPass        : 3;
+        uint64_t m_StencilBackOpDepthFail   : 3;
+        uint64_t m_StencilBackTestFunc      : 3;
+
+        uint64_t m_StencilWriteMask         : 8;
+        uint64_t m_StencilCompareMask       : 8;
+        uint64_t m_StencilReference         : 8;
+        // Blending
+        uint64_t m_BlendEnabled             : 1;
+        uint64_t m_BlendSrcFactor           : 4;
+        uint64_t m_BlendDstFactor           : 4;
+        // Culling
+        uint64_t m_CullFaceEnabled          : 1;
+        uint64_t m_CullFaceType             : 2;
+        // Face winding
+        uint64_t m_FaceWinding              : 1;
+        // Polygon offset
+        uint64_t m_PolygonOffsetFillEnabled : 1;
+    };
+
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context
@@ -532,6 +576,7 @@ namespace dmGraphics
     inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
     inline const char* GetBufferTypeLiteral(BufferType buffer_type);
     bool IsMultiTargetRenderingSupported(HContext context);
+    PipelineState GetPipelineState(HContext context);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);

@@ -368,17 +368,21 @@ def smoke_test():
 def get_branch():
     # The name of the head branch. Only set for pull request events.
     branch = os.environ.get('GITHUB_HEAD_REF', '')
-    if branch is '':
+    if branch == '':
         # The branch or tag name that triggered the workflow run.
         branch = os.environ.get('GITHUB_REF_NAME', '')
 
-    if branch is '':
+    if branch == '':
         # https://stackoverflow.com/a/55276236/1266551
         branch = call("git rev-parse --abbrev-ref HEAD").strip()
         if branch == "HEAD":
             branch = call("git rev-parse HEAD")
 
     return branch
+
+def get_target_branch():
+    # The name of the base (or target) branch. Only set for pull request events.
+    return os.environ.get('GITHUB_BASE_REF', '')
 
 def is_workflow_enabled_in_repo():
     if not is_repo_private():
@@ -465,7 +469,7 @@ def main(argv):
         release_channel = "editor-alpha"
         make_release = True
         engine_artifacts = args.engine_artifacts
-    elif branch and branch.startswith("DEFEDIT-"):
+    elif branch and (branch.startswith("DEFEDIT-") or get_target_branch() == "editor-dev"):
         engine_channel = None
         editor_channel = "editor-dev"
         make_release = False

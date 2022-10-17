@@ -22,7 +22,7 @@
             [editor.code.script :as code-script]
             [editor.code.shader :as code-shader]
             [editor.code.text-file :as code-text-file]
-            [editor.collada-scene :as collada-scene]
+            [editor.model-scene :as model-scene]
             [editor.collection :as collection]
             [editor.collection-data :as collection-data]
             [editor.collection-proxy :as collection-proxy]
@@ -63,7 +63,7 @@
       (atlas/register-resource-types workspace)
       (buffer/register-resource-types workspace)
       (camera/register-resource-types workspace)
-      (collada-scene/register-resource-types workspace)
+      (model-scene/register-resource-types workspace)
       (collection/register-resource-types workspace)
       (collection-data/register-resource-types workspace)
       (collection-proxy/register-resource-types workspace)
