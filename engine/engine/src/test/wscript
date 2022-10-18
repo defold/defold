@@ -95,6 +95,17 @@ def build(bld):
 
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
+    java_lib_path = os.path.join(os.environ['JAVA_HOME'], 'lib')
+
+    print("MAWE java_lib_path", java_lib_path)
+
+    run.shell_command(("ls %s" % java_lib_path).split())
+
+    java_dylib_path = os.path.join(java_lib_path, 'libmlib_image.dylib')
+    run.shell_command(("file %s" % java_lib_path).split())
+
+    print("MAWE debug")
+
     bld(rule = run_bob,
         run_args = 'java -jar ./build/content/bob-engine.jar -root ./src/test -k distclean build %s' % ' '.join(bob_flags),
         source = 'wscript',
