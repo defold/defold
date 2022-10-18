@@ -1,0 +1,56 @@
+#! /usr/bin/env python
+
+import os
+from waf_dynamo import dmsdk_add_files
+from waflib.Options import options
+
+def configure(conf):
+    pass
+
+def build(bld):
+    # We only need this library in the editor and bob
+    is_host = bld.env['PLATFORM'] in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
+
+    if not is_host:
+        return
+
+    modelc_sources = bld.path.ant_glob("*.cpp")
+
+    java_includes = [os.path.join(os.environ['JAVA_HOME'], 'include')]
+    if 'linux' in bld.env['PLATFORM']:
+        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'linux'))
+    if 'win32' in bld.env['PLATFORM']:
+        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'win32'))
+    if 'macos' in bld.env['PLATFORM']:
+        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
+
+    # really only used for the unit tests
+    model = bld.stlib(features = 'c cxx',
+                      includes = ['.', './model'] + java_includes,
+                      source = modelc_sources,
+                      target = 'model')
+
+    # Used by bob.jar + editor
+    model_shared = bld(features = 'c cxx cshlib extract_symbols',
+                       includes = model.includes,
+                       uselib = 'DLIB PROFILE_NULL JDK',
+                       source = modelc_sources,
+                       target = 'modelc_shared')
+
+    classpath = []
+
+    bld(features='javac seq',
+        classpath=classpath,
+        srcdir='java',
+        outdir='java')
+
+    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+
+    bld(features='jar seq',
+        basedir='java',
+        destfile='modelimporter.jar')
+
+    bld.install_files('${PREFIX}/share/java', 'modelimporter.jar')
+
+    if not options.skip_build_tests:
+        bld.recurse('test')

@@ -25,6 +25,7 @@ import java.io.StringWriter;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -56,6 +57,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 
+@BundlerParams(platforms = {Platform.Arm64Ios, Platform.X86_64Ios})
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
@@ -147,13 +149,92 @@ public class IOSBundler implements IBundler {
         }
     }
 
+
+    private static String MANIFEST_NAME = "Info.plist";
+
     @Override
-    public void bundleApplication(Project project, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    public IResource getManifestResource(Project project, Platform platform) throws IOException {
+        return project.getResource("ios", "infoplist");
+    }
+
+    @Override
+    public String getMainManifestName(Platform platform) {
+        return MANIFEST_NAME;
+    }
+
+    @Override
+    public String getMainManifestTargetPath(Platform platform) {
+        return MANIFEST_NAME; // Relative path under appDir
+    }
+
+    public static String derivedBundleName(String title) {
+        return title.substring(0, Math.min(title.length(), 15));
+    }
+
+    @Override
+    public void updateManifestProperties(Project project, Platform platform,
+                                BobProjectProperties projectProperties,
+                                Map<String, Map<String, Object>> propertiesMap,
+                                Map<String, Object> properties) throws IOException {
+
+
+        List<String> applicationQueriesSchemes = new ArrayList<String>();
+        List<String> urlSchemes = new ArrayList<String>();
+        String bundleId = projectProperties.getStringValue("ios", "bundle_identifier");
+        if (bundleId != null) {
+            urlSchemes.add(bundleId);
+        }
+
+        String title = projectProperties.getStringValue("project", "title", "dmengine");
+
+        properties.put("url-schemes", urlSchemes);
+        properties.put("application-queries-schemes", applicationQueriesSchemes);
+        properties.put("bundle-name", projectProperties.getStringValue("ios", "bundle_name", derivedBundleName(title)));
+        properties.put("bundle-version", projectProperties.getStringValue("ios", "bundle_version",
+            projectProperties.getStringValue("project", "version", "1.0")
+        ));
+
+        String launchScreen = projectProperties.getStringValue("ios", "launch_screen", "LaunchScreen");
+        properties.put("launch-screen", FilenameUtils.getBaseName(launchScreen));
+
+        List<String> orientationSupport = new ArrayList<String>();
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
+            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
+            if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
+                orientationSupport.add("LandscapeRight");
+            } else {
+                orientationSupport.add("Portrait");
+            }
+        } else {
+            orientationSupport.add("Portrait");
+            orientationSupport.add("PortraitUpsideDown");
+            orientationSupport.add("LandscapeLeft");
+            orientationSupport.add("LandscapeRight");
+        }
+        properties.put("orientation-support", orientationSupport);
+
+        String applicationLocalizationsStr = projectProperties.getStringValue("ios", "localizations", null);
+        List<String> applicationLocalizations = BundleHelper.createArrayFromString(applicationLocalizationsStr);
+        properties.put("application-localizations", applicationLocalizations);
+
+    }
+
+    private void copyManifestFile(BundleHelper helper, Platform platform, File destDir) throws IOException, CompileExceptionError {
+        File manifestFile = helper.copyOrWriteManifestFile(platform, destDir);
+        String manifest = FileUtils.readFileToString(manifestFile, StandardCharsets.UTF_8);
+        // remove attribute definition (https://github.com/defold/defold/pull/6914)
+        // it is automatically removed if the manifest was merged
+        manifest = manifest.replace("[ <!ATTLIST key merge (keep) #IMPLIED> ]", "");
+        FileUtils.write(manifestFile, manifest);
+    }
+
+    @Override
+    public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
 
         BundleHelper.throwIfCanceled(canceled);
 
-        final Platform platform = Platform.Arm64Ios;
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, architectures);
@@ -295,8 +376,7 @@ public class IOSBundler implements IBundler {
         }
 
         BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant);
-
-        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
+        copyManifestFile(helper, architectures.get(0), appDir);
         helper.copyIosIcons();
 
         BundleHelper.throwIfCanceled(canceled);

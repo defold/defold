@@ -116,6 +116,12 @@ documented just below this comment.
 #define RMT_USE_INTERNAL_HASH_FUNCTION 1
 #endif
 
+// If RMT_USE_LEGACY_ATOMICS is defined to 1, the implementation will use the legacy fallback atomic functions
+// The default setting is 0
+#ifndef RMT_USE_LEGACY_ATOMICS
+#define RMT_USE_LEGACY_ATOMICS 0
+#endif
+
 /*--------------------------------------------------------------------------------------------------------------------------------
    Compiler/Platform Detection and Preprocessor Utilities
 ---------------------------------------------------------------------------------------------------------------------------------*/
@@ -140,6 +146,15 @@ documented just below this comment.
 #define RMT_ARCH_32BIT
 #endif
 #endif
+
+#if __GNUC__ || __clang__
+#if __x86_64__ || __ppc64__ || __amd64__
+#define RMT_ARCH_64BIT
+#else
+#define RMT_ARCH_32BIT
+#endif
+#endif
+
 
 #ifdef RMT_DLL
     #if defined (RMT_PLATFORM_WINDOWS)

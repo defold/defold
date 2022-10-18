@@ -527,6 +527,16 @@
                       [(.x p) (.y p) (.z p)]) ps)]
       res)))
 
+(defn transf-p4
+  [^Matrix4d m4d ps]
+  (let [p (Point3d.)]
+    (let [res (mapv (fn [[^double x ^double y ^double z]]
+                      (.set p x y z)
+                      (.transform m4d p)
+                      [(.x p) (.y p) (.z p) 1.0])
+                    ps)]
+      res)))
+
 (defn chain [n f ps]
   (loop [i n
          v ps

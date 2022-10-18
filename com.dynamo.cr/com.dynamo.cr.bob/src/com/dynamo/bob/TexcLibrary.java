@@ -22,37 +22,17 @@ import com.sun.jna.Pointer;
 
 public class TexcLibrary {
 
-    static void addToPath(String variable, String path) {
-        String newPath = null;
-
-        // Check if jna.library.path is set externally.
-        if (System.getProperty(variable) != null) {
-            newPath = System.getProperty(variable);
-        }
-
-        if (newPath == null) {
-            // Set path where texc_shared library is found.
-            newPath = path;
-        } else {
-            // Append path where texc_shared library is found.
-            newPath += File.pathSeparator + path;
-        }
-
-        // Set the concatenated jna.library path
-        System.setProperty(variable, newPath);
-        Bob.verbose("Set %s to '%s'", variable, newPath);
-    }
+    static final String LIBRARY_NAME = "texc_shared";
 
     static {
         try {
             // Extract and append Bob bundled texc_shared path.
             Platform platform = Platform.getJavaPlatform();
-            File lib = new File(Bob.getLib(platform, "texc_shared"));
+            File lib = new File(Bob.getLib(platform, LIBRARY_NAME));
 
             String libPath = lib.getParent();
-            addToPath("jna.library.path", libPath);
-            addToPath("java.library.path", libPath);
-            Native.register("texc_shared");
+            Bob.addToPaths(libPath);
+            Native.register(LIBRARY_NAME);
         } catch (Exception e) {
             System.out.println("FATAL: " + e.getMessage());
         }

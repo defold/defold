@@ -31,7 +31,7 @@
 (def dest-offset)
 (def length)
 
-(ns editor.collada-scene)
+(ns editor.model-scene)
 (def ->vtx-pos-nrm-tex)
 (def model-id-fragment-shader)
 (def model-id-vertex-shader)

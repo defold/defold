@@ -33,14 +33,33 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
+@BundlerParams(platforms = {Platform.X86_64Win32, Platform.X86Win32})
 public class Win32Bundler implements IBundler {
+
     @Override
-    public void bundleApplication(Project project, File bundleDir, ICanceled canceled)
-            throws IOException, CompileExceptionError {
-        bundleApplicationForPlatform(Platform.X86Win32, project, bundleDir, canceled);
+    public IResource getManifestResource(Project project, Platform platform) throws IOException {
+        return null;
     }
 
-    public void bundleApplicationForPlatform(Platform platform, Project project, File bundleDir, ICanceled canceled)
+    @Override
+    public String getMainManifestName(Platform platform) {
+        return null;
+    }
+
+    @Override
+    public String getMainManifestTargetPath(Platform platform) {
+        return null;
+    }
+
+    @Override
+    public void updateManifestProperties(Project project, Platform platform,
+                                BobProjectProperties projectProperties,
+                                Map<String, Map<String, Object>> propertiesMap,
+                                Map<String, Object> properties) throws IOException {
+    }
+
+    @Override
+    public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
         BundleHelper.throwIfCanceled(canceled);

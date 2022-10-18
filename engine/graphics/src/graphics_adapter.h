@@ -68,6 +68,7 @@ namespace dmGraphics
     typedef uint32_t (*GetHeightFn)(HContext context);
     typedef uint32_t (*GetWindowWidthFn)(HContext context);
     typedef uint32_t (*GetWindowHeightFn)(HContext context);
+    typedef PipelineState (*GetPipelineStateFn)(HContext context);
     typedef float (*GetDisplayScaleFactorFn)(HContext context);
     typedef void (*SetWindowSizeFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*ResizeWindowFn)(HContext context, uint32_t width, uint32_t height);
@@ -275,6 +276,7 @@ namespace dmGraphics
         GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
         GetSupportedExtensionFn m_GetSupportedExtension;
         IsMultiTargetRenderingSupportedFn m_IsMultiTargetRenderingSupported;
+        GetPipelineStateFn m_GetPipelineState;
     };
 }
 

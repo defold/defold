@@ -36,4 +36,9 @@ extern "C" void ProfilerExt()
     // nop
 }
 
+void PlatformUpdate()
+{
+    // nop
+}
+
 } // dmProfiler
