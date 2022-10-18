@@ -49,10 +49,12 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.stream.Collectors;
 
+/*
 // For debugging image output
 import java.io.IOException;
 import java.io.File;
 import javax.imageio.ImageIO;
+*/
 
 public class TextureSetGenerator {
 
@@ -347,20 +349,6 @@ public class TextureSetGenerator {
 
         layoutRects.sort(Comparator.comparing(o -> o.index));
 
-        /*
-        int r_i = 0;
-        for (Rect r : layoutRects)
-        {
-            System.out.println("Rect " + r_i);
-            System.out.println("  id    : " + r.id);
-            System.out.println("  index : " + r.index);
-            System.out.println("  page  : " + r.page);
-            System.out.println("  x,y   : " + r.x + ", " + r.y);
-            System.out.println("  w,h   : " + r.width + ", " + r.height);
-            r_i++;
-        }
-        */
-
         // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
         layoutRects = clipBorders(layoutRects, extrudeBorders);
         Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layoutWidth, layoutHeight, layoutRects, iterator);
@@ -402,7 +390,7 @@ public class TextureSetGenerator {
         return packedImage;
     }
 
-    static int debugImageCount = 0;
+    //static int debugImageCount = 0;
 
     /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:

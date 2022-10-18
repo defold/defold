@@ -605,14 +605,14 @@ namespace dmRender
 
         if (s == 0x0)
         {
-            dmLogError("Unable to bind texture with type %s to a null sampler to texture unit %d.",
+            dmLogError("Unable to bind texture with type %s to a null sampler (texture unit %d).",
                 dmGraphics::GetTextureTypeLiteral(texture_type), unit);
             return false;
         }
 
         if (texture_type != s->m_Type)
         {
-            dmLogError("Unable to bind texture with type %s to a sampler with type %s to texture unit %d.",
+            dmLogError("Unable to bind texture with type %s to a sampler with type %s (texture unit %d).",
                 dmGraphics::GetTextureTypeLiteral(texture_type),
                 dmGraphics::GetTextureTypeLiteral(s->m_Type),
                 unit);

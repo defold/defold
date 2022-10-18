@@ -616,7 +616,7 @@ namespace dmGameSystem
             else
             {
                 uint32_t frame_index        = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
-                uint32_t page_indices_index = frame_indices[frame_index]; // same deference as "geometry" verrsion
+                uint32_t page_indices_index = frame_indices[frame_index]; // same deference as "geometry" version
                 uint32_t page_index         = page_indices[page_indices_index];
                 const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
                 const float* tc             = &tex_coords[frame_index * 4 * 2];

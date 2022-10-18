@@ -174,10 +174,10 @@ public class ShaderUtil {
                 new ShaderDataTypeConversionEntry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
                 new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
                 new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
-                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)));
+                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)
+            ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
-
             for (ShaderDataTypeConversionEntry e : shaderDataTypeConversionLut) {
                 if (e.asStr.equals(typeAsString)) {
                     return e.asDataType;

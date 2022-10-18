@@ -18,7 +18,6 @@ import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
-import javax.vecmath.Point2d;
 
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;

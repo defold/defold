@@ -91,31 +91,7 @@ public class AtlasBuilder extends Builder<Void>  {
             textureImages[i] = texture;
         }
 
-        TextureImage.Builder textureImageBuilder = TextureImage.newBuilder(textureImages[0]);
-
-        // Merge this with cubemapbuilder?
-        for (int i = 0; i < textureImageBuilder.getAlternativesCount(); i++) {
-            Image.Builder imageBuilder = TextureImage.Image.newBuilder(textureImages[0].getAlternatives(i));
-
-            ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
-            for (int j = 0; j < imageBuilder.getMipMapSizeCount(); j++) {
-                int mipSize = imageBuilder.getMipMapSize(j);
-                byte[] buf = new byte[mipSize];
-                for (int k = 0; k < numTextures; k++) {
-                    ByteString data = textureImages[k].getAlternatives(i).getData();
-                    int mipOffset = imageBuilder.getMipMapOffset(j);
-                    data.copyTo(buf, mipOffset, 0, mipSize);
-                    os.write(buf);
-                }
-            }
-            os.flush();
-            imageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
-            for (int j = 0; j < imageBuilder.getMipMapSizeCount(); j++) {
-                imageBuilder.setMipMapOffset(j, imageBuilder.getMipMapOffset(j) * numTextures);
-            }
-            textureImageBuilder.setAlternatives(i, imageBuilder);
-        }
-
+        TextureImage.Builder textureImageBuilder = TextureUtil.createBuilder(textureImages);
         TextureImage texture = textureImageBuilder.setCount(numTextures)
             .setType(numTextures > 1 ? Type.TYPE_2D_ARRAY : Type.TYPE_2D)
             .build();

@@ -186,7 +186,6 @@ namespace dmGraphics
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
             if(shader->m_Language == language)
             {
-                // JG: Maybe we need a better way of deciding this
                 if (shader->m_VariantTextureArray)
                 {
                     // Only select this variant if we don't support texture arrays natively

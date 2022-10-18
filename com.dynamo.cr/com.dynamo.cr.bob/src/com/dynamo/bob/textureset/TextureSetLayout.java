@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.textureset;
 
-import javax.vecmath.Point2d;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -221,10 +220,6 @@ public class TextureSetLayout {
                 settings.maxPageWidth  = maxWidth;
                 settings.minPageHeight = maxHeight;
                 settings.minPageWidth  = maxWidth;
-
-                System.out.println("Not all pages are the same size");
-                System.out.println("    Width Min, Max: " + minWidth + ", " + maxWidth);
-                System.out.println("    Height Min, Max: " + minHeight + ", " + maxHeight);
 
                 for (int i=0; i < layouts.size(); i++)
                 {

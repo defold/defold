@@ -262,18 +262,6 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
     public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> {
-
-        /*
-        private List<ShaderDesc.Shader> getShaderList(String shader) throws IOException, CompileExceptionError {
-            IResource shaderResource = this.project.getResource(shader);
-            ShaderDesc.Builder builder = ShaderDesc.newBuilder();
-
-            IResource shaderOutputResource = this.project.getResource(shaderResource.output().changeExt(".vpc").getPath());
-            builder.mergeFrom(shaderOutputResource.getContent());
-            return builder.getShadersList();
-        }
-        */
-
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {

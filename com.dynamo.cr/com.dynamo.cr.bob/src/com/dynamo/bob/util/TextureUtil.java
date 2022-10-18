@@ -17,10 +17,16 @@ package com.dynamo.bob.util;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.protobuf.ByteString;
+
 import com.dynamo.graphics.proto.Graphics.PathSettings;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
@@ -198,6 +204,36 @@ public class TextureUtil {
         }
 
         return null;
+    }
 
+    public static TextureImage.Builder createBuilder(TextureImage[] textures) throws IOException {
+        int numTextures = textures.length;
+        if (numTextures == 0) {
+            return null;
+        }
+
+        TextureImage.Builder textureImageBuilder = TextureImage.newBuilder(textures[0]);
+        for (int i = 0; i < textureImageBuilder.getAlternativesCount(); i++) {
+            Image.Builder imageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
+
+            ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
+            for (int j = 0; j < imageBuilder.getMipMapSizeCount(); j++) {
+                int mipSize = imageBuilder.getMipMapSize(j);
+                byte[] buf = new byte[mipSize];
+                for (int k = 0; k < numTextures; k++) {
+                    ByteString data = textures[k].getAlternatives(i).getData();
+                    int mipOffset = imageBuilder.getMipMapOffset(j);
+                    data.copyTo(buf, mipOffset, 0, mipSize);
+                    os.write(buf);
+                }
+            }
+            os.flush();
+            imageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
+            for (int j = 0; j < imageBuilder.getMipMapSizeCount(); j++) {
+                imageBuilder.setMipMapOffset(j, imageBuilder.getMipMapOffset(j) * numTextures);
+            }
+            textureImageBuilder.setAlternatives(i, imageBuilder);
+        }
+        return textureImageBuilder;
     }
 }

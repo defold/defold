@@ -1327,7 +1327,6 @@ namespace dmGameSystem
             dmGameSystemDDF::TextureSet* texture_set_ddf = anim_desc ? (dmGameSystemDDF::TextureSet*)anim_desc->m_TextureSet : 0;
             bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
 
-            float page_index = 0.0;
             bool flip_u = false;
             bool flip_v = false;
             if (!manually_set_texture)

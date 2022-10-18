@@ -540,7 +540,7 @@ namespace dmGraphics
 
     HVertexProgram   NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
     HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
-    HProgram         NewProgram(HContext context, const ProgramCreationParams& params); // HVertexProgram vertex_program, HFragmentProgram fragment_program);
+    HProgram         NewProgram(HContext context, const ProgramCreationParams& params);
     void             DeleteProgram(HContext context, HProgram program);
 
     bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);

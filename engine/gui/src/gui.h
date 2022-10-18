@@ -86,8 +86,8 @@ namespace dmGui
             uint8_t  m_FPS;
         } m_State;
 
-        const float*    m_TexCoords;
-        const void*     m_TextureSet;
+        const float* m_TexCoords;
+        const void*  m_TextureSet;
         uint8_t m_FlipHorizontal : 1;
         uint8_t m_FlipVertical : 1;
         uint8_t : 6;

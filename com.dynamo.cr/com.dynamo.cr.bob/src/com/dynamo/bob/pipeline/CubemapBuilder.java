@@ -96,29 +96,7 @@ public class CubemapBuilder extends Builder<Void> {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        TextureImage.Builder builder = TextureImage.newBuilder(textures[0]);
-
-        for (int i = 0; i < builder.getAlternativesCount(); i++) {
-            Image.Builder imageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
-
-            ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
-            for (int j = 0; j < imageBuilder.getMipMapSizeCount(); j++) {
-                int mipSize = imageBuilder.getMipMapSize(j);
-                byte[] buf = new byte[mipSize];
-                for (int k = 0; k < 6; k++) {
-                    ByteString data = textures[k].getAlternatives(i).getData();
-                    int mipOffset = imageBuilder.getMipMapOffset(j);
-                    data.copyTo(buf, mipOffset, 0, mipSize);
-                    os.write(buf);
-                }
-            }
-            os.flush();
-            imageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
-            for (int j = 0; j < imageBuilder.getMipMapSizeCount(); j++) {
-                imageBuilder.setMipMapOffset(j, imageBuilder.getMipMapOffset(j) * 6);
-            }
-            builder.setAlternatives(i, imageBuilder);
-        }
+        TextureImage.Builder builder = TextureUtil.createBuilder(textures);
 
         builder.setCount(6);
         builder.setType(Type.TYPE_CUBEMAP);

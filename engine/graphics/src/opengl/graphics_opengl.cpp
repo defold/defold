@@ -140,6 +140,11 @@
     PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
     PFNGLUNIFORM1IPROC glUniform1i = NULL;
 
+    PFNGLTEXSUBIMAGE3DPROC           glTexSubImage3D = NULL;
+    PFNGLTEXIMAGE3DPROC              glTexImage3D = NULL;
+    PFNGLCOMPRESSEDTEXIMAGE3DPROC    glCompressedTexImage3D = NULL;
+    PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC glCompressedTexSubImage3D = NULL;
+
     #if !defined(GL_ES_VERSION_2_0)
         PFNGLGETSTRINGIPROC glGetStringi = NULL;
         PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
@@ -354,10 +359,10 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
     DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
-
-    // JG: This is necessary for webgl to work since we can't load core functions,
-    //     but maybe we should do it the other way around? i.e have an exception for emscripten
-    //     and not android. Android needs to load these functions explicitly
+ 
+    // Note: This is necessary for webgl and android to work since we don't load core functions with emsc,
+    //       however we might want to do this the other way around perhaps? i.e special case for webgl
+    //       and load functions like this for all other platforms.
 #ifdef ANDROID
     typedef void (* DM_PFNGLTEXSUBIMAGE3DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels);
     DM_PFNGLTEXSUBIMAGE3DPROC PFN_glTexSubImage3D = NULL;
@@ -482,7 +487,7 @@ static void LogFrameBufferError(GLenum status)
         return (Type) -1;
     }
 
-    static GLenum GetOpenGLTextureType(HContext context, TextureType type)
+    static GLenum GetOpenGLTextureType(TextureType type)
     {
         switch(type)
         {
@@ -743,12 +748,12 @@ static void LogFrameBufferError(GLenum status)
 
         dmLogInfo("Context features:");
 
-        #define PRINT_FEATURE_IF_SUPPORTED(feature) \
-            if (IsContextFeatureSupported(context, feature)) \
-                dmLogInfo("  %s", #feature);
+    #define PRINT_FEATURE_IF_SUPPORTED(feature) \
+        if (IsContextFeatureSupported(context, feature)) \
+            dmLogInfo("  %s", #feature);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_TEXTURE_ARRAY);
-        #undef PRINT_FEATURE_IF_SUPPORTED
+    #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
     static WindowResult OpenGLOpenWindow(HContext context, WindowParams *params)
@@ -890,6 +895,11 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
         GET_PROC_ADDRESS(glStencilOpSeparate, "glStencilOpSeparate", PFNGLSTENCILOPSEPARATEPROC);
         GET_PROC_ADDRESS(glStencilFuncSeparate, "glStencilFuncSeparate", PFNGLSTENCILFUNCSEPARATEPROC);
+        GET_PROC_ADDRESS(glTexSubImage3D, "glTexSubImage3D", PFNGLTEXSUBIMAGE3DPROC);
+        GET_PROC_ADDRESS(glTexImage3D, "glTexImage3D", PFNGLTEXIMAGE3DPROC);
+        GET_PROC_ADDRESS(glCompressedTexImage3D, "glCompressedTexImage3D", PFNGLCOMPRESSEDTEXIMAGE3DPROC);
+        GET_PROC_ADDRESS(glCompressedTexSubImage3D, "glCompressedTexSubImage3D", PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC);
+
 #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
         GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
@@ -1574,7 +1584,7 @@ static void LogFrameBufferError(GLenum status)
     // NOTE: This function doesn't seem to be used anywhere?
     static uint32_t OpenGLGetMaxElementsIndices(HContext context)
     {
-        return -1;
+        return 0;
     }
 
     static uint32_t GetTypeSize(dmGraphics::Type type)
@@ -1825,6 +1835,11 @@ static void LogFrameBufferError(GLenum status)
 
     static Shader* CreateShader(GLenum type, ShaderDesc::Shader* ddf)
     {
+        // Note: The DDF will be removed after the shader has been created
+        //       so we need to store a copy of the texture array source
+        //       since the programs that use this variant will patch in the
+        //       maximum number of pages supported before creating the 
+        //       shader program.
         if (ddf->m_VariantTextureArray)
         {
             Shader* shader = new Shader();
@@ -2055,25 +2070,40 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        glDeleteShader(((Shader*) program)->m_Id);
+        Shader* shader = ((Shader*) program);
+        glDeleteShader(shader->m_Id);
         CHECK_GL_ERROR;
+        if (shader->m_VariantTextureArrayData)
+        {
+            delete shader->m_VariantTextureArrayData;
+        }
         delete (Shader*) program;
     }
 
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        glDeleteShader(((Shader*) program)->m_Id);
+        Shader* shader = ((Shader*) program);
+        glDeleteShader(shader->m_Id);
         CHECK_GL_ERROR;
+        if (shader->m_VariantTextureArrayData)
+        {
+            delete shader->m_VariantTextureArrayData;
+        }
         delete (Shader*) program;
     }
 
     static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext context)
     {
         if (context->m_IsShaderLanguageGles) // 0 == glsl, 1 == gles
-            return context->m_IsGles3Version ? ShaderDesc::LANGUAGE_GLES_SM300 : ShaderDesc::LANGUAGE_GLES_SM100;
-        else
-            return ShaderDesc::LANGUAGE_GLSL_SM140;
+        {
+            if (context->m_IsGles3Version)
+            {
+                return ShaderDesc::LANGUAGE_GLES_SM300;
+            }
+            return ShaderDesc::LANGUAGE_GLES_SM100;
+        }
+        return ShaderDesc::LANGUAGE_GLSL_SM140;
     }
 
     static void OpenGLEnableProgram(HContext context, HProgram program)
@@ -2484,6 +2514,8 @@ static void LogFrameBufferError(GLenum status)
         uint16_t num_texture_ids = 1;
         TextureType texture_type = params.m_Type;
 
+        // If an array texture was requested but we cannot create such textures,
+        // we need to fallback to separate textures instead
         if (params.m_Type == TEXTURE_TYPE_2D_ARRAY && !context->m_TextureArraySupport)
         {
             num_texture_ids = params.m_Depth;
@@ -2499,7 +2531,6 @@ static void LogFrameBufferError(GLenum status)
         tex->m_TextureIds    = t;
         tex->m_Width         = params.m_Width;
         tex->m_Height        = params.m_Height;
-        tex->m_Depth         = params.m_Depth;
         tex->m_NumTextureIds = num_texture_ids;
 
         if (params.m_OriginalWidth == 0){
@@ -2615,7 +2646,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        GLenum type = GetOpenGLTextureType(g_Context, texture->m_Type);
+        GLenum type = GetOpenGLTextureType(texture->m_Type);
 
         glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GetOpenGLTextureFilter(minfilter));
         CHECK_GL_ERROR;
@@ -2745,7 +2776,7 @@ static void LogFrameBufferError(GLenum status)
         }
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        GLenum type = GetOpenGLTextureType(g_Context, texture->m_Type);
+        GLenum type = GetOpenGLTextureType(texture->m_Type);
         GLenum gl_format;
         GLenum gl_type = GL_UNSIGNED_BYTE; // only used of uncompressed formats
         GLint internal_format = -1; // // Only used for uncompressed formats
@@ -2889,7 +2920,6 @@ static void LogFrameBufferError(GLenum status)
                     CHECK_GL_ERROR;
                 } else if (texture->m_Type == TEXTURE_TYPE_2D_ARRAY) {
                     assert(g_Context->m_TextureArraySupport);
-                    // JG: Maybe move this to defines
                     #ifdef ANDROID
                         #define TEX_SUB_IMAGE_3D PFN_glTexSubImage3D
                         #define TEX_IMAGE_3D     PFN_glTexImage3D
@@ -3082,7 +3112,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 #endif
 
-        GLenum texture_type = GetOpenGLTextureType(context, texture->m_Type);
+        GLenum texture_type = GetOpenGLTextureType(texture->m_Type);
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
         glBindTexture(texture_type, texture->m_TextureIds[id_index]);
@@ -3102,7 +3132,7 @@ static void LogFrameBufferError(GLenum status)
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
-        glBindTexture(GetOpenGLTextureType(context, texture->m_Type), 0);
+        glBindTexture(GetOpenGLTextureType(texture->m_Type), 0);
         CHECK_GL_ERROR;
     }
 

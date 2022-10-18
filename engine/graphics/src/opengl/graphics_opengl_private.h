@@ -82,7 +82,6 @@ namespace dmGraphics
         uint16_t    m_NumTextureIds;
         uint16_t    m_Width;
         uint16_t    m_Height;
-        uint16_t    m_Depth;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint16_t    m_MipMapCount;
@@ -122,8 +121,6 @@ namespace dmGraphics
     struct Shader
     {
         GLuint   m_Id;
-        // JG: We need to runtime patch the variant data to be able to support
-        //     different max page counts per material, is this really a good representation?
         char*    m_VariantTextureArrayData;
         uint32_t m_VariantTextureArrayDataSize;
     };
