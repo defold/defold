@@ -1087,7 +1087,9 @@
      :properties properties-without-fns}))
 
 (def opts-schema {(s/optional-key :traverse?) Runnable
-                  (s/optional-key :serializer) Runnable})
+                  (s/optional-key :serializer) Runnable
+                  (s/optional-key :external-refs) {s/Int s/Keyword}
+                  (s/optional-key :external-labels) {s/Int #{s/Keyword}}})
 
 (defn override-originals
   "Given a node id, returns a sequence of node ids starting with the
@@ -1138,13 +1140,27 @@
   will be flattened to source or target the serialized node instead of
   the nodes that it overrides.
 
+   You can use `:external-refs` and `:external-labels` to add
+  connections to nodes that are not copied, even when there exist
+  connections to these nodes. To do this, need to specify a mapping
+  from external node id to it's referenced id keyword (`:external-refs`)
+  and then specify which labels of that node we are interested in when
+  performing a copy (`:external-labels`). Note that you need to provide
+  an inverse map of external refs (a map from reference id keyword to
+  node id) when doing paste for it to succeed.
+
   Example:
 
   `(g/copy root-ids {:traverse? (comp not resource-node-id? (fn [basis ^Arc arc] (.target-id arc))
-                     :serializer (some-fn custom-serializer default-node-serializer %)})"
+                     :serializer (some-fn custom-serializer default-node-serializer %)
+                     :external-refs {project :project}
+                     :external-labels {project #{:settings}}})"
   ([root-ids opts]
    (copy (now) root-ids opts))
-  ([basis root-ids {:keys [traverse? serializer] :or {traverse? (clojure.core/constantly false) serializer default-node-serializer} :as opts}]
+  ([basis root-ids {:keys [traverse? serializer external-refs external-labels]
+                    :or {traverse? (clojure.core/constantly false)
+                         serializer default-node-serializer}
+                    :as opts}]
    (s/validate opts-schema opts)
    (let [arcs-by-source (partial deep-arcs-by-source basis)
          arcs-by-target (partial gt/arcs-by-target basis)
@@ -1156,8 +1172,13 @@
                                         (map #(vector % serial-id)
                                              (override-originals basis original-id))))
                               replacements)
-         include-arc?   (partial ig/arc-endpoints-p (partial contains? serial-ids))
-         serialize-arc  (partial serialize-arc serial-ids)
+         include-arc?   (partial ig/arc-endpoints-p
+                                 (fn [id label]
+                                   (or (contains? serial-ids id)
+                                       (and (contains? external-refs id)
+                                            (contains? (get external-labels id) label)))))
+         arc-ids        (into serial-ids external-refs)
+         serialize-arc  (partial serialize-arc arc-ids)
          incoming-arcs  (mapcat arcs-by-target original-ids)
          outgoing-arcs  (mapcat arcs-by-source original-ids)
          fragment-arcs  (into []
@@ -1197,19 +1218,28 @@
   instances, or anything else. The deserializer _must_ return valid
   transaction data, even if that data is just an empty vector.
 
+  If you serialized any arcs to external nodes when doing a copy, you
+  need to provide `:external-refs` here to resolve references to
+  external nodes - a map from reference id keyword to a referenced
+  node id.
+
   Example:
 
-  `(g/paste (graph project) fragment {:deserializer default-node-deserializer})"
+  `(g/paste (graph project) fragment {:deserializer default-node-deserializer
+                                      :external-refs {:project project}})"
   ([graph-id fragment opts]
    (paste (now) graph-id fragment opts))
-  ([basis graph-id fragment {:keys [deserializer] :or {deserializer default-node-deserializer} :as opts}]
+  ([basis graph-id fragment {:keys [deserializer external-refs]
+                             :or {deserializer default-node-deserializer
+                                  external-refs {}}}]
    (let [deserializer  (partial deserializer basis graph-id)
          nodes         (map deserializer (:nodes fragment))
          new-nodes     (remove #(gt/node-by-id-at basis (gt/node-id %)) nodes)
          node-txs      (vec (mapcat it/new-node new-nodes))
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
-         connect-txs   (mapcat #(deserialize-arc id-dictionary %) (:arcs fragment))]
+         deserialize-dictionary (into id-dictionary external-refs)
+         connect-txs   (mapcat #(deserialize-arc deserialize-dictionary %) (:arcs fragment))]
      {:root-node-ids      (map id-dictionary (:roots fragment))
       :nodes              node-ids
       :tx-data            (into node-txs connect-txs)

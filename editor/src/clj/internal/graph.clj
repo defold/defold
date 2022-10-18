@@ -367,8 +367,8 @@
         arcs))
 
 (defn arc-endpoints-p [p ^Arc arc]
-  (and (p (.source-id arc))
-       (p (.target-id arc))))
+  (and (p (.source-id arc) (.source-label arc))
+       (p (.target-id arc) (.target-label arc))))
 
 (defn empty-graph
   []
