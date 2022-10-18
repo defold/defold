@@ -236,39 +236,3 @@
     :icon game-object-common/game-object-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))
-
-;; -----------------------------------------------------------------------------
-
-{'PrototypeDesc :-
- :components [{'ComponentDesc :-
-               :component "/path/to/any-component.ext"
-               :properties [{'PropertyDesc :-
-                             :value "/path/to/any-resource.ext"}]}]
- :embedded-components [{'EmbeddedComponentDesc :-
-                        :data {'AnyComponent :-
-                               :UNKNOWN "HERE BE DRAGONS"}}]}
-
-{'CollectionDesc :-
- :instances [{'InstanceDesc :-
-              :prototype "/path/to/game-object.go"
-              :component-properties [{'ComponentPropertyDesc :-
-                                      :properties [{'PropertyDesc :-
-                                                    :value "/path/to/any-resource.ext"}]}]}]
- :embedded-instances [{'EmbeddedInstanceDesc :-
-                       :data {'PrototypeDesc :-
-                              :components [{'ComponentDesc :-
-                                            :component "/path/to/any-component.ext"
-                                            :properties [{'PropertyDesc :-
-                                                          :value "/path/to/any-resource.ext"}]}]
-                              :embedded-components [{'EmbeddedComponentDesc :-
-                                                     :data {'AnyComponent :-
-                                                            :UNKNOWN "HERE BE DRAGONS"}}]}
-                       :component-properties [{'ComponentPropertyDesc :-
-                                               :properties [{'PropertyDesc :-
-                                                             :value "/path/to/any-resource.ext"}]}]}]
- :collection-instances [{'CollectionInstanceDesc :-
-                         :collection "/path/to/collection.collection"
-                         :instance-properties [{'InstancePropertyDesc :-
-                                                :properties [{'ComponentPropertyDesc :-
-                                                              :properties [{'PropertyDesc :-
-                                                                            :value "/path/to/any-resource.ext"}]}]}]}]}

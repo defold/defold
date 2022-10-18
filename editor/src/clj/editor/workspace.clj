@@ -231,7 +231,7 @@ ordinary paths."
 
 (defn resource-icon [resource]
   (when resource
-    (if (and (not (resource/editable? resource))
+    (if (and (resource/read-only? resource)
              (= (resource/path resource) (resource/resource-name resource)))
       "icons/32/Icons_03-Builtins.png"
       (condp = (resource/source-type resource)

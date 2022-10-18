@@ -35,8 +35,7 @@
             [support.test-support :refer [spit-until-new-mtime with-clean-system]]
             [util.murmur :as murmur])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.lua.proto Lua$LuaModule]
-           [java.io StringReader]))
+           [com.dynamo.lua.proto Lua$LuaModule]))
 
 (defn- unpack-property-declarations [property-declarations]
   (assert (map? property-declarations))

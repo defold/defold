@@ -93,26 +93,6 @@
           (:embedded-instances collection-desc))))
 
 (g/defnk produce-build-targets [_node-id resource collection-desc embedded-game-object-instance-build-targets referenced-game-object-instance-build-targets proj-path->build-target]
-  ;; In CollectionNode,
-  ;; Collection Instances are connected to :sub-build-targets.
-  ;; Game Object Instances are connected to :dep-build-targets.
-
-  ;; TODO: Monday
-  ;; We should focus on making build targets for ourself and each embedded game
-  ;; object, and connect referenced .go and .collection files as dep-build-targets.
-  ;; In addition, every resource referenced from a script property or override
-  ;; in our .collection will need to be in :deps as well.
-
-  ;; The sideband of resource-property-build-targets are there to support the
-  ;; properties/build-target-go-props function as we flatten instance-data.
-  ;; We should take these from referenced .go and .collection nodes, synthesize
-  ;; our own from any overrides we might be applying, and pass our
-  ;; property-descs through properties/build-target-go-props and eventually
-  ;; obtain the distinct set of go-prop-dep-build-targets to add as our deps.
-
-  ;; Our build target needs to feature :instance-data, so we can be referenced
-  ;; by "real" CollectionInstanceNodes. We should probably use the existing
-  ;; collection/build-collection function as our :build-fn.
   (let [instance-descs (:instances collection-desc)
         embedded-instance-descs (:embedded-instances collection-desc)
         collection-instance-descs (:collection-instances collection-desc)]
@@ -187,33 +167,6 @@
         (:instance-properties collection-instance-desc)))
 
 (defn- collection-desc->instance-property-descs [collection-desc]
-  ;; vector of InstancePropertyDesc
-  ;; => {:id game-object-instance-id
-  ;;     :properties [ComponentPropertyDesc]}
-  ;; passed through
-  ;; EmbeddedGOInstanceNode.ddf-properties
-  ;; ReferencedGOInstanceNode.ddf-properties
-  ;; CollectionNode.ddf-properties
-  ;; CollectionInstanceNode.sub-ddf-properties
-  ;; from
-  ;; GameObjectNode.ddf-component-properties
-  ;; a vector of ComponentPropertyDesc
-  ;; => {:id (:id component-ddf)
-  ;;     :properties [PropertyDesc](:properties component-ddf)}
-  ;; from
-  ;; EmbeddedComponent.ddf-message
-  ;; ReferencedComponent.ddf-message
-  ;; containing :properties [PropertyDesc]
-  ;; a vector of PropertyDesc
-  ;; => {:id "script_property_name"
-  ;;     :type :property-type-vector4
-  ;;     :value "0.0, 0.0, 0.0, 1.0"}
-  #_
-          [{:id "game_object_id"
-            :properties [{:id "component_id"
-                          :properties [{:id "property_name"
-                                        :value "150"
-                                        :type :property-type-number}]}]}]
   (vec
     (concat
       (keep instance-desc->instance-property-descs (:instances collection-desc))
@@ -377,76 +330,3 @@
     :icon collection-common/collection-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))
-
-;; Parent CollectionNode -> CollectionInstanceNode
-[:base-url :base-url]
-[:id-counts :id-counts]
-
-;; CollectionInstanceNode -> Parent CollectionNode
-[:_node-id :nodes]
-[:build-targets :sub-build-targets]
-[:ddf-message :ref-coll-ddf]
-[:go-inst-ids :go-inst-ids]
-[:id :ids]
-[:node-outline :child-outlines]
-[:resource-property-build-targets :resource-property-build-targets]
-[:scene :child-scenes]
-[:sub-ddf-properties :ddf-properties]
-
-;; ReferencedGOInstanceNode -> Parent CollectionNode
-[:_node-id :nodes]
-[:build-targets :dep-build-targets]
-[:ddf-message :ddf-label]
-[:ddf-properties :ddf-properties]
-[:go-inst-ids :go-inst-ids]
-[:id :ids]
-[:node-outline :child-outlines]
-[:resource-property-build-targets :resource-property-build-targets]
-[:scene :child-scenes]
-
-;; Parent CollectionNode -> ReferencedGOInstanceNode
-[:base-url :base-url]
-[:id-counts :id-counts]
-
-;; ReferencedGOInstanceNode -> ReferencedGOInstanceNode
-[:_node-id :nodes]
-[:id :child-ids]
-[:node-outline :child-outlines]
-[:scene :child-scenes]
-
-;; Referenced GameObjectNode -> ReferencedGOInstanceNode
-[:_node-id :source-id]
-[:build-targets :source-build-targets]
-[:ddf-component-properties :ddf-component-properties]
-[:node-outline :source-outline]
-[:resource :source-resource]
-[:resource-property-build-targets :resource-property-build-targets]
-[:scene :scene]
-
-;; ReferencedGOInstanceNode -> Referenced GameObjectNode
-[:url :base-url]
-
-;; Referenced CollectionNode -> CollectionInstanceNode
-[:_node-id :source-id]
-[:build-targets :build-targets]
-[:ddf-properties :ddf-properties]
-[:go-inst-ids :go-inst-ids]
-[:node-outline :source-outline]
-[:resource :source-resource]
-[:resource-property-build-targets :resource-property-build-targets]
-[:scene :scene]
-
-;; CollectionInstanceNode -> Referenced CollectionNode
-[:url :base-url]
-
-;; Referenced CollectionNode -> CollectionProxyNode
-[:build-targets :dep-build-targets]
-[:resource :collection-resource]
-
-;; Referenced CollectionNode -> FactoryNode
-[:build-targets :dep-build-targets]
-[:resource :prototype-resource]
-
-;; Referenced GameObjectNode -> FactoryNode
-[:build-targets :dep-build-targets]
-[:resource :prototype-resource]
