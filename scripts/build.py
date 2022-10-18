@@ -1974,7 +1974,7 @@ class Configuration(object):
             ld_library_paths.append('%s/ext/SDKs/linux/%s/%s/lib' % (self.dynamo_home, sdk.PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
 
         env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
-        print("MAWE: build %s :", ld_library_path, env[ld_library_path]) # Debugging
+        print("MAWE: build :", ld_library_path, env[ld_library_path]) # Debugging
 
         pythonpaths = ['%s/lib/python' % self.dynamo_home,
                       '%s/build_tools' % self.defold,
