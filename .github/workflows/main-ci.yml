@@ -2,24 +2,24 @@ name: CI - Main
 
 on:
   push:
-     branches:
-       - '*'
-       - '!skip-ci-*'
-       - '!DEFEDIT-*'
-       - '!editor-dev'
+    branches:
+      - 'hotfix-*'
+      - 'dev'
+      - 'beta'
+      - 'master'
   pull_request:
-     branches:
+    branches:
        - '*'
        - '!skip-ci-*'
        - '!DEFEDIT-*'
        - '!editor-dev'
   pull_request_target:
-     branches:
+    branches:
        - '*'
        - '!skip-ci-*'
        - '!DEFEDIT-*'
        - '!editor-dev'
-     types: [labeled]
+    types: [labeled]
   repository_dispatch: {}
 
 env:
@@ -41,27 +41,16 @@ env:
 
 
 jobs:
-# ---- PRE-CHECK step 1
+# ---- PRE-CHECK
 # ---- * Do not proceed if commit message contains "skip-ci"
 # ---- * If workflow is started from a "pull_request" event only proceed if coming from the Defold org
-# ---- * If workflow is started from a "pull_request_target" event only proceed if it has the label "ok to test"
-  pre_check:
+# ---- * If workflow is started from a "pull_equest_target" event only proceed if it has the label "ok to test"
+  pre-check:
     runs-on: ubuntu-20.04
     if: |
       !contains(github.event.head_commit.message, 'skip-ci') &&
       (github.event_name != 'pull_request'        || (github.event_name == 'pull_request'        && github.event.pull_request.head.repo.full_name == github.repository)) &&
       (github.event_name != 'pull_request_target' || (github.event_name == 'pull_request_target' && contains(github.event.pull_request.labels.*.name, 'ok to test')))
-    steps: [
-      {
-        name: 'Skip Concurrent Check', uses: fkirc/skip-duplicate-actions@v5, with: { concurrent_skipping: 'same_content' }
-      }]
-
-# ---- PRE-CHECK step 2
-# ---- * Check outcome of 'skip-duplicate-actions'
-  pre-check-ok:
-    needs: [pre_check]
-    runs-on: ubuntu-20.04
-    if: ${{ needs.pre_check.outputs.should_skip != 'true' }}
     steps: [
       {
         shell: bash,
@@ -70,7 +59,7 @@ jobs:
 
 # ---- BUILD ENGINE VERSIONS ------------------
   bld-eng-windows:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
@@ -95,7 +84,7 @@ jobs:
       }]
 
   bld-eng-macos:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [x86_64-macos]
@@ -118,7 +107,7 @@ jobs:
       }]
 
   bld-eng-ios:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [arm64-ios, x86_64-ios]
@@ -142,7 +131,7 @@ jobs:
       }]
 
   bld-eng-web:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [js-web, wasm-web]
@@ -166,7 +155,7 @@ jobs:
       }]
 
   bld-eng-android:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
@@ -190,7 +179,7 @@ jobs:
       }]
 
   bld-eng-linux:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [x86_64-linux]
@@ -214,7 +203,7 @@ jobs:
       }]
 
   bld-eng-switch:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [arm64-nx64]
@@ -239,7 +228,7 @@ jobs:
       }]
 
   bld-eng-ps4:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [x86_64-ps4]

@@ -3,12 +3,16 @@ name: CI - Editor Only
 on:
   push:
     branches:
-      - 'DEFEDIT-*'
       - 'editor-dev'
   pull_request:
     branches:
       - 'DEFEDIT-*'
       - 'editor-dev'
+  pull_request_target:
+    branches:
+       - 'DEFEDIT-*'
+       - 'editor-dev'
+    types: [labeled]
 
 env:
   S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}

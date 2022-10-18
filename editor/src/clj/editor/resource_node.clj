@@ -172,7 +172,8 @@
                :write-fn (partial protobuf/map->str ddf-type))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
-(defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn icon view-types tags tag-opts label] :as args}]
+(defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]
+  {:pre [(seqable? meta-settings)]}
   (let [read-fn (fn [resource]
                   (with-open [setting-reader (io/reader resource)]
                     (settings-core/parse-settings setting-reader)))
@@ -182,5 +183,6 @@
                           (let [source-value (read-fn resource)]
                             (load-fn project self resource source-value)))
                :read-fn read-fn
-               :write-fn (comp settings-core/settings->str settings-core/settings-with-value))]
+               :write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
+                               settings-core/settings-with-value))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
