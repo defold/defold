@@ -6,10 +6,18 @@ import os, sys, glob, re
 import run, sdk
 import waf_gamesys
 
+def printDict(env):
+    for k,v in sorted(env.items()):
+        print("  ", k, ":", v)
+
 # 1. We want to run it with run.py so that it logs nicely with [exec] ...
 # 2. We need to add DYLD_INSERT_LIBRARIES for macOS
 def run_bob(task):
     env = dict(os.environ)
+
+    print("MAWE run_bob: os.environ")
+    printDict(env)
+
     merged_table = task.env.get_merged_dict()
     keys=list(merged_table.keys())
     for key in keys:
@@ -17,6 +25,7 @@ def run_bob(task):
         if isinstance(v, str):
             env[key] = v
 
+    print("MAWE: DYLD_INSERT_LIBRARIES (before):", env.get('DYLD_INSERT_LIBRARIES', 'null')) # DEBUGGING
     if Options.options.with_asan:
         platform = env['PLATFORM']
         if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
@@ -26,6 +35,11 @@ def run_bob(task):
             else:
                 env['DYLD_INSERT_LIBRARIES'] = ""
             env['DYLD_INSERT_LIBRARIES'] += sdkinfo['asan']['path']
+
+    print("MAWE: DYLD_INSERT_LIBRARIES (after):", env.get('DYLD_INSERT_LIBRARIES', 'null')) # DEBUGGING
+
+    print("MAWE run_bob: env")
+    printDict(env)
 
     args = task.generator.run_args
     output = run.env_command(env, args.split())

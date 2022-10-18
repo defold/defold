@@ -146,6 +146,27 @@ static void OutputMesh(Mesh* mesh, int indent)
     //         printf("\n");
     // }
     // printf("\n");
+
+    float minX = 1000000.0f;
+    float minY = 1000000.0f;
+    float minZ = 1000000.0f;
+    float maxX = -1000000.0f;
+    float maxY = -1000000.0f;
+    float maxZ = -1000000.0f;
+    for (uint32_t i = 0; i < mesh->m_VertexCount; ++i)
+    {
+        float x = mesh->m_Positions[i*3+0];
+        float y = mesh->m_Positions[i*3+1];
+        float z = mesh->m_Positions[i*3+2];
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (z < minZ) minZ = z;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+        if (z > maxZ) maxZ = z;
+    }
+
+    printf("  AABB(min/max): %f, %f, %f / %f, %f, %f\n", minX, minY, minZ, maxX, maxY, maxZ);
 }
 
 static void OutputModel(Model* model, int indent)
