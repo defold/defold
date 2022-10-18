@@ -1973,7 +1973,11 @@ class Configuration(object):
         if self.host == 'x86_64-linux':
             ld_library_paths.append('%s/ext/SDKs/linux/%s/%s/lib' % (self.dynamo_home, sdk.PACKAGES_LINUX_CLANG, PACKAGES_TAPI_VERSION))
 
-        env[ld_library_path] = os.path.pathsep.join(ld_library_paths)
+        ld_library_path_prev = ''
+        if ld_library_path in env:
+            ld_library_path_prev = env[ld_library_path] + os.path.pathsep
+            print("MAWE: build ld_library_path_prev:", ld_library_path_prev) # Debugging
+        env[ld_library_path] = ld_library_path_prev + os.path.pathsep.join(ld_library_paths)
         print("MAWE: build :", ld_library_path, env[ld_library_path]) # Debugging
 
         pythonpaths = ['%s/lib/python' % self.dynamo_home,
