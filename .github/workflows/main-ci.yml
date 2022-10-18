@@ -58,7 +58,7 @@ jobs:
       }]
 
 # ---- BUILD ENGINE VERSIONS ------------------
-    bld-eng-macos-64:
+  bld-eng-macos-64:
     runs-on: macOS-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2 },
