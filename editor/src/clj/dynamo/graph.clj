@@ -1164,31 +1164,31 @@
    (s/validate opts-schema opts)
    (let [arcs-by-source (partial deep-arcs-by-source basis)
          arcs-by-target (partial gt/arcs-by-target basis)
-         serializer     #(assoc (serializer (gt/node-by-id-at basis %2)) :serial-id %1)
-         original-ids   (input-traverse basis traverse? root-ids)
-         replacements   (zipmap original-ids (map-indexed serializer original-ids))
-         serial-ids     (into {}
-                              (mapcat (fn [[original-id {serial-id :serial-id}]]
-                                        (map #(vector % serial-id)
-                                             (override-originals basis original-id))))
-                              replacements)
-         include-arc?   (partial ig/arc-endpoints-p
-                                 (fn [id label]
-                                   (or (contains? serial-ids id)
-                                       (and (contains? external-refs id)
-                                            (contains? (get external-labels id) label)))))
-         arc-ids        (into serial-ids external-refs)
-         serialize-arc  (partial serialize-arc arc-ids)
-         incoming-arcs  (mapcat arcs-by-target original-ids)
-         outgoing-arcs  (mapcat arcs-by-source original-ids)
-         fragment-arcs  (into []
-                              (comp (filter include-arc?)
-                                    (map serialize-arc)
-                                    (distinct))
-                              (concat incoming-arcs outgoing-arcs))]
-     {:roots              (mapv serial-ids root-ids)
-      :nodes              (vec (vals replacements))
-      :arcs               fragment-arcs
+         serializer #(assoc (serializer (gt/node-by-id-at basis %2)) :serial-id %1)
+         original-ids (input-traverse basis traverse? root-ids)
+         replacements (zipmap original-ids (map-indexed serializer original-ids))
+         serial-ids (into {}
+                          (mapcat (fn [[original-id {serial-id :serial-id}]]
+                                    (map #(vector % serial-id)
+                                         (override-originals basis original-id))))
+                          replacements)
+         include-arc? (partial ig/arc-endpoints-p
+                               (fn [id label]
+                                 (or (contains? serial-ids id)
+                                     (and (contains? external-refs id)
+                                          (contains? (get external-labels id) label)))))
+         serialize-dictionary (into serial-ids external-refs)
+         serialize-arc (partial serialize-arc serialize-dictionary)
+         incoming-arcs (mapcat arcs-by-target original-ids)
+         outgoing-arcs (mapcat arcs-by-source original-ids)
+         fragment-arcs (into []
+                             (comp (filter include-arc?)
+                                   (map serialize-arc)
+                                   (distinct))
+                             (concat incoming-arcs outgoing-arcs))]
+     {:roots (mapv serial-ids root-ids)
+      :nodes (vec (vals replacements))
+      :arcs fragment-arcs
       :node-id->serial-id serial-ids})))
 
 (defn- deserialize-arc
