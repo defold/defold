@@ -57,3 +57,7 @@ Then call the ModelUtil directly using:
 $ ./com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/test_model_util.sh <path_to_model_file>
 ```
 
+
+### ModelViewer
+
+The `modelview.py` is an old model viewer script. Depends on the python wheel package `pyglet` (tested with version 1.5.26).
