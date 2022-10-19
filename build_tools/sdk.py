@@ -119,7 +119,6 @@ def _convert_darwin_platform(platform):
     return 'unknown'
 
 def _get_xcode_local_path():
-    #return '/Applications/Xcode.app/Contents/Developer'
     return run.shell_command('xcode-select -print-path')
 
 # "xcode-select -print-path" will give you "/Applications/Xcode.app/Contents/Developer"
