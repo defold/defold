@@ -45,10 +45,10 @@ def _exec_command(arg_list, **kwargs):
 
         output = ''
         while True:
-            line = process.stdout.readline().decode("unicode_escape")
+            line = process.stdout.readline().decode().replace("\\/", "/").rstrip()
             if line != '':
                 output += line
-                _log(line.rstrip())
+                _log(line)
             else:
                 break
 
@@ -60,7 +60,6 @@ def _exec_command(arg_list, **kwargs):
 
 def get_status(uuid, notarization_username, notarization_password, notarization_team_id = None):
     args = ['xcrun', 'notarytool', 'info',
-            '--verbose',
             '--progress',
             '--output-format', 'json',
             '--apple-id', notarization_username,
@@ -88,7 +87,6 @@ def notarize(app, notarization_username, notarization_password, notarization_tea
     _log('Sending editor for notarization')
 
     args = ['xcrun', 'notarytool', 'submit',
-            '--verbose',
             '--progress',
             '--output-format', 'json',
             '--apple-id', notarization_username,
