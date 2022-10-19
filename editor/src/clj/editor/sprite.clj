@@ -389,13 +389,21 @@
         material (workspace/resolve-resource resource (:material sprite))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
-      (g/set-property self :image image)
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite))
       (g/set-property self :size-mode (:size-mode sprite))
       (g/set-property self :size (v4->v3 (:size sprite)))
-      (g/set-property self :slice9 (:slice9 sprite)))))
+      (g/set-property self :slice9 (:slice9 sprite))
+
+      ;; The size property value clause is dependent on size metadata from the
+      ;; image, and the old value is evaluated whenever the property is set (for
+      ;; use in the property setter function). Assigning the image property
+      ;; after the size property ensures the dependent property value clause
+      ;; does not perform the expensive image size metadata computation for the
+      ;; ignored old-value of the size property. This saves immensely on load
+      ;; times for projects with a lot of sprites.
+      (g/set-property self :image image))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

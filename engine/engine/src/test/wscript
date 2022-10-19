@@ -60,7 +60,6 @@ def build(bld):
         web_libs = ['library_sys.js', 'library_script.js'],
         includes = '../../proto .',
         defines = defines,
-        #source = 'test_engine.cpp',
         source = bld.path.ant_glob('**/*.cpp'),
         target = 'test_engine')
 

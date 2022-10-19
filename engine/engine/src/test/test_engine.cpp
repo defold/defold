@@ -287,7 +287,7 @@ TEST_F(EngineTest, BufferResources)
 // #if !(defined(__NX__) || defined(__SCE__)) // until we've added support for it
 // TEST_F(EngineTest, MemCpuProfiler)
 // {
-//     #ifndef SANITIZE_ADDRESS
+//     #ifndef DM_SANITIZE_ADDRESS
 //         // DEF-3677
 //         // DE 20181217
 //         // When ASAN is enabled the amount of memory used (resident_size) actually increases after

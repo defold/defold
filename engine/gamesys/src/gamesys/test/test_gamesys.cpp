@@ -3135,7 +3135,7 @@ TEST_F(ScriptBufferTest, RefCount)
     // is just when Buffer_tostring issues a lua_error that we end up with a ASAN error
     // in ScriptBufferCopyTest.CopyBuffer
     // Disabling this test to make the dev nightly builds pass.
-#if !defined(__SANITIZE_ADDRESS__)
+#if defined(GITHUB_CI) && !defined(DM_SANITIZE_ADDRESS)
     dmLogWarning("Expected error outputs ->");
 
     ASSERT_FALSE(RunString(L, "print(test_buffer)"));

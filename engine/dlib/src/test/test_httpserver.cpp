@@ -279,7 +279,7 @@ void RunPythonThread(void* ctx)
     *result = system("python src/test/test_httpserver.py");
 }
 
-#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
+#if !defined(DM_SANITIZE_ADDRESS) // until we can load the dylibs properly
 
 TEST_F(dmHttpServerTest, TestServer)
 {

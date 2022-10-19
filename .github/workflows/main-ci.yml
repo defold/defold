@@ -2,24 +2,24 @@ name: CI - Main
 
 on:
   push:
-     branches:
-       - '*'
-       - '!skip-ci-*'
-       - '!DEFEDIT-*'
-       - '!editor-dev'
+    branches:
+      - 'hotfix-*'
+      - 'dev'
+      - 'beta'
+      - 'master'
   pull_request:
-     branches:
+    branches:
        - '*'
        - '!skip-ci-*'
        - '!DEFEDIT-*'
        - '!editor-dev'
   pull_request_target:
-     branches:
+    branches:
        - '*'
        - '!skip-ci-*'
        - '!DEFEDIT-*'
        - '!editor-dev'
-     types: [labeled]
+    types: [labeled]
   repository_dispatch: {}
 
 env:
@@ -41,27 +41,16 @@ env:
 
 
 jobs:
-# ---- PRE-CHECK step 1
+# ---- PRE-CHECK
 # ---- * Do not proceed if commit message contains "skip-ci"
 # ---- * If workflow is started from a "pull_request" event only proceed if coming from the Defold org
-# ---- * If workflow is started from a "pull_request_target" event only proceed if it has the label "ok to test"
-  pre_check:
+# ---- * If workflow is started from a "pull_equest_target" event only proceed if it has the label "ok to test"
+  pre-check:
     runs-on: ubuntu-20.04
     if: |
       !contains(github.event.head_commit.message, 'skip-ci') &&
       (github.event_name != 'pull_request'        || (github.event_name == 'pull_request'        && github.event.pull_request.head.repo.full_name == github.repository)) &&
       (github.event_name != 'pull_request_target' || (github.event_name == 'pull_request_target' && contains(github.event.pull_request.labels.*.name, 'ok to test')))
-    steps: [
-      {
-        name: 'Skip Concurrent Check', uses: fkirc/skip-duplicate-actions@v5, with: { concurrent_skipping: 'same_content' }
-      }]
-
-# ---- PRE-CHECK step 2
-# ---- * Check outcome of 'skip-duplicate-actions'
-  pre-check-ok:
-    needs: [pre_check]
-    runs-on: ubuntu-20.04
-    if: ${{ needs.pre_check.outputs.should_skip != 'true' }}
     steps: [
       {
         shell: bash,
@@ -70,14 +59,14 @@ jobs:
 
 # ---- BUILD ENGINE VERSIONS ------------------
   bld-eng-windows:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
     runs-on: windows-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -95,14 +84,14 @@ jobs:
       }]
 
   bld-eng-macos:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [x86_64-macos]
     runs-on: macOS-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Build engine',
@@ -118,14 +107,14 @@ jobs:
       }]
 
   bld-eng-ios:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [arm64-ios, x86_64-ios]
     runs-on: macOS-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -142,20 +131,20 @@ jobs:
       }]
 
   bld-eng-web:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [js-web, wasm-web]
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs --skip-build-tests engine'
       },
       {
        name: 'Notify if build status changed',
@@ -166,14 +155,14 @@ jobs:
       }]
 
   bld-eng-android:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [armv7-android, arm64-android]
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -190,14 +179,14 @@ jobs:
       }]
 
   bld-eng-linux:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [x86_64-linux]
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -214,14 +203,14 @@ jobs:
       }]
 
   bld-eng-switch:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [arm64-nx64]
     runs-on: windows-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -239,14 +228,14 @@ jobs:
       }]
 
   bld-eng-ps4:
-    needs: [pre-check-ok]
+    needs: [pre-check]
     strategy:
       matrix:
         platform: [x86_64-ps4]
     runs-on: windows-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
@@ -269,8 +258,8 @@ jobs:
     needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Build bob',
@@ -289,8 +278,8 @@ jobs:
     needs: [bld-eng-macos, bld-eng-ios, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps4]
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       {
         name: 'Build SDK',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
@@ -310,9 +299,9 @@ jobs:
     needs: [build-bob]
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
       {
@@ -340,8 +329,8 @@ jobs:
       matrix:
         platform: [x86_64-macos]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Download editor',
@@ -384,8 +373,8 @@ jobs:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Download editor',
@@ -431,8 +420,8 @@ jobs:
     needs: [sign-editor-darwin, sign-editor-windows]
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
         name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)

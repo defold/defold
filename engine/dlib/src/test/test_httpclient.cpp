@@ -520,6 +520,12 @@ TEST_P(dmHttpClientTest, ThreadStress)
 
 TEST_P(dmHttpClientTest, NoKeepAlive)
 {
+#if defined(GITHUB_CI) && defined(DM_SANITIZE_ADDRESS)
+    if (strstr(GetParam(), "https://") != 0) {
+        dmLogWarning("Test '%s' skipped due to the added time it takes to perform", __FUNCTION__);
+        SKIP();
+    }
+#endif
     char buf[128];
 
     for (int i = 0; i < NUM_ITERATIONS; ++i)
