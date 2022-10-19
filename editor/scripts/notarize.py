@@ -45,7 +45,7 @@ def _exec_command(arg_list, **kwargs):
 
         output = ''
         while True:
-            line = process.stdout.readline().decode()
+            line = process.stdout.readline().decode("unicode_escape")
             if line != '':
                 output += line
                 _log(line.rstrip())
