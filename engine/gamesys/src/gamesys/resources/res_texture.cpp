@@ -120,29 +120,29 @@ namespace dmGameSystem
             dmGraphics::TextureParams params;
             dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
             params.m_Format = output_format;
-            params.m_Width = image->m_Width;
+            params.m_Width  = image->m_Width;
             params.m_Height = image->m_Height;
+            params.m_Depth  = image_desc->m_DDFImage->m_Count;
 
             assert(image->m_MipMapOffset.m_Count <= s_MaxMipCount);
 
             switch(image_desc->m_DDFImage->m_Type)
             {
                 case dmGraphics::TextureImage::TYPE_2D:
-                    creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
+                    creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_2D;
                     break;
                 case dmGraphics::TextureImage::TYPE_2D_ARRAY:
                     creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
-                    creation_params.m_Depth = image_desc->m_DDFImage->m_Count;
-                    params.m_Depth          = image_desc->m_DDFImage->m_Count;
                     break;
                 case dmGraphics::TextureImage::TYPE_CUBEMAP:
-                    creation_params.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+                    creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
                     break;
                 default: assert(0);
             }
 
             creation_params.m_Width          = image->m_Width;
             creation_params.m_Height         = image->m_Height;
+            creation_params.m_Depth          = image_desc->m_DDFImage->m_Count;
             creation_params.m_OriginalWidth  = image->m_OriginalWidth;
             creation_params.m_OriginalHeight = image->m_OriginalHeight;
             creation_params.m_MipMapCount    = image->m_MipMapOffset.m_Count;

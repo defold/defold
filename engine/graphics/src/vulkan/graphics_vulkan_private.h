@@ -80,6 +80,7 @@ namespace dmGraphics
         DeviceBuffer   m_DeviceBuffer;
         uint16_t       m_Width;
         uint16_t       m_Height;
+        uint16_t       m_Depth;
         uint16_t       m_OriginalWidth;
         uint16_t       m_OriginalHeight;
         uint16_t       m_MipMapCount         : 5;
@@ -388,7 +389,10 @@ namespace dmGraphics
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;
         TextureFilter                   m_DefaultTextureMagFilter;
-        Texture*                        m_DefaultTexture;
+        Texture*                        m_DefaultTexture2D;
+        Texture*                        m_DefaultTexture2DArray;
+        Texture*                        m_DefaultTextureCubeMap;
+        Texture                         m_ResolveTexture;
         uint64_t                        m_TextureFormatSupport;
         uint32_t                        m_Width;
         uint32_t                        m_Height;
@@ -439,7 +443,7 @@ namespace dmGraphics
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
         uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut);
     VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        uint32_t imageWidth, uint32_t imageHeight, uint16_t imageMips,
+        uint32_t imageWidth, uint32_t imageHeight, uint32_t imageLayers, uint16_t imageMips,
         VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling,
         VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags,
         VkImageAspectFlags vk_aspect, VkImageLayout vk_initial_layout, Texture* textureOut);

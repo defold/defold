@@ -834,6 +834,7 @@ namespace dmRender
                 dmGraphics::HTexture texture = ro->m_Textures[i];
                 if (render_context->m_Textures[i])
                     texture = render_context->m_Textures[i];
+
                 if (texture)
                 {
                     HSampler sampler = GetMaterialSampler(material, i);
