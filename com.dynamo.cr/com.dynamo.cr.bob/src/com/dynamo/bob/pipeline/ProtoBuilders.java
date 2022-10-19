@@ -82,8 +82,18 @@ public class ProtoBuilders {
     }
 
     private static void validateMaterialAtlasCompatability(Project project, IResource resource, String material, String textureSet) throws IOException, CompileExceptionError {
+        if (material == null || textureSet == null) {
+            return;
+        }
+
         if (textureSet.endsWith("atlas")) {
             IResource atlasResource    = project.getResource(textureSet);
+            IResource materialResource = project.getResource(material);
+
+            if (atlasResource.getContent() == null || materialResource.getContent() == null) {
+                return;
+            }
+
             Atlas.Builder atlasBuilder = Atlas.newBuilder();
             ProtoUtil.merge(atlasResource, atlasBuilder);
 
@@ -93,7 +103,6 @@ public class ProtoBuilders {
             Point3 atlasMaxPageSize           = atlasBuilder.getMaxPageSize();
             boolean textureSetHasArrayTexture = atlasMaxPageSize.getX() > 0 && atlasMaxPageSize.getY() > 0;
 
-            IResource materialResource           = project.getResource(material);
             MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
             ProtoUtil.merge(materialResource, materialBuilder);
 

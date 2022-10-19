@@ -18,6 +18,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,6 +44,10 @@ public class TextureSetLayoutTest {
 
     private static List<Layout> packedLayout(int margin, List<Rect> rectangles) {
         return TextureSetLayout.packedLayout(margin, rectangles, true, 0, 0);
+    }
+
+    private static List<Layout> packedLayoutPaged(int margin, List<Rect> rectangles, float maxPageSizeW, float maxPageSizeH) {
+        return TextureSetLayout.packedLayout(margin, rectangles, true, maxPageSizeW, maxPageSizeH);
     }
 
     private static Layout gridLayout(int margin, List<Rect> rectangles, Grid gridSize) {
@@ -172,6 +177,24 @@ public class TextureSetLayoutTest {
         assertThat(layout.getWidth(), is(1));
         assertThat(layout.getHeight(), is(16));
         assertRect(layout, 0, "0", 0, 0, 0);
+    }
+
+    @Test
+    public void testBasicPaged() {
+        List<TextureSetLayout.Rect> rectangles
+            = Arrays.asList(rect("0", 0, 32, 32),
+                            rect("1", 1, 16, 16));
+
+        List<Layout> layouts = packedLayoutPaged(0, rectangles, 32, 32);
+        assertTrue(layouts.size() == 2);
+
+        Layout layout0 = layouts.get(0);
+        Layout layout1 = layouts.get(1);
+
+        assertThat(layout0.getWidth(), is(32));
+        assertThat(layout0.getHeight(), is(32));
+        assertTrue(layout0.getWidth() == layout1.getWidth());
+        assertTrue(layout0.getHeight() == layout1.getHeight());
     }
 
     private Rect rect(String id, int index, int w, int h) {

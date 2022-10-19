@@ -42,4 +42,41 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         int expectedSize = (16 * 16 + 8 * 8 + 4 * 4 + 2 * 2 + 1) * 4;
         assertEquals(expectedSize, textureImage.getAlternatives(0).getData().size());
     }
+
+    @Test
+    public void testAtlasPaged() throws Exception {
+        addImage("/test1.png", 16, 16);
+        addImage("/test2.png", 16, 16);
+
+        StringBuilder src = new StringBuilder();
+        src.append("images: {");
+        src.append("  image: \"/test1.png\"");
+        src.append("}");
+
+        src.append("images: {");
+        src.append("  image: \"/test2.png\"");
+        src.append("}");
+
+        src.append("max_page_size: {");
+        src.append("  x: 16.0");
+        src.append("  y: 16.0");
+        src.append("  z: 0.0");
+        src.append("}");
+
+        src.append("max_page_count: 2");
+
+        List<Message> outputs = build("/test.atlas", src.toString());
+        TextureSet textureSet = (TextureSet)outputs.get(0);
+        TextureImage textureImage1 = (TextureImage)outputs.get(1);
+
+        assertNotNull(textureSet);
+        assertNotNull(textureImage1);
+
+        assertEquals(textureSet.getMaxPageCount(), 2);
+        assertEquals(textureSet.getPageIndices(0), 0);
+        assertEquals(textureSet.getPageIndices(1), 1);
+
+        int expectedSize = (16 * 16 + 8 * 8 + 4 * 4 + 2 * 2 + 1) * 4 * 2;
+        assertEquals(expectedSize, textureImage1.getAlternatives(0).getData().size());
+    }
 }
