@@ -415,7 +415,6 @@ def default_flags(self):
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
         if 'x86_64' == build_util.get_target_architecture():
-            sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_IPHONESIMULATOR)
             swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
