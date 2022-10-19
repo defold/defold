@@ -37,7 +37,12 @@ def run_bob(task):
             env['DYLD_INSERT_LIBRARIES'] += sdkinfo['asan']['path']
 
             java_lib_path = os.path.join(os.environ['JAVA_HOME'], 'lib')
-            env['DYLD_INSERT_LIBRARIES'] += os.pathsep + java_lib_path
+            if 'DYLD_LIBRARY_PATH' in env:
+                env['DYLD_LIBRARY_PATH'] += os.pathsep + java_lib_path
+            else:
+                env['DYLD_LIBRARY_PATH'] = java_lib_path
+
+            env['DYLD_PRINT_LIBRARIES'] = '1'
 
     print("MAWE: DYLD_INSERT_LIBRARIES (after):", env.get('DYLD_INSERT_LIBRARIES', 'null')) # DEBUGGING
 
