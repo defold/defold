@@ -42,7 +42,7 @@ namespace dmGameSystem
     using namespace dmVMath;
 
     /// Config key to use for tweaking maximum number of collision objects
-    const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY   = "physics.max_count";
+    const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY   = "physics.max_collision_object_count";
     /// Config key to use for tweaking maximum number of collisions reported
     const char* PHYSICS_MAX_COLLISIONS_KEY          = "physics.max_collisions";
     /// Config key to use for tweaking maximum number of contacts reported
@@ -866,7 +866,7 @@ namespace dmGameSystem
         }
         if (world->m_Components.Full())
         {
-            dmLogError("Collision Object could not be created since the buffer is full (%d). See 'physics.max_count' in game.project", world->m_Components.Capacity());
+            dmLogError("Collision Object could not be created since the buffer is full (%d). See 'physics.max_collision_object_count' in game.project", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
