@@ -42,6 +42,7 @@ struct Params
 
 struct ProjectOptions {
   uint32_t m_MaxCollisionCount;
+  uint32_t m_MaxCollisionObjectCount;
   uint32_t m_MaxContactPointCount;
   bool m_3D;
   float m_Scale;
@@ -72,6 +73,7 @@ public:
     GamesysTest() {
         // Default configuration values for the engine. Subclass GamesysTest and ovewrite in constructor.
         this->m_projectOptions.m_MaxCollisionCount = 0;
+        this->m_projectOptions.m_MaxCollisionObjectCount = 0;
         this->m_projectOptions.m_MaxContactPointCount = 0;
         this->m_projectOptions.m_3D = false;
         this->m_projectOptions.m_Scale = 1.0f;
@@ -146,6 +148,7 @@ public:
       // override configuration values specified in GamesysTest()
       m_projectOptions.m_MaxCollisionCount = 32;
       m_projectOptions.m_MaxContactPointCount = 64;
+      m_projectOptions.m_MaxCollisionObjectCount = 512;
       m_projectOptions.m_3D = true;
     }
 };
@@ -425,6 +428,7 @@ void GamesysTest<T>::SetUp()
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
     m_PhysicsContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
     m_PhysicsContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
+    m_PhysicsContext.m_MaxCollisionObjectCount = this->m_projectOptions.m_MaxCollisionObjectCount;
     m_PhysicsContext.m_3D = this->m_projectOptions.m_3D;
     if (m_PhysicsContext.m_3D) {
         m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
@@ -474,6 +478,7 @@ void GamesysTest<T>::SetUp()
 
     m_PhysicsContext.m_MaxCollisionCount = 64;
     m_PhysicsContext.m_MaxContactPointCount = 128;
+    m_PhysicsContext.m_MaxCollisionObjectCount = 512;
 
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, &m_PhysicsContext);
     ASSERT_EQ(dmResource::RESULT_OK, r);

@@ -155,6 +155,10 @@
    :label "Clear Color Alpha"
    :default 0,
    :path ["render" "clear_color_alpha"]}
+  {:type :integer,
+   :help "max number of collision objects, 128 by default",
+   :default 128,
+   :path ["physics" "max_collision_object_count"]}
   {:type :string,
    :help "which type of physics to use, 2D (default) or 3D",
    :default "2D",
