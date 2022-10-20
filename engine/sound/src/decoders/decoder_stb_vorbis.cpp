@@ -28,7 +28,8 @@ namespace dmSoundCodec
     {
         struct DecodeStreamInfo {
             Info m_Info;
-            stb_vorbis *m_StbVorbis;
+            stb_vorbis* m_StbVorbis;
+            uint32_t m_NumSamples;
         };
     }
 
@@ -46,6 +47,8 @@ namespace dmSoundCodec
             streamInfo->m_Info.m_Channels = info.channels;
             streamInfo->m_Info.m_BitsPerSample = 16;
             streamInfo->m_StbVorbis = vorbis;
+
+            streamInfo->m_NumSamples = (uint32_t)stb_vorbis_stream_length_in_samples(vorbis);
 
             *stream = streamInfo;
             return RESULT_OK;
@@ -84,34 +87,57 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    Result StbVorbisResetStream(HDecodeStream stream)
+    static Result StbVorbisResetStream(HDecodeStream stream)
     {
         stb_vorbis_seek_start(((DecodeStreamInfo*)stream)->m_StbVorbis);
         return RESULT_OK;
     }
 
-    Result StbVorbisSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
+    static Result StbVorbisSkipInStream(HDecodeStream stream, uint32_t num_bytes, uint32_t* skipped)
     {
-        // Decode with buffer = null corresponding number of bytes.
-        // stb_vorbis has a special case for this skipping a lot of
-        // decoding work.
-        Result r = StbVorbisDecode(stream, 0, bytes, skipped);
-        return r;
+        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+        int sample_size = streamInfo->m_Info.m_Channels * (streamInfo->m_Info.m_BitsPerSample / 8);
+        int num_samples = num_bytes / sample_size;
+
+        int prev_sample = stb_vorbis_get_sample_offset(streamInfo->m_StbVorbis);
+        int samplepos = prev_sample >= 0 ? prev_sample + num_samples : num_samples;
+        if (samplepos > streamInfo->m_NumSamples)
+        {
+            samplepos = streamInfo->m_NumSamples;
+        }
+        int ret = stb_vorbis_seek(streamInfo->m_StbVorbis, samplepos);
+
+        if (ret < 0) {
+            return RESULT_DECODE_ERROR;
+        }
+
+        int cur_sample = stb_vorbis_get_sample_offset(streamInfo->m_StbVorbis);
+
+        *skipped = (cur_sample - prev_sample) * sample_size;
+        return RESULT_OK;
     }
 
-    void StbVorbisCloseStream(HDecodeStream stream)
+    static void StbVorbisCloseStream(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo*) stream;
         stb_vorbis_close(streamInfo->m_StbVorbis);
         delete streamInfo;
     }
 
-    void StbVorbisGetInfo(HDecodeStream stream, struct Info* out)
+    static void StbVorbisGetInfo(HDecodeStream stream, struct Info* out)
     {
         *out = ((DecodeStreamInfo *)stream)->m_Info;
     }
 
+    static int64_t StbVorbisGetInternalPos(HDecodeStream stream)
+    {
+        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+        return stb_vorbis_get_sample_offset(streamInfo->m_StbVorbis);
+    }
+
     DM_DECLARE_SOUND_DECODER(AudioDecoderStbVorbis, "VorbisDecoderStb", FORMAT_VORBIS,
                              5, // baseline score (1-10)
-                             StbVorbisOpenStream, StbVorbisCloseStream, StbVorbisDecode, StbVorbisResetStream, StbVorbisSkipInStream, StbVorbisGetInfo);
+                             StbVorbisOpenStream, StbVorbisCloseStream, StbVorbisDecode,
+                             StbVorbisResetStream, StbVorbisSkipInStream, StbVorbisGetInfo,
+                             StbVorbisGetInternalPos);
 }
