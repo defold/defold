@@ -1,6 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
-// Copyright 2014-2020 King
-// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Copyright 2020 The Defold Foundation
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 // 
@@ -12,24 +10,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "script.h"
-#include "script_private.h"
+#pragma once
 
-extern "C"
+#include <dlib/configfile.h>
+
+namespace dmTestUtil
 {
-#include "luasocket/luasocket.h"
-}
+    void GetSocketsFromConfig(dmConfigFile::HConfig config, int* socket, int* ssl_socket, int* test_sslsocket);
+    const char* GetIpFromConfig(dmConfigFile::HConfig config, char* ip, uint32_t iplen);
 
-namespace dmScript
-{
-    void InitializeLuasocket(lua_State* L)
-    {
-#if !defined(DM_LUASOCKET_UNSUPPORTED)
-        luaopen_socket_core(L);
-
-        // above call leaves a table on the stack, which will not be
-        // needed for anything, so clean up.
-        lua_pop(L, 1);
-#endif
-    }
+    const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path);
 }

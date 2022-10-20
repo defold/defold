@@ -10,7 +10,7 @@ def build(bld):
     source_null = 'devices/device_null.cpp sound_null.cpp'.split()
     decoders    = 'decoders/decoder_wav.cpp decoders/decoder_stb_vorbis.cpp stb_vorbis/stb_vorbis.c'.split()
 
-    if bld.env['PLATFORM'] not in ['arm64-nx64']:
+    if bld.env['PLATFORM'] not in ['arm64-nx64', 'x86_64-ps4']:
         decoders += 'decoders/decoder_tremolo.cpp'.split()
 
     source += decoders
@@ -22,6 +22,8 @@ def build(bld):
         source += ['sound_android.cpp']
     elif bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
         source += ['sound_ios.mm']
+    elif bld.env.PLATFORM in ('x86_64-ps4',):
+        source += ['sound_ps4.cpp']
     else:
         source += ['sound_generic.cpp']
 
@@ -32,6 +34,8 @@ def build(bld):
         source += ['devices/device_js.cpp']
     elif 'nx64' in bld.env.PLATFORM:
         source += ['devices/device_nx64.cpp']
+    elif 'ps4' in bld.env.PLATFORM:
+        source += ['devices/device_ps4.cpp']
     else:
         source += ['devices/device_openal.cpp']
         bld.recurse('openal')

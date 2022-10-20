@@ -138,9 +138,7 @@ def install(args):
 
         call("sudo apt-get install -y software-properties-common")
 
-        call("echo MAWE list clang executables")
         call("ls /usr/bin/clang*")
-        call("echo MAWE after")
 
         call("sudo update-alternatives --remove-all clang")
         call("sudo update-alternatives --remove-all clang++")
@@ -178,7 +176,12 @@ def install(args):
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False,
                 with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
                 skip_docs = False, skip_builtins = False, archive = False):
-    args = 'python scripts/build.py distclean install_sdk install_ext'.split()
+
+    install_sdk = ''
+    if not platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+        install_sdk = 'install_sdk'
+
+    args = ('python scripts/build.py distclean %s install_ext' % install_sdk).split()
 
     opts = []
     waf_opts = []

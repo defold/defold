@@ -144,7 +144,7 @@ namespace dmResource
     /**
      * Create a new factory
      * @param params New factory parameters
-     * @param uri Resource root uri, e.g. http://locahost:5000 or build/default/content
+     * @param uri Resource root uri, e.g. http://locahost:5000 or build/content
      * @return Factory handle. NULL if out of memory or invalid uri.
      */
     HFactory NewFactory(NewFactoryParams* params, const char* uri);
