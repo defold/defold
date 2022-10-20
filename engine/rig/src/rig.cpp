@@ -436,7 +436,7 @@ namespace dmRig
     {
         DM_PROFILE("RigAnimate");
 
-        const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
+        const dmArray<RigInstance*>& instances = context->m_Instances.GetRawObjects();
         uint32_t n = instances.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -557,7 +557,7 @@ namespace dmRig
 
     static Result PostUpdate(HRigContext context)
     {
-        const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
+        const dmArray<RigInstance*>& instances = context->m_Instances.GetRawObjects();
         uint32_t count = instances.Size();
         bool updated_pose = false;
         for (uint32_t i = 0; i < count; ++i)

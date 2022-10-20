@@ -39,10 +39,9 @@
  * @name dmObjectPool
  */
 template <typename T>
-struct dmObjectPool
+class dmObjectPool
 {
-    // all fields are private
-    dmArray<T>        m_Objects; // All objects [0..Size()]
+private:
 
     struct Entry
     {
@@ -50,10 +49,12 @@ struct dmObjectPool
         uint32_t m_Next;
     };
 
+    dmArray<T>          m_Objects; // All objects [0..Size()]
     dmArray<Entry>      m_Entries;
-    uint32_t            m_FirstFree;
     dmArray<uint32_t>   m_ToLogical;
+    uint32_t            m_FirstFree;
 
+public:
 
     /*#
      * Constructor
@@ -165,6 +166,17 @@ struct dmObjectPool
         // Put in free list
         e->m_Next = m_FirstFree;
         m_FirstFree = e - m_Entries.Begin();
+    }
+
+    /*#
+     * Get the array of currently active objects
+     * @note The order of objects in this array may change if Alloc() or Free() has been called
+     * @name GetRawObjects
+     * @return object [type: dmArray<T>&] a reference to the array of objects
+     */
+    dmArray<T>& GetRawObjects()
+    {
+        return m_Objects;
     }
 
     /*#
