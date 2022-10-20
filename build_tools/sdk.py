@@ -36,7 +36,7 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 ## **********************************************************************************************
 # Darwin
 
-VERSION_XCODE="13.2.1"
+VERSION_XCODE="13.2.1" # we also use this to match version on Github Actions
 VERSION_MACOSX="12.1"
 VERSION_IPHONEOS="15.2"
 VERSION_XCODE_CLANG="13.0.0"
@@ -118,23 +118,19 @@ def _convert_darwin_platform(platform):
         return 'iphonesimulator'
     return 'unknown'
 
+def _get_xcode_local_path():
+    return run.shell_command('xcode-select -print-path')
+
+# "xcode-select -print-path" will give you "/Applications/Xcode.app/Contents/Developer"
 def get_local_darwin_toolchain_path():
-    default_path = '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
+    default_path = '%s/Toolchains/XcodeDefault.xctoolchain' % _get_xcode_local_path()
     if os.path.exists(default_path):
         return default_path
-
-    path = run.shell_command('xcrun -f --show-sdk-path') # /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
-    substr = 'Contents/Developer'
-    if substr in path:
-        i = path.find(substr)
-        path = path[:i + len(substr)] + 'XcodeDefault.xctoolchain'
-        return path
-
-    return None
+    return '/Library/Developer/CommandLineTools'
 
 def get_local_darwin_toolchain_version():
     if not os.path.exists('/usr/bin/xcodebuild'):
-        return None
+        return VERSION_XCODE
     # Xcode 12.5.1
     # Build version 12E507
     xcode_version_full = run.shell_command('/usr/bin/xcodebuild -version')

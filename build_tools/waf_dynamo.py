@@ -378,7 +378,7 @@ def default_flags(self):
 
     elif "macos" == build_util.get_target_os():
 
-        sys_root = '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_MACOSX)
+        sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
@@ -414,10 +414,9 @@ def default_flags(self):
             extra_linkflags += ['-fobjc-link-runtime']
 
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
-        sys_root = '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_IPHONEOS)
+        sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
         if 'x86_64' == build_util.get_target_architecture():
-            sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_IPHONESIMULATOR)
             swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
