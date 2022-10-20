@@ -28,8 +28,8 @@ def configure(conf):
 
     conf.recurse('src')
 
-    conf.env.append_value('INCLUDES', "default/src")
-    conf.env['STLIB_DLIB'] = 'dlib'
+    conf.env.append_value('INCLUDES', "src")
+    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_HID_NULL'] = 'hid_null'
 

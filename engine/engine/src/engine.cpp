@@ -426,11 +426,12 @@ namespace dmEngine
             const char* mountstr = "";
 #if defined(__NX__)
             mountstr = "data:/";
+#endif
             // there's no way to check for a named mount, and it will assert
             // So we'll only enter here if it's set on this platform
-            if (dmSys::GetEnv("DM_MOUNT_HOST") != 0)
-                mountstr = "host:/";
-#endif
+            if (dmSys::GetEnv("DM_HOSTFS") != 0)
+                mountstr = dmSys::GetEnv("DM_HOSTFS");
+
             dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
             dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
             paths[count++] = p1;
@@ -1138,7 +1139,7 @@ namespace dmEngine
         dmGameSystem::ScriptLibContext script_lib_context;
 
         // Variables need to be declared up here due to the goto's
-        bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+        bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
 
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);

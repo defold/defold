@@ -138,9 +138,7 @@ def install(args):
 
         call("sudo apt-get install -y software-properties-common")
 
-        call("echo MAWE list clang executables")
         call("ls /usr/bin/clang*")
-        call("echo MAWE after")
 
         call("sudo update-alternatives --remove-all clang")
         call("sudo update-alternatives --remove-all clang++")

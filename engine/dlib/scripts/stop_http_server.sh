@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Copyright 2020-2022 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray

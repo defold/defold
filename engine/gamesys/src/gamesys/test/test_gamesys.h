@@ -49,6 +49,10 @@ struct ProjectOptions {
   float m_VelocityThreshold;
 };
 
+
+extern bool GameSystemTest_PlatformInit();
+extern void GameSystemTest_PlatformExit();
+
 template<typename T>
 class CustomizableGamesysTest : public jc_test_params_class<T>
 {
@@ -60,7 +64,7 @@ public:
     ProjectOptions m_projectOptions;
 protected:
     void SetUp(ProjectOptions& options) {
-      m_projectOptions = options;
+        m_projectOptions = options;
     }
 
     virtual void SetUp() = 0;
@@ -375,6 +379,8 @@ void GamesysTest<T>::SetupComponentCreateContext(dmGameObject::ComponentTypeCrea
 template<typename T>
 void GamesysTest<T>::SetUp()
 {
+    ASSERT_TRUE(GameSystemTest_PlatformInit());
+
     dmSound::Initialize(0x0, 0x0);
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -382,7 +388,7 @@ void GamesysTest<T>::SetUp()
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-    m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
+    m_Factory = dmResource::NewFactory(&params, DM_HOSTFS "build/src/gamesys/test");
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
     m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
@@ -533,6 +539,8 @@ void GamesysTest<T>::TearDown()
     }
     dmBuffer::DeleteContext();
     dmConfigFile::Delete(m_Config);
+
+    GameSystemTest_PlatformExit();
 }
 
 // Specific test class for testing dmBuffers in scripts
