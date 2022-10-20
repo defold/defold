@@ -3,9 +3,6 @@ name: CI - Editor Only
 on:
   push:
     branches:
-      - 'editor-dev'
-  pull_request:
-    branches:
       - 'DEFEDIT-*'
       - 'editor-dev'
   pull_request_target:
