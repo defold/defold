@@ -2,23 +2,15 @@ name: CI - Main
 
 on:
   push:
-    branches:
-      - 'hotfix-*'
-      - 'dev'
-      - 'beta'
-      - 'master'
-  pull_request:
-    branches:
-       - '*'
-       - '!skip-ci-*'
-       - '!DEFEDIT-*'
-       - '!editor-dev'
+    branches-ignore:
+       - 'skip-ci-*'
+       - 'DEFEDIT-*'
+       - 'editor-dev'
   pull_request_target:
-    branches:
-       - '*'
-       - '!skip-ci-*'
-       - '!DEFEDIT-*'
-       - '!editor-dev'
+    branches-ignore:
+       - 'skip-ci-*'
+       - 'DEFEDIT-*'
+       - 'editor-dev'
     types: [labeled]
   repository_dispatch: {}
 
@@ -44,7 +36,7 @@ jobs:
 # ---- PRE-CHECK
 # ---- * Do not proceed if commit message contains "skip-ci"
 # ---- * If workflow is started from a "pull_request" event only proceed if coming from the Defold org
-# ---- * If workflow is started from a "pull_equest_target" event only proceed if it has the label "ok to test"
+# ---- * If workflow is started from a "pull_request_target" event only proceed if it has the label "ok to test"
   pre-check:
     runs-on: ubuntu-20.04
     if: |
