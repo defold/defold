@@ -55,7 +55,8 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :as util])
-  (:import [javafx.event Event]
+  (:import [java.io File]
+           [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control Cell ComboBox ListView$EditEvent TableColumn$CellEditEvent TableView ListView]
            [javafx.scene.input KeyCode KeyEvent]
@@ -423,35 +424,56 @@
   {:set-ui-state (update-in ui-state state-path dissoc :edit)
    :dispatch (assoc on-edited :fx/event {:index index :item event})})
 
-(defmethod handle-event :add-list-element [{:keys [value
-                                                   on-added
-                                                   state-path
-                                                   ui-state
-                                                   element]}]
-  [[:dispatch (assoc on-added :fx/event [element])]
-   [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) [(count value)])]])
+(defn- absolute-or-maybe-proj-path
+  ^String [^File file workspace in-project]
+  (if in-project
+    (workspace/as-proj-path workspace file)
+    (.getAbsolutePath file)))
 
-(defmethod handle-event :add-list-resource [{:keys [workspace
-                                                    project
-                                                    filter
-                                                    value
-                                                    on-added
-                                                    state-path
-                                                    ui-state]}]
-  (let [resources (resource-dialog/make workspace project {:ext filter
-                                                           :selection :multiple})]
-    (when-not (empty? resources)
-      (let [value-count (count value)
-            added-count (count resources)
-            indices (vec (range value-count
-                                (+ value-count added-count)))]
-        [[:dispatch (assoc on-added :fx/event resources)]
-         [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) indices)]]))))
+(defn- add-list-elements [added-list-elements {:keys [on-added state-path ui-state value]}]
+  (let [old-element-count (count value)
+        new-element-count (+ old-element-count (count added-list-elements))
+        added-indices (vec (range old-element-count new-element-count))]
+    [[:dispatch (assoc on-added :fx/event added-list-elements)]
+     [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) added-indices)]]))
+
+(defmethod handle-event :add-list-element [{:keys [element fx/event project workspace] :as map-event}]
+  (case (:type element)
+    :directory
+    (when-some [selected-directory (dialogs/make-directory-dialog
+                                     (or (:title element) "Select Directory")
+                                     (workspace/project-path workspace)
+                                     (fxui/event->window event))]
+      (if-some [valid-directory-path (absolute-or-maybe-proj-path selected-directory workspace (:in-project element))]
+        (add-list-elements [valid-directory-path] map-event)
+        {:show-dialog :directory-not-in-project}))
+
+    :file
+    (when-some [selected-file (dialogs/make-file-dialog
+                                (or (:title element) "Select File")
+                                (:filter element)
+                                nil
+                                (fxui/event->window event))]
+      (if-some [valid-file-path (absolute-or-maybe-proj-path selected-file workspace (:in-project element))]
+        (add-list-elements [valid-file-path] map-event)
+        {:show-dialog :file-not-in-project}))
+
+    :resource
+    (when-some [selected-resources (not-empty (resource-dialog/make
+                                                workspace project
+                                                {:ext (:filter element)
+                                                 :selection :multiple}))]
+      (add-list-elements selected-resources map-event))
+
+    ;; default
+    (add-list-elements [(form/field-default element)] map-event)))
 
 (defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state]}]
   (let [indices-path (conj state-path :selected-indices)]
     [[:dispatch (assoc on-removed :fx/event (set (get-in ui-state indices-path)))]
-     [:set-ui-state (assoc-in ui-state indices-path [])]]))
+     [:set-ui-state (-> ui-state
+                        (assoc-in indices-path [])
+                        (update-in state-path dissoc :edit))]]))
 
 (defmethod handle-event :list-select [{:keys [state-path fx/event ui-state]}]
   {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
@@ -523,17 +545,11 @@
   (let [{:keys [selected-indices edit]} state
         disable-add (not (form/has-default? element))
         disable-remove (empty? selected-indices)
-        add-event (if (= :resource (:type element))
-                    {:event-type :add-list-resource
-                     :value value
-                     :on-added on-added
-                     :state-path state-path
-                     :filter (:filter element)}
-                    {:event-type :add-list-element
-                     :value value
-                     :on-added on-added
-                     :state-path state-path
-                     :element (form/field-default element)})
+        add-event {:event-type :add-list-element
+                   :value value
+                   :on-added on-added
+                   :state-path state-path
+                   :element element}
         remove-event {:event-type :remove-list-selection
                       :on-removed on-removed
                       :state-path state-path}]
@@ -677,14 +693,18 @@
 (defmethod handle-event :on-file-selected [{:keys [on-value-changed
                                                    filter
                                                    ^Event fx/event
-                                                   title]}]
-  (when-let [file (dialogs/make-file-dialog (or title "Select File")
-                                            filter
-                                            nil
-                                            (.getWindow (.getScene ^Node (.getSource event))))]
-    {:dispatch (assoc on-value-changed :fx/event (.getAbsolutePath file))}))
+                                                   title
+                                                   in-project
+                                                   workspace]}]
+  (when-some [selected-file (dialogs/make-file-dialog (or title "Select File")
+                                                      filter
+                                                      nil
+                                                      (fxui/event->window event))]
+    (if-some [valid-file-path (absolute-or-maybe-proj-path selected-file workspace in-project)]
+      {:dispatch (assoc on-value-changed :fx/event valid-file-path)}
+      {:show-dialog :file-not-in-project})))
 
-(defmethod form-input-view :file [{:keys [on-value-changed value filter title]}]
+(defmethod form-input-view :file [{:keys [on-value-changed value filter title in-project]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
    :children [{:fx/type text-field
@@ -698,17 +718,20 @@
                :on-action {:event-type :on-file-selected
                            :on-value-changed on-value-changed
                            :filter filter
+                           :in-project in-project
                            :title title}}]})
 
 ;; endregion
 
 ;; region directory input
 
-(defmethod handle-event :on-directory-selected [{:keys [on-value-changed title]}]
-  (when-let [file (ui/choose-directory (or title "Select Directory") nil)]
-    {:dispatch (assoc on-value-changed :fx/event file)}))
+(defmethod handle-event :on-directory-selected [{:keys [on-value-changed title fx/event in-project workspace]}]
+  (when-some [selected-directory (dialogs/make-directory-dialog (or title "Select Directory") nil (fxui/event->window event))]
+    (if-some [valid-directory-path (absolute-or-maybe-proj-path selected-directory workspace in-project)]
+      {:dispatch (assoc on-value-changed :fx/event valid-directory-path)}
+      {:show-dialog :directory-not-in-project})))
 
-(defmethod form-input-view :directory [{:keys [on-value-changed value title]}]
+(defmethod form-input-view :directory [{:keys [on-value-changed value title in-project]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
    :children [{:fx/type text-field
@@ -721,6 +744,7 @@
                :text "\u2026"
                :on-action {:event-type :on-directory-selected
                            :on-value-changed on-value-changed
+                           :in-project in-project
                            :title title}}]})
 
 ;; endregion
@@ -1486,7 +1510,20 @@
                                      (instance? ListView x)
                                      (.edit ^ListView x -1)))
                     :open-resource (fn [[node value] _]
-                                     (ui/run-command node :open {:resources [value]}))})
+                                     (ui/run-command node :open {:resources [value]}))
+                    :show-dialog (fn [dialog-type _]
+                                   (case dialog-type
+                                     :directory-not-in-project
+                                     (dialogs/make-info-dialog
+                                       {:title "Invalid Directory"
+                                        :icon :icon/triangle-error
+                                        :header "The directory must reside within the project."})
+
+                                     :file-not-in-project
+                                     (dialogs/make-info-dialog
+                                       {:title "Invalid File"
+                                        :icon :icon/triangle-error
+                                        :header "The file must reside within the project."})))})
                  (wrap-force-refresh view-id))}
 
       :middleware (comp

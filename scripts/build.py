@@ -1429,9 +1429,11 @@ class Configuration(object):
         process = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         output = process.communicate()[1]
 
-        lines = str(output).replace('\r', '').split('\n')
+        lines = output.decode("utf-8").replace('\r', '').split('\n')
+
         for line in lines:
             line = line.strip()
+
             if 'java.home' in line:
                 tokens = line.split(' = ')
                 java_home = tokens[1].strip()

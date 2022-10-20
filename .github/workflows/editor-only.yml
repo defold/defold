@@ -3,12 +3,16 @@ name: CI - Editor Only
 on:
   push:
     branches:
-      - 'DEFEDIT-*'
       - 'editor-dev'
   pull_request:
     branches:
       - 'DEFEDIT-*'
       - 'editor-dev'
+  pull_request_target:
+    branches:
+       - 'DEFEDIT-*'
+       - 'editor-dev'
+    types: [labeled]
 
 env:
   S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
@@ -32,9 +36,9 @@ jobs:
     if: "!contains(github.event.head_commit.message, 'skip-ci')"
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2 },
+      { name: 'Checkout', uses: actions/checkout@v3 },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
       {
@@ -54,8 +58,8 @@ jobs:
       matrix:
         platform: [x86_64-macos]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2 },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3 },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Download editor',
@@ -86,8 +90,8 @@ jobs:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2 },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3 },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       {
         name: 'Download editor',
@@ -122,8 +126,8 @@ jobs:
     needs: [sign-editor-macos, sign-editor-windows]
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v2 },
-      { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Checkout', uses: actions/checkout@v3 },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
         name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)

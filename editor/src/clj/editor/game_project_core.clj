@@ -22,7 +22,9 @@
                                        settings-core/pushback-reader)]
                        (settings-core/load-meta-info r)))
 
+(def meta-settings (:settings basic-meta-info))
+
 (defn default-settings []
-  (-> (:settings basic-meta-info)
+  (-> meta-settings
       settings-core/make-default-settings
       settings-core/make-settings-map))
