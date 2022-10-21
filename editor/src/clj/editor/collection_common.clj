@@ -48,11 +48,12 @@
       (assoc :scale3 (read-scale3-or-scale any-instance-desc))
       (dissoc :scale)))
 
-(defn- sanitize-any-instance-desc [any-instance-desc property-descs-path]
+(defn- sanitize-any-instance-desc [any-instance-desc component-property-descs-key]
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  ;; The specified key should address a seq of GameObject$ComponentPropertyDescs in map format.
   (-> any-instance-desc
       (uniform->non-uniform-scale)
-      (game-object-common/sanitize-property-descs-at-path property-descs-path)))
+      (game-object-common/sanitize-component-property-descs-at-key component-property-descs-key)))
 
 (defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type embed-data-handling]
   ;; GameObject$EmbeddedInstanceDesc in map format.
@@ -71,17 +72,18 @@
 (defn- sanitize-instance-desc [instance-desc]
   ;; GameObject$InstanceDesc in map format.
   (-> instance-desc
-      (sanitize-any-instance-desc [:component-properties :properties])))
+      (sanitize-any-instance-desc :component-properties)))
 
 (defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type embed-data-handling]
   ;; GameObject$EmbeddedInstanceDesc in map format.
-  (cond-> (sanitize-any-instance-desc embedded-instance-desc [:component-properties :properties])
+  (cond-> (sanitize-any-instance-desc embedded-instance-desc :component-properties)
           (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type embed-data-handling)))
 
 (defn- sanitize-collection-instance-desc [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.
   (-> collection-instance-desc
-      (sanitize-any-instance-desc [:instance-properties :properties :properties])))
+      (uniform->non-uniform-scale)
+      (update :instance-properties (partial mapv #(game-object-common/sanitize-component-property-descs-at-key % :properties)))))
 
 (defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type embed-data-handling]
   {:pre [(map? collection-desc)
@@ -113,9 +115,11 @@
                             nil))))
               (:embedded-instances source-value))))))
 
-(defn game-object-instance-build-target [build-resource instance-desc ^Matrix4d transform-matrix game-object-build-target proj-path->resource-property-build-target]
+(defn game-object-instance-build-target [build-resource instance-desc-with-go-props ^Matrix4d transform-matrix game-object-build-target proj-path->resource-property-build-target]
   {:pre [(workspace/build-resource? build-resource)
-         (map? instance-desc)
+         (map? instance-desc-with-go-props) ; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format, but GameObject$PropertyDescs must have a :clj-value.
+         (or (not (contains? instance-desc-with-go-props :data))
+             (string? (:data instance-desc-with-go-props)))
          (instance? Matrix4d transform-matrix)
          (map? game-object-build-target)
          (ifn? proj-path->resource-property-build-target)]}
@@ -134,10 +138,10 @@
   (let [build-target-go-props (partial properties/build-target-go-props
                                        proj-path->resource-property-build-target)
         component-property-infos (map (comp build-target-go-props :properties)
-                                      (:component-properties instance-desc))
+                                      (:component-properties instance-desc-with-go-props))
         component-go-props (map first component-property-infos)
         component-property-descs (map #(assoc %1 :properties %2)
-                                      (:component-properties instance-desc)
+                                      (:component-properties instance-desc-with-go-props)
                                       component-go-props)
         go-prop-dep-build-targets (into []
                                         (comp (mapcat second)
@@ -147,8 +151,8 @@
                                    :transform transform-matrix
                                    :property-deps go-prop-dep-build-targets
                                    :instance-msg (if (seq component-property-descs)
-                                                   (assoc instance-desc :component-properties component-property-descs)
-                                                   instance-desc)}
+                                                   (assoc instance-desc-with-go-props :component-properties component-property-descs)
+                                                   instance-desc-with-go-props)}
         build-target (assoc game-object-build-target
                        :resource build-resource
                        :instance-data game-object-instance-data)]
@@ -196,14 +200,14 @@
 (defn collection-instance-build-target [collection-instance-id ^Matrix4d transform-matrix instance-property-descs collection-build-target proj-path->resource-property-build-target]
   {:pre [(string? collection-instance-id)
          (instance? Matrix4d transform-matrix)
-         (seqable? instance-property-descs) ; InstancePropertyDescs in map format.
+         (seqable? instance-property-descs) ; GameObject$InstancePropertyDescs in map format.
          (map? collection-build-target)
          (ifn? proj-path->resource-property-build-target)]}
   (let [game-object-instance-datas (-> collection-build-target :user-data :instance-data)
 
         child-game-object-instance-id?
         (into #{}
-              (mapcat (comp :children :instance-msg)) ; instance-msg is InstanceDesc or EmbeddedInstanceDesc in map format.
+              (mapcat (comp :children :instance-msg)) ; instance-msg is GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format.
               game-object-instance-datas)
 
         game-object-instance-id->component-property-descs

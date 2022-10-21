@@ -46,3 +46,10 @@
   (let [string-encode-embedded-component-data (partial string-encode-embedded-component-data ext->embedded-component-resource-type)
         string-encode-embedded-components-data (partial mapv string-encode-embedded-component-data)]
     (update string-decoded-game-object-data :embedded-components string-encode-embedded-components-data)))
+
+(defn string-encode-embedded-instance-data [ext->resource-type string-decoded-embedded-instance-data]
+  (let [game-object-resource-type (ext->resource-type "go")
+        game-object-write-fn (:write-fn game-object-resource-type)
+        string-encode-game-object-data (partial string-encode-game-object-data ext->resource-type)
+        string-encode-embedded-game-object-data (comp game-object-write-fn string-encode-game-object-data)]
+    (update string-decoded-embedded-instance-data :data string-encode-embedded-game-object-data)))

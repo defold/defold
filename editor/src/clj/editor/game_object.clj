@@ -153,7 +153,7 @@
   (when-some [source-build-target (first source-build-targets)]
     (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
       (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-      (let [is-embedded (not (contains? ddf-message :properties))
+      (let [is-embedded (contains? ddf-message :data)
             build-target (-> source-build-target
                              (assoc :resource build-resource)
                              (wrap-if-raw-sound _node-id))
@@ -378,7 +378,8 @@
             component-instance-build-targets (flatten dep-build-targets)
             component-instance-datas (mapv :instance-data component-instance-build-targets)
             component-build-targets (into []
-                                          (util/distinct-by (comp resource/proj-path :resource))
+                                          (comp (map #(dissoc % :instance-data))
+                                                (util/distinct-by (comp resource/proj-path :resource)))
                                           component-instance-build-targets)]
         [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
 

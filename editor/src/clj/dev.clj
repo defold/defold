@@ -104,77 +104,42 @@
 
 (def select-keys-deep #'internal.util/select-keys-deep)
 
-(defn deep-select [value-pred value]
-  (cond
-    (map? value)
-    (not-empty
-      (into (if (record? value)
-              {}
-              (empty value))
-            (keep (fn [[k v]]
-                    (when-some [v' (deep-select value-pred v)]
-                      [k v'])))
-            value))
+(defn- deep-keep-finalize-coll-value-fn [coll]
+  (some-> coll not-empty util/with-sorted-keys))
 
-    (coll? value)
-    (not-empty
-      (into (sorted-map)
-            (keep-indexed (fn [i v]
-                            (when-some [v' (deep-select value-pred v)]
-                              [i v'])))
-            value))
+(defn- deep-keep-wrapped-value-fn [value-fn]
+  (letfn [(wrapped-value-fn [value]
+            (if-not (record? value)
+              (value-fn value)
+              (deep-keep-finalize-coll-value-fn
+                (into (with-meta (sorted-map)
+                                 (meta value))
+                      (keep (fn [entry]
+                              (when-some [v' (util/deep-keep deep-keep-finalize-coll-value-fn wrapped-value-fn (val entry))]
+                                (pair (key entry) v'))))
+                      value))))]
+    wrapped-value-fn))
 
-    (value-pred value)
-    value))
+(defn- deep-keep-kv-wrapped-value-fn [value-fn]
+  (letfn [(wrapped-value-fn [key value]
+            (if-not (record? value)
+              (value-fn key value)
+              (deep-keep-finalize-coll-value-fn
+                (into (with-meta (sorted-map)
+                                 (meta value))
+                      (keep (fn [[k v]]
+                              (when-some [v' (util/deep-keep-kv-helper deep-keep-finalize-coll-value-fn wrapped-value-fn k v)]
+                                (pair k v'))))
+                      value))))]
+    wrapped-value-fn))
 
-(defn deep-keep [value-selector value]
-  (cond
-    (map? value)
-    (not-empty
-      (into (if (record? value)
-              {}
-              (empty value))
-            (keep (fn [[k v]]
-                    (when-some [v' (deep-keep value-selector v)]
-                      [k v'])))
-            value))
+(defn deep-keep [value-fn value]
+  (let [wrapped-value-fn (deep-keep-wrapped-value-fn value-fn)]
+    (util/deep-keep deep-keep-finalize-coll-value-fn wrapped-value-fn value)))
 
-    (coll? value)
-    (not-empty
-      (into (sorted-map)
-            (keep-indexed (fn [i v]
-                            (when-some [v' (deep-keep value-selector v)]
-                              [i v'])))
-            value))
-
-    :else
-    (value-selector value)))
-
-(defn deep-keep-kv
-  ([value-selector value]
-   (deep-keep-kv value-selector nil value))
-  ([value-selector key value]
-   (cond
-     (map? value)
-     (not-empty
-       (into (if (record? value)
-               {}
-               (empty value))
-             (keep (fn [[k v]]
-                     (when-some [v' (deep-keep-kv value-selector k v)]
-                       [k v'])))
-             value))
-
-     (coll? value)
-     (not-empty
-       (into (sorted-map)
-             (keep-indexed (fn [i v]
-                             (when-some [v' (deep-keep-kv value-selector i v)]
-                               [i v'])))
-             value))
-
-     :else
-     (value-selector key value))))
+(defn deep-keep-kv [value-fn value]
+  (let [wrapped-value-fn (deep-keep-kv-wrapped-value-fn value-fn)]
+    (util/deep-keep-kv deep-keep-finalize-coll-value-fn wrapped-value-fn value)))
 
 (defn views-of-type [node-type]
   (keep (fn [node-id]

@@ -17,7 +17,8 @@
   (:require [camel-snake-kebab :refer [->Camel_Snake_Case_String]]
             [clojure.set :as set]
             [clojure.string :as str]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.coll :refer [pair]])
   (:import [clojure.lang IEditableCollection]))
 
 (set! *warn-on-reflection* true)
@@ -41,6 +42,14 @@
 
 (defn conjv [coll x]
   (conj (or coll []) x))
+
+(defn concat-single-entry-seqs [single-entry-seqs]
+  (into []
+        (map (fn [value]
+               (let [first-entry (first value)]
+                 (assert (nil? (next value)))
+                 first-entry)))
+        single-entry-seqs))
 
 (defn distinct-by
   "Returns a lazy sequence of the elements of coll with duplicates removed.
@@ -360,6 +369,26 @@
         (mapcat (juxt identity (partial get m)))
         (sort (keys m))))
 
+(defn with-sorted-keys [coll]
+  (cond
+    (record? coll)
+    coll
+
+    (map? coll)
+    (if (sorted? coll)
+      coll
+      (with-meta (into (sorted-map) coll)
+                 (meta coll)))
+
+    (set? coll)
+    (if (sorted? coll)
+      coll
+      (with-meta (into (sorted-set) coll)
+                 (meta coll)))
+
+    :else
+    coll))
+
 (declare select-keys-deep)
 
 (defn- select-keys-deep-value-helper [kept-keys value]
@@ -387,3 +416,133 @@
                              [key (select-keys-deep-value-helper kept-keys value)])))
                    kept-keys)
              (meta m)))
+
+(defn deep-map
+  "Performs the map operation on a nested collection. The value-fn will be
+  called with the value for each entry in nested maps and sequences and is
+  expected to return a replacement value for the entry. Optionally, a
+  finalize-coll-value-fn function can be supplied to be called with the
+  resulting collection values."
+  ([value-fn value]
+   (deep-map identity value-fn value))
+  ([finalize-coll-value-fn value-fn value]
+   (cond
+     (record? value)
+     (value-fn value)
+
+     (map? value)
+     (finalize-coll-value-fn
+       (into (empty value)
+             (map (fn [[k v]]
+                    (let [v' (deep-map finalize-coll-value-fn value-fn v)]
+                      (pair k v'))))
+             value))
+
+     (coll? value)
+     (finalize-coll-value-fn
+       (into (empty value)
+             (map #(deep-map finalize-coll-value-fn value-fn %))
+             value))
+
+     :else
+     (value-fn value))))
+
+(defn deep-map-kv-helper [finalize-coll-value-fn value-fn key value]
+  (cond
+    (record? value)
+    (value-fn key value)
+
+    (map? value)
+    (finalize-coll-value-fn
+      (into (empty value)
+            (map (fn [[k v]]
+                   (let [v' (deep-map-kv-helper finalize-coll-value-fn value-fn k v)]
+                     (pair k v'))))
+            value))
+
+    (coll? value)
+    (finalize-coll-value-fn
+      (into (empty value)
+            (map-indexed #(deep-map-kv-helper finalize-coll-value-fn value-fn %1 %2))
+            value))
+
+    :else
+    (value-fn key value)))
+
+(defn deep-map-kv
+  "Performs the map operation on a nested collection. The value-fn will be
+  called with the key and value for each entry in nested maps and sequences.
+  The key will be nil for the root entry and indices for entries in sequential
+  collections. The value-fn is expected to return a value to associate with the
+  key. Optionally, a finalize-coll-value-fn function can be supplied to be
+  called with the resulting collection values."
+  ([value-fn value]
+   (deep-map-kv-helper identity value-fn nil value))
+  ([finalize-coll-value-fn value-fn value]
+   (deep-map-kv-helper finalize-coll-value-fn value-fn nil value)))
+
+(defn deep-keep
+  "Performs the keep operation on a nested collection. The value-fn will be
+  called with the value for each entry in nested maps and sequences and is
+  expected to return a replacement value for that entry, or nil to exclude the
+  entry. Optionally, a finalize-coll-value-fn function can be supplied to be
+  called with the resulting collection values. Returning nil from it will
+  exclude the entry from the result."
+  ([value-fn value]
+   (deep-keep identity value-fn value))
+  ([finalize-coll-value-fn value-fn value]
+   (cond
+     (record? value)
+     (value-fn value)
+
+     (map? value)
+     (finalize-coll-value-fn
+       (into (empty value)
+             (keep (fn [entry]
+                     (when-some [v' (deep-keep finalize-coll-value-fn value-fn (val entry))]
+                       (pair (key entry) v'))))
+             value))
+
+     (coll? value)
+     (finalize-coll-value-fn
+       (into (empty value)
+             (keep #(deep-keep finalize-coll-value-fn value-fn %))
+             value))
+
+     :else
+     (value-fn value))))
+
+(defn deep-keep-kv-helper [finalize-coll-value-fn value-fn key value]
+  (cond
+    (record? value)
+    (value-fn key value)
+
+    (map? value)
+    (finalize-coll-value-fn
+      (into (empty value)
+            (keep (fn [[k v]]
+                    (when-some [v' (deep-keep-kv-helper finalize-coll-value-fn value-fn k v)]
+                      (pair k v'))))
+            value))
+
+    (coll? value)
+    (finalize-coll-value-fn
+      (into (empty value)
+            (keep-indexed #(deep-keep-kv-helper finalize-coll-value-fn value-fn %1 %2))
+            value))
+
+    :else
+    (value-fn key value)))
+
+(defn deep-keep-kv
+  "Performs the keep operation on a nested collection. The value-fn will be
+  called with the key and value for each entry in nested maps and sequences.
+  The key will be nil for the root entry and indices for entries in sequential
+  collections. The value-fn is expected to return a value to associate with the
+  key, or nil to exclude the entry. Optionally, a finalize-coll-value-fn
+  function can be supplied to be called with the resulting collection values.
+  Returning nil from it will exclude the entry from the result."
+  ([value-fn value]
+   (deep-keep-kv-helper identity value-fn nil value))
+  ([finalize-coll-value-fn value-fn value]
+   (deep-keep-kv-helper finalize-coll-value-fn value-fn nil value)))

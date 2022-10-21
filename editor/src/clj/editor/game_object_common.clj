@@ -31,13 +31,6 @@
 
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
 
-(defn sanitize-property-descs-at-path [any-desc property-descs-path]
-  ;; GameObject$ComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  ;; The supplied path should lead up to a seq of GameObject$PropertyDescs in map format.
-  (if-some [property-descs (not-empty (get-in any-desc property-descs-path))]
-    (assoc-in any-desc property-descs-path (mapv properties/sanitize-property-desc property-descs))
-    any-desc))
-
 (def identity-transform-properties
   {:position [(float 0.0) (float 0.0) (float 0.0)]
    :rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
@@ -53,11 +46,29 @@
       (dissoc component-desc :scale)
       component-desc)))
 
+(defn add-default-scale-to-component-desc [component-desc]
+  ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
+  (cond-> component-desc
+          (not (contains? component-desc :scale))
+          (assoc :scale default-scale-value)))
+
+(defn- sanitize-component-property-desc [component-property-desc]
+  ;; GameObject$ComponentPropertyDesc or GameObject$ComponentDesc in map format.
+  (let [property-descs (get component-property-desc :properties)]
+    (cond-> (dissoc component-property-desc :property-decls) ; Only used in built data by the runtime.
+            (seq property-descs) (assoc :properties (mapv properties/sanitize-property-desc property-descs)))))
+
+(defn sanitize-component-property-descs-at-key [any-desc component-property-descs-key]
+  ;; GameObject$ComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  ;; The specified key should address a seq of GameObject$ComponentPropertyDescs in map format.
+  (if-some [component-property-descs (not-empty (get any-desc component-property-descs-key))]
+    (assoc any-desc component-property-descs-key (mapv sanitize-component-property-desc component-property-descs))
+    any-desc))
+
 (defn- sanitize-component-desc [component-desc]
   ;; GameObject$ComponentDesc in map format.
   (-> component-desc
-      (sanitize-property-descs-at-path [:properties])
-      (dissoc :property-decls) ; Only used in built data by the runtime.
+      (sanitize-component-property-desc)
       (strip-default-scale-from-component-desc)))
 
 (defn- sanitize-embedded-component-data [embedded-component-desc ext->embedded-component-resource-type embed-data-handling]
@@ -146,7 +157,9 @@
 
 (defn embedded-component-instance-data [build-resource embedded-component-desc ^Matrix4d transform-matrix]
   {:pre [(workspace/build-resource? build-resource)
-         (map? embedded-component-desc) ; EmbeddedComponentDesc in map format.
+         (map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
+         (contains? embedded-component-desc :scale)
+         (string? (:data embedded-component-desc))
          (instance? Matrix4d transform-matrix)]}
   {:resource build-resource
    :transform transform-matrix
@@ -154,7 +167,8 @@
 
 (defn referenced-component-instance-data [build-resource component-desc ^Matrix4d transform-matrix proj-path->resource-property-build-target]
   {:pre [(workspace/build-resource? build-resource)
-         (map? component-desc) ; ComponentDesc in map format, but PropertyDescs must have a :clj-value.
+         (map? component-desc) ; GameObject$ComponentDesc in map format, but PropertyDescs must have a :clj-value.
+         (contains? component-desc :scale)
          (instance? Matrix4d transform-matrix)
          (ifn? proj-path->resource-property-build-target)]}
   (let [go-props-with-source-resources (:properties component-desc) ; Every PropertyDesc must have a :clj-value with actual Resource, etc.
@@ -162,9 +176,10 @@
     {:resource build-resource
      :transform transform-matrix
      :property-deps go-prop-dep-build-targets
-     :instance-msg (if (seq go-props)
-                     (assoc component-desc :properties go-props)
-                     component-desc)}))
+     :instance-msg (cond-> component-desc
+
+                           (seq go-props)
+                           (assoc :properties go-props))}))
 
 (defn- build-game-object [build-resource dep-resources user-data]
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
@@ -189,10 +204,7 @@
                                (-> component-msg
                                    (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
                                    (assoc :component fused-build-resource-path)
-                                   (cond-> (not (contains? component-msg :scale))
-                                           (assoc :scale default-scale-value)
-
-                                           (seq go-props)
+                                   (cond-> (seq go-props)
                                            (assoc :property-decls (properties/go-props->decls go-props false)))))
                              component-msgs
                              component-build-resource-paths

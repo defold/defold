@@ -42,21 +42,27 @@
 (set! *warn-on-reflection* true)
 
 (defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
-  {:id id
-   :children (sort child-ids)
-   :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
-   :position position
-   :rotation rotation
-   :scale3 scale})
+  (cond-> {:id id
+           :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
+           :position position
+           :rotation rotation
+           :scale3 scale}
+
+          (seq child-ids)
+          (assoc :children (vec (sort child-ids)))))
 
 (defn- gen-ref-ddf [id child-ids position rotation scale path ddf-component-properties]
-  {:id id
-   :children (sort child-ids)
-   :prototype (resource/resource->proj-path path)
-   :position position
-   :rotation rotation
-   :scale3 scale
-   :component-properties ddf-component-properties})
+  (cond-> {:id id
+           :prototype (resource/resource->proj-path path)
+           :position position
+           :rotation rotation
+           :scale3 scale}
+
+          (seq child-ids)
+          (assoc :children (vec (sort child-ids)))
+
+          (seq ddf-component-properties)
+          (assoc :component-properties ddf-component-properties)))
 
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)

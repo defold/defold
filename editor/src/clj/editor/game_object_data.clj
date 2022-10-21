@@ -9,13 +9,17 @@
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
+            [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.util :as util]
             [util.coll :refer [pair]])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [javax.vecmath Matrix4d]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private embedded-component-resource-connections
   [[:build-targets :embedded-component-build-targets]])
@@ -47,7 +51,9 @@
                          (into (mapcat #(add-embedded-component-resource-node self (key %) ext->embedded-component-resource-type project))
                                (sort-by val new-value)))))))
 
-  (input embedded-component-build-targets g/Any :array :cascade-delete))
+  (input embedded-component-build-targets g/Any :array :cascade-delete)
+  (output embedded-component-build-targets g/Any :cached (g/fnk [embedded-component-build-targets]
+                                                           (util/concat-single-entry-seqs embedded-component-build-targets))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -56,6 +62,15 @@
   ;; GameObject$ComponentDesc, or GameObject$EmbeddedInstanceDesc in map format.
   (math/clj->mat4 position rotation (or scale 1.0)))
 
+(defn- add-default-scale-to-component-descs [component-descs]
+  (mapv game-object-common/add-default-scale-to-component-desc component-descs))
+
+(defn add-default-scale-to-components-in-prototype-desc [prototype-desc]
+  ;; GameObject$PrototypeDesc in map format.
+  (-> prototype-desc
+      (update :components add-default-scale-to-component-descs)
+      (update :embedded-components add-default-scale-to-component-descs)))
+
 (defn prototype-desc->referenced-component-proj-paths [prototype-desc]
   (eduction
     (keep (comp not-empty :component))
@@ -63,6 +78,9 @@
     (:components prototype-desc)))
 
 (defn embedded-component-desc->embedded-component-resource-data [embedded-component-desc]
+  {:pre [(map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
+         (string? (:type embedded-component-desc)) ; File extension.
+         (map? (:data embedded-component-desc))]}
   (select-keys embedded-component-desc [:type :data]))
 
 (defn prototype-desc->embedded-component-resource-datas [prototype-desc]
@@ -100,20 +118,31 @@
       prototype-desc->component-property-descs
       (component-property-descs->resources proj-path->resource)))
 
-(defn component-desc->component-instance-data [component-desc proj-path->build-target]
+(defn- component-desc->component-instance-data [component-desc proj-path->build-target]
+  {:pre [(map? component-desc)]} ; GameObject$ComponentDesc in map format.
   (let [build-resource (-> component-desc :component proj-path->build-target :resource)
         transform-matrix (any-component-desc->transform-matrix component-desc)
-        proj-path->source-resource (comp proj-path->build-target :resource :resource)
+        proj-path->source-resource (comp :resource :resource proj-path->build-target)
         go-props-with-source-resources (mapv #(properties/property-desc->go-prop % proj-path->source-resource) (:properties component-desc))
-        component-desc (assoc component-desc :properties go-props-with-source-resources)]
+        component-desc (-> component-desc
+                           (assoc :properties go-props-with-source-resources)
+                           (game-object-common/add-default-scale-to-component-desc))]
     (game-object-common/referenced-component-instance-data build-resource component-desc transform-matrix proj-path->build-target)))
 
-(defn embedded-component-desc->component-instance-data [embedded-component-desc embedded-component-desc->build-resource]
+(defn- embedded-component-desc->component-instance-data [embedded-component-desc embedded-component-desc->build-resource]
+  {:pre [(map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
+         (map? (:data embedded-component-desc))]} ; We must be in our unaltered sanitized state for the build resource lookup to work.
   (let [build-resource (embedded-component-desc->build-resource embedded-component-desc)
-        transform-matrix (any-component-desc->transform-matrix embedded-component-desc)]
+        resource-type (resource/resource-type build-resource)
+        write-fn (:write-fn resource-type)
+        transform-matrix (any-component-desc->transform-matrix embedded-component-desc)
+        embedded-component-desc (-> embedded-component-desc
+                                    (update :data write-fn)
+                                    (game-object-common/add-default-scale-to-component-desc))]
     (game-object-common/embedded-component-instance-data build-resource embedded-component-desc transform-matrix)))
 
 (defn prototype-desc->component-instance-datas [prototype-desc embedded-component-desc->build-resource proj-path->build-target]
+  {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
   (-> []
       (into (map #(component-desc->component-instance-data % proj-path->build-target))
             (:components prototype-desc))
@@ -122,9 +151,9 @@
 
 (defn make-embedded-component-desc->build-resource [embedded-component-build-targets embedded-component-resource-data->index]
   {:pre [(vector? embedded-component-build-targets)
+         (not (vector? (first embedded-component-build-targets)))
          (ifn? embedded-component-resource-data->index)]}
   (comp :resource
-        first
         embedded-component-build-targets
         embedded-component-resource-data->index
         embedded-component-desc->embedded-component-resource-data))
@@ -133,28 +162,27 @@
 
 (g/defnk produce-proj-path->build-target [referenced-component-build-targets resource-property-build-targets]
   (bt/make-proj-path->build-target
-    (concat referenced-component-build-targets
-            resource-property-build-targets)))
+    (into referenced-component-build-targets
+          (mapcat identity)
+          resource-property-build-targets)))
 
 (g/defnk produce-build-targets [_node-id resource prototype-desc embedded-component-resource-data->index embedded-component-build-targets referenced-component-build-targets proj-path->build-target]
-  (let [component-descs (:components prototype-desc)
-        embedded-component-descs (:embedded-components prototype-desc)]
-    (or (let [dup-ids (game-object-common/any-descs->duplicate-ids
-                        (concat component-descs
-                                embedded-component-descs))]
-          (game-object-common/maybe-duplicate-id-error _node-id dup-ids))
-        (let [embedded-component-desc->build-resource
-              (make-embedded-component-desc->build-resource embedded-component-build-targets embedded-component-resource-data->index)
+  (or (let [dup-ids (game-object-common/any-descs->duplicate-ids
+                      (concat (:components prototype-desc)
+                              (:embedded-components prototype-desc)))]
+        (game-object-common/maybe-duplicate-id-error _node-id dup-ids))
+      (let [embedded-component-desc->build-resource
+            (make-embedded-component-desc->build-resource embedded-component-build-targets embedded-component-resource-data->index)
 
-              component-instance-datas
-              (prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target)
+            component-instance-datas
+            (prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target)
 
-              component-build-targets
-              (into embedded-component-build-targets
-                    referenced-component-build-targets)
+            component-build-targets
+            (into embedded-component-build-targets
+                  referenced-component-build-targets)
 
-              build-resource (workspace/make-build-resource resource)]
-          [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)]))))
+            build-resource (workspace/make-build-resource resource)]
+        [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
 
 (g/defnk produce-ddf-component-properties [prototype-desc]
   (prototype-desc->component-property-descs prototype-desc))
@@ -207,6 +235,7 @@
   (input resource-property-build-targets g/Any :array)
 
   ;; Internal outputs.
+  (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (util/concat-single-entry-seqs referenced-component-build-targets)))
   (output proj-path->build-target g/Any :cached produce-proj-path->build-target)
 
   ;; GameObject interface.

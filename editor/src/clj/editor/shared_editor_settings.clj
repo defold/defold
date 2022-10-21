@@ -25,26 +25,51 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private shared-editor-settings-icon "icons/32/Icons_05-Project-info.png")
+
 (def ^:private project-shared-editor-settings-filename "project.shared_editor_settings")
 
 (def project-shared-editor-settings-proj-path (str \/ project-shared-editor-settings-filename))
 
-(def ^:private shared-editor-settings-icon "icons/32/Icons_05-Project-info.png")
+(def ^:private setting-paths
+  {:cache-capacity ["performance" "cache_capacity"]
+   :non-editable-directories ["performance" "non_editable_directories"]})
 
-(def ^:private shared-editor-settings-meta "shared-editor-settings-meta.edn")
+(def ^:private meta-info
+  (settings-core/finalize-meta-info
+    {:settings [{:path (:cache-capacity setting-paths)
+                 :type :integer
+                 :default 20000
+                 :label "Cache Size"
+                 :help "Maximum number of temporary cache entries. Increase if you experience frequent editor slowdowns. Use -1 for unlimited, 20000 by default."}
+                {:path (:non-editable-directories setting-paths)
+                 :type :list
+                 :label "Non-editable Directories"
+                 :help "Project directories whose contents can't be edited. Use for externally generated content to conserve memory and project load time."
+                 :element {:type :directory
+                           :in-project true}}]
+     :group-order ["Shared Settings"]
+     :default-category "performance"
+     :categories {"performance" {:help "Editor performance tweaks for your project. Some settings may require restarting the editor to take effect."
+                                 :group "Shared Settings"}}}))
 
-(def ^:private shared-editor-settings-meta-info
-  (delay
-    (with-open [resource-reader (settings-core/resource-reader shared-editor-settings-meta)
-                pushback-reader (settings-core/pushback-reader resource-reader)]
-      (settings-core/load-meta-info pushback-reader))))
+(defn- map->settings [map]
+  (let [meta-settings (:settings meta-info)]
+    (reduce-kv (fn [settings key value]
+                 (if-some [path (setting-paths key)]
+                   (settings-core/set-raw-setting settings meta-settings path value)
+                   (throw (ex-info (str "No shared editor setting path for key: " key)
+                                   {:key key
+                                    :meta-settings meta-settings}))))
+               []
+               map)))
 
 (defn register-resource-types [workspace]
   (settings/register-simple-settings-resource-type workspace
     :ext "shared_editor_settings"
     :label "Shared Editor Settings"
     :icon shared-editor-settings-icon
-    :meta-info @shared-editor-settings-meta-info))
+    :meta-info meta-info))
 
 (defn- report-load-error! [^File shared-editor-settings-file ^Throwable exception]
   (let [header-message "Failed to load Shared Editor Settings file."
@@ -74,7 +99,7 @@
                                       exception))]
     (if (ex-message raw-settings-or-exception)
       (report-load-error! shared-editor-settings-file raw-settings-or-exception)
-      (let [meta-settings (:settings @shared-editor-settings-meta-info)
+      (let [meta-settings (:settings meta-info)
             config-or-exception (try
                                   (let [settings (settings-core/sanitize-settings meta-settings raw-settings-or-exception)]
                                     (parse-config-fn settings))
@@ -96,7 +121,7 @@
         config))))
 
 (defn- parse-system-config [settings]
-  (let [cache-capacity (settings-core/get-setting settings ["performance" "cache_capacity"])]
+  (let [cache-capacity (settings-core/get-setting settings (:cache-capacity setting-paths))]
     (when (some? cache-capacity)
       (if (<= -1 cache-capacity)
         {:cache-size cache-capacity}
@@ -109,7 +134,7 @@
        (re-matches #"^\/.*(?<!\/)$" value)))
 
 (defn- parse-workspace-config [settings]
-  (let [non-editable-directories (settings-core/get-setting settings ["performance" "non_editable_directories"])]
+  (let [non-editable-directories (settings-core/get-setting settings (:non-editable-directories setting-paths))]
     (when (seq non-editable-directories)
       (if (every? non-editable-directory-proj-path? non-editable-directories)
         {:non-editable-directories non-editable-directories}
@@ -128,3 +153,11 @@
 (defn load-project-workspace-config [project-directory]
   (or (load-project-config project-directory :workspace-config parse-workspace-config)
       default-workspace-config))
+
+;; Used by tests.
+(defn write-config! [project-directory config-map]
+  (let [meta-settings (:settings meta-info)
+        settings (map->settings config-map)
+        settings-string (settings-core/settings->str settings meta-settings :multi-line-list)
+        shared-editor-settings-file (io/file project-directory project-shared-editor-settings-filename)]
+    (spit shared-editor-settings-file settings-string)))
