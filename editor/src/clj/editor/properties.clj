@@ -638,9 +638,9 @@
         property-desc))))
 
 (defn- apply-property-override [workspace id-mapping prop-kw prop property-desc]
-  ;; This can be used with raw PropertyDescs in map format. However, we decorate
-  ;; these with a :clj-value field when they enter the graph, so if that is
-  ;; already present we don't attempt conversion here.
+  ;; This can be used with raw GameObject$PropertyDescs in map format. However,
+  ;; we decorate these with a :clj-value field when they enter the graph, so if
+  ;; that is already present we don't attempt conversion here.
   (let [clj-value-entry (find property-desc :clj-value)
         clj-value (if (some? clj-value-entry)
                     (val clj-value-entry)
@@ -655,7 +655,7 @@
 
 (defn apply-property-overrides
   "Returns transaction steps that applies the overrides from the supplied
-  PropertyDescs in map format to the specified node."
+  GameObject$PropertyDescs in map format to the specified node."
   [workspace id-mapping overridable-properties property-descs]
   (assert (sequential? property-descs))
   (when (seq overridable-properties)
@@ -681,10 +681,10 @@
   the go-props with the final BuildResource references once equivalent
   build-targets have been fused.
 
-  The term `go-prop` is used to describe a protobuf PropertyDesc in map format
-  with an additional :clj-value field that contains a more sophisticated
-  representation of the :value. For example, the :value might be a string path,
-  but the :clj-value is a Resource."
+  The term `go-prop` is used to describe a protobuf GameObject$PropertyDesc in
+  map format with an additional :clj-value field that contains a more
+  sophisticated representation of the :value. For example, the :value might be a
+  string path, but the :clj-value is a Resource."
   [proj-path->resource-property-build-target go-props-with-source-resources]
   (loop [go-props-with-source-resources go-props-with-source-resources
          go-props-with-build-resources (transient [])
@@ -712,11 +712,15 @@
 
               build-resource (some-> dep-build-target :resource)
               build-resource-path (some-> build-resource resource/proj-path)
-              go-prop (if (nil? build-resource)
-                        go-prop
-                        (assoc go-prop
-                          :clj-value build-resource
-                          :value build-resource-path))]
+              go-prop (cond-> go-prop
+
+                              (and (contains? go-prop :error)
+                                   (nil? (:error go-prop)))
+                              (dissoc :error)
+
+                              (some? build-resource)
+                              (assoc :clj-value build-resource
+                                     :value build-resource-path))]
           (recur (next go-props-with-source-resources)
                  (conj! go-props-with-build-resources go-prop)
                  (if (and (some? dep-build-target)

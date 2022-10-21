@@ -153,7 +153,7 @@
   (when-some [source-build-target (first source-build-targets)]
     (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
       (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-      (let [is-embedded (not (contains? ddf-message :properties))
+      (let [is-embedded (contains? ddf-message :data)
             build-target (-> source-build-target
                              (assoc :resource build-resource)
                              (wrap-if-raw-sound _node-id))
@@ -242,10 +242,8 @@
   (input save-data g/Any)
   (output ddf-message g/Any (g/fnk [id position rotation scale save-data]
                               (gen-embed-ddf id position rotation scale save-data)))
-  (output build-resource resource/Resource (g/fnk [source-resource save-data]
-                                                  (some-> source-resource
-                                                     (assoc :data (:content save-data))
-                                                     workspace/make-build-resource))))
+  (output build-resource resource/Resource (g/fnk [source-build-targets]
+                                             (some-> source-build-targets first bt/make-content-hash-build-resource))))
 
 ;; -----------------------------------------------------------------------------
 ;; Currently some source resources have scale properties. This was done so
@@ -378,7 +376,8 @@
             component-instance-build-targets (flatten dep-build-targets)
             component-instance-datas (mapv :instance-data component-instance-build-targets)
             component-build-targets (into []
-                                          (util/distinct-by (comp resource/proj-path :resource))
+                                          (comp (map #(dissoc % :instance-data))
+                                                (util/distinct-by (comp resource/proj-path :resource)))
                                           component-instance-build-targets)]
         [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
 

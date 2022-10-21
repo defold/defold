@@ -152,7 +152,9 @@
   (parse-list-setting-value meta-setting raw))
 
 (def ^:private type-defaults
-  {:string ""
+  {:list []
+   :comma-separated-list []
+   :string ""
    :boolean false
    :integer 0
    :number 0.0})
@@ -184,9 +186,13 @@
                         meta-setting))
                     settings))))
 
+(defn finalize-meta-info [meta-info]
+  (-> meta-info
+      add-type-defaults
+      add-to-from-string))
+
 (defn load-meta-info [reader]
-  (-> (add-type-defaults (edn/read reader))
-      (add-to-from-string)))
+  (finalize-meta-info (edn/read reader)))
 
 (defn label [key]
   (->> (s/split (name key) #"(_|\s+)")
@@ -351,6 +357,15 @@
   (when-some [index (setting-index meta-settings path)]
     (nth meta-settings index)))
 
+(defn set-raw-setting [settings meta-settings path value]
+  (let [meta-setting (get-meta-setting meta-settings path)]
+    (if (= value (:default meta-setting))
+      (clear-setting settings path)
+      (let [to-string (:to-string meta-setting)
+            string-value (if to-string
+                           (to-string value)
+                           (render-raw-setting-value meta-setting value))]
+        (set-setting settings path string-value)))))
 
 (defn settings-with-value [settings]
   (filter #(contains? % :value) settings))

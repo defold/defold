@@ -61,14 +61,13 @@
 (deftest embedded-components
   (test-util/with-loaded-project
     (let [resource-types (game-object/embeddable-component-resource-types workspace)
-          add-component! (partial test-util/add-embedded-component! app-view)
           go-id (project/get-resource-node project "/game_object/test.go")
           go-resource (g/node-value go-id :resource)
           go-read-fn (:read-fn (resource/resource-type go-resource))]
       (doseq [resource-type resource-types]
         (testing (:label resource-type)
           (with-open [_ (test-util/make-graph-reverter (project/graph project))]
-            (add-component! resource-type go-id)
+            (test-util/add-embedded-component! go-id resource-type)
             (let [save-value (g/node-value go-id :save-value)
                   load-value (with-open [reader (StringReader. (:content (g/node-value go-id :save-data)))]
                                (go-read-fn reader))

@@ -42,21 +42,27 @@
 (set! *warn-on-reflection* true)
 
 (defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
-  {:id id
-   :children (sort child-ids)
-   :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
-   :position position
-   :rotation rotation
-   :scale3 scale})
+  (cond-> {:id id
+           :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
+           :position position
+           :rotation rotation
+           :scale3 scale}
+
+          (seq child-ids)
+          (assoc :children (vec (sort child-ids)))))
 
 (defn- gen-ref-ddf [id child-ids position rotation scale path ddf-component-properties]
-  {:id id
-   :children (sort child-ids)
-   :prototype (resource/resource->proj-path path)
-   :position position
-   :rotation rotation
-   :scale3 scale
-   :component-properties ddf-component-properties})
+  (cond-> {:id id
+           :prototype (resource/resource->proj-path path)
+           :position position
+           :rotation rotation
+           :scale3 scale}
+
+          (seq child-ids)
+          (assoc :children (vec (sort child-ids)))
+
+          (seq ddf-component-properties)
+          (assoc :component-properties ddf-component-properties)))
 
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)
@@ -183,13 +189,14 @@
   ;; `game_object.clj`, since it is similar but less complicated there.
   (if-some [errors
             (not-empty
-              (sequence (comp (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
+              (sequence (comp (mapcat :properties) ; Extract GameObject$PropertyDescs from GameObject$ComponentPropertyDescs.
                               (keep :error))
                         (:component-properties ddf-message)))]
     (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
     (let [game-object-build-target (first source-build-targets)
-          proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
-      [(collection-common/game-object-instance-build-target build-resource ddf-message transform game-object-build-target proj-path->resource-property-build-target)])))
+          proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)
+          instance-desc-with-go-props (dissoc ddf-message :data)] ; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format. We don't need the :data from GameObject$EmbeddedInstanceDesc.
+      [(collection-common/game-object-instance-build-target build-resource instance-desc-with-go-props transform game-object-build-target proj-path->resource-property-build-target)])))
 
 (g/defnode GameObjectInstanceNode
   (inherits scene/SceneNode)
@@ -232,10 +239,8 @@
   (input source-save-data g/Any)
   (output node-outline-extras g/Any (g/fnk [source-outline]
                                            {:alt-outline source-outline}))
-  (output build-resource resource/Resource (g/fnk [source-resource source-save-data]
-                                                  (some-> source-resource
-                                                     (assoc :data (:content source-save-data))
-                                                     workspace/make-build-resource)))
+  (output build-resource resource/Resource (g/fnk [source-build-targets]
+                                             (some-> source-build-targets first bt/make-content-hash-build-resource)))
   (output ddf-message g/Any (g/fnk [id child-ids position rotation scale proto-msg]
                               (gen-embed-ddf id child-ids position rotation scale proto-msg))))
 

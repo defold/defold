@@ -16,7 +16,6 @@
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.collection-common :as collection-common]
-            [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.game-object-data :as game-object-data]
@@ -24,10 +23,13 @@
             [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline :as outline]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [util.coll :refer [pair]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [javax.vecmath Matrix4d]))
@@ -54,11 +56,38 @@
                           scale3)]
     (math/clj->mat4 position rotation corrected-scale)))
 
+(defn- component-property-desc-with-go-props [component-property-desc proj-path->source-resource]
+  ;; GameObject$ComponentPropertyDesc in map format.
+  (if-some [property-descs (not-empty (:properties component-property-desc))]
+    (assoc component-property-desc :properties (mapv #(properties/property-desc->go-prop % proj-path->source-resource) property-descs))
+    (dissoc component-property-desc :properties)))
+
+(defn- instance-desc-with-go-props [instance-desc proj-path->source-resource]
+  ;; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format.
+  (if-some [component-property-descs (not-empty (:component-properties instance-desc))]
+    (assoc instance-desc :component-properties (mapv #(component-property-desc-with-go-props % proj-path->source-resource) component-property-descs))
+    (dissoc instance-desc :component-properties)))
+
+(defn- instance-property-desc-with-go-props [instance-property-desc proj-path->source-resource]
+  ;; GameObject$InstancePropertyDesc in map format.
+  (if-some [component-property-descs (not-empty (:properties instance-property-desc))]
+    (assoc instance-property-desc :properties (mapv #(component-property-desc-with-go-props % proj-path->source-resource) component-property-descs))
+    (dissoc instance-property-desc :properties)))
+
+(defn- game-object-instance-build-target [build-resource instance-desc ^Matrix4d transform-matrix game-object-build-target proj-path->resource-property-build-target]
+  ;; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format.
+  (let [proj-path->source-resource (comp :resource :resource proj-path->resource-property-build-target)
+        instance-desc-with-go-props (cond-> (instance-desc-with-go-props instance-desc proj-path->source-resource)
+
+                                            (empty? (:children instance-desc))
+                                            (dissoc :children))]
+    (collection-common/game-object-instance-build-target build-resource instance-desc-with-go-props transform-matrix game-object-build-target proj-path->resource-property-build-target)))
+
 (defn- instance-desc->game-object-instance-build-target [instance-desc game-object-build-target proj-path->build-target]
   ;; GameObject$InstanceDesc in map format.
   (let [build-resource (:resource game-object-build-target)
         transform-matrix (any-instance-desc->transform-matrix instance-desc)]
-    (collection-common/game-object-instance-build-target build-resource instance-desc transform-matrix game-object-build-target proj-path->build-target)))
+    (game-object-instance-build-target build-resource instance-desc transform-matrix game-object-build-target proj-path->build-target)))
 
 (g/defnk produce-referenced-game-object-instance-build-targets [_node-id collection-desc proj-path->build-target resource]
   (let [build-targets
@@ -72,24 +101,22 @@
     (or (g/flatten-errors build-targets)
         build-targets)))
 
-(defn- embedded-instance-desc->game-object-instance-build-target [embedded-instance-desc collection-node-id component-build-targets embedded-component-desc->build-resource proj-path->build-target ext->embedded-component-resource-type workspace]
-  ;; GameObject$EmbeddedInstanceDesc in map format.
+(defn- embedded-instance-desc->game-object-instance-build-target [embedded-instance-desc collection-node-id component-build-targets embedded-component-desc->build-resource proj-path->build-target workspace]
+  {:pre [(map? embedded-instance-desc)]} ; GameObject$EmbeddedInstanceDesc in map format.
   (let [prototype-desc (:data embedded-instance-desc)
+        embedded-instance-desc (dissoc embedded-instance-desc :data) ; We don't need or want the :data in the GameObject$EmbeddedInstanceDesc.
         component-instance-datas (game-object-data/prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target)
-        embedded-game-object-pb-string (collection-string-data/string-encode-game-object-data ext->embedded-component-resource-type prototype-desc)
-        embedded-game-object-resource (workspace/make-embedded-resource workspace :non-editable "go" embedded-game-object-pb-string) ; Content determines hash for merging with embedded components in other .go files.
+        embedded-game-object-build-target (game-object-common/game-object-build-target nil collection-node-id component-instance-datas component-build-targets)
+        embedded-game-object-resource (workspace/make-embedded-resource workspace :non-editable "go" (:content-hash embedded-game-object-build-target)) ; Content determines hash for merging with embedded components in other .go files.
         embedded-game-object-build-resource (workspace/make-build-resource embedded-game-object-resource)
-        embedded-game-object-build-target (game-object-common/game-object-build-target embedded-game-object-build-resource collection-node-id component-instance-datas component-build-targets)
         transform-matrix (any-instance-desc->transform-matrix embedded-instance-desc)]
-    (collection-common/game-object-instance-build-target embedded-game-object-build-resource embedded-instance-desc transform-matrix embedded-game-object-build-target proj-path->build-target)))
+    (game-object-instance-build-target embedded-game-object-build-resource embedded-instance-desc transform-matrix embedded-game-object-build-target proj-path->build-target)))
 
-(g/defnk produce-embedded-game-object-instance-build-targets [_node-id collection-desc embedded-component-resource-data->index embedded-component-build-targets referenced-component-build-targets proj-path->build-target]
-  (let [project (project/get-project _node-id)
-        workspace (project/workspace project)
-        ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)
+(g/defnk produce-embedded-game-object-instance-build-targets [_node-id collection-desc embedded-component-resource-data->index embedded-component-build-targets referenced-component-build-targets resource proj-path->build-target]
+  (let [workspace (resource/workspace resource)
         embedded-component-desc->build-resource (game-object-data/make-embedded-component-desc->build-resource embedded-component-build-targets embedded-component-resource-data->index)
-        component-build-targets (into embedded-component-build-targets referenced-component-build-targets)]
-    (mapv #(embedded-instance-desc->game-object-instance-build-target % _node-id component-build-targets embedded-component-desc->build-resource proj-path->build-target ext->embedded-component-resource-type workspace)
+        component-build-targets (into referenced-component-build-targets embedded-component-build-targets)]
+    (mapv #(embedded-instance-desc->game-object-instance-build-target % _node-id component-build-targets embedded-component-desc->build-resource proj-path->build-target workspace)
           (:embedded-instances collection-desc))))
 
 (g/defnk produce-build-targets [_node-id resource collection-desc embedded-game-object-instance-build-targets referenced-game-object-instance-build-targets proj-path->build-target]
@@ -109,12 +136,15 @@
               (into embedded-game-object-instance-build-targets
                     referenced-game-object-instance-build-targets)
 
+              proj-path->source-resource
+              (comp :resource :resource proj-path->build-target)
+
               collection-instance-build-targets
               (mapv (fn [collection-instance-desc]
                       (let [collection-instance-id (:id collection-instance-desc)
                             transform-matrix (any-instance-desc->transform-matrix collection-instance-desc)
-                            instance-property-descs (:instance-properties collection-instance-desc)
-                            referenced-collection-build-target (proj-path->build-target (:collection collection-instance-desc))]
+                            referenced-collection-build-target (proj-path->build-target (:collection collection-instance-desc))
+                            instance-property-descs (mapv #(instance-property-desc-with-go-props % proj-path->source-resource) (:instance-properties collection-instance-desc))]
                         (collection-common/collection-instance-build-target collection-instance-id transform-matrix instance-property-descs referenced-collection-build-target proj-path->build-target)))
                     collection-instance-descs)]
           [(collection-common/collection-build-target build-resource _node-id name scale-along-z game-object-instance-build-targets collection-instance-build-targets)]))))
@@ -146,19 +176,17 @@
                    (component-property-descs->component-id->property-descs original-component-property-descs)
                    (component-property-descs->component-id->property-descs override-component-property-descs))))
 
-(defn- embedded-instance-desc->instance-property-descs [embedded-instance-desc]
+(defn- embedded-instance-desc->instance-property-desc [embedded-instance-desc]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (let [game-object-instance-id (:id embedded-instance-desc)
         component-property-descs (override-component-property-descs
                                    (game-object-data/prototype-desc->component-property-descs (:data embedded-instance-desc))
                                    (:component-properties embedded-instance-desc))]
-    (some-> (maybe-instance-property-desc game-object-instance-id component-property-descs)
-            vector)))
+    (maybe-instance-property-desc game-object-instance-id component-property-descs)))
 
-(defn- instance-desc->instance-property-descs [instance-desc]
+(defn- instance-desc->instance-property-desc [instance-desc]
   ;; GameObject$InstanceDesc in map format.
-  (some-> (maybe-instance-property-desc (:id instance-desc) (:component-properties instance-desc))
-          vector))
+  (maybe-instance-property-desc (:id instance-desc) (:component-properties instance-desc)))
 
 (defn- collection-instance-desc->instance-property-descs [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.
@@ -169,9 +197,9 @@
 (defn- collection-desc->instance-property-descs [collection-desc]
   (vec
     (concat
-      (keep instance-desc->instance-property-descs (:instances collection-desc))
-      (keep embedded-instance-desc->instance-property-descs (:embedded-instances collection-desc))
-      (keep collection-instance-desc->instance-property-descs (:collection-instances collection-desc)))))
+      (keep instance-desc->instance-property-desc (:instances collection-desc))
+      (keep embedded-instance-desc->instance-property-desc (:embedded-instances collection-desc))
+      (mapcat collection-instance-desc->instance-property-descs (:collection-instances collection-desc)))))
 
 (g/defnk produce-ddf-properties [collection-desc]
   (collection-desc->instance-property-descs collection-desc))
@@ -299,6 +327,7 @@
   (input resource-property-build-targets g/Any :array)
 
   ;; Internal outputs.
+  (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (mapv util/only-or-throw referenced-component-build-targets)))
   (output proj-path->build-target g/Any :cached produce-proj-path->build-target)
   (output referenced-game-object-instance-build-targets g/Any :cached produce-referenced-game-object-instance-build-targets)
   (output embedded-game-object-instance-build-targets g/Any :cached produce-embedded-game-object-instance-build-targets)

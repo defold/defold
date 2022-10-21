@@ -15,16 +15,26 @@
 (ns editor.build-target
   (:require [editor.resource :as resource]
             [editor.system :as system]
+            [editor.workspace :as workspace]
             [util.coll :refer [pair]]
             [util.digestable :as digestable]))
 
 (set! *warn-on-reflection* true)
 
 (defn content-hash-components [build-target]
-  [(system/defold-engine-sha1)
-   (:resource (:resource build-target))
-   (:build-fn build-target)
-   (:user-data build-target)])
+  (let [build-resource (:resource build-target)
+        source-resource (:resource build-resource)]
+    [(system/defold-engine-sha1)
+
+     ;; The source resource is included since external resources may rely on it
+     ;; (for example, image reads). However, we don't want to include memory
+     ;; resources since they typically represent embedded resources that can be
+     ;; edited, and their :data may be out of sync with the edited state.
+     (when-not (resource/memory-resource? source-resource)
+       source-resource)
+
+     (:build-fn build-target)
+     (:user-data build-target)]))
 
 (defn content-hash
   ^String [build-target]
@@ -41,6 +51,14 @@
 
 (defn with-content-hash [build-target]
   (assoc build-target :content-hash (content-hash build-target)))
+
+(defn make-content-hash-build-resource [memory-resource-build-target]
+  (let [build-resource (:resource memory-resource-build-target)
+        source-resource (:resource build-resource)
+        content-hash (:content-hash memory-resource-build-target)]
+    (assert (resource/memory-resource? source-resource))
+    (assert (string? content-hash))
+    (workspace/make-build-resource (assoc source-resource :data content-hash))))
 
 (defn make-proj-path->build-target [build-targets]
   ;; Create a map that can be used to locate the build target that was produced

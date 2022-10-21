@@ -246,6 +246,9 @@
 (defn make-memory-resource [workspace resource-type data]
   (MemoryResource. workspace (:editable resource-type) (:ext resource-type) data))
 
+(defn memory-resource? [resource]
+  (instance? MemoryResource resource))
+
 (defn- make-zip-resource-input-stream
   ^InputStream [zip-resource]
   (let [zip-file (ZipFile. ^File (io/as-file (:zip-uri zip-resource)))
