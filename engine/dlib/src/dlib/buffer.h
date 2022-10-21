@@ -22,6 +22,15 @@ namespace dmBuffer
 
 // Used by the engine
 
+struct Bounds3D {
+    float minX;
+    float minY;
+    float minZ;
+    float maxX;
+    float maxY;
+    float maxZ;
+};
+
 /*#
  * Initializes the buffer context
  */
@@ -73,6 +82,10 @@ Result GetStreamOffset(HBuffer buffer, uint32_t index, uint32_t* offset);
 
 
 Result CalcStructSize(uint32_t num_streams, const StreamDeclaration* streams, uint32_t* size, uint32_t* offsets);
+
+Result UpdateBounds(HBuffer hbuffer, dmhash_t stream_name);
+
+Result GetBounds(HBuffer hbuffer, Bounds3D** bounds);
 
 }
 

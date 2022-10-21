@@ -14,6 +14,7 @@
 
 
 #include <dmsdk/dlib/buffer.h>
+#include <dlib/buffer.h>  // for Bounds3D type
 
 #include <dlib/log.h>
 #include <dlib/memory.h>
@@ -56,6 +57,7 @@ namespace dmBuffer
         uint16_t m_Version;
         uint16_t m_ContentVersion;  // A running number, which user can use to signal content changes
         uint8_t  m_NumStreams;
+        Bounds3D m_BoundingCube;
     };
 
     struct BufferContext
@@ -399,8 +401,8 @@ namespace dmBuffer
         buffer->m_ContentVersion = 0;
 
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
-
         *out_buffer = SetBuffer(ctx, index, buffer);
+
         return RESULT_OK;
     }
 
@@ -614,6 +616,61 @@ namespace dmBuffer
             return RESULT_BUFFER_INVALID;
         }
         buffer->m_ContentVersion++;
+        return RESULT_OK;
+    }
+
+
+    Result UpdateBounds(HBuffer hbuffer, dmhash_t stream_name) {
+        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        //if (!buffer) {
+        //    return RESULT_BUFFER_INVALID;
+        //}
+
+        Buffer::Stream* stream = GetStream(buffer, stream_name);
+        //if (stream == 0x0) {
+        //    return RESULT_STREAM_MISSING;
+        //}
+        Bounds3D& bounds = buffer->m_BoundingCube;
+
+        uint8_t* bytes = 0x0;
+        uint32_t bytes_size = 0;
+        dmBuffer::Result r;
+        r = dmBuffer::GetBytes(hbuffer, (void**) &bytes, &bytes_size);
+        if (r != RESULT_OK) {
+            return r;
+        }
+
+        // start with a big "negative" box
+        bounds.minX = 1e10;
+        bounds.maxX = -1e10;
+        bounds.minY = 1e10;
+        bounds.maxY = -1e10;
+        bounds.minZ = 1e10;
+        bounds.maxZ = -1e10;
+
+        uint8_t* position_p = bytes + stream->m_Offset; // points to stream coordinates
+        for (uint32_t i=0; i<buffer->m_Count; i++) {
+            float x = ((float*)position_p)[0];
+            float y = ((float*)position_p)[1];
+            float z = ((float*)position_p)[2];
+
+            bounds.maxX = dmMath::Max(x, bounds.maxX);
+            bounds.minX = dmMath::Min(x, bounds.minX);
+            bounds.maxY = dmMath::Max(y, bounds.maxY);
+            bounds.minY = dmMath::Min(y, bounds.minY);
+            bounds.maxZ = dmMath::Max(z, bounds.maxZ);
+            bounds.minZ = dmMath::Min(z, bounds.minZ);
+
+            position_p += buffer->m_Stride;
+        }
+        return RESULT_OK;
+    }
+
+    Result GetBounds(HBuffer hbuffer, Bounds3D** bounds) {
+        // TODO - validation of return values
+        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        *bounds = &(buffer->m_BoundingCube);
+
         return RESULT_OK;
     }
 }

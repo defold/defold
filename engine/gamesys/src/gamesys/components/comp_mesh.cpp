@@ -27,7 +27,9 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/transform.h>
+#include <dlib/buffer.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/intersection.h>
 #include <gameobject/gameobject_ddf.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -340,6 +342,7 @@ namespace dmGameSystem
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
             component->m_BufferVersion = CalcBufferVersion(component, br);
             CreateVertexBuffer(world, br, component->m_BufferVersion);
+            dmBuffer::UpdateBounds(br->m_Buffer, dmHashString64("position"));
         }
 
         ReHash(component);
@@ -447,7 +450,8 @@ namespace dmGameSystem
                 {
                     info->m_Version = component.m_BufferVersion;
 
-                    CopyBufferToVertexBuffer(br->m_Buffer, info->m_VertexBuffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                    dmBuffer::UpdateBounds(br->m_Buffer, dmHashString64("position"));
+                    CopyBufferToVertexBuffer(br->m_Buffer, info->m_VertexBuffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);                        
                 }
             }
 
@@ -729,6 +733,49 @@ namespace dmGameSystem
         }
     }
 
+    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
+    {
+        DM_PROFILE("Mesh"); // TODO - use a proper name here
+
+        MeshWorld* mesh_world = (MeshWorld*)params.m_UserData;
+
+        const dmIntersection::Frustum frustum = *params.m_Frustum;
+        uint32_t num_entries = params.m_NumEntries;
+        for (uint32_t i = 0; i < num_entries; ++i)
+        {
+            dmRender::RenderListEntry* entry = &params.m_Entries[i];
+            MeshComponent* component_p = (MeshComponent*)entry->m_UserData;
+
+            dmGameSystem::BufferResource* br = GetVerticesBuffer(component_p, component_p->m_Resource);
+            dmBuffer::Bounds3D* bounds = 0x0;
+            dmBuffer::GetBounds(br->m_Buffer, &bounds);
+
+            dmLogError("bounds: {minX:  %f, minY: %f, minZ: %f, maxX: %f, maxY: %f, maxZ: %f}", bounds->minX, bounds->minY, bounds->minZ, bounds->maxX, bounds->maxY, bounds->maxZ);
+
+
+
+            // get center of bounding box in local coords
+            float center_x = (bounds->maxX + bounds->minX)/2;
+            float center_y = (bounds->maxY + bounds->minY)/2;
+            float center_z = (bounds->maxZ + bounds->minZ)/2;
+            dmVMath::Point3 center_local(center_x, center_y, center_z);
+            dmVMath::Point3 corner_local(bounds->maxX, bounds->maxY, bounds->maxZ);
+
+            // transform to world coords
+            dmVMath::Vector4 center_world = component_p->m_World * center_local;
+            dmVMath::Vector4 corner_world = component_p->m_World * corner_local;
+
+            float radius =  Vectormath::Aos::length(corner_world - center_world);
+
+            bool intersect = dmIntersection::TestFrustumSphere(frustum, center_world, radius, true);
+            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+            if (entry->m_Visibility == dmRender::VISIBILITY_NONE) {
+                dmLogError("CULLED AWAY!");
+            }
+        }
+    }
+
+
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         MeshWorld *world = (MeshWorld *) params.m_UserData;
@@ -775,7 +822,7 @@ namespace dmGameSystem
 
         // Prepare list submit
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < count; ++i)
