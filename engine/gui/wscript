@@ -58,4 +58,3 @@ def build(bld):
 
 def shutdown(self):
     waf_dynamo.run_tests(test_context, valgrind = True)
-

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -131,85 +131,11 @@ protected:
     lua_State* L;
 };
 
-TEST_P(JsonToLuaTest, TestJsonToLua)
-{
-    int top = lua_gettop(L);
-
-    const JsonToLuaParams& p = GetParam();
-    dmLogInfo("Expected %s: %s", p.m_ExpectedParseOK && p.m_ExpectedConvertOK ? "valid" : "invalid", p.m_JsonStr);
-
-    dmJson::Document doc;
-    dmJson::Result r = dmJson::Parse(p.m_JsonStr, &doc);
-
-    if (p.m_ExpectedParseOK) {
-        ASSERT_EQ(r, dmJson::RESULT_OK);
-        ASSERT_TRUE(doc.m_NodeCount > 0);
-
-        char err_str[128];
-        int top_before_call = lua_gettop(L);
-        int convert_r = dmScript::JsonToLua(L, &doc, 0, err_str, sizeof(err_str));
-
-        if (p.m_ExpectedConvertOK) {
-            ASSERT_NE(-1, convert_r);
-            lua_pop(L, 1);
-        } else {
-            ASSERT_EQ(-1, convert_r);
-            ASSERT_EQ(top_before_call, lua_gettop(L));
-        }
-
-        dmJson::Free(&doc);
-    } else {
-        ASSERT_NE(r, dmJson::RESULT_OK);
-    }
-
-    ASSERT_EQ(top, lua_gettop(L));
-}
-
-const JsonToLuaParams json_to_lua_setups[] = {
-    // VALID
-    {"null", true, true},
-    {"true", true, true},
-    {"false", true, true},
-    {"10", true, true},
-    {"010", true, true},
-    {"-10", true, true},
-    {"-010", true, true},
-    {"0", true, true},
-    {"-0", true, true},
-    {"10.05", true, true},
-    {"10.0", true, true},
-    {"10.00", true, true},
-    {"010.0", true, true},
-    {"-10.05", true, true},
-    {"-10.0", true, true},
-    {"-10.00", true, true},
-    {"-010.0", true, true},
-    {"0.0", true, true},
-    {"-0.0", true, true},
-    {"00.0", true, true},
-    {"{ \"response\" : 123 }", true, true},
-    {"{ \"data\": \"asd\"}", true, true}, // DEF-3707
-
-    // INVALID
-    {"{", false, false},
-    {"Null", true, false},
-    {"NULL", true, false},
-    {"True", true, false},
-    {"TRUE", true, false},
-    {"False", true, false},
-    {"FALSE", true, false},
-    {"defold", true, false},
-    {"0.d3", true, false},
-    {"{1 2 3}", true, false},
-    {"{1: 2, 3}", true, false},
-    {"{ response = \"ok\" }", true, false},
-    {"{ 'data': 'asd' }", true, false}, // DEF-3707
-};
-
-//INSTANTIATE_TEST_CASE_P(JsonToLuaTestSequence, JsonToLuaTest, jc_test_values_in(json_to_lua_setups));
-
 int main(int argc, char **argv)
 {
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
     jc_test_init(&argc, argv);
 
     int ret = jc_test_run_all();

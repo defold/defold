@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,10 +27,6 @@ extern "C"
 {
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/lua/lauxlib.h>
-}
-
-namespace dmJson {
-    struct Document;
 }
 
 namespace dmScript
@@ -451,20 +447,6 @@ namespace dmScript
      * @return string [type: const char*] Returns buffer. If buffer is non null, it will always contain a null terminated string. "<unknown>" if the hash could not be looked up.
     */
     const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
-
-    /*# convert a dmJson::Document to a Lua table
-     * Convert a dmJson::Document document to Lua table.
-     *
-     * @name dmJson::Type
-     * @param L [type:lua_State*] lua state
-     * @param doc [type:dmJson::Document] JSON document
-     * @param index [type:int] index of JSON node
-     * @param error_str_out [type:char*] if an error is encountered, the error string is written to this argument
-     * @param error_str_size [type:size_t] size of error_str_out
-     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
-     */
-    int JsonToLua(lua_State* L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size);
-
 
     /*#
      * Push DDF message to Lua stack

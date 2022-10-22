@@ -3,10 +3,10 @@
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -41,28 +41,28 @@ function assert_error(js, expected)
 end
 
 function test_json_invalid_primitive()
-    assert_error("Null", "Invalid JSON primitive: Null")
-    assert_error("NULL", "Invalid JSON primitive: NULL")
-    assert_error("True", "Invalid JSON primitive: True")
-    assert_error("TRUE", "Invalid JSON primitive: TRUE")
-    assert_error("False", "Invalid JSON primitive: False")
-    assert_error("FALSE", "Invalid JSON primitive: FALSE")
-    assert_error("defold", "Invalid JSON primitive: defold")
-    assert_error("0.d3", "Invalid JSON primitive: 0.d3")
-    assert_error("{1 2 3}", "Incomplete JSON object: {1 2 3}")
-    assert_error("{1: 2, 3}", "Incomplete JSON object: {1: 2, 3}")
-    assert_error("{ response = \"ok\" }", "Incomplete JSON object: { response = \"ok\" }")
+    print("Expected parsing errors ->")
+    assert_error("Null", "Expected value but found invalid token at character 1")
+    assert_error("NULL", "Expected value but found invalid token at character 1")
+    assert_error("True", "Expected value but found invalid token at character 1")
+    assert_error("TRUE", "Expected value but found invalid token at character 1")
+    assert_error("False", "Expected value but found invalid token at character 1")
+    assert_error("FALSE", "Expected value but found invalid token at character 1")
+    assert_error("defold", "Expected value but found invalid token at character 1")
+    assert_error("0.d3", "Expected the end but found invalid token at character 3")
+    assert_error("{1 2 3}", "Expected object key string but found T_NUMBER at character 2")
+    assert_error("{1: 2, 3}", "Expected object key string but found T_NUMBER at character 2")
+    assert_error("{ response = \"ok\" }", "Expected object key string but found invalid token at character 3")
+    print("<- end of expected parsing errors.")
 end
 
 function test_json_valid_primitive()
-    assert(json.decode("null") == nil)
+    assert(json.decode("null") == json.null)
     assert(json.decode("true") == true)
     assert(json.decode("false") == false)
 
     assert(json.decode("10") == 10)
-    assert(json.decode("010") == 10)
     assert(json.decode("-10") == -10)
-    assert(json.decode("-010") == -10)
     assert(json.decode("0") == 0)
     assert(json.decode("-0") == 0)
 
@@ -73,7 +73,6 @@ function test_json_valid_primitive()
     assert(json.decode("-10.05") == -10.05)
     assert(json.decode("-10.0") == -10)
     assert(json.decode("-10.00") == -10)
-    assert(json.decode("-010.0") == -10)
     assert(json.decode("0.0") == 0)
     assert(json.decode("-0.0") == 0)
     assert(json.decode("00.0") == 0)
@@ -112,10 +111,27 @@ function test_json_decode()
     assert(#nested[2] == 1)
     assert(nested[2][1] == 30)
 
+    print("Expected parsing errors ->")
     test_syntax_error("[")
     test_syntax_error("]")
     test_syntax_error("{")
     test_syntax_error("")
+
+    test_syntax_error("{")
+    test_syntax_error("Null")
+    test_syntax_error("NULL")
+    test_syntax_error("True")
+    test_syntax_error("TRUE")
+    test_syntax_error("False")
+    test_syntax_error("FALSE")
+    test_syntax_error("defold")
+    test_syntax_error("0.d3")
+    test_syntax_error("{1 2 3}")
+    test_syntax_error("{1: 2, 3}")
+    test_syntax_error("{ response = \"ok\" }")
+    test_syntax_error("{ 'data': 'asd' }")
+
+    print("<- end of expected parsing errors.")
 
     test_json_invalid_primitive()
     test_json_valid_primitive()
@@ -135,11 +151,13 @@ function test_json_encode()
     -- interleaved nil becomse a null element (note: not in quotes)
     assert(json.encode({1,nil,2}) == "[1,null,2]")
 
-    local v3_enc = json.encode(vmath.vector3())
-    assert(startswith("\"object at", v3_enc))
+--TODO SHOULD WE SUPPORT THIS?
+--I THINK WE SHOULDN'T
+    -- local v3_enc = json.encode(vmath.vector3())
+    -- assert(startswith("\"object at", v3_enc))
 
-    local f_enc = json.encode(function() end)
-    assert(startswith("\"object at", f_enc))
+    -- local f_enc = json.encode(function() end)
+    -- assert(startswith("\"object at", f_enc))
 
     -- Test passing no arguments, which should fail
     local ret, msg = pcall(function() json.encode() end)
