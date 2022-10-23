@@ -14,8 +14,8 @@
 #define DMSDK_SOCKETTYPES_WIN32_H
 
 // Let's only include these in a single place, in the correct order
-#include <Winsock2.h>
-#include <Ws2tcpip.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <iphlpapi.h>
 
 typedef int socklen_t;
