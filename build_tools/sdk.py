@@ -41,7 +41,7 @@ VERSION_MACOSX="12.1"
 VERSION_IPHONEOS="15.2"
 VERSION_XCODE_CLANG="13.0.0"
 VERSION_IPHONESIMULATOR="15.2"
-MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib" % VERSION_XCODE_CLANG
+MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
@@ -137,6 +137,13 @@ def get_local_darwin_toolchain_version():
     xcode_version_lines = xcode_version_full.split("\n")
     xcode_version = xcode_version_lines[0].split()[1].strip()
     return xcode_version
+
+def get_local_darwin_clang_version():
+    # Apple clang version 13.1.6 (clang-1316.0.21.2.5)
+    version_full = run.shell_command('clang --version')
+    version_lines = version_full.split("\n")
+    version = version_lines[0].split()[3].strip()
+    return version
 
 def get_local_darwin_sdk_path(platform):
     return run.shell_command('xcrun -f --sdk %s --show-sdk-path' % _convert_darwin_platform(platform)).strip()
@@ -379,7 +386,7 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
         info['xcode-clang'] = defold_info['xcode-clang']
         info['asan'] = {}
-        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH)
+        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, 'xcode')
@@ -401,11 +408,15 @@ def _get_local_sdk_info(platform):
         info['xcode'] = {}
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
+        info['xcode-clang'] = get_local_darwin_clang_version()
         info['asan'] = {}
-        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH)
+        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
         info[platform]['version'] = get_local_darwin_sdk_version(platform)
         info[platform]['path'] = get_local_darwin_sdk_path(platform)
+
+        if not os.path.exists(info['asan']['path']):
+            print("sdk.py: Couldn't find '%s'" % info['asan']['path'], file=sys.stderr)
 
     elif platform in ('x86_64-linux',):
         info[platform] = {}
