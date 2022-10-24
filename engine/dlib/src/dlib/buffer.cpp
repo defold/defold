@@ -57,7 +57,9 @@ namespace dmBuffer
         uint16_t m_Version;
         uint16_t m_ContentVersion;  // A running number, which user can use to signal content changes
         uint8_t  m_NumStreams;
-        Bounds3D m_BoundingCube;
+
+        Bounds3D m_BoundingCube;    // two point min/max definition of a AABB
+        uint16_t m_BoundingContentVersion; // copy of m_ContentVersion when m_BoundingCube was calculated
     };
 
     struct BufferContext
@@ -399,6 +401,7 @@ namespace dmBuffer
         buffer->m_Data = (void*)((uintptr_t)data_block + header_size);
         buffer->m_Stride = struct_size;
         buffer->m_ContentVersion = 0;
+        buffer->m_BoundingContentVersion = 0;
 
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
         *out_buffer = SetBuffer(ctx, index, buffer);
@@ -622,14 +625,21 @@ namespace dmBuffer
 
     Result UpdateBounds(HBuffer hbuffer, dmhash_t stream_name) {
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
-        //if (!buffer) {
-        //    return RESULT_BUFFER_INVALID;
-        //}
-
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+        if (buffer->m_ContentVersion == buffer->m_BoundingContentVersion) {
+            return RESULT_OK; // nothing to do - already calculated bounding box in m_BoundingCube
+        }
         Buffer::Stream* stream = GetStream(buffer, stream_name);
-        //if (stream == 0x0) {
-        //    return RESULT_STREAM_MISSING;
-        //}
+        if (stream == 0x0) {
+            return RESULT_STREAM_MISSING;
+        }
+        // currently only support FLOAT32
+        if (stream->m_ValueType != VALUE_TYPE_FLOAT32) {
+            return RESULT_STREAM_TYPE_MISMATCH; // TODO - maybe define a new result: RESULT_UNSUPPORTED_STREAM_TYPE
+        }
+
         Bounds3D& bounds = buffer->m_BoundingCube;
 
         uint8_t* bytes = 0x0;
@@ -663,12 +673,16 @@ namespace dmBuffer
 
             position_p += buffer->m_Stride;
         }
+        buffer->m_BoundingContentVersion = buffer->m_ContentVersion;
         return RESULT_OK;
     }
 
     Result GetBounds(HBuffer hbuffer, Bounds3D** bounds) {
-        // TODO - validation of return values
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        if (buffer->m_BoundingContentVersion != buffer->m_ContentVersion) {
+            return dmBuffer::RESULT_BOUNDS_NOT_AVAILABLE;
+        }
+
         *bounds = &(buffer->m_BoundingCube);
 
         return RESULT_OK;

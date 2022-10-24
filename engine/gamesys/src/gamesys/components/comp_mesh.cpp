@@ -748,11 +748,11 @@ namespace dmGameSystem
 
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component_p, component_p->m_Resource);
             dmBuffer::Bounds3D* bounds = 0x0;
-            dmBuffer::GetBounds(br->m_Buffer, &bounds);
+            dmBuffer::Result r = dmBuffer::GetBounds(br->m_Buffer, &bounds);
 
-            dmLogError("bounds: {minX:  %f, minY: %f, minZ: %f, maxX: %f, maxY: %f, maxZ: %f}", bounds->minX, bounds->minY, bounds->minZ, bounds->maxX, bounds->maxY, bounds->maxZ);
-
-
+            if (r != dmBuffer::RESULT_OK) {
+                return;
+            }
 
             // get center of bounding box in local coords
             float center_x = (bounds->maxX + bounds->minX)/2;
@@ -769,9 +769,6 @@ namespace dmGameSystem
 
             bool intersect = dmIntersection::TestFrustumSphere(frustum, center_world, radius, true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
-            if (entry->m_Visibility == dmRender::VISIBILITY_NONE) {
-                dmLogError("CULLED AWAY!");
-            }
         }
     }
 
