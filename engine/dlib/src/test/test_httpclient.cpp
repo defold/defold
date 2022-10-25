@@ -1241,7 +1241,7 @@ int main(int argc, char **argv)
         }
 
         const char* ip = dmConfigFile::GetString(config, "server.ip", "localhost");
-        memcpy(SERVER_IP, ip, sizeof(SERVER_IP));
+        dmStrlCpy(SERVER_IP, ip, sizeof(SERVER_IP));
 
         dmTestUtil::GetSocketsFromConfig(config, &g_HttpPort, &g_HttpPortSSL, &g_HttpPortSSLTest);
         dmConfigFile::Delete(config);
