@@ -305,6 +305,51 @@ namespace dmGameSystem
         component->m_ReHash = 0;
     }
 
+    void UpdatePositionBounds(dmBuffer::HBuffer hbuffer, dmhash_t stream_name) {
+
+        // get stream and buffer properties
+        void* vertices_data;
+        uint32_t vertex_count;
+        uint32_t vertex_components;
+        uint32_t stride;
+
+        dmBuffer::Result r = dmBuffer::GetStream(hbuffer, stream_name, &vertices_data,  &vertex_count, &vertex_components, &stride);
+        if (r != dmBuffer::RESULT_OK) {
+            // TODO handle failure
+        }
+
+        // currently only support FLOAT32
+        //if (stream->m_ValueType != VALUE_TYPE_FLOAT32) {
+        //    return RESULT_STREAM_TYPE_MISMATCH; // TODO - maybe define a new result: RESULT_UNSUPPORTED_STREAM_TYPE
+        //}
+
+        // calculate min/max for (position) stream coordinates
+        dmVMath::Point3 boundsMin(1e10,1e10,1e10);
+        dmVMath::Point3 boundsMax(-1e10,-1e10,-1e10);
+
+        uint8_t* position_p = (uint8_t*) vertices_data; // iterates over stream position coordinates
+
+        for (uint32_t i=0; i<vertex_count; i++) {
+            float x = ((float*)position_p)[0];
+            float y = ((float*)position_p)[1];
+            float z = ((float*)position_p)[2];
+
+            boundsMax.setX( dmMath::Max(x, boundsMax.getX()) );
+            boundsMin.setX( dmMath::Min(x, boundsMin.getX()) );
+            boundsMax.setY( dmMath::Max(y, boundsMax.getY()) );
+            boundsMin.setY( dmMath::Min(y, boundsMin.getY()) );
+            boundsMax.setZ( dmMath::Max(z, boundsMax.getZ()) );
+            boundsMin.setZ( dmMath::Min(z, boundsMin.getZ()) );
+
+            position_p += stride;
+        }
+
+        // update min/max bounds in buffer
+        dmBuffer::SetBounds(hbuffer, boundsMin, boundsMax); // hbuffer should be valid. We've checked it above with GetStream().
+
+        return;
+    }
+
     dmGameObject::CreateResult CompMeshCreate(const dmGameObject::ComponentCreateParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
@@ -342,7 +387,7 @@ namespace dmGameSystem
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
             component->m_BufferVersion = CalcBufferVersion(component, br);
             CreateVertexBuffer(world, br, component->m_BufferVersion);
-            dmBuffer::UpdateBounds(br->m_Buffer, dmHashString64("position"));
+            UpdatePositionBounds(br->m_Buffer, dmHashString64("position"));
         }
 
         ReHash(component);
@@ -450,7 +495,7 @@ namespace dmGameSystem
                 {
                     info->m_Version = component.m_BufferVersion;
 
-                    dmBuffer::UpdateBounds(br->m_Buffer, dmHashString64("position"));
+                    UpdatePositionBounds(br->m_Buffer, dmHashString64("position"));
                     CopyBufferToVertexBuffer(br->m_Buffer, info->m_VertexBuffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);                        
                 }
             }
@@ -747,19 +792,19 @@ namespace dmGameSystem
             MeshComponent* component_p = (MeshComponent*)entry->m_UserData;
 
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component_p, component_p->m_Resource);
-            dmBuffer::Bounds3D* bounds = 0x0;
-            dmBuffer::Result r = dmBuffer::GetBounds(br->m_Buffer, &bounds);
+            dmVMath::Point3 boundsMin, boundsMax;
+            dmBuffer::Result r = dmBuffer::GetBounds(br->m_Buffer, boundsMin, boundsMax);
 
             if (r != dmBuffer::RESULT_OK) {
                 return;
             }
 
             // get center of bounding box in local coords
-            float center_x = (bounds->maxX + bounds->minX)/2;
-            float center_y = (bounds->maxY + bounds->minY)/2;
-            float center_z = (bounds->maxZ + bounds->minZ)/2;
+            float center_x = (boundsMax.getX() + boundsMin.getX())/2;
+            float center_y = (boundsMax.getY() + boundsMin.getY())/2;
+            float center_z = (boundsMax.getZ() + boundsMin.getZ())/2;
             dmVMath::Point3 center_local(center_x, center_y, center_z);
-            dmVMath::Point3 corner_local(bounds->maxX, bounds->maxY, bounds->maxZ);
+            dmVMath::Point3 corner_local(boundsMax.getX(), boundsMax.getY(), boundsMax.getZ());
 
             // transform to world coords
             dmVMath::Vector4 center_world = component_p->m_World * center_local;

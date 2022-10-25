@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 
+#include "vmath.h"
 #include <dmsdk/dlib/buffer.h>
 #include <dlib/buffer.h>  // for Bounds3D type
 
@@ -58,8 +59,10 @@ namespace dmBuffer
         uint16_t m_ContentVersion;  // A running number, which user can use to signal content changes
         uint8_t  m_NumStreams;
 
-        Bounds3D m_BoundingCube;    // two point min/max definition of a AABB
-        uint16_t m_BoundingContentVersion; // copy of m_ContentVersion when m_BoundingCube was calculated
+        //Bounds3D m_BoundingCube;    // two point min/max definition of a AABB
+        //uint16_t m_BoundingContentVersion; // copy of m_ContentVersion when m_BoundingCube was calculated
+        dmVMath::Point3 boundsMin;
+        dmVMath::Point3 boundsMax;
     };
 
     struct BufferContext
@@ -401,7 +404,6 @@ namespace dmBuffer
         buffer->m_Data = (void*)((uintptr_t)data_block + header_size);
         buffer->m_Stride = struct_size;
         buffer->m_ContentVersion = 0;
-        buffer->m_BoundingContentVersion = 0;
 
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
         *out_buffer = SetBuffer(ctx, index, buffer);
@@ -622,68 +624,24 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
-
-    Result UpdateBounds(HBuffer hbuffer, dmhash_t stream_name) {
+    Result SetBounds(HBuffer hbuffer, const dmVMath::Point3& min, const dmVMath::Point3& max) {
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;
         }
-        if (buffer->m_ContentVersion == buffer->m_BoundingContentVersion) {
-            return RESULT_OK; // nothing to do - already calculated bounding box in m_BoundingCube
-        }
-        Buffer::Stream* stream = GetStream(buffer, stream_name);
-        if (stream == 0x0) {
-            return RESULT_STREAM_MISSING;
-        }
-        // currently only support FLOAT32
-        if (stream->m_ValueType != VALUE_TYPE_FLOAT32) {
-            return RESULT_STREAM_TYPE_MISMATCH; // TODO - maybe define a new result: RESULT_UNSUPPORTED_STREAM_TYPE
-        }
 
-        Bounds3D& bounds = buffer->m_BoundingCube;
+        buffer->boundsMin = min;
+        buffer->boundsMax = max;
 
-        uint8_t* bytes = 0x0;
-        uint32_t bytes_size = 0;
-        dmBuffer::Result r;
-        r = dmBuffer::GetBytes(hbuffer, (void**) &bytes, &bytes_size);
-        if (r != RESULT_OK) {
-            return r;
-        }
 
-        // start with a big "negative" box
-        bounds.minX = 1e10;
-        bounds.maxX = -1e10;
-        bounds.minY = 1e10;
-        bounds.maxY = -1e10;
-        bounds.minZ = 1e10;
-        bounds.maxZ = -1e10;
-
-        uint8_t* position_p = bytes + stream->m_Offset; // points to stream coordinates
-        for (uint32_t i=0; i<buffer->m_Count; i++) {
-            float x = ((float*)position_p)[0];
-            float y = ((float*)position_p)[1];
-            float z = ((float*)position_p)[2];
-
-            bounds.maxX = dmMath::Max(x, bounds.maxX);
-            bounds.minX = dmMath::Min(x, bounds.minX);
-            bounds.maxY = dmMath::Max(y, bounds.maxY);
-            bounds.minY = dmMath::Min(y, bounds.minY);
-            bounds.maxZ = dmMath::Max(z, bounds.maxZ);
-            bounds.minZ = dmMath::Min(z, bounds.minZ);
-
-            position_p += buffer->m_Stride;
-        }
-        buffer->m_BoundingContentVersion = buffer->m_ContentVersion;
         return RESULT_OK;
     }
 
-    Result GetBounds(HBuffer hbuffer, Bounds3D** bounds) {
+    Result GetBounds(HBuffer hbuffer, dmVMath::Point3& min, dmVMath::Point3& max) {
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
-        if (buffer->m_BoundingContentVersion != buffer->m_ContentVersion) {
-            return dmBuffer::RESULT_BOUNDS_NOT_AVAILABLE;
-        }
 
-        *bounds = &(buffer->m_BoundingCube);
+        min = buffer->boundsMin;
+        max = buffer->boundsMax;
 
         return RESULT_OK;
     }
