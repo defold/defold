@@ -866,13 +866,12 @@ static int json_encode(lua_State *l)
 // object created by cjson. Instead we initialize and create
 // a default config here to avoid passing the config as
 // a user data object.
-int lua_cjson_encode(lua_State *l)
+// Also, we return the generated string, and let the caller delete it
+int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
 {
-	json_config_t cfg;
+    json_config_t cfg;
     strbuf_t local_encode_buf;
     strbuf_t *encode_buf;
-    char *json;
-    int len;
 
     luaL_argcheck(l, lua_gettop(l) == 1, 1, "expected 1 argument");
 
@@ -888,15 +887,23 @@ int lua_cjson_encode(lua_State *l)
     }
 
     json_append_data(l, &cfg, 0, encode_buf);
-    json = strbuf_string(encode_buf, &len);
 
-    lua_pushlstring(l, json, len);
+    // DEFOLD: We store away the values
+    int len;
+    *json_str = strbuf_string(encode_buf, &len);
+    *json_length = (size_t)len;
+
+    strbuf_ensure_null(encode_buf);
+
+    // DEFOLD: The caller will have to free this buffer
+    encode_buf->buf = 0;
 
     if (!cfg.encode_keep_buffer)
         strbuf_free(encode_buf);
 
     return 1;
 }
+
 // END DEFOLD
 
 /* ===== DECODING ===== */
@@ -1477,18 +1484,15 @@ static int json_decode(lua_State *l)
 // object created by cjson. Instead we initialize and create
 // a default config here to avoid passing the config as
 // a user data object.
-int lua_cjson_decode(lua_State *l)
+int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len)
 {
 	json_config_t cfg;
     json_parse_t json;
     json_token_t token;
-    size_t json_len;
-
-    luaL_argcheck(l, lua_gettop(l) == 1, 1, "expected 1 argument");
 
     json_initialize_config(&cfg);
     json.cfg = &cfg;
-    json.data = luaL_checklstring(l, 1, &json_len);
+    json.data = json_string;
     json.current_depth = 0;
     json.ptr = json.data;
 

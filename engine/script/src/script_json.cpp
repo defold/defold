@@ -28,8 +28,8 @@ extern "C"
     #include <lua/lauxlib.h>
 
     // Defined in luacjson/lua_cjson.c
-    int lua_cjson_decode(lua_State* L);
-    int lua_cjson_encode(lua_State* L);
+    int lua_cjson_decode(lua_State* L, const char* json_string, size_t json_len);
+    int lua_cjson_encode(lua_State* L, char** json_str, size_t* json_length);
 }
 
 #include "script_json.h"
@@ -45,6 +45,23 @@ namespace dmScript
      * @name JSON
      * @namespace json
      */
+
+    int JsonToLua(lua_State* L, const char* json, size_t json_len)
+    {
+        int top = lua_gettop(L);
+        int ret = lua_cjson_decode(L, json, json_len);
+        if (ret != 1)
+        {
+            lua_pop(L, lua_gettop(L) - top);
+        }
+        assert(top + 1 == lua_gettop(L));
+        return ret;
+    }
+
+    int LuaToJson(lua_State* L, char** json, size_t* json_len)
+    {
+        return lua_cjson_encode(L, json, json_len);
+    }
 
     /*# decode JSON from a string to a lua-table
      * Decode a string of JSON data into a Lua table.
@@ -88,13 +105,10 @@ namespace dmScript
         {
             luaL_error(L, "json.decode requires one argument.");
         }
-        int ret = lua_cjson_decode(L);
-        if (!ret) {
-            lua_pop(L, lua_gettop(L) - top);
-            return luaL_error(L, "Failed to parse json");
-        }
-        assert(top + 1 == lua_gettop(L));
-        return 1;
+
+        size_t json_len;
+        const char* json = luaL_checklstring(L, 1, &json_len);
+        return JsonToLua(L, json, json_len);
     }
 
     /*# encode a lua table to a JSON string
@@ -128,7 +142,7 @@ namespace dmScript
      * {"persons":[{"name":"John Doe"},{"name":"Darth Vader"}]}
      * ```
      */
-    int Json_Encode(lua_State* L)
+    static int Json_Encode(lua_State* L)
     {
         int top = lua_gettop(L);
         if (top == 0)
@@ -136,10 +150,18 @@ namespace dmScript
             luaL_error(L, "json.encode requires one argument.");
         }
 
-        int ret = lua_cjson_encode(L);
-        assert(ret == 1);
+        char* json = 0;
+        size_t json_length = 0;
+        if (LuaToJson(L, &json, &json_length))
+        {
+            lua_pushlstring(L, json, json_length);
+            free(json);
+        } else {
+            lua_pushnil(L);
+        }
+
         assert(top + 1 == lua_gettop(L));
-        return ret;
+        return 1;
     }
 
     /*# null

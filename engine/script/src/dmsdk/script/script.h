@@ -457,6 +457,29 @@ namespace dmScript
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
+    /*# convert a Json string to a Lua table
+     * Convert a Json string to Lua table.
+     * @note Throws Lua error if it fails to parser the json
+     *
+     * @name dmScript::JsonToLua
+     * @param L [type:lua_State*] lua state
+     * @param json [type:const char*] json string
+     * @param json_len [type:size_t] length of json string
+     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
+     */
+    int JsonToLua(lua_State* L, const char* json, size_t json_len);
+
+    /*# convert a Lua table to a Json string
+     * Convert a Lua table to a Json string
+     *
+     * @name dmScript::LuaToJson
+     * @param L [type:lua_State*] lua state
+     * @param json [type:char**] [out] Pointer to char*, which will receive a newly allocated string. Use free().
+     * @param json_len [type:size_t*] length of json string
+     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
+     */
+    int LuaToJson(lua_State* L, char** json, size_t* json_len);
+
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua
      * @struct

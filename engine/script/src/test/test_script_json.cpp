@@ -99,37 +99,45 @@ TEST_F(ScriptJsonTest, TestJson)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
-struct JsonToLuaParams
-{
-    const char* m_JsonStr;
-    bool m_ExpectedParseOK;
-    bool m_ExpectedConvertOK;
-};
 
-class JsonToLuaTest : public jc_test_params_class<JsonToLuaParams>
+TEST_F(ScriptJsonTest, TestLuaToJson)
 {
-protected:
-    virtual void SetUp()
+    int top = lua_gettop(L);
+
     {
-        dmConfigFile::Result r = dmConfigFile::Load(MOUNTFS "src/test/test.config", 0, 0, &m_ConfigFile);
-        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
+        lua_newtable(L);
+            lua_pushstring(L, "str");
+            lua_setfield(L, -2, "a");
+            lua_pushnumber(L, 1.5);
+            lua_setfield(L, -2, "b");
 
-        m_Context = dmScript::NewContext(m_ConfigFile, 0, true);
-        dmScript::Initialize(m_Context);
-        L = dmScript::GetLuaState(m_Context);
+            lua_newtable(L);
+                lua_pushinteger(L, 7);
+                lua_setfield(L, -2, "d");
+
+            lua_setfield(L, -2, "c");
+
+        char* json = 0;
+        size_t json_length;
+        int ret = dmScript::LuaToJson(L, &json, &json_length);
+        ASSERT_EQ(1, ret);
+
+        ASSERT_EQ(31u, (uint32_t)json_length);
+        // Since the ordering will be different
+        // {"a":"str","b":1.5,"c":{"d":7}}
+        ASSERT_EQ('{', json[0]);
+        ASSERT_EQ('}', json[json_length-1]);
+        ASSERT_EQ('\0', json[json_length]);
+        ASSERT_TRUE(strstr(json, "\"a\":\"str\"") != 0);
+        ASSERT_TRUE(strstr(json, "\"b\":1.5") != 0);
+        ASSERT_TRUE(strstr(json, "\"c\":{\"d\":7}") != 0);
+
+        lua_pop(L, 1);
     }
 
-    virtual void TearDown()
-    {
-        dmConfigFile::Delete(m_ConfigFile);
-        dmScript::Finalize(m_Context);
-        dmScript::DeleteContext(m_Context);
-    }
+    ASSERT_EQ(top, lua_gettop(L));
+}
 
-    dmScript::HContext m_Context;
-    dmConfigFile::HConfig m_ConfigFile;
-    lua_State* L;
-};
 
 int main(int argc, char **argv)
 {
