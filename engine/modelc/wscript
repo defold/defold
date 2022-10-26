@@ -29,6 +29,7 @@ def configure(conf):
 
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['STLIB_DLIB'] = 'dlib'
+    conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
     conf.env['STLIB_DDF'] = 'ddf'
 
     if 'JAVA_HOME' in os.environ:
