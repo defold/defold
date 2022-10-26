@@ -49,6 +49,8 @@ namespace dmGameSystem
     {
         dmSound::SoundDataResource* sound_data_res = (dmSound::SoundDataResource*) params.m_Resource->m_Resource;
         dmSound::Result r = dmSound::DeleteSoundData(sound_data_res->m_SoundData);
+        delete sound_data_res;
+        
         if (r != dmSound::RESULT_OK)
         {
             return dmResource::RESULT_INVAL;
