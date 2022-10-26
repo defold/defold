@@ -387,7 +387,9 @@ namespace dmGameSystem
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
             component->m_BufferVersion = CalcBufferVersion(component, br);
             CreateVertexBuffer(world, br, component->m_BufferVersion);
-            UpdatePositionBounds(br->m_Buffer, dmHashString64("position"));
+            // process position stream in buffer to find bounding box
+            uint64_t stream_name = (component->m_Resource->m_PositionStreamId != 0) ? component->m_Resource->m_PositionStreamId : dmHashString64("position"); // use stream name (hash) from resource and fallback to "position" if this is not available
+            UpdatePositionBounds(br->m_Buffer, stream_name);
         }
 
         ReHash(component);
@@ -494,8 +496,10 @@ namespace dmGameSystem
                 if (info->m_Version != component.m_BufferVersion)
                 {
                     info->m_Version = component.m_BufferVersion;
+                    // process position stream in buffer to find bounding box
+                    uint64_t stream_name = (component.m_Resource->m_PositionStreamId != 0) ? component.m_Resource->m_PositionStreamId : dmHashString64("position"); // use stream name (hash) from resource and fallback to "position" if this is not available
+                    UpdatePositionBounds(br->m_Buffer, stream_name);
 
-                    UpdatePositionBounds(br->m_Buffer, dmHashString64("position"));
                     CopyBufferToVertexBuffer(br->m_Buffer, info->m_VertexBuffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);                        
                 }
             }
