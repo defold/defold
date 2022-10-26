@@ -30,12 +30,12 @@ namespace dmGameSystem
                                         dmSoundDDF::SoundDesc* sound_desc,
                                         Sound** sound)
     {
-        dmSound::HSoundData sound_data = 0;
-        dmResource::Result fr = dmResource::Get(factory, sound_desc->m_Sound, (void**) &sound_data);
+        dmSound::SoundDataResource* sound_data_res = 0;
+        dmResource::Result fr = dmResource::Get(factory, sound_desc->m_Sound, (void**) &sound_data_res);
         if (fr == dmResource::RESULT_OK)
         {
             Sound* s = new Sound();
-            s->m_SoundData = sound_data;
+            s->m_SoundDataRes = sound_data_res;
             s->m_Looping = sound_desc->m_Looping;
             s->m_Loopcount = sound_desc->m_Loopcount;
             s->m_GroupHash = dmHashString64(sound_desc->m_Group);
@@ -85,7 +85,7 @@ namespace dmGameSystem
     {
         Sound* sound = (Sound*) params.m_Resource->m_Resource;
 
-        dmResource::Release(params.m_Factory, (void*) sound->m_SoundData);
+        dmResource::Release(params.m_Factory, (void*) sound->m_SoundDataRes);
         delete sound;
         return dmResource::RESULT_OK;
     }

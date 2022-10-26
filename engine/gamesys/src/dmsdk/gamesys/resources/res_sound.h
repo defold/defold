@@ -20,7 +20,7 @@
 
 namespace dmSound
 {
-    typedef struct SoundData* HSoundData;
+    typedef struct SoundDataResource* HSoundDataRes;
 }
 
 namespace dmGameSystem
@@ -29,13 +29,13 @@ namespace dmGameSystem
     {
         Sound();
 
-        dmhash_t            m_GroupHash;
-        dmSound::HSoundData m_SoundData;
-        float               m_Gain;
-        float               m_Pan;
-        float               m_Speed;
-        uint8_t             m_Loopcount;
-        uint8_t             m_Looping:1;
+        dmhash_t                    m_GroupHash;
+        dmSound::HSoundDataRes      m_SoundDataRes;
+        float                       m_Gain;
+        float                       m_Pan;
+        float                       m_Speed;
+        uint8_t                     m_Loopcount;
+        uint8_t                     m_Looping:1;
     };
 }
 

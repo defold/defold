@@ -369,7 +369,7 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)params.m_Message->m_Data;
                 Sound* sound = component->m_Resource;
-                dmSound::HSoundData sound_data = sound->m_SoundData;
+                dmSound::HSoundData sound_data = sound->m_SoundDataRes->m_SoundData;
                 uint32_t index = world->m_EntryIndices.Pop();
                 PlayEntry& entry = world->m_Entries[index];
                 dmResource::HFactory factory = dmGameObject::GetFactory(dmGameObject::GetCollection(params.m_Instance));
@@ -482,7 +482,7 @@ namespace dmGameSystem
         SoundComponent* component = &world->m_Components.Get(index);
 
         if (params.m_PropertyId == SOUND_PROP_SOUND) {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), component->m_Resource->m_SoundData, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), component->m_Resource->m_SoundDataRes, out_value);
         } else {
             dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
             if (parameter == dmSound::PARAMETER_MAX) {

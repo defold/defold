@@ -511,9 +511,9 @@ namespace dmSound
         return SetSoundDataNoLock(sound_data, sound_buffer, sound_buffer_size);
     }
 
-    uint32_t GetSoundResourceSize(HSoundData sound_data)
+    uint32_t GetSoundResourceSize(SoundDataResource* sound_data_res)
     {
-        return sound_data->m_Size + sizeof(SoundData);
+        return sound_data_res->m_SoundData->m_Size + sizeof(SoundDataResource);
     }
 
     Result DeleteSoundData(HSoundData sound_data)

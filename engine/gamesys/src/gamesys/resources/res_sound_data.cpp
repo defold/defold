@@ -36,15 +36,19 @@ namespace dmGameSystem
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
 
-        params.m_Resource->m_Resource = (void*) sound_data;
-        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
+        dmSound::SoundDataResource* sound_data_res = new dmSound::SoundDataResource();
+
+        sound_data_res->m_SoundData = sound_data;
+
+        params.m_Resource->m_Resource = (void*) sound_data_res;
+        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data_res);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmSound::HSoundData sound_data = (dmSound::HSoundData) params.m_Resource->m_Resource;
-        dmSound::Result r = dmSound::DeleteSoundData(sound_data);
+        dmSound::SoundDataResource* sound_data_res = (dmSound::SoundDataResource*) params.m_Resource->m_Resource;
+        dmSound::Result r = dmSound::DeleteSoundData(sound_data_res->m_SoundData);
         if (r != dmSound::RESULT_OK)
         {
             return dmResource::RESULT_INVAL;
@@ -54,13 +58,20 @@ namespace dmGameSystem
 
     dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmSound::HSoundData sound_data = (dmSound::HSoundData) params.m_Resource->m_Resource;
-        dmSound::Result r = dmSound::SetSoundData(sound_data, params.m_Buffer, params.m_BufferSize);
+        dmSound::SoundDataResource* sound_data_res = (dmSound::SoundDataResource*) params.m_Resource->m_Resource;
+
+        dmSound::HSoundData sound_data;
+        dmSound::SoundDataType type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+        dmSound::Result r = dmSound::NewSoundData(params.m_Buffer, params.m_BufferSize, type, &sound_data, params.m_Resource->m_NameHash);
+
         if (r != dmSound::RESULT_OK)
         {
             return dmResource::RESULT_INVAL;
         }
-        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
+        sound_data_res->m_SoundData = sound_data;
+
+        params.m_Resource->m_Resource = (void*)sound_data_res;
+        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data_res);
         return dmResource::RESULT_OK;
     }
 }
