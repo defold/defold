@@ -20,6 +20,7 @@
 #include <render/font_renderer.h>
 #include <script/script.h>
 #include <dmsdk/gameobject/script.h>
+#include "dlib/dstrings.h"
 
 
 #include "script_label.h"
@@ -210,19 +211,23 @@ static int SetText(lua_State* L)
 
     dmGameObject::HInstance instance = CheckGoInstance(L);
 
-    size_t len = 0;
-    const char* text = luaL_checklstring(L, 2, &len);
+    size_t text_len = 0;
+    const char* text = luaL_checklstring(L, 2, &text_len);
     if (!text)
     {
         return DM_LUA_ERROR("Expected string as second argument");
     }
 
-    lua_newtable(L);
-    lua_pushlstring(L, text, len);
-    lua_setfield(L, -2, "text");
+    uint32_t data_size = sizeof(dmGameSystemDDF::SetText) + text_len + 1;
+    if (data_size > dmMessage::DM_MESSAGE_MAX_DATA_SIZE)
+    {
+        return DM_LUA_ERROR("The label string is too long!");
+    }
+    uint8_t data[data_size];
 
-    uint8_t data[dmMessage::DM_MESSAGE_MAX_DATA_SIZE];
-    uint32_t data_size = dmScript::CheckDDF(L, dmGameSystemDDF::SetText::m_DDFDescriptor, (char*)data, sizeof(data), -1);
+    dmGameSystemDDF::SetText* message = (dmGameSystemDDF::SetText*)data;
+    message->m_Text = (const char*)sizeof(dmGameSystemDDF::SetText);
+    dmStrlCpy((char*)data + sizeof(dmGameSystemDDF::SetText), text, text_len + 1);
 
     dmMessage::URL receiver;
     dmMessage::URL sender;
@@ -233,7 +238,6 @@ static int SetText(lua_State* L)
     {
         return DM_LUA_ERROR("Failed to send label string as message!");
     }
-    lua_pop(L, 1);
     return 0;
 }
 
