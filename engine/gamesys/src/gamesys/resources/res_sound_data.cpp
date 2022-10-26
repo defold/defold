@@ -68,8 +68,12 @@ namespace dmGameSystem
 
         if (r != dmSound::RESULT_OK)
         {
-            return dmResource::RESULT_INVAL;
+            return dmResource::RESULT_OUT_OF_RESOURCES;
         }
+
+        dmSound::HSoundData old_sound_data = sound_data_res->m_SoundData;
+        dmSound::DeleteSoundData(old_sound_data);
+
         sound_data_res->m_SoundData = sound_data;
 
         params.m_Resource->m_Resource = (void*)sound_data_res;

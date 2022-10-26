@@ -156,6 +156,7 @@ namespace dmSound
         // Index in m_SoundData
         uint16_t      m_Index;
         SoundDataType m_Type;
+        uint16_t      m_RefCount;
     };
 
     struct SoundInstance
@@ -495,6 +496,7 @@ namespace dmSound
         sd->m_Index = index;
         sd->m_Data = 0;
         sd->m_Size = 0;
+        sd->m_RefCount = 1;
 
         Result result = SetSoundDataNoLock(sd, sound_buffer, sound_buffer_size);
         if (result == RESULT_OK)
@@ -518,6 +520,12 @@ namespace dmSound
 
     Result DeleteSoundData(HSoundData sound_data)
     {
+        sound_data->m_RefCount --;
+        dmLogError("Del Ref counter(%u)", sound_data->m_RefCount);
+        if (sound_data->m_RefCount > 0)
+        {
+            return RESULT_OK;
+        }
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
 
         if (sound_data->m_Data != 0x0)
@@ -565,6 +573,9 @@ namespace dmSound
             index = ss->m_InstancesPool.Pop();
         }
 
+        sound_data->m_RefCount ++;
+        dmLogError("Create Ref counter index: %u (%u)", sound_data->m_Index, sound_data->m_RefCount);
+
         SoundInstance* si = &ss->m_Instances[index];
         assert(si->m_Index == 0xffff);
 
@@ -599,6 +610,7 @@ namespace dmSound
         uint16_t index = sound_instance->m_Index;
         sound->m_InstancesPool.Push(index);
         sound_instance->m_Index = 0xffff;
+        DeleteSoundData(&sound->m_SoundData[sound_instance->m_SoundDataIndex]);
         sound_instance->m_SoundDataIndex = 0xffff;
         dmSoundCodec::DeleteDecoder(sound->m_CodecContext, sound_instance->m_Decoder);
         sound_instance->m_Decoder = 0;
