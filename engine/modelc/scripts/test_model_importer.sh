@@ -30,16 +30,16 @@ USING_ASAN=$(otool -L $MODELIMPORTER_SHARED_LIB | grep -e "clang_rt.asan")
 USING_UBSAN=$(otool -L $MODELIMPORTER_SHARED_LIB | grep -e "clang_rt.ubsan")
 set -e
 
-PACKGED_XCODE=${DYNAMO_HOME}/ext/SDKs/
-PACKGED_XCODE_TOOLCHAIN=${PACKGED_XCODE}/Toolchains/XcodeDefault.xctoolchain
+PACKAGED_XCODE=${DYNAMO_HOME}/ext/SDKs/
+PACKAGED_XCODE_TOOLCHAIN=${PACKAGED_XCODE}/Toolchains/XcodeDefault.xctoolchain
 LOCAL_XCODE=$(xcode-select -print-path)
 LOCAL_XCODE_TOOLCHAIN=${LOCAL_XCODE}/Toolchains/XcodeDefault.xctoolchain
 
 if [ "${USING_ASAN}" != "" ]; then
     echo "Finding ASAN!"
 
-    if [ -d "${PACKGED_XCODE_TOOLCHAIN}" ]; then
-        ASAN_LIB=$(find ${PACKGED_XCODE_TOOLCHAIN}/usr/lib/clang -iname "libclang_rt.asan_osx_dynamic.dylib")
+    if [ -d "${PACKAGED_XCODE_TOOLCHAIN}" ]; then
+        ASAN_LIB=$(find ${PACKAGED_XCODE_TOOLCHAIN}/usr/lib/clang -iname "libclang_rt.asan_osx_dynamic.dylib")
     fi
     if [ ! -e ${ASAN_LIB} ]; then
         ASAN_LIB=$(find ${LOCAL_XCODE_TOOLCHAIN}/usr/lib/clang -iname "libclang_rt.asan_osx_dynamic.dylib")
@@ -51,9 +51,9 @@ fi
 if [ "${USING_UBSAN}" != "" ]; then
     echo "Finding UBSAN!"
 
-    if [ -d "${PACKGED_XCODE_TOOLCHAIN}" ]; then
+    if [ -d "${PACKAGED_XCODE_TOOLCHAIN}" ]; then
         echo "LOoking in packaged sdks"
-        UBSAN_LIB=$(find ${PACKGED_XCODE_TOOLCHAIN}/usr/lib/clang -iname "libclang_rt.asan_osx_dynamic.dylib")
+        UBSAN_LIB=$(find ${PACKAGED_XCODE_TOOLCHAIN}/usr/lib/clang -iname "libclang_rt.asan_osx_dynamic.dylib")
     fi
     if [ "${UBSAN_LIB}" == "" ]; then
         echo "LOoking in local installs"
