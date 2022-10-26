@@ -21,7 +21,6 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
-#include <dmsdk/dlib/json.h>
 
 extern "C"
 {
