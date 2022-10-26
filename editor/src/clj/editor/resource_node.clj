@@ -158,7 +158,8 @@
           ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
 
 (defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
-  (let [read-fn (cond->> (partial protobuf/read-text ddf-type)
+  (let [read-raw-fn (partial protobuf/read-text ddf-type)
+        read-fn (cond->> read-raw-fn
                          (some? sanitize-fn) (comp sanitize-fn))
         args (assoc args
                :textual? true
@@ -166,11 +167,13 @@
                           (let [source-value (read-fn resource)]
                             (load-fn project self resource source-value)))
                :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
+               :read-raw-fn read-raw-fn
                :read-fn read-fn
                :write-fn (partial protobuf/map->str ddf-type))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
-(defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn icon view-types tags tag-opts label] :as args}]
+(defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]
+  {:pre [(seqable? meta-settings)]}
   (let [read-fn (fn [resource]
                   (with-open [setting-reader (io/reader resource)]
                     (settings-core/parse-settings setting-reader)))
@@ -180,5 +183,6 @@
                           (let [source-value (read-fn resource)]
                             (load-fn project self resource source-value)))
                :read-fn read-fn
-               :write-fn (comp settings-core/settings->str settings-core/settings-with-value))]
+               :write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
+                               settings-core/settings-with-value))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

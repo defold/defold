@@ -53,6 +53,7 @@ var LibraryGLFW = {
     prevNonFSWidth: 0,
     prevNonFSHeight: 0,
     isFullscreen: false,
+    isPointerLocked: false,
     dpi: 1,
     mouseTouchId:null,
 
@@ -444,7 +445,9 @@ var LibraryGLFW = {
         if (GLFW.mouseWheelFunc) {
           {{{ makeDynCall('vi', 'GLFW.mouseWheelFunc') }}}(GLFW.wheelPos);
         }
-        event.preventDefault();
+        if (event.cancelable) {
+          event.preventDefault();
+        }
       }
     },
 
@@ -520,6 +523,31 @@ var LibraryGLFW = {
       GLFW.refreshJoysticks(true);
     },
 
+    onPointerLockEventChange: function(event) {
+      GLFW.isPointerLocked = !!document["pointerLockElement"];
+      if (!GLFW.isPointerLocked) {
+        document.removeEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+      }
+    },
+
+    requestPointerLock: function(element) {
+      element = element || Module["canvas"];
+      if (!element) {
+        return;
+      }
+
+      if (!GLFW.isPointerLocked)
+      {
+        document.addEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+        var RPL = element.requestPointerLock || (function() {});
+        RPL.apply(element, []);
+      }
+    },
+
+    cancelPointerLock: function() {
+      var EPL = document.exitPointerLock || (function() {});
+      EPL.apply(document, []);
+    },
     disconnectJoystick: function (joy) {
       _free(GLFW.joys[joy].id);
       delete GLFW.joys[joy];
@@ -588,8 +616,8 @@ var LibraryGLFW = {
     GLFW.addEventListener("mousemove", GLFW.onMousemove, true);
     GLFW.addEventListener("mousedown", GLFW.onMouseButtonDown, true);
     GLFW.addEventListener("mouseup", GLFW.onMouseButtonUp, true);
-    GLFW.addEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
-    GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, true);
+    GLFW.addEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
+    GLFW.addEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
     GLFW.addEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
     GLFW.addEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
     GLFW.addEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
@@ -606,8 +634,8 @@ var LibraryGLFW = {
         GLFW.removeEventListener("mousemove", GLFW.onMousemove, true);
         GLFW.removeEventListener("mousedown", GLFW.onMouseButtonDown, true);
         GLFW.removeEventListener("mouseup", GLFW.onMouseButtonUp, true);
-        GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, true);
-        GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, true);
+        GLFW.removeEventListener('DOMMouseScroll', GLFW.onMouseWheel, { capture: true, passive: false });
+        GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
         GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
         GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
         GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
@@ -851,6 +879,10 @@ var LibraryGLFW = {
     GLFW.wheelPos = pos;
   },
 
+  glfwGetMouseLocked: function() {
+    return GLFW.isPointerLocked ? 1 : 0;
+  },
+
   glfwSetKeyCallback: function(cbfun) {
     GLFW.keyFunc = cbfun;
   },
@@ -1016,11 +1048,20 @@ var LibraryGLFW = {
 
   /* Enable/disable functions */
   glfwEnable: function(token) {
-    GLFW.params[token] = false;
+    GLFW.params[token] = true;
+
+    if (token == 0x00030001) // GLFW_MOUSE_CURSOR)
+    {
+      GLFW.cancelPointerLock();
+    }
   },
 
   glfwDisable: function(token) {
-    GLFW.params[token] = true;
+    GLFW.params[token] = false;
+    if (token == 0x00030001) // GLFW_MOUSE_CURSOR)
+    {
+      GLFW.requestPointerLock();
+    }
   },
 
   /* Image/texture I/O support */

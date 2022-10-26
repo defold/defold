@@ -101,6 +101,7 @@
     :label "Live Update Settings"
     :node-type LiveUpdateSettingsNode
     :load-fn load-live-update-settings
+    :meta-settings (:settings basic-meta-info)
     :icon live-update-icon
     :view-types [:cljfx-form-view :text]))
 

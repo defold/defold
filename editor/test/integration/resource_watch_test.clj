@@ -30,7 +30,7 @@
 
 (def ^:dynamic *project-path* "test/resources/lib_resource_project")
 
-(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib file:/imagelib1 file:/imagelib2 file:/bogus"))
+(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib, file:/imagelib1, file:/imagelib2, file:/bogus"))
 
 (def ^:private scriptlib-uri (first lib-uris))
 (def ^:private imagelib1-uri (nth lib-uris 1))

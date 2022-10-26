@@ -69,15 +69,11 @@ If you want to add new functionality there are several additional steps that mus
 
 * New functionality must be well designed and useful to not only your own project.
   * For game engine code there is always the option to create a native extension and share it via the Asset Portal if the functionality is specific to a certain type of project or in other ways not suitable for inclusion in the engine.
-* You should start by creating a [Feature Design ticket](https://github.com/defold/defold/issues/new?assignees=&labels=feature_design&title=) to discuss the proposed solution.
+* You should start by creating a Feature Request if one isn't already created.
+  * Write a Feature Design post (in the GitHub issue) to discuss the proposed solution.
   * The Feature Design should discuss the pros and cons of different solutions and it should document why a decision is made to implement the feature in a certain way.
-  * Never submit a PR without first creating a design ticket.
-  * Pull requests for new features without a corresponding GitHub issue will not be approved.
-  * Reference any existing Feature Request covered by the design.
   * Any new API that is introduced should be well designed and future proof as we always try to avoid introducing breaking changes.
     * New engine functionality that breaks existing functionality should be avoided at all costs.
-  * When the final design has been agreed upon the PR will be locked from further updates.
-* Reference the Feature Design in the PR.
 
 
 ### API reference

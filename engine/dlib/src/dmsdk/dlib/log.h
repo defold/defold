@@ -244,6 +244,8 @@ typedef void (*FLogListener)(LogSeverity severity, const char* domain, const cha
  * Registers a log listener.
  * This listener receive logs even in release bundle.
  *
+ * @note Any calls to dmLogInfo et al from within the calllback will be ignored
+ *
  * @name dmLogRegisterListener
  * @param listener [type:FLogListener]
  */
@@ -260,12 +262,22 @@ void dmLogUnregisterListener(FLogListener listener);
 
 /*# set log system severity level.
  *
- * set log system severity level.
+ * Set log system severity level.
  *
  * @name dmLogSetLevel
- * @param [type:dmLog::Severity] severity
+ * @param [type:LogSeverity] severity
  */
 void dmLogSetLevel(LogSeverity severity);
+
+
+/*# get log system severity level.
+ *
+ * Get log system severity level.
+ *
+ * @name dmLogGetLevel
+ * @return [type:LogSeverity] severity
+ */
+LogSeverity dmLogGetLevel();
 
 
 #endif // NDEBUG
@@ -278,38 +290,9 @@ void dmLogSetLevel(LogSeverity severity);
 
 namespace dmLog
 {
-
-/*# register dmLog listener.
- *
- * Registers a dmLog listener.
- * This listener receive logs even in release bundle.
- *
- * @note deprecated. Use dmLogRegisterListener instead.
- * @name dmLog::RegisterLogListener
- * @param listener [type:FLogListener]
- */
-void RegisterLogListener(FLogListener listener);
-
-/*# unregister dmLog listener.
- *
- * Unregisters a dmLog listener.
- *
- * @note deprecated. Use dmLogUnregisterListener instead.
- * @name dmLog::UnregisterLogListener
- * @param [type:FLogListener] listener
- */
-void UnregisterLogListener(FLogListener listener);
-
-/*# set log system severity level.
- *
- * set log system severity level.
- *
- * @note deprecated. Use dmLogSetLevel instead.
- * @name dmLog::Setlevel
- * @param [type:dmLog::Severity] severity
- */
-void Setlevel(LogSeverity severity);
-
+    void RegisterLogListener(FLogListener listener);
+    void UnregisterLogListener(FLogListener listener);
+    void Setlevel(LogSeverity severity);
 } //namespace dmLog
 
 #endif //__cplusplus

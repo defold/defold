@@ -75,7 +75,7 @@ namespace dmEngineVersion
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
         # For Vulkan/MoltenVK
-        if waflib.Options.options.with_vulkan:
+        if waflib.Options.options.with_vulkan and architecture == 'x86_64':
             conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
             # Link with vulkan.dylib if the env is set (see graphics/vulkan/README.md) for more information
@@ -177,7 +177,7 @@ def build(bld):
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
 
-    if build_util.get_target_os() in ['web', 'osx', 'ios']:
+    if build_util.get_target_os() in ['web', 'macos', 'ios']:
         srcPath = os.path.join('build', 'src')
         builds = ['','_release', '_headless']
         for build in builds:

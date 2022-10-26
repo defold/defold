@@ -55,7 +55,8 @@ namespace dmGameObject
                       ComponentType* type,
                       uint32_t type_index,
                       const Point3& position,
-                      const Quat& rotation) :
+                      const Quat& rotation,
+                      const Vector3& scale) :
                 m_Id(id),
                 m_ResourceId(resource_id),
                 m_Type(type),
@@ -64,6 +65,7 @@ namespace dmGameObject
                 m_ResourceType(resource_type),
                 m_Position(position),
                 m_Rotation(rotation),
+                m_Scale(scale),
                 m_PropertySet()
             {
             }
@@ -76,6 +78,7 @@ namespace dmGameObject
             uint32_t        m_ResourceType;
             Point3          m_Position;
             Quat            m_Rotation;
+            Vector3         m_Scale;
             PropertySet     m_PropertySet;
         };
 

@@ -88,7 +88,7 @@ function test_syntax_error(js)
     end
 end
 
-function test_json()
+function test_json_decode()
     assert(json.decode('"foo"') == "foo")
     assert(json.decode('"\\n"') == "\n")
     -- NOTE: The file must be in UTF-8 for the unicode test
@@ -119,6 +119,48 @@ function test_json()
 
     test_json_invalid_primitive()
     test_json_valid_primitive()
+end
+
+function test_json_encode()
+    -- empty table becomes empty dict
+    assert(json.encode({}) == "{}")
+    -- table with nested table(s) becomes array of tables
+    assert(json.encode({{}}) == "[{}]")
+    -- table with elements becomes array of elements
+    assert(json.encode({1,2,3}) == "[1,2,3]")
+    -- a single nil element becomes null
+    assert(json.encode(nil) == "null")
+    -- however, a table with nil becomes empty table
+    assert(json.encode({nil}) == "{}")
+    -- interleaved nil becomse a null element (note: not in quotes)
+    assert(json.encode({1,nil,2}) == "[1,null,2]")
+
+    local v3_enc = json.encode(vmath.vector3())
+    assert(startswith("\"object at", v3_enc))
+
+    local f_enc = json.encode(function() end)
+    assert(startswith("\"object at", f_enc))
+
+    -- Test passing no arguments, which should fail
+    local ret, msg = pcall(function() json.encode() end)
+    assert(ret == false)
+end
+
+function test_json_decode_encode()
+    local tbl      = { x = 100, y == 200, sub = { z = 10, w = 20 } }
+    local tbl_json = json.encode(tbl)
+    local tbl_lua  = json.decode(tbl_json)
+
+    assert(tbl.x     == tbl_lua.x)
+    assert(tbl.y     == tbl_lua.y)
+    assert(tbl.sub.z == tbl_lua.sub.z)
+    assert(tbl.sub.w == tbl_lua.sub.w)
+end
+
+function test_json()
+    test_json_decode()
+    test_json_encode()
+    test_json_decode_encode()
 end
 
 functions = { test_json = test_json }

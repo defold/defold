@@ -81,7 +81,7 @@
 ;; │   └── props.script
 ;; └── test.particlefx
 
-(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib file:/imagelib1 file:/imagelib2"))
+(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib, file:/imagelib1, file:/imagelib2"))
 
 (def ^:private scriptlib-uri (first lib-uris)) ; /scripts/main.script
 (def ^:private imagelib1-uri (second lib-uris)) ; /images/{pow,paddle}.png
@@ -766,9 +766,9 @@
     (let [[workspace project] (setup-scratch world)]
       (let [node-id (project/get-resource-node project "/label/label.label")]
         (is (= "Original" (g/node-value node-id :text)))
-        (is (= [1.0 1.0 1.0] (g/node-value node-id :scale)))
         (is (= [1.0 1.0 1.0 1.0] (g/node-value node-id :color)))
         (is (= [0.0 0.0 0.0 1.0] (g/node-value node-id :outline)))
+        (is (= [0.0 0.0 0.0 1.0] (g/node-value node-id :shadow)))
         (is (= 1.0 (g/node-value node-id :leading)))
         (is (= 0.0 (g/node-value node-id :tracking)))
         (is (= :pivot-center (g/node-value node-id :pivot)))
@@ -777,9 +777,9 @@
       (write-file workspace "/label/label.label" (read-file workspace "/label/new_label.label"))
       (let [node-id (project/get-resource-node project "/label/label.label")]
         (is (= "Modified" (g/node-value node-id :text)))
-        (is (= [2.0 3.0 4.0] (g/node-value node-id :scale)))
         (is (= [1.0 0.0 0.0 1.0] (g/node-value node-id :color)))
         (is (= [1.0 1.0 1.0 1.0] (g/node-value node-id :outline)))
+        (is (= [0.5 0.5 0.5 1.0] (g/node-value node-id :shadow)))
         (is (= 2.0 (g/node-value node-id :leading)))
         (is (= 1.0 (g/node-value node-id :tracking)))
         (is (= :pivot-n (g/node-value node-id :pivot)))
@@ -813,7 +813,13 @@
         (let [internal-paths (map resource/proj-path (filter (fn [r] (not (:stateless? (resource/resource-type r)))) all-files))
               saved-paths (set (map (fn [s] (resource/proj-path (:resource s))) (g/node-value project :save-data)))
               missing (filter #(not (contains? saved-paths %)) internal-paths)]
-          (is (empty? missing)))))))
+          ;; If some editable resource is missing from the save data, it means
+          ;; an ErrorValue has infected the save-data. A likely culprit would be
+          ;; that you've introduced a dependency on a missing or broken resource
+          ;; into the save-value dependency chain. A resource should never fail
+          ;; to produce a save-value for itself as a result of a bad reference.
+          (when-not (is (empty? missing))
+            (prn 'missing missing)))))))
 
 (deftest new-collection-modified-script
   ;; used to provoke exception because load steps of collection tried to access non-loaded script

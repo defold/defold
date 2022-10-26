@@ -32,7 +32,7 @@ body
 @font-face
 {
     font-family: "LocalFiraCode";
-    src:url("Fonts/FiraCode/FiraCode-Regular.ttf");
+    src:url("https://cdnjs.cloudflare.com/ajax/libs/firacode/5.2.0/ttf/FiraCode-Regular.ttf") format('truetype');
 }
 
 .ConsoleText

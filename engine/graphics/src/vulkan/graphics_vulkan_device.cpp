@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,6 @@
 #include <dlib/math.h>
 
 #include "graphics_vulkan_defines.h"
-#include "../graphics.h"
 #include "graphics_vulkan_private.h"
 
 namespace dmGraphics
@@ -699,7 +698,7 @@ bail:
     }
 
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
-        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, VkSampler* vk_sampler_out)
+        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out)
     {
         VkSamplerCreateInfo vk_sampler_create_info;
         memset(&vk_sampler_create_info, 0, sizeof(vk_sampler_create_info));
@@ -710,7 +709,8 @@ bail:
         vk_sampler_create_info.addressModeU            = vk_wrap_u;
         vk_sampler_create_info.addressModeV            = vk_wrap_v;
         vk_sampler_create_info.addressModeW            = vk_wrap_u;
-        vk_sampler_create_info.maxAnisotropy           = 0; // TODO
+        vk_sampler_create_info.anisotropyEnable        = max_anisotropy > 1.0f;
+        vk_sampler_create_info.maxAnisotropy           = max_anisotropy;
         vk_sampler_create_info.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         vk_sampler_create_info.unnormalizedCoordinates = VK_FALSE;
         vk_sampler_create_info.compareEnable           = VK_FALSE;
@@ -982,10 +982,10 @@ bail:
 
         uint8_t state_write_mask    = pipelineState.m_WriteColorMask;
         uint8_t vk_color_write_mask = 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
-        vk_color_write_mask        |= (state_write_mask & DMGRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
+        vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
         for (int i = 0; i < render_target->m_ColorAttachmentCount; ++i)
         {
@@ -1013,16 +1013,22 @@ bail:
         vk_color_blending.blendConstants[2] = 0.0f;
         vk_color_blending.blendConstants[3] = 0.0f;
 
-        VkStencilOpState vk_stencil_op_state;
-        memset(&vk_stencil_op_state, 0, sizeof(vk_stencil_op_state));
+        VkStencilOpState vk_stencil_op_state_front;
+        memset(&vk_stencil_op_state_front, 0, sizeof(vk_stencil_op_state_front));
 
-        vk_stencil_op_state.failOp      = g_vk_stencil_ops[pipelineState.m_StencilOpFail];
-        vk_stencil_op_state.depthFailOp = g_vk_stencil_ops[pipelineState.m_StencilOpDepthFail];
-        vk_stencil_op_state.passOp      = g_vk_stencil_ops[pipelineState.m_StencilOpPass];
-        vk_stencil_op_state.compareOp   = g_vk_compare_funcs[pipelineState.m_StencilTestFunc];
-        vk_stencil_op_state.compareMask = pipelineState.m_StencilCompareMask;
-        vk_stencil_op_state.writeMask   = pipelineState.m_StencilWriteMask;
-        vk_stencil_op_state.reference   = pipelineState.m_StencilReference;
+        vk_stencil_op_state_front.failOp      = g_vk_stencil_ops[pipelineState.m_StencilFrontOpFail];
+        vk_stencil_op_state_front.depthFailOp = g_vk_stencil_ops[pipelineState.m_StencilFrontOpDepthFail];
+        vk_stencil_op_state_front.passOp      = g_vk_stencil_ops[pipelineState.m_StencilFrontOpPass];
+        vk_stencil_op_state_front.compareOp   = g_vk_compare_funcs[pipelineState.m_StencilFrontTestFunc];
+        vk_stencil_op_state_front.compareMask = pipelineState.m_StencilCompareMask;
+        vk_stencil_op_state_front.writeMask   = pipelineState.m_StencilWriteMask;
+        vk_stencil_op_state_front.reference   = pipelineState.m_StencilReference;
+
+        VkStencilOpState vk_stencil_op_state_back = vk_stencil_op_state_front;
+        vk_stencil_op_state_back.failOp           = g_vk_stencil_ops[pipelineState.m_StencilBackOpFail];
+        vk_stencil_op_state_back.depthFailOp      = g_vk_stencil_ops[pipelineState.m_StencilBackOpDepthFail];
+        vk_stencil_op_state_back.passOp           = g_vk_stencil_ops[pipelineState.m_StencilBackOpPass];
+        vk_stencil_op_state_back.compareOp        = g_vk_compare_funcs[pipelineState.m_StencilBackTestFunc];
 
         VkPipelineDepthStencilStateCreateInfo vk_depth_stencil_create_info;
         memset(&vk_depth_stencil_create_info, 0, sizeof(vk_depth_stencil_create_info));
@@ -1035,8 +1041,8 @@ bail:
         vk_depth_stencil_create_info.minDepthBounds        = 0.0f;
         vk_depth_stencil_create_info.maxDepthBounds        = 1.0f;
         vk_depth_stencil_create_info.stencilTestEnable     = pipelineState.m_StencilEnabled ? VK_TRUE : VK_FALSE;
-        vk_depth_stencil_create_info.front                 = vk_stencil_op_state;
-        vk_depth_stencil_create_info.back                  = vk_stencil_op_state;
+        vk_depth_stencil_create_info.front                 = vk_stencil_op_state_front;
+        vk_depth_stencil_create_info.back                  = vk_stencil_op_state_back;
 
         const VkDynamicState vk_dynamic_state[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 

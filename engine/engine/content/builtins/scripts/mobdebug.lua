@@ -351,6 +351,7 @@ local function set_breakpoint(file, line)
   elseif iscasepreserving then file = string.lower(file) end
   if not breakpoints[line] then breakpoints[line] = {} end
   breakpoints[line][file] = true
+  if mobdebug.setbreakpoint_hook then mobdebug.setbreakpoint_hook(line, file) end
 end
 
 local function remove_breakpoint(file, line)
@@ -358,6 +359,7 @@ local function remove_breakpoint(file, line)
   elseif file == '*' and line == 0 then breakpoints = {}
   elseif iscasepreserving then file = string.lower(file) end
   if breakpoints[line] then breakpoints[line][file] = nil end
+  if mobdebug.removebreakpoint_hook then mobdebug.removebreakpoint_hook(line, file) end
 end
 
 local function has_breakpoint(file, line)
@@ -555,6 +557,56 @@ local function normalize_path(file)
   return (file:gsub("^(/?)%.%./", "%1"))
 end
 
+local function get_filename(file)
+  -- technically, users can supply names that may not use '@',
+  -- for example when they call loadstring('...', 'filename.lua').
+  -- Unfortunately, there is no reliable/quick way to figure out
+  -- what is the filename and what is the source code.
+  -- If the name doesn't start with `@`, assume it's a file name if it's all on one line.
+  if find(file, "^[@=]") or not find(file, "[\r\n]") then
+    file = gsub(gsub(file, "^[@=]", ""), "\\", "/")
+    -- normalize paths that may include up-dir or same-dir references
+    -- if the path starts from the up-dir or reference,
+    -- prepend `basedir` to generate absolute path to keep breakpoints working.
+    -- ignore qualified relative path (`D:../`) and UNC paths (`\\?\`)
+    if find(file, "^%.%./") then file = basedir..file end
+    if find(file, "/%.%.?/") then file = normalize_path(file) end
+    -- need this conversion to be applied to relative and absolute
+    -- file names as you may write "require 'Foo'" to
+    -- load "foo.lua" (on a case insensitive file system) and breakpoints
+    -- set on foo.lua will not work if not converted to the same case.
+    if iscasepreserving then file = string.lower(file) end
+    if find(file, "^%./") then file = sub(file, 3)
+    else file = gsub(file, "^"..q(basedir), "") end
+    -- some file systems allow newlines in file names; remove these.
+    file = gsub(file, "\n", ' ')
+  else
+    file = mobdebug.line(file)
+  end
+  return file
+end
+
+local function get_server_data(file)
+  if not is_pending(server) then 
+    checkcount = checkcount + 1
+    return
+  end
+  checkcount = mobdebug.checkcount
+  if coroutine.status(coro_debugger) == "suspended" then
+    local status, res = cororesume(coro_debugger, nil,nil,file)
+    if not status and res then
+      error(res, 2) -- report any other (internal) errors back to the application 
+    end
+    -- handle 'stack' command that provides stack() information to the debugger
+    while status and res == 'stack' do
+      -- resume with the stack trace and variables
+      if vars then restore_vars(vars) end -- restore vars so they are reflected in stack values
+      status, res = cororesume(coro_debugger, events.STACK, stack(4), file, line)
+    end
+    handle_breakpoint(server)
+  end
+end
+
 local function debug_hook(event, line)
   -- (1) LuaJIT needs special treatment. Because debug_hook is set for
   -- *all* coroutines, and not just the one being debugged as in regular Lua
@@ -589,6 +641,7 @@ local function debug_hook(event, line)
     stack_level = stack_level + 1
   elseif event == "return" or event == "tail return" then
     stack_level = stack_level - 1
+    if mobdebug.on_return_hook then mobdebug.on_return_hook() end
   elseif event == "line" then
     if mobdebug.linemap then
       local ok, mappedline = pcall(mobdebug.linemap, line, debug.getinfo(2, "S").source)
@@ -627,32 +680,8 @@ local function debug_hook(event, line)
     -- grab the filename and fix it if needed
     local file = lastfile
     if (lastsource ~= caller.source) then
-      file, lastsource = caller.source, caller.source
-      -- technically, users can supply names that may not use '@',
-      -- for example when they call loadstring('...', 'filename.lua').
-      -- Unfortunately, there is no reliable/quick way to figure out
-      -- what is the filename and what is the source code.
-      -- If the name doesn't start with `@`, assume it's a file name if it's all on one line.
-      if find(file, "^[@=]") or not find(file, "[\r\n]") then
-        file = gsub(gsub(file, "^[@=]", ""), "\\", "/")
-        -- normalize paths that may include up-dir or same-dir references
-        -- if the path starts from the up-dir or reference,
-        -- prepend `basedir` to generate absolute path to keep breakpoints working.
-        -- ignore qualified relative path (`D:../`) and UNC paths (`\\?\`)
-        if find(file, "^%.%./") then file = basedir..file end
-        if find(file, "/%.%.?/") then file = normalize_path(file) end
-        -- need this conversion to be applied to relative and absolute
-        -- file names as you may write "require 'Foo'" to
-        -- load "foo.lua" (on a case insensitive file system) and breakpoints
-        -- set on foo.lua will not work if not converted to the same case.
-        if iscasepreserving then file = string.lower(file) end
-        if find(file, "^%./") then file = sub(file, 3)
-        else file = gsub(file, "^"..q(basedir), "") end
-        -- some file systems allow newlines in file names; remove these.
-        file = gsub(file, "\n", ' ')
-      else
-        file = mobdebug.line(file)
-      end
+      lastsource = caller.source
+      file = get_filename(caller.source)
 
       -- set to true if we got here; this only needs to be done once per
       -- session, so do it here to at least avoid setting it for every line.
@@ -811,6 +840,7 @@ local function debugger_loop(sev, svars, sfile, sline)
     end
     if server.settimeout then server:settimeout() end -- back to blocking
     command = string.sub(line, string.find(line, "^[A-Z]+"))
+    if mobdebug.command_hook then mobdebug.command_hook(command) end
     if command == "SETB" then
       local _, _, _, file, line = string.find(line, "^([A-Z]+)%s+(.-)%s+(%d+)%s*$")
       if file and line then
@@ -1278,9 +1308,11 @@ local function on()
   if co then
     coroutines[co] = true
     debug.sethook(co, debug_hook, HOOKMASK)
+    return true
   else
     if jit then coroutines.main = true end
     debug.sethook(debug_hook, HOOKMASK)
+    return true
   end
 end
 
@@ -1766,5 +1798,13 @@ mobdebug.output = output
 mobdebug.onexit = os and os.exit or done
 mobdebug.onscratch = nil -- callback
 mobdebug.basedir = function(b) if b then basedir = b end return basedir end
+
+mobdebug.setbreakpoint_hook = nil
+mobdebug.removebreakpoint_hook = nil
+mobdebug.command_hook = nil
+mobdebug.on_return_hook = nil
+mobdebug.iscasepreserving = iscasepreserving
+mobdebug.get_filename = get_filename
+mobdebug.get_server_data = get_server_data
 
 return mobdebug

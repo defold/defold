@@ -385,7 +385,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("UpdateTransforms");
 
-        dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -422,7 +422,7 @@ namespace dmGameSystem
 
         MeshWorld* world = (MeshWorld*)params.m_World;
 
-        dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
         for (uint32_t i = 0; i < count; ++i)
@@ -770,7 +770,7 @@ namespace dmGameSystem
 
         UpdateTransforms(world);
 
-        dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
         // Prepare list submit
@@ -975,7 +975,7 @@ namespace dmGameSystem
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
     {
         MeshWorld* world = (MeshWorld*) params.m_UserData;
-        dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {

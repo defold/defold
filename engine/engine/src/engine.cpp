@@ -426,11 +426,12 @@ namespace dmEngine
             const char* mountstr = "";
 #if defined(__NX__)
             mountstr = "data:/";
+#endif
             // there's no way to check for a named mount, and it will assert
             // So we'll only enter here if it's set on this platform
-            if (dmSys::GetEnv("DM_MOUNT_HOST") != 0)
-                mountstr = "host:/";
-#endif
+            if (dmSys::GetEnv("DM_HOSTFS") != 0)
+                mountstr = dmSys::GetEnv("DM_HOSTFS");
+
             dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
             dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
             paths[count++] = p1;
@@ -1069,6 +1070,7 @@ namespace dmEngine
             engine->m_PhysicsContext.m_3D = false;
             engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
         }
+        engine->m_PhysicsContext.m_MaxCollisionObjectCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISION_OBJECTS_KEY, 128);
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
         engine->m_PhysicsContext.m_UseFixedTimestep = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
@@ -1137,7 +1139,7 @@ namespace dmEngine
         dmGameSystem::ScriptLibContext script_lib_context;
 
         // Variables need to be declared up here due to the goto's
-        bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+        bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
 
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
@@ -1249,8 +1251,10 @@ namespace dmEngine
             }
         }
 
-        script_lib_context.m_Factory = engine->m_Factory;
-        script_lib_context.m_Register = engine->m_Register;
+        script_lib_context.m_Factory    = engine->m_Factory;
+        script_lib_context.m_Register   = engine->m_Register;
+        script_lib_context.m_HidContext = engine->m_HidContext;
+
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))

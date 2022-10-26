@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -75,9 +75,18 @@ namespace dmGameSystem
             uint32_t num_values;
             Vector4* value = 0x0;
             dmRender::HConstant comp_constant;
+            bool is_matrix4_type;
+
             if (callback(callback_user_data, constant_id, &comp_constant))
             {
                 value = dmRender::GetConstantValues(comp_constant, &num_values);
+
+                is_matrix4_type = dmRender::GetConstantType(comp_constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+                if (is_matrix4_type)
+                {
+                    value_index *= 4;
+                }
+
                 if (value_index >= num_values)
                 {
                     return dmGameObject::PROPERTY_RESULT_INVALID_INDEX;
@@ -100,7 +109,15 @@ namespace dmGameSystem
 
                 if (value != 0x0)
                 {
-                    out_desc.m_Variant = dmGameObject::PropertyVar(*value);
+                    if (is_matrix4_type)
+                    {
+                        out_desc.m_Variant = dmGameObject::PropertyVar(*((dmVMath::Matrix4*)value));
+                    }
+                    else
+                    {
+                        out_desc.m_Variant = dmGameObject::PropertyVar(*value);
+                    }
+
                     if (use_value_ptr)
                     {
                         // TODO: Make this more robust. If the constant is e.g. animated (which might get the pointer)
@@ -116,12 +133,27 @@ namespace dmGameSystem
                     dmRender::HConstant constant;
                     dmRender::GetMaterialProgramConstant(material, constant_id, constant);
 
+                    is_matrix4_type = dmRender::GetConstantType(constant) == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
                     value = dmRender::GetConstantValues(constant, &num_values);
+
+                    if (is_matrix4_type)
+                    {
+                        value_index *= 4;
+                    }
+
                     if (value_index >= num_values)
                     {
                         return dmGameObject::PROPERTY_RESULT_INVALID_INDEX;
                     }
-                    out_desc.m_Variant = dmGameObject::PropertyVar(value[value_index]);
+
+                    if (is_matrix4_type)
+                    {
+                        out_desc.m_Variant = dmGameObject::PropertyVar(*((dmVMath::Matrix4*) &value[value_index]));
+                    }
+                    else
+                    {
+                        out_desc.m_Variant = dmGameObject::PropertyVar(value[value_index]);
+                    }
                 }
             }
             else
@@ -171,7 +203,9 @@ namespace dmGameSystem
             {
                 if (constant_id == name_hash)
                 {
-                    if (var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4 && var.m_Type != dmGameObject::PROPERTY_TYPE_QUAT)
+                    if (var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4 &&
+                        var.m_Type != dmGameObject::PROPERTY_TYPE_QUAT &&
+                        var.m_Type != dmGameObject::PROPERTY_TYPE_MATRIX4)
                     {
                         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
                     }

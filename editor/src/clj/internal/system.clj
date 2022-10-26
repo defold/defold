@@ -261,7 +261,7 @@
                                                       graph-after)
                                         system-after (if (and (has-history? system graph-id)
                                                               (meaningful-change? significantly-modified-graphs graph-id))
-                                                       (remember-change system graph-id graph-before graph-after (graph-id->outputs-modified graph-id))
+                                                       (remember-change system graph-id graph-before graph-after (graph-id->outputs-modified graph-id #{}))
                                                        system)]
                                     (assoc-in system-after [:graphs graph-id] graph-after)))))
                             system

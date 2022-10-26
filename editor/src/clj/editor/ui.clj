@@ -29,34 +29,33 @@
             [service.log :as log]
             [service.smoke-log :as slog]
             [util.profiler :as profiler])
-  (:import
-   [com.defold.control LongField]
-   [com.defold.control ListCell]
-   [com.defold.control TreeCell]
-   [com.sun.javafx.application PlatformImpl]
-   [com.sun.javafx.event DirectEvent]
-   [java.awt Desktop Desktop$Action]
-   [java.io File IOException]
-   [java.net URI]
-   [java.util Collection]
-   [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
-   [javafx.application Platform]
-   [javafx.beans InvalidationListener]
-   [javafx.beans.value ChangeListener ObservableValue]
-   [javafx.collections FXCollections ListChangeListener ObservableList]
-   [javafx.css Styleable]
-   [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
-   [javafx.fxml FXMLLoader]
-   [javafx.geometry Orientation]
-   [javafx.scene Group Node Parent Scene]
-   [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
-   [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
-   [javafx.scene.image Image ImageView]
-   [javafx.scene.layout AnchorPane Pane HBox]
-   [javafx.scene.shape SVGPath]
-   [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-   [javafx.stage Stage Modality Window PopupWindow StageStyle]
-   [javafx.util Callback Duration StringConverter]))
+  (:import [com.defold.control ListCell]
+           [com.defold.control LongField]
+           [com.defold.control TreeCell]
+           [com.sun.javafx.application PlatformImpl]
+           [com.sun.javafx.event DirectEvent]
+           [java.awt Desktop Desktop$Action]
+           [java.io File IOException]
+           [java.net URI]
+           [java.util Collection]
+           [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
+           [javafx.application Platform]
+           [javafx.beans InvalidationListener]
+           [javafx.beans.value ChangeListener ObservableValue]
+           [javafx.collections FXCollections ListChangeListener ObservableList]
+           [javafx.css Styleable]
+           [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
+           [javafx.fxml FXMLLoader]
+           [javafx.geometry Orientation Point2D]
+           [javafx.scene Group Node Parent Scene]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.image Image ImageView]
+           [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
+           [javafx.scene.layout AnchorPane HBox Pane]
+           [javafx.scene.shape SVGPath]
+           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
+           [javafx.stage Stage Modality PopupWindow StageStyle Window]
+           [javafx.util Callback Duration StringConverter]))
 
 (set! *warn-on-reflection* true)
 
@@ -102,6 +101,9 @@
 (defprotocol Text
   (text ^String [this])
   (text! [this ^String val]))
+
+(defprotocol HasAction
+  (on-action! [this fn]))
 
 (defprotocol HasValue
   (value [this])
@@ -203,27 +205,6 @@
        (do (.initModality stage Modality/WINDOW_MODAL)
            (.initOwner stage owner)))
      stage)))
-
-(defn ^File choose-file [{:keys [^String title ^String directory filters ^Window owner-window] :or {title "Choose File"}}]
-  (let [chooser (doto (FileChooser.)
-                  (.setTitle title))]
-    (when-let [initial-directory (some-> directory (File.))]
-      (when (.isDirectory initial-directory)
-        (.setInitialDirectory chooser initial-directory)))
-    (doseq [{:keys [^String description exts]} filters]
-      (let [ext-array (into-array exts)]
-        (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. description ^"[Ljava.lang.String;" ext-array))))
-    (.showOpenDialog chooser owner-window)))
-
-(defn choose-directory
-  ([title ^File initial-dir] (choose-directory title initial-dir @*main-stage*))
-  ([title ^File initial-dir parent]
-   (let [chooser (DirectoryChooser.)]
-     (when initial-dir
-       (.setInitialDirectory chooser initial-dir))
-     (.setTitle chooser title)
-     (let [file (.showDialog chooser parent)]
-       (when file (.getAbsolutePath file))))))
 
 (defn collect-controls [^Parent root keys]
   (let [controls (zipmap (map keyword keys) (map #(.lookup root (str "#" %)) keys))
@@ -657,6 +638,8 @@
   (editable! [this val] (.setDisable this (not val))))
 
 (extend-type MenuItem
+  HasAction
+  (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
   HasUserData
   (user-data [this key] (get (.getUserData this) key))
   (user-data! [this key val] (.setUserData this (assoc (or (.getUserData this) {}) key val))))
@@ -670,9 +653,6 @@
   (text! [this val]
     (when (not= (.getText this) val)
       (.setText this val))))
-
-(defprotocol HasAction
-  (on-action! [this fn]))
 
 (defprotocol HasChildren
   (children! [this c])
@@ -1194,7 +1174,7 @@
                  (assoc :fx/type fx.image-view/lifecycle)
                  (dissoc :path :size))]
     (if size
-      (assoc desc :image (icons/get-image path size) :fit-width size :fit-height size)
+      (assoc desc :image (icons/get-image path) :fit-width size :fit-height size)
       (assoc desc :image (icons/get-image path)))))
 
 (defn invoke-handler
@@ -1324,7 +1304,7 @@
                                 label
                                 icon
                                 style-classes
-                                (make-menu-items scene options command-contexts {} evaluation-context)
+                                (make-menu-items scene options command-contexts command->shortcut evaluation-context)
                                 on-open))
                 (make-menu-command scene id label icon style-classes acc user-data command enabled? check)))))))))
 
@@ -2173,3 +2153,35 @@ command."
      (doto (SVGPath.)
        (add-style! "bottom")
        (.setContent (make-path-data col row [[0,6 1,5 1,7 2,6 3,7 4,6 5,7 5,5 6,6 5,7 4,8 5,9 4,10 3,9 2,10 1,9 2,8] [3,5 2,4 3,3 4,4]])))]))
+
+(defn string->menu-item
+  ^MenuItem [^String str]
+  (doto (MenuItem.)
+    (.setText str)))
+
+(defn show-simple-context-menu!
+  [menu-item-fn item-action-fn items ^Node anchor-node ^Point2D offset]
+  (let [handle-action! (fn [^Event event]
+                         (let [menu-item (.getTarget event)
+                               item (user-data menu-item ::item)]
+                           (item-action-fn item)))
+        menu-items (map (fn [item]
+                          (doto (menu-item-fn item)
+                            (user-data! ::item item)
+                            (on-action! handle-action!)))
+                        items)
+        context-menu (doto (make-context-menu menu-items)
+                       (on-closed! (fn [_]
+                                     (item-action-fn nil))))
+        hide-event-handler (event-handler event (.hide context-menu))]
+    (.addEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)
+    (on-closed! context-menu (fn [_]
+                               (.removeEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)
+                               (item-action-fn nil)))
+    (.show context-menu anchor-node (.getX offset) (.getY offset))))
+
+(defn show-simple-context-menu-at-mouse!
+  [menu-item-fn item-action-fn items ^MouseEvent mouse-event]
+  (let [anchor-node (.getTarget mouse-event)
+        offset (Point2D. (.getScreenX mouse-event) (.getScreenY mouse-event))]
+    (show-simple-context-menu! menu-item-fn item-action-fn items anchor-node offset)))

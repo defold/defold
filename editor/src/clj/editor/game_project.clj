@@ -64,7 +64,7 @@
                                          (assoc setting :value (settings-core/render-raw-setting-value meta-setting value)))))))
                        (let [transformed-settings-map (transform-settings! settings-map)]
                          (sort-by first transformed-settings-map)))
-        ^String user-data-content (settings-core/settings->str settings)]
+        user-data-content (settings-core/settings->str settings meta-settings :comma-separated-list)]
     {:resource resource :content (.getBytes user-data-content)}))
 
 (defn- resource-content [resource]
@@ -252,5 +252,6 @@
     :label "Project"
     :node-type GameProjectNode
     :load-fn load-game-project
+    :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
     :view-types [:cljfx-form-view :text]))

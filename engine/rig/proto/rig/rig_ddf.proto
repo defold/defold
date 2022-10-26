@@ -7,65 +7,20 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.rig.proto";
 option java_outer_classname = "Rig";
 
-/************************************************************************
- *                Notes on Meshes and MeshAnimationTracks
- *
- * There is only one list of available meshes (ie renderable data)
- * located in the MeshSet. These meshes can be referenced (by index into
- * this list) by MeshSlots. MeshEntries represent different setups of
- * MeshSlots (ie the "same" slot id/index can attach different Meshes
- * depending on MeshEntry). A MeshSlot can contain references to multiple
- * Meshes, but only one mesh is visible (active) at one time.
- *
- * MeshSlots needs to know which Meshes it should be able to display,
- * since this can be animated via an MeshAnimationTrack, which overrides
- * the currently active Mesh.
- *
- * MeshAnimationTrack can also animate draw order for MeshSlots inside a
- * MeshEntry. This is why there is always the same number of MeshSlots
- * available inside a MeshEntry, to simplify rendering code in rig.cpp.
- *
- * ----------------------------------------------------------------------
- * Details for each mesh related message:
- *
- * MeshSet   - Contains a list of all available meshes (mesh_attachments)
- *             that the RigScene can reference/use (see MeshSlot below).
- *
- *             It also contains a list of MeshEntries, which represents
- *             different initial MeshSlot setups (each with the same
- *             number of MeshSlots as MeshSet::slot_count).
- *
- * Mesh      - Holds a renderable data chunk (vertices, texture coords).
- *
- * MeshEntry - Holds a list of MeshSlots (roughly corresponds to a skin
- *             in Spine).
- *
- * MeshSlot  - Holds a list of indices (index to mesh_attachments list
- *             in MeshSet) for available Meshes that this "slot" can
- *             display. The value -1 indicates that there will never be
- *             a renderable mesh at this attachment point. (However, the
- *             number of attachments for a specific slot id/index will
- *             be the same in all MeshEntries to keep animations for
- *             MeshAnimationTracks simple.)
- *
- *             The active_index indicate which one of these meshes is
- *             initially visible (the value -1 indicates no mesh is
- *             initially visible).
- *
- ************************************************************************/
 
 message Bone
 {
     option (struct_align) = true;
 
-    // 0xffff means no parent
+    // 0xFFFFFFFF means no parent
     required uint32 parent = 1;
     required uint64 id = 2;
-    required dmMath.Point3 position = 3 [(field_align)=true];
-    required dmMath.Quat rotation = 4 [(field_align)=true];
-    required dmMath.Vector3 scale = 5 [(field_align)=true];
-    optional bool inherit_scale = 6 [default = true];
-    optional float length = 7;
+    required string name = 3; // For easier debugging at runtime
+    required dmMath.Transform local = 4 [(field_align)=true]; // Deprecated/unused (only in unit test=)
+    required dmMath.Transform world = 5 [(field_align)=true]; // Deprecated/unused
+    required dmMath.Transform inverse_bind_pose = 6 [(field_align)=true];
+
+    optional float length = 7 [default = 0];
 }
 
 message IK
@@ -82,9 +37,6 @@ message Skeleton
 {
     repeated Bone bones = 1;
     repeated IK iks = 2;
-
-    // Spine 2.x specific feature.
-    optional bool local_bone_scaling = 3 [default = false];
 }
 
 message AnimationTrack
@@ -96,22 +48,6 @@ message AnimationTrack
     repeated float rotations = 3;
     // x0, y0, z0, …
     repeated float scale = 4;
-}
-
-message IKAnimationTrack
-{
-    required uint32 ik_index = 1;
-    repeated float mix = 2;
-    repeated bool positive = 3;
-}
-
-message MeshAnimationTrack
-{
-    required uint32 mesh_slot = 1;
-    repeated int32 order_offset = 2;
-    repeated int32 mesh_attachment = 3;
-    // r0, g0, b0, a0, r1, g1, b1, a1, ...
-    repeated float slot_colors = 4;
 }
 
 message EventKey
@@ -135,8 +71,6 @@ message RigAnimation
     required float sample_rate = 3;
     repeated AnimationTrack tracks = 4;
     repeated EventTrack event_tracks = 5;
-    repeated MeshAnimationTrack mesh_tracks = 6;
-    repeated IKAnimationTrack ik_tracks = 7;
 }
 
 message AnimationSet
@@ -153,6 +87,7 @@ message AnimationInstanceDesc
 message AnimationSetDesc
 {
     repeated AnimationInstanceDesc animations = 1;
+    optional string skeleton = 2;
 }
 
 enum IndexBufferFormat
@@ -161,67 +96,50 @@ enum IndexBufferFormat
     INDEXBUFFER_FORMAT_32 = 1;
 }
 
-message MeshVertexIndices
-{
-    optional uint32 position    = 1;
-    optional uint32 texcoord0   = 2;
-    optional uint32 normal      = 3;
-}
-
 message Mesh
 {
-    repeated float positions  = 1;
-    repeated float normals    = 2;
-    repeated float texcoord0  = 3;
+    repeated float positions                = 1;
+    repeated float normals                  = 2;
+    repeated float tangents                 = 3;
+    repeated float colors                   = 4;
+    repeated float texcoord0                = 5;
+    optional uint32 num_texcoord0_components = 6; // max 3
+    repeated float texcoord1                = 7;
+    optional uint32 num_texcoord1_components = 8; // max 3
 
-    repeated uint32 position_indices    = 4;
-    repeated uint32 normals_indices     = 5;
-    repeated uint32 texcoord0_indices   = 6;
-
-    repeated MeshVertexIndices vertices = 7; // array of attribute (position, uv, normal) indices describing interleaved vertex buffer
-    optional bytes  indices             = 8; // indices for interleaved vertex buffer
-    optional IndexBufferFormat indices_format = 9; // format of values in indices
+    optional bytes  indices                 = 9; // indices for interleaved vertex buffer
+    optional IndexBufferFormat indices_format = 10; // format of values in indices
 
     // w00, w01, w02, w03, w10, … (only specified for skinned meshes)
-    repeated float weights = 10;
+    repeated float weights = 11;
     // i00, i01, i02, i03, i10, … (only specified for skinned meshes)
-    repeated uint32 bone_indices = 11;
-    repeated float mesh_color   = 12; // single color value for the entire mesh
+    repeated uint32 bone_indices = 12;
+
+    optional uint32 material_index = 13; // index into the mesh set material list
 }
 
-// Each mesh slot can have different mesh attachments, with indices pointing
-// to the actual mesh data in the MeshSet.
-// The list of mesh attachments will never change during runtime,
-// instead animation can change the active index which points to
-// the current active mesh attachment.
-message MeshSlot
+message Model // E.g. the Node in the Scene
 {
-    optional uint64 id = 1;
-    repeated uint32 mesh_attachments = 2;
-    required uint32 active_index = 3;
-    repeated float slot_color = 4;
-}
+    option (struct_align) = true;
 
-message MeshEntry
-{
-    required uint64 id = 1;
-    repeated MeshSlot mesh_slots = 2;
+    required dmMath.Transform   local       = 1 [(field_align)=true];
+    required uint64             id          = 2;    // E.g. "torso", "head". Or simply "character"
+    repeated Mesh               meshes      = 3;
 }
 
 message MeshSet
 {
-    repeated MeshEntry mesh_entries = 1;
-    repeated Mesh mesh_attachments = 2;
+    repeated Model          models = 1; // There may be more than one object in a scene
+    repeated string         materials = 2;
 
     // List of bone names that represent the order of the bone influences.
     // Not used for Spine rigs since they don't have support for external skeletons.
     repeated uint64 bone_list = 3;
     // Max number of bones used in any of the meshes (in the bone_indices list)
     optional uint32 max_bone_count = 4;
-    // number of spine scene slot entries
-    optional uint32 slot_count = 5 [default = 0];
 }
 
+// Public api
 message RigScene
 {
     optional string skeleton = 1 [(resource)=true];

@@ -35,6 +35,8 @@ namespace dmMessage { struct URL; }
 
 namespace dmGameSystem
 {
+    /// Config key to use for tweaking maximum number of collision objects
+    extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported
     extern const char* PHYSICS_MAX_COLLISIONS_KEY;
     /// Config key to use for tweaking maximum number of contacts reported
@@ -80,6 +82,7 @@ namespace dmGameSystem
             dmPhysics::HContext2D m_Context2D;
         };
         uint32_t    m_MaxCollisionCount;
+        uint32_t    m_MaxCollisionObjectCount;
         uint32_t    m_MaxContactPointCount;
         bool        m_Debug;
         bool        m_3D;
@@ -156,9 +159,10 @@ namespace dmGameSystem
     {
         ScriptLibContext();
 
-        lua_State* m_LuaState;
-        dmResource::HFactory m_Factory;
+        lua_State*              m_LuaState;
+        dmResource::HFactory    m_Factory;
         dmGameObject::HRegister m_Register;
+        dmHID::HContext         m_HidContext;
     };
 
 

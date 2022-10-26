@@ -19,7 +19,6 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.atlas :as atlas]
-            [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.code.script :as script]
             [editor.collection :as collection]
@@ -27,7 +26,6 @@
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.pipeline :as pipeline]
-            [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -36,8 +34,7 @@
             [support.test-support :refer [spit-until-new-mtime with-clean-system]]
             [util.murmur :as murmur])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.lua.proto Lua$LuaModule]
-           [java.io ByteArrayOutputStream StringReader]))
+           [com.dynamo.lua.proto Lua$LuaModule]))
 
 (defn- unpack-property-declarations [property-declarations]
   (assert (map? property-declarations))
@@ -222,8 +219,7 @@
     (:resource (first (:deps (first (g/node-value resource-node :build-targets)))))))
 
 (defn- save-value [pb-class node-id]
-  (with-open [reader (StringReader. (:content (g/node-value node-id :save-data)))]
-    (protobuf/read-text pb-class reader)))
+  (protobuf/str->map pb-class (:content (g/node-value node-id :save-data))))
 
 (defn- properties [node-id]
   (:properties (g/node-value node-id :_properties)))
@@ -1544,7 +1540,13 @@
           make-resource-node! (partial tu/make-resource-node! project)
           edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
           assigned-property? (fn [node-id proj-path] (atlas-resource-property? (get (properties node-id) :__atlas) (tu/resource workspace proj-path)))
-          overridden-property? (fn [node-id] (overridden? node-id "atlas"))]
+          overridden-property? (fn [node-id] (overridden? node-id "atlas"))
+          build-target-source-path (comp resource/proj-path :resource :resource)
+          built-source-paths (fn [resource-node]
+                               (into #{}
+                                     (keep build-target-source-path)
+                                     (pipeline/flatten-build-targets
+                                       (g/node-value resource-node :build-targets))))]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
@@ -1576,7 +1578,13 @@
             (is (assigned-property? ov-ov-props-script-component "/from-props-game-object.atlas"))
             (is (overridden-property? props-script-component))
             (is (not (overridden-property? ov-props-script-component)))
-            (is (not (overridden-property? ov-ov-props-script-component))))
+            (is (not (overridden-property? ov-ov-props-script-component)))
+            (is (= #{"/sub-props.collection"
+                     "/props.go"
+                     "/props.script"
+                     "/from-props-game-object.atlas"
+                     "/from-props-script.atlas"}
+                   (built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
@@ -1585,7 +1593,13 @@
             (is (assigned-property? ov-ov-props-script-component "/from-props-collection.atlas"))
             (is (not (overridden-property? props-script-component)))
             (is (overridden-property? ov-props-script-component))
-            (is (not (overridden-property? ov-ov-props-script-component))))
+            (is (not (overridden-property? ov-ov-props-script-component)))
+            (is (= #{"/sub-props.collection"
+                     "/props.go"
+                     "/props.script"
+                     "/from-props-collection.atlas"
+                     "/from-props-script.atlas"}
+                   (built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
@@ -1594,7 +1608,13 @@
             (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
             (is (not (overridden-property? props-script-component)))
             (is (not (overridden-property? ov-props-script-component)))
-            (is (overridden-property? ov-ov-props-script-component)))
+            (is (overridden-property? ov-ov-props-script-component))
+            (is (= #{"/sub-props.collection"
+                     "/props.go"
+                     "/props.script"
+                     "/from-sub-props-collection.atlas"
+                     "/from-props-script.atlas"}
+                   (built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
@@ -1604,7 +1624,14 @@
             (is (assigned-property? ov-ov-props-script-component "/from-props-collection.atlas"))
             (is (overridden-property? props-script-component))
             (is (overridden-property? ov-props-script-component))
-            (is (not (overridden-property? ov-ov-props-script-component))))
+            (is (not (overridden-property? ov-ov-props-script-component)))
+            (is (= #{"/sub-props.collection"
+                     "/props.go"
+                     "/props.script"
+                     "/from-props-collection.atlas"
+                     "/from-props-game-object.atlas"
+                     "/from-props-script.atlas"}
+                   (built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
@@ -1614,7 +1641,14 @@
             (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
             (is (overridden-property? props-script-component))
             (is (not (overridden-property? ov-props-script-component)))
-            (is (overridden-property? ov-ov-props-script-component)))
+            (is (overridden-property? ov-ov-props-script-component))
+            (is (= #{"/sub-props.collection"
+                     "/props.go"
+                     "/props.script"
+                     "/from-sub-props-collection.atlas"
+                     "/from-props-game-object.atlas"
+                     "/from-props-script.atlas"}
+                   (built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
@@ -1624,7 +1658,14 @@
             (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
             (is (not (overridden-property? props-script-component)))
             (is (overridden-property? ov-props-script-component))
-            (is (overridden-property? ov-ov-props-script-component)))
+            (is (overridden-property? ov-ov-props-script-component))
+            (is (= #{"/sub-props.collection"
+                     "/props.go"
+                     "/props.script"
+                     "/from-sub-props-collection.atlas"
+                     "/from-props-collection.atlas"
+                     "/from-props-script.atlas"}
+                   (built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
@@ -1635,7 +1676,15 @@
             (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
             (is (overridden-property? props-script-component))
             (is (overridden-property? ov-props-script-component))
-            (is (overridden-property? ov-ov-props-script-component))))))))
+            (is (overridden-property? ov-ov-props-script-component))
+            (is (= #{"/sub-props.collection"
+                     "/props.go"
+                     "/props.script"
+                     "/from-sub-props-collection.atlas"
+                     "/from-props-collection.atlas"
+                     "/from-props-game-object.atlas"
+                     "/from-props-script.atlas"}
+                   (built-source-paths sub-props-collection)))))))))
 
 (deftest overrides-remain-after-script-edit-test
   (with-clean-system

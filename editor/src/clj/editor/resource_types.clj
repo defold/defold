@@ -15,13 +15,14 @@
 (ns editor.resource-types
   (:require [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
+            [editor.app-manifest :as app-manifest]
             [editor.atlas :as atlas]
             [editor.buffer :as buffer]
             [editor.camera-editor :as camera]
             [editor.code.script :as code-script]
             [editor.code.shader :as code-shader]
             [editor.code.text-file :as code-text-file]
-            [editor.collada-scene :as collada-scene]
+            [editor.model-scene :as model-scene]
             [editor.collection :as collection]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
@@ -35,7 +36,6 @@
             [editor.gui :as gui]
             [editor.html :as html]
             [editor.image :as image]
-            [editor.json :as json]
             [editor.label :as label]
             [editor.live-update-settings :as live-update-settings]
             [editor.markdown :as markdown]
@@ -57,10 +57,11 @@
   (g/transact
     (concat
       (animation-set/register-resource-types workspace)
+      (app-manifest/register-resource-types workspace)
       (atlas/register-resource-types workspace)
       (buffer/register-resource-types workspace)
       (camera/register-resource-types workspace)
-      (collada-scene/register-resource-types workspace)
+      (model-scene/register-resource-types workspace)
       (collection/register-resource-types workspace)
       (collection-proxy/register-resource-types workspace)
       (collision-object/register-resource-types workspace)
@@ -74,7 +75,6 @@
       (gui/register-resource-types workspace)
       (html/register-resource-types workspace)
       (image/register-resource-types workspace)
-      (json/register-resource-types workspace)
       (label/register-resource-types workspace)
       (live-update-settings/register-resource-types workspace)
       (markdown/register-resource-types workspace)
@@ -94,4 +94,3 @@
       (code-shader/register-resource-types workspace)
       (code-text-file/register-resource-types workspace)
       (script-api/register-resource-types workspace))))
-

@@ -18,6 +18,8 @@
 #include <stdint.h>
 #include <dlib/hashtable.h>
 
+#include "../graphics_private.h"
+
 namespace dmGraphics
 {
     const static uint8_t DM_MAX_SET_COUNT              = 2;
@@ -94,6 +96,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
+        float         m_MaxAnisotropy;
         uint8_t       m_MaxLod;
     };
 
@@ -225,40 +228,6 @@ namespace dmGraphics
         VkQueue       m_GraphicsQueue;
         VkQueue       m_PresentQueue;
         VkCommandPool m_CommandPool;
-    };
-
-    union PipelineState
-    {
-        struct
-        {
-            uint64_t m_WriteColorMask           : 4;
-            uint64_t m_WriteDepth               : 1;
-            uint64_t m_PrimtiveType             : 3;
-            // Depth Test
-            uint64_t m_DepthTestEnabled         : 1;
-            uint64_t m_DepthTestFunc            : 3;
-            // Stencil Test
-            uint64_t m_StencilEnabled           : 1;
-            uint64_t m_StencilOpFail            : 3;
-            uint64_t m_StencilOpPass            : 3;
-            uint64_t m_StencilOpDepthFail       : 3;
-            uint64_t m_StencilTestFunc          : 3;
-            uint64_t m_StencilWriteMask         : 8;
-            uint64_t m_StencilCompareMask       : 8;
-            uint64_t m_StencilReference         : 8;
-            // Blending
-            uint64_t m_BlendEnabled             : 1;
-            uint64_t m_BlendSrcFactor           : 4;
-            uint64_t m_BlendDstFactor           : 4;
-            // Culling
-            uint64_t m_CullFaceEnabled          : 1;
-            uint64_t m_CullFaceType             : 2;
-            // Polygon offset
-            uint64_t m_PolygonOffsetFillEnabled : 1;
-            uint64_t                            : 2; // Unused
-        };
-
-        uint64_t m_State;
     };
 
     typedef VkPipeline Pipeline;
@@ -477,7 +446,7 @@ namespace dmGraphics
     VkResult CreateTextureSampler(VkDevice vk_device,
         VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
         VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v,
-        float minLod, float maxLod, VkSampler* vk_sampler_out);
+        float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment,

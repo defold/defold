@@ -130,7 +130,8 @@ message SetConstantParticleFX
 {
     required uint64         emitter_id  = 1;
     required uint64         name_hash   = 2;
-    required dmMath.Vector4 value       = 3 [(field_align)=true];
+    required dmMath.Matrix4 value       = 3 [(field_align)=true];
+    optional bool           is_matrix4  = 4;
 }
 message ResetConstantParticleFX
 {

@@ -19,7 +19,8 @@
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.types :as types]
-            [editor.properties :as properties])
+            [editor.properties :as properties]
+            [util.murmur :as murmur])
   (:import [javax.vecmath Point3d]))
 
 (deftest aabb
@@ -49,13 +50,13 @@
       (testing "can assign single dae file as animations"
         (let [dae-resource (workspace/resolve-workspace-resource workspace "/mesh/treasure_chest.dae")]
           (test-util/with-prop [node-id :animations dae-resource]
-            (is (= #{"treasure_chest"} (set (map :id (:animations (g/node-value node-id :animation-set)))))))))
+            (is (= #{(murmur/hash64 "treasure_chest")} (set (map :id (:animations (g/node-value node-id :animation-set)))))))))
       (testing "can assign animation set as animations"
         (let [animation-set-resource (workspace/resolve-workspace-resource workspace "/model/treasure_chest.animationset")]
           (test-util/with-prop [node-id :animations animation-set-resource]
-            (is (= #{"treasure_chest"
-                     "treasure_chest_sub_animation/treasure_chest_anim_out"
-                     "treasure_chest_sub_sub_animation/treasure_chest_anim_out"}
+            (is (= #{(murmur/hash64 "treasure_chest")
+                     (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")
+                     (murmur/hash64 "treasure_chest_sub_sub_animation/treasure_chest_anim_out")}
                    (set (map :id (:animations (g/node-value node-id :animation-set))))))))))))
 
 (deftest model-validation

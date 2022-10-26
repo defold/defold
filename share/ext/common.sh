@@ -333,7 +333,6 @@ function cmi() {
 
         x86_64-macos)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
