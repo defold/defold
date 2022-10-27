@@ -606,7 +606,10 @@
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
   (output all-atlas-images [Image] :cached (g/fnk [animation-images]
-                                             (vec (distinct (flatten animation-images)))))
+                                             (into []
+                                                   (util/distinct-by
+                                                     #(dissoc % :digest-ignored/error-node-id))
+                                                   (flatten animation-images))))
 
   (output layout-data-generator g/Any          produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)
