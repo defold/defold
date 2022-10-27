@@ -30,7 +30,7 @@ namespace dmGameSystem
                                         dmSoundDDF::SoundDesc* sound_desc,
                                         Sound** sound)
     {
-        dmSound::SoundDataResource* sound_data_res = 0;
+        SoundDataResource* sound_data_res = 0;
         dmResource::Result fr = dmResource::Get(factory, sound_desc->m_Sound, (void**) &sound_data_res);
         if (fr == dmResource::RESULT_OK)
         {

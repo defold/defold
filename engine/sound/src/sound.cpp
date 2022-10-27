@@ -513,15 +513,14 @@ namespace dmSound
         return SetSoundDataNoLock(sound_data, sound_buffer, sound_buffer_size);
     }
 
-    uint32_t GetSoundResourceSize(SoundDataResource* sound_data_res)
+    uint32_t GetSoundResourceSize(HSoundData sound_data)
     {
-        return sound_data_res->m_SoundData->m_Size + sizeof(SoundDataResource);
+        return sound_data->m_Size + sizeof(SoundData);
     }
 
     Result DeleteSoundData(HSoundData sound_data)
     {
         sound_data->m_RefCount --;
-        dmLogError("Del Ref counter(%u)", sound_data->m_RefCount);
         if (sound_data->m_RefCount > 0)
         {
             return RESULT_OK;
@@ -574,7 +573,6 @@ namespace dmSound
         }
 
         sound_data->m_RefCount ++;
-        dmLogError("Create Ref counter index: %u (%u)", sound_data->m_Index, sound_data->m_RefCount);
 
         SoundInstance* si = &ss->m_Instances[index];
         assert(si->m_Index == 0xffff);

@@ -25,10 +25,6 @@ namespace dmSound
     typedef struct SoundData* HSoundData;
     typedef struct SoundInstance* HSoundInstance;
 
-    struct SoundDataResource {
-        dmSound::HSoundData m_SoundData;
-    };
-
     enum SoundDataType
     {
         SOUND_DATA_TYPE_WAV        = 0,
@@ -107,7 +103,7 @@ namespace dmSound
     // Thread safe
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name);
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size);
-    uint32_t GetSoundResourceSize(SoundDataResource* sound_data_res);
+    uint32_t GetSoundResourceSize(HSoundData sound_data);
     Result DeleteSoundData(HSoundData sound_data);
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance);

@@ -36,18 +36,18 @@ namespace dmGameSystem
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
 
-        dmSound::SoundDataResource* sound_data_res = new dmSound::SoundDataResource();
+        SoundDataResource* sound_data_res = new SoundDataResource();
 
         sound_data_res->m_SoundData = sound_data;
 
         params.m_Resource->m_Resource = (void*) sound_data_res;
-        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data_res);
+        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmSound::SoundDataResource* sound_data_res = (dmSound::SoundDataResource*) params.m_Resource->m_Resource;
+        SoundDataResource* sound_data_res = (SoundDataResource*) params.m_Resource->m_Resource;
         dmSound::Result r = dmSound::DeleteSoundData(sound_data_res->m_SoundData);
         delete sound_data_res;
         
@@ -60,7 +60,7 @@ namespace dmGameSystem
 
     dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmSound::SoundDataResource* sound_data_res = (dmSound::SoundDataResource*) params.m_Resource->m_Resource;
+        SoundDataResource* sound_data_res = (SoundDataResource*) params.m_Resource->m_Resource;
 
         dmSound::HSoundData sound_data;
         dmSound::SoundDataType type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
@@ -77,7 +77,7 @@ namespace dmGameSystem
         sound_data_res->m_SoundData = sound_data;
 
         params.m_Resource->m_Resource = (void*)sound_data_res;
-        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data_res);
+        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
         return dmResource::RESULT_OK;
     }
 }

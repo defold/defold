@@ -28,6 +28,7 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_sound.h"
+#include "../resources/res_sound_data.h"
 #include "comp_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);

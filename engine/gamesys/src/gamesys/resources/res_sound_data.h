@@ -18,8 +18,17 @@
 #include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_sound.h>
 
+namespace dmSound
+{
+    typedef struct SoundData* HSoundData;
+}
+
 namespace dmGameSystem
 {
+    struct SoundDataResource {
+        dmSound::HSoundData m_SoundData;
+    };
+
     dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams& params);
 
     dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams& params);

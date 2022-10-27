@@ -18,19 +18,16 @@
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
 
-namespace dmSound
-{
-    typedef struct SoundDataResource* HSoundDataRes;
-}
-
 namespace dmGameSystem
 {
+    struct SoundDataResource;
+
     struct Sound
     {
         Sound();
 
         dmhash_t                    m_GroupHash;
-        dmSound::HSoundDataRes      m_SoundDataRes;
+        SoundDataResource*          m_SoundDataRes;
         float                       m_Gain;
         float                       m_Pan;
         float                       m_Speed;
