@@ -569,6 +569,57 @@ static void json_append_string(lua_State *l, strbuf_t *json, int lindex)
     strbuf_append_char_unsafe(json, '\"');
 }
 
+// DEFOLD
+static void json_append_metadata_string(lua_State *l, strbuf_t *json, int lindex)
+{
+    const char *escstr;
+    unsigned i;
+    const char *str;
+    size_t len;
+
+    int top = lua_gettop(l);
+
+    lua_pushvalue(l, lindex);
+    // -1: userdata
+
+    lua_getglobal(l, "tostring");
+    // -2: userdata
+    // -1: tostring
+
+    lua_pushvalue(l, -2);
+    // -3: userdata
+    // -2: tostring
+    // -1: userdata
+
+    lua_pcall(l, 1, 1, 0);
+    // -2: userdata
+    // -1: string
+
+    str = lua_tolstring(l, -1, &len);
+
+    /* Worst case is len * 6 (all unicode escapes).
+     * This buffer is reused constantly for small strings
+     * If there are any excess pages, they won't be hit anyway.
+     * This gains ~5% speedup. */
+    strbuf_ensure_empty_length(json, len * 6 + 2);
+
+    strbuf_append_char_unsafe(json, '\"');
+    for (i = 0; i < len; i++) {
+        escstr = char2escape[(unsigned char)str[i]];
+        if (escstr)
+            strbuf_append_string(json, escstr);
+        else
+            strbuf_append_char_unsafe(json, str[i]);
+    }
+    strbuf_append_char_unsafe(json, '\"');
+
+    lua_pop(l, 2); // pop the string+userdata
+
+    assert(top == lua_gettop(l));
+}
+// DEFOLD END
+
+
 /* Find the size of the array on the top of the Lua stack
  * -1   object (not a pure array)
  * >=0  elements in array
@@ -816,6 +867,15 @@ static void json_append_data(lua_State *l, json_config_t *cfg,
             json_append_array(l, cfg, current_depth, json, 0);
         }
         break;
+    // DEFOLD: We use the tostring() from the meta table
+    case LUA_TUSERDATA:
+    case LUA_TFUNCTION:
+    case LUA_TTHREAD:
+        {
+            json_append_metadata_string(l, json, -1);
+            break;
+        }
+    // DEFOLD END
     default:
         /* Remaining types (LUA_TFUNCTION, LUA_TUSERDATA, LUA_TTHREAD,
          * and LUA_TLIGHTUSERDATA) cannot be serialised */

@@ -137,6 +137,23 @@ function test_json_decode()
     test_json_valid_primitive()
 end
 
+function assert_string(expected, actual)
+    if expected ~= actual then
+        print("Expected: '" .. expected .. "'")
+        print("Got:      '" .. actual .. "'")
+    end
+    assert(expected == actual)
+end
+
+function assert_startswith(needle, haystack)
+    local ret = startswith(needle, haystack)
+    if not ret then
+        print("Couldn't find: '" .. needle .. "'")
+        print("in string '" .. haystack .. "'")
+    end
+    assert(ret)
+end
+
 function test_json_encode()
     -- empty table becomes empty dict
     assert(json.encode({}) == "{}")
@@ -151,13 +168,11 @@ function test_json_encode()
     -- interleaved nil becomse a null element (note: not in quotes)
     assert(json.encode({1,nil,2}) == "[1,null,2]")
 
---TODO SHOULD WE SUPPORT THIS?
---I THINK WE SHOULDN'T
-    -- local v3_enc = json.encode(vmath.vector3())
-    -- assert(startswith("\"object at", v3_enc))
+    local v3_enc = json.encode(vmath.vector3()) -- user data
+    assert_string("\"vmath.vector3(0, 0, 0)\"", v3_enc)
 
-    -- local f_enc = json.encode(function() end)
-    -- assert(startswith("\"object at", f_enc))
+    local f_enc = json.encode(function() end) -- function
+    assert_startswith("\"function: ", f_enc)
 
     -- Test passing no arguments, which should fail
     local ret, msg = pcall(function() json.encode() end)
