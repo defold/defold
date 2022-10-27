@@ -85,7 +85,7 @@ namespace dmSound
 
     uint32_t GetSoundResourceSize(SoundDataResource* sound_data_res)
     {
-        return sizeof(SoundDataResource) + sound_data_res->m_SoundData->m_BufferSize;
+        return sizeof(SoundDataResource) + sizeof(SoundData) + sound_data_res->m_SoundData->m_BufferSize;
     }
 
     Result DeleteSoundData(HSoundData sound_data)
