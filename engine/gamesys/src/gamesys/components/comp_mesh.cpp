@@ -305,7 +305,11 @@ namespace dmGameSystem
         component->m_ReHash = 0;
     }
 
-    dmBuffer::Result UpdateMeshBounds(dmBuffer::HBuffer hbuffer, dmhash_t stream_name) {
+    // Initial max/min values for mesh bounds
+    static const dmVMath::Point3 BOUNDS_MIN_EMPTY(1e10,1e10,1e10);
+    static const dmVMath::Point3 BOUNDS_MAX_EMPTY(-1e10,-1e10,-1e10);
+
+    static void UpdateMeshBounds(dmBuffer::HBuffer hbuffer, dmhash_t stream_name) {
 
         // get stream and buffer properties
         void* vertices_data;
@@ -315,17 +319,23 @@ namespace dmGameSystem
 
         dmBuffer::Result r = dmBuffer::GetStream(hbuffer, stream_name, &vertices_data,  &vertex_count, &vertex_components, &stride);
         if (r != dmBuffer::RESULT_OK) {
-            return r;
+            dmLogError("Error calculating mesh bounds for culling. Invalid buffer or stream: '%s'.", dmHashReverseSafe64(stream_name) );
+            return;
         }
 
-        // currently only support FLOAT32
-        //if (stream->m_ValueType != VALUE_TYPE_FLOAT32) {
-        //    return RESULT_STREAM_TYPE_MISMATCH; // TODO - maybe define a new result: RESULT_UNSUPPORTED_STREAM_TYPE
-        //}
+        // set up initial values
+        dmVMath::Point3 boundsMin = BOUNDS_MIN_EMPTY;
+        dmVMath::Point3 boundsMax = BOUNDS_MAX_EMPTY;
+        dmBuffer::SetBounds(hbuffer, boundsMin, boundsMax);
 
-        // calculate min/max for (position) stream coordinates
-        dmVMath::Point3 boundsMin(1e10,1e10,1e10);
-        dmVMath::Point3 boundsMax(-1e10,-1e10,-1e10);
+        // is the stream compatible ? only floats (X3) are supported
+        dmBuffer::ValueType stream_type;
+        uint32_t stream_type_count;
+        GetStreamType(hbuffer, stream_name, &stream_type, &stream_type_count); // hbuffer and stream_name have been validated
+        if (stream_type != dmBuffer::VALUE_TYPE_FLOAT32 || stream_type_count != 3) {
+            dmLogError("Unsupported stream type for calculating bounds for culling. stream: '%s'", dmHashReverseSafe64(stream_name));
+            return;
+        }
 
         uint8_t* position_p = (uint8_t*) vertices_data; // iterates over stream position coordinates
 
@@ -345,12 +355,7 @@ namespace dmGameSystem
         }
 
         // update min/max bounds in buffer
-        r = dmBuffer::SetBounds(hbuffer, boundsMin, boundsMax); // hbuffer should be valid. We've checked it above with GetStream().
-        if (r != dmBuffer::RESULT_OK) {
-            return r;
-        }
-
-        return dmBuffer::RESULT_OK;
+        dmBuffer::SetBounds(hbuffer, boundsMin, boundsMax);  // hbuffer should be valid. We've checked it above with GetStream()
     }
 
     dmGameObject::CreateResult CompMeshCreate(const dmGameObject::ComponentCreateParams& params)
@@ -393,10 +398,7 @@ namespace dmGameSystem
 
             // process position stream in buffer to find bounding box
             uint64_t stream_name = (component->m_Resource->m_PositionStreamId != 0) ? component->m_Resource->m_PositionStreamId : dmHashString64("position"); // use stream name (hash) from resource and fallback to "position" if this is not available
-            dmBuffer::Result r = UpdateMeshBounds(br->m_Buffer, stream_name);
-            if (r != dmBuffer::RESULT_OK) {
-                dmLogWarning("Cannot set mesh bounding box for buffer %s.", dmHashReverseSafe64(br->m_Buffer) );
-            }
+            UpdateMeshBounds(br->m_Buffer, stream_name);
         }
 
         ReHash(component);
@@ -505,10 +507,7 @@ namespace dmGameSystem
                     info->m_Version = component.m_BufferVersion;
                     // process position stream in buffer to find bounding box
                     uint64_t stream_name = (component.m_Resource->m_PositionStreamId != 0) ? component.m_Resource->m_PositionStreamId : dmHashString64("position"); // use stream name (hash) from resource and fallback to "position" if this is not available
-                    dmBuffer::Result r = UpdateMeshBounds(br->m_Buffer, stream_name);
-                    if (r != dmBuffer::RESULT_OK) {
-                        dmLogWarning("Cannot update mesh bounding box for buffer %s.", dmHashReverseSafe64(br->m_Buffer) );
-                    }
+                    UpdateMeshBounds(br->m_Buffer, stream_name);
 
                     CopyBufferToVertexBuffer(br->m_Buffer, info->m_VertexBuffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
                 }
@@ -810,8 +809,13 @@ namespace dmGameSystem
             dmVMath::Point3 boundsMin, boundsMax;
             dmBuffer::Result r = dmBuffer::GetBounds(br->m_Buffer, boundsMin, boundsMax);
 
+            // are there any actual bounds set ? (checking if boundxMin still contains its initial values should be enough)
+            if (boundsMin.getX() == BOUNDS_MIN_EMPTY.getX() && boundsMin.getY() == BOUNDS_MIN_EMPTY.getY() && boundsMin.getZ() == BOUNDS_MIN_EMPTY.getZ()) {
+                continue;
+            }
+
             if (r != dmBuffer::RESULT_OK) {
-                dmLogWarning("Could not get bounds for buffer %s for culling. Is this a valid buffer ?", dmHashReverseSafe64(br->m_Buffer));
+                dmLogWarning("Could not get culling bounds for mesh buffer. Is the buffer valid ?");
                 continue;
             }
 
