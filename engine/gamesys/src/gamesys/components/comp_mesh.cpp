@@ -305,7 +305,7 @@ namespace dmGameSystem
         component->m_ReHash = 0;
     }
 
-    void UpdatePositionBounds(dmBuffer::HBuffer hbuffer, dmhash_t stream_name) {
+    dmBuffer::Result UpdateMeshBounds(dmBuffer::HBuffer hbuffer, dmhash_t stream_name) {
 
         // get stream and buffer properties
         void* vertices_data;
@@ -315,7 +315,7 @@ namespace dmGameSystem
 
         dmBuffer::Result r = dmBuffer::GetStream(hbuffer, stream_name, &vertices_data,  &vertex_count, &vertex_components, &stride);
         if (r != dmBuffer::RESULT_OK) {
-            // TODO handle failure
+            return r;
         }
 
         // currently only support FLOAT32
@@ -345,9 +345,12 @@ namespace dmGameSystem
         }
 
         // update min/max bounds in buffer
-        dmBuffer::SetBounds(hbuffer, boundsMin, boundsMax); // hbuffer should be valid. We've checked it above with GetStream().
+        r = dmBuffer::SetBounds(hbuffer, boundsMin, boundsMax); // hbuffer should be valid. We've checked it above with GetStream().
+        if (r != dmBuffer::RESULT_OK) {
+            return r;
+        }
 
-        return;
+        return dmBuffer::RESULT_OK;
     }
 
     dmGameObject::CreateResult CompMeshCreate(const dmGameObject::ComponentCreateParams& params)
@@ -387,9 +390,13 @@ namespace dmGameSystem
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
             component->m_BufferVersion = CalcBufferVersion(component, br);
             CreateVertexBuffer(world, br, component->m_BufferVersion);
+
             // process position stream in buffer to find bounding box
             uint64_t stream_name = (component->m_Resource->m_PositionStreamId != 0) ? component->m_Resource->m_PositionStreamId : dmHashString64("position"); // use stream name (hash) from resource and fallback to "position" if this is not available
-            UpdatePositionBounds(br->m_Buffer, stream_name);
+            dmBuffer::Result r = UpdateMeshBounds(br->m_Buffer, stream_name);
+            if (r != dmBuffer::RESULT_OK) {
+                dmLogWarning("Cannot set mesh bounding box for buffer %s.", dmHashReverseSafe64(br->m_Buffer) );
+            }
         }
 
         ReHash(component);
@@ -498,9 +505,12 @@ namespace dmGameSystem
                     info->m_Version = component.m_BufferVersion;
                     // process position stream in buffer to find bounding box
                     uint64_t stream_name = (component.m_Resource->m_PositionStreamId != 0) ? component.m_Resource->m_PositionStreamId : dmHashString64("position"); // use stream name (hash) from resource and fallback to "position" if this is not available
-                    UpdatePositionBounds(br->m_Buffer, stream_name);
+                    dmBuffer::Result r = UpdateMeshBounds(br->m_Buffer, stream_name);
+                    if (r != dmBuffer::RESULT_OK) {
+                        dmLogWarning("Cannot update mesh bounding box for buffer %s.", dmHashReverseSafe64(br->m_Buffer) );
+                    }
 
-                    CopyBufferToVertexBuffer(br->m_Buffer, info->m_VertexBuffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);                        
+                    CopyBufferToVertexBuffer(br->m_Buffer, info->m_VertexBuffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
                 }
             }
 
@@ -788,6 +798,7 @@ namespace dmGameSystem
 
         MeshWorld* mesh_world = (MeshWorld*)params.m_UserData;
 
+
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
         for (uint32_t i = 0; i < num_entries; ++i)
@@ -800,7 +811,8 @@ namespace dmGameSystem
             dmBuffer::Result r = dmBuffer::GetBounds(br->m_Buffer, boundsMin, boundsMax);
 
             if (r != dmBuffer::RESULT_OK) {
-                return;
+                dmLogWarning("Could not get bounds for buffer %s for culling. Is this a valid buffer ?", dmHashReverseSafe64(br->m_Buffer));
+                continue;
             }
 
             // get center of bounding box in local coords
@@ -819,6 +831,7 @@ namespace dmGameSystem
             bool intersect = dmIntersection::TestFrustumSphere(frustum, center_world, radius, true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
+
     }
 
 

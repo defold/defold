@@ -13,13 +13,12 @@
 // specific language governing permissions and limitations under the License.
 
 
-#include "vmath.h"
 #include <dmsdk/dlib/buffer.h>
-#include <dlib/buffer.h>  // for Bounds3D type
 
 #include <dlib/log.h>
 #include <dlib/memory.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/vmath.h> // for Point3
 
 #include <string.h>
 #include <assert.h>
@@ -59,8 +58,7 @@ namespace dmBuffer
         uint16_t m_ContentVersion;  // A running number, which user can use to signal content changes
         uint8_t  m_NumStreams;
 
-        //Bounds3D m_BoundingCube;    // two point min/max definition of a AABB
-        //uint16_t m_BoundingContentVersion; // copy of m_ContentVersion when m_BoundingCube was calculated
+        // two point min/max definition of a AABB
         dmVMath::Point3 boundsMin;
         dmVMath::Point3 boundsMax;
     };
@@ -406,8 +404,8 @@ namespace dmBuffer
         buffer->m_ContentVersion = 0;
 
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
-        *out_buffer = SetBuffer(ctx, index, buffer);
 
+        *out_buffer = SetBuffer(ctx, index, buffer);
         return RESULT_OK;
     }
 
@@ -639,6 +637,9 @@ namespace dmBuffer
 
     Result GetBounds(HBuffer hbuffer, dmVMath::Point3& min, dmVMath::Point3& max) {
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
 
         min = buffer->boundsMin;
         max = buffer->boundsMax;

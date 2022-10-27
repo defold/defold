@@ -16,7 +16,7 @@
 #define DM_BUFFER
 
 #include <dmsdk/dlib/buffer.h>
-#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/vmath.h>  // for Point3
 
 namespace dmBuffer
 {

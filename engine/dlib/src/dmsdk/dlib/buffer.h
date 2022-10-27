@@ -105,7 +105,6 @@ namespace dmBuffer
         RESULT_STREAM_TYPE_MISMATCH,
         RESULT_STREAM_COUNT_MISMATCH,
         RESULT_STREAM_MISMATCH,
-        RESULT_BOUNDS_NOT_AVAILABLE,
     };
 
     /*# StreamDeclaration struct
