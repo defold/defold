@@ -808,14 +808,13 @@ namespace dmGameSystem
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component_p, component_p->m_Resource);
             dmVMath::Point3 boundsMin, boundsMax;
             dmBuffer::Result r = dmBuffer::GetBounds(br->m_Buffer, boundsMin, boundsMax);
-
-            // are there any actual bounds set ? (checking if boundxMin still contains its initial values should be enough)
-            if (boundsMin.getX() == BOUNDS_MIN_EMPTY.getX() && boundsMin.getY() == BOUNDS_MIN_EMPTY.getY() && boundsMin.getZ() == BOUNDS_MIN_EMPTY.getZ()) {
+            if (r != dmBuffer::RESULT_OK) {
+                dmLogWarning("Could not get culling bounds for mesh buffer. Is the buffer valid ?");
                 continue;
             }
 
-            if (r != dmBuffer::RESULT_OK) {
-                dmLogWarning("Could not get culling bounds for mesh buffer. Is the buffer valid ?");
+            // are there any actual bounds set ? (checking if boundxMin still contains its initial values should be enough)
+            if (boundsMin.getX() == BOUNDS_MIN_EMPTY.getX() && boundsMin.getY() == BOUNDS_MIN_EMPTY.getY() && boundsMin.getZ() == BOUNDS_MIN_EMPTY.getZ()) {
                 continue;
             }
 
