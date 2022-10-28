@@ -1532,4 +1532,10 @@ namespace dmSound
         SoundSystem* sound = g_SoundSystem;
         return dmSoundCodec::GetInternalPos(sound->m_CodecContext, instance->m_Decoder);
     }
+
+    // Unit tests
+    int32_t GetRefCount(HSoundData data)
+    {
+        return data->m_RefCount;
+    }
 }
