@@ -188,7 +188,7 @@
           workbench            (.lookup root "#workbench")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
+          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           web-server           (-> (http-server/->server 0 {engine-profiler/url-prefix engine-profiler/handler

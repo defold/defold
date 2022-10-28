@@ -29,7 +29,8 @@
      ;; The source resource is included since external resources may rely on it
      ;; (for example, image reads). However, we don't want to include memory
      ;; resources since they typically represent embedded resources that can be
-     ;; edited, and their :data may be out of sync with the edited state.
+     ;; edited, and their :data may be out of sync with the edited state that
+     ;; will be passed as :user-data anyway.
      (when-not (resource/memory-resource? source-resource)
        source-resource)
 

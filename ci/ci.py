@@ -13,8 +13,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-
-
 import sys
 import subprocess
 import platform
@@ -380,7 +378,7 @@ def get_branch():
 
     return branch
 
-def get_target_branch():
+def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
     return os.environ.get('GITHUB_BASE_REF', '')
 
@@ -469,7 +467,7 @@ def main(argv):
         release_channel = "editor-alpha"
         make_release = True
         engine_artifacts = args.engine_artifacts
-    elif branch and (branch.startswith("DEFEDIT-") or get_target_branch() == "editor-dev"):
+    elif branch and (branch.startswith("DEFEDIT-") or get_pull_request_target_branch() == "editor-dev"):
         engine_channel = None
         editor_channel = "editor-dev"
         make_release = False

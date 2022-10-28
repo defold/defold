@@ -1,7 +1,20 @@
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.game-object-data
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.geom :as geom]
@@ -24,13 +37,17 @@
   [[:build-targets :embedded-component-build-targets]])
 
 (defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data ext->embedded-component-resource-type project]
-  (let [embedded-component-pb-string (collection-string-data/string-encoded-data ext->embedded-component-resource-type embedded-component-resource-data)
-        embedded-resource (project/make-embedded-resource project :non-editable (:type embedded-component-resource-data) embedded-component-pb-string)
-        node-type (project/resource-node-type embedded-resource)
+  (let [embedded-resource-ext (:type embedded-component-resource-data)
+        embedded-resource-type (ext->embedded-component-resource-type embedded-resource-ext)
+        embedded-resource-write-fn (:write-fn embedded-resource-type)
+        embedded-resource-pb-map (:data embedded-component-resource-data)
+        embedded-resource-pb-string (embedded-resource-write-fn embedded-resource-pb-map)
+        embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-string)
+        embedded-resource-node-type (project/resource-node-type embedded-resource)
         graph (g/node-id->graph-id host-node-id)]
-    (g/make-nodes graph [embedded-resource-node-id [node-type :resource embedded-resource]]
-      (project/load-node project embedded-resource-node-id node-type embedded-resource)
-      (project/connect-if-output node-type embedded-resource-node-id host-node-id embedded-component-resource-connections))))
+    (g/make-nodes graph [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
+      (project/load-node project embedded-resource-node-id embedded-resource-node-type embedded-resource)
+      (project/connect-if-output embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-resource-connections))))
 
 (g/defnode EmbeddedComponentHostResourceNode
   (inherits resource-node/ImmutableResourceNode)

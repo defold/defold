@@ -46,9 +46,6 @@
 (defn- comparable-build-targets [build-targets]
   (letfn [(value-fn [key value]
             (cond
-              (digestable/ignored-key? key)
-              nil ; Exclude the entry.
-
               (resource/resource? value)
               (merge (sorted-map (class-keyword value) (resource/proj-path value))
                      (extra-comparable-resource-data value))
