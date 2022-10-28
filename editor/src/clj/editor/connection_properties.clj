@@ -16,10 +16,11 @@
 
 (def ^:const connection-properties
   {:sentry {:project-id "97739"
-            :key        "9e25fea9bc334227b588829dd60265c1"
-            :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}
-   :google-analytics {:tid "UA-83690-7"}
+            :key "9e25fea9bc334227b588829dd60265c1"
+            :secret "f694ef98d47d42cf8bb67ef18a4e9cdb"}
    :git-issues {:url "https://github.com/defold/defold"}
+   :analytics-url "https://www.google-analytics.com/mp/collect?api_secret=TiZ0CR6kTQ6I5SxJvH2Veg&measurement_id=G-WPGB4YL1FQ"
+   :analytics-validation-url "https://www.google-analytics.com/debug/mp/collect?api_secret=TiZ0CR6kTQ6I5SxJvH2Veg&measurement_id=G-WPGB4YL1FQ"
    :native-extensions {:build-server-url "https://build.defold.com"}
    :updater {:download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.zip"
-             :update-url-template "https://%s/editor2/channels/%s/update-v3.json"}})
+             :update-url-template "https://%s/editor2/channels/%s/update-v4.json"}})

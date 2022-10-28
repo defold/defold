@@ -10,7 +10,7 @@ def build(bld):
     build_util = create_build_utility(bld.env)
 
     platform_folder = 'glfw'
-    if build_util.get_target_os() in ('nx64',):
+    if build_util.get_target_os() in ('nx64','ps4'):
         platform_folder = build_util.get_target_os()
 
     hid = bld.stlib(features = 'cxx',

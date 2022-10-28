@@ -294,6 +294,22 @@ namespace dmHID
     void ResetKeyboard(HContext context);
 
     /**
+     * Show mouse cursor if applicable, e.g PC platform
+     */
+    void ShowMouseCursor(HContext context);
+
+    /**
+     * Hide mouse cursor if applicable, e.g PC platform.
+     * This effectively locks the mouse position to the center of the current window.
+     */
+    void HideMouseCursor(HContext context);
+
+    /**
+     * Gets the lock state of the current mouse if applicable, e.g PC platform
+     */
+    bool GetCursorVisible(HContext context);
+
+    /**
      * Convenience function to retrieve the position of a specific touch.
      * Used in unit tests (test_input.cpp)
      *

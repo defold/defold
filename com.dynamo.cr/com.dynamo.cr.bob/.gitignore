@@ -2,7 +2,9 @@
 /dist
 /tmp
 /lib/*texc_shared*
-/lib/*/*texc_shared*
+/lib/*/*modelc_shared*
+/lib/*modelc_shared*
+/lib/*/*modelc_shared*
 /lib/*/*OpenAL32*
 /lib/*/*wrap_oal*
 /lib/*/*PVRTexLib*
@@ -13,6 +15,7 @@
 /lib/android-res.zip
 /lib/luajit-share.zip
 /lib/dlib.jar
+/lib/modelimporter.jar
 /libexec/*/*.js
 /libexec/*/*.swf
 /libexec/*/*dmengine*

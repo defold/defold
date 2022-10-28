@@ -16,6 +16,7 @@
 #include <dlib/log.h>
 #include "../gamesys.h"
 #include <script/script.h>
+#include <hid/hid.h>
 
 #include "script_window.h"
 
@@ -43,6 +44,7 @@ enum WindowEvent
 
 struct WindowInfo
 {
+    dmHID::HContext m_HidContext;
     dmScript::LuaCallbackInfo* m_Callback;
     int m_Width;
     int m_Height;
@@ -168,6 +170,36 @@ static int SetListener(lua_State* L)
     return 0;
 }
 
+/*# set the locking state for current mouse cursor
+ *
+ * Set the locking state for current mouse cursor on a PC platform.
+ *
+ * This function locks or unlocks the mouse cursor to the center point of the window. While the cursor is locked,
+ * mouse position updates will still be sent to the scripts as usual.
+ *
+ * @name window.set_mouse_lock
+ * @param flag [type:boolean] The lock state for the mouse cursor
+ */
+static int SetMouseLock(lua_State* L)
+{
+    int top = lua_gettop(L);
+
+    bool flag = dmScript::CheckBoolean(L, 1);
+
+    // Hiding the cursor is the same thing as locking it currently
+    if (flag)
+    {
+        dmHID::HideMouseCursor(g_Window.m_HidContext);
+    }
+    else
+    {
+        dmHID::ShowMouseCursor(g_Window.m_HidContext);
+    }
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
 /*# set the mode for screen dimming
  *
  * [icon:ios] [icon:android] Sets the dimming mode on a mobile device.
@@ -251,12 +283,32 @@ static int GetSize(lua_State* L)
     return 2;
 }
 
+/*# get the cursor lock state
+ *
+ * This returns the current lock state of the mouse cursor
+ *
+ * @name window.get_mouse_lock
+ * @return state [type:boolean] The lock state
+ */
+static int GetMouseLock(lua_State* L)
+{
+    int top = lua_gettop(L);
+    bool cursor_visible = dmHID::GetCursorVisible(g_Window.m_HidContext);
+    // If cursor is visible, it is not locked
+    lua_pushboolean(L, !cursor_visible);
+
+    assert(top + 1 == lua_gettop(L));
+    return 1;
+}
+
 static const luaL_reg Module_methods[] =
 {
-    {"set_listener", SetListener},
-    {"set_dim_mode", SetDimMode},
-    {"get_dim_mode", GetDimMode},
-    {"get_size", GetSize},
+    {"set_listener",   SetListener},
+    {"set_dim_mode",   SetDimMode},
+    {"set_mouse_lock", SetMouseLock},
+    {"get_dim_mode",   GetDimMode},
+    {"get_size",       GetSize},
+    {"get_mouse_lock", GetMouseLock},
     {0, 0}
 };
 
@@ -352,6 +404,7 @@ static void LuaInit(lua_State* L)
 void ScriptWindowRegister(const ScriptLibContext& context)
 {
     LuaInit(context.m_LuaState);
+    g_Window.m_HidContext = context.m_HidContext;
 }
 
 void ScriptWindowFinalize(const ScriptLibContext& context)
@@ -359,6 +412,7 @@ void ScriptWindowFinalize(const ScriptLibContext& context)
     if (g_Window.m_Callback)
         dmScript::DestroyCallback(g_Window.m_Callback);
     g_Window.m_Callback = 0;
+    g_Window.m_HidContext = 0;
 }
 
 void ScriptWindowOnWindowFocus(bool focus)

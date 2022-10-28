@@ -72,6 +72,7 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
         addTestFile("testanim.dae", "testanim.dae");
         StringBuilder src = new StringBuilder();
         src.append("animations { animation : \"/testanim.dae\" }");
+        src.append("skeleton: \"/testanim.dae\"");
         List<Message> outputs = build("/test.animationset", src.toString());
 
         Map<Long, RigAnimation> anims = getAnims((AnimationSet)outputs.get(0));
@@ -88,15 +89,18 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
 
         StringBuilder src = new StringBuilder();
         src.append("animations { animation : \"/1/testanim3.dae\" }");
+        src.append("skeleton: \"/testanim1.dae\"");
         addFile("testset2.animationset", src.toString());
         src = new StringBuilder();
         src.append("animations { animation : \"/testanim3.dae\" }");
         src.append("animations { animation : \"/testset2.animationset\" }");
+        src.append("skeleton: \"/testanim1.dae\"");
         addFile("testset1.animationset", src.toString());
         src = new StringBuilder();
         src.append("animations { animation : \"/testanim1.dae\" }");
         src.append("animations { animation : \"/testanim2.dae\" }");
         src.append("animations { animation : \"/testset1.animationset\" }");
+        src.append("skeleton: \"/testanim1.dae\"");
         List<Message> outputs = build("/test.animationset", src.toString());
 
         Map<Long, RigAnimation> anims = getAnims((AnimationSet)outputs.get(0));

@@ -190,8 +190,6 @@
    width    :- Int32
    height   :- Int32
    sprite-trim-mode :- sprite-trim-modes]
-  {(s/optional-key :digest-ignored/error-node-id) Long}
-
   ImageHolder
   (contents [this] contents))
 

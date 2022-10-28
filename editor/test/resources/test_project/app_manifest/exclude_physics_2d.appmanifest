@@ -1,0 +1,101 @@
+# App manifest generated Fri Sep 02 2022 16:09:29 GMT+0200 (Central European Summer Time)
+# Settings: Physics2D,OpenGL
+platforms:
+    x86_64-osx:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            frameworks: []
+            linkFlags: []
+
+    x86_64-linux:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            linkFlags: []
+
+    js-web:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            linkFlags: []
+
+    wasm-web:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            linkFlags: []
+
+    x86-win32:
+        context:
+            excludeLibs: ["libphysics","libBox2D"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["libphysics_3d.lib"]
+            linkFlags: []
+
+    x86_64-win32:
+        context:
+            excludeLibs: ["libphysics","libBox2D"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["libphysics_3d.lib"]
+            linkFlags: []
+
+    armv7-android:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            linkFlags: []
+            jetifier: true
+
+    arm64-android:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            linkFlags: []
+            jetifier: true
+
+    armv7-ios:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            frameworks: []
+            linkFlags: []
+
+    arm64-ios:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            frameworks: []
+            linkFlags: []
+
+    x86_64-ios:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            frameworks: []
+            linkFlags: []
+

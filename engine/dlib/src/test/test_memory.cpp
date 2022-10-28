@@ -18,20 +18,30 @@
 #include <jc_test/jc_test.h>
 #include "../dlib/memory.h"
 
+TEST(dmMemory, Malloc)
+{
+    void* memory = malloc(1024*1024);
+    ASSERT_TRUE(memory != 0);
+    free(memory);//
+}
+
 TEST(dmMemory, AlignedMalloc)
 {
     void* dummy = 0;
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 8, 1024));
+    ASSERT_TRUE(dummy != 0);
     ASSERT_EQ(0u, ((unsigned long)dummy % 8));
     dmMemory::AlignedFree(dummy);
     dummy = 0;
 
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 16, 1024));
+    ASSERT_TRUE(dummy != 0);
     ASSERT_EQ(0u, ((unsigned long)dummy % 16));
     dmMemory::AlignedFree(dummy);
     dummy = 0;
 
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 1024*16, 1024));
+    ASSERT_TRUE(dummy != 0);
     ASSERT_EQ(0u, ((unsigned long)dummy % 1024*16));
     dmMemory::AlignedFree(dummy);
     dummy = 0;

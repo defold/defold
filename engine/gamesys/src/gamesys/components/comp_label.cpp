@@ -100,7 +100,7 @@ namespace dmGameSystem
         LabelWorld* world = new LabelWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, label_context->m_MaxLabelCount);
         world->m_Components.SetCapacity(comp_count);
-        memset(world->m_Components.m_Objects.Begin(), 0, sizeof(LabelComponent) * comp_count);
+        memset(world->m_Components.GetRawObjects().Begin(), 0, sizeof(LabelComponent) * comp_count);
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -110,8 +110,9 @@ namespace dmGameSystem
     {
         LabelWorld* world = (LabelWorld*)params.m_World;
 
-        LabelComponent* components = world->m_Components.m_Objects.Begin();
-        for (uint32_t i = 0; i < world->m_Components.m_Objects.Size(); ++i )
+        dmArray<LabelComponent>& components = world->m_Components.GetRawObjects();
+        uint32_t n = components.Size();
+        for (uint32_t i = 0; i < n; ++i )
         {
             LabelComponent& component = components[i];
             if (component.m_UserAllocatedText)
@@ -287,7 +288,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("UpdateTransforms");
 
-        dmArray<LabelComponent>& components = world->m_Components.m_Objects;
+        dmArray<LabelComponent>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -309,7 +310,8 @@ namespace dmGameSystem
                 w = dmTransform::MulNoScaleZ(world, local);
             }
 
-            w = appendScale(w, c->m_Scale);
+            w = Vectormath::Aos::appendScale(w, c->m_Scale);
+
             Vector4 position = w.getCol3();
             if (!sub_pixels)
             {
@@ -432,7 +434,7 @@ namespace dmGameSystem
         LabelWorld* world = (LabelWorld*)params.m_World;
         dmRender::HRenderContext render_context = label_context->m_RenderContext;
 
-        dmArray<LabelComponent>& components = world->m_Components.m_Objects;
+        dmArray<LabelComponent>& components = world->m_Components.GetRawObjects();
         uint32_t component_count = components.Size();
 
         DM_PROPERTY_ADD_U32(rmtp_Label, component_count);

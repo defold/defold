@@ -28,6 +28,10 @@
 
 #include <algorithm> // std::sort
 
+DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
+DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);
+DM_PROPERTY_U32(rmtp_Memory, 0, FrameReset, "Memory usage in kb", &rmtp_Profiler);
+
 namespace dmProfiler
 {
 
@@ -40,10 +44,6 @@ namespace dmProfiler
  * @name Profiler
  * @namespace profiler
  */
-
-DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
-DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);
-DM_PROPERTY_U32(rmtp_Memory, 0, FrameReset, "Memory usage in kb", &rmtp_Profiler);
 
 static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library
 static bool g_TrackCpuUsage = false;
@@ -694,6 +694,8 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
         DM_PROPERTY_SET_U32(rmtp_CpuUsage, dmProfilerExt::GetCpuUsage()*100.0);
         DM_PROPERTY_SET_U32(rmtp_Memory, dmProfilerExt::GetMemoryUsage() / 1024u);
     }
+
+    dmProfilerExt::UpdatePlatformProfiler();
 
     return dmExtension::RESULT_OK;
 }

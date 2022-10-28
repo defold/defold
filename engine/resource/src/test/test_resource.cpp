@@ -22,11 +22,23 @@
 #include <dlib/sys.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
+#include <dlib/testutil.h>
 #include <ddf/ddf.h>
 
 #define TEST_HTTP_SUPPORTED
-#if defined(__NX__)
+#if defined(__NX__) || defined(__SCE__)
     #undef TEST_HTTP_SUPPORTED
+#endif
+
+#if defined(_MSC_VER)
+    #define TMP_DIR "."
+    #define MOUNT_DIR "."
+#elif defined(__NX__) || defined(__SCE__)
+    #define TMP_DIR ""
+    #define MOUNT_DIR DM_HOSTFS
+#else
+    #define TMP_DIR "."
+    #define MOUNT_DIR "."
 #endif
 
 #include <resource/resource_ddf.h>
@@ -62,18 +74,6 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
 #undef EXT_CONSTANTS
 
-static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
-{
-#if defined(__NX__)
-    dmStrlCpy(dst, "host:/", dst_len);
-    dmStrlCat(dst, path, dst_len);
-    return dst;
-#else
-    dmStrlCpy(dst, path, dst_len);
-    return dst;
-#endif
-}
-
 class ResourceTest : public jc_test_base_class
 {
 protected:
@@ -85,7 +85,7 @@ protected:
 
         dmResourceArchive::ClearArchiveLoaders();
         dmResourceArchive::RegisterDefaultArchiveLoader();
-        factory = dmResource::NewFactory(&params, ".");
+        factory = dmResource::NewFactory(&params, MOUNT_DIR);
         ASSERT_NE((void*) 0, factory);
     }
 
@@ -990,19 +990,12 @@ static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& p
 
 TEST(RecreateTest, RecreateTest)
 {
-    const char* tmp_dir = 0;
-#if defined(_MSC_VER)
-    tmp_dir = ".";
-#elif defined(__NX__)
-    tmp_dir = "";
-#else
-    tmp_dir = ".";
-#endif
+    const char* tmp_dir = TMP_DIR;
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
+    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
     ASSERT_NE((void*) 0, factory);
 
     ReloadData reload_data;
@@ -1018,10 +1011,10 @@ TEST(RecreateTest, RecreateTest)
 
     const char* resource_name = "/__testrecreate__.foo";
     char file_name[512];
-    dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
+    dmSnPrintf(file_name, sizeof(file_name), "%s%s", tmp_dir, resource_name);
 
     char host_name[512];
-    const char* path = MakeHostPath(host_name, sizeof(host_name), file_name);
+    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), file_name);
 
     FILE* f;
 
@@ -1081,19 +1074,12 @@ void SendReloadThread(void*)
 
 TEST(RecreateTest, RecreateTestHttp)
 {
-    const char* tmp_dir = 0;
-#if defined(_MSC_VER)
-    tmp_dir = ".";
-#elif defined(__NX__)
-    tmp_dir = "";
-#else
-    tmp_dir = ".";
-#endif
+    const char* tmp_dir = TMP_DIR;
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
+    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
@@ -1109,7 +1095,7 @@ TEST(RecreateTest, RecreateTestHttp)
     dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
     char host_name[512];
-    const char* path = MakeHostPath(host_name, sizeof(host_name), file_name);
+    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), file_name);
 
     FILE* f;
 
@@ -1187,19 +1173,12 @@ dmResource::Result FilenameResourceRecreate(const dmResource::ResourceRecreatePa
 
 TEST(FilenameTest, FilenameTest)
 {
-    const char* tmp_dir = 0;
-#if defined(_MSC_VER)
-    tmp_dir = ".";
-#elif defined(__NX__)
-    tmp_dir = "";
-#else
-    tmp_dir = ".";
-#endif
+    const char* tmp_dir = TMP_DIR;
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
+    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
@@ -1214,7 +1193,7 @@ TEST(FilenameTest, FilenameTest)
     dmSnPrintf(filename_resource_filename, sizeof(filename_resource_filename), "%s/%s", tmp_dir, resource_name);
 
     char host_name[512];
-    const char* path = MakeHostPath(host_name, sizeof(host_name), filename_resource_filename);
+    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), filename_resource_filename);
 
     FILE* f;
 
@@ -1286,6 +1265,7 @@ TEST(ResourceExtension, CustomType)
     dmResource::Result e;
     dmResource::NewFactoryParams params;
     dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
+    ASSERT_NE((void*)0, factory);
 
     dmResource::ResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "custom", &type);
@@ -1323,19 +1303,12 @@ void ReloadCallback(const dmResource::ResourceReloadedParams& params)
 
 TEST(RecreateTest, ReloadCallbackTest)
 {
-    const char* tmp_dir = 0;
-#if defined(_MSC_VER)
-    tmp_dir = ".";
-#elif defined(__NX__)
-    tmp_dir = "";
-#else
-    tmp_dir = ".";
-#endif
+    const char* tmp_dir = TMP_DIR;
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-    dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
+    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
@@ -1347,7 +1320,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     dmSnPrintf(file_name, sizeof(file_name), "%s/%s", tmp_dir, resource_name);
 
     char host_name[512];
-    const char* path = MakeHostPath(host_name, sizeof(host_name), file_name);
+    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), file_name);
 
     FILE* f;
 
@@ -1386,7 +1359,7 @@ TEST(RecreateTest, ReloadCallbackTest)
 
 TEST(OverflowTest, OverflowTest)
 {
-    const char* test_dir = "./build/src/test";
+    const char* test_dir = MOUNT_DIR "/build/src/test";
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 1;

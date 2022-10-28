@@ -129,6 +129,7 @@ message PlatformProfile
         OS_ID_ANDROID = 5;
         OS_ID_WEB     = 6;
         OS_ID_SWITCH  = 7;
+        OS_ID_PS4     = 8;
     }
 
     required OS os                              = 1;

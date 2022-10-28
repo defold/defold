@@ -32,7 +32,7 @@ extern void dmMemProfileInternalData();
 
 void* g_dont_optimize = 0;
 
-#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
+#if !defined(DM_SANITIZE_ADDRESS) // until we can load the dylibs properly
 
 TEST(dmMemProfile, TestMalloc)
 {

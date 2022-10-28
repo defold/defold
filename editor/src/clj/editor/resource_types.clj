@@ -15,13 +15,14 @@
 (ns editor.resource-types
   (:require [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
+            [editor.app-manifest :as app-manifest]
             [editor.atlas :as atlas]
             [editor.buffer :as buffer]
             [editor.camera-editor :as camera]
             [editor.code.script :as code-script]
             [editor.code.shader :as code-shader]
             [editor.code.text-file :as code-text-file]
-            [editor.collada-scene :as collada-scene]
+            [editor.model-scene :as model-scene]
             [editor.collection :as collection]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
@@ -56,10 +57,11 @@
   (g/transact
     (concat
       (animation-set/register-resource-types workspace)
+      (app-manifest/register-resource-types workspace)
       (atlas/register-resource-types workspace)
       (buffer/register-resource-types workspace)
       (camera/register-resource-types workspace)
-      (collada-scene/register-resource-types workspace)
+      (model-scene/register-resource-types workspace)
       (collection/register-resource-types workspace)
       (collection-proxy/register-resource-types workspace)
       (collision-object/register-resource-types workspace)

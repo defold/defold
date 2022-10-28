@@ -1516,4 +1516,10 @@ namespace dmSound
         }
     }
 
+    // Unit tests
+    int64_t GetInternalPos(HSoundInstance instance)
+    {
+        SoundSystem* sound = g_SoundSystem;
+        return dmSoundCodec::GetInternalPos(sound->m_CodecContext, instance->m_Decoder);
+    }
 }

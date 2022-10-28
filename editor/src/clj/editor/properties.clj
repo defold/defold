@@ -416,6 +416,7 @@
                                                                 (cond (some? prop-kw) prop-kw
                                                                       (vector? k) (first k)
                                                                       :else k)) v)
+                                              :tooltip (some :tooltip v)
                                               :values (mapv (fn [{:keys [value]}]
                                                              (when-not (g/error? value)
                                                                value)) v)
@@ -478,6 +479,9 @@
       (let [k (:key property)
             k (if (vector? k) (last k) k)]
         (keyword->name k))))
+
+(defn tooltip [property]
+  (:tooltip property))
 
 (defn read-only? [property]
   (:read-only? property))
@@ -741,6 +745,25 @@
               go-props-with-build-resources)]
 
     go-props-with-fused-build-resources))
+
+(defn- source-resource-go-prop [property-desc]
+  (if (not= :property-type-hash (:type property-desc))
+    property-desc
+    (let [build-resource (:clj-value property-desc)]
+      (if (not (workspace/build-resource? build-resource))
+        property-desc
+        (let [source-resource (:resource build-resource)
+              source-proj-path (resource/proj-path source-resource)]
+          (assoc property-desc
+            :clj-value source-resource
+            :value source-proj-path))))))
+
+(defn source-resource-go-props
+  "Given a sequence of go-props, return an equal-length sequence of go-props
+  where all build resources have been replaced by their respective source
+  resources."
+  [go-props-with-build-resources]
+  (mapv source-resource-go-prop go-props-with-build-resources))
 
 (defn try-get-go-prop-proj-path
   "Returns a non-empty string of the assigned proj-path, or nil if no

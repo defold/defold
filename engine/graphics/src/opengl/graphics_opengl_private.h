@@ -38,6 +38,7 @@ namespace dmGraphics
         void*                   m_WindowFocusCallbackUserData;
         WindowIconifyCallback   m_WindowIconifyCallback;
         void*                   m_WindowIconifyCallbackUserData;
+        PipelineState           m_PipelineState;
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;

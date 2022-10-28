@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/gamesys/resources/res_rig_scene.h>
@@ -25,17 +26,35 @@
 
 namespace dmGameSystem
 {
+    struct ModelResourceBuffers
+    {
+        dmGraphics::HVertexBuffer   m_VertexBuffer;
+        dmGraphics::HIndexBuffer    m_IndexBuffer;
+        uint32_t                    m_VertexCount;
+        uint32_t                    m_IndexCount;
+        uint32_t                    m_MaterialIndex; // Index into ModelResource::m_Materials
+        dmGraphics::Type            m_IndexBufferElementType;
+    };
+
+    struct MeshInfo
+    {
+        ModelResourceBuffers*   m_Buffers; // Currently a vertex+index buffer per mesh
+        dmRigDDF::Model*        m_Model;   // For the transform
+        dmRigDDF::Mesh*         m_Mesh;
+    };
+
     struct ModelResource
     {
-        dmModelDDF::Model*      m_Model;
-        RigSceneResource*       m_RigScene;
-        dmRender::HMaterial     m_Material;
-        dmGraphics::HVertexBuffer m_VertexBuffer;
-        dmGraphics::HIndexBuffer m_IndexBuffer;
-        dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmGraphics::Type        m_IndexBufferElementType;
-        uint32_t                m_ElementCount;
+        dmModelDDF::Model*              m_Model;
+        uint32_t                        m_ModelsCount;
+        RigSceneResource*               m_RigScene;
+
+        dmArray<MeshInfo>               m_Meshes;
+
+        dmArray<dmRender::HMaterial>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
+
+        dmGraphics::HTexture            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                        m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 }
 

@@ -13,8 +13,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-
-
 import sys
 import subprocess
 import platform
@@ -138,9 +136,7 @@ def install(args):
 
         call("sudo apt-get install -y software-properties-common")
 
-        call("echo MAWE list clang executables")
         call("ls /usr/bin/clang*")
-        call("echo MAWE after")
 
         call("sudo update-alternatives --remove-all clang")
         call("sudo update-alternatives --remove-all clang++")
@@ -175,8 +171,15 @@ def install(args):
             setup_windows_cert(args)
 
 
-def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_vanilla_lua = False, skip_tests = False, skip_codesign = True, skip_docs = False, skip_builtins = False, archive = False):
-    args = 'python scripts/build.py distclean install_sdk install_ext'.split()
+def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False,
+                with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
+                skip_docs = False, skip_builtins = False, archive = False):
+
+    install_sdk = ''
+    if not platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+        install_sdk = 'install_sdk'
+
+    args = ('python scripts/build.py distclean %s install_ext' % install_sdk).split()
 
     opts = []
     waf_opts = []
@@ -202,6 +205,8 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         opts.append('--skip-builtins')
     if skip_tests:
         opts.append('--skip-tests')
+    if skip_build_tests:
+        waf_opts.append('--skip-build-tests')
 
     if with_valgrind:
         waf_opts.append('--with-valgrind')
@@ -380,6 +385,10 @@ def get_branch():
 
     return branch
 
+def get_pull_request_target_branch():
+    # The name of the base (or target) branch. Only set for pull request events.
+    return os.environ.get('GITHUB_BASE_REF', '')
+
 def is_workflow_enabled_in_repo():
     if not is_repo_private():
         return True # all workflows are enabled by default
@@ -403,6 +412,7 @@ def main(argv):
     parser.add_argument("--with-vanilla-lua", dest="with_vanilla_lua", action='store_true', help="")
     parser.add_argument("--archive", dest="archive", action='store_true', help="Archive engine artifacts to S3")
     parser.add_argument("--skip-tests", dest="skip_tests", action='store_true', help="")
+    parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
@@ -465,7 +475,7 @@ def main(argv):
         release_channel = "editor-alpha"
         make_release = True
         engine_artifacts = args.engine_artifacts
-    elif branch and branch.startswith("DEFEDIT-"):
+    elif branch and (branch.startswith("DEFEDIT-") or get_pull_request_target_branch() == "editor-dev"):
         engine_channel = None
         editor_channel = "editor-dev"
         make_release = False
@@ -492,6 +502,7 @@ def main(argv):
                 with_vanilla_lua = args.with_vanilla_lua,
                 archive = args.archive,
                 skip_tests = args.skip_tests,
+                skip_build_tests = args.skip_build_tests,
                 skip_builtins = args.skip_builtins,
                 skip_docs = args.skip_docs)
         elif command == "build-editor":

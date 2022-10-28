@@ -189,8 +189,9 @@
   [project evaluation-context prefs platform]
   (or (dev-custom-engine prefs platform)
       (if (native-extensions/has-extensions? project evaluation-context)
-        (let [build-server (native-extensions/get-build-server-url prefs)]
-          (native-extensions/get-engine-archive project evaluation-context platform build-server))
+        (let [build-server-url (native-extensions/get-build-server-url prefs)
+              build-server-headers (native-extensions/get-build-server-headers prefs)]
+          (native-extensions/get-engine-archive project evaluation-context platform build-server-url build-server-headers))
         (bundled-engine platform))))
 
 (defn- unpack-dmengine!

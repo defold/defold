@@ -16,16 +16,8 @@
 #define DMSDK_SOCKET_H
 
 #include <stdint.h>
+#include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/file_descriptor.h>
-
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
-#include <sys/select.h>
-#elif defined(_WIN32)
-#include <winsock2.h>
-#else
-#error "Unsupported platform"
-#endif
-
 
 /*# SDK Socket API documentation
  * Socket functions.

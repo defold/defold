@@ -200,6 +200,12 @@
   (case (:type constant)
     :constant-type-user (let [[x y z w] (:value constant)]
                           (Vector4d. x y z w))
+    :constant-type-user-matrix4 (let [[x y z w] (:value constant)]
+                                  (doto (Matrix4d.)
+                                    (.setElement 0 0 x)
+                                    (.setElement 1 0 y)
+                                    (.setElement 2 0 z)
+                                    (.setElement 3 0 w)))
     :constant-type-viewproj :view-proj
     :constant-type-world :world
     :constant-type-texture :texture

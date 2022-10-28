@@ -15,9 +15,11 @@
 #ifndef DM_SOUND_PRIVATE_H
 #define DM_SOUND_PRIVATE_H
 
+#include <dmsdk/dlib/configfile.h>
+#include "sound.h"
+
 namespace dmSound
 {
-
     Result PlatformInitialize(dmConfigFile::HConfig config, const InitializeParams* params);
 
     Result PlatformFinalize();
@@ -25,6 +27,9 @@ namespace dmSound
     bool PlatformIsMusicPlaying(bool is_device_started, bool has_window_focus);
 
     bool PlatformIsAudioInterrupted();
+
+    // Unit tests
+    int64_t GetInternalPos(HSoundInstance);
 }
 
 #endif // #ifndef DM_SOUND_PRIVATE_H

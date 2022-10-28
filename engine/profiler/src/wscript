@@ -13,8 +13,12 @@ def build(bld):
 
     if 'macos' in bld.env.PLATFORM:
         source += ' profiler_cocoa.mm'
-    elif 'android' in bld.env.PLATFORM or 'linux' in bld.env.PLATFORM:
+    elif 'android' in bld.env.PLATFORM:
+        source += ' profiler_android.cpp'
+        source += ' profiler_proc_utils.cpp'
+    elif 'linux' in bld.env.PLATFORM:
         source += ' profiler_linux.cpp'
+        source += ' profiler_proc_utils.cpp'
     elif 'win32' in bld.env.PLATFORM:
         source += ' profiler_win32.cpp'
     else:

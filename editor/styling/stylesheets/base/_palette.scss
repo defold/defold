@@ -14,7 +14,8 @@
 	-df-component-lighter:    derive(#464c55, 20%);
 
 	// Text & icons
-	-df-text-dark:            derive(#b4bac1, -10%);
+	-df-text-darker:          derive(#b4bac1, -20%);
+	-df-text-dark:            derive(#b4bac1, -40%);
 	-df-text:                 #b4bac1;
 	-df-text-selected:        derive(#b4bac1, 20%);
 
