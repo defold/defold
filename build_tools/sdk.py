@@ -389,7 +389,7 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
-        info[platform]['path'] = _get_defold_path(sdkfolder, 'xcode')
+        info[platform]['path'] = _get_defold_path(sdkfolder, platform) # what we use for sysroot
     
     elif platform in ('x86_64-linux',):
         info[platform] = {}
@@ -413,7 +413,7 @@ def _get_local_sdk_info(platform):
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
         info[platform]['version'] = get_local_darwin_sdk_version(platform)
-        info[platform]['path'] = get_local_darwin_sdk_path(platform)
+        info[platform]['path'] = get_local_darwin_sdk_path(platform) # what we use for sysroot
 
         if not os.path.exists(info['asan']['path']):
             print("sdk.py: Couldn't find '%s'" % info['asan']['path'], file=sys.stderr)
