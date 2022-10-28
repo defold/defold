@@ -103,7 +103,6 @@ namespace dmGameSystem
             {
                 dmSound::Stop(entry.m_SoundInstance);
                 dmSound::DeleteSoundInstance(entry.m_SoundInstance);
-                dmResource::Release(entry.m_Factory, entry.m_Sound);
             }
         }
 
@@ -173,7 +172,6 @@ namespace dmGameSystem
                     }
                     else if (!dmSound::IsPlaying(entry.m_SoundInstance) && !(entry.m_PauseRequested || entry.m_Paused))
                     {
-                        dmResource::Release(entry.m_Factory, entry.m_Sound);
                         dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_SoundInstance);
                         entry.m_SoundInstance = 0;
                         world->m_EntryIndices.Push(i);
@@ -374,8 +372,6 @@ namespace dmGameSystem
                 uint32_t index = world->m_EntryIndices.Pop();
                 PlayEntry& entry = world->m_Entries[index];
                 dmResource::HFactory factory = dmGameObject::GetFactory(dmGameObject::GetCollection(params.m_Instance));
-                // NOTE: We must increase ref-count as a sound might be active after the component is destroyed
-                dmResource::IncRef(factory, sound);
                 entry.m_Factory = factory;
                 entry.m_Sound = sound;
                 entry.m_StopRequested = 0;
