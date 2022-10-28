@@ -22,7 +22,7 @@ local function identity(v)
 end
 
 local function onexit(code, close)
-  msg.post("@system:", "exit", {code = code})
+  sys.exit(code)
 end
 
 -- Lightweight hook layer
@@ -154,6 +154,8 @@ local function command_hook(command)
       stack_after_suspend = 0
       restore_mobdebug_hook()
     end
+  elseif command == "EXIT" then
+    onexit(1, true)
   else
     stack_after_suspend = 0
   end
@@ -200,7 +202,7 @@ function M.start(port)
 
   -- for future "break on error" functionality
   --debug.traceback = function(thread, message, level)
-  --	mobdebug.pause()
+  --  mobdebug.pause()
   --end
 
   -- set up our lightweight hook
