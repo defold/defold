@@ -1056,7 +1056,7 @@ TEST_P(dmSoundVerifyOggTest, SkipSync)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
-// Verifies that the Skip function skips the correct number of samples
+// Verifies that the ref counted for HSoundData works correct
 TEST_P(dmSoundVerifyOggTest, SoundDataRefCount)
 {
     TestParams params = GetParam();
