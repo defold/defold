@@ -20,7 +20,6 @@
 #include <render/font_renderer.h>
 #include <script/script.h>
 #include <dmsdk/gameobject/script.h>
-#include "dlib/dstrings.h"
 
 
 #include "script_label.h"
@@ -223,11 +222,11 @@ static int SetText(lua_State* L)
     {
         return DM_LUA_ERROR("The label string is too long!");
     }
-    uint8_t data[data_size];
+    uint8_t data[dmMessage::DM_MESSAGE_MAX_DATA_SIZE];
 
     dmGameSystemDDF::SetText* message = (dmGameSystemDDF::SetText*)data;
     message->m_Text = (const char*)sizeof(dmGameSystemDDF::SetText);
-    dmStrlCpy((char*)data + sizeof(dmGameSystemDDF::SetText), text, text_len + 1);
+    memcpy((void*)(data + sizeof(dmGameSystemDDF::SetText)), text, text_len + 1);
 
     dmMessage::URL receiver;
     dmMessage::URL sender;
