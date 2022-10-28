@@ -18,6 +18,21 @@
 
 namespace dmGameSystem
 {
+
+    dmSound::SoundDataType TryToGetTypeFromBuffer(char* m_Buffer, dmSound::SoundDataType default_type)
+    {
+        dmSound::SoundDataType type = default_type;
+        if (m_Buffer[0] == 'O' && m_Buffer[1] == 'g' && m_Buffer[2] == 'g')
+        {
+            type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+        }
+        if (m_Buffer[8] == 'W' && m_Buffer[9] == 'A' && m_Buffer[10] == 'V')
+        {
+            type = dmSound::SOUND_DATA_TYPE_WAV;
+        };
+        return type;
+    }
+
     dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams& params)
     {
         dmSound::HSoundData sound_data;
@@ -39,6 +54,7 @@ namespace dmGameSystem
         SoundDataResource* sound_data_res = new SoundDataResource();
 
         sound_data_res->m_SoundData = sound_data;
+        sound_data_res->m_Type = type;
 
         params.m_Resource->m_Resource = (void*) sound_data_res;
         params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
@@ -63,7 +79,7 @@ namespace dmGameSystem
         SoundDataResource* sound_data_res = (SoundDataResource*) params.m_Resource->m_Resource;
 
         dmSound::HSoundData sound_data;
-        dmSound::SoundDataType type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params.m_Buffer, (dmSound::SoundDataType)sound_data_res->m_Type);
         dmSound::Result r = dmSound::NewSoundData(params.m_Buffer, params.m_BufferSize, type, &sound_data, params.m_Resource->m_NameHash);
 
         if (r != dmSound::RESULT_OK)

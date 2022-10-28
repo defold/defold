@@ -27,6 +27,7 @@ namespace dmGameSystem
 {
     struct SoundDataResource {
         dmSound::HSoundData m_SoundData;
+        int m_Type;
     };
 
     dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams& params);
