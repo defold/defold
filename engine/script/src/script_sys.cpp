@@ -539,7 +539,7 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
-     * @param options [type:table] (optional) options table
+     * @param [options] [type:table] optional options table
      * - ignore_secure [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
      * @return sys_info [type:table] table with system information in the following fields:
      *

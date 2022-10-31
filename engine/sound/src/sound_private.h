@@ -30,6 +30,7 @@ namespace dmSound
 
     // Unit tests
     int64_t GetInternalPos(HSoundInstance);
+    int32_t GetRefCount(HSoundData);
 }
 
 #endif // #ifndef DM_SOUND_PRIVATE_H
