@@ -35,7 +35,7 @@ def build(bld):
         sig_handler = 'backtrace_jsweb.cpp';
         file_handler = 'file_posix.cpp';
 
-    if 'macos' in bld.env['PLATFORM']:
+    if 'macos' in bld.env['PLATFORM'] or 'ios' in bld.env['PLATFORM']:
         load_addrs = 'load_addrs_mach.cpp'
 
     if bld.env['PLATFORM'] in ['x86_64-macos']:
