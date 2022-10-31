@@ -927,7 +927,7 @@ TEST_F(dmGuiClippingTest, TestRenderOrder_BothLayersSub) {
  *   - d (layer1)
  * - e
  *
- * Expected order: c, b, d, a, e
+ * Expected order: e, d, a, c, b
  */
 TEST_F(dmGuiClippingTest, TestRenderOrder_Complex) {
     SCOPED_TRACE("Complex");
