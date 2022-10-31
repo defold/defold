@@ -1275,15 +1275,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
-    #if 0
-    static bool did_print = false;
-    void do_print_node(uint64_t name, uint64_t key)
-    {
-        if (did_print) return;
-        printf("%s, %lld\n", dmHashReverseSafe64(name), key);
-    }
-    #endif
-
     static uint16_t CollectRenderEntries(HScene scene, uint16_t start_index, uint16_t order, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries) {
         #define PUSH_RENDER_ENTRY(e) \
             if (render_entries.Full()) \
