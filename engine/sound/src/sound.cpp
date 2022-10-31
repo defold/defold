@@ -520,12 +520,13 @@ namespace dmSound
 
     Result DeleteSoundData(HSoundData sound_data)
     {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        
         sound_data->m_RefCount --;
         if (sound_data->m_RefCount > 0)
         {
             return RESULT_OK;
         }
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
 
         if (sound_data->m_Data != 0x0)
             free((void*) sound_data->m_Data);
