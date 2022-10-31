@@ -402,6 +402,10 @@ namespace dmBuffer
         buffer->m_Data = (void*)((uintptr_t)data_block + header_size);
         buffer->m_Stride = struct_size;
         buffer->m_ContentVersion = 0;
+        // meta data
+        buffer->boundsMin = dmVMath::Point3(1.0f, 1.0f, 1.0f);  // initialize to an "invalid" bounding box
+        buffer->boundsMax = dmVMath::Point3(-1.0f, -1.0f, -1.0f);
+
 
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
 
@@ -645,5 +649,12 @@ namespace dmBuffer
         max = buffer->boundsMax;
 
         return RESULT_OK;
+    }
+
+    // note the order of arguments
+    bool IsAABBValid(dmVMath::Point3 min, dmVMath::Point3 max) {
+        return !(min.getX() > max.getX() ||
+            min.getY() > max.getY() ||
+            min.getZ() > max.getZ());
     }
 }

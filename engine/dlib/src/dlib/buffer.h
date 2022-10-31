@@ -79,6 +79,7 @@ Result SetBounds(HBuffer hbuffer, const dmVMath::Point3& min, const dmVMath::Poi
 
 Result GetBounds(HBuffer hbuffer, dmVMath::Point3& min, dmVMath::Point3& max);
 
+bool IsAABBValid(dmVMath::Point3 min, dmVMath::Point3 max);
 
 }
 

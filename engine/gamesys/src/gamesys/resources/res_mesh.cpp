@@ -258,7 +258,8 @@ namespace dmGameSystem
             BuildVertices(resource);
         }
 
-        resource->m_PositionStreamId = dmHashString64(resource->m_MeshDDF->m_PositionStream);
+        uint64_t positionStreamNameHash = dmHashString64(resource->m_MeshDDF->m_PositionStream);
+        resource->m_PositionStreamId = positionStreamNameHash != 0 ? positionStreamNameHash : dmHashString64("position"); // use default name "position"
         resource->m_NormalStreamId = dmHashString64(resource->m_MeshDDF->m_NormalStream);
 
         BufferResource* buffer_resource = resource->m_BufferResource;

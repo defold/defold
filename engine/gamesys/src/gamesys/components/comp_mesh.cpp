@@ -305,10 +305,6 @@ namespace dmGameSystem
         component->m_ReHash = 0;
     }
 
-    // Initial max/min values for mesh bounds
-    static const dmVMath::Point3 BOUNDS_MIN_EMPTY(1e10,1e10,1e10);
-    static const dmVMath::Point3 BOUNDS_MAX_EMPTY(-1e10,-1e10,-1e10);
-
     static void UpdateMeshBounds(dmBuffer::HBuffer hbuffer, dmhash_t stream_name) {
 
         // get stream and buffer properties
@@ -323,10 +319,9 @@ namespace dmGameSystem
             return;
         }
 
-        // set up initial values
-        dmVMath::Point3 boundsMin = BOUNDS_MIN_EMPTY;
-        dmVMath::Point3 boundsMax = BOUNDS_MAX_EMPTY;
-        dmBuffer::SetBounds(hbuffer, boundsMin, boundsMax);
+        // set up starting values
+        dmVMath::Point3 boundsMin = dmVMath::Point3(1e10,1e10,1e10);
+        dmVMath::Point3 boundsMax = dmVMath::Point3(-1e10,-1e10,-1e10);
 
         // is the stream compatible ? only floats (X3) are supported
         dmBuffer::ValueType stream_type;
@@ -340,16 +335,10 @@ namespace dmGameSystem
         uint8_t* position_p = (uint8_t*) vertices_data; // iterates over stream position coordinates
 
         for (uint32_t i=0; i<vertex_count; i++) {
-            float x = ((float*)position_p)[0];
-            float y = ((float*)position_p)[1];
-            float z = ((float*)position_p)[2];
+            dmVMath::Point3 p(((float*)position_p)[0], ((float*)position_p)[1], ((float*)position_p)[2]);
 
-            boundsMax.setX( dmMath::Max(x, boundsMax.getX()) );
-            boundsMin.setX( dmMath::Min(x, boundsMin.getX()) );
-            boundsMax.setY( dmMath::Max(y, boundsMax.getY()) );
-            boundsMin.setY( dmMath::Min(y, boundsMin.getY()) );
-            boundsMax.setZ( dmMath::Max(z, boundsMax.getZ()) );
-            boundsMin.setZ( dmMath::Min(z, boundsMin.getZ()) );
+            boundsMax = Vectormath::Aos::maxPerElem(boundsMax, p);
+            boundsMin = Vectormath::Aos::minPerElem(boundsMin, p);
 
             position_p += stride;
         }
@@ -397,7 +386,7 @@ namespace dmGameSystem
             CreateVertexBuffer(world, br, component->m_BufferVersion);
 
             // process position stream in buffer to find bounding box
-            uint64_t stream_name = (component->m_Resource->m_PositionStreamId != 0) ? component->m_Resource->m_PositionStreamId : dmHashString64("position"); // use stream name (hash) from resource and fallback to "position" if this is not available
+            uint64_t stream_name = component->m_Resource->m_PositionStreamId; // this always defaults to hash("position")
             UpdateMeshBounds(br->m_Buffer, stream_name);
         }
 
@@ -506,7 +495,7 @@ namespace dmGameSystem
                 {
                     info->m_Version = component.m_BufferVersion;
                     // process position stream in buffer to find bounding box
-                    uint64_t stream_name = (component.m_Resource->m_PositionStreamId != 0) ? component.m_Resource->m_PositionStreamId : dmHashString64("position"); // use stream name (hash) from resource and fallback to "position" if this is not available
+                    uint64_t stream_name = component.m_Resource->m_PositionStreamId; // this always defaults to hash("position")
                     UpdateMeshBounds(br->m_Buffer, stream_name);
 
                     CopyBufferToVertexBuffer(br->m_Buffer, info->m_VertexBuffer, br->m_Stride, br->m_ElementCount, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
@@ -793,7 +782,7 @@ namespace dmGameSystem
 
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
-        DM_PROFILE("Mesh"); // TODO - use a proper name here
+        DM_PROFILE("Mesh");
 
         MeshWorld* mesh_world = (MeshWorld*)params.m_UserData;
 
@@ -813,8 +802,8 @@ namespace dmGameSystem
                 continue;
             }
 
-            // are there any actual bounds set ? (checking if boundxMin still contains its initial values should be enough)
-            if (boundsMin.getX() == BOUNDS_MIN_EMPTY.getX() && boundsMin.getY() == BOUNDS_MIN_EMPTY.getY() && boundsMin.getZ() == BOUNDS_MIN_EMPTY.getZ()) {
+            // do we have a valid bounding box to work with ?
+            if (!dmBuffer::IsAABBValid(boundsMin, boundsMax)) {
                 continue;
             }
 
