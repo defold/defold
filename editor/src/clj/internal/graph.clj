@@ -839,12 +839,13 @@
     (loop []
       (when-some [endpoint (.pollLast deque)]
         (when-not (.contains result endpoint)
-          (.add result endpoint)
-          (reduce
-            (fn [_ successor-endpoint]
-              (.push deque successor-endpoint))
-            nil
-            (endpoint->successors endpoint)))
+          (when-some [successors (endpoint->successors endpoint)]
+            (reduce
+              (fn [_ successor-endpoint]
+                (.push deque successor-endpoint))
+              nil
+              successors)
+            (.add result endpoint)))
         (recur)))
     result))
 
