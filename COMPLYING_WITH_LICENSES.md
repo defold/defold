@@ -29,16 +29,16 @@ The following software has licenses which require inclusion of their respective 
     * Basis Universal
     * Remotery
   * MIT
-    * jsmn
-    * xxtea-c
+    * jctest
     * Lua
+    * LuaCJson
     * LuaJIT
     * LuaSocket
-    * LuaCJson
-    * jctest
-    * XHR2
-    * wslay
     * microsoft_craziness.h
+    * wslay
+    * XHR2
+    * xxtea-c
+    * yyjson
     * cgltf
   * Simplified BSD license (2-clause license)
     * LZ4
@@ -95,7 +95,7 @@ limitations under the License.
 #### Basis Universal
 
 [Apache 2.0 license text](https://www.apache.org/licenses/LICENSE-2.0.txt). Copyright notice:
- 
+
 ```
 Copyright 2019-2020 Binomial LLC
 

@@ -21,7 +21,7 @@ def build(bld):
 
     build_util = create_build_utility(bld.env)
 
-    source_dirs = 'dlib/*.cpp dlib/jsmn/*.c zlib/*.c lz4/*.c'.split(' ')
+    source_dirs = 'dlib/*.cpp zlib/*.c lz4/*.c'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux/**/*.cpp')
@@ -127,9 +127,13 @@ def build(bld):
     opt_level = getattr(Options.options, 'opt_level', '')
     FLAG_ST = '/O%s' if ('cl.exe' in bld.env.CXX) else '-O%s'
     remove_flags = {}
+    new_opt_level = False
     if opt_level in ['3','2']:
         remove_flags['CFLAGS'] = []
         remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        remove_flags['CXXFLAGS'] = []
+        remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        new_opt_level = True
         # if in release mode we'll only keep a (non verbose) print function
         extra_defines += ['MBEDTLS_ERROR_STRERROR_DUMMY']
     else:
@@ -141,7 +145,8 @@ def build(bld):
                   source      = bld.path.ant_glob(mbedtls_dirs),
                   remove_flags= remove_flags,
                   defines     = ['VALGRIND'] + extra_defines)
-    mbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
+    if new_opt_level:
+        mbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     # Create a separate library, in order to separate it from the ASAN builds
     mbedtls_noasan = bld.stlib(features     = ' '.join(mbedtls.features) + ' skip_asan',
@@ -260,18 +265,11 @@ def build(bld):
 
     # Basis libraries
 
-    opt_level = getattr(Options.options, 'opt_level', '')
-    FLAG_ST = '/O%s' if ('win32' in bld.env.BUILD_PLATFORM) else '-O%s'
-    remove_flags = {}
-    remove_flags['CXXFLAGS'] = []
-    new_opt_level = False
-    if opt_level in ['3','2']:
-        remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
-        new_opt_level = True
-
     extra_encoder_flags = []
     if bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos'):
         # SSE4.1 was added in 10.12
+        if not 'CXXFLAGS' in remove_flags:
+            remove_flags['CXXFLAGS'] = []
         remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
         extra_encoder_flags += ['-mmacosx-version-min=10.12']
 
