@@ -109,7 +109,7 @@
 
 (defn- make-image-sprite-geometry
   ^TextureSetProto$SpriteGeometry [^Image image]
-  (let [error-node-id (:digest-ignored/error-node-id image)
+  (let [error-node-id (:error-node-id (meta image))
         resource (.path image)
         sprite-trim-mode (.sprite-trim-mode image)]
     (assert (g/node-id? error-node-id))

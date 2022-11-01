@@ -143,6 +143,9 @@ namespace dmSoundCodec
      * @return RESULT_OK on success
      */
     Result Reset(HCodecContext context, HDecoder decoder);
+
+    // Unit tests
+    int64_t GetInternalPos(HCodecContext context, HDecoder decoder);
 }
 
 #endif // #ifndef DM_SOUND_CODEC_H

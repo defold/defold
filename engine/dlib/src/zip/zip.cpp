@@ -155,7 +155,7 @@ struct zip_entry_t {
   miniz::mz_uint8 header[miniz::MZ_ZIP_LOCAL_DIR_HEADER_SIZE];
   miniz::mz_uint64 header_offset;
   miniz::mz_uint16 method;
-  miniz::mz_zip_writer_add_state state;
+  //miniz::mz_zip_writer_add_state state;
   miniz::tdefl_compressor comp;
   miniz::mz_uint32 external_attr;
   time_t m_time;
@@ -189,11 +189,13 @@ struct zip_t *zip_open(const char *zipname, int level, char mode) {
   zip->level = (miniz::mz_uint)level;
   switch (mode) {
   case 'w':
-    // Create a new archive.
-    if (!miniz::mz_zip_writer_init_file(&(zip->archive), zipname, 0)) {
-      // Cannot initialize zip_archive writer
-      goto cleanup;
-    }
+    goto cleanup;
+    // DEFOLD: We currently don't support writing zip files
+    // // Create a new archive.
+    // if (!miniz::mz_zip_writer_init_file(&(zip->archive), zipname, 0)) {
+    //   // Cannot initialize zip_archive writer
+    //   goto cleanup;
+    // }
     break;
 
   case 'r':
@@ -205,11 +207,13 @@ struct zip_t *zip_open(const char *zipname, int level, char mode) {
       // zip_archive reader
       goto cleanup;
     }
-    if (mode == 'a' &&
-        !miniz::mz_zip_writer_init_from_reader(&(zip->archive), zipname)) {
-      miniz::mz_zip_reader_end(&(zip->archive));
-      goto cleanup;
-    }
+
+    // DEFOLD: We currently don't support writing zip files
+    //if (mode == 'a' &&
+    //    !miniz::mz_zip_writer_init_from_reader(&(zip->archive), zipname)) {
+    //  miniz::mz_zip_reader_end(&(zip->archive));
+    //  goto cleanup;
+    //}
     break;
 
   default:
@@ -227,10 +231,9 @@ void zip_close(struct zip_t *zip) {
   if (zip) {
     // Always finalize, even if adding failed for some reason, so we have a
     // valid central directory.
-    mz_zip_writer_finalize_archive(&(zip->archive));
-
-    mz_zip_writer_end(&(zip->archive));
-    mz_zip_reader_end(&(zip->archive));
+    //DEFOLD: mz_zip_writer_finalize_archive(&(zip->archive));
+    //DEFOLD: mz_zip_writer_end(&(zip->archive));
+    //DEFOLD: mz_zip_reader_end(&(zip->archive));
 
     CLEANUP(zip);
   }
@@ -301,87 +304,88 @@ int zip_entry_open(struct zip_t *zip, const char *entryname) {
     zip->entry.header_offset = stats.m_local_header_ofs;
     zip->entry.method = stats.m_method;
     zip->entry.external_attr = stats.m_external_attr;
-    zip->entry.m_time = stats.m_time;
+    // zip->entry.m_time = stats.m_time;// DEFOLD: Not all platforms currently support reading the time, so we disabled it
 
     return 0;
   }
 
-  zip->entry.index = (int)zip->archive.m_total_files;
-  zip->entry.comp_size = 0;
-  zip->entry.uncomp_size = 0;
-  zip->entry.uncomp_crc32 = MZ_CRC32_INIT;
-  zip->entry.offset = zip->archive.m_archive_size;
-  zip->entry.header_offset = zip->archive.m_archive_size;
-  memset(zip->entry.header, 0, miniz::MZ_ZIP_LOCAL_DIR_HEADER_SIZE * sizeof(miniz::mz_uint8));
-  zip->entry.method = 0;
+// DEFOLD: We currentlt don't need the writing capabilities, and we've disables it in miniz
+//   zip->entry.index = (int)zip->archive.m_total_files;
+//   zip->entry.comp_size = 0;
+//   zip->entry.uncomp_size = 0;
+//   zip->entry.uncomp_crc32 = MZ_CRC32_INIT;
+//   zip->entry.offset = zip->archive.m_archive_size;
+//   zip->entry.header_offset = zip->archive.m_archive_size;
+//   memset(zip->entry.header, 0, miniz::MZ_ZIP_LOCAL_DIR_HEADER_SIZE * sizeof(miniz::mz_uint8));
+//   zip->entry.method = 0;
 
-  // UNIX or APPLE
-#if MZ_PLATFORM == 3 || MZ_PLATFORM == 19
-  // regular file with rw-r--r-- persmissions
-  zip->entry.external_attr = (miniz::mz_uint32)(0100644) << 16;
-#else
-  zip->entry.external_attr = 0;
-#endif
+//   // UNIX or APPLE
+// #if MZ_PLATFORM == 3 || MZ_PLATFORM == 19
+//   // regular file with rw-r--r-- persmissions
+//   zip->entry.external_attr = (miniz::mz_uint32)(0100644) << 16;
+// #else
+//   zip->entry.external_attr = 0;
+// #endif
 
-  num_alignment_padding_bytes =
-      mz_zip_writer_compute_padding_needed_for_file_alignment(pzip);
+//   num_alignment_padding_bytes =
+//       mz_zip_writer_compute_padding_needed_for_file_alignment(pzip);
 
-  if (!pzip->m_pState || (pzip->m_zip_mode != miniz::MZ_ZIP_MODE_WRITING)) {
-    // Wrong zip mode
-    goto cleanup;
-  }
-  if (zip->level & miniz::MZ_ZIP_FLAG_COMPRESSED_DATA) {
-    // Wrong zip compression level
-    goto cleanup;
-  }
-  // no zip64 support yet
-  if ((pzip->m_total_files == 0xFFFF) ||
-      ((pzip->m_archive_size + num_alignment_padding_bytes +
-        miniz::MZ_ZIP_LOCAL_DIR_HEADER_SIZE + miniz::MZ_ZIP_CENTRAL_DIR_HEADER_SIZE +
-        entrylen) > 0xFFFFFFFF)) {
-    // No zip64 support yet
-    goto cleanup;
-  }
-  if (!mz_zip_writer_write_zeros(pzip, zip->entry.offset,
-                                 num_alignment_padding_bytes +
-                                     sizeof(zip->entry.header))) {
-    // Cannot memset zip entry header
-    goto cleanup;
-  }
+//   if (!pzip->m_pState || (pzip->m_zip_mode != miniz::MZ_ZIP_MODE_WRITING)) {
+//     // Wrong zip mode
+//     goto cleanup;
+//   }
+//   if (zip->level & miniz::MZ_ZIP_FLAG_COMPRESSED_DATA) {
+//     // Wrong zip compression level
+//     goto cleanup;
+//   }
+//   // no zip64 support yet
+//   if ((pzip->m_total_files == 0xFFFF) ||
+//       ((pzip->m_archive_size + num_alignment_padding_bytes +
+//         miniz::MZ_ZIP_LOCAL_DIR_HEADER_SIZE + miniz::MZ_ZIP_CENTRAL_DIR_HEADER_SIZE +
+//         entrylen) > 0xFFFFFFFF)) {
+//     // No zip64 support yet
+//     goto cleanup;
+//   }
+//   if (!mz_zip_writer_write_zeros(pzip, zip->entry.offset,
+//                                  num_alignment_padding_bytes +
+//                                      sizeof(zip->entry.header))) {
+//     // Cannot memset zip entry header
+//     goto cleanup;
+//   }
 
-  zip->entry.header_offset += num_alignment_padding_bytes;
-  if (pzip->m_file_offset_alignment) {
-    MZ_ASSERT(
-        (zip->entry.header_offset & (pzip->m_file_offset_alignment - 1)) == 0);
-  }
-  zip->entry.offset += num_alignment_padding_bytes + sizeof(zip->entry.header);
+//   zip->entry.header_offset += num_alignment_padding_bytes;
+//   if (pzip->m_file_offset_alignment) {
+//     MZ_ASSERT(
+//         (zip->entry.header_offset & (pzip->m_file_offset_alignment - 1)) == 0);
+//   }
+//   zip->entry.offset += num_alignment_padding_bytes + sizeof(zip->entry.header);
 
-  if (pzip->m_pWrite(pzip->m_pIO_opaque, zip->entry.offset, zip->entry.name,
-                     entrylen) != entrylen) {
-    // Cannot write data to zip entry
-    goto cleanup;
-  }
+//   if (pzip->m_pWrite(pzip->m_pIO_opaque, zip->entry.offset, zip->entry.name,
+//                      entrylen) != entrylen) {
+//     // Cannot write data to zip entry
+//     goto cleanup;
+//   }
 
-  zip->entry.offset += entrylen;
-  level = zip->level & 0xF;
-  if (level) {
-    zip->entry.state.m_pZip = pzip;
-    zip->entry.state.m_cur_archive_file_ofs = zip->entry.offset;
-    zip->entry.state.m_comp_size = 0;
+//   zip->entry.offset += entrylen;
+//   level = zip->level & 0xF;
+//   if (level) {
+//     zip->entry.state.m_pZip = pzip;
+//     zip->entry.state.m_cur_archive_file_ofs = zip->entry.offset;
+//     zip->entry.state.m_comp_size = 0;
 
-    if (tdefl_init(&(zip->entry.comp), miniz::mz_zip_writer_add_put_buf_callback,
-                   &(zip->entry.state),
-                   (int)tdefl_create_comp_flags_from_zip_params(
-                       (int)level, -15, miniz::MZ_DEFAULT_STRATEGY)) !=
-        miniz::TDEFL_STATUS_OKAY) {
-      // Cannot initialize the zip compressor
-      goto cleanup;
-    }
-  }
+//     if (tdefl_init(&(zip->entry.comp), miniz::mz_zip_writer_add_put_buf_callback,
+//                    &(zip->entry.state),
+//                    (int)tdefl_create_comp_flags_from_zip_params(
+//                        (int)level, -15, miniz::MZ_DEFAULT_STRATEGY)) !=
+//         miniz::TDEFL_STATUS_OKAY) {
+//       // Cannot initialize the zip compressor
+//       goto cleanup;
+//     }
+//   }
 
-  zip->entry.m_time = time(NULL);
+//   zip->entry.m_time = time(NULL);
 
-  return 0;
+//   return 0;
 
 cleanup:
   CLEANUP(zip->entry.name);
@@ -451,7 +455,7 @@ int zip_entry_openbyindex(struct zip_t *zip, int index) {
   zip->entry.header_offset = stats.m_local_header_ofs;
   zip->entry.method = stats.m_method;
   zip->entry.external_attr = stats.m_external_attr;
-  zip->entry.m_time = stats.m_time;
+  //zip->entry.m_time = stats.m_time; // DEFOLD: Not all platforms currently support reading the time, so we disabled it
 
   return 0;
 }
@@ -475,53 +479,55 @@ int zip_entry_close(struct zip_t *zip) {
     goto cleanup;
   }
 
-  level = zip->level & 0xF;
-  if (level) {
-    done = tdefl_compress_buffer(&(zip->entry.comp), "", 0, miniz::TDEFL_FINISH);
-    if (done != miniz::TDEFL_STATUS_DONE && done != miniz::TDEFL_STATUS_OKAY) {
-      // Cannot flush compressed buffer
-      goto cleanup;
-    }
-    zip->entry.comp_size = zip->entry.state.m_comp_size;
-    zip->entry.offset = zip->entry.state.m_cur_archive_file_ofs;
-    zip->entry.method = MZ_DEFLATED;
-  }
+// DEFOLD: we've disabled the writing of zip files
 
-  entrylen = (miniz::mz_uint16)strlen(zip->entry.name);
-  // no zip64 support yet
-  if ((zip->entry.comp_size > 0xFFFFFFFF) || (zip->entry.offset > 0xFFFFFFFF)) {
-    // No zip64 support, yet
-    goto cleanup;
-  }
+  // level = zip->level & 0xF;
+  // if (level) {
+  //   done = tdefl_compress_buffer(&(zip->entry.comp), "", 0, miniz::TDEFL_FINISH);
+  //   if (done != miniz::TDEFL_STATUS_DONE && done != miniz::TDEFL_STATUS_OKAY) {
+  //     // Cannot flush compressed buffer
+  //     goto cleanup;
+  //   }
+  //   zip->entry.comp_size = zip->entry.state.m_comp_size;
+  //   zip->entry.offset = zip->entry.state.m_cur_archive_file_ofs;
+  //   zip->entry.method = MZ_DEFLATED;
+  // }
 
-  miniz::mz_zip_time_t_to_dos_time(zip->entry.m_time, &dos_time, &dos_date);
-  if (!miniz::mz_zip_writer_create_local_dir_header(
-          pzip, zip->entry.header, entrylen, 0, zip->entry.uncomp_size,
-          zip->entry.comp_size, zip->entry.uncomp_crc32, zip->entry.method, 0,
-          dos_time, dos_date)) {
-    // Cannot create zip entry header
-    goto cleanup;
-  }
+  // entrylen = (miniz::mz_uint16)strlen(zip->entry.name);
+  // // no zip64 support yet
+  // if ((zip->entry.comp_size > 0xFFFFFFFF) || (zip->entry.offset > 0xFFFFFFFF)) {
+  //   // No zip64 support, yet
+  //   goto cleanup;
+  // }
 
-  if (pzip->m_pWrite(pzip->m_pIO_opaque, zip->entry.header_offset,
-                     zip->entry.header,
-                     sizeof(zip->entry.header)) != sizeof(zip->entry.header)) {
-    // Cannot write zip entry header
-    goto cleanup;
-  }
+  // miniz::mz_zip_time_t_to_dos_time(zip->entry.m_time, &dos_time, &dos_date);
+  // if (!miniz::mz_zip_writer_create_local_dir_header(
+  //         pzip, zip->entry.header, entrylen, 0, zip->entry.uncomp_size,
+  //         zip->entry.comp_size, zip->entry.uncomp_crc32, zip->entry.method, 0,
+  //         dos_time, dos_date)) {
+  //   // Cannot create zip entry header
+  //   goto cleanup;
+  // }
 
-  if (!miniz::mz_zip_writer_add_to_central_dir(
-          pzip, zip->entry.name, entrylen, NULL, 0, "", 0,
-          zip->entry.uncomp_size, zip->entry.comp_size, zip->entry.uncomp_crc32,
-          zip->entry.method, 0, dos_time, dos_date, zip->entry.header_offset,
-          zip->entry.external_attr)) {
-    // Cannot write to zip central dir
-    goto cleanup;
-  }
+  // if (pzip->m_pWrite(pzip->m_pIO_opaque, zip->entry.header_offset,
+  //                    zip->entry.header,
+  //                    sizeof(zip->entry.header)) != sizeof(zip->entry.header)) {
+  //   // Cannot write zip entry header
+  //   goto cleanup;
+  // }
 
-  pzip->m_total_files++;
-  pzip->m_archive_size = zip->entry.offset;
-  status = 0;
+  // if (!miniz::mz_zip_writer_add_to_central_dir(
+  //         pzip, zip->entry.name, entrylen, NULL, 0, "", 0,
+  //         zip->entry.uncomp_size, zip->entry.comp_size, zip->entry.uncomp_crc32,
+  //         zip->entry.method, 0, dos_time, dos_date, zip->entry.header_offset,
+  //         zip->entry.external_attr)) {
+  //   // Cannot write to zip central dir
+  //   goto cleanup;
+  // }
+
+  // pzip->m_total_files++;
+  // pzip->m_archive_size = zip->entry.offset;
+  // status = 0;
 
 cleanup:
   if (zip) {
@@ -788,63 +794,63 @@ int zip_total_entries(struct zip_t *zip) {
   return (int)zip->archive.m_total_files;
 }
 
-int zip_create(const char *zipname, const char *filenames[], size_t len) {
-  int status = 0;
-  size_t i;
-  miniz::mz_zip_archive zip_archive;
-  struct MZ_FILE_STAT_STRUCT file_stat;
-  miniz::mz_uint32 ext_attributes = 0;
+// int zip_create(const char *zipname, const char *filenames[], size_t len) {
+//   int status = 0;
+//   size_t i;
+//   miniz::mz_zip_archive zip_archive;
+//   struct MZ_FILE_STAT_STRUCT file_stat;
+//   miniz::mz_uint32 ext_attributes = 0;
 
-  if (!zipname || strlen(zipname) < 1) {
-    // zip_t archive name is empty or NULL
-    return -1;
-  }
+//   if (!zipname || strlen(zipname) < 1) {
+//     // zip_t archive name is empty or NULL
+//     return -1;
+//   }
 
-  // Create a new archive.
-  if (!memset(&(zip_archive), 0, sizeof(zip_archive))) {
-    // Cannot memset zip archive
-    return -1;
-  }
+//   // Create a new archive.
+//   if (!memset(&(zip_archive), 0, sizeof(zip_archive))) {
+//     // Cannot memset zip archive
+//     return -1;
+//   }
 
-  if (!mz_zip_writer_init_file(&zip_archive, zipname, 0)) {
-    // Cannot initialize zip_archive writer
-    return -1;
-  }
+//   if (!mz_zip_writer_init_file(&zip_archive, zipname, 0)) {
+//     // Cannot initialize zip_archive writer
+//     return -1;
+//   }
 
-  memset((void *)&file_stat, 0, sizeof(struct MZ_FILE_STAT_STRUCT));
+//   memset((void *)&file_stat, 0, sizeof(struct MZ_FILE_STAT_STRUCT));
 
-  for (i = 0; i < len; ++i) {
-    const char *name = filenames[i];
-    if (!name) {
-      status = -1;
-      break;
-    }
+//   for (i = 0; i < len; ++i) {
+//     const char *name = filenames[i];
+//     if (!name) {
+//       status = -1;
+//       break;
+//     }
 
-    if (MZ_FILE_STAT(name, &file_stat) != 0) {
-      // problem getting information - check errno
-      status = -1;
-      break;
-    }
+//     if (MZ_FILE_STAT(name, &file_stat) != 0) {
+//       // problem getting information - check errno
+//       status = -1;
+//       break;
+//     }
 
-    if ((file_stat.st_mode & 0200) == 0) {
-      // MS-DOS read-only attribute
-      ext_attributes |= 0x01;
-    }
-    ext_attributes |= (miniz::mz_uint32)((file_stat.st_mode & 0xFFFF) << 16);
+//     if ((file_stat.st_mode & 0200) == 0) {
+//       // MS-DOS read-only attribute
+//       ext_attributes |= 0x01;
+//     }
+//     ext_attributes |= (miniz::mz_uint32)((file_stat.st_mode & 0xFFFF) << 16);
 
-    if (!mz_zip_writer_add_file(&zip_archive, base_name(name), name, "", 0,
-                                ZIP_DEFAULT_COMPRESSION_LEVEL,
-                                ext_attributes)) {
-      // Cannot add file to zip_archive
-      status = -1;
-      break;
-    }
-  }
+//     if (!mz_zip_writer_add_file(&zip_archive, base_name(name), name, "", 0,
+//                                 ZIP_DEFAULT_COMPRESSION_LEVEL,
+//                                 ext_attributes)) {
+//       // Cannot add file to zip_archive
+//       status = -1;
+//       break;
+//     }
+//   }
 
-  mz_zip_writer_finalize_archive(&zip_archive);
-  mz_zip_writer_end(&zip_archive);
-  return status;
-}
+//   mz_zip_writer_finalize_archive(&zip_archive);
+//   mz_zip_writer_end(&zip_archive);
+//   return status;
+// }
 
 static char *normalize(char *name, char *const nname, size_t len) {
   size_t offn = 0;
@@ -879,160 +885,161 @@ static char *normalize(char *name, char *const nname, size_t len) {
   return nname;
 }
 
-static int extract(miniz::mz_zip_archive *zip_archive, const char *dir,
-                   int (*on_extract)(const char *filename, void *arg),
-                   void *arg) {
-  int status = -1;
-  miniz::mz_uint i, n;
-  char path[MAX_PATH + 1];
-  char symlink_to[MAX_PATH + 1];
-  miniz::mz_zip_archive_file_stat info;
-  size_t dirlen = 0;
-  miniz::mz_uint32 xattr = 0;
+// DEFOLD: We don't want to extract the archives
+// static int extract(miniz::mz_zip_archive *zip_archive, const char *dir,
+//                    int (*on_extract)(const char *filename, void *arg),
+//                    void *arg) {
+//   int status = -1;
+//   miniz::mz_uint i, n;
+//   char path[MAX_PATH + 1];
+//   char symlink_to[MAX_PATH + 1];
+//   miniz::mz_zip_archive_file_stat info;
+//   size_t dirlen = 0;
+//   miniz::mz_uint32 xattr = 0;
 
-  memset(path, 0, sizeof(path));
-  memset(symlink_to, 0, sizeof(symlink_to));
+//   memset(path, 0, sizeof(path));
+//   memset(symlink_to, 0, sizeof(symlink_to));
 
-  dirlen = strlen(dir);
-  if (dirlen + 1 > MAX_PATH) {
-    return -1;
-  }
+//   dirlen = strlen(dir);
+//   if (dirlen + 1 > MAX_PATH) {
+//     return -1;
+//   }
 
-  memset((void *)&info, 0, sizeof(miniz::mz_zip_archive_file_stat));
+//   memset((void *)&info, 0, sizeof(miniz::mz_zip_archive_file_stat));
 
-#if defined(_MSC_VER)
-  strcpy_s(path, MAX_PATH, dir);
-#else
-  strcpy(path, dir);
-#endif
+// #if defined(_MSC_VER)
+//   strcpy_s(path, MAX_PATH, dir);
+// #else
+//   strcpy(path, dir);
+// #endif
 
-  if (!ISSLASH(path[dirlen - 1])) {
-#if defined(_WIN32) || defined(__WIN32__)
-    path[dirlen] = '\\';
-#else
-    path[dirlen] = '/';
-#endif
-    ++dirlen;
-  }
+//   if (!ISSLASH(path[dirlen - 1])) {
+// #if defined(_WIN32) || defined(__WIN32__)
+//     path[dirlen] = '\\';
+// #else
+//     path[dirlen] = '/';
+// #endif
+//     ++dirlen;
+//   }
 
-  // Get and print information about each file in the archive.
-  n = mz_zip_reader_get_num_files(zip_archive);
-  for (i = 0; i < n; ++i) {
-    if (!mz_zip_reader_file_stat(zip_archive, i, &info)) {
-      // Cannot get information about zip archive;
-      goto out;
-    }
-    if (!normalize(info.m_filename, info.m_filename, strlen(info.m_filename))) {
-      // Cannot normalize file name;
-      goto out;
-    }
-#if defined(_MSC_VER)
-    strncpy_s(&path[dirlen], MAX_PATH - dirlen, info.m_filename,
-              MAX_PATH - dirlen);
-#else
-    strncpy(&path[dirlen], info.m_filename, MAX_PATH - dirlen);
-#endif
-    if (mkpath(path) < 0) {
-      // Cannot make a path
-      goto out;
-    }
+//   // Get and print information about each file in the archive.
+//   n = mz_zip_reader_get_num_files(zip_archive);
+//   for (i = 0; i < n; ++i) {
+//     if (!mz_zip_reader_file_stat(zip_archive, i, &info)) {
+//       // Cannot get information about zip archive;
+//       goto out;
+//     }
+//     if (!normalize(info.m_filename, info.m_filename, strlen(info.m_filename))) {
+//       // Cannot normalize file name;
+//       goto out;
+//     }
+// #if defined(_MSC_VER)
+//     strncpy_s(&path[dirlen], MAX_PATH - dirlen, info.m_filename,
+//               MAX_PATH - dirlen);
+// #else
+//     strncpy(&path[dirlen], info.m_filename, MAX_PATH - dirlen);
+// #endif
+//     if (mkpath(path) < 0) {
+//       // Cannot make a path
+//       goto out;
+//     }
 
-    if ((((info.m_version_made_by >> 8) == 3) ||
-         ((info.m_version_made_by >> 8) ==
-          19)) // if zip is produced on Unix or macOS (3 and 19 from
-               // section 4.4.2.2 of zip standard)
-        && info.m_external_attr &
-               (0x20 << 24)) { // and has sym link attribute (0x80 is file, 0x40
-                               // is directory)
-#if defined(_WIN32) || defined(__WIN32__) || defined(_MSC_VER) ||              \
-    defined(__MINGW32__)
-#else
-      if (info.m_uncomp_size > MAX_PATH ||
-          !mz_zip_reader_extract_to_mem_no_alloc(zip_archive, i, symlink_to,
-                                                 MAX_PATH, 0, NULL, 0)) {
-        goto out;
-      }
-      symlink_to[info.m_uncomp_size] = '\0';
-      if (symlink(symlink_to, path) != 0) {
-        goto out;
-      }
-#endif
-    } else {
-      if (!mz_zip_reader_is_file_a_directory(zip_archive, i)) {
-        if (!mz_zip_reader_extract_to_file(zip_archive, i, path, 0)) {
-          // Cannot extract zip archive to file
-          goto out;
-        }
-      }
+//     if ((((info.m_version_made_by >> 8) == 3) ||
+//          ((info.m_version_made_by >> 8) ==
+//           19)) // if zip is produced on Unix or macOS (3 and 19 from
+//                // section 4.4.2.2 of zip standard)
+//         && info.m_external_attr &
+//                (0x20 << 24)) { // and has sym link attribute (0x80 is file, 0x40
+//                                // is directory)
+// #if defined(_WIN32) || defined(__WIN32__) || defined(_MSC_VER) ||              \
+//     defined(__MINGW32__)
+// #else
+//       if (info.m_uncomp_size > MAX_PATH ||
+//           !mz_zip_reader_extract_to_mem_no_alloc(zip_archive, i, symlink_to,
+//                                                  MAX_PATH, 0, NULL, 0)) {
+//         goto out;
+//       }
+//       symlink_to[info.m_uncomp_size] = '\0';
+//       if (symlink(symlink_to, path) != 0) {
+//         goto out;
+//       }
+// #endif
+//     } else {
+//       if (!mz_zip_reader_is_file_a_directory(zip_archive, i)) {
+//         if (!mz_zip_reader_extract_to_file(zip_archive, i, path, 0)) {
+//           // Cannot extract zip archive to file
+//           goto out;
+//         }
+//       }
 
-#if defined(_MSC_VER)
-#else
-      xattr = (info.m_external_attr >> 16) & 0xFFFF;
-      if (xattr > 0) {
-        if (chmod(path, (mode_t)xattr) < 0) {
-          goto out;
-        }
-      }
-#endif
-    }
+// #if defined(_MSC_VER)
+// #else
+//       xattr = (info.m_external_attr >> 16) & 0xFFFF;
+//       if (xattr > 0) {
+//         if (chmod(path, (mode_t)xattr) < 0) {
+//           goto out;
+//         }
+//       }
+// #endif
+//     }
 
-    if (on_extract) {
-      if (on_extract(path, arg) < 0) {
-        goto out;
-      }
-    }
-  }
-  status = 0;
+//     if (on_extract) {
+//       if (on_extract(path, arg) < 0) {
+//         goto out;
+//       }
+//     }
+//   }
+//   status = 0;
 
-out:
-  // Close the archive, freeing any resources it was using
-  if (!mz_zip_reader_end(zip_archive)) {
-    // Cannot end zip reader
-    status = -1;
-  }
-  return status;
-}
+// out:
+//   // Close the archive, freeing any resources it was using
+//   if (!mz_zip_reader_end(zip_archive)) {
+//     // Cannot end zip reader
+//     status = -1;
+//   }
+//   return status;
+// }
 
-int zip_extract(const char *zipname, const char *dir,
-                int (*on_extract)(const char *filename, void *arg), void *arg) {
-  miniz::mz_zip_archive zip_archive;
-  if (!zipname || !dir) {
-    // Cannot parse zip archive name
-    return -1;
-  }
-  if (!memset(&zip_archive, 0, sizeof(miniz::mz_zip_archive))) {
-    // Cannot memset zip archive
-    return MZ_FALSE;
-  }
-  // Now try to open the archive.
-  if (!mz_zip_reader_init_file(&zip_archive, zipname, 0)) {
-    // Cannot initialize zip_archive reader
-    return MZ_FALSE;
-  }
+// int zip_extract(const char *zipname, const char *dir,
+//                 int (*on_extract)(const char *filename, void *arg), void *arg) {
+//   miniz::mz_zip_archive zip_archive;
+//   if (!zipname || !dir) {
+//     // Cannot parse zip archive name
+//     return -1;
+//   }
+//   if (!memset(&zip_archive, 0, sizeof(miniz::mz_zip_archive))) {
+//     // Cannot memset zip archive
+//     return MZ_FALSE;
+//   }
+//   // Now try to open the archive.
+//   if (!mz_zip_reader_init_file(&zip_archive, zipname, 0)) {
+//     // Cannot initialize zip_archive reader
+//     return MZ_FALSE;
+//   }
 
-  int status = extract(&zip_archive, dir, on_extract, arg);
+//   int status = extract(&zip_archive, dir, on_extract, arg);
 
-  return status;
-}
+//   return status;
+// }
 
-int zip_extract_stream(const char *stream, size_t size, const char *dir,
-                       int (*on_extract)(const char *filename, void *arg),
-                       void *arg) {
-  miniz::mz_zip_archive zip_archive;
-  if (!stream || !dir) {
-    // Cannot parse zip archive stream
-    return -1;
-  }
-  if (!memset(&zip_archive, 0, sizeof(miniz::mz_zip_archive))) {
-    // Cannot memset zip archive
-    return MZ_FALSE;
-  }
-  if (!mz_zip_reader_init_mem(&zip_archive, stream, size, 0)) {
-    // Cannot initialize zip_archive reader
-    return MZ_FALSE;
-  }
+// int zip_extract_stream(const char *stream, size_t size, const char *dir,
+//                        int (*on_extract)(const char *filename, void *arg),
+//                        void *arg) {
+//   miniz::mz_zip_archive zip_archive;
+//   if (!stream || !dir) {
+//     // Cannot parse zip archive stream
+//     return -1;
+//   }
+//   if (!memset(&zip_archive, 0, sizeof(miniz::mz_zip_archive))) {
+//     // Cannot memset zip archive
+//     return MZ_FALSE;
+//   }
+//   if (!mz_zip_reader_init_mem(&zip_archive, stream, size, 0)) {
+//     // Cannot initialize zip_archive reader
+//     return MZ_FALSE;
+//   }
 
-  int status = extract(&zip_archive, dir, on_extract, arg);
+//   int status = extract(&zip_archive, dir, on_extract, arg);
 
-  return status;
-}
+//   return status;
+// }

@@ -120,6 +120,13 @@ struct EngineCtx
     dmHID::GamepadPacket m_OldPackets[dmHID::MAX_GAMEPAD_COUNT];
 } g_EngineCtx;
 
+static void EngineDestroy(void* _engine)
+{
+    EngineCtx* engine = (EngineCtx*)_engine;
+    dmHID::Final(engine->m_HidContext);
+    dmHID::DeleteContext(engine->m_HidContext);
+}
+
 static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = (EngineCtx*)&g_EngineCtx;
@@ -135,16 +142,14 @@ static void* EngineCreate(int argc, char** argv)
     new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
 
     engine->m_HidContext = dmHID::NewContext(new_hid_params);
-    dmHID::Init(engine->m_HidContext);
+    bool hid_result = dmHID::Init(engine->m_HidContext);
+    if (!hid_result)
+    {
+        EngineDestroy(engine);
+        return 0;
+    }
 
     return engine;
-}
-
-static void EngineDestroy(void* _engine)
-{
-    EngineCtx* engine = (EngineCtx*)_engine;
-    dmHID::Final(engine->m_HidContext);
-    dmHID::DeleteContext(engine->m_HidContext);
 }
 
 static UpdateResult EngineUpdate(void* _engine)

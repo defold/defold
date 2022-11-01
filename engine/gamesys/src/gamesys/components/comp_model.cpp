@@ -697,7 +697,7 @@ namespace dmGameSystem
     {
         DM_PROFILE(__FUNCTION__);
 
-        dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         uint32_t num_render_items = 0;
         for (uint32_t i = 0; i < n; ++i)
@@ -744,7 +744,7 @@ namespace dmGameSystem
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
 
-        dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
         for (uint32_t i = 0; i < count; ++i)
@@ -824,7 +824,7 @@ namespace dmGameSystem
 
         UpdateTransforms(world); // TODO: Why can't we move this to the CompModelUpdate()?
 
-        dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
 
         uint32_t num_components = components.Size();
         uint32_t mesh_count = 0;
@@ -1111,7 +1111,7 @@ namespace dmGameSystem
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
     {
         ModelWorld* world = (ModelWorld*) params.m_UserData;
-        dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {

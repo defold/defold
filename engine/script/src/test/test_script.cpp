@@ -24,6 +24,7 @@
 #include <dlib/time.h>
 
 #include <string.h>
+#include <setjmp.h>
 
 extern "C"
 {

@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if !defined(__SCE__)
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -936,7 +938,9 @@ namespace dmSys
             *resource_size = file_stat.st_size;
             return RESULT_OK;
         } else {
-            return NativeToResult(errno);
+            return ErrnoToResult(errno);
         }
     }
 }
+
+#endif // unsupported platforms

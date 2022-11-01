@@ -178,7 +178,7 @@ namespace dmGameSystem
         sprite_world->m_Components.SetCapacity(comp_count);
         sprite_world->m_BoundingVolumes.SetCapacity(comp_count);
         sprite_world->m_BoundingVolumes.SetSize(comp_count);
-        memset(sprite_world->m_Components.m_Objects.Begin(), 0, sizeof(SpriteComponent) * comp_count);
+        memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
 
         dmGraphics::VertexElement ve[] =
@@ -530,7 +530,7 @@ namespace dmGameSystem
         uint8_t*        indices  = *ib_where;
         uint32_t index_type_size = sprite_world->m_Is16BitIndex ? sizeof(uint16_t) : sizeof(uint32_t);
 
-        const dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+        const dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
 
         // The offset for the indices
         uint32_t vertex_offset = *vb_where - sprite_world->m_VertexBufferData;
@@ -729,7 +729,7 @@ namespace dmGameSystem
         DM_PROFILE("SpriteRenderBatch");
 
         uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
-        const SpriteComponent* first = (const SpriteComponent*) &sprite_world->m_Components.m_Objects[component_index];
+        const SpriteComponent* first = (const SpriteComponent*) &sprite_world->m_Components.GetRawObjects()[component_index];
         assert(first->m_Enabled);
 
         SpriteResource* resource = first->m_Resource;
@@ -820,7 +820,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("UpdateTransforms");
 
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
 
         bool scale_along_z = false;
@@ -886,7 +886,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("PostMessages");
 
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -943,7 +943,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("Animate");
 
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -988,9 +988,11 @@ namespace dmGameSystem
     {
         DM_PROFILE("CalcBoundingVolumes");
 
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
 
+        // NOTE: Here we assume that the object pool won't be altered between this call and the call to the frustum culling.
+        // Thus, we can use the same "physical" indices used between the culling and the render items.
         for (uint32_t i = 0; i < n; ++i)
         {
             SpriteComponent* component = &components[i];
@@ -1007,7 +1009,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("UpdateVertexAndIndexCount");
 
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t n               = components.Size();
         uint32_t num_vertices    = 0;
         uint32_t num_indices     = 0;
@@ -1143,11 +1145,13 @@ namespace dmGameSystem
 
         UpdateVertexAndIndexCount(sprite_world);
 
-        CalcBoundingVolumes(sprite_world); // uses the m_World to calculate the actual radius of the object
+        // Uses the m_World to calculate the actual radius of the object
+        // Note: uses the physical indices of the object pool for storing the radiuses.
+        CalcBoundingVolumes(sprite_world);
 
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
 
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.m_Objects;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t sprite_count = components.Size();
 
         if (!sprite_count)
@@ -1176,7 +1180,7 @@ namespace dmGameSystem
 
             const Vector4 trans = component.m_World.getCol(3);
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
-            write_ptr->m_UserData = i;
+            write_ptr->m_UserData = i; // Assuming the object pool stays intact
             write_ptr->m_BatchKey = component.m_MixedHash;
             write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource));
             write_ptr->m_Dispatch = sprite_dispatch;

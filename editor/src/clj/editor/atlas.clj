@@ -217,8 +217,9 @@
   (input animation-updatable g/Any)
 
   (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size sprite-trim-mode]
-                              (assoc (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)
-                                :digest-ignored/error-node-id _node-id)))
+                              (with-meta
+                                (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)
+                                {:error-node-id _node-id})))
   (output atlas-images [Image] (g/fnk [atlas-image] [atlas-image]))
   (output animation Animation (g/fnk [atlas-image id]
                                 (make-animation id [atlas-image])))
@@ -625,7 +626,7 @@
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
   (output all-atlas-images [Image] :cached (g/fnk [animation-images]
-                                             (vec (distinct (flatten animation-images)))))
+                                             (into [] (distinct) (flatten animation-images))))
 
   (output layout-data-generator g/Any          produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)

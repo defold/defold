@@ -550,7 +550,7 @@ namespace dmGameObject
      * @name go.get
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to retrieve
-     * @param options [type:table] (optional) options table
+     * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
      * @return value [type:any] the value of the specified property
@@ -755,7 +755,7 @@ namespace dmGameObject
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
      * @param value [type:any] the value to set
-     * @param options [type:table] (optional) options table
+     * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
      * @examples

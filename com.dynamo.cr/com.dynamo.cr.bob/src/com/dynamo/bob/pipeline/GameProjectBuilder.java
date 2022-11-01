@@ -75,6 +75,7 @@ import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigScene;
+import com.dynamo.rig.proto.Rig.AnimationSet;
 
 import com.google.protobuf.DescriptorProtos.FieldOptions;
 import com.google.protobuf.Descriptors.FieldDescriptor;
@@ -100,7 +101,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         // We currently don't have a file mapping with an input -> output for certain files
         // These should to be setup in the corresponding builder!
-        ProtoBuilder.addMessageClass(".animationsetc", MeshSet.class);
+        ProtoBuilder.addMessageClass(".animationsetc", AnimationSet.class);
         ProtoBuilder.addMessageClass(".cubemapc", Cubemap.class);
         ProtoBuilder.addMessageClass(".fontc", FontMap.class);
         ProtoBuilder.addMessageClass(".fpc", ShaderDesc.class);

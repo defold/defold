@@ -27,6 +27,14 @@ def run_bob(task):
                 env['DYLD_INSERT_LIBRARIES'] = ""
             env['DYLD_INSERT_LIBRARIES'] += sdkinfo['asan']['path']
 
+            # Making sure java can find its libmlib_image.dylib
+            # I didn't need this locally, but on Github CI /MAWE
+            java_lib_path = os.path.join(os.environ['JAVA_HOME'], 'lib')
+            if 'DYLD_LIBRARY_PATH' in env:
+                env['DYLD_LIBRARY_PATH'] += os.pathsep + java_lib_path
+            else:
+                env['DYLD_LIBRARY_PATH'] = java_lib_path
+
     args = task.generator.run_args
     output = run.env_command(env, args.split())
 
@@ -55,12 +63,12 @@ def build(bld):
     bld.add_group()
     obj = bld(
         features = 'c cxx cprogram test',
-        use = 'TESTMAIN RECORD CRASH VPX GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB engine engine_service'.split() + additional_libs + profile_lib,
+        use = 'TESTMAIN RECORD CRASH VPX GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB PLATFORM_APP engine engine_service'.split() + additional_libs + profile_lib,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         web_libs = ['library_sys.js', 'library_script.js'],
         includes = '../../proto .',
         defines = defines,
-        source = 'test_engine.cpp',
+        source = bld.path.ant_glob('**/*.cpp'),
         target = 'test_engine')
 
     # Psapi.lib is needed by ProfilerExt

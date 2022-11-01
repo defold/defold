@@ -63,9 +63,10 @@ def build(bld):
     exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
-    #if 'web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
     if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web'):
         exported_symbols.append('AudioDecoderStbVorbis')
+    elif bld.env['PLATFORM'] in ('x86_64-ps4',):
+        pass # dont't add tremolo
     else:
         exported_symbols.append('AudioDecoderTremolo')
         additional_libs.append('TREMOLO')
@@ -80,6 +81,10 @@ def build(bld):
     if bld.env['PLATFORM'] in ('arm64-nx64',):
         graphics_lib = 'GRAPHICS_VULKAN DMGLFW VULKAN'
         graphics_lib_symbols = ['GraphicsAdapterVulkan']
+
+    if bld.env['PLATFORM'] in ('x86_64-ps4',):
+        graphics_lib = 'GRAPHICS_NULL'
+        graphics_lib_symbols = ['GraphicsAdapterNull']
 
     exported_symbols += graphics_lib_symbols
 
@@ -122,12 +127,12 @@ def build(bld):
     bld.add_group()
 
     profile_lib = ['PROFILE', 'PROFILEREXT']
-    if bld.env['PLATFORM'] in ('js-web', 'wasm-web'):
+    if bld.env['PLATFORM'] in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4'):
         profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'engine_rs WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH CRASH X engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + additional_libs,
+        use = 'engine_rs WEBVIEWEXT PROFILEREXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID PLATFORM_HID INPUT PARTICLE RIG DLIB GUI CRASH X engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -155,7 +160,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'WEBVIEWEXT PROFILE_NULL PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH X engine_release engine_service_null'.split() + graphics_lib + sound_lib + additional_libs,
+        use = 'WEBVIEWEXT PROFILE_NULL PROFILEREXT_NULL FACEBOOKEXT IAPEXT PUSHEXT IACEXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID PLATFORM_HID INPUT PARTICLE RIG DLIB GUI CRASH X engine_release engine_service_null'.split() + graphics_lib + sound_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -184,7 +189,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL CRASH engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
+        use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
         exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
         web_libs = web_libs,
         includes = '../build ../proto . ..',

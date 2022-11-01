@@ -284,8 +284,7 @@ union SaveLoadBuffer
         }
 
         const char* filename = luaL_checkstring(L, 2);
-        char* dm_home = getenv("DM_SAVE_HOME");
-
+        char* dm_home = dmSys::GetEnv("DM_SAVE_HOME");
         // Higher priority
         if (dm_home)
         {
@@ -540,7 +539,7 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
-     * @param options [type:table] (optional) options table
+     * @param [options] [type:table] optional options table
      * - ignore_secure [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
      * @return sys_info [type:table] table with system information in the following fields:
      *
@@ -612,7 +611,7 @@ union SaveLoadBuffer
         if (!ignore_secure_values)
         {
             dmSys::GetSecureInfo(&info);
-        } 
+        }
 
         lua_newtable(L);
         lua_pushliteral(L, "device_model");
@@ -1076,7 +1075,7 @@ union SaveLoadBuffer
     *
     * ```lua
     * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
-    * local arg2 = 'build/default/game.projectc'
+    * local arg2 = 'build/game.projectc'
     * sys.reboot(arg1, arg2)
     * ```
     */
