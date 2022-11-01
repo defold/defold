@@ -520,7 +520,7 @@ def default_flags(self):
 @after('c')
 @after('cxx')
 def remove_flags_fn(self):
-    lookup = getattr(self, 'remove_flags', [])
+    lookup = getattr(self, 'remove_flags', {})
     for name, values in lookup.items():
         for flag, argcount in values:
             remove_flag(self.env[name], flag, argcount)
