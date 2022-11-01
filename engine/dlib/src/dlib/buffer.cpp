@@ -61,6 +61,7 @@ namespace dmBuffer
         // two point min/max definition of a AABB
         dmVMath::Point3 boundsMin;
         dmVMath::Point3 boundsMax;
+        uint16_t m_BoundingVersion;  // is set to m_ContentVersion when bounds are updated with SetBounds()
     };
 
     struct BufferContext
@@ -405,6 +406,7 @@ namespace dmBuffer
         // meta data
         buffer->boundsMin = dmVMath::Point3(1.0f, 1.0f, 1.0f);  // initialize to an "invalid" bounding box
         buffer->boundsMax = dmVMath::Point3(-1.0f, -1.0f, -1.0f);
+        buffer->m_BoundingVersion = 999; // any value different than m_ContentVersion will allow triggering first bounds calculation
 
 
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
@@ -634,7 +636,7 @@ namespace dmBuffer
 
         buffer->boundsMin = min;
         buffer->boundsMax = max;
-
+        buffer->m_BoundingVersion = buffer->m_ContentVersion;
 
         return RESULT_OK;
     }
@@ -647,6 +649,17 @@ namespace dmBuffer
 
         min = buffer->boundsMin;
         max = buffer->boundsMax;
+
+        return RESULT_OK;
+    }
+
+    Result BoundsUpToDate(HBuffer hbuffer, bool& status) {
+        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+
+        status = (buffer->m_BoundingVersion == buffer->m_ContentVersion);
 
         return RESULT_OK;
     }

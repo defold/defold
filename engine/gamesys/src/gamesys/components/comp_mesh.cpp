@@ -307,6 +307,13 @@ namespace dmGameSystem
 
     static void UpdateMeshBounds(dmBuffer::HBuffer hbuffer, dmhash_t stream_name) {
 
+        // do nothing if bounds are already up to date
+        bool boundsUpdated = false;
+        if (dmBuffer::BoundsUpToDate(hbuffer, boundsUpdated) == dmBuffer::RESULT_OK) {
+            if (boundsUpdated)
+                return;
+        }
+
         // get stream and buffer properties
         void* vertices_data;
         uint32_t vertex_count;
