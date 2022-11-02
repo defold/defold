@@ -428,7 +428,7 @@
              (list `it/new-node
                    (if (sequential? ctor)
                      (if (= 2 (count ctor))
-                       `(apply construct ~(first ctor) :_node-id ~id (apply concat ~(second ctor)))
+                       `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
                        `(construct ~@ctor :_node-id ~id))
                      `(construct  ~ctor :_node-id ~id))))
            ctors locals)

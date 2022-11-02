@@ -739,7 +739,7 @@
     (project/get-resource-node project resource)))
 
 (defn make-atlas-resource-node! [project proj-path]
-  (assert (string/ends-with? proj-path ".atlas"))
+  {:pre [(string/ends-with? proj-path ".atlas")]}
   (let [workspace (project/workspace project)
         image-resource (make-png-resource! workspace (string/replace proj-path #".atlas$" ".png"))
         atlas (make-resource-node! project proj-path)]
