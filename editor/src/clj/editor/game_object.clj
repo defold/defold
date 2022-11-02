@@ -487,7 +487,7 @@
                   (when select-fn
                     (select-fn [comp-node])))))
 
-(defn add-component-file [go-id resource select-fn]
+(defn add-referenced-component! [go-id resource select-fn]
   (let [id (gen-component-id go-id (resource/base-name resource))]
     (g/transact
       (concat
@@ -501,7 +501,7 @@
                                  ext))
                              (workspace/get-resource-type-map workspace))]
     (when-let [resource (first (resource-dialog/make workspace project {:ext component-exts :title "Select Component File"}))]
-      (add-component-file go-id resource select-fn))))
+      (add-referenced-component! go-id resource select-fn))))
 
 (defn- selection->game-object [selection]
   (g/override-root (handler/adapt-single selection GameObjectNode)))
@@ -531,17 +531,20 @@
                   (when select-fn
                     (select-fn [comp-node])))))
 
-(defn add-embedded-component-handler [user-data select-fn]
-  (let [self (:_node-id user-data)
-        project (project/get-project self)
-        component-type (:resource-type user-data)
-        workspace (:workspace user-data)
-        template (workspace/template workspace component-type)
-        id (gen-component-id self (:ext component-type))]
+(defn add-embedded-component! [go-id resource-type select-fn]
+  (let [project (project/get-project go-id)
+        workspace (project/workspace project)
+        template (workspace/template workspace resource-type)
+        id (gen-component-id go-id (:ext resource-type))]
     (g/transact
-     (concat
-      (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id game-object-common/identity-transform-properties select-fn)))))
+      (concat
+        (g/operation-label "Add Component")
+        (add-embedded-component go-id project (:ext resource-type) template id game-object-common/identity-transform-properties select-fn)))))
+
+(defn- add-embedded-component-handler [user-data select-fn]
+  (let [go-id (:_node-id user-data)
+        resource-type (:resource-type user-data)]
+    (add-embedded-component! go-id resource-type select-fn)))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
