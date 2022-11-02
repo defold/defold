@@ -58,21 +58,6 @@ namespace dmGameSystem
         return filter_lut[mag_filter];
     }
 
-    /*
-    struct MaterialResources
-    {
-        MaterialResources()
-            : m_FragmentProgram(0)
-            , m_VertexProgram(0)
-            , m_MaxPagesCount(0)
-        {}
-
-        dmGraphics::HFragmentProgram m_FragmentProgram;
-        dmGraphics::HVertexProgram   m_VertexProgram;
-        uint8_t                      m_MaxPagesCount;
-    };
-    */
-
     bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
     {
         if (strlen(material_desc->m_Name) == 0)

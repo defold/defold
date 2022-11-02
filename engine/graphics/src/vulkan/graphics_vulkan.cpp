@@ -1579,24 +1579,47 @@ bail:
     {
         if (type == TYPE_FLOAT)
         {
-            if (size == 1)     return VK_FORMAT_R32_SFLOAT;
-            else if(size == 2) return VK_FORMAT_R32G32_SFLOAT;
-            else if(size == 3) return VK_FORMAT_R32G32B32_SFLOAT;
-            else if(size == 4) return VK_FORMAT_R32G32B32A32_SFLOAT;
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_SFLOAT;
+                case 2: return VK_FORMAT_R32G32_SFLOAT;
+                case 3: return VK_FORMAT_R32G32B32_SFLOAT;
+                case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_INT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_SINT;
+                case 2: return VK_FORMAT_R32G32_SINT;
+                case 3: return VK_FORMAT_R32G32B32_SINT;
+                case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                default:break;
+            }
         }
         else if (type == TYPE_UNSIGNED_BYTE)
         {
-            if (size == 1)     return VK_FORMAT_R8_UINT;
-            else if(size == 2) return VK_FORMAT_R8G8_UINT;
-            else if(size == 3) return VK_FORMAT_R8G8B8_UINT;
-            else if(size == 4) return VK_FORMAT_R8G8B8A8_UINT;
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R8_UINT;
+                case 2: return VK_FORMAT_R8G8_UINT;
+                case 3: return VK_FORMAT_R8G8B8_UINT;
+                case 4: return VK_FORMAT_R8G8B8A8_UINT;
+                default:break;
+            }
         }
         else if (type == TYPE_UNSIGNED_SHORT)
         {
-            if (size == 1)     return VK_FORMAT_R16_UINT;
-            else if(size == 2) return VK_FORMAT_R16G16_UINT;
-            else if(size == 3) return VK_FORMAT_R16G16B16_UINT;
-            else if(size == 4) return VK_FORMAT_R16G16B16A16_UINT;
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R16_UINT;
+                case 2: return VK_FORMAT_R16G16_UINT;
+                case 3: return VK_FORMAT_R16G16B16_UINT;
+                case 4: return VK_FORMAT_R16G16B16A16_UINT;
+                default:break;
+            }
         }
         else if (type == TYPE_FLOAT_MAT4)
         {
@@ -3463,7 +3486,7 @@ bail:
     static void VulkanDisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
         assert(unit < DM_MAX_TEXTURE_UNITS);
-        context->m_TextureUnits[unit] = 0x0; // context->m_DefaultTexture2D;
+        context->m_TextureUnits[unit] = 0x0;
     }
 
     static uint32_t VulkanGetMaxTextureSize(HContext context)

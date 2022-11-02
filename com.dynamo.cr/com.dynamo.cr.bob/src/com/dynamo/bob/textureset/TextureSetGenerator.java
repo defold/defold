@@ -341,7 +341,6 @@ public class TextureSetGenerator {
                 page_index++;
             }
 
-            // JG: Hm, not all layouts might have the same dimensions
             layouts      = packedLayouts;
             layoutWidth  = layouts.get(0).getWidth();
             layoutHeight = layouts.get(0).getHeight();

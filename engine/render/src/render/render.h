@@ -197,7 +197,7 @@ namespace dmRender
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 
     // Material
-    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, const dmGraphics::ProgramCreationParams& creation_params); // dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
+    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, const dmGraphics::ProgramCreationParams& creation_params);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);

@@ -214,13 +214,10 @@ public class TextureSetLayout {
                 minHeight = Math.min(minHeight, l.getHeight());
             }
 
+            // The layout strategy might not guarantee that all layouts have the same dimensions,
+            // so we need to make sure this is the case
             if (maxWidth != minWidth || maxHeight != minHeight)
             {
-                settings.maxPageHeight = maxHeight;
-                settings.maxPageWidth  = maxWidth;
-                settings.minPageHeight = maxHeight;
-                settings.minPageWidth  = maxWidth;
-
                 for (int i=0; i < layouts.size(); i++)
                 {
                     if (layouts.get(i).getWidth() != maxWidth || layouts.get(i).getHeight() != maxHeight)

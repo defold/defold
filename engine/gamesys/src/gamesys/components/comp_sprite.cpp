@@ -100,7 +100,7 @@ namespace dmGameSystem
         float z;
         float u;
         float v;
-        float p;
+        uint8_t p;
     };
 
     struct SpriteWorld
@@ -185,7 +185,7 @@ namespace dmGameSystem
         {
                 {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-                {"page_index", 2, 1, dmGraphics::TYPE_FLOAT, false},
+                {"page_index", 2, 1, dmGraphics::TYPE_INT, false},
         };
 
         sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
@@ -407,7 +407,7 @@ namespace dmGameSystem
 
     static void CreateVertexDataSlice9(SpriteVertex* vertices, uint8_t* indices, bool is_indices_16_bit,
         const Matrix4& transform, Vector3 sprite_size, Vector4 slice9, uint32_t vertex_offset,
-        const float* tc, float texture_width, float texture_height, int page_index, bool flip_u, bool flip_v)
+        const float* tc, float texture_width, float texture_height, uint8_t page_index, bool flip_u, bool flip_v)
     {
         // render 9-sliced node
         //   0 1     2 3
@@ -478,7 +478,7 @@ namespace dmGameSystem
                 vertices->z = p.getZ();
                 vertices->u = us[x];
                 vertices->v = vs[y];
-                vertices->p = (float) page_index;
+                vertices->p = page_index;
                 vertices++;
             }
         }
@@ -557,7 +557,7 @@ namespace dmGameSystem
             {
                 const dmGameSystemDDF::SpriteGeometry* geometries = texture_set_ddf->m_Geometries.m_Data;
                 uint32_t frame_index                              = frame_indices[animation_ddf->m_Start + component->m_CurrentAnimationFrame];
-                uint32_t page_index                               = page_indices[frame_index];
+                uint8_t page_index                                = (uint8_t) page_indices[frame_index];
 
                 // Depending on the sprite is flipped or not, we loop the vertices forward or backward
                 // to respect face winding (and backface culling)
@@ -591,7 +591,7 @@ namespace dmGameSystem
                     vertices[0].z = ((float*)&p0)[2];
                     vertices[0].u = u;
                     vertices[0].v = v;
-                    vertices[0].p = (float) page_index;
+                    vertices[0].p = page_index;
                 }
 
                 uint32_t index_count = geometry->m_Indices.m_Count;
@@ -617,7 +617,7 @@ namespace dmGameSystem
             {
                 uint32_t frame_index        = animation_ddf->m_Start + component->m_CurrentAnimationFrame;
                 uint32_t page_indices_index = frame_indices[frame_index]; // same deference as "geometry" version
-                uint32_t page_index         = page_indices[page_indices_index];
+                uint8_t page_index          = (uint8_t) page_indices[page_indices_index];
                 const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
                 const float* tc             = &tex_coords[frame_index * 4 * 2];
                 uint32_t flip_flag          = 0;
@@ -673,7 +673,7 @@ namespace dmGameSystem
                         vert.z = vp.getZ();                         \
                         vert.u = tc[tex_lookup[tc_index] * 2 + 0]; \
                         vert.v = tc[tex_lookup[tc_index] * 2 + 1]; \
-                        vert.p = (float) page_index;
+                        vert.p = page_index;
 
                     Vector4 p0 = w * Point3(-0.5f, -0.5f, 0.0f);
                     Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
