@@ -41,6 +41,7 @@
    :index (.index rect)
    :x (.x rect)
    :y (.y rect)
+   :page (.page rect)
    :width (.width rect)
    :height (.height rect)
    :rotated (.rotated rect)})

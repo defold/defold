@@ -55,7 +55,7 @@
            [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
            [java.util List]
-           [javax.vecmath Point3d]))
+           [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -83,12 +83,23 @@
   (defn void main []
     (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
 
+(defn- get-rect-page-offset [layout-width page-index]
+  (let [page-margin 32]
+    (+ (* page-margin page-index) (* layout-width page-index))))
+
+(defn- get-rect-transform [width page-index]
+  (println width page-index)
+  (let [page-offset (get-rect-page-offset width page-index)]
+    (doto (Matrix4d.)
+      (.setIdentity)
+      (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
+
 ; TODO - macro of this
 (def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag))
 
 (defn- render-rect
-  [^GL2 gl rect color]
-  (let [x0 (:x rect)
+  [^GL2 gl rect color offset-x]
+  (let [x0 (+ offset-x (:x rect))
         y0 (:y rect)
         x1 (+ x0 (:width rect))
         y1 (+ y0 (:height rect))
@@ -104,10 +115,16 @@
 (defn render-image-outline
   [^GL2 gl render-args renderables]
   (doseq [renderable renderables]
-    (render-rect gl (-> renderable :user-data :rect) (if (:selected renderable) colors/selected-outline-color colors/outline-color)))
+    (let [layout-width (-> renderable :user-data :layout-width)
+          page-index (-> renderable :user-data :page-index)
+          page-offset-x (get-rect-page-offset layout-width page-index)]
+      (render-rect gl (-> renderable :user-data :rect) (if (:selected renderable) colors/selected-outline-color colors/outline-color) page-offset-x)))
   (doseq [renderable renderables]
-    (when (= (-> renderable :updatable :state :frame) (-> renderable :user-data :order))
-      (render-rect gl (-> renderable :user-data :rect) colors/defold-pink))))
+    (let [layout-width (-> renderable :user-data :layout-width)
+          page-index (-> renderable :user-data :page-index)
+          page-offset-x (get-rect-page-offset layout-width page-index)]
+      (when (= (-> renderable :updatable :state :frame) (-> renderable :user-data :order))
+        (render-rect gl (-> renderable :user-data :rect) colors/defold-pink page-offset-x)))))
 
 (defn- render-image-outlines
   [^GL2 gl render-args renderables n]
@@ -122,20 +139,29 @@
   (let [renderable (first renderables)
         picking-id (:picking-id renderable)
         id-color (scene-picking/picking-id->color picking-id)]
-    (render-rect gl (-> renderable :user-data :rect) id-color)))
+    (render-rect gl (-> renderable :user-data :rect) id-color 0)))
+
+(defn- atlas-rect->editor-rect [rect]
+  (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
+
+(types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))
 
 (g/defnk produce-image-scene
-  [_node-id image-resource order image-path->rect animation-updatable]
+  [_node-id image-resource order layout-size image-path->rect animation-updatable]
   (let [path (resource/proj-path image-resource)
         rect (get image-path->rect path)
-        aabb (geom/rect->aabb rect)]
+        editor-rect (atlas-rect->editor-rect rect)
+        aabb (geom/rect->aabb editor-rect)
+        [layout-width layout-height] layout-size]
     {:node-id _node-id
      :aabb aabb
      :renderable {:render-fn render-image-outlines
                   :tags #{:atlas :outline}
                   :batch-key ::atlas-image
                   :user-data {:rect rect
-                              :order order}
+                              :order order
+                              :layout-width layout-width
+                              :page-index (:page rect)}
                   :passes [pass/outline]}
      :children [{:aabb aabb
                  :node-id _node-id
@@ -216,6 +242,8 @@
 
   (input animation-updatable g/Any)
 
+  (input layout-size g/Any)
+
   (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size sprite-trim-mode]
                               (with-meta
                                 (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)
@@ -266,6 +294,7 @@
     (g/connect image-node :image-resource   atlas-node :image-resources)
     (g/connect image-node :node-outline     atlas-node :child-outlines)
     (g/connect image-node :scene            atlas-node :child-scenes)
+    (g/connect atlas-node :layout-size      image-node :layout-size)
     (g/connect atlas-node :child->order     image-node :child->order)
     (g/connect atlas-node :id-counts        image-node :id-counts)
     (g/connect atlas-node :image-path->rect image-node :image-path->rect)
@@ -282,6 +311,7 @@
     (g/connect image-node     :scene            animation-node :child-scenes)
     (g/connect animation-node :child->order     image-node     :child->order)
     (g/connect animation-node :image-path->rect image-node     :image-path->rect)
+    (g/connect animation-node :layout-size      image-node     :layout-size)
     (g/connect animation-node :updatable        image-node     :animation-updatable)))
 
 (defn- attach-animation-to-atlas [atlas-node animation-node]
@@ -298,6 +328,7 @@
     (g/connect atlas-node     :anim-data        animation-node :anim-data)
     (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
     (g/connect atlas-node     :id-counts        animation-node :id-counts)
+    (g/connect atlas-node     :layout-size      animation-node :layout-size)
     (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)))
 
 (defn render-animation
@@ -352,6 +383,8 @@
   (input child-build-errors g/Any :array)
   (input id-counts NameCounts)
   (input anim-data g/Any)
+  (input layout-size g/Any)
+  (output layout-size g/Any (gu/passthrough layout-size))
 
   (input image-resources g/Any :array)
   (output image-resources g/Any (gu/passthrough image-resources))
@@ -487,20 +520,28 @@
         (.glVertex3d gl x1 y0 0)
         (.glEnd gl)))))
 
-(g/defnk produce-scene
-  [_node-id aabb layout-size gpu-texture child-scenes texture-profile]
-  (let [[width height] layout-size]
+(defn- produce-page-renderables
+  [aabb layout-width layout-height page-index page-rects gpu-texture]
     {:aabb aabb
-     :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
+     :transform (get-rect-transform layout-width page-index)
      :renderable {:render-fn render-atlas
                   :user-data {:gpu-texture gpu-texture
-                              :vbuf        (gen-renderable-vertex-buffer width height)}
+                              :vbuf        (gen-renderable-vertex-buffer layout-width layout-height)}
                   :tags #{:atlas}
                   :passes [pass/transparent]}
-     :children (into [{:aabb aabb
-                       :renderable {:render-fn render-atlas-outline
-                                    :tags #{:atlas :outline}
-                                    :passes [pass/outline]}}]
+     :children [{:aabb aabb
+                 :renderable {:render-fn render-atlas-outline
+                              :tags #{:atlas :outline}
+                              :passes [pass/outline]}}]})
+
+(g/defnk produce-scene
+  [_node-id aabb layout-rects layout-size gpu-texture child-scenes texture-profile]
+  (let [[width height] layout-size
+        pages (group-by :page layout-rects)
+        child-renderables (into [] (for [[page-index page-rects] pages] (produce-page-renderables aabb width height page-index page-rects gpu-texture)))]
+    {:aabb aabb
+     :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
+     :children (into child-renderables
                      child-scenes)}))
 
 (defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
@@ -576,11 +617,19 @@
   [texture-set uv-transforms]
   (texture-set/make-anim-data texture-set uv-transforms))
 
+(s/defrecord AtlasRect
+  [path     :- s/Any
+   x        :- types/Int32
+   y        :- types/Int32
+   width    :- types/Int32
+   height   :- types/Int32
+   page     :- types/Int32])
+
 (g/defnk produce-image-path->rect
   [layout-size layout-rects]
   (let [[w h] layout-size]
-    (into {} (map (fn [{:keys [path x y width height]}]
-                    [path (types/->Rect path x (- h height y) width height)]))
+    (into {} (map (fn [{:keys [path x y width height page]}]
+                    [path (->AtlasRect path x (- h height y) width height page)]))
           layout-rects)))
 
 (defn- atlas-outline-sort-by-fn [v]
