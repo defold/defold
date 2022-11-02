@@ -201,8 +201,9 @@
                 bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
             (doseq [[key val] bob-args]
               (.setOption bob-project key val))
-            (doseq [header (string/split-lines build-server-headers)]
-              (.addBuildServerHeader bob-project header))
+            (when-not (string/blank? build-server-headers)
+              (doseq [header (string/split-lines build-server-headers)]
+                (.addBuildServerHeader bob-project header)))
             (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
             (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
               (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
