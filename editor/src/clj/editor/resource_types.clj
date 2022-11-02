@@ -24,7 +24,7 @@
             [editor.code.text-file :as code-text-file]
             [editor.model-scene :as model-scene]
             [editor.collection :as collection]
-            [editor.collection-data :as collection-data]
+            [editor.collection-non-editable :as collection-non-editable]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
             [editor.cubemap :as cubemap]
@@ -33,7 +33,7 @@
             [editor.factory :as factory]
             [editor.font :as font]
             [editor.game-object :as game-object]
-            [editor.game-object-data :as game-object-data]
+            [editor.game-object-non-editable :as game-object-non-editable]
             [editor.game-project :as game-project]
             [editor.gui :as gui]
             [editor.html :as html]
@@ -65,7 +65,7 @@
       (camera/register-resource-types workspace)
       (model-scene/register-resource-types workspace)
       (collection/register-resource-types workspace)
-      (collection-data/register-resource-types workspace)
+      (collection-non-editable/register-resource-types workspace)
       (collection-proxy/register-resource-types workspace)
       (collision-object/register-resource-types workspace)
       (cubemap/register-resource-types workspace)
@@ -74,7 +74,7 @@
       (factory/register-resource-types workspace)
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)
-      (game-object-data/register-resource-types workspace)
+      (game-object-non-editable/register-resource-types workspace)
       (game-project/register-resource-types workspace)
       (gui/register-resource-types workspace)
       (html/register-resource-types workspace)

@@ -12,13 +12,13 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.collection-data
+(ns editor.collection-non-editable
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.collection-common :as collection-common]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
-            [editor.game-object-data :as game-object-data]
+            [editor.game-object-non-editable :as game-object-non-editable]
             [editor.geom :as geom]
             [editor.graph-util :as gu]
             [editor.math :as math]
@@ -105,7 +105,7 @@
   {:pre [(map? embedded-instance-desc)]} ; GameObject$EmbeddedInstanceDesc in map format.
   (let [prototype-desc (:data embedded-instance-desc)
         embedded-instance-desc (dissoc embedded-instance-desc :data) ; We don't need or want the :data in the GameObject$EmbeddedInstanceDesc.
-        component-instance-datas (game-object-data/prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target)
+        component-instance-datas (game-object-non-editable/prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target)
         embedded-game-object-build-target (game-object-common/game-object-build-target nil collection-node-id component-instance-datas component-build-targets)
         embedded-game-object-resource (workspace/make-embedded-resource workspace :non-editable "go" (:content-hash embedded-game-object-build-target)) ; Content determines hash for merging with embedded components in other .go files.
         embedded-game-object-build-resource (workspace/make-build-resource embedded-game-object-resource)
@@ -114,7 +114,7 @@
 
 (g/defnk produce-embedded-game-object-instance-build-targets [_node-id collection-desc embedded-component-resource-data->index embedded-component-build-targets referenced-component-build-targets resource proj-path->build-target]
   (let [workspace (resource/workspace resource)
-        embedded-component-desc->build-resource (game-object-data/make-embedded-component-desc->build-resource embedded-component-build-targets embedded-component-resource-data->index)
+        embedded-component-desc->build-resource (game-object-non-editable/make-embedded-component-desc->build-resource embedded-component-build-targets embedded-component-resource-data->index)
         component-build-targets (into referenced-component-build-targets embedded-component-build-targets)]
     (mapv #(embedded-instance-desc->game-object-instance-build-target % _node-id component-build-targets embedded-component-desc->build-resource proj-path->build-target workspace)
           (:embedded-instances collection-desc))))
@@ -180,7 +180,7 @@
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (let [game-object-instance-id (:id embedded-instance-desc)
         component-property-descs (override-component-property-descs
-                                   (game-object-data/prototype-desc->component-property-descs (:data embedded-instance-desc))
+                                   (game-object-non-editable/prototype-desc->component-property-descs (:data embedded-instance-desc))
                                    (:component-properties embedded-instance-desc))]
     (maybe-instance-property-desc game-object-instance-id component-property-descs)))
 
@@ -207,7 +207,7 @@
 (defn- instance-property-descs->resources [instance-property-descs proj-path->resource]
   (eduction
     (map :properties)
-    (mapcat #(game-object-data/component-property-descs->resources % proj-path->resource))
+    (mapcat #(game-object-non-editable/component-property-descs->resources % proj-path->resource))
     (distinct)
     instance-property-descs))
 
@@ -226,14 +226,14 @@
 (defn- collection-desc->referenced-component-proj-paths [collection-desc]
   (eduction
     (map :data)
-    (mapcat game-object-data/prototype-desc->referenced-component-proj-paths)
+    (mapcat game-object-non-editable/prototype-desc->referenced-component-proj-paths)
     (distinct)
     (:embedded-instances collection-desc)))
 
 (defn- collection-desc->embedded-component-resource-datas [collection-desc]
   (eduction
     (map :data)
-    (mapcat game-object-data/prototype-desc->embedded-component-resource-datas)
+    (mapcat game-object-non-editable/prototype-desc->embedded-component-resource-datas)
     (distinct)
     (:embedded-instances collection-desc)))
 
@@ -249,7 +249,7 @@
   ;; InstanceDescs, EmbeddedInstanceDescs, and CollectionInstanceDescs.
   ;;
   ;; The resulting resources build targets will be connected to the
-  ;; resource-property-build-targets input of our CollectionDataNode.
+  ;; resource-property-build-targets input of our NonEditableCollectionNode.
   ;;
   ;; Elsewhere, any referenced collection, game object, and component will also
   ;; have their resource-property-build-targets output connected to our input to
@@ -286,8 +286,8 @@
 (def ^:private resource-property-connections
   [[:build-targets :resource-property-build-targets]])
 
-(g/defnode CollectionDataNode
-  (inherits game-object-data/EmbeddedComponentHostResourceNode)
+(g/defnode NonEditableCollectionNode
+  (inherits game-object-non-editable/EmbeddedComponentHostResourceNode)
 
   (property collection-desc g/Any
             (dynamic visible (g/constantly false))
@@ -339,23 +339,23 @@
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any produce-scene))
 
-(defn- sanitize-collection-data [workspace collection-desc]
+(defn- sanitize-non-editable-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type :embed-data-as-maps)))
 
-(defn- load-collection-data [_project self _resource collection-desc]
+(defn- load-non-editable-collection [_project self _resource collection-desc]
   (g/set-property self :collection-desc collection-desc))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :editable false
     :ext "collection"
-    :label "Collection Data"
-    :node-type CollectionDataNode
+    :label "Non-Editable Collection"
+    :node-type NonEditableCollectionNode
     :ddf-type GameObject$CollectionDesc
     :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
-    :sanitize-fn (partial sanitize-collection-data workspace)
-    :load-fn load-collection-data
+    :sanitize-fn (partial sanitize-non-editable-collection workspace)
+    :load-fn load-non-editable-collection
     :icon collection-common/collection-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

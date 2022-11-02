@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.game-object-data
+(ns editor.game-object-non-editable
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
@@ -219,7 +219,7 @@
 (def ^:private resource-property-connections
   [[:build-targets :resource-property-build-targets]])
 
-(g/defnode GameObjectDataNode
+(g/defnode NonEditableGameObjectNode
   (inherits EmbeddedComponentHostResourceNode)
 
   (property prototype-desc g/Any
@@ -260,23 +260,23 @@
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any produce-scene))
 
-(defn- sanitize-game-object-data [workspace prototype-desc]
+(defn- sanitize-non-editable-game-object [workspace prototype-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-maps)))
 
-(defn- load-game-object-data [_project self _resource prototype-desc]
+(defn- load-non-editable-game-object [_project self _resource prototype-desc]
   (g/set-property self :prototype-desc prototype-desc))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :editable false
     :ext "go"
-    :label "Game Object Data"
-    :node-type GameObjectDataNode
+    :label "Non-Editable Game Object"
+    :node-type NonEditableGameObjectNode
     :ddf-type GameObject$PrototypeDesc
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
-    :sanitize-fn (partial sanitize-game-object-data workspace)
-    :load-fn load-game-object-data
+    :sanitize-fn (partial sanitize-non-editable-game-object workspace)
+    :load-fn load-non-editable-game-object
     :icon game-object-common/game-object-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))
