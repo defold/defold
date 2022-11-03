@@ -49,11 +49,14 @@ public class PluginScanner {
 	public static <T> T getOrCreatePlugin(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
 
 		List<T> plugins = getOrCreatePlugins(packageName, pluginBaseClass);
-		if (plugins.size() > 1) {
-			throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass + " in package " + packageName);
+		T plugin = null;
+		if (plugins != null) {
+			if (plugins.size() > 1) {
+				throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass + " in package " + packageName);
+			}
+			// get the plugin (or null if none was found) and cache it
+			plugin = (T)plugins.get(0);
 		}
-		// get the plugin (or null if none was found) and cache it
-		T plugin = plugins == null ? null : (T)plugins.get(0);
 		return plugin;
 	}
 	
