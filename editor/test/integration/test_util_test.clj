@@ -14,8 +14,16 @@
 
 (ns integration.test-util-test
   (:require [clojure.test :refer :all]
+            [dynamo.graph :as g]
+            [editor.collection :as collection]
+            [editor.game-object :as game-object]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.sprite :as sprite]
             [editor.ui :as ui]
-            [integration.test-util :as test-util]))
+            [editor.workspace :as workspace]
+            [integration.test-util :as test-util]
+            [support.test-support :as test-support]))
 
 (deftest run-event-loop-test
 
@@ -123,3 +131,67 @@
                                            (exit-event-loop!)))))))
       (is (empty? @errors))
       (is (= [true true true false true false] @results)))))
+
+(defn- embedded?
+  ([expected-node-type node-id]
+   (embedded? (g/now) expected-node-type node-id))
+  ([basis expected-node-type node-id]
+   (and (= expected-node-type (g/node-type* basis node-id))
+        (resource/memory-resource? (resource-node/resource basis node-id)))))
+
+(deftest collection-creation-test
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (test-support/with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)
+              project (test-util/setup-project! workspace)
+              sprite-resource-type (workspace/get-resource-type workspace "sprite")
+              sprite (test-util/make-resource-node! project "/sprite.sprite")
+              chair (test-util/make-resource-node! project "/chair.go")
+              chair-referenced-sprite (test-util/add-referenced-component! chair (resource-node/resource sprite))
+              chair-embedded-sprite (test-util/add-embedded-component! chair sprite-resource-type)
+              room (test-util/make-resource-node! project "/room.collection")
+              room-referenced-chair (test-util/add-referenced-game-object! room (resource-node/resource chair))
+              room-embedded-chair (test-util/add-embedded-game-object! room)
+              room-embedded-chair-referenced-sprite (test-util/add-referenced-component! room-embedded-chair (resource-node/resource sprite))
+              room-embedded-chair-embedded-sprite (test-util/add-embedded-component! room-embedded-chair sprite-resource-type)
+              house (test-util/make-resource-node! project "/house.collection")
+              house-referenced-room (test-util/add-referenced-collection! house (resource-node/resource room))]
+
+          (testing "Created node types."
+            (is (= sprite/SpriteNode (g/node-type* sprite)))
+            (is (= game-object/GameObjectNode (g/node-type* chair)))
+            (is (= game-object/ReferencedComponent (g/node-type* chair-referenced-sprite)))
+            (is (= game-object/EmbeddedComponent (g/node-type* chair-embedded-sprite)))
+            (is (= collection/CollectionNode (g/node-type* room)))
+            (is (= collection/ReferencedGOInstanceNode (g/node-type* room-referenced-chair)))
+            (is (= collection/EmbeddedGOInstanceNode (g/node-type* room-embedded-chair)))
+            (is (= game-object/ReferencedComponent (g/node-type* room-embedded-chair-referenced-sprite)))
+            (is (= game-object/EmbeddedComponent (g/node-type* room-embedded-chair-embedded-sprite)))
+            (is (= collection/CollectionInstanceNode (g/node-type* house-referenced-room))))
+
+          (testing "Query functions."
+
+            (testing "On chair game object."
+              (is (= [chair-referenced-sprite] (test-util/referenced-components chair)))
+              (is (= sprite (test-util/to-component-resource-node-id chair-referenced-sprite)))
+
+              (is (= [chair-embedded-sprite] (test-util/embedded-components chair)))
+              (is (embedded? sprite/SpriteNode (test-util/to-component-resource-node-id chair-embedded-sprite))))
+
+            (testing "On room collection."
+              (is (= [room-referenced-chair] (test-util/referenced-game-objects room)))
+              (is (= chair (g/override-original (test-util/to-game-object-node-id room-referenced-chair))))
+
+              (is (= [room-embedded-chair] (test-util/embedded-game-objects room)))
+              (is (embedded? game-object/GameObjectNode (test-util/to-game-object-node-id room-embedded-chair)))
+
+              (is (= [room-embedded-chair-referenced-sprite] (test-util/referenced-components room-embedded-chair)))
+              (is (= sprite (test-util/to-component-resource-node-id room-embedded-chair-referenced-sprite)))
+
+              (is (= [room-embedded-chair-embedded-sprite] (test-util/embedded-components room-embedded-chair)))
+              (is (embedded? sprite/SpriteNode (test-util/to-component-resource-node-id room-embedded-chair-embedded-sprite))))
+
+            (testing "On house collection."
+              (is (= [house-referenced-room] (test-util/referenced-collections house)))
+              (is (= room (g/override-original (test-util/to-collection-node-id house-referenced-room)))))))))))

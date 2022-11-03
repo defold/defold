@@ -92,13 +92,13 @@
           room-embedded-chair-script (tu/add-referenced-component! room-embedded-chair (resource-node/resource script))
           room-embedded-chair-sprite (tu/add-embedded-component! room-embedded-chair sprite-resource-type)
           room-referenced-chair (tu/add-referenced-game-object! room (resource-node/resource chair))
-          room-referenced-chair-script (-> room-referenced-chair (g/sources-of :ref-ddf) ffirst)
+          room-referenced-chair-script (tu/referenced-component room-referenced-chair)
           house (tu/make-resource-node! project "/assets/house.collection")
           house-room (tu/add-referenced-collection! house (resource-node/resource room))
-          house-room-embedded-chair (-> house-room (g/sources-of :embed-inst-ddf) ffirst (g/sources-of :source-resource) ffirst)
-          house-room-embedded-chair-script (-> house-room-embedded-chair (g/sources-of :ref-ddf) ffirst)
-          house-room-referenced-chair (-> house-room (g/sources-of :ref-inst-ddf) ffirst (g/sources-of :source-resource) ffirst)
-          house-room-referenced-chair-script (-> house-room-referenced-chair (g/sources-of :ref-ddf) ffirst)]
+          house-room-embedded-chair (tu/embedded-game-object house-room)
+          house-room-embedded-chair-script (tu/referenced-component house-room-embedded-chair)
+          house-room-referenced-chair (tu/referenced-game-object house-room)
+          house-room-referenced-chair-script (tu/referenced-component house-room-referenced-chair)]
       (is (not (g/override? chair-script)))
       (is (not (g/override? room-embedded-chair-script)))
       (is (= chair-script (g/override-original room-referenced-chair-script)))
@@ -123,10 +123,10 @@
        :house-room-embedded-chair-script house-room-embedded-chair-script
        :house-room-referenced-chair-script house-room-referenced-chair-script
        :project project
-       :props-script script
        :room room
        :room-embedded-chair-script room-embedded-chair-script
        :room-referenced-chair-script room-referenced-chair-script
+       :script script
        :workspace workspace})))
 
 (defn- load-project! [world project-path]

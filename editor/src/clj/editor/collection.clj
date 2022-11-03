@@ -603,18 +603,18 @@
           id
           (recur (inc postfix)))))))
 
-
-(defn- make-ref-go [self project source-resource id position rotation scale parent overrides]
+(defn- make-ref-go [self source-resource id position rotation scale parent overrides select-fn]
   (let [path {:resource source-resource
               :overrides overrides}]
     (g/make-nodes (g/node-id->graph-id self)
-                  [go-node [ReferencedGOInstanceNode :id id :path path :position position :rotation rotation :scale scale]]
-                  (attach-coll-ref-go self go-node)
-                  (if parent
-                    (if (= self parent)
-                      (child-coll-any self go-node)
-                      (child-go-go parent go-node))
-                    []))))
+      [go-node [ReferencedGOInstanceNode :id id :path path :position position :rotation rotation :scale scale]]
+      (attach-coll-ref-go self go-node)
+      (when parent
+        (if (= self parent)
+          (child-coll-any self go-node)
+          (child-go-go parent go-node)))
+      (when select-fn
+        (select-fn [go-node])))))
 
 (defn- selection->collection [selection]
   (g/override-root (if-some [collection-instance (handler/adapt-single selection CollectionInstanceNode)]
@@ -624,23 +624,13 @@
 (defn- selection->game-object-instance [selection]
   (g/override-root (handler/adapt-single selection GameObjectInstanceNode)))
 
-(defn add-game-object-file [coll-node parent resource select-fn]
-  (let [project (project/get-project coll-node)
-        base (resource/base-name resource)
-        id (gen-instance-id coll-node base)
-        op-seq (gensym)
-        [go-node] (g/tx-nodes-added
-                    (g/transact
-                      (concat
-                        (g/operation-label "Add Game Object")
-                        (g/operation-sequence op-seq)
-                        (make-ref-go coll-node project resource id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent []))))]
-    ;; Selection
+(defn add-referenced-game-object! [coll-node parent resource select-fn]
+  (let [base (resource/base-name resource)
+        id (gen-instance-id coll-node base)]
     (g/transact
       (concat
-        (g/operation-sequence op-seq)
         (g/operation-label "Add Game Object")
-        (select-fn [go-node])))))
+        (make-ref-go coll-node resource id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent [] select-fn)))))
 
 (defn- select-go-file [workspace project]
   (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"})))
@@ -649,9 +639,9 @@
   (active? [selection] (selection->collection selection))
   (label [selection] "Add Game Object File")
   (run [workspace project app-view selection]
-    (let [collection (selection->collection selection)]
-      (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"}))]
-        (add-game-object-file collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
+       (let [collection (selection->collection selection)]
+         (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"}))]
+           (add-referenced-game-object! collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
 (defn- make-embedded-go [self project data id position rotation scale parent select-fn]
   (let [graph (g/node-id->graph-id self)
@@ -679,7 +669,7 @@
                   (when select-fn
                     (select-fn [go-node])))))
 
-(defn add-game-object [workspace project coll-node parent select-fn]
+(defn add-embedded-game-object! [workspace project coll-node parent select-fn]
   (let [ext           "go"
         resource-type (workspace/get-resource-type workspace ext)
         template      (workspace/template workspace resource-type)
@@ -693,16 +683,23 @@
   (active? [selection] (selection->collection selection))
   (label [selection user-data] "Add Game Object")
   (run [selection workspace project user-data app-view]
-    (let [collection (selection->collection selection)]
-      (add-game-object workspace project collection collection (fn [node-ids] (app-view/select app-view node-ids))))))
+       (let [collection (selection->collection selection)]
+         (add-embedded-game-object! workspace project collection collection (fn [node-ids] (app-view/select app-view node-ids))))))
 
-(defn add-collection-instance [self source-resource id position rotation scale overrides]
-  (let [project (project/get-project self)]
-    (g/make-nodes (g/node-id->graph-id self)
-                  [coll-node [CollectionInstanceNode :id id :path {:resource source-resource :overrides overrides}
-                              :position position :rotation rotation :scale scale]]
-                  (attach-coll-coll self coll-node)
-                  (child-coll-any self coll-node))))
+(defn- make-collection-instance [self source-resource id position rotation scale overrides select-fn]
+  (g/make-nodes (g/node-id->graph-id self)
+    [coll-node [CollectionInstanceNode :id id :path {:resource source-resource :overrides overrides}
+                :position position :rotation rotation :scale scale]]
+    (attach-coll-coll self coll-node)
+    (child-coll-any self coll-node)
+    (when select-fn
+      (select-fn [coll-node]))))
+
+(defn add-referenced-collection! [self source-resource id position rotation scale overrides select-fn]
+  (g/transact
+    (concat
+      (g/operation-label "Add Collection")
+      (make-collection-instance self source-resource id position rotation scale overrides select-fn))))
 
 (handler/defhandler :add-secondary :workbench
   (active? [selection] (selection->game-object-instance selection))
@@ -710,7 +707,7 @@
   (run [selection project workspace app-view]
        (let [go-node (selection->game-object-instance selection)
              collection (core/scope-of-type go-node CollectionNode)]
-         (add-game-object workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
+         (add-embedded-game-object! workspace project collection go-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (handler/defhandler :add-secondary-from-file :workbench
   (active? [selection] (or (selection->collection selection)
@@ -726,23 +723,13 @@
            (when-let [resource (first (resource-dialog/make workspace project {:ext ext :title "Select Collection File" :accept-fn accept}))]
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
-                   op-seq (gensym)
-                   [coll-inst-node] (g/tx-nodes-added
-                                      (g/transact
-                                        (concat
-                                          (g/operation-label "Add Collection")
-                                          (g/operation-sequence op-seq)
-                                          (add-collection-instance coll-node resource id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] []))))]
-               ; Selection
-               (g/transact
-                 (concat
-                   (g/operation-sequence op-seq)
-                   (g/operation-label "Add Collection")
-                   (app-view/select app-view [coll-inst-node]))))))
+                   select-fn (fn [node-ids] (app-view/select app-view node-ids))]
+               (add-referenced-collection! coll-node resource id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] [] select-fn))))
          (when-let [resource (select-go-file workspace project)]
            (let [go-node (selection->game-object-instance selection)
-                 coll-node (core/scope-of-type go-node CollectionNode)]
-             (add-game-object-file coll-node go-node resource (fn [node-ids] (app-view/select app-view node-ids))))))))
+                 coll-node (core/scope-of-type go-node CollectionNode)
+                 select-fn (fn [node-ids] (app-view/select app-view node-ids))]
+             (add-referenced-game-object! coll-node go-node resource select-fn))))))
 
 (defn load-collection [project self resource collection]
   (concat
@@ -752,8 +739,8 @@
                            (concat
                              (for [game-object (:instances collection)
                                    :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
-                               (make-ref-go self project source-resource (:id game-object) (:position game-object)
-                                            (:rotation game-object) (:scale3 game-object) nil (:component-properties game-object)))
+                               (make-ref-go self source-resource (:id game-object) (:position game-object)
+                                            (:rotation game-object) (:scale3 game-object) nil (:component-properties game-object) nil))
                              (for [embedded (:embedded-instances collection)]
                                (make-embedded-go self project (:data embedded) (:id embedded)
                                                  (:position embedded)
@@ -775,8 +762,8 @@
             (child-coll-any self child-id)))))
     (for [coll-instance (:collection-instances collection)
           :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
-      (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
-                               (:rotation coll-instance) (:scale3 coll-instance) (:instance-properties coll-instance)))))
+      (make-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
+                                (:rotation coll-instance) (:scale3 coll-instance) (:instance-properties coll-instance) nil))))
 
 (defn- sanitize-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
