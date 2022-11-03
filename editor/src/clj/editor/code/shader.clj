@@ -98,6 +98,7 @@
     "sampler2D" :shader-type-sampler2d
     "sampler3D" :shader-type-sampler3d
     "samplerCube" :shader-type-sampler-cube
+    "sampler2DArray" :shader-type-sampler2d-array
     :shader-type-unknown))
 
 (defn- shader-stage-from-ext

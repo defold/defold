@@ -88,7 +88,6 @@
     (+ (* page-margin page-index) (* layout-width page-index))))
 
 (defn- get-rect-transform [width page-index]
-  (println width page-index)
   (let [page-offset (get-rect-page-offset width page-index)]
     (doto (Matrix4d.)
       (.setIdentity)
@@ -143,8 +142,6 @@
 
 (defn- atlas-rect->editor-rect [rect]
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
-
-(types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))
 
 (g/defnk produce-image-scene
   [_node-id image-resource order layout-size image-path->rect animation-updatable]
