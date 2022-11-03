@@ -18,7 +18,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
-            [editor.collection-data :as collection-data]
+            [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
             [editor.diff-view :as diff-view]
             [editor.game-project :as game-project]
@@ -176,8 +176,8 @@
                 (testing "Collection properties are retained post-update."
                   (let [ext->resource-type (workspace/get-resource-type-map workspace)
                         main-collection-save-value (g/node-value main-collection :save-value)
-                        main-collection-data (collection-data/string-decode-collection-data ext->resource-type main-collection-save-value)
-                        embedded-spine-model-data (get-in main-collection-data [:embedded-instances 0 :data :embedded-components 0 :data])]
+                        main-collection-desc (collection-string-data/string-decode-collection-desc ext->resource-type main-collection-save-value)
+                        embedded-spine-model-data (get-in main-collection-desc [:embedded-instances 0 :data :embedded-components 0 :data])]
                     (is (= "/assets/spineboy.spinescene" (:spine-scene embedded-spine-model-data)))
                     (is (= "idle" (:default-animation embedded-spine-model-data)))
                     (is (= "" (:skin embedded-spine-model-data)))

@@ -18,17 +18,17 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.atlas :as atlas]
             [editor.build-errors-view :as build-errors-view]
             [editor.code.script :as script]
             [editor.collection :as collection]
+            [editor.collection-common :as collection-common]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
-            [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as tu]
             [support.test-support :refer [spit-until-new-mtime with-clean-system]]
@@ -296,51 +296,6 @@
         (is (set/superset? (built-resources sub-sub-props-collection)
                            #{(build-resource "/script/resources/from_sub_sub_props_collection.material")}))))))
 
-(defn- created-node [select-fn-call-logger]
-  (let [calls (tu/call-logger-calls select-fn-call-logger)
-        args (last calls)
-        selection (first args)
-        node-id (first selection)]
-    node-id))
-
-(defn- add-component! [game-object component]
-  (let [select-fn (tu/make-call-logger)]
-    (game-object/add-component-file game-object (g/node-value component :resource) select-fn)
-    (created-node select-fn)))
-
-(defn- add-game-object! [collection game-object]
-  (let [select-fn (tu/make-call-logger)]
-    (collection/add-game-object-file collection collection (g/node-value game-object :resource) select-fn)
-    (created-node select-fn)))
-
-(defn- add-embedded-game-object! [collection]
-  (let [project (project/get-project collection)
-        workspace (project/workspace project)
-        select-fn (tu/make-call-logger)]
-    (collection/add-game-object workspace project collection collection select-fn)
-    (created-node select-fn)))
-
-(defn- add-collection! [collection instantiated-collection]
-  (let [resource (g/node-value instantiated-collection :resource)
-        id (resource/base-name resource)
-        position [0.0 0.0 0.0]
-        rotation [0.0 0.0 0.0 1.0]
-        scale [1.0 1.0 1.0]
-        overrides []]
-    (first
-      (g/tx-nodes-added
-        (g/transact
-          (collection/add-collection-instance collection resource id position rotation scale overrides))))))
-
-(defn- make-atlas! [project proj-path]
-  (assert (string/ends-with? proj-path ".atlas"))
-  (let [workspace (project/workspace project)
-        image-resource (tu/make-png-resource! workspace (string/replace proj-path #".atlas$" ".png"))
-        atlas (tu/make-resource-node! project proj-path)]
-    (g/transact
-      (atlas/add-images atlas [image-resource]))
-    atlas))
-
 (defn- make-material! [project proj-path]
   (assert (string/ends-with? proj-path ".material"))
   (let [workspace (project/workspace project)
@@ -369,7 +324,7 @@
   (assert (vector? items))
   (let [wanted-id (g/node-value node-with-id-property :id)]
     (some (fn [{:keys [id] :as item}]
-            (let [item-id (if (string/starts-with? id collection/path-sep) (subs id 1) id)]
+            (let [item-id (if (string/starts-with? id collection-common/path-sep) (subs id 1) id)]
               (when (= wanted-id item-id)
                 item)))
           items)))
@@ -387,7 +342,7 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           texture-build-resource (partial texture-build-resource project)
           build-output (partial tu/build-output project)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
@@ -491,7 +446,7 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial texture-build-resource project)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
@@ -504,7 +459,7 @@
                                             "go.property('material', resource.material('/from-props-script.material'))"
                                             "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-game-object (make-resource-node! "/props.go")
-              props-script-component (add-component! props-game-object props-script)
+              props-script-component (tu/add-referenced-component! props-game-object (resource-node/resource props-script))
               original-property-values (into {}
                                              (map (fn [[prop-kw {:keys [value]}]]
                                                     [prop-kw value]))
@@ -692,7 +647,7 @@
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-output (partial tu/build-output project)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
         (make-atlas! "/from-props-script.atlas")
@@ -700,7 +655,7 @@
         (let [props-script (doto (make-resource-node! "/props.script")
                              (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (make-resource-node! "/props.go")
-              props-script-component (add-component! props-game-object props-script)]
+              props-script-component (tu/add-referenced-component! props-game-object (resource-node/resource props-script))]
           (edit-property! props-script-component :__atlas (resource "/from-props-game-object.atlas"))
           (tu/move-file! workspace "/from-props-game-object.atlas" "/renamed-from-props-game-object.atlas")
           (is (tu/prop-overridden? props-script-component :__atlas))
@@ -736,7 +691,7 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial texture-build-resource project)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
@@ -751,9 +706,9 @@
                                             "go.property('material', resource.material('/from-props-script.material'))"
                                             "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
-                                  (add-component! props-script))
+                                  (tu/add-referenced-component! (resource-node/resource props-script)))
               props-collection (make-resource-node! "/props.collection")
-              ov-props-game-object (add-game-object! props-collection props-game-object)
+              ov-props-game-object (tu/add-referenced-game-object! props-collection (resource-node/resource props-game-object))
               ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
               props-game-object-instance (ffirst (g/sources-of props-collection :ref-inst-ddf))
               original-property-values (into {}
@@ -956,7 +911,7 @@
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-output (partial tu/build-output project)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
         (make-atlas! "/from-props-script.atlas")
@@ -964,9 +919,9 @@
         (let [props-script (doto (make-resource-node! "/props.script")
                              (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
-                                  (add-component! props-script))
+                                  (tu/add-referenced-component! (resource-node/resource props-script)))
               props-collection (make-resource-node! "/props.collection")
-              ov-props-game-object (add-game-object! props-collection props-game-object)
+              ov-props-game-object (tu/add-referenced-game-object! props-collection (resource-node/resource props-game-object))
               ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
               props-game-object-instance (ffirst (g/sources-of props-collection :ref-inst-ddf))]
           (edit-property! ov-props-script-component :__atlas (resource "/from-props-collection.atlas"))
@@ -1006,7 +961,7 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial texture-build-resource project)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
@@ -1023,11 +978,11 @@
                                             "go.property('material', resource.material('/from-props-script.material'))"
                                             "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
-                                  (add-component! props-script))
+                                  (tu/add-referenced-component! (resource-node/resource props-script)))
               props-collection (doto (make-resource-node! "/props.collection")
-                                 (add-game-object! props-game-object))
+                                 (tu/add-referenced-game-object! (resource-node/resource props-game-object)))
               sub-props-collection (make-resource-node! "/sub-props.collection")
-              ov-props-collection (add-collection! sub-props-collection props-collection)
+              ov-props-collection (tu/add-referenced-collection! sub-props-collection (resource-node/resource props-collection))
               ov-props-game-object-instance (ffirst (g/sources-of ov-props-collection :ref-inst-ddf))
               ov-props-game-object (ffirst (g/sources-of ov-props-game-object-instance :source-resource))
               ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
@@ -1248,7 +1203,7 @@
           build-output (partial tu/build-output project)
           node-build-resource tu/node-build-resource
           texture-build-resource (partial texture-build-resource project)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
@@ -1265,11 +1220,11 @@
                                             "go.property('material', resource.material('/from-props-script.material'))"
                                             "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-collection (doto (make-resource-node! "/props.collection"))
-              embedded-game-object-instance (add-embedded-game-object! props-collection)
+              embedded-game-object-instance (tu/add-embedded-game-object! props-collection)
               embedded-game-object (ffirst (g/sources-of embedded-game-object-instance :source-resource))
-              props-script-component (add-component! embedded-game-object props-script)
+              props-script-component (tu/add-referenced-component! embedded-game-object (resource-node/resource props-script))
               sub-props-collection (make-resource-node! "/sub-props.collection")
-              ov-props-collection (add-collection! sub-props-collection props-collection)
+              ov-props-collection (tu/add-referenced-collection! sub-props-collection (resource-node/resource props-collection))
               ov-embedded-game-object-instance (ffirst (g/sources-of ov-props-collection :embed-inst-ddf))
               ov-embedded-game-object (ffirst (g/sources-of ov-embedded-game-object-instance :source-resource))
               ov-props-script-component (ffirst (g/sources-of ov-embedded-game-object :ref-ddf))
@@ -1487,7 +1442,7 @@
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-output (partial tu/build-output project)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
         (make-atlas! "/from-props-script.atlas")
@@ -1495,11 +1450,11 @@
         (let [props-script (doto (make-resource-node! "/props.script")
                              (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
-                                  (add-component! props-script))
+                                  (tu/add-referenced-component! (resource-node/resource props-script)))
               props-collection (doto (make-resource-node! "/props.collection")
-                                 (add-game-object! props-game-object))
+                                 (tu/add-referenced-game-object! (resource-node/resource props-game-object)))
               sub-props-collection (make-resource-node! "/sub-props.collection")
-              ov-props-collection (add-collection! sub-props-collection props-collection)
+              ov-props-collection (tu/add-referenced-collection! sub-props-collection (resource-node/resource props-collection))
               ov-props-game-object-instance (ffirst (g/sources-of ov-props-collection :ref-inst-ddf))
               ov-props-game-object (ffirst (g/sources-of ov-props-game-object-instance :source-resource))
               ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
@@ -1536,17 +1491,11 @@
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
           project-graph (g/node-id->graph-id project)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)
           edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
           assigned-property? (fn [node-id proj-path] (atlas-resource-property? (get (properties node-id) :__atlas) (tu/resource workspace proj-path)))
-          overridden-property? (fn [node-id] (overridden? node-id "atlas"))
-          build-target-source-path (comp resource/proj-path :resource :resource)
-          built-source-paths (fn [resource-node]
-                               (into #{}
-                                     (keep build-target-source-path)
-                                     (pipeline/flatten-build-targets
-                                       (g/node-value resource-node :build-targets))))]
+          overridden-property? (fn [node-id] (overridden? node-id "atlas"))]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
@@ -1555,12 +1504,12 @@
         (let [props-script (doto (make-resource-node! "/props.script")
                              (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (make-resource-node! "/props.go")
-              props-script-component (add-component! props-game-object props-script)
+              props-script-component (tu/add-referenced-component! props-game-object (resource-node/resource props-script))
               props-collection (make-resource-node! "/props.collection")
-              ov-props-game-object (add-game-object! props-collection props-game-object)
+              ov-props-game-object (tu/add-referenced-game-object! props-collection (resource-node/resource props-game-object))
               ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
               sub-props-collection (make-resource-node! "/sub-props.collection")
-              ov-props-collection (add-collection! sub-props-collection props-collection)
+              ov-props-collection (tu/add-referenced-collection! sub-props-collection (resource-node/resource props-collection))
               ov-props-game-object-instance (ffirst (g/sources-of ov-props-collection :ref-inst-ddf))
               ov-ov-props-game-object (ffirst (g/sources-of ov-props-game-object-instance :source-resource))
               ov-ov-props-script-component (ffirst (g/sources-of ov-ov-props-game-object :ref-ddf))]
@@ -1584,7 +1533,7 @@
                      "/props.script"
                      "/from-props-game-object.atlas"
                      "/from-props-script.atlas"}
-                   (built-source-paths sub-props-collection))))
+                   (tu/node-built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
@@ -1599,7 +1548,7 @@
                      "/props.script"
                      "/from-props-collection.atlas"
                      "/from-props-script.atlas"}
-                   (built-source-paths sub-props-collection))))
+                   (tu/node-built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
@@ -1614,7 +1563,7 @@
                      "/props.script"
                      "/from-sub-props-collection.atlas"
                      "/from-props-script.atlas"}
-                   (built-source-paths sub-props-collection))))
+                   (tu/node-built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
@@ -1631,7 +1580,7 @@
                      "/from-props-collection.atlas"
                      "/from-props-game-object.atlas"
                      "/from-props-script.atlas"}
-                   (built-source-paths sub-props-collection))))
+                   (tu/node-built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
@@ -1648,7 +1597,7 @@
                      "/from-sub-props-collection.atlas"
                      "/from-props-game-object.atlas"
                      "/from-props-script.atlas"}
-                   (built-source-paths sub-props-collection))))
+                   (tu/node-built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
@@ -1665,7 +1614,7 @@
                      "/from-sub-props-collection.atlas"
                      "/from-props-collection.atlas"
                      "/from-props-script.atlas"}
-                   (built-source-paths sub-props-collection))))
+                   (tu/node-built-source-paths sub-props-collection))))
 
           (with-open [_ (tu/make-graph-reverter project-graph)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
@@ -1684,7 +1633,7 @@
                      "/from-props-collection.atlas"
                      "/from-props-game-object.atlas"
                      "/from-props-script.atlas"}
-                   (built-source-paths sub-props-collection)))))))))
+                   (tu/node-built-source-paths sub-props-collection)))))))))
 
 (deftest overrides-remain-after-script-edit-test
   (with-clean-system
@@ -1692,7 +1641,7 @@
           project (tu/setup-project! workspace)
           project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
         (make-atlas! "/from-props-script.atlas")
@@ -1700,7 +1649,7 @@
         (let [props-script (doto (make-resource-node! "/props.script")
                              (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (make-resource-node! "/props.go")
-              props-script-component (add-component! props-game-object props-script)]
+              props-script-component (tu/add-referenced-component! props-game-object (resource-node/resource props-script))]
           (edit-property! props-script-component :__atlas (resource "/from-props-game-object.atlas"))
           (atlas-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas"))
 
@@ -1741,7 +1690,7 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          make-atlas! (partial make-atlas! project)
+          make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)
           edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
           assigned-property? (fn [node-id proj-path] (atlas-resource-property? (get (properties node-id) :__atlas) (tu/resource workspace proj-path)))
@@ -1754,12 +1703,12 @@
         (let [props-script (doto (make-resource-node! "/props.script")
                              (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (make-resource-node! "/props.go")
-              props-script-component (add-component! props-game-object props-script)
+              props-script-component (tu/add-referenced-component! props-game-object (resource-node/resource props-script))
               props-collection (make-resource-node! "/props.collection")
-              ov-props-game-object (add-game-object! props-collection props-game-object)
+              ov-props-game-object (tu/add-referenced-game-object! props-collection (resource-node/resource props-game-object))
               ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
               sub-props-collection (make-resource-node! "/sub-props.collection")
-              ov-props-collection (add-collection! sub-props-collection props-collection)
+              ov-props-collection (tu/add-referenced-collection! sub-props-collection (resource-node/resource props-collection))
               ov-props-game-object-instance (ffirst (g/sources-of ov-props-collection :ref-inst-ddf))
               ov-ov-props-game-object (ffirst (g/sources-of ov-props-game-object-instance :source-resource))
               ov-ov-props-script-component (ffirst (g/sources-of ov-ov-props-game-object :ref-ddf))]
@@ -1808,19 +1757,16 @@
   ;; Reported as #4370 "ZipResource equality issues" in the GitHub tracker.
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
-          project (tu/setup-project! workspace)
-          build-target-source-path (comp resource/proj-path :resource :resource)]
+          project (tu/setup-project! workspace)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
         (doto (tu/make-resource-node! project "/props.script")
           (edit-script! ["go.property('image', resource.atlas('/builtins/graphics/particle_blob.tilesource'))"]))
 
         ;; Verify build-targets before resource sync.
         (let [props-script (tu/resource-node project "/props.script")]
-          (is (= ["/props.script"
-                  "/builtins/graphics/particle_blob.tilesource"]
-                 (keep build-target-source-path
-                       (pipeline/flatten-build-targets
-                         (g/node-value props-script :build-targets))))))
+          (is (= #{"/props.script"
+                   "/builtins/graphics/particle_blob.tilesource"}
+                 (tu/node-built-source-paths props-script))))
 
         ;; Simulate an external edit to the script, triggering resource sync.
         (write-file! workspace "props.script"
@@ -1830,8 +1776,6 @@
 
         ;; Verify build-targets after resource sync.
         (let [props-script (tu/resource-node project "/props.script")]
-          (is (= ["/props.script"
-                  "/builtins/graphics/particle_blob.tilesource"]
-                 (keep build-target-source-path
-                       (pipeline/flatten-build-targets
-                         (g/node-value props-script :build-targets))))))))))
+          (is (= #{"/props.script"
+                   "/builtins/graphics/particle_blob.tilesource"}
+                 (tu/node-built-source-paths props-script))))))))

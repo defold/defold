@@ -290,11 +290,7 @@
 
 (defn- get-and-update-meshes [model]
   (let [transform (:local model)
-        local-translation (doto (Vector3d.) (math/clj->vecmath (:translation transform)))
-        local-rotation (doto (Quat4d.) (math/clj->vecmath (:rotation transform)))
-        local-scale (doto (Vector3d.) (math/clj->vecmath (:scale transform)))
-        ^Matrix4d local-matrix (math/->mat4-non-uniform local-translation local-rotation local-scale)
-
+        local-matrix (math/clj->mat4 (:translation transform) (:rotation transform) (:scale transform))
         meshes (:meshes model)
         out (map arrayify meshes)
         out (map (fn [mesh] (assoc mesh :transform local-matrix)) out)]

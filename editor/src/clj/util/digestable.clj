@@ -36,7 +36,7 @@
   (and (named? value)
        (string/ends-with? (name value) "node-id")))
 
-(defn- node-id-entry? [key value]
+(defn node-id-entry? [key value]
   (and (g/node-id? value)
        (node-id-key? key)))
 
@@ -47,7 +47,7 @@
     (throw (ex-info (str "Unknown node id in digestable: " node-id)
                     {:node-id node-id}))))
 
-(defn- fn->symbol [fn]
+(defn fn->symbol [fn]
   (let [class-name (.getName (class fn))]
     (if (re-find #"__\d+$" class-name)
       (throw (ex-info (str "Lambda function in digestable: " class-name)

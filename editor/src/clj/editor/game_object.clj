@@ -14,11 +14,11 @@
 
 (ns editor.game-object
   (:require [clojure.set :as set]
-            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
+            [editor.game-object-common :as game-object-common]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
@@ -34,17 +34,13 @@
             [editor.sound :as sound]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util]
-            [service.log :as log])
+            [internal.util :as util])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
-           [java.io StringReader]
-           [javax.vecmath Matrix4d Vector3d]
-           [org.apache.commons.io FilenameUtils]))
+           [javax.vecmath Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
-(def game-object-icon "icons/32/Icons_06-Game-object.png")
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (defn- gen-ref-ddf [id position rotation scale source-resource ddf-properties]
@@ -99,18 +95,13 @@
      :icon ""
      :label ""}))
 
-(def ^:private identity-transform-properties
-  {:position [(float 0.0) (float 0.0) (float 0.0)]
-   :rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
-   :scale [(float 1.0) (float 1.0) (float 1.0)]})
-
 (defn- supported-transform-properties [component-resource-type]
   (assert (some? component-resource-type))
   (if-not (contains? (:tags component-resource-type) :component)
     #{}
     (let [supported-properties (-> component-resource-type :tag-opts :component :transform-properties)]
       (assert (set? supported-properties))
-      (assert (every? (partial contains? identity-transform-properties) supported-properties))
+      (assert (every? (partial contains? game-object-common/identity-transform-properties) supported-properties))
       supported-properties)))
 
 (defn- select-transform-properties
@@ -118,11 +109,11 @@
   Unsupported properties will be initialized to the identity transform.
   If the resource type is unknown to us, keep all transform properties."
   [component-resource-type component]
-  (merge identity-transform-properties
+  (merge game-object-common/identity-transform-properties
          (select-keys component
                       (if (some? component-resource-type)
                         (supported-transform-properties component-resource-type)
-                        (keys identity-transform-properties)))))
+                        (keys game-object-common/identity-transform-properties)))))
 
 (g/defnk produce-component-transform-properties
   "Determines which transform properties we allow the user to edit using the
@@ -138,7 +129,7 @@
   (assert (set? transform-properties))
   (-> _declared-properties
       (update :properties (fn [properties]
-                            (let [stripped-transform-properties (remove transform-properties (keys identity-transform-properties))
+                            (let [stripped-transform-properties (remove transform-properties (keys game-object-common/identity-transform-properties))
                                   component-node-properties (apply dissoc properties stripped-transform-properties)
                                   source-resource-properties (:properties source-properties)]
                               (merge-with (fn [_ _]
@@ -156,22 +147,23 @@
   ;; :instance-data with the overrides for this instance. This will later be
   ;; extracted and compiled into the GameObject - the overrides do not end up in
   ;; the resulting component binary.
+  ;;
+  ;; TODO: We can avoid some of this processing & input dependencies for embedded components. Separate into individual production functions?
+  ;; For example, embedded components do not have resource-property-build-targets, and cannot refer to raw sounds.
   (when-some [source-build-target (first source-build-targets)]
-    (let [go-props-with-source-resources (:properties ddf-message)]
-      (if-some [errors (not-empty (keep :error go-props-with-source-resources))]
-        (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-        (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets go-props-with-source-resources)
-              build-target (-> source-build-target
-                               (assoc :resource build-resource)
-                               (wrap-if-raw-sound _node-id))
-              build-target (assoc build-target
-                             :instance-data {:resource (:resource build-target)
-                                             :transform transform
-                                             :property-deps go-prop-dep-build-targets
-                                             :instance-msg (if (seq go-props)
-                                                             (assoc ddf-message :properties go-props)
-                                                             ddf-message)})]
-          [(bt/with-content-hash build-target)])))))
+    (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
+      (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
+      (let [is-embedded (contains? ddf-message :data)
+            build-target (-> source-build-target
+                             (assoc :resource build-resource)
+                             (wrap-if-raw-sound _node-id))
+            build-resource (:resource build-target) ; The wrap-if-raw-sound call might have changed this.
+            instance-data (if is-embedded
+                            (game-object-common/embedded-component-instance-data build-resource ddf-message transform)
+                            (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
+                              (game-object-common/referenced-component-instance-data build-resource ddf-message transform proj-path->resource-property-build-target)))
+            build-target (assoc build-target :instance-data instance-data)]
+        [(bt/with-content-hash build-target)]))))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -246,14 +238,12 @@
 (g/defnode EmbeddedComponent
   (inherits ComponentNode)
 
-  (input embedded-resource-id g/NodeID)
-  (input save-data g/Any :cascade-delete)
+  (input embedded-resource-id g/NodeID :cascade-delete)
+  (input save-data g/Any)
   (output ddf-message g/Any (g/fnk [id position rotation scale save-data]
                               (gen-embed-ddf id position rotation scale save-data)))
-  (output build-resource resource/Resource (g/fnk [source-resource save-data]
-                                                  (some-> source-resource
-                                                     (assoc :data (:content save-data))
-                                                     workspace/make-build-resource))))
+  (output build-resource resource/Resource (g/fnk [source-build-targets]
+                                             (some-> source-build-targets first bt/make-content-hash-build-resource))))
 
 ;; -----------------------------------------------------------------------------
 ;; Currently some source resources have scale properties. This was done so
@@ -367,18 +357,8 @@
   {:components ref-ddf
    :embedded-components embed-ddf})
 
-(def ^:private default-scale-value (:scale identity-transform-properties))
-
-(defn- strip-default-scale-from-component-desc [component-desc]
-  ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
-  (let [scale (:scale component-desc)]
-    (if (or (= default-scale-value scale)
-            (protobuf/default-read-scale-value? scale))
-      (dissoc component-desc :scale)
-      component-desc)))
-
 (defn- strip-default-scale-from-component-descs [component-descs]
-  (mapv strip-default-scale-from-component-desc component-descs))
+  (mapv game-object-common/strip-default-scale-from-component-desc component-descs))
 
 (defn strip-default-scale-from-components-in-prototype-desc [prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
@@ -389,60 +369,17 @@
 (g/defnk produce-save-value [proto-msg]
   (strip-default-scale-from-components-in-prototype-desc proto-msg))
 
-(defn- build-game-object [resource dep-resources user-data]
-  ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
-  ;; when reading this. It will clear up how the output binaries are structured.
-  ;; Be aware that these structures are also used to store the saved project
-  ;; data. Sometimes a field will only be used by the editor *or* the runtime.
-  ;; At this point, all referenced and embedded components will have emitted
-  ;; BuildResources. The engine does not have a concept of an EmbeddedComponent.
-  ;; They are written as separate binaries and referenced just like any other
-  ;; ReferencedComponent. However, embedded components from different sources
-  ;; might have been fused into one BuildResource if they had the same contents.
-  ;; We must update any references to these BuildResources to instead point to
-  ;; the resulting fused BuildResource. We also extract :instance-data from the
-  ;; component build targets and embed these as ComponentDesc instances in the
-  ;; PrototypeDesc that represents the game object.
-  (let [build-go-props (partial properties/build-go-props dep-resources)
-        instance-data (:instance-data user-data)
-        component-msgs (map :instance-msg instance-data)
-        component-go-props (map (comp build-go-props :properties) component-msgs)
-        component-build-resource-paths (map (comp resource/proj-path dep-resources :resource) instance-data)
-        component-descs (map (fn [component-msg fused-build-resource-path go-props]
-                               (-> component-msg
-                                   (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
-                                   (assoc :component fused-build-resource-path)
-                                   (cond-> (seq go-props)
-                                           (assoc :property-decls (properties/go-props->decls go-props false)))))
-                             component-msgs
-                             component-build-resource-paths
-                             component-go-props)
-        property-resource-paths (into (sorted-set)
-                                      (comp cat (keep properties/try-get-go-prop-proj-path))
-                                      component-go-props)
-        msg {:components component-descs
-             :property-resources property-resource-paths}]
-    {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
-
-(g/defnk produce-build-targets [_node-id resource proto-msg dep-build-targets id-counts]
+(g/defnk produce-build-targets [_node-id resource dep-build-targets id-counts]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
-        (when (not-empty dup-ids)
-          (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-      ;; Extract the :instance-data from the component build targets so that
-      ;; overrides can be embedded in the resulting game object binary. We also
-      ;; establish dependencies to build-targets from any resources referenced
-      ;; by script property overrides.
-      (let [flat-dep-build-targets (flatten dep-build-targets)
-            instance-data (mapv :instance-data flat-dep-build-targets)]
-        [(bt/with-content-hash
-           {:node-id _node-id
-            :resource (workspace/make-build-resource resource)
-            :build-fn build-game-object
-            :user-data {:proto-msg proto-msg :instance-data instance-data}
-            :deps (into (vec flat-dep-build-targets)
-                        (comp (mapcat :property-deps)
-                              (util/distinct-by (comp resource/proj-path :resource)))
-                        instance-data)})])))
+        (game-object-common/maybe-duplicate-id-error _node-id dup-ids))
+      (let [build-resource (workspace/make-build-resource resource)
+            component-instance-build-targets (flatten dep-build-targets)
+            component-instance-datas (mapv :instance-data component-instance-build-targets)
+            component-build-targets (into []
+                                          (comp (map #(dissoc % :instance-data))
+                                                (util/distinct-by (comp resource/proj-path :resource)))
+                                          component-instance-build-targets)]
+        [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
 
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id
@@ -450,6 +387,8 @@
    :children child-scenes})
 
 (defn- attach-component [self-id comp-id ddf-input resolve-id?]
+  ;; self-id: GameObjectNode
+  ;; comp-id: EmbeddedComponent, ReferencedComponent
   (concat
     (when resolve-id?
       (->> (g/node-value self-id :component-ids)
@@ -468,22 +407,30 @@
       (g/connect self-id from comp-id to))))
 
 (defn- attach-ref-component [self-id comp-id]
+  ;; self-id: GameObjectNode
+  ;; comp-id: ReferencedComponent
   (attach-component self-id comp-id :ref-ddf false))
 
 (defn- attach-embedded-component [self-id comp-id]
+  ;; self-id: GameObjectNode
+  ;; comp-id: EmbeddedComponent
   (attach-component self-id comp-id :embed-ddf false))
 
 (defn- outline-attach-ref-component [self-id comp-id]
+  ;; self-id: GameObjectNode
+  ;; comp-id: ReferencedComponent
   (attach-component self-id comp-id :ref-ddf true))
 
 (defn- outline-attach-embedded-component [self-id comp-id]
+  ;; self-id: GameObjectNode
+  ;; comp-id: EmbeddedComponent
   (attach-component self-id comp-id :embed-ddf true))
 
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
    :node-outline-key "Game Object"
    :label "Game Object"
-   :icon game-object-icon
+   :icon game-object-common/game-object-icon
    :children (outline/natural-sort child-outlines)
    :child-reqs [{:node-type ReferencedComponent
                  :tx-attach-fn outline-attach-ref-component}
@@ -545,11 +492,14 @@
     (g/transact
       (concat
         (g/operation-label "Add Component")
-        (add-component go-id resource id identity-transform-properties [] select-fn)))))
+        (add-component go-id resource id game-object-common/identity-transform-properties [] select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
-  (let [component-exts (map :ext (concat (workspace/get-resource-types workspace :component)
-                                         (workspace/get-resource-types workspace :embeddable)))]
+  (let [component-exts (keep (fn [[ext {:keys [tags :as _resource-type]}]]
+                               (when (or (contains? tags :component)
+                                         (contains? tags :embeddable))
+                                 ext))
+                             (workspace/get-resource-type-map workspace))]
     (when-let [resource (first (resource-dialog/make workspace project {:ext component-exts :title "Select Component File"}))]
       (add-component-file go-id resource select-fn))))
 
@@ -564,12 +514,10 @@
 
 (defn- add-embedded-component [self project type data id {:keys [position rotation scale]} select-fn]
   (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project type data)
+        resource (project/make-embedded-resource project :editable type data)
         node-type (project/resource-node-type resource)]
     (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]
                          resource-node [node-type :resource resource]]
-                  (g/connect resource-node :_node-id self :nodes)
-                  (g/connect comp-node :_node-id self :nodes)
                   (project/load-node project resource-node node-type resource)
                   (project/connect-if-output node-type resource-node comp-node
                                              [[:_node-id :embedded-resource-id]
@@ -593,7 +541,7 @@
     (g/transact
      (concat
       (g/operation-label "Add Component")
-      (add-embedded-component self project (:ext component-type) template id identity-transform-properties select-fn)))))
+      (add-embedded-component self project (:ext component-type) template id game-object-common/identity-transform-properties select-fn)))))
 
 (defn add-embedded-component-label [user-data]
   (if-not user-data
@@ -602,10 +550,12 @@
       (or (:label rt) (:ext rt)))))
 
 (defn embeddable-component-resource-types [workspace]
-  (->> (workspace/get-resource-types workspace :component)
-       (filter (fn [resource-type]
-                 (and (not (contains? (:tags resource-type) :non-embeddable))
-                      (workspace/has-template? workspace resource-type))))))
+  (keep (fn [[_ext {:keys [tags] :as resource-type}]]
+          (when (and (contains? tags :component)
+                     (not (contains? tags :non-embeddable))
+                     (workspace/has-template? workspace resource-type))
+            resource-type))
+        (workspace/get-resource-type-map workspace)))
 
 (defn add-embedded-component-options [self workspace user-data]
   (when (not user-data)
@@ -627,93 +577,25 @@
              (add-embedded-component-options self workspace user-data))))
 
 (defn load-game-object [project self resource prototype]
-  (concat
-    (for [component (:components prototype)
-          :let [source-path (:component component)
-                source-resource (workspace/resolve-resource resource source-path)
-                resource-type (some-> source-resource resource/resource-type)
-                transform-properties (select-transform-properties resource-type component)
-                properties (:properties component)]]
-      (add-component self source-resource (:id component) transform-properties properties nil))
-    (for [embedded (:embedded-components prototype)
-          :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
-                transform-properties (select-transform-properties resource-type embedded)]]
-      (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
+  (let [workspace (project/workspace project)
+        ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
+    (concat
+      (for [component (:components prototype)
+            :let [source-path (:component component)
+                  source-resource (workspace/resolve-resource resource source-path)
+                  resource-type (some-> source-resource resource/resource-type)
+                  transform-properties (select-transform-properties resource-type component)
+                  properties (:properties component)]]
+        (add-component self source-resource (:id component) transform-properties properties nil))
+      (for [{:keys [id type data] :as embedded-component-desc} (:embedded-components prototype)
+            :let [resource-type (ext->embedded-component-resource-type type)
+                  transform-properties (select-transform-properties resource-type embedded-component-desc)]]
+        (add-embedded-component self project type data id transform-properties false)))))
 
-(defn sanitize-property-descs-at-path [desc property-descs-path]
-  ;; GameObject$ComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  ;; The supplied path should lead up to a seq of GameObject$PropertyDescs in map format.
-  (if-some [property-descs (not-empty (get-in desc property-descs-path))]
-    (assoc-in desc property-descs-path (mapv properties/sanitize-property-desc property-descs))
-    desc))
-
-(defn- sanitize-referenced-component [component-desc]
-  ;; GameObject$ComponentDesc in map format.
-  (-> component-desc
-      (sanitize-property-descs-at-path [:properties])
-      (dissoc :property-decls) ; Only used in built data by the runtime.
-      (strip-default-scale-from-component-desc)))
-
-(defn- sanitize-embedded-component-data [embedded-component-desc resource-type-map]
-  ;; GameObject$EmbeddedComponentDesc in map format.
-  (let [component-ext (:type embedded-component-desc)
-        resource-type (resource-type-map component-ext)
-        tag-opts (:tag-opts resource-type)
-        sanitize-fn (:sanitize-fn resource-type)
-        sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))]
-    (try
-      (let [unsanitized-data (when (or sanitize-fn sanitize-embedded-component-fn)
-                               (let [read-raw-fn (:read-raw-fn resource-type)
-                                     unsanitized-data-string (:data embedded-component-desc)]
-                                 (with-open [reader (StringReader. unsanitized-data-string)]
-                                   (read-raw-fn reader))))
-            sanitized-data (if sanitize-fn
-                             (sanitize-fn unsanitized-data)
-                             unsanitized-data)
-            [embedded-component-desc sanitized-data] (if sanitize-embedded-component-fn
-                                                       (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
-                                                       [embedded-component-desc sanitized-data])]
-        (if (= unsanitized-data sanitized-data)
-          embedded-component-desc
-          (let [write-fn (:write-fn resource-type)
-                sanitized-data-string (write-fn sanitized-data)]
-            (assoc embedded-component-desc :data sanitized-data-string))))
-      (catch Exception e
-        ;; Leave unsanitized.
-        (log/warn :msg (str "Failed to sanitize embedded component of type: " (or component-ext "nil")) :exception e)
-        embedded-component-desc))))
-
-(defn- sanitize-embedded-component [resource-type-map embedded-component-desc]
-  ;; GameObject$EmbeddedComponentDesc in map format.
-  (-> embedded-component-desc
-      (sanitize-embedded-component-data resource-type-map)
-      (strip-default-scale-from-component-desc)))
-
-(defn sanitize-game-object [workspace prototype-desc]
+(defn- sanitize-game-object [workspace prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
-  (let [resource-type-map (workspace/get-resource-type-map workspace)]
-    (-> prototype-desc
-        (update :components (partial mapv sanitize-referenced-component))
-        (update :embedded-components (partial mapv (partial sanitize-embedded-component resource-type-map))))))
-
-(defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]
-  (when-let [resource-type (resource-types type)]
-    (let [read-component (:read-fn resource-type)
-          component-dependencies (:dependencies-fn resource-type)]
-      (try
-        (component-dependencies (read-component (StringReader. data)))
-        (catch Exception e
-          (log/warn :msg (format "Couldn't determine dependencies for embedded component %s." id) :exception e)
-          [])))))
-
-(defn- make-dependencies-fn [workspace]
-  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$PrototypeDesc)]
-    (fn [source-value]
-      (let [embedded-components (:embedded-components source-value)
-            resource-types (workspace/get-resource-type-map workspace)]
-        (into (default-dependencies-fn source-value)
-              (mapcat (partial parse-embedded-dependencies resource-types))
-              embedded-components)))))
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-strings)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -722,8 +604,8 @@
     :node-type GameObjectNode
     :ddf-type GameObject$PrototypeDesc
     :load-fn load-game-object
-    :dependencies-fn (make-dependencies-fn workspace)
+    :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
     :sanitize-fn (partial sanitize-game-object workspace)
-    :icon game-object-icon
+    :icon game-object-common/game-object-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))
