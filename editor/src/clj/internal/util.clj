@@ -357,17 +357,10 @@
 (defn only-or-throw
   "Returns the only element in coll, or throw an error if the collection does not have exactly one element."
   [coll]
-  (cond
-    (next coll)
-    (throw (ex-info "The collection has more than one element."
-                    {:coll coll}))
-
-    (seq coll)
-    (first coll)
-
-    :else
-    (throw (ex-info "The collection is empty."
-                    {:coll coll}))))
+  (case (bounded-count 2 coll)
+    0 (throw (ex-info "The collection is empty." {:coll coll}))
+    1 (first coll)
+    (throw (ex-info "The collection has more than one element." {:coll coll}))))
 
 (defn map->sort-key
   "Given any map, returns a vector that can be used to order it relative to any other map in a deterministic order."
