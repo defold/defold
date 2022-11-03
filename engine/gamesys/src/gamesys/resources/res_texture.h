@@ -20,6 +20,14 @@
 
 namespace dmGameSystem
 {
+    struct ResTextureReCreateParams
+    {
+        void*    m_TextureImage;
+        uint16_t m_X;
+        uint16_t m_Y;
+        uint8_t  m_MipMap;
+    };
+
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResTextureCreate(const dmResource::ResourceCreateParams& params);

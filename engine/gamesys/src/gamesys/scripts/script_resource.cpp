@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,6 +25,7 @@
 #include "script_resource.h"
 #include "../gamesys.h"
 #include "../resources/res_buffer.h"
+#include "../resources/res_texture.h"
 #include "script_resource_liveupdate.h"
 
 #include <dmsdk/script/script.h>
@@ -414,10 +415,10 @@ static int CheckTableInteger(lua_State* L, int index, const char* name)
 {
     return CheckTableValue<int>(L, index, name);
 }
-// static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
-// {
-//     return CheckTableValue<int>(L, index, name, default_value);
-// }
+static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
+{
+    return CheckTableValue<int>(L, index, name, default_value);
+}
 // static float CheckTableNumber(lua_State* L, int index, const char* name)
 // {
 //     return CheckTableValue<float>(L, index, name);
@@ -522,11 +523,15 @@ static int SetTexture(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    uint32_t type = (uint32_t)CheckTableInteger(L, 2, "type");
-    uint32_t width = (uint32_t)CheckTableInteger(L, 2, "width");
-    uint32_t height = (uint32_t)CheckTableInteger(L, 2, "height");
-    uint32_t format = (uint32_t)CheckTableInteger(L, 2, "format");
+    uint32_t type   = (uint32_t) CheckTableInteger(L, 2, "type");
+    uint32_t width  = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t format = (uint32_t) CheckTableInteger(L, 2, "format");
+    uint32_t x      = (uint32_t) CheckTableInteger(L, 2, "x", 0);
+    uint32_t y      = (uint32_t) CheckTableInteger(L, 2, "y", 0);
+    uint32_t mipmap = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
 
+    // Note: We only support uploading a single mipmap for a single slice at a time
     uint32_t num_mip_maps = 1;
 
     dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
@@ -536,9 +541,9 @@ static int SetTexture(lua_State* L)
     dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
 
     dmGraphics::TextureImage* texture_image = new dmGraphics::TextureImage;
-    texture_image->m_Alternatives.m_Data = new dmGraphics::TextureImage::Image[1];
-    texture_image->m_Alternatives.m_Count = 1;
-    texture_image->m_Type = (dmGraphics::TextureImage::Type)GraphicsTextureTypeToImageType(type);
+    texture_image->m_Alternatives.m_Data    = new dmGraphics::TextureImage::Image[1];
+    texture_image->m_Alternatives.m_Count   = 1; // JG: Investigate if this really works for cubemaps
+    texture_image->m_Type                   = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
 
     for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
     {
@@ -560,15 +565,21 @@ static int SetTexture(lua_State* L)
 
         for( uint32_t mip = 0; mip < num_mip_maps; ++mip )
         {
-            image->m_MipMapOffset[mip] = 0; // TODO: Fix mip offsets
-            image->m_MipMapSize[mip] = datasize;
+            image->m_MipMapOffset[mip] = 0;
+            image->m_MipMapSize[mip]   = datasize;
         }
     }
 
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*)texture_image);
+    ResTextureReCreateParams recreate_params;
+    recreate_params.m_TextureImage = texture_image;
+    recreate_params.m_X            = x;
+    recreate_params.m_Y            = y;
+    recreate_params.m_MipMap       = mipmap;
+
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &recreate_params);
 
     // cleanup memory
-
+    // JG: Why is this even needed o_x
     for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
     {
         dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
