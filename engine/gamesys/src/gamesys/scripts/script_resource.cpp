@@ -532,7 +532,7 @@ static int SetTexture(lua_State* L)
     uint32_t mipmap = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
 
     // Note: We only support uploading a single mipmap for a single slice at a time
-    uint32_t num_mip_maps = 1;
+    const uint32_t num_mip_maps = 1;
 
     dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
 
@@ -540,54 +540,36 @@ static int SetTexture(lua_State* L)
     uint32_t datasize = 0;
     dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
 
-    dmGraphics::TextureImage* texture_image = new dmGraphics::TextureImage;
-    texture_image->m_Alternatives.m_Data    = new dmGraphics::TextureImage::Image[1];
-    texture_image->m_Alternatives.m_Count   = 1; // JG: Investigate if this really works for cubemaps
-    texture_image->m_Type                   = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
+    dmGraphics::TextureImage::Image image  = {};
+    dmGraphics::TextureImage texture_image = {};
+    texture_image.m_Alternatives.m_Data    = &image;
+    texture_image.m_Alternatives.m_Count   = 1;
+    texture_image.m_Type                   = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
 
-    for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
-    {
-        dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
-        image->m_Width = width;
-        image->m_Height = height;
-        image->m_OriginalWidth = width;
-        image->m_OriginalHeight = height;
-        image->m_Format = (dmGraphics::TextureImage::TextureFormat)GraphicsTextureFormatToImageFormat(format);
-        image->m_CompressionType = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
-        image->m_CompressionFlags = 0;
-        image->m_Data.m_Data = data;
-        image->m_Data.m_Count = datasize;
-        image->m_MipMapOffset.m_Data = new uint32_t[num_mip_maps];
-        image->m_MipMapOffset.m_Count = num_mip_maps;
+    image.m_Width                = width;
+    image.m_Height               = height;
+    image.m_OriginalWidth        = width;
+    image.m_OriginalHeight       = height;
+    image.m_Format               = (dmGraphics::TextureImage::TextureFormat)GraphicsTextureFormatToImageFormat(format);
+    image.m_CompressionType      = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+    image.m_CompressionFlags     = 0;
+    image.m_Data.m_Data          = data;
+    image.m_Data.m_Count         = datasize;
 
-        image->m_MipMapSize.m_Data = new uint32_t[num_mip_maps];
-        image->m_MipMapSize.m_Count = num_mip_maps;
-
-        for( uint32_t mip = 0; mip < num_mip_maps; ++mip )
-        {
-            image->m_MipMapOffset[mip] = 0;
-            image->m_MipMapSize[mip]   = datasize;
-        }
-    }
+    uint32_t mip_map_offsets     = 0;
+    uint32_t mip_map_sizes       = datasize;
+    image.m_MipMapOffset.m_Data  = &mip_map_offsets;
+    image.m_MipMapOffset.m_Count = num_mip_maps;
+    image.m_MipMapSize.m_Data    = &mip_map_sizes;
+    image.m_MipMapSize.m_Count   = num_mip_maps;
 
     ResTextureReCreateParams recreate_params;
-    recreate_params.m_TextureImage = texture_image;
+    recreate_params.m_TextureImage = &texture_image;
     recreate_params.m_X            = x;
     recreate_params.m_Y            = y;
     recreate_params.m_MipMap       = mipmap;
 
     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &recreate_params);
-
-    // cleanup memory
-    // JG: Why is this even needed o_x
-    for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
-    {
-        dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
-        delete[] image->m_MipMapSize.m_Data;
-        delete[] image->m_MipMapOffset.m_Data;
-    }
-    delete[] texture_image->m_Alternatives.m_Data;
-    delete texture_image;
 
     if( r != dmResource::RESULT_OK )
     {

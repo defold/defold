@@ -110,11 +110,9 @@ namespace dmGameSystem
         dmResource::Result result = dmResource::RESULT_FORMAT_ERROR;
         for (uint32_t i = 0; i < image_desc->m_DDFImage->m_Alternatives.m_Count; ++i)
         {
-            dmGraphics::TextureImage::Image* image = &image_desc->m_DDFImage->m_Alternatives[i];
-
-
+            dmGraphics::TextureImage::Image* image    = &image_desc->m_DDFImage->m_Alternatives[i];
             dmGraphics::TextureFormat original_format = TextureImageToTextureFormat(image->m_Format);
-            dmGraphics::TextureFormat output_format = original_format;
+            dmGraphics::TextureFormat output_format   = original_format;
 
             uint32_t num_mips = image->m_MipMapOffset.m_Count;
             if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
@@ -214,7 +212,8 @@ namespace dmGameSystem
             }
 
             // If we requested to upload a specific mipmap, upload only that level
-            // It is expect that we only have offsets for that level in the image desc as well
+            // It is expected that we only have offsets for that level in the image desc as well
+            // -> See script_resource.cpp::SetTexture
             if (params.m_MipMap != SPECIFIC_MIPMAP_DONT_CARE)
             {
                 if (image_desc->m_DecompressedData[0] == 0)
