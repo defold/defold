@@ -170,6 +170,7 @@ typedef struct {
 
 typedef struct {
     const char *data;
+    const char *data_end; // DEFOLD
     const char *ptr;
     strbuf_t *tmp;    /* Temporary storage for strings */
     json_config_t *cfg;
@@ -1251,6 +1252,13 @@ static void json_next_token(json_parse_t *json, json_token_t *token)
     const json_token_type_t *ch2token = json->cfg->ch2token;
     int ch;
 
+    // DEFOLD
+    if (json->ptr >= json->data_end) {
+        token->type = T_END;
+        return;
+    }
+    // END DEFOLD
+
     /* Eat whitespace. */
     while (1) {
         ch = (unsigned char)*(json->ptr);
@@ -1553,6 +1561,7 @@ int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len)
     json_initialize_config(&cfg);
     json.cfg = &cfg;
     json.data = json_string;
+    json.data_end = json_string + json_len;
     json.current_depth = 0;
     json.ptr = json.data;
 

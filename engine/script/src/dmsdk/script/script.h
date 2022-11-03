@@ -465,7 +465,7 @@ namespace dmScript
      * @param L [type:lua_State*] lua state
      * @param json [type:const char*] json string
      * @param json_len [type:size_t] length of json string
-     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
+     * @return int [type:int] 1 if it succeeds. Throws a Lua error if it fails
      */
     int JsonToLua(lua_State* L, const char* json, size_t json_len);
 
