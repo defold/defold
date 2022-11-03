@@ -15,6 +15,8 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#include <string.h> // memcpy
+
 #include "script.h"
 
 #include <dlib/dstrings.h>
@@ -94,6 +96,25 @@ TEST_F(ScriptJsonTest, TestJson)
     }
     lua_pop(L, 1);
 
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptJsonTest, TestJsonToLua)
+{
+    int top = lua_gettop(L);
+
+    {
+        const char* json_original = "{\"foo\":\"bar\",\"num\":16}hello";
+        size_t json_length = 22;
+        // Make it fully dynamic so that ASAN can catch it
+        const char* json = (const char*)malloc(json_length);
+        memcpy((void*)json, (void*)json_original, json_length);
+
+        int ret = dmScript::JsonToLua(L, json, json_length);
+        ASSERT_EQ(1, ret);
+        lua_pop(L, 1);
+    }
 
     ASSERT_EQ(top, lua_gettop(L));
 }

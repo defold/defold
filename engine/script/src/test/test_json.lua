@@ -102,6 +102,10 @@ function test_json_decode()
     assert(t.x == 100)
     assert(t.y == 200)
 
+    local t = json.decode('{"foo":"bar","num":16}\0hello')
+    assert(t.foo == "bar")
+    assert(t.num == 16)
+
     local nested = json.decode('[[10,"x", 20],[30]]')
     assert(#nested == 2)
     assert(#nested[1] == 3)
