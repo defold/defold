@@ -23,11 +23,19 @@
             [editor.workspace :as workspace]
             [integration.test-util :as tu]
             [internal.util :as util]
+            [service.log :as log]
             [support.test-support :refer [with-clean-system]]
             [util.coll :refer [pair]]
-            [util.digestable :as digestable]))
+            [util.digestable :as digestable])
+  (:import [com.google.protobuf ByteString]
+           [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+           [com.jogamp.opengl.util.texture TextureData]))
 
 (set! *warn-on-reflection* true)
+
+;; -----------------------------------------------------------------------------
+;; Helpers
+;; -----------------------------------------------------------------------------
 
 (defn- class-keyword [value]
   (-> value class .getSimpleName keyword))
@@ -43,7 +51,7 @@
     (contains? resource :data)
     {:data (:data resource)}))
 
-(defn- comparable-build-targets [build-targets]
+(defn- comparable-output [output]
   (letfn [(value-fn [key value]
             (cond
               (resource/resource? value)
@@ -63,17 +71,74 @@
               (fn? value)
               {:Fn (digestable/fn->symbol value)}
 
-              (instance? com.google.protobuf.ByteString value)
+              (instance? ByteString value)
               {:ByteString (into (vector-of :byte) value)}
+
+              (instance? TextureSetGenerator$UVTransform value)
+              (let [^TextureSetGenerator$UVTransform uv-transform value]
+                {:- (class-symbol uv-transform)
+                 :rotated (.-rotated uv-transform)
+                 :scale (math/vecmath->clj (.-scale uv-transform))
+                 :translation (math/vecmath->clj (.-translation uv-transform))})
+
+              (instance? TextureData value)
+              {:TextureData (digestable/sha1-hash (str value))}
 
               (digestable/node-id-entry? key value)
               nil ; Exclude the entry.
 
               :else
               value))]
-    (util/deep-map-kv util/with-sorted-keys value-fn build-targets)))
+    (util/deep-map-kv util/with-sorted-keys value-fn output)))
 
-(defn create-project! [world project-path atlas-proj-paths]
+(defn- save-project! [project]
+  (let [save-data (project/dirty-save-data project)]
+    (project/write-save-data-to-disk! save-data nil)
+    (project/invalidate-save-data-source-values! save-data)))
+
+(defn- set-non-editable-directories! [project-root-path non-editable-directory-proj-paths]
+  (shared-editor-settings/write-config!
+    project-root-path
+    (cond-> {}
+            (seq non-editable-directory-proj-paths)
+            (assoc :non-editable-directories (vec non-editable-directory-proj-paths)))))
+
+(defn- load-non-editable-project! [world project-path proj-paths-by-node-key]
+  (let [workspace (log/without-logging (tu/setup-workspace! world project-path))
+        project (tu/setup-project! workspace)
+
+        non-editable-node-ids-by-node-key
+        (into {:project project
+               :workspace workspace}
+              (map (fn [[node-key proj-path]]
+                     (pair node-key
+                           (tu/resource-node project proj-path))))
+              proj-paths-by-node-key)]
+
+    (testing "Ensure the resources have been loaded in a non-editable state."
+      (is (not-any? #(some-> % val resource-node/as-resource-original resource/editable?)
+                    non-editable-node-ids-by-node-key)))
+
+    non-editable-node-ids-by-node-key))
+
+(defn- compare-output [output-label node-key+editable-output-pairs-by-output-label non-editable-node-ids-by-node-key]
+  (testing (str "Verify the produced outputs match for " output-label ".")
+    (let [node-key+editable-output-pairs (node-key+editable-output-pairs-by-output-label output-label)]
+      (is (seq node-key+editable-output-pairs))
+      (doseq [[node-key editable-output] node-key+editable-output-pairs
+              :let [non-editable-node-id (non-editable-node-ids-by-node-key node-key)]]
+        (testing (str node-key)
+          (let [non-editable-output (g/node-value non-editable-node-id output-label)]
+            (when (and (is (not (g/error? editable-output)))
+                       (is (not (g/error? non-editable-output))))
+              (is (= (comparable-output editable-output)
+                     (comparable-output non-editable-output))))))))))
+
+;; -----------------------------------------------------------------------------
+;; build-target-test
+;; -----------------------------------------------------------------------------
+
+(defn- create-build-target-test-project! [world project-path atlas-proj-paths]
   (let [workspace (tu/setup-workspace! world project-path)
         project (tu/setup-project! workspace)]
     (tu/make-atlas-resource-node! project "/assets/from-script.atlas")
@@ -83,7 +148,7 @@
       (tu/make-atlas-resource-node! project atlas-proj-path))
     (let [sprite-resource-type (workspace/get-resource-type workspace "sprite")
           script (doto (tu/make-resource-node! project "/assets/script.script")
-                         (tu/code-editor-source! "go.property('atlas', resource.atlas('/assets/from-script.atlas'))"))
+                   (tu/code-editor-source! "go.property('atlas', resource.atlas('/assets/from-script.atlas'))"))
           chair (tu/make-resource-node! project "/assets/chair.go")
           chair-script (tu/add-referenced-component! chair (resource-node/resource script))
           chair-sprite (tu/add-embedded-component! chair sprite-resource-type)
@@ -99,11 +164,6 @@
           house-room-embedded-chair-script (tu/referenced-component house-room-embedded-chair)
           house-room-referenced-chair (tu/referenced-game-object house-room)
           house-room-referenced-chair-script (tu/referenced-component house-room-referenced-chair)]
-      (is (not (g/override? chair-script)))
-      (is (not (g/override? room-embedded-chair-script)))
-      (is (= chair-script (g/override-original room-referenced-chair-script)))
-      (is (= room-embedded-chair-script (g/override-original house-room-embedded-chair-script)))
-      (is (= room-referenced-chair-script (g/override-original house-room-referenced-chair-script)))
       (g/transact
         (concat
           (g/set-property chair-script :id "chair-script")
@@ -129,31 +189,14 @@
        :script script
        :workspace workspace})))
 
-(defn- load-project! [world project-path]
-  (let [workspace (tu/setup-workspace! world project-path)
-        project (tu/setup-project! workspace)
-        chair (tu/resource-node project "/assets/chair.go")
-        room (tu/resource-node project "/assets/room.collection")
-        house (tu/resource-node project "/assets/house.collection")]
-    {:chair chair
-     :house house
-     :project project
-     :room room
-     :workspace workspace}))
+(defn- load-build-target-test-project! [world project-path]
+  (load-non-editable-project!
+    world project-path
+    {:chair "/assets/chair.go"
+     :house "/assets/house.collection"
+     :room "/assets/room.collection"}))
 
-(defn- save-project! [project]
-  (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (project/invalidate-save-data-source-values! save-data)))
-
-(defn- set-non-editable-directories! [project-root-path non-editable-directory-proj-paths]
-  (shared-editor-settings/write-config!
-    project-root-path
-    (cond-> {}
-            (seq non-editable-directory-proj-paths)
-            (assoc :non-editable-directories (vec non-editable-directory-proj-paths)))))
-
-(defn- perform-non-editable-resources-test [atlas-property-proj-paths-by-node-key]
+(defn- perform-build-target-test [atlas-property-proj-paths-by-node-key]
   (let [project-path (tu/make-temp-project-copy! "test/resources/empty_project")]
     (with-open [_ (tu/make-directory-deleter project-path)]
       ;; Populate the project and capture output from the resource nodes while
@@ -165,9 +208,9 @@
                             house
                             project
                             room
-                            workspace] :as editable-node-ids-by-key} (create-project! world project-path atlas-proj-paths)]
+                            workspace] :as editable-node-ids-by-node-key} (create-build-target-test-project! world project-path atlas-proj-paths)]
                 (doseq [[node-key atlas-proj-path] atlas-property-proj-paths-by-node-key]
-                  (tu/prop! (editable-node-ids-by-key node-key) :__atlas (tu/resource workspace atlas-proj-path)))
+                  (tu/prop! (editable-node-ids-by-node-key node-key) :__atlas (tu/resource workspace atlas-proj-path)))
                 (let [editable-results
                       {:built-source-paths {:chair (tu/node-built-source-paths chair)
                                             :room (tu/node-built-source-paths room)
@@ -181,30 +224,17 @@
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.
         (with-clean-system
-          (let [non-editable-node-ids-by-key (load-project! world project-path)]
-
-            (testing "Ensure the resources have been loaded in a non-editable state."
-              (is (not-any? #(some-> % val resource-node/as-resource-original resource/editable?)
-                            non-editable-node-ids-by-key)))
+          (let [non-editable-node-ids-by-node-key (load-build-target-test-project! world project-path)]
+            (compare-output :build-targets editable-results non-editable-node-ids-by-node-key)
 
             (testing "Verify the built source paths match."
               (doseq [[node-key editable-build-source-paths] (:built-source-paths editable-results)
-                      :let [non-editable-node-id (non-editable-node-ids-by-key node-key)]]
+                      :let [non-editable-node-id (non-editable-node-ids-by-node-key node-key)]]
                 (testing (str node-key)
                   (is (= editable-build-source-paths
-                         (tu/node-built-source-paths non-editable-node-id))))))
+                         (tu/node-built-source-paths non-editable-node-id))))))))))))
 
-            (testing "Verify the contents of the build targets match."
-              (doseq [[node-key editable-build-targets] (:build-targets editable-results)
-                      :let [non-editable-node-id (non-editable-node-ids-by-key node-key)]]
-                (testing (str node-key)
-                  (let [non-editable-build-targets (g/node-value non-editable-node-id :build-targets)]
-                    (when (and (is (not (g/error? editable-build-targets)))
-                               (is (not (g/error? non-editable-build-targets))))
-                      (is (= (comparable-build-targets editable-build-targets)
-                             (comparable-build-targets non-editable-build-targets))))))))))))))
-
-(deftest non-editable-resources-test
+(deftest build-target-test
   (doseq [atlas-property-proj-paths-by-node-key
           [{}
 
@@ -238,4 +268,114 @@
            {:chair-script "/assets/from-chair-script.atlas"
             :room-referenced-chair-script "/assets/from-room-referenced-chair-script.atlas"
             :house-room-referenced-chair-script "/assets/from-house-room-referenced-chair-script.atlas"}]]
-    (perform-non-editable-resources-test atlas-property-proj-paths-by-node-key)))
+    (perform-build-target-test atlas-property-proj-paths-by-node-key)))
+
+;; -----------------------------------------------------------------------------
+;; scene-test
+;; -----------------------------------------------------------------------------
+
+(defn- create-scene-test-project! [world project-path]
+  (let [workspace (tu/setup-workspace! world project-path)
+        project (tu/setup-project! workspace)]
+    (tu/make-atlas-resource-node! project "/assets/from-sprite.atlas")
+    (tu/make-atlas-resource-node! project "/assets/from-chair-embedded-sprite.atlas")
+    (tu/make-atlas-resource-node! project "/assets/from-room-embedded-chair-embedded-sprite.atlas")
+    (let [sprite-resource-type (workspace/get-resource-type workspace "sprite")
+          sprite (tu/make-resource-node! project "/assets/sprite.sprite")
+          chair (tu/make-resource-node! project "/assets/chair.go")
+          chair-embedded-sprite (tu/add-embedded-component! chair sprite-resource-type)
+          chair-referenced-sprite (tu/add-referenced-component! chair (resource-node/resource sprite))
+          room (tu/make-resource-node! project "/assets/room.collection")
+          room-embedded-chair (tu/add-embedded-game-object! room)
+          room-embedded-chair-embedded-sprite (tu/add-embedded-component! room-embedded-chair sprite-resource-type)
+          room-embedded-chair-referenced-sprite (tu/add-referenced-component! room-embedded-chair (resource-node/resource sprite))
+          room-referenced-chair (tu/add-referenced-game-object! room (resource-node/resource chair))
+          house (tu/make-resource-node! project "/assets/house.collection")
+          house-referenced-room (tu/add-referenced-collection! house (resource-node/resource room))]
+
+      (doto sprite
+        (tu/prop! :image (tu/resource workspace "/assets/from-sprite.atlas"))
+        (tu/prop! :default-animation "from-sprite"))
+
+      (doto chair-embedded-sprite
+        (tu/prop! :id "chair-embedded-sprite")
+        (tu/prop! :position [1.1 1.2 1.3])
+        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 1.0)))
+        (tu/prop! :scale [1.4 1.5 1.6])
+        (tu/prop! :image (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
+        (tu/prop! :default-animation "from-chair-embedded-sprite"))
+
+      (doto chair-referenced-sprite
+        (tu/prop! :id "chair-referenced-sprite")
+        (tu/prop! :position [2.1 2.2 2.3])
+        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 2.0)))
+        (tu/prop! :scale [2.4 2.5 2.6]))
+
+      (doto room-embedded-chair
+        (tu/prop! :id "room-embedded-chair")
+        (tu/prop! :position [3.1 3.2 3.3])
+        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 3.0)))
+        (tu/prop! :scale [3.4 3.5 3.6]))
+
+      (doto room-embedded-chair-embedded-sprite
+        (tu/prop! :id "room-embedded-chair-embedded-sprite")
+        (tu/prop! :position [4.1 4.2 4.3])
+        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 4.0)))
+        (tu/prop! :scale [4.4 4.5 4.6])
+        (tu/prop! :image (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
+        (tu/prop! :default-animation "from-room-embedded-chair-embedded-sprite"))
+
+      (doto room-embedded-chair-referenced-sprite
+        (tu/prop! :id "room-embedded-chair-referenced-sprite")
+        (tu/prop! :position [5.1 5.2 5.3])
+        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 5.0)))
+        (tu/prop! :scale [5.4 5.5 5.6]))
+
+      (doto room-referenced-chair
+        (tu/prop! :id "room-referenced-chair")
+        (tu/prop! :position [6.1 6.2 6.3])
+        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 6.0)))
+        (tu/prop! :scale [6.4 6.5 6.6]))
+
+      (doto house-referenced-room
+        (tu/prop! :id "house-referenced-room")
+        (tu/prop! :position [7.1 7.2 7.3])
+        (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 7.0)))
+        (tu/prop! :scale [7.4 7.5 7.6]))
+
+      {:chair chair
+       :house house
+       :project project
+       :room room
+       :workspace workspace})))
+
+(defn- load-scene-test-project! [world project-path]
+  (load-non-editable-project!
+    world project-path
+    {:chair "/assets/chair.go"
+     :house "/assets/house.collection"
+     :room "/assets/room.collection"}))
+
+(deftest scene-test
+  (let [project-path (tu/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (tu/make-directory-deleter project-path)]
+      ;; Populate the project and capture output from the resource nodes while
+      ;; they are in an editable state. Then mark the resources as non-editable.
+      (let [editable-results
+            (with-clean-system
+              (let [{:keys [chair
+                            house
+                            project
+                            room] :as _editable-node-ids-by-node-key} (create-scene-test-project! world project-path)]
+                (let [editable-results
+                      {:scene {:chair (g/node-value chair :scene)
+                               :room (g/node-value room :scene)
+                               :house (g/node-value house :scene)}}]
+                  (save-project! project)
+                  (set-non-editable-directories! project-path ["/assets"])
+                  editable-results)))]
+        ;; Reload the project now that the resources are in a non-editable state
+        ;; and compare the non-editable output to the editable output.
+        (with-clean-system
+          (let [non-editable-node-ids-by-node-key (load-scene-test-project! world project-path)]
+            (compare-output :scene editable-results non-editable-node-ids-by-node-key)))))))
