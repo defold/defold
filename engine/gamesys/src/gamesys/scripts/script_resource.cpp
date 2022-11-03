@@ -473,6 +473,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  * : [type:number] The texture type. Supported values:
  *
  * - `resource.TEXTURE_TYPE_2D`
+ * - `resource.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels)
@@ -487,9 +488,18 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
  *
+ * `x`
+ * : [type:number] optional x offset of the texture (in pixels)
+ *
+ * `y`
+ * : [type:number] optional y offset of the texture (in pixels)
+ *
+ * `mipmap`
+ * : [type:number] optional mipmap to upload the data to
+ *
  * @param buffer [type:buffer] The buffer of precreated pixel data
  *
- * [icon:attention] Currently, only 1 mipmap is generated.
+ * [icon:attention] To update a cube map texture you need to pass in six times the amount of data via the buffer, since a cube map has six sides!
  *
  * @examples
  * How to set all pixels of an atlas
@@ -509,9 +519,36 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  *           self.stream[index + 2] = 0x10
  *       end
  *   end
-
+ *
  *   local resource_path = go.get("#sprite", "texture0")
  *   local header = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   resource.set_texture( resource_path, header, self.buffer )
+ * end
+ * ```
+ *
+ * @examples
+ * How to update a specific region of an atlas by using the x,y values. Assumes the already set atlas is a 128x128 texture.
+ *
+ * ```lua
+ * function init(self)
+ *   self.x = 16
+ *   self.y = 16
+ *   self.height = 128 - self.x * 2
+ *   self.width = 128 - self.y * 2
+ *   self.buffer = buffer.create(self.width * self.height, { {name=hash("rgb"), type=buffer.VALUE_TYPE_UINT8, count=3} } )
+ *   self.stream = buffer.get_stream(self.buffer, hash("rgb"))
+ *
+ *   for y=1,self.height do
+ *       for x=1,self.width do
+ *           local index = (y-1) * self.width * 3 + (x-1) * 3 + 1
+ *           self.stream[index + 0] = 0xff
+ *           self.stream[index + 1] = 0x80
+ *           self.stream[index + 2] = 0x10
+ *       end
+ *   end
+ *
+ *   local resource_path = go.get("#sprite", "texture0")
+ *   local header = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
  *   resource.set_texture( resource_path, header, self.buffer )
  * end
  * ```
@@ -922,6 +959,12 @@ static const luaL_reg Module_methods[] =
 /*# 2D texture type
  *
  * @name resource.TEXTURE_TYPE_2D
+ * @variable
+ */
+
+/*# Cube map texture type
+ *
+ * @name resource.TEXTURE_TYPE_CUBE_MAP
  * @variable
  */
 

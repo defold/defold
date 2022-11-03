@@ -356,9 +356,12 @@ namespace dmGameSystem
     dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams& params)
     {
         ResTextureReCreateParams* recreate_params = (ResTextureReCreateParams*)params.m_Message;
-
-        dmGraphics::TextureImage* texture_image = (dmGraphics::TextureImage*) recreate_params->m_TextureImage; //params.m_Message;
-        if( !texture_image )
+        dmGraphics::TextureImage* texture_image = 0x0;
+        if (recreate_params)
+        {
+            texture_image = (dmGraphics::TextureImage*) recreate_params->m_TextureImage;
+        }
+        if(!texture_image)
         {
             dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
             if ( e != dmDDF::RESULT_OK )
@@ -373,9 +376,12 @@ namespace dmGameSystem
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
         ImageDesc* image_desc = CreateImage(params.m_Filename, (dmGraphics::HContext) params.m_Context, texture_image);
 
-        image_desc->m_RegionUpdateX = recreate_params->m_X;
-        image_desc->m_RegionUpdateY = recreate_params->m_Y;
-        image_desc->m_MipMap        = recreate_params->m_MipMap;
+        if (recreate_params)
+        {
+            image_desc->m_RegionUpdateX = recreate_params->m_X;
+            image_desc->m_RegionUpdateY = recreate_params->m_Y;
+            image_desc->m_MipMap        = recreate_params->m_MipMap;
+        }
 
         // Set up the new texture (version), wait for it to finish before issuing new requests
         SynchronizeTexture(texture, true);
