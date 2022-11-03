@@ -5285,10 +5285,14 @@ static void convert_channels_short_interleaved(int buf_c, short *buffer, int dat
             int v = FAST_SCALED_FLOAT_TO_INT(temp, f,15);//data[i][d_offset+j],15);
             if ((unsigned int) (v + 32768) > 65535)
                v = v < 0 ? -32768 : 32767;
-            *buffer++ = v;
+            if (buffer) { // DEFOLD: Added optional null
+               *buffer++ = v;
+            }
          }
          for (   ; i < buf_c; ++i)
-            *buffer++ = 0;
+            if (buffer) { // DEFOLD: Added optional null
+               *buffer++ = 0;
+            }
       }
    }
 }
@@ -5316,7 +5320,9 @@ int stb_vorbis_get_samples_short_interleaved(stb_vorbis *f, int channels, short 
       if (n+k >= len) k = len - n;
       if (k)
          convert_channels_short_interleaved(channels, buffer, f->channels, f->channel_buffers, f->channel_buffer_start, k);
-      buffer += k*channels;
+      if (buffer) { // DEFOLD: Added optional null
+         buffer += k*channels;
+      }
       n += k;
       f->channel_buffer_start += k;
       if (n == len) break;
