@@ -82,12 +82,26 @@ public abstract class LuaBuilder extends Builder<Void> {
      * @param resource The resource to get a LuaScanner for
      * @return A LuaScanner instance
      */
-    private LuaScanner getLuaScanner(IResource resource) throws IOException {
+    private LuaScanner getLuaScanner(IResource resource) throws IOException, CompileExceptionError {
         final String path = resource.getAbsPath();
         LuaScanner scanner = luaScanners.get(path);
         if (scanner == null) {
             final byte[] scriptBytes = resource.getContent();
-            final String script = new String(scriptBytes, "UTF-8");
+            String script = new String(scriptBytes, "UTF-8");
+
+            // create and apply a builder plugin if one exists
+            List<LuaBuilderPlugin> luaBuilderPlugins = PluginScanner.getOrCreatePlugins("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
+            if (luaBuilderPlugins != null) {
+                for (LuaBuilderPlugin luaBuilderPlugin : luaBuilderPlugins) {
+                    try {
+                        script = luaBuilderPlugin.create(script);
+                    }
+                    catch(Exception e) {
+                        throw new CompileExceptionError(resource, 0, "Unable to run Lua builder plugin", e);
+                    }
+                }
+            }
+
             scanner = new LuaScanner();
             scanner.parse(script);
             luaScanners.put(path, scanner);
@@ -315,13 +329,15 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.addAllPropertyResources(propertyResources);
 
         // create and apply a builder plugin if one exists
-        LuaBuilderPlugin luaBuilderPlugin = PluginScanner.getOrCreatePlugin("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
+        List<LuaBuilderPlugin> luaBuilderPlugins = PluginScanner.getOrCreatePlugins("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
         if (luaBuilderPlugin != null) {
-            try {
-                script = luaBuilderPlugin.build(script);
-            }
-            catch(Exception e) {
-                throw new CompileExceptionError(task.input(0), 0, "Unable to run Lua builder plugin", e);
+            for (LuaBuilderPlugin luaBuilderPlugin : luaBuilderPlugins) {
+                try {
+                    script = luaBuilderPlugin.build(script);
+                }
+                catch(Exception e) {
+                    throw new CompileExceptionError(task.input(0), 0, "Unable to run Lua builder plugin", e);
+                }
             }
         }
 

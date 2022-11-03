@@ -20,10 +20,17 @@ package com.dynamo.bob.pipeline;
  */
 public abstract class LuaBuilderPlugin {
 
-	/**
-	 * Perform a build or processing step on the provided Lua code
-	 * @param input String containing Lua code
-	 * @return String with processed Lua code
-	 */
-	public abstract String build(String input) throws Exception;
+    /**
+     * Perform a create preprocessing step on the provided Lua code
+     * @param input String containing Lua code
+     * @return String with processed Lua code
+     */
+    public abstract String create(String input) throws Exception;
+
+    /**
+     * Perform a build or processing step on the provided Lua code
+     * @param input String containing Lua code
+     * @return String with processed Lua code
+     */
+    public abstract String build(String input) throws Exception;
 }
