@@ -22,17 +22,18 @@
 
 namespace dmGameSystem
 {
-    static const uint8_t  SPECIFIC_MIPMAP_DONT_CARE = 0xff;
+    static const uint8_t  MIPMAP_VALUE_DONT_CARE = 0x3f; // 6 bits => 63
     static const uint32_t MAX_MIPMAP_COUNT = 32;
     struct ImageDesc
     {
         dmGraphics::TextureImage* m_DDFImage;
         uint8_t*                  m_DecompressedData[MAX_MIPMAP_COUNT];
         uint32_t                  m_DecompressedDataSize[MAX_MIPMAP_COUNT];
-        bool                      m_UseBlankTexture;
         uint16_t                  m_RegionUpdateX;
         uint16_t                  m_RegionUpdateY;
-        uint8_t                   m_MipMap;
+        uint8_t                   m_MipMap          : 6;
+        uint8_t                   m_UseBlankTexture : 1;
+        uint8_t                   m_SubUpdate       : 1;
     };
 
     static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format)
@@ -88,21 +89,6 @@ namespace dmGameSystem
         dmGraphics::SetTextureAsync(texture, params);
     }
 
-    static uint16_t GetMipmapSize(uint16_t size_0, uint8_t mipmap)
-    {
-        for (uint32_t i = 0; i < mipmap; ++i)
-        {
-            size_0 /= 2;
-        }
-        return size_0;
-    }
-
-    static inline uint8_t GetMipmapCount(uint16_t width, uint16_t height)
-    {
-        uint16_t dim = dmMath::Max(width, height);
-        return (uint8_t) ceil(log2f(dim));
-    }
-
     dmResource::Result AcquireResources(const char* path, dmResource::SResourceDescriptor* resource_desc, dmGraphics::HContext context, ImageDesc* image_desc, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
         DM_PROFILE_DYN(path, 0);
@@ -141,7 +127,7 @@ namespace dmGameSystem
             params.m_X         = image_desc->m_RegionUpdateX;
             params.m_Y         = image_desc->m_RegionUpdateY;
             params.m_MipMap    = image_desc->m_MipMap;
-            params.m_SubUpdate = false;
+            params.m_SubUpdate = image_desc->m_SubUpdate;
 
             assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
 
@@ -169,21 +155,22 @@ namespace dmGameSystem
             {
                 uint16_t tex_width_full    = dmGraphics::GetTextureWidth(texture);
                 uint16_t tex_height_full   = dmGraphics::GetTextureHeight(texture);
-                uint16_t tex_width_mipmap  = GetMipmapSize(tex_width_full, params.m_MipMap);
-                uint16_t tex_height_mipmap = GetMipmapSize(tex_height_full, params.m_MipMap);
-                uint8_t  tex_mipmap_count  = GetMipmapCount(tex_width_full, tex_height_full);
-                params.m_SubUpdate         = params.m_X > 0 || params.m_Y > 0 || params.m_Width < tex_width_mipmap || params.m_Height < tex_height_mipmap;
+                uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
+                uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
+                uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(tex_width_full, tex_height_full);
 
-                if (params.m_MipMap > tex_mipmap_count)
+                if (params.m_MipMap != MIPMAP_VALUE_DONT_CARE && params.m_MipMap > tex_mipmap_count)
                 {
                     dmLogError("Texture mipmap level %u exceeds maximum mipmap level %u.", params.m_MipMap, tex_mipmap_count);
+                    result = dmResource::RESULT_INVALID_DATA;
                     break;
                 }
 
-                if ((params.m_X + params.m_Width) > tex_width_mipmap || (params.m_Y + params.m_Height) > tex_height_mipmap)
+                if (params.m_SubUpdate && ((params.m_X + params.m_Width) > tex_width_mipmap || (params.m_Y + params.m_Height) > tex_height_mipmap))
                 {
                     dmLogError("Texture size %ux%u at offset %u,%u exceeds maximum texture size (%ux%u) for mipmap level %u.",
                         params.m_Width, params.m_Height, params.m_X, params.m_Y, tex_width_mipmap, tex_height_mipmap, params.m_MipMap);
+                    result = dmResource::RESULT_INVALID_DATA;
                     break;
                 }
             }
@@ -214,7 +201,7 @@ namespace dmGameSystem
             // If we requested to upload a specific mipmap, upload only that level
             // It is expected that we only have offsets for that level in the image desc as well
             // -> See script_resource.cpp::SetTexture
-            if (params.m_MipMap != SPECIFIC_MIPMAP_DONT_CARE)
+            if (params.m_MipMap != MIPMAP_VALUE_DONT_CARE)
             {
                 if (image_desc->m_DecompressedData[0] == 0)
                 {
@@ -290,7 +277,7 @@ namespace dmGameSystem
         ImageDesc* image_desc = new ImageDesc;
         memset(image_desc, 0x0, sizeof(ImageDesc));
         image_desc->m_DDFImage = texture_image;
-        image_desc->m_MipMap = SPECIFIC_MIPMAP_DONT_CARE;
+        image_desc->m_MipMap = MIPMAP_VALUE_DONT_CARE;
         return image_desc;
     }
 
@@ -381,6 +368,7 @@ namespace dmGameSystem
             image_desc->m_RegionUpdateX = recreate_params->m_X;
             image_desc->m_RegionUpdateY = recreate_params->m_Y;
             image_desc->m_MipMap        = recreate_params->m_MipMap;
+            image_desc->m_SubUpdate     = recreate_params->m_SubUpdate;
         }
 
         // Set up the new texture (version), wait for it to finish before issuing new requests

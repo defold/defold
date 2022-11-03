@@ -555,6 +555,10 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  */
 static int SetTexture(lua_State* L)
 {
+    // Note: We only support uploading a single mipmap for a single slice at a time
+    const uint32_t NUM_MIP_MAPS = 1;
+    const int32_t DEFAULT_INT_NOT_SET = -1;
+
     int top = lua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
@@ -564,12 +568,13 @@ static int SetTexture(lua_State* L)
     uint32_t width  = (uint32_t) CheckTableInteger(L, 2, "width");
     uint32_t height = (uint32_t) CheckTableInteger(L, 2, "height");
     uint32_t format = (uint32_t) CheckTableInteger(L, 2, "format");
-    uint32_t x      = (uint32_t) CheckTableInteger(L, 2, "x", 0);
-    uint32_t y      = (uint32_t) CheckTableInteger(L, 2, "y", 0);
     uint32_t mipmap = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
+    int32_t x       = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
+    int32_t y       = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
 
-    // Note: We only support uploading a single mipmap for a single slice at a time
-    const uint32_t num_mip_maps = 1;
+    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET;
+    x               = dmMath::Max(0, x);
+    y               = dmMath::Max(0, y);
 
     dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
 
@@ -596,15 +601,16 @@ static int SetTexture(lua_State* L)
     uint32_t mip_map_offsets     = 0;
     uint32_t mip_map_sizes       = datasize;
     image.m_MipMapOffset.m_Data  = &mip_map_offsets;
-    image.m_MipMapOffset.m_Count = num_mip_maps;
+    image.m_MipMapOffset.m_Count = NUM_MIP_MAPS;
     image.m_MipMapSize.m_Data    = &mip_map_sizes;
-    image.m_MipMapSize.m_Count   = num_mip_maps;
+    image.m_MipMapSize.m_Count   = NUM_MIP_MAPS;
 
     ResTextureReCreateParams recreate_params;
     recreate_params.m_TextureImage = &texture_image;
     recreate_params.m_X            = x;
     recreate_params.m_Y            = y;
     recreate_params.m_MipMap       = mipmap;
+    recreate_params.m_SubUpdate    = sub_update;
 
     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &recreate_params);
 

@@ -25,7 +25,8 @@ namespace dmGameSystem
         void*    m_TextureImage;
         uint16_t m_X;
         uint16_t m_Y;
-        uint8_t  m_MipMap;
+        uint8_t  m_MipMap    : 7;
+        uint8_t  m_SubUpdate : 1;
     };
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);
