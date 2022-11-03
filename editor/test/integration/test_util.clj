@@ -18,6 +18,7 @@
             [clojure.test :refer [is testing]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.atlas :as atlas]
             [editor.build :as build]
             [editor.collection :as collection]
             [editor.defold-project :as project]
@@ -27,6 +28,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.material :as material]
+            [editor.pipeline :as pipeline]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
@@ -34,6 +36,7 @@
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
@@ -110,9 +113,11 @@
   ([graph]
    (setup-workspace! graph project-path))
   ([graph project-path]
-   (let [workspace (workspace/make-workspace graph
+   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path)
+         workspace (workspace/make-workspace graph
                                              (.getAbsolutePath (io/file project-path))
-                                             {})]
+                                             {}
+                                             workspace-config)]
      (g/transact
        (concat
          (scene/register-view-types workspace)))
@@ -166,7 +171,7 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (get (g/node-value workspace :resource-types) (resource/ext this)))
+  (resource-type [this] (#'resource/get-resource-type workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
@@ -177,6 +182,7 @@
   (workspace [this] workspace)
   (resource-hash [this] (hash (resource/proj-path this)))
   (openable? [this] (= :file source-type))
+  (editable? [this] true)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream content opts))
@@ -604,14 +610,6 @@
             (g/undo! graph-id)
             (recur (g/undo-stack-count graph-id))))))))
 
-(defn- make-app-view-select-fn [app-view]
-  (assert (g/node-id? app-view))
-  (let [selection-volatile (volatile! nil)
-        select-fn (fn select-fn [node-ids]
-                    (vreset! selection-volatile node-ids)
-                    (app-view/select app-view node-ids))]
-    [select-fn selection-volatile]))
-
 (defn to-game-object-id [node-id]
   (let [go-id (cond
                 (g/node-instance? game-object/GameObjectNode node-id)
@@ -625,37 +623,66 @@
                     (:k game-object/GameObjectNode)))
     go-id))
 
+(defn- created-node [select-fn-call-logger]
+  (let [calls (call-logger-calls select-fn-call-logger)
+        args (last calls)
+        selection (first args)
+        node-id (first selection)]
+    node-id))
+
 (defn add-referenced-component!
-  "Adds a new instance of a referenced component to the specified
-  game object node inside a transaction and makes it the current
-  selection. Returns the id of the added ReferencedComponent node."
-  [app-view resource go-id]
-  (let [go-id (to-game-object-id go-id)
-        [select-fn selection-volatile] (make-app-view-select-fn app-view)]
-    (game-object/add-component-file go-id resource select-fn)
-    (first @selection-volatile)))
+  "Adds a new instance of a referenced component to the specified game object
+  node. Returns the id of the added ReferencedComponent node."
+  [game-object-or-instance-id component-resource]
+  (let [select-fn (make-call-logger)
+        game-object-id (to-game-object-id game-object-or-instance-id)]
+    (game-object/add-component-file game-object-id component-resource select-fn)
+    (created-node select-fn)))
 
 (defn add-embedded-component!
-  "Adds a new instance of an embedded component to the specified
-  game object node inside a transaction and makes it the current
-  selection. Returns the id of the added EmbeddedComponent node."
-  [app-view resource-type go-id]
-  (let [go-id (to-game-object-id go-id)
-        [select-fn selection-volatile] (make-app-view-select-fn app-view)]
-    (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
-    (first @selection-volatile)))
+  "Adds a new instance of an embedded component to the specified game object
+  node. Returns the id of the added EmbeddedComponent node."
+  [game-object-or-instance-id resource-type]
+  (let [select-fn (make-call-logger)
+        game-object-id (to-game-object-id game-object-or-instance-id)]
+    (game-object/add-embedded-component-handler {:_node-id game-object-id :resource-type resource-type} select-fn)
+    (created-node select-fn)))
+
+(defn add-referenced-game-object!
+  "Adds a new instance of a referenced game object to the specified collection
+  node. Returns the id of the added ReferencedGOInstanceNode."
+  ([collection-id game-object-resource]
+   (add-referenced-game-object! collection-id collection-id game-object-resource))
+  ([collection-id parent-id game-object-resource]
+   (let [select-fn (make-call-logger)]
+     (collection/add-game-object-file collection-id parent-id game-object-resource select-fn)
+     (created-node select-fn))))
 
 (defn add-embedded-game-object!
-  "Adds a new embedded game object instance to the specified
-  collection node inside a transaction and makes it the current
-  selection. Returns the id of the added EmbeddedGOInstanceNode."
-  ([app-view project collection-id]
-   (add-embedded-game-object! app-view project collection-id collection-id))
-  ([app-view project collection-id parent-id]
-   (let [workspace (project/workspace project)
-         [select-fn selection-volatile] (make-app-view-select-fn app-view)]
+  "Adds a new instance of an embedded game object to the specified collection
+  node. Returns the id of the added EmbeddedGOInstanceNode."
+  ([collection-id]
+   (add-embedded-game-object! collection-id collection-id))
+  ([collection-id parent-id]
+   (let [project (project/get-project collection-id)
+         workspace (project/workspace project)
+         select-fn (make-call-logger)]
      (collection/add-game-object workspace project collection-id parent-id select-fn)
-     (first @selection-volatile))))
+     (created-node select-fn))))
+
+(defn add-referenced-collection!
+  "Adds a new instance of a referenced collection to the specified collection
+  node. Returns the id of the added CollectionInstanceNode."
+  [collection-id collection-resource]
+  (let [id (resource/base-name collection-resource)
+        position [0.0 0.0 0.0]
+        rotation [0.0 0.0 0.0 1.0]
+        scale [1.0 1.0 1.0]
+        overrides []]
+    (first
+      (g/tx-nodes-added
+        (g/transact
+          (collection/add-collection-instance collection-id collection-resource id position rotation scale overrides))))))
 
 (defonce ^:private png-image-bytes
   ;; Bytes representing a single-color 256 by 256 pixel PNG file.
@@ -674,6 +701,7 @@
   (assert (integer? workspace))
   (assert (.startsWith proj-path "/"))
   (let [resource (resource workspace proj-path)]
+    (fs/create-parent-directories! (io/as-file resource))
     (with-open [out (io/output-stream resource)]
       (.write out png-image-bytes))
     resource))
@@ -686,6 +714,7 @@
    (let [resource (resource workspace proj-path)
          resource-type (resource/resource-type resource)
          template (workspace/template workspace resource-type)]
+     (fs/create-parent-directories! (io/as-file resource))
      (spit resource template)
      resource))
   ([workspace proj-path pb-map]
@@ -696,6 +725,7 @@
          resource-type (resource/resource-type resource)
          write-fn (:write-fn resource-type)
          content (write-fn pb-map)]
+     (fs/create-parent-directories! (io/as-file resource))
      (spit resource content)
      resource)))
 
@@ -707,6 +737,15 @@
         resource (make-resource! workspace proj-path)]
     (workspace/resource-sync! workspace)
     (project/get-resource-node project resource)))
+
+(defn make-atlas-resource-node! [project proj-path]
+  {:pre [(string/ends-with? proj-path ".atlas")]}
+  (let [workspace (project/workspace project)
+        image-resource (make-png-resource! workspace (string/replace proj-path #".atlas$" ".png"))
+        atlas (make-resource-node! project proj-path)]
+    (g/transact
+      (atlas/add-images atlas [image-resource]))
+    atlas))
 
 (defn move-file!
   "Moves or renames a file in the workspace, then performs a resource sync."
@@ -782,6 +821,12 @@
               out (ByteArrayOutputStream.)]
     (io/copy in out)
     (.toByteArray out)))
+
+(defn node-built-source-paths [node-id]
+  (into #{}
+        (keep (comp resource/proj-path :resource :resource))
+        (pipeline/flatten-build-targets
+          (g/node-value node-id :build-targets))))
 
 (defmacro saved-pb [node-id pb-class]
   (with-meta `(protobuf/str->pb ~pb-class (:content (g/node-value ~node-id :undecorated-save-data)))

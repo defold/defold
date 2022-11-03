@@ -15,10 +15,10 @@
 (ns editor.workspace
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
 ordinary paths."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
-            [clojure.edn :as edn]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
@@ -30,10 +30,12 @@ ordinary paths."
             [editor.ui :as ui]
             [editor.url :as url]
             [editor.util :as util]
-            [service.log :as log])
-  (:import [java.io File PushbackReader]
+            [internal.cache :as c]
+            [service.log :as log]
+            [util.coll :refer [pair]])
+  (:import [editor.resource FileResource]
+           [java.io File PushbackReader]
            [java.net URI]
-           [editor.resource FileResource]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -89,6 +91,7 @@ ordinary paths."
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))
   (openable? [this] false)
+  (editable? [this] false)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
@@ -119,15 +122,17 @@ ordinary paths."
                              vec)]
     (assoc tree :children sorted-children)))
 
-(g/defnk produce-resource-tree [_node-id root resource-snapshot]
+(g/defnk produce-resource-tree [_node-id root resource-snapshot editable-proj-path?]
   (sort-resource-tree
-    (resource/make-file-resource _node-id root (io/as-file root) (:resources resource-snapshot))))
+    (resource/make-file-resource _node-id root (io/as-file root) (:resources resource-snapshot) editable-proj-path?)))
 
 (g/defnk produce-resource-list [resource-tree]
   (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree))))
 
 (g/defnk produce-resource-map [resource-list]
-  (into {} (map #(do [(resource/proj-path %) %]) resource-list)))
+  (into {}
+        (map #(pair (resource/proj-path %) %))
+        resource-list))
 
 (defn get-view-type
   ([workspace id]
@@ -136,14 +141,36 @@ ordinary paths."
   ([workspace id evaluation-context]
    (get (g/node-value workspace :view-types evaluation-context) id)))
 
-(defn- editable-view-type? [view-type]
+(defn- editor-openable-view-type? [view-type]
   (case view-type
     (:default :text) false
     true))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
-  (let [resource-type {:textual? (true? textual?)
-                       :editable? (some? (some editable-view-type? view-types))
+(defn- make-editable-resource-type-merge-fn [prioritized-editable]
+  {:pre [(boolean? prioritized-editable)]}
+  (fn editable-resource-type-merge-fn [old-resource-type new-resource-type]
+    (let [old-editable (:editable old-resource-type)
+          new-editable (:editable new-resource-type)]
+      (assert (boolean? old-editable))
+      (assert (boolean? new-editable))
+      (if (or (= old-editable new-editable)
+              (= prioritized-editable new-editable))
+        new-resource-type
+        old-resource-type))))
+
+(defn- make-editable-resource-type-map-update-fn [prioritized-editable]
+  (let [editable-resource-type-merge-fn (make-editable-resource-type-merge-fn prioritized-editable)]
+    (fn editable-resource-type-map-update-fn [resource-type-map updated-resource-types-by-ext]
+      (merge-with editable-resource-type-merge-fn resource-type-map updated-resource-types-by-ext))))
+
+(def ^:private editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn true))
+(def ^:private non-editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn false))
+
+(defn register-resource-type [workspace & {:keys [textual? editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
+  (let [editable (if (nil? editable) true (boolean editable))
+        resource-type {:textual? (true? textual?)
+                       :editable editable
+                       :editor-openable (some? (some editor-openable-view-type? view-types))
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
@@ -160,25 +187,47 @@ ordinary paths."
                        :template template
                        :label label
                        :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
-                       :auto-connect-save-data? (and (some? write-fn)
+                       :auto-connect-save-data? (and editable
+                                                     (some? write-fn)
                                                      (not (false? auto-connect-save-data?)))}
-        resource-types (if (string? ext)
-                         [(assoc resource-type :ext (string/lower-case ext))]
-                         (map (fn [ext] (assoc resource-type :ext (string/lower-case ext))) ext))]
-    (for [resource-type resource-types]
-      (g/update-property workspace :resource-types assoc (:ext resource-type) resource-type))))
+        resource-types-by-ext (if (string? ext)
+                                (let [ext (string/lower-case ext)]
+                                  {ext (assoc resource-type :ext ext)})
+                                (into {}
+                                      (map (fn [ext]
+                                             (let [ext (string/lower-case ext)]
+                                               (pair ext (assoc resource-type :ext ext)))))
+                                      ext))]
+    (concat
+      (g/update-property workspace :resource-types editable-resource-type-map-update-fn resource-types-by-ext)
+      (g/update-property workspace :resource-types-non-editable non-editable-resource-type-map-update-fn resource-types-by-ext))))
 
-(defn get-resource-type [workspace ext]
-  (get (g/node-value workspace :resource-types) ext))
+(defn- editability->output-label [editability]
+  (case editability
+    :editable :resource-types
+    :non-editable :resource-types-non-editable))
 
-(defn get-resource-type-map [workspace]
-  (g/node-value workspace :resource-types))
-
-(defn get-resource-types
+(defn get-resource-type-map
   ([workspace]
-   (map second (g/node-value workspace :resource-types)))
-  ([workspace tag]
-   (filter #(contains? (:tags %) tag) (map second (g/node-value workspace :resource-types)))))
+   (g/node-value workspace :resource-types))
+  ([workspace editability]
+   (g/node-value workspace (editability->output-label editability))))
+
+(defn get-resource-type
+  ([workspace ext]
+   (get (get-resource-type-map workspace) ext))
+  ([workspace editability ext]
+   (get (get-resource-type-map workspace editability) ext)))
+
+(defn make-embedded-resource [workspace editability ext data]
+  (let [resource-type-map (get-resource-type-map workspace editability)]
+    (if-some [resource-type (resource-type-map ext)]
+      (resource/make-memory-resource workspace resource-type data)
+      (throw (ex-info (format "Unable to locate resource type info. Extension not loaded? (type=%s)"
+                              ext)
+                      {:type ext
+                       :registered-types (into (sorted-set)
+                                               (keys resource-type-map))})))))
 
 (defn resource-icon [resource]
   (when resource
@@ -193,14 +242,15 @@ ordinary paths."
 
 (defn file-resource
   ([workspace path-or-file]
-   (g/with-auto-evaluation-context evaluation-context
+   (let [evaluation-context (g/make-evaluation-context {:basis (g/now) :cache c/null-cache})]
      (file-resource workspace path-or-file evaluation-context)))
   ([workspace path-or-file evaluation-context]
    (let [root (g/node-value workspace :root evaluation-context)
+         editable-proj-path? (g/node-value workspace :editable-proj-path? evaluation-context)
          f (if (instance? File path-or-file)
              path-or-file
              (File. (str root path-or-file)))]
-     (resource/make-file-resource workspace root f []))))
+     (resource/make-file-resource workspace root f [] editable-proj-path?))))
 
 (defn find-resource
   ([workspace proj-path]
@@ -211,10 +261,13 @@ ordinary paths."
 
 (defn resolve-workspace-resource
   ([workspace path]
-   (g/with-auto-evaluation-context evaluation-context
-     (resolve-workspace-resource workspace path evaluation-context)))
+   (when (not-empty path)
+     (g/with-auto-evaluation-context evaluation-context
+       (or
+         (find-resource workspace path evaluation-context)
+         (file-resource workspace path evaluation-context)))))
   ([workspace path evaluation-context]
-   (when (and path (not-empty path))
+   (when (not-empty path)
      (or
        (find-resource workspace path evaluation-context)
        (file-resource workspace path evaluation-context)))))
@@ -527,8 +580,10 @@ ordinary paths."
   (property resource-listeners g/Any (default (atom [])))
   (property view-types g/Any)
   (property resource-types g/Any)
+  (property resource-types-non-editable g/Any)
   (property snapshot-cache g/Any (default {}))
   (property build-settings g/Any)
+  (property editable-proj-path? g/Any)
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
@@ -600,13 +655,34 @@ ordinary paths."
     (fs/delete-file! file)
     nil))
 
-(defn make-workspace [graph project-path build-settings]
-  (g/make-node! graph Workspace
-                :root project-path
-                :resource-snapshot (resource-watch/empty-snapshot)
-                :view-types {:default {:id :default}}
-                :resource-listeners (atom [])
-                :build-settings build-settings))
+(defn- make-editable-proj-path-predicate [non-editable-directory-proj-paths]
+  {:pre [(vector? non-editable-directory-proj-paths)
+         (every? string? non-editable-directory-proj-paths)]}
+  (fn editable-proj-path? [proj-path]
+    (not-any? (fn [non-editable-directory-proj-path]
+                ;; A proj-path is considered non-editable if it matches or is
+                ;; located below a non-editable directory. Thus, the character
+                ;; immediately following the non-editable directory should be a
+                ;; slash, or should be the end of the proj-path string. We can
+                ;; test this fact before matching the non-editable directory
+                ;; path against the beginning of the proj-path to make the test
+                ;; more efficient.
+                (case (get proj-path (count non-editable-directory-proj-path))
+                  (\/ nil) (string/starts-with? proj-path non-editable-directory-proj-path)
+                  false))
+              non-editable-directory-proj-paths)))
+
+(defn make-workspace [graph project-path build-settings workspace-config]
+  (let [editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
+                              (make-editable-proj-path-predicate non-editable-directory-proj-paths)
+                              (constantly true))]
+    (g/make-node! graph Workspace
+                  :root project-path
+                  :resource-snapshot (resource-watch/empty-snapshot)
+                  :view-types {:default {:id :default}}
+                  :resource-listeners (atom [])
+                  :build-settings build-settings
+                  :editable-proj-path? editable-proj-path?)))
 
 (defn register-view-type
   "Register a new view type that can be used by resources

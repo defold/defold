@@ -1161,12 +1161,12 @@
                                                                       (fn [basis ^Arc arc]
                                                                         (let [source-node-id (.source-id arc)]
                                                                           (and (not= source-node-id current-scene)
-                                                                               (g/node-instance-of-any? basis source-node-id
-                                                                                                        [GuiNode
-                                                                                                         NodeTree
-                                                                                                         GuiSceneNode
-                                                                                                         LayoutsNode
-                                                                                                         LayoutNode])))))
+                                                                               (g/node-instance-match basis source-node-id
+                                                                                                      [GuiNode
+                                                                                                       NodeTree
+                                                                                                       GuiSceneNode
+                                                                                                       LayoutsNode
+                                                                                                       LayoutNode])))))
                                                        :properties-by-node-id properties-by-node-id}
                                            (fn [evaluation-context id-mapping]
                                              (let [or-scene (get id-mapping scene-node)]
@@ -1613,10 +1613,10 @@
 (def ^:private layout-node-traverse-fn
   (g/make-override-traverse-fn
     (fn layout-node-traverse-fn [basis ^Arc arc]
-      (g/node-instance-of-any? basis (.source-id arc)
-                               [GuiNode
-                                NodeTree
-                                GuiSceneNode]))))
+      (g/node-instance-match basis (.source-id arc)
+                             [GuiNode
+                              NodeTree
+                              GuiSceneNode]))))
 
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)

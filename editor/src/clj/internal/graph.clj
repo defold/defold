@@ -939,7 +939,7 @@
     (let [node-id (gt/node-id node)
           graph-id (gt/node-id->graph-id node-id)
           graph (add-node (get graphs graph-id) node-id node)]
-      [(update this :graphs assoc graph-id graph) node]))
+      (update this :graphs assoc graph-id graph)))
 
   (delete-node
     [this node-id]
@@ -950,7 +950,7 @@
     (let [graph-id (gt/node-id->graph-id node-id)
           new-node (assoc new-node :_node-id node-id)
           graph (assoc-in (get graphs graph-id) [:nodes node-id] new-node)]
-      [(update this :graphs assoc graph-id graph) new-node]))
+      (update this :graphs assoc graph-id graph)))
 
   (replace-override
     [this override-id new-override]

@@ -1509,10 +1509,7 @@
                                 :focus-fn focus-view))
 
 (g/defnk produce-transform [position rotation scale]
-  (let [position-v3 (doto (Vector3d.) (math/clj->vecmath position))
-        rotation-q4 (doto (Quat4d.) (math/clj->vecmath rotation))
-        scale-v3 (Vector3d. (double-array scale))]
-    (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3)))
+  (math/clj->mat4 position rotation scale))
 
 (def produce-no-transform-properties (g/constantly #{}))
 (def produce-scalable-transform-properties (g/constantly #{:position :rotation :scale}))

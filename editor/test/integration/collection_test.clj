@@ -260,8 +260,8 @@
 (deftest component-ddf-scale
   (letfn [(make-components! [game-object sprite-resource atlas-resource app-view]
             (let [sprite-resource-type (resource/resource-type sprite-resource)
-                  embedded-component (test-util/add-embedded-component! app-view sprite-resource-type game-object)
-                  referenced-component (test-util/add-referenced-component! app-view sprite-resource game-object)]
+                  embedded-component (test-util/add-embedded-component! game-object sprite-resource-type)
+                  referenced-component (test-util/add-referenced-component! game-object sprite-resource)]
               (test-util/prop! embedded-component :image atlas-resource)
               (test-util/prop! embedded-component :default-animation "logo")
               [embedded-component referenced-component]))
@@ -363,7 +363,7 @@
 
           (testing "Components in game object embedded inside collection."
             (let [collection (project/get-resource-node project collection-resource)
-                  game-object-instance (test-util/add-embedded-game-object! app-view project collection)
+                  game-object-instance (test-util/add-embedded-game-object! collection)
                   game-object (test-util/to-game-object-id game-object-instance)
                   [embedded-component referenced-component] (make-components! game-object sprite-resource atlas-resource app-view)]
               (test-unscaled embedded-component referenced-component)
@@ -378,7 +378,7 @@
           (testing "Components in child game object embedded inside collection."
             (let [collection (project/get-resource-node project collection-resource)
                   game-object-instance (:node-id (test-util/outline collection [0]))
-                  child-game-object-instance (test-util/add-embedded-game-object! app-view project collection game-object-instance)
+                  child-game-object-instance (test-util/add-embedded-game-object! collection game-object-instance)
                   child-game-object (test-util/to-game-object-id child-game-object-instance)
                   [embedded-component referenced-component] (make-components! child-game-object sprite-resource atlas-resource app-view)]
               (test-unscaled embedded-component referenced-component)
