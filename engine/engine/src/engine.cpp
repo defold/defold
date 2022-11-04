@@ -632,8 +632,13 @@ namespace dmEngine
         char engine_ssl_keys_path[DMPATH_MAX_PATH];
         dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
         char editor_ssl_keys_path[DMPATH_MAX_PATH];
-        dmPath::Concat(project_file_folder, dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", ""), editor_ssl_keys_path, sizeof(editor_ssl_keys_path));
-        const char* paths[] = {engine_ssl_keys_path, editor_ssl_keys_path};
+        const char* custom_ssl_certificate = dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", 0);
+        if (custom_ssl_certificate != 0)
+        {
+            dmPath::Concat(project_file_folder, custom_ssl_certificate, editor_ssl_keys_path, sizeof(editor_ssl_keys_path));
+        }
+
+        const char* paths[] = {engine_ssl_keys_path, custom_ssl_certificate != 0 ? editor_ssl_keys_path : 0};
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
         {
             if (paths[i] && LoadAndSetSslKeys(paths[i]))

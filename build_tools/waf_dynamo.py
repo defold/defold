@@ -1259,7 +1259,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
     return ret
 
 def run_tests(ctx, valgrind = False, configfile = None):
-    if ctx == None or getattr(Options.options, 'skip_tests', False):
+    if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
 
     # TODO: Add something similar to this
@@ -1711,6 +1711,9 @@ def detect(conf):
     conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
     conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null_noasan']
+
+    if platform in ('arm64-nx64',):
+        conf.env['STLIB_PROFILE'] = conf.env['STLIB_PROFILE_NULL']
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'

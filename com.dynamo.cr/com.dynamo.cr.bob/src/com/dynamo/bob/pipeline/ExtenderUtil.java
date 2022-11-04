@@ -435,6 +435,14 @@ public class ExtenderUtil {
         return folders;
     }
 
+
+    public static List<File> getPipelinePlugins(Project project) {
+        String outputDir = project.getBinaryOutputDirectory();
+        Platform hostPlatform = Platform.getHostPlatform();
+        File buildDir = new File(FilenameUtils.concat(outputDir, hostPlatform.getExtenderPair()));
+        List<File> files = listFilesRecursive(buildDir, JAR_RE);
+        return files;
+    }
     private static boolean hasPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
