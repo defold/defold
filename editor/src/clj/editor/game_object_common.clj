@@ -16,10 +16,13 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.geom :as geom]
+            [editor.gl.pass :as pass]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log])
@@ -234,3 +237,39 @@
                  (comp (mapcat :property-deps)
                        (util/distinct-by (comp resource/proj-path :resource)))
                  component-instance-datas)}))
+
+(defn component-scene [node-id node-outline-key ^Matrix4d transform-matrix source-component-resource-scene]
+  {:pre [(g/node-id? node-id)
+         (instance? Matrix4d transform-matrix)
+         (or (nil? source-component-resource-scene) (map? source-component-resource-scene))]}
+  (if source-component-resource-scene
+
+    ;; We have a source scene. This is usually the case.
+    (let [transform (if-some [^Matrix4d source-component-resource-transform (:transform source-component-resource-scene)]
+                      (doto (Matrix4d. transform-matrix)
+                        (.mul source-component-resource-transform))
+                      transform-matrix)
+          scene (-> source-component-resource-scene
+                    (scene/claim-scene node-id node-outline-key)
+                    (assoc :transform transform))
+          updatable (:updatable source-component-resource-scene)]
+      (if (nil? updatable)
+        scene
+        (let [claimed-updatable (assoc updatable :node-id node-id)]
+          (scene/map-scene #(assoc % :updatable claimed-updatable)
+                           scene))))
+
+    ;; This handles the case of no scene from actual component - typically bad
+    ;; data. Covered by for instance unknown_components.go in the test project.
+    {:node-id node-id
+     :transform transform-matrix
+     :aabb geom/empty-bounding-box
+     :renderable {:passes [pass/selection]}}))
+
+(defn game-object-scene [node-id component-scenes]
+  {:pre [(g/node-id? node-id)
+         (vector? component-scenes)
+         (not (vector? (first component-scenes)))]}
+  {:node-id node-id
+   :aabb geom/null-aabb
+   :children component-scenes})

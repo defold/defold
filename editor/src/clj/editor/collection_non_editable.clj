@@ -20,7 +20,6 @@
             [editor.game-object-common :as game-object-common]
             [editor.game-object-non-editable :as game-object-non-editable]
             [editor.geom :as geom]
-            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -29,8 +28,7 @@
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
-            [internal.util :as util]
-            [util.coll :refer [pair]])
+            [util.coll :refer [flipped-pair pair]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [javax.vecmath Matrix4d]))
 
@@ -223,12 +221,13 @@
     (distinct)
     (:instances collection-desc)))
 
-(defn- collection-desc->referenced-component-proj-paths [collection-desc]
-  (eduction
-    (map :data)
-    (mapcat game-object-non-editable/prototype-desc->referenced-component-proj-paths)
-    (distinct)
-    (:embedded-instances collection-desc)))
+(defn- collection-desc->referenced-component-proj-path->index [collection-desc]
+  (into {}
+        (comp (map :data)
+              (mapcat game-object-non-editable/prototype-desc->referenced-component-proj-paths)
+              (distinct)
+              (map-indexed flipped-pair))
+        (:embedded-instances collection-desc)))
 
 (defn- collection-desc->embedded-component-resource-datas [collection-desc]
   (eduction
@@ -279,15 +278,11 @@
   [[:build-targets :referenced-game-object-build-targets]
    [:resource-property-build-targets :resource-property-build-targets]])
 
-(def ^:private referenced-component-connections
-  [[:build-targets :referenced-component-build-targets]
-   [:resource-property-build-targets :resource-property-build-targets]])
-
 (def ^:private resource-property-connections
   [[:build-targets :resource-property-build-targets]])
 
 (g/defnode NonEditableCollectionNode
-  (inherits game-object-non-editable/EmbeddedComponentHostResourceNode)
+  (inherits game-object-non-editable/ComponentHostResourceNode)
 
   (property collection-desc g/Any
             (dynamic visible (g/constantly false))
@@ -304,30 +299,25 @@
                                (:tx-data (project/connect-resource-node evaluation-context project proj-path-or-resource self connections)))]
                        (-> (g/set-property self :embedded-component-resource-data->index
                              (collection-desc->embedded-component-resource-data->index new-value))
+                           (into (g/set-property self :referenced-component-proj-path->index
+                                   (collection-desc->referenced-component-proj-path->index new-value)))
                            (into (mapcat #(disconnect-resource % referenced-collection-connections))
                                  (collection-desc->referenced-collection-proj-paths old-value))
                            (into (mapcat #(disconnect-resource % referenced-game-object-connections))
                                  (collection-desc->referenced-game-object-proj-paths old-value))
-                           (into (mapcat #(disconnect-resource % referenced-component-connections))
-                                 (collection-desc->referenced-component-proj-paths old-value))
                            (into (mapcat #(disconnect-resource % resource-property-connections))
                                  (collection-desc->referenced-property-resources old-value proj-path->resource))
                            (into (mapcat #(connect-resource % referenced-collection-connections))
                                  (collection-desc->referenced-collection-proj-paths new-value))
                            (into (mapcat #(connect-resource % referenced-game-object-connections))
                                  (collection-desc->referenced-game-object-proj-paths new-value))
-                           (into (mapcat #(connect-resource % referenced-component-connections))
-                                 (collection-desc->referenced-component-proj-paths new-value))
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (collection-desc->referenced-property-resources new-value proj-path->resource))))))))
 
   (input referenced-collection-build-targets g/Any :array)
   (input referenced-game-object-build-targets g/Any :array)
-  (input referenced-component-build-targets g/Any :array)
-  (input resource-property-build-targets g/Any :array)
 
   ;; Internal outputs.
-  (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (mapv util/only-or-throw referenced-component-build-targets)))
   (output proj-path->build-target g/Any :cached produce-proj-path->build-target)
   (output referenced-game-object-instance-build-targets g/Any :cached produce-referenced-game-object-instance-build-targets)
   (output embedded-game-object-instance-build-targets g/Any :cached produce-embedded-game-object-instance-build-targets)
@@ -336,7 +326,6 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output ddf-properties g/Any :cached produce-ddf-properties)
   (output node-outline outline/OutlineData produce-node-outline)
-  (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any produce-scene))
 
 (defn- sanitize-non-editable-collection [workspace collection-desc]

@@ -29,7 +29,9 @@
             [util.digestable :as digestable])
   (:import [com.google.protobuf ByteString]
            [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
-           [com.jogamp.opengl.util.texture TextureData]))
+           [com.jogamp.opengl.util.texture TextureData]
+           [editor.gl.shader ShaderLifecycle]
+           [editor.gl.texture TextureLifecycle]))
 
 (set! *warn-on-reflection* true)
 
@@ -51,41 +53,57 @@
     (contains? resource :data)
     {:data (:data resource)}))
 
+(defn comparable-record
+  ([record value-fn]
+   (comparable-record record value-fn #{}))
+  ([record value-fn excluded-keys]
+   (let [exclude-key? (set excluded-keys)]
+     (into (sorted-map :- (class-symbol record))
+           (keep (fn [[k v]]
+                   (when-not (exclude-key? k)
+                     (let [v' (util/deep-map-kv-helper identity value-fn k v)]
+                       (pair k v')))))
+           record))))
+
+(defn comparable-vecmath [value]
+  (mapv #(math/round-with-precision % 0.000001)
+        (math/vecmath->clj value)))
+
 (defn- comparable-output [output]
   (letfn [(value-fn [key value]
             (cond
-              (resource/resource? value)
-              (merge (sorted-map (class-keyword value) (resource/proj-path value))
-                     (extra-comparable-resource-data value))
-
-              (satisfies? math/VecmathConverter value)
-              {(class-keyword value) (math/vecmath->clj value)}
-
-              (record? value)
-              (into (sorted-map :- (class-symbol value))
-                    (map (fn [[k v]]
-                           (let [v' (util/deep-map-kv-helper identity value-fn k v)]
-                             (pair k v'))))
-                    value)
-
-              (fn? value)
-              {:Fn (digestable/fn->symbol value)}
+              (or (digestable/node-id-entry? key value)
+                  (= :select-batch-key key))
+              nil ; Exclude the entry.
 
               (instance? ByteString value)
               {:ByteString (into (vector-of :byte) value)}
+
+              (or (instance? ShaderLifecycle value) (instance? TextureLifecycle value))
+              (comparable-record value value-fn #{:request-id}) ; The :request-id typically involves the node-id.
+
+              (instance? TextureData value)
+              {:TextureData (digestable/sha1-hash (str value))}
 
               (instance? TextureSetGenerator$UVTransform value)
               (let [^TextureSetGenerator$UVTransform uv-transform value]
                 {:- (class-symbol uv-transform)
                  :rotated (.-rotated uv-transform)
-                 :scale (math/vecmath->clj (.-scale uv-transform))
-                 :translation (math/vecmath->clj (.-translation uv-transform))})
+                 :scale (comparable-vecmath (.-scale uv-transform))
+                 :translation (comparable-vecmath (.-translation uv-transform))})
 
-              (instance? TextureData value)
-              {:TextureData (digestable/sha1-hash (str value))}
+              (resource/resource? value)
+              (merge (sorted-map (class-keyword value) (resource/proj-path value))
+                     (extra-comparable-resource-data value))
 
-              (digestable/node-id-entry? key value)
-              nil ; Exclude the entry.
+              (satisfies? math/VecmathConverter value)
+              {(class-keyword value) (comparable-vecmath value)}
+
+              (record? value)
+              (comparable-record value value-fn)
+
+              (fn? value)
+              {:Fn (digestable/fn->symbol value)}
 
               :else
               value))]

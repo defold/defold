@@ -17,7 +17,6 @@
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
-            [editor.geom :as geom]
             [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -27,14 +26,20 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.util :as util]
-            [util.coll :refer [pair]])
+            [util.coll :refer [flipped-pair pair]])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:private embedded-component-resource-connections
-  [[:build-targets :embedded-component-build-targets]])
+(def ^:private embedded-component-connections
+  [[:build-targets :embedded-component-build-targets]
+   [:scene :embedded-component-scenes]])
+
+(def ^:private referenced-component-connections
+  [[:build-targets :referenced-component-build-targets]
+   [:resource-property-build-targets :resource-property-build-targets]
+   [:scene :referenced-component-scenes]])
 
 (defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data ext->embedded-component-resource-type project]
   (let [embedded-resource-ext (:type embedded-component-resource-data)
@@ -47,10 +52,16 @@
         graph (g/node-id->graph-id host-node-id)]
     (g/make-nodes graph [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
       (project/load-node project embedded-resource-node-id embedded-resource-node-type embedded-resource)
-      (project/connect-if-output embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-resource-connections))))
+      (project/connect-if-output embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
-(g/defnode EmbeddedComponentHostResourceNode
-  (inherits resource-node/ImmutableResourceNode)
+(g/defnk produce-embedded-component-build-targets [embedded-component-build-targets]
+  (into []
+        (map (comp #(assoc % :resource (bt/make-content-hash-build-resource %))
+                   util/only-or-throw))
+        embedded-component-build-targets))
+
+(g/defnode ComponentHostResourceNode
+  (inherits resource-node/NonEditableResourceNode)
 
   (property embedded-component-resource-data->index g/Any
             (dynamic visible (g/constantly false))
@@ -67,12 +78,34 @@
                          (into (mapcat #(add-embedded-component-resource-node self (key %) ext->embedded-component-resource-type project))
                                (sort-by val new-value)))))))
 
+  (property referenced-component-proj-path->index g/Any
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project basis self)]
+                     (-> []
+                         (into (comp (map gt/source-id)
+                                     (distinct)
+                                     (mapcat (fn [source-id]
+                                               (map (fn [[source-label target-label]]
+                                                      (g/disconnect source-id source-label self target-label))
+                                                    referenced-component-connections))))
+                               (ig/explicit-inputs basis self :referenced-component-build-targets))
+                         (into (mapcat (fn [[referenced-component-proj-path]]
+                                         (:tx-data (project/connect-resource-node evaluation-context project referenced-component-proj-path self referenced-component-connections))))
+                               (sort-by val new-value)))))))
+
   (input embedded-component-build-targets g/Any :array :cascade-delete)
-  (output embedded-component-build-targets g/Any :cached (g/fnk [embedded-component-build-targets]
-                                                           (into []
-                                                                 (map (comp #(assoc % :resource (bt/make-content-hash-build-resource %))
-                                                                            util/only-or-throw))
-                                                                 embedded-component-build-targets))))
+  (input embedded-component-scenes g/Any :array)
+  (input referenced-component-build-targets g/Any :array)
+  (input referenced-component-scenes g/Any :array)
+  (input resource-property-build-targets g/Any :array)
+
+  (output embedded-component-build-targets g/Any :cached produce-embedded-component-build-targets)
+  (output embedded-component-scenes g/Any :cached (gu/passthrough embedded-component-scenes))
+  (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (mapv util/only-or-throw referenced-component-build-targets)))
+  (output referenced-component-scenes g/Any :cached (gu/passthrough referenced-component-scenes))
+  (output resource-property-build-targets g/Any :cached (gu/passthrough resource-property-build-targets)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -95,6 +128,11 @@
     (keep (comp not-empty :component))
     (distinct)
     (:components prototype-desc)))
+
+(defn prototype-desc->referenced-component-proj-path->index [prototype-desc]
+  (into {}
+        (map-indexed flipped-pair)
+        (prototype-desc->referenced-component-proj-paths prototype-desc)))
 
 (defn embedded-component-desc->embedded-component-resource-data [embedded-component-desc]
   {:pre [(map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
@@ -164,14 +202,29 @@
       (into (map #(embedded-component-desc->component-instance-data % embedded-component-desc->build-resource))
             (:embedded-components prototype-desc))))
 
+(defn- make-embedded-component-desc->index [embedded-component-resource-data->index]
+  (comp embedded-component-resource-data->index
+        embedded-component-desc->embedded-component-resource-data))
+
 (defn make-embedded-component-desc->build-resource [embedded-component-build-targets embedded-component-resource-data->index]
   {:pre [(vector? embedded-component-build-targets)
-         (not (vector? (first embedded-component-build-targets)))
-         (ifn? embedded-component-resource-data->index)]}
+         (not (vector? (first embedded-component-build-targets)))]}
   (comp :resource
         embedded-component-build-targets
-        embedded-component-resource-data->index
-        embedded-component-desc->embedded-component-resource-data))
+        (make-embedded-component-desc->index embedded-component-resource-data->index)))
+
+(defn make-embedded-component-desc->source-scene [embedded-component-scenes embedded-component-resource-data->index]
+  {:pre [(vector? embedded-component-scenes)
+         (not (vector? (first embedded-component-scenes)))]}
+  (comp embedded-component-scenes
+        (make-embedded-component-desc->index embedded-component-resource-data->index)))
+
+(defn make-component-desc->source-scene [referenced-component-scenes referenced-component-proj-path->index]
+  {:pre [(vector? referenced-component-scenes)
+         (not (vector? (first referenced-component-scenes)))]}
+  (comp referenced-component-scenes
+        referenced-component-proj-path->index
+        :component))
 
 ;; -----------------------------------------------------------------------------
 
@@ -208,19 +261,41 @@
    :label "Game Object Data"
    :icon game-object-common/game-object-icon})
 
-(g/defnk produce-scene [_node-id]
-  {:node-id _node-id
-   :aabb geom/null-aabb})
+(g/defnk produce-scene [_node-id prototype-desc embedded-component-resource-data->index embedded-component-scenes referenced-component-proj-path->index referenced-component-scenes]
+  (let [embedded-component-desc->source-scene
+        (make-embedded-component-desc->source-scene embedded-component-scenes embedded-component-resource-data->index)
 
-(def ^:private referenced-component-connections
-  [[:build-targets :referenced-component-build-targets]
-   [:resource-property-build-targets :resource-property-build-targets]])
+        component-desc->source-scene
+        (make-component-desc->source-scene referenced-component-scenes referenced-component-proj-path->index)
+
+        embedded-component-scenes
+        (into []
+              (map (fn [embedded-component-desc]
+                     (let [node-outline-key (:id embedded-component-desc)
+                           transform (any-component-desc->transform-matrix embedded-component-desc)
+                           source-scene (embedded-component-desc->source-scene embedded-component-desc)]
+                       (game-object-common/component-scene _node-id node-outline-key transform source-scene))))
+              (:embedded-components prototype-desc))
+
+        referenced-component-scenes
+        (eduction
+          (map (fn [component-desc]
+                 (let [node-outline-key (:id component-desc)
+                       transform (any-component-desc->transform-matrix component-desc)
+                       source-scene (component-desc->source-scene component-desc)]
+                   (game-object-common/component-scene _node-id node-outline-key transform source-scene))))
+          (:components prototype-desc))
+
+        component-scenes
+        (into embedded-component-scenes
+              referenced-component-scenes)]
+    (game-object-common/game-object-scene _node-id component-scenes)))
 
 (def ^:private resource-property-connections
   [[:build-targets :resource-property-build-targets]])
 
 (g/defnode NonEditableGameObjectNode
-  (inherits EmbeddedComponentHostResourceNode)
+  (inherits ComponentHostResourceNode)
 
   (property prototype-desc g/Any
             (dynamic visible (g/constantly false))
@@ -237,27 +312,20 @@
                                (:tx-data (project/connect-resource-node evaluation-context project proj-path-or-resource self connections)))]
                        (-> (g/set-property self :embedded-component-resource-data->index
                              (prototype-desc->embedded-component-resource-data->index new-value))
-                           (into (mapcat #(disconnect-resource % referenced-component-connections))
-                                 (prototype-desc->referenced-component-proj-paths old-value))
+                           (into (g/set-property self :referenced-component-proj-path->index
+                                   (prototype-desc->referenced-component-proj-path->index new-value)))
                            (into (mapcat #(disconnect-resource % resource-property-connections))
                                  (prototype-desc->referenced-property-resources old-value proj-path->resource))
-                           (into (mapcat #(connect-resource % referenced-component-connections))
-                                 (prototype-desc->referenced-component-proj-paths new-value))
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (prototype-desc->referenced-property-resources new-value proj-path->resource))))))))
 
-  (input referenced-component-build-targets g/Any :array)
-  (input resource-property-build-targets g/Any :array)
-
   ;; Internal outputs.
-  (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (mapv util/only-or-throw referenced-component-build-targets)))
   (output proj-path->build-target g/Any :cached produce-proj-path->build-target)
 
   ;; GameObject interface.
   (output build-targets g/Any :cached produce-build-targets)
   (output ddf-component-properties g/Any :cached produce-ddf-component-properties)
   (output node-outline outline/OutlineData produce-node-outline)
-  (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any produce-scene))
 
 (defn- sanitize-non-editable-game-object [workspace prototype-desc]

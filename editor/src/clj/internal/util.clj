@@ -357,7 +357,7 @@
 (defn only-or-throw
   "Returns the only element in coll, or throw an error if the collection does not have exactly one element."
   [coll]
-  (case (bounded-count 2 coll)
+  (case (long (bounded-count 2 coll))
     0 (throw (ex-info "The collection is empty." {:coll coll}))
     1 (first coll)
     (throw (ex-info "The collection has more than one element." {:coll coll}))))
