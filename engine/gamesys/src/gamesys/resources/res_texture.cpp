@@ -29,8 +29,8 @@ namespace dmGameSystem
         dmGraphics::TextureImage* m_DDFImage;
         uint8_t*                  m_DecompressedData[MAX_MIPMAP_COUNT];
         uint32_t                  m_DecompressedDataSize[MAX_MIPMAP_COUNT];
-        uint16_t                  m_RegionUpdateX;
-        uint16_t                  m_RegionUpdateY;
+        uint16_t                  m_X;
+        uint16_t                  m_Y;
         uint8_t                   m_MipMap          : 6;
         uint8_t                   m_UseBlankTexture : 1;
         uint8_t                   m_SubUpdate       : 1;
@@ -100,9 +100,16 @@ namespace dmGameSystem
             dmGraphics::TextureFormat original_format = TextureImageToTextureFormat(image->m_Format);
             dmGraphics::TextureFormat output_format   = original_format;
 
-            uint32_t num_mips = image->m_MipMapOffset.m_Count;
+            uint32_t num_mips           = image->m_MipMapOffset.m_Count;
+            bool specific_mip_requested = image_desc->m_MipMap != MIPMAP_VALUE_DONT_CARE;
+
             if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
             {
+                // Note: Requesting an upload of a specific mipmap level is only done in the resource.set_texture function,
+                //       which doesn't support any format that needs to be transcoded. So we should not hit this assert
+                //       but we'll leave this assert as a mental reminder that we need to fix it at some point if we want to support that.
+                assert(!specific_mip_requested);
+
                 num_mips = MAX_MIPMAP_COUNT;
                 output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
                 bool result = dmGraphics::Transcode(path, image, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips);
@@ -124,10 +131,10 @@ namespace dmGameSystem
             params.m_Format    = output_format;
             params.m_Width     = image->m_Width;
             params.m_Height    = image->m_Height;
-            params.m_X         = image_desc->m_RegionUpdateX;
-            params.m_Y         = image_desc->m_RegionUpdateY;
-            params.m_MipMap    = image_desc->m_MipMap;
+            params.m_X         = image_desc->m_X;
+            params.m_Y         = image_desc->m_Y;
             params.m_SubUpdate = image_desc->m_SubUpdate;
+            params.m_MipMap    = specific_mip_requested ? image_desc->m_MipMap : 0;
 
             assert(image->m_MipMapOffset.m_Count <= MAX_MIPMAP_COUNT);
 
@@ -157,9 +164,9 @@ namespace dmGameSystem
                 uint16_t tex_height_full   = dmGraphics::GetTextureHeight(texture);
                 uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
                 uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
-                uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(tex_width_full, tex_height_full);
+                uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
 
-                if (params.m_MipMap != MIPMAP_VALUE_DONT_CARE && params.m_MipMap > tex_mipmap_count)
+                if (specific_mip_requested && params.m_MipMap > tex_mipmap_count)
                 {
                     dmLogError("Texture mipmap level %u exceeds maximum mipmap level %u.", params.m_MipMap, tex_mipmap_count);
                     result = dmResource::RESULT_INVALID_DATA;
@@ -201,18 +208,12 @@ namespace dmGameSystem
             // If we requested to upload a specific mipmap, upload only that level
             // It is expected that we only have offsets for that level in the image desc as well
             // -> See script_resource.cpp::SetTexture
-            if (params.m_MipMap != MIPMAP_VALUE_DONT_CARE)
+            if (specific_mip_requested)
             {
-                if (image_desc->m_DecompressedData[0] == 0)
-                {
-                    params.m_Data     = &image->m_Data[image->m_MipMapOffset[0]];
-                    params.m_DataSize = image->m_MipMapSize[0];
-                }
-                else
-                {
-                    params.m_Data     = image_desc->m_DecompressedData[0];
-                    params.m_DataSize = image_desc->m_DecompressedDataSize[0];
-                }
+                // Note: We don't support transcoded data for uploading specific mipmaps yet
+                assert(image_desc->m_DecompressedData[0] == 0);
+                params.m_Data     = &image->m_Data[image->m_MipMapOffset[0]];
+                params.m_DataSize = image->m_MipMapSize[0];
                 dmGraphics::SetTextureAsync(texture, params);
             }
             else
@@ -365,10 +366,10 @@ namespace dmGameSystem
 
         if (recreate_params)
         {
-            image_desc->m_RegionUpdateX = recreate_params->m_X;
-            image_desc->m_RegionUpdateY = recreate_params->m_Y;
-            image_desc->m_MipMap        = recreate_params->m_MipMap;
-            image_desc->m_SubUpdate     = recreate_params->m_SubUpdate;
+            image_desc->m_X         = recreate_params->m_X;
+            image_desc->m_Y         = recreate_params->m_Y;
+            image_desc->m_MipMap    = recreate_params->m_MipMap;
+            image_desc->m_SubUpdate = recreate_params->m_SubUpdate;
         }
 
         // Set up the new texture (version), wait for it to finish before issuing new requests

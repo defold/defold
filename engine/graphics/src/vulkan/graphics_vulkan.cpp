@@ -3293,7 +3293,7 @@ bail:
                 // JG: Might want to go back to this part and recreate if mipmap count has changed from when the texture was originally created
                 if (texture->m_MipMapCount > 1)
                 {
-                    texture->m_MipMapCount = (uint16_t) GetMipmapCount(texture->m_Width, texture->m_Height);
+                    texture->m_MipMapCount = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Width, texture->m_Height));
                 }
             }
         }

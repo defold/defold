@@ -25,7 +25,6 @@
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics");
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, FrameReset, "# vertices", &rmtp_Graphics);
 
-#include <dlib/math.h> // Max/Min
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 
@@ -316,10 +315,9 @@ namespace dmGraphics
         return size_0;
     }
 
-    uint8_t GetMipmapCount(uint16_t width, uint16_t height)
+    uint8_t GetMipmapCount(uint16_t size)
     {
-        uint16_t dim = dmMath::Max(width, height);
-        return (uint8_t) floor(log2f(dim)) + 1;
+        return (uint8_t) floor(log2f(size)) + 1;
     }
 
     PipelineState GetDefaultPipelineState()
