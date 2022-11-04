@@ -420,3 +420,25 @@
 (defn internal?
   [resource]
   (string/starts-with? (resource->proj-path resource) "/_defold"))
+
+(def ^:private known-ext->language
+  ;; See known language identifiers:
+  ;; https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers
+  {"clj" "clojure"
+   "cljc" "clojure"
+   "css" "css"
+   "html" "html"
+   "java" "java"
+   "js" "javascript"
+   "md" "markdown"
+   "py" "python"
+   "sh" "shellscript"
+   "plist" "xml"
+   "xml" "xml"
+   "yaml" "yaml"
+   "yml" "yaml"})
+
+(defn language [resource]
+  (or (:language (resource-type resource))
+      (known-ext->language (ext resource))
+      "plaintext"))

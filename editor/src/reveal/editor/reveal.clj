@@ -1,5 +1,10 @@
 (ns editor.reveal
-  (:require [clojure.main :as m]
+  (:require [cljfx.fx.button :as fx.button]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.label :as fx.label]
+            [cljfx.fx.v-box :as fx.v-box]
+            [clojure.core.async :as a]
+            [clojure.main :as m]
             [clojure.string :as str]
             [dynamo.graph :as g]
             editor.code.data
@@ -7,7 +12,8 @@
             [editor.resource-node :as resource-node]
             [vlaaad.reveal :as r]
             [internal.system :as is])
-  (:import [clojure.lang IRef]
+  (:import [clojure.core.async.impl.channels ManyToManyChannel]
+           [clojure.lang IRef]
            [editor.resource FileResource ZipResource]
            [editor.code.data Cursor CursorRange]
            [internal.graph.types Endpoint]
@@ -81,9 +87,9 @@
    :render (node-id-sf ec node-id)
    :children (node-children-fn ec node-id)})
 
-(r/defaction ::defold:node-tree [x]
+(r/defaction ::defold:node-tree [x ann]
   (when (g/node-id? x)
-    (let [ec (g/make-evaluation-context)]
+    (let [ec (or (::evaluation-context ann) (g/make-evaluation-context))]
       (when (g/node-by-id (:basis ec) x)
         (fn []
           {:fx/type r/tree-view
@@ -93,6 +99,13 @@
            :annotate :annotation
            :children #((:children %))
            :root (root-tree-node ec x)})))))
+
+(defn node-id-in-context
+  ([node-id]
+   (g/with-auto-evaluation-context evaluation-context
+     (node-id-in-context node-id evaluation-context)))
+  ([node-id evaluation-context]
+   (r/stream node-id {::evaluation-context evaluation-context})))
 
 (defn- de-duplicating-observable [ref f]
   (reify IRef
@@ -178,3 +191,35 @@
                  :branch? #(and (instance? Parent %)
                                 (seq (.getChildrenUnmodifiable ^Parent %)))
                  :children #(vec (.getChildrenUnmodifiable ^Parent %))})))
+
+(r/defstream ManyToManyChannel [ch]
+  (r/horizontal
+    (r/raw-string "(a/chan " {:fill :object})
+    (r/raw-string (format "#_0x%08x" (System/identityHashCode ch)) {:fill :util})
+    (r/raw-string ")" {:fill :object})))
+
+(r/defaction ::lsp:watch [x]
+  (when (= :editor.lsp/running-lsps (:type (meta x)))
+    (fn []
+      {:fx/type r/observable-view
+       :ref x
+       :fn (fn [in->state]
+             {:fx/type fx.v-box/lifecycle
+              :children (for [[in state] in->state]
+                          {:fx/type fx.v-box/lifecycle
+                           :v-box/vgrow :always
+                           :children [{:fx/type fx.h-box/lifecycle
+                                       :alignment :center-left
+                                       :padding 10
+                                       :spacing 5
+                                       :children [{:fx/type fx.label/lifecycle
+                                                   :max-width ##Inf
+                                                   :h-box/hgrow :always
+                                                   :text (format "LSP server #0x%08x" (System/identityHashCode in))}
+                                                  {:fx/type fx.button/lifecycle
+                                                   :focus-traversable false
+                                                   :text "Shutdown"
+                                                   :on-action (fn [_] (a/close! in))}]}
+                                      {:fx/type r/value-view
+                                       :v-box/vgrow :always
+                                       :value state}]})})})))
