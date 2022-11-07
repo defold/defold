@@ -1009,10 +1009,10 @@ namespace dmEngine
         }
 
         // rig.max_instance_count is deprecated in favour of component specific max count values.
-        // For backwards combatibility we get the rig generic value and take the max of it and each
-        // specific component max value.
-        int32_t max_rig_instance = dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", 128);
-        int32_t max_model_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128), max_rig_instance);
+        if (dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", -1) != -1)
+        {
+            dmLogWarning("`rig.max_instance_count` deprecated. Use component specific counters.");
+        }
 
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
@@ -1099,7 +1099,7 @@ namespace dmEngine
 
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ModelContext.m_Factory = engine->m_Factory;
-        engine->m_ModelContext.m_MaxModelCount = max_model_count;
+        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
 
         engine->m_MeshContext.m_RenderContext = engine->m_RenderContext;
         engine->m_MeshContext.m_Factory       = engine->m_Factory;
