@@ -139,7 +139,8 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+ENGINE_LIBS = "testmain dlib texc ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+HOST_LIBS = "testmain dlib texc modelc".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
 
@@ -348,7 +349,7 @@ class Configuration(object):
             self._log('Removing %s' % self.dynamo_home)
             shutil.rmtree(self.dynamo_home)
 
-        for lib in ['dlib','texc','modelc']+ENGINE_LIBS:
+        for lib in ENGINE_LIBS:
             builddir = join(self.defold_root, 'engine/%s/build' % lib)
             if os.path.exists(builddir):
                 self._log('Removing %s' % builddir)
@@ -1094,7 +1095,7 @@ class Configuration(object):
         args = cmd.split()
         host = self.host
         # Make sure we build these for the host platform for the toolchain (bob light)
-        for lib in ['dlib', 'texc', 'modelc']:
+        for lib in HOST_LIBS:
             skip_tests = host != self.target_platform
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         if not self.skip_bob_light:
@@ -1103,15 +1104,17 @@ class Configuration(object):
         # Target libs to build
 
         engine_libs = list(ENGINE_LIBS)
-        if host != self.target_platform:
-            engine_libs.insert(0, 'dlib')
-            if self.is_desktop_target():
-                engine_libs.insert(1, 'texc')
-                engine_libs.insert(2, 'modelc')
         for lib in engine_libs:
+
+            # No need to rebuild a library if it has already been built
+            if host == self.target_platform:
+                if lib in HOST_LIBS:
+                    continue
+
             if not build_private.is_library_supported(target_platform, lib):
                 continue
             self._build_engine_lib(args, lib, target_platform)
+
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
         if not self.skip_docs:
             self.build_docs()
@@ -2009,6 +2012,7 @@ class Configuration(object):
                       '%s/build_tools' % self.defold,
                       '%s/ext/lib/python' % self.dynamo_home]
         env['PYTHONPATH'] = os.path.pathsep.join(pythonpaths)
+        env['PYTHONIOENCODING'] = 'UTF-8'
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
         env['DYNAMO_HOME'] = self.dynamo_home
