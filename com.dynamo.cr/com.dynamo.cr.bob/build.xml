@@ -118,6 +118,8 @@
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
                 <include name="luac-32"/>
+                <include name="luajit-32"/>
+                <include name="luajit-64"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86_64-linux" overwrite="true" flatten="true">
@@ -125,6 +127,8 @@
                 <include name="glslc"/>
                 <include name="spirv-cross"/>
                 <include name="luac-32"/>
+                <include name="luajit-32"/>
+                <include name="luajit-64"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86_64-win32" overwrite="true" flatten="true">
@@ -132,6 +136,10 @@
                 <include name="glslc.exe"/>
                 <include name="spirv-cross.exe"/>
                 <include name="luac-32.exe"/>
+                <include name="luajit-64.exe"/>
+            </fileset>
+            <fileset dir="${env.DYNAMO_HOME}/ext/bin/win32">
+                <include name="luajit-32.exe"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86-win32" overwrite="true" flatten="true">
@@ -139,45 +147,6 @@
                 <include name="glslc.exe"/>
                 <include name="spirv-cross.exe"/>
             </fileset>
-        </copy>
-
-        <copy todir="${bob.dir}/libexec" overwrite="true">
-            <chainedmapper>
-                <cutdirsmapper dirs="1"/>
-                <compositemapper>
-                    <!-- Symlinks do not seem to make it through this process, so we map from versioned name
-                         to the final name. Only files that are matched by either glob below are included in
-                         the copy -->
-                    <globmapper from="x86_64-macos/luajit-2.1.0-633f265-32" to="x86_64-macos/luajit-32"/>
-                    <globmapper from="x86_64-macos/luajit-2.1.0-633f265-64" to="x86_64-macos/luajit-64"/>
-                    <!-- <globmapper from="arm64-macos/luajit-2.1.0-633f265-32" to="arm64-macos/luajit-32"/>
-                    <globmapper from="arm64-macos/luajit-2.1.0-633f265-64" to="arm64-macos/luajit-64"/> -->
-                    <globmapper from="x86_64-linux/luajit-2.1.0-633f265-32" to="x86_64-linux/luajit-32"/>
-                    <globmapper from="x86_64-linux/luajit-2.1.0-633f265-64" to="x86_64-linux/luajit-64"/>
-                    <globmapper from="win32/luajit-32.exe" to="x86_64-win32/luajit-32.exe"/>
-                    <globmapper from="x86_64-win32/luajit-64.exe" to="x86_64-win32/luajit-64.exe"/>
-                </compositemapper>
-            </chainedmapper>
-            <tarfileset includes="bin/x86_64-linux/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.1.0-633f265-x86_64-linux.tar.gz" />
-                </gzipresource>
-            </tarfileset>
-            <tarfileset includes="bin/x86_64-win32/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.1.0-633f265-x86_64-win32.tar.gz" />
-                </gzipresource>
-            </tarfileset>
-            <tarfileset includes="bin/x86_64-macos/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.1.0-633f265-x86_64-macos.tar.gz" />
-                </gzipresource>
-            </tarfileset>
-            <!-- <tarfileset includes="bin/arm64-macos/**">
-                <gzipresource>
-                    <file file="../../packages/luajit-2.1.0-633f265-arm64-macos.tar.gz" />
-                </gzipresource>
-            </tarfileset> -->
         </copy>
 
         <javac srcdir="generated"
