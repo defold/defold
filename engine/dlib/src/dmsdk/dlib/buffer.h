@@ -19,6 +19,7 @@
 
 #include "hash.h"
 #include "align.h"
+#include <dmsdk/dlib/vmath.h>  // for Point3
 
 namespace dmBuffer
 {
@@ -105,6 +106,8 @@ namespace dmBuffer
         RESULT_STREAM_TYPE_MISMATCH,
         RESULT_STREAM_COUNT_MISMATCH,
         RESULT_STREAM_MISMATCH,
+        RESULT_METADATA_INVALID,
+        RESULT_METADATA_NOT_EXIST,
     };
 
     /*# StreamDeclaration struct
@@ -395,6 +398,10 @@ namespace dmBuffer
      * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
      */
     Result UpdateContentVersion(HBuffer hbuffer);
+
+    Result SetBounds(HBuffer hbuffer, const dmVMath::Point3& min, const dmVMath::Point3& max);
+
+    Result GetBounds(HBuffer hbuffer, dmVMath::Point3& min, dmVMath::Point3& max);
 }
 
 #endif // DMSDK_BUFFER_H

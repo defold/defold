@@ -217,6 +217,126 @@ TEST_F(BufferTest, ValidateBuffer)
     dmBuffer::Destroy(buffer);
 }
 
+TEST_F(BufferTest, MetaData)
+{
+    dmBuffer::HBuffer buffer = 0x0;
+    dmBuffer::StreamDeclaration streams_decl[] = {
+        {dmHashString64("position"), dmBuffer::VALUE_TYPE_UINT8, 3},
+        {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT8, 1}
+    };
+    dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 2, &buffer);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    float min_aabb[] = {-1.0f, -2.0f, -3.0f};
+    float max_aabb[] = {1.0f, 2.0f, 3.0f};
+
+    // zero buffer
+    r = dmBuffer::SetMetaData(0, dmHashString64("min_AABB"), min_aabb, 3, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_BUFFER_INVALID, r);
+
+    // count == 0
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb, 0, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_METADATA_INVALID, r);
+
+    float* verify_data;
+    uint32_t verify_count;
+    dmBuffer::ValueType verify_type;
+
+    // set & get
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb, 3, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    r = dmBuffer::GetMetaData(buffer, dmHashString64("min_AABB"), (void**)&verify_data, &verify_count, &verify_type);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(-1.0f, verify_data[0]);
+    ASSERT_EQ(-2.0f, verify_data[1]);
+    ASSERT_EQ(-3.0f, verify_data[2]);
+
+    // second item
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("max_AABB"), max_aabb, 3, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    r = dmBuffer::GetMetaData(buffer, dmHashString64("max_AABB"), (void**)&verify_data, &verify_count, &verify_type);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(1.0f, verify_data[0]);
+    ASSERT_EQ(2.0f, verify_data[1]);
+    ASSERT_EQ(3.0f, verify_data[2]);
+
+    // update
+    float min_aabb2[] = {-10.0f, -20.0f, -30.0f};
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb2, 3, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    r = dmBuffer::GetMetaData(buffer, dmHashString64("min_AABB"), (void**)&verify_data, &verify_count, &verify_type);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(-10.0f, verify_data[0]);
+    ASSERT_EQ(-20.0f, verify_data[1]);
+    ASSERT_EQ(-30.0f, verify_data[2]);
+
+    // update with wrong count
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb2, 4, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_METADATA_INVALID, r);
+
+    // update with wrong type
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb2, 3, dmBuffer::VALUE_TYPE_UINT32);
+    ASSERT_EQ(dmBuffer::RESULT_METADATA_INVALID, r);
+
+    dmBuffer::Destroy(buffer);
+    buffer = 0;
+}
+
+TEST_F(BufferTest, BoundsMetadata)
+{
+    dmBuffer::HBuffer buffer = 0x0;
+    dmBuffer::StreamDeclaration streams_decl[] = {
+        {dmHashString64("position"), dmBuffer::VALUE_TYPE_UINT8, 3},
+        {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT8, 1}
+    };
+    dmBuffer::Result r = dmBuffer::Create(4, streams_decl, 2, &buffer);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    dmVMath::Point3 min_point( -1.0, -2.0, -3.0);
+    dmVMath::Point3 max_point( 1.0, 2.0, 3.0);
+
+    // set & get bounds
+    r = dmBuffer::SetBounds(buffer, min_point, max_point);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    dmVMath::Point3 min_point2;
+    dmVMath::Point3 max_point2;
+    r = dmBuffer::GetBounds(buffer, min_point2, max_point2);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    ASSERT_TRUE(min_point.getX() == min_point2.getX() &&
+                min_point.getY() == min_point2.getY() &&
+                min_point.getZ() == min_point2.getZ()
+                );
+    ASSERT_TRUE(max_point.getX() == max_point2.getX() &&
+                max_point.getY() == max_point2.getY() &&
+                max_point.getZ() == max_point2.getZ()
+                );
+
+    // update bounds
+    min_point = dmVMath::Point3(-2.0, -4.0, -6.0);
+    max_point = dmVMath::Point3(2.0, 4.0, 6.0);
+
+    r = dmBuffer::SetBounds(buffer, min_point, max_point);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    r = dmBuffer::GetBounds(buffer, min_point2, max_point2);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    ASSERT_TRUE(min_point.getX() == min_point2.getX() &&
+                min_point.getY() == min_point2.getY() &&
+                min_point.getZ() == min_point2.getZ()
+                );
+    ASSERT_TRUE(max_point.getX() == max_point2.getX() &&
+                max_point.getY() == max_point2.getY() &&
+                max_point.getZ() == max_point2.getZ()
+                );
+
+    dmBuffer::Destroy(buffer);
+    buffer = 0;
+}
+
+
 TEST_F(GetDataTest, GetStreamType)
 {
     dmBuffer::Result r;
