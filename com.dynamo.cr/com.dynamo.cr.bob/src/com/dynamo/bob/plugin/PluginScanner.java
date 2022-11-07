@@ -84,7 +84,7 @@ public class PluginScanner {
 			List<T> plugins = (List<T>)pluginsCache.get(pluginKey);
 			if (plugins != null)
 			{
-				Bob.verbose("PluginScanner has %i cached plugins for key %s", plugins.size(), pluginKey);
+				Bob.verbose("PluginScanner has %d cached plugins for key %s", plugins.size(), pluginKey);
 			}
 			return plugins;
 		}
