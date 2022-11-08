@@ -138,3 +138,28 @@
   (is (nil? (util/only #{:a :b})))
   (is (nil? (util/only '(:a :b))))
   (is (nil? (util/only {:a 1 :b 2}))))
+
+(deftest into-multiple-test
+  (is (= [] (util/into-multiple)))
+  (is (= [] (util/into-multiple [])))
+  (is (= [[]] (util/into-multiple [[]])))
+  (is (= [{}] (util/into-multiple [{}])))
+  (is (= [#{}] (util/into-multiple [#{}])))
+  (is (= [#{0 1 2 3 4 5 6 7 8 9}]
+         (util/into-multiple [#{}] (range 10))))
+  (is (= [#{0 1 2 3 4 5 6 7 8 9} [0 1 2 3 4 5 6 7 8 9]]
+         (util/into-multiple [#{} []] (range 10))))
+  (is (= [#{0 1 2 3 4 5 6 7 8 9} [0 1 2 3 4 5 6 7 8 9] [0 1 2 3 4 5 6 7 8 9]]
+         (util/into-multiple [#{} [] []] (range 10))))
+  (is (= [[1 3 5 7 9]]
+         (util/into-multiple [[]] [(filter odd?)] (range 10))))
+  (is (= [[1 3 5 7 9] [0 2 4 6 8]]
+         (util/into-multiple [[] []] [(filter odd?) (filter even?)] (range 10))))
+  (is (= [[1 3 5 7 9] [0 2 4 6 8] [1 2 3 4 5 6 7 8 9 10]]
+         (util/into-multiple [[] [] []] [(filter odd?) (filter even?) (map inc)] (range 10))))
+  (let [[a] (util/into-multiple [[]] [(take 10)] (repeatedly rand))]
+    (is (= 10 (count a))))
+  (let [[a b] (util/into-multiple [[] []] [(take 10) (take 10)] (repeatedly rand))]
+    (is (= a b)))
+  (let [[a b c] (util/into-multiple [[] [] []] [(take 10) (take 10) (take 10)] (repeatedly rand))]
+    (is (= a b c))))

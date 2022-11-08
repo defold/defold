@@ -66,15 +66,25 @@
            record))))
 
 (defn comparable-vecmath [value]
-  (mapv #(math/round-with-precision % 0.000001)
+  (mapv #(math/round-with-precision % 0.0001)
         (math/vecmath->clj value)))
+
+(def ^:private comparable-excluded-key?
+  #{:node-outline-key
+    :picking-node-id
+    :select-batch-key})
 
 (defn- comparable-output [output]
   (letfn [(value-fn [key value]
             (cond
-              (or (digestable/node-id-entry? key value)
-                  (= :select-batch-key key))
+              (comparable-excluded-key? key)
               nil ; Exclude the entry.
+
+              (nil? value)
+              :nil
+
+              (digestable/node-id-entry? key value)
+              :node-id ; Node ids won't ever match.
 
               (instance? ByteString value)
               {:ByteString (into (vector-of :byte) value)}
@@ -107,7 +117,7 @@
 
               :else
               value))]
-    (util/deep-map-kv util/with-sorted-keys value-fn output)))
+    (util/deep-keep-kv util/with-sorted-keys value-fn output)))
 
 (defn- save-project! [project]
   (let [save-data (project/dirty-save-data project)]

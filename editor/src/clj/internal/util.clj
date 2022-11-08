@@ -43,6 +43,18 @@
 (defn conjv [coll x]
   (conj (or coll []) x))
 
+(defn intov
+  ([] [])
+  ([to]
+   {:pre [(or (nil? to) (vector? to))]}
+   (or to []))
+  ([to from]
+   {:pre [(or (nil? to) (vector? to))]}
+   (into (or to []) from))
+  ([to xform from]
+   {:pre [(or (nil? to) (vector? to))]}
+   (into (or to []) xform from)))
+
 (defn distinct-by
   "Returns a lazy sequence of the elements of coll with duplicates removed.
   Elements are considered equal if they return equivalent values for keyfn.
@@ -546,3 +558,94 @@
    (deep-keep-kv-helper identity value-fn nil value))
   ([finalize-coll-value-fn value-fn value]
    (deep-keep-kv-helper finalize-coll-value-fn value-fn nil value)))
+
+(defn into-multiple
+  "Like core.into, but transfers the input into multiple collections in a single
+  pass. Instead of a single destination and optional transducer, takes a seq of
+  destinations and a seq of transducers. The number of destinations must match
+  the number of transducers. Returns a seq of the populated destinations."
+  ([] [])
+  ([tos] tos)
+  ([tos from]
+   (if (empty? from)
+     tos
+     (case (long (bounded-count 3 tos))
+       ;; No destinations - return unaltered.
+       0 tos
+
+       ;; Single destination - use regular into.
+       1 [(into (first tos) from)]
+
+       ;; Optimized for two destinations.
+       2 (let [transient-tos
+               (reduce (fn [transient-tos item]
+                         (pair (conj! (transient-tos 0) item)
+                               (conj! (transient-tos 1) item)))
+                       (pair (transient (nth tos 0))
+                             (transient (nth tos 1)))
+                       from)]
+           (pair (with-meta (persistent! (transient-tos 0)) (meta (nth tos 0)))
+                 (with-meta (persistent! (transient-tos 1)) (meta (nth tos 1)))))
+
+       ;; General case.
+       (mapv #(with-meta (persistent! %2) (meta %1))
+             tos
+             (reduce (fn [transient-tos item]
+                       (mapv conj! transient-tos (repeat item)))
+                     (mapv transient tos)
+                     from)))))
+  ([tos xforms from]
+   (if (empty? from)
+     tos
+     (case (long (bounded-count 3 tos))
+       ;; No destinations - return unaltered.
+       0 tos
+
+       ;; Single destination - use regular into.
+       1 [(into (first tos) (first xforms) from)]
+
+       ;; Optimized for two destinations.
+       2 (let [f0 ((nth xforms 0) conj!)
+               f1 ((nth xforms 1) conj!)
+
+               transient-tos
+               (reduce (fn [transient-tos item]
+                         (let [transient-to0 (transient-tos 0)
+                               transient-to1 (transient-tos 1)]
+                           (let [transient-to0' (cond-> transient-to0 (not (reduced? transient-to0)) (f0 item))
+                                 transient-to1' (cond-> transient-to1 (not (reduced? transient-to1)) (f1 item))]
+                             (cond-> (pair transient-to0'
+                                           transient-to1')
+
+                                     (and (reduced? transient-to0')
+                                          (reduced? transient-to1'))
+                                     reduced))))
+                       (pair (transient (nth tos 0))
+                             (transient (nth tos 1)))
+                       from)]
+           (pair (with-meta (persistent! (unreduced (transient-tos 0)))
+                            (meta (nth tos 0)))
+                 (with-meta (persistent! (unreduced (transient-tos 1)))
+                            (meta (nth tos 1)))))
+
+       ;; General case.
+       (let [fs (mapv (fn [xform]
+                        (xform conj!))
+                      xforms)]
+         (mapv #(with-meta (persistent! (unreduced %2)) (meta %1))
+               tos
+               (reduce (fn [transient-tos item]
+                         (let [[transient-tos' all-reduced]
+                               (reduce-kv (fn [[transient-tos' all-reduced] index transient-to]
+                                            (let [f (fs index)
+                                                  transient-to' (cond-> transient-to (not (reduced? transient-to)) (f item))]
+                                              (pair (conj transient-tos' transient-to')
+                                                    (and all-reduced
+                                                         (reduced? transient-to')))))
+                                          (pair []
+                                                true)
+                                          transient-tos)]
+                           (cond-> transient-tos'
+                                   all-reduced reduced)))
+                       (mapv transient tos)
+                       from)))))))
