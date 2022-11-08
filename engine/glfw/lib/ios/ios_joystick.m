@@ -32,7 +32,13 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
     (void) device_id;
     return GL_FALSE;
 }
-int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+
+int _glfwPlatformGetJoystickAlternativeDeviceId( int joy, char** alternative_device_id )
 {
-    return 0;
+    return _glfwPlatformGetJoystickDeviceId(joy, alternative_device_id);
+}
+
+int _glfwPlatformGetJoystickGenericDeviceId( int joy, char** generic_device_id )
+{
+    return _glfwPlatformGetJoystickDeviceId(joy, generic_device_id);
 }

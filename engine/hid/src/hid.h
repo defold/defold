@@ -155,8 +155,9 @@ namespace dmHID
      *
      * @param gamepad gamepad handle
      * @param a pointer to the device name, or 0x0 if not specified
+     * @param a pointer to the generic device name, or 0x0 if not specified
      */
-    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name);
+    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name, const char** out_generic_device_name);
 
     /**
      * Check if a keyboard is connected.

@@ -578,9 +578,11 @@ var LibraryGLFW = {
                   //In case when user change gamepad while browser in background (minimized)
                   GLFW.disconnectJoystick(joy);
                 }
+                var generic_id = (gamepad.mapping == "standard") ? "Standard Gamepad" : gamepad.id;
                 GLFW.joys[joy] = {
                   id: allocate(intArrayFromString(gamepad.id), ALLOC_NORMAL),
                   id_string: gamepad.id,
+                  generic_id: allocate(intArrayFromString(generic_id), ALLOC_NORMAL),
                   axesCount: gamepad.axes.length,
                   buttonsCount: gamepad.buttons.length
                 };
@@ -971,6 +973,15 @@ var LibraryGLFW = {
   glfwGetJoystickDeviceId: function(joy, device_id) {
     if (GLFW.joys[joy]) {
       setValue(device_id, GLFW.joys[joy].id, '*');
+      return 1;
+    } else {
+      return 0;
+    }
+  },
+
+  glfwGetJoystickGenericDeviceId: function(joy, generic_device_id) {
+    if (GLFW.joys[joy]) {
+      setValue(generic_device_id, GLFW.joys[joy].generic_id, '*');
       return 1;
     } else {
       return 0;

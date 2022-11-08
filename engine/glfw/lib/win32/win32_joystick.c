@@ -467,3 +467,8 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
 }
 
 #endif
+
+int _glfwPlatformGetJoystickGenericDeviceId( int joy, char** generic_device_id )
+{
+    return _glfwPlatformGetJoystickDeviceId(joy, generic_device_id);
+}

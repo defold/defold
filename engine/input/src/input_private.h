@@ -64,6 +64,7 @@ namespace dmInput
         dmArray<GamepadTrigger> m_Triggers;
         dmHashTable64< Action > m_Actions;
         uint32_t m_DeviceId;
+        uint32_t m_GenericDeviceId;
         uint8_t m_Index;
         uint8_t m_Connected : 1;
         uint8_t m_NoMapWarning : 1;

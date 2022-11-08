@@ -252,9 +252,10 @@ namespace dmHID
         }
     }
 
-    void GetGamepadDeviceName(HGamepad gamepad, const char** device_name)
+    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name, const char** out_generic_device_name)
     {
-        glfwGetJoystickDeviceId(gamepad->m_Index, (char**)device_name);
+        glfwGetJoystickDeviceId(gamepad->m_Index, (char**)out_device_name);
+        glfwGetJoystickGenericDeviceId(gamepad->m_Index, (char**)out_generic_device_name);
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
