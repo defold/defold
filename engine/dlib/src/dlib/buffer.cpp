@@ -13,8 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 
-#include "array.h"
-#include "hash.h"
+#include <dlib/hash.h>
 #include <dmsdk/dlib/buffer.h>
 
 #include <dlib/log.h>
@@ -63,12 +62,13 @@ namespace dmBuffer
 
         void*    m_Data;            // All stream data, including guard bytes after each stream and 16 byte aligned.
         Stream*  m_Streams;
+        dmArray<MetaData*> m_MetaDataArray;
         uint32_t m_Stride;          // The struct size (in bytes)
         uint32_t m_Count;           // The number of "structs" in the buffer (e.g. vertex count)
         uint16_t m_Version;
         uint16_t m_ContentVersion;  // A running number, which user can use to signal content changes
         uint8_t  m_NumStreams;
-        dmArray<MetaData*> m_MetaDataArray;
+
 
     };
 
@@ -646,7 +646,7 @@ namespace dmBuffer
     }
 
     // Returns a pointer to the metadata item or 0 if not found.  Assumes buffer is valid.
-    Buffer::MetaData* FindMetaDataItem(Buffer* buffer, dmhash_t name_hash) {
+    static Buffer::MetaData* FindMetaDataItem(Buffer* buffer, dmhash_t name_hash) {
         dmArray<Buffer::MetaData*>& arr = buffer->m_MetaDataArray;
         for (uint32_t  i=0; i<arr.Size(); i++) {
             if (arr[i]->m_Name == name_hash) {
@@ -669,7 +669,7 @@ namespace dmBuffer
         }
 
         *count = item->m_ValueCount;
-        *type = (ValueType)item->m_ValueType; // assumes value tpe is sanitized when setting the metadata
+        *type = (ValueType)item->m_ValueType; // assumes item->m_ValueType is properly initialized when setting the metadata
         *data = item->m_Data;
 
         return RESULT_OK;
@@ -689,72 +689,26 @@ namespace dmBuffer
         if (item) {
             // make sure the type and value count is right
             if (item->m_ValueCount != count || item->m_ValueType != type) {
-                return RESULT_METADATA_INVALID; // TODO use a proper error status hsere
+                return RESULT_METADATA_INVALID;
             }
             memcpy(item->m_Data, data, values_block_size);
+            return RESULT_OK;
         } else {
             dmArray<Buffer::MetaData*>& metadata_items = buffer->m_MetaDataArray;
-            if (metadata_items.Remaining() <= 0) {
-                metadata_items.OffsetCapacity(2); // TODO - shall we set an upper limit to the number of meta data entries ?
+            if (metadata_items.Full()) {
+                metadata_items.OffsetCapacity(2);
             }
-            if (metadata_items.Remaining() > 0) {
-                item = (Buffer::MetaData*) malloc(sizeof(Buffer::MetaData));
-                item->m_Name = name_hash;
-                item->m_ValueCount = count; // no restriction in max number of values
-                item->m_ValueType = type; // no validation, all ValueTypes do
-                item->m_Data = malloc(values_block_size);
-                memcpy(item->m_Data, data, values_block_size);
-                metadata_items.Push(item);
-            } else {
-                return RESULT_ALLOCATION_ERROR;
-            }
+            // assume OffsetCapacity(2) worked
+            item = (Buffer::MetaData*) malloc(sizeof(Buffer::MetaData));
+            item->m_Name = name_hash;
+            item->m_ValueCount = count; // no restriction in max number of values
+            item->m_ValueType = type; // no validation, all ValueTypes do
+            item->m_Data = malloc(values_block_size);
+            memcpy(item->m_Data, data, values_block_size);
+            metadata_items.Push(item);
         }
 
         return RESULT_OK;
     }
 
-    Result SetBounds(HBuffer hbuffer, const dmVMath::Point3& min, const dmVMath::Point3& max) {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
-        if (!buffer) {
-            return RESULT_BUFFER_INVALID;
-        }
-
-        Result r = SetMetaData(hbuffer, dmHashString64("min_aabb"), &min, 3, VALUE_TYPE_FLOAT32);
-        if (r != RESULT_OK) {
-            return r;
-        }
-        r = SetMetaData(hbuffer, dmHashString64("max_aabb"), &max, 3, VALUE_TYPE_FLOAT32);
-        if (r != RESULT_OK) {
-            return r;
-        }
-
-        return RESULT_OK;
-    }
-
-    Result GetBounds(HBuffer hbuffer, dmVMath::Point3& min, dmVMath::Point3& max) {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
-        if (!buffer) {
-            return RESULT_BUFFER_INVALID;
-        }
-
-        float* floats_p;
-        uint32_t value_count;
-        ValueType value_type;
-
-        Result r = GetMetaData(hbuffer, dmHashString64("min_aabb"), (void**) &floats_p, &value_count, &value_type);
-        if (r != RESULT_OK) {
-            return r;
-        }
-        assert(value_count == 3 && "metadata 'min_aabb' should have 3 values");
-        assert(value_type == VALUE_TYPE_FLOAT32 && "metadata 'min_aabb' should be floats");
-        min = dmVMath::Point3(floats_p[0], floats_p[1], floats_p[2]);
-
-        r = GetMetaData(hbuffer, dmHashString64("max_aabb"), (void**) &floats_p, &value_count, &value_type);
-        if (r != RESULT_OK) {
-            return r;
-        }
-        max = dmVMath::Point3(floats_p[0], floats_p[1], floats_p[2]);
-
-        return RESULT_OK;
-    }
 }

@@ -74,10 +74,6 @@ Result GetStreamOffset(HBuffer buffer, uint32_t index, uint32_t* offset);
 
 Result CalcStructSize(uint32_t num_streams, const StreamDeclaration* streams, uint32_t* size, uint32_t* offsets);
 
-Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type);
-
-Result GetMetaData(HBuffer hbuffer, dmhash_t name_hash, void** data, uint32_t* count, ValueType* type);
-
 }
 
 #endif

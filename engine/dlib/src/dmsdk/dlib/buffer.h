@@ -399,9 +399,34 @@ namespace dmBuffer
      */
     Result UpdateContentVersion(HBuffer hbuffer);
 
-    Result SetBounds(HBuffer hbuffer, const dmVMath::Point3& min, const dmVMath::Point3& max);
+    /*# set a metadata entry
+     *
+     * Create or update a new metadata entry with a number of values of a specific type.
+     * It will allocate space to store these values.
+     *
+     * @name dmBuffer::SetMetaData
+     * @param hbuffer [type:dmBuffer::HBuffer] A buffer handle
+     * @param name_hash [type:dmhash_t] The entry name as a hash
+     * @param data [type:void*] A pointer to an array of the values
+     * @param count [type:uint32_t] Number of values in the array
+     * @param type [type:dmBuffer::ValueType] The type of the values
+     * @return result [type:dmBuffer::Result] RESULT_OK if the metadata entry was successfully stored
+     */
+    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type);
 
-    Result GetBounds(HBuffer hbuffer, dmVMath::Point3& min, dmVMath::Point3& max);
+    /*# retrieve a metadata entry
+     *
+     * Retrieve metadata entry information
+     *
+     * @name dmBuffer::GetMetaData
+     * @param hbuffer [type:dmBuffer::HBuffer] A buffer handle
+     * @param name_hash [type:dmhash_t] The entry name as a hash
+     * @param data [type:void**] Gets the internal address of metadata values
+     * @param count [type:uint32_t] Gets the number of metadata values stored
+     * @param type [type:dmBuffer::ValueType] Gets the type of values of the metadata
+     */
+    Result GetMetaData(HBuffer hbuffer, dmhash_t name_hash, void** data, uint32_t* count, ValueType* type);
+
 }
 
 #endif // DMSDK_BUFFER_H
