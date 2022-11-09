@@ -1037,4 +1037,59 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompMeshIterPropertiesGetNext;
     }
 
+    static dmGameObject::Result CompMeshTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        MeshContext* mesh_context = new MeshContext;
+        mesh_context->m_Factory = ctx->m_Factory;
+        mesh_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
+        mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128); // TODO - also initialized in engine.cpp:1106. Why ?
+
+//        int32_t max_gui_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
+//        gui_context->m_Worlds.SetCapacity(max_gui_count);
+//        dmGui::InitializeScript(gui_context->m_ScriptContext);
+
+        ComponentTypeSetPrio(type, 725);
+
+        ComponentTypeSetContext(type, mesh_context);
+//        ComponentTypeSetHasUserData(type, true);      // TODO  ???
+//        ComponentTypeSetReadsTransforms(type, false); // TODO  ???
+
+        ComponentTypeSetNewWorldFn(type, CompMeshNewWorld);
+        ComponentTypeSetDeleteWorldFn(type, CompMeshDeleteWorld);
+        ComponentTypeSetCreateFn(type, CompMeshCreate);
+        ComponentTypeSetDestroyFn(type, CompMeshDestroy);
+//        ComponentTypeSetInitFn(type, CompGuiInit);    // TODO - is set to 0 in old code
+//        ComponentTypeSetFinalFn(type, CompGuiFinal);      // TODO -  is set to 0 in old code
+        ComponentTypeSetAddToUpdateFn(type, CompMeshAddToUpdate);
+        ComponentTypeSetUpdateFn(type, CompMeshUpdate);
+        ComponentTypeSetRenderFn(type, CompMeshRender);
+        ComponentTypeSetOnMessageFn(type, CompMeshOnMessage);
+//        ComponentTypeSetOnInputFn(type, CompGuiOnInput);  // TODO - is set to 0 in old code
+//        ComponentTypeSetOnReloadFn(type, CompGuiOnReload);    // TODO - is set to 0 in old code
+        ComponentTypeSetGetPropertyFn(type, CompMeshGetProperty);
+        ComponentTypeSetSetPropertyFn(type, CompMeshSetProperty);
+
+//        ComponentTypeSetChildIteratorFn(type, CompGuiIterChildren);
+        ComponentTypeSetPropertyIteratorFn(type, CompMeshIterProperties);
+//        ComponentTypeSetGetFn(type, CompGuiGetComponent); // TODO ??? no
+
+        return dmGameObject::RESULT_OK;
+    }
+
+    static dmGameObject::Result CompMeshTypeDestroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        MeshContext* mesh_context = (MeshContext*)dmGameObject::ComponentTypeGetContext(type);
+        if (!mesh_context)
+        {
+            // if the initialization process failed (e.g. unit tests)
+            return dmGameObject::RESULT_OK;
+        }
+
+        delete mesh_context;
+
+        return dmGameObject::RESULT_OK;
+    }
+
 }
+
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeMesh, "meshc", dmGameSystem::CompMeshTypeCreate, dmGameSystem::CompMeshTypeDestroy);
