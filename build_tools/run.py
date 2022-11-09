@@ -86,10 +86,10 @@ def command(args, **kwargs):
     except ExecException as e:
         sys.exit(e.retcode)
 
-def shell_command(args):
+def shell_command(args, **kwargs):
     # Executes a command, and exits if it fails
     try:
-        return _exec_command(args, shell = True)
+        return _exec_command(args, shell = True, **kwargs)
     except ExecException as e:
         sys.exit(e.retcode)
 

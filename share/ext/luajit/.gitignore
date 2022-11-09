@@ -1,3 +1,2 @@
-tmp_x64/**
-tmp_x86/**
+tmp*/**
 package/
