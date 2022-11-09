@@ -1223,14 +1223,21 @@ TEST(Constants, NamedConstantsArray)
     ////////////////////////////////////////////////////////////
     // Test: Test iteration of the names constants
     ////////////////////////////////////////////////////////////
+
+    // Readd it to have some more data
+    dmRender::SetNamedConstant(buffer, dmHashString64("Value1"), &test_single_value, 1);
+    dmRender::SetNamedConstant(buffer, dmHashString64("Value2"), &test_single_value, 1);
+
     IterConstantContext iter_ctx;
     iter_ctx.m_Count = 0;
-    iter_ctx.m_Expected.SetCapacity(1);
+    iter_ctx.m_Expected.SetCapacity(3);
     iter_ctx.m_Expected.Push(name_hash_array);
+    iter_ctx.m_Expected.Push(dmHashString64("Value1"));
+    iter_ctx.m_Expected.Push(dmHashString64("Value2"));
     dmRender::IterateNamedConstants(buffer, IterateNameConstantsCallback, &iter_ctx);
 
     ASSERT_EQ(0u, iter_ctx.m_Expected.Size());
-    ASSERT_EQ(1, iter_ctx.m_Count);
+    ASSERT_EQ(3, iter_ctx.m_Count);
 
     dmRender::DeleteNamedConstantBuffer(buffer);
 
