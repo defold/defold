@@ -1103,6 +1103,27 @@ TEST(Constants, Constant)
     dmRender::DeleteConstant(constant);
 }
 
+struct IterConstantContext
+{
+    int m_Count;
+    dmArray<dmhash_t> m_Expected;
+};
+
+static void IterateNameConstantsCallback(dmhash_t name_hash, void* _ctx)
+{
+    IterConstantContext* ctx = (IterConstantContext*)_ctx;
+    ctx->m_Count++;
+
+    for (uint32_t i = 0; i < ctx->m_Expected.Size(); ++i)
+    {
+        if (ctx->m_Expected[i] == name_hash)
+        {
+            ctx->m_Expected.EraseSwap(i);
+            break;
+        }
+    }
+}
+
 TEST(Constants, NamedConstantsArray)
 {
     #define ASSERT_VEC4_EPS 0.0001f
@@ -1198,6 +1219,18 @@ TEST(Constants, NamedConstantsArray)
         ASSERT_VEC4(test_zero_vec, values[i]);
     }
     ASSERT_VEC4(original_values[2], values[6]);
+
+    ////////////////////////////////////////////////////////////
+    // Test: Test iteration of the names constants
+    ////////////////////////////////////////////////////////////
+    IterConstantContext iter_ctx;
+    iter_ctx.m_Count = 0;
+    iter_ctx.m_Expected.SetCapacity(1);
+    iter_ctx.m_Expected.Push(name_hash_array);
+    dmRender::IterateNamedConstants(buffer, IterateNameConstantsCallback, &iter_ctx);
+
+    ASSERT_EQ(0u, iter_ctx.m_Expected.Size());
+    ASSERT_EQ(1, iter_ctx.m_Count);
 
     dmRender::DeleteNamedConstantBuffer(buffer);
 
