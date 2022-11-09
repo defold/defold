@@ -19,7 +19,6 @@
 
 #include "hash.h"
 #include "align.h"
-#include <dmsdk/dlib/vmath.h>  // for Point3
 
 namespace dmBuffer
 {

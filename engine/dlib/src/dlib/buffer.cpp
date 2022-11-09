@@ -169,9 +169,7 @@ namespace dmBuffer
 
         for (uint32_t i=0; i<buffer->m_MetaDataArray.Size(); i++) {
             Buffer::MetaData* metadata = buffer->m_MetaDataArray[i];
-            if (metadata->m_Data) {
-                free(metadata->m_Data);
-            }
+            free(metadata->m_Data);
             free(metadata);
         }
         buffer->m_MetaDataArray.SetSize(0);
