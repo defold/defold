@@ -431,9 +431,9 @@
    "java" "java"
    "js" "javascript"
    "md" "markdown"
+   "plist" "xml"
    "py" "python"
    "sh" "shellscript"
-   "plist" "xml"
    "xml" "xml"
    "yaml" "yaml"
    "yml" "yaml"})

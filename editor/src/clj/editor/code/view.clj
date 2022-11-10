@@ -15,6 +15,7 @@
 (ns editor.code.view
   (:require [cljfx.api :as fx]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.region :as fx.region]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.java.io :as io]
             [clojure.string :as string]
@@ -2476,10 +2477,18 @@
 
 (defmulti hoverable-region-view :type)
 
-(defmethod hoverable-region-view :diagnostic [{:keys [message]}]
-  {:fx/type fx.label/lifecycle
-   :wrap-text true
-   :text (str message)})
+(defmethod hoverable-region-view :diagnostic [{:keys [messages]}]
+  {:fx/type fx.v-box/lifecycle
+   :children (into []
+                   (comp
+                     (map (fn [message]
+                            {:fx/type fx.label/lifecycle
+                             :padding 5
+                             :wrap-text true
+                             :text message}))
+                     (interpose {:fx/type fx.region/lifecycle
+                                 :style-class "hover-separator"}))
+                   messages)})
 
 (defn- hover-view [^Canvas canvas {:keys [hovered-element layout lines]}]
   (let [r ^Rect (first (data/cursor-range-rects layout lines (:region hovered-element)))

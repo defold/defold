@@ -1,20 +1,38 @@
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.lsp.server
   (:require [clojure.core.async :as a :refer [<! >!]]
-            [editor.lsp.jsonrpc :as lsp.jsonrpc]
-            [editor.lsp.base :as lsp.base]
+            [clojure.spec.alpha :as s]
+            [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.resource :as resource]
             [editor.code.data :as data]
             [editor.lsp.async :as lsp.async]
-            [service.log :as log]
+            [editor.lsp.base :as lsp.base]
+            [editor.lsp.jsonrpc :as lsp.jsonrpc]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [clojure.string :as string])
-  (:import [java.lang ProcessHandle]
-           [java.net URI]
-           [java.util.function BiFunction]
-           [java.util Map]
+            [service.log :as log])
+  (:import [editor.code.data Cursor CursorRange]
            [java.io InputStream]
-           [java.util.concurrent TimeUnit]))
+           [java.lang ProcessHandle]
+           [java.net URI]
+           [java.util Map]
+           [java.util.concurrent TimeUnit]
+           [java.util.function BiFunction]))
+
+(set! *warn-on-reflection* true)
 
 (defprotocol Connection
   (^InputStream input-stream [connection])
@@ -36,7 +54,7 @@
           (.handle (reify BiFunction
                      (apply [_ _ timeout]
                        (if timeout
-                         (do (log/warn :message "Language server process didn't exit gracefully in time, killing")
+                         (do (log/warn :message "Language server process didn't exit gracefully in time, terminating")
                              (.destroyForcibly process))
                          (when-not (zero? (.exitValue process))
                            (log/warn :message "Language server process exit code is not zero"
@@ -60,10 +78,24 @@
   (make-uri-string (g/node-value workspace :root evaluation-context)))
 
 (defn- maybe-resource [project uri]
-  (g/with-auto-evaluation-context evaluation-context
+  (lsp.async/with-auto-evaluation-context evaluation-context
     (let [workspace (g/node-value project :workspace evaluation-context)]
       (when-let [proj-path (workspace/as-proj-path workspace (.getPath (URI. uri)) evaluation-context)]
         (workspace/find-resource workspace proj-path evaluation-context)))))
+
+;; diagnostics
+(s/def ::severity #{:error :warning :information :hint})
+(s/def ::message string?)
+(s/def ::cursor #(instance? Cursor %))
+(s/def ::cursor-range #(instance? CursorRange %))
+(s/def ::diagnostic (s/and ::cursor-range (s/keys :req-un [::severity ::message])))
+(s/def ::diagnostics (s/coll-of ::diagnostic))
+
+;; capabilities
+(s/def ::open-close boolean?)
+(s/def ::change #{:none :full :incremental})
+(s/def ::text-document-sync (s/keys :req-un [::open-close ::change]))
+(s/def ::capabilities (s/keys :req-un [::text-document-sync]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
   (data/->Cursor line character))
@@ -83,8 +115,6 @@
 
 (defn- lsp-diagnostic->editor-diagnostic [{:keys [range message severity]}]
   (assoc (lsp-range->editor-cursor-range range)
-    :type :diagnostic
-    :hoverable true
     :message message
     :severity ({1 :error 2 :warning 3 :information 4 :hint} severity :error)))
 
@@ -93,11 +123,15 @@
     (when-let [resource (maybe-resource project uri)]
       (a/put! out (on-publish-diagnostics resource (mapv lsp-diagnostic->editor-diagnostic diagnostics))))))
 
+(def lsp-text-document-sync-kind-incremental 2)
+(def lsp-text-document-sync-kind-full 1)
+(def lsp-text-document-sync-kind-none 0)
+
 (defn- lsp-text-document-sync-kind->editor-sync-kind [n]
-  (case n
-    0 :none
-    1 :full
-    2 :incremental))
+  (condp = n
+    lsp-text-document-sync-kind-none :none
+    lsp-text-document-sync-kind-full :full
+    lsp-text-document-sync-kind-incremental :incremental))
 
 (defn- lsp-capabilities->editor-capabilities [{:keys [textDocumentSync]}]
   {:text-document-sync (cond
@@ -119,7 +153,7 @@
   (lsp.jsonrpc/request!
     jsonrpc
     "initialize"
-    (g/with-auto-evaluation-context evaluation-context
+    (lsp.async/with-auto-evaluation-context evaluation-context
       (let [uri (root-uri (g/node-value project :workspace evaluation-context) evaluation-context)
             title ((g/node-value project :settings evaluation-context) ["project" "title"])]
         {:processId (.pid (ProcessHandle/current))

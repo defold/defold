@@ -1,8 +1,24 @@
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.lsp.jsonrpc
   (:require [clojure.core.async :as a :refer [<! >!]]
             [clojure.data.json :as json]
             [editor.error-reporting :as error-reporting]
             [editor.lsp.async :as lsp.async]))
+
+(set! *warn-on-reflection* true)
 
 (defn- response? [message]
   (and (map? message)
@@ -186,7 +202,7 @@
   [{:keys [result error]}]
   (if error
     (throw (ex-info (or (str (:message error))
-                        (case (:code error)
+                        (condp = (:code error)
                           -32700 "Parse error"
                           -32600 "Invalid Request"
                           -32601 "Method not found"

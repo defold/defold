@@ -1447,13 +1447,14 @@
                     (drop-while #(not= old-version (:previous-version %)))
                     (map :ascending-cursor-ranges-and-replacements)
                     (mapcat
-                      #(into []
-                             (map (fn [[cursor-range replacement]]
-                                    [(->CursorRange
-                                       (cursor-range-start cursor-range)
-                                       (cursor-range-end cursor-range))
-                                     replacement]))
-                             (reverse %))))
+                      (fn [ascending-cursor-ranges-and-replacements]
+                        (eduction
+                          (map (fn [[cursor-range replacement]]
+                                 [(->CursorRange
+                                    (cursor-range-start cursor-range)
+                                    (cursor-range-end cursor-range))
+                                  replacement]))
+                          (reverse ascending-cursor-ranges-and-replacements)))))
                   changes)]
         (when (pos? (count ret))
           ret)))))

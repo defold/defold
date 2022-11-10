@@ -1,21 +1,37 @@
+;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns integration.lsp-test
-  (:require [clojure.test :refer :all]
-            [editor.lsp.server :as lsp.server]
-            [integration.test-util :as tu]
-            [editor.lsp.base :as lsp.base]
-            [editor.lsp.jsonrpc :as lsp.jsonrpc]
-            [clojure.core.async :as a :refer [<! >!]]
+  (:require [clojure.core.async :as a :refer [<! >!]]
             [clojure.data.json :as json]
-            [support.async-support :as async-support]
-            [editor.lsp :as lsp]
-            [editor.defold-project :as project]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.ui :as ui]
             [editor.code.data :as data]
             [editor.asset-browser :as asset-browser]
-            [support.test-support :as test-support]
-            [editor.workspace :as workspace])
+            [editor.defold-project :as project]
+            [editor.lsp :as lsp]
+            [editor.lsp.base :as lsp.base]
+            [editor.lsp.jsonrpc :as lsp.jsonrpc]
+            [editor.lsp.server :as lsp.server]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace]
+            [integration.test-util :as tu]
+            [support.async-support :as async-support]
+            [support.test-support :as test-support])
   (:import [java.io PipedInputStream PipedOutputStream]))
+
+(set! *warn-on-reflection* true)
 
 (defn- make-test-server-launcher [request-handlers]
   (reify lsp.server/Launcher
@@ -43,7 +59,7 @@
           (dispose [_]))))))
 
 (def default-handlers
-  {"initialize" (fn [_ _] {:capabilities {:textDocumentSync 2}})
+  {"initialize" (fn [_ _] {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
    "textDocument/didOpen" (fn [{{:keys [uri]} :textDocument} notify!]
                             (notify! "textDocument/publishDiagnostics"
                                      {:uri uri
@@ -72,7 +88,7 @@
                 [:on-publish-diagnostics
                  (tu/resource workspace "/foo.json")
                  [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
-                    :type :diagnostic :hoverable true :message "It's a bad start!" :severity :error)]]]
+                    :message "It's a bad start!" :severity :error)]]]
                (async-support/eventually
                  (a/go
                    (>! in (lsp.server/open-text-document (tu/resource workspace "/foo.json") ["{\"a\": 1}"]))
@@ -97,7 +113,7 @@
                 _ (lsp/open-view! lsp view-node (tu/resource workspace "/foo.json") ["{\"a\": 1}"])
                 _ (Thread/sleep 100)]
             (is (= [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
-                      :type :diagnostic :hoverable true :message "It's a bad start!" :severity :error)]
+                      :type :diagnostic :hoverable true :messages ["It's a bad start!"] :severity :error)]
                    (g/node-value view-node :diagnostics)))
             (lsp/close-view! lsp view-node)))
         (testing "Open resource + start server -> should receive diagnostics"
@@ -110,7 +126,7 @@
                                            :launcher (make-test-server-launcher default-handlers)}})
                 _ (Thread/sleep 100)]
             (is (= [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
-                      :type :diagnostic :hoverable true :message "It's a bad start!" :severity :error)]
+                      :type :diagnostic :hoverable true :messages ["It's a bad start!"] :severity :error)]
                    (g/node-value view-node :diagnostics)))
             (lsp/close-view! lsp view-node)))))))
 
@@ -131,14 +147,11 @@
                 _ (lsp/set-servers!
                     lsp
                     #{{:languages #{"json"}
-                       ;; 2 means incremental text change support
-                       :launcher (make-test-server-launcher (make-handlers 2))}
+                       :launcher (make-test-server-launcher (make-handlers lsp.server/lsp-text-document-sync-kind-incremental))}
                       {:languages #{"json"}
-                       ;; 1 means full text change support
-                       :launcher (make-test-server-launcher (make-handlers 1))}
+                       :launcher (make-test-server-launcher (make-handlers lsp.server/lsp-text-document-sync-kind-full))}
                       {:languages #{"json"}
-                       ;; 0 means no text change support
-                       :launcher (make-test-server-launcher (make-handlers 0))}})
+                       :launcher (make-test-server-launcher (make-handlers lsp.server/lsp-text-document-sync-kind-none))}})
                 _ (Thread/sleep 100)
                 view-node (g/make-node! (g/node-id->graph-id app-view) LSPViewNode)
                 foo-resource (tu/resource workspace "/foo.json")
@@ -150,16 +163,18 @@
                     :modified-lines
                     (data/splice-lines lines {data/document-start-cursor-range ["NEWTEXT"]}))
                 _ (Thread/sleep 100)]
-            (is (= #{[2 {:textDocument {:uri (lsp.server/resource-uri foo-resource)
-                                        :version 1}
-                         :contentChanges [{:range {:start {:line 0
-                                                           :character 0}
-                                                   :end {:line 0
-                                                         :character 0}}
-                                           :text "NEWTEXT"}]}]
-                     [1 {:textDocument {:uri (lsp.server/resource-uri foo-resource)
-                                        :version 1}
-                         :contentChanges [{:text "NEWTEXT{\"asd\": 1}"}]}]}
+            (is (= #{[lsp.server/lsp-text-document-sync-kind-incremental
+                      {:textDocument {:uri (lsp.server/resource-uri foo-resource)
+                                      :version 1}
+                       :contentChanges [{:range {:start {:line 0
+                                                         :character 0}
+                                                 :end {:line 0
+                                                       :character 0}}
+                                         :text "NEWTEXT"}]}]
+                     [lsp.server/lsp-text-document-sync-kind-full
+                      {:textDocument {:uri (lsp.server/resource-uri foo-resource)
+                                      :version 1}
+                       :contentChanges [{:text "NEWTEXT{\"asd\": 1}"}]}]}
                    @change-notifications))
             (g/set-property! foo-node :modified-lines lines)
             (lsp/close-view! lsp view-node)))))))
@@ -178,7 +193,7 @@
                   lsp
                   #{{:languages #{"json"}
                      :launcher (make-test-server-launcher
-                                 {"initialize" (constantly {:capabilities {:textDocumentSync 2}})
+                                 {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                                   "initialized" (constantly nil)
                                   "textDocument/didOpen" (fn [{:keys [textDocument]} _]
                                                            (swap! server-opened-docs conj (:uri textDocument)))
@@ -212,7 +227,7 @@
     (tu/with-loaded-project "test/resources/lsp_project"
       (let [lsp (lsp/get-node-lsp project)
             server-opened-docs (atom #{})
-            handlers {"initialize" (constantly {:capabilities {:textDocumentSync 2}})
+            handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                       "initialized" (constantly nil)
                       "textDocument/didOpen" (fn [{:keys [textDocument]} _]
                                                (swap! server-opened-docs conj (:uri textDocument)))
@@ -259,7 +274,7 @@
       (with-redefs [ui/do-run-later (fn [f] (f))]
         (let [lsp (lsp/get-node-lsp project)
               server-opened-docs (atom {})
-              handlers {"initialize" (constantly {:capabilities {:textDocumentSync 2}})
+              handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                         "initialized" (constantly nil)
                         "textDocument/didOpen" (fn [{:keys [textDocument]} _]
                                                  (swap! server-opened-docs assoc (:uri textDocument) (:text textDocument)))
@@ -297,7 +312,7 @@
         (let [lsp (lsp/get-node-lsp project)
               change-notifications (atom [])
               server-opened-docs (atom #{})
-              handlers {"initialize" (constantly {:capabilities {:textDocumentSync 2}})
+              handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                         "initialized" (constantly nil)
                         "textDocument/didOpen" (fn [{:keys [textDocument]} _]
                                                  (swap! server-opened-docs conj (:uri textDocument)))
@@ -335,7 +350,7 @@
     (tu/with-loaded-project "test/resources/lsp_project"
       (let [lsp (lsp/get-node-lsp project)
             server-opened-docs (atom #{})
-            handlers {"initialize" (constantly {:capabilities {:textDocumentSync 2}})
+            handlers {"initialize" (constantly {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
                       "initialized" (constantly nil)
                       "textDocument/didOpen" (fn [{:keys [textDocument]} _]
                                                (swap! server-opened-docs conj (:uri textDocument)))
