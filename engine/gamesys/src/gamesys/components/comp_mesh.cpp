@@ -32,7 +32,6 @@
 #include <graphics/graphics.h>
 #include <render/render.h>
 
-//#include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "comp_private.h"
 
@@ -1054,10 +1053,6 @@ namespace dmGameSystem
         mesh_context->m_Factory = ctx->m_Factory;
         mesh_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
         mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128);
-
-//        int32_t max_gui_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
-//        gui_context->m_Worlds.SetCapacity(max_gui_count);
-//        dmGui::InitializeScript(gui_context->m_ScriptContext);
 
         ComponentTypeSetPrio(type, 725);
 
