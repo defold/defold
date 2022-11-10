@@ -140,7 +140,6 @@ namespace dmGameSystem
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 ModelContext* model_context,
-                                                MeshContext* mesh_context,
                                                 LabelContext* label_context,
                                                 TilemapContext* tilemap_context,
                                                 SoundContext* sound_context)

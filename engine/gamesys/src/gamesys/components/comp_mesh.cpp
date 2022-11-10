@@ -32,7 +32,7 @@
 #include <graphics/graphics.h>
 #include <render/render.h>
 
-#include "../gamesys.h"
+//#include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "comp_private.h"
 
@@ -97,6 +97,17 @@ namespace dmGameSystem
         void*                              m_WorldVertexData;
         size_t                             m_WorldVertexDataSize;
 
+    };
+
+    struct MeshContext
+    {
+        MeshContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        dmRender::HRenderContext    m_RenderContext;
+        dmResource::HFactory        m_Factory;
+        uint32_t                    m_MaxMeshCount;
     };
 
     static inline void DeallocVertexBuffer(MeshWorld* world, dmGraphics::HVertexBuffer vertex_buffer)
@@ -1042,7 +1053,7 @@ namespace dmGameSystem
         MeshContext* mesh_context = new MeshContext;
         mesh_context->m_Factory = ctx->m_Factory;
         mesh_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
-        mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128); // TODO - also initialized in engine.cpp:1106. Why ?
+        mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128);
 
 //        int32_t max_gui_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
 //        gui_context->m_Worlds.SetCapacity(max_gui_count);
@@ -1051,27 +1062,18 @@ namespace dmGameSystem
         ComponentTypeSetPrio(type, 725);
 
         ComponentTypeSetContext(type, mesh_context);
-//        ComponentTypeSetHasUserData(type, true);      // TODO  ???
-//        ComponentTypeSetReadsTransforms(type, false); // TODO  ???
-
         ComponentTypeSetNewWorldFn(type, CompMeshNewWorld);
         ComponentTypeSetDeleteWorldFn(type, CompMeshDeleteWorld);
         ComponentTypeSetCreateFn(type, CompMeshCreate);
         ComponentTypeSetDestroyFn(type, CompMeshDestroy);
-//        ComponentTypeSetInitFn(type, CompGuiInit);    // TODO - is set to 0 in old code
-//        ComponentTypeSetFinalFn(type, CompGuiFinal);      // TODO -  is set to 0 in old code
         ComponentTypeSetAddToUpdateFn(type, CompMeshAddToUpdate);
         ComponentTypeSetUpdateFn(type, CompMeshUpdate);
         ComponentTypeSetRenderFn(type, CompMeshRender);
         ComponentTypeSetOnMessageFn(type, CompMeshOnMessage);
-//        ComponentTypeSetOnInputFn(type, CompGuiOnInput);  // TODO - is set to 0 in old code
-//        ComponentTypeSetOnReloadFn(type, CompGuiOnReload);    // TODO - is set to 0 in old code
         ComponentTypeSetGetPropertyFn(type, CompMeshGetProperty);
         ComponentTypeSetSetPropertyFn(type, CompMeshSetProperty);
 
-//        ComponentTypeSetChildIteratorFn(type, CompGuiIterChildren);
         ComponentTypeSetPropertyIteratorFn(type, CompMeshIterProperties);
-//        ComponentTypeSetGetFn(type, CompGuiGetComponent); // TODO ??? no
 
         return dmGameObject::RESULT_OK;
     }
