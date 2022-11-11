@@ -250,12 +250,13 @@
   ;; InstanceDescs, EmbeddedInstanceDescs, and CollectionInstanceDescs.
   ;;
   ;; The resulting resources build targets will be connected to the
-  ;; resource-property-build-targets input of our NonEditableCollectionNode.
+  ;; own-resource-property-build-targets input of our NonEditableCollectionNode.
   ;;
-  ;; Elsewhere, any referenced collection, game object, and component will also
-  ;; have their resource-property-build-targets output connected to our input to
-  ;; ensure we have access to the non-overridden resource property dependencies.
-  ;; As a result, resource-property-build-targets will include not only our own
+  ;; Elsewhere, any referenced collection, game object, and component will have
+  ;; their resource-property-build-targets output connected to our
+  ;; other-resource-property-build-targets input to ensure we have access to the
+  ;; non-overridden resource property dependencies. As a result, our
+  ;; resource-property-build-targets output will include not only our own
   ;; overrides, but the set union of all original and overridden resource
   ;; property dependencies. This is also how it works for mutable collections.
   (-> collection-desc
@@ -332,16 +333,16 @@
 
 (def ^:private referenced-collection-connections
   [[:build-targets :referenced-collection-build-targets]
-   [:resource-property-build-targets :resource-property-build-targets]
+   [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-collection-scenes]])
 
 (def ^:private referenced-game-object-connections
   [[:build-targets :referenced-game-object-build-targets]
-   [:resource-property-build-targets :resource-property-build-targets]
+   [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-game-object-scenes]])
 
 (def ^:private resource-property-connections
-  [[:build-targets :resource-property-build-targets]])
+  [[:build-targets :own-resource-property-build-targets]])
 
 (g/defnode NonEditableCollectionNode
   (inherits game-object-non-editable/ComponentHostResourceNode)
@@ -355,9 +356,7 @@
                          project (project/get-project basis self)
                          workspace (project/workspace project)
                          proj-path->resource (g/node-value workspace :resource-map)]
-                     (letfn [(disconnect-resource [proj-path-or-resource connections]
-                               (project/disconnect-resource-node evaluation-context project proj-path-or-resource self connections))
-                             (connect-resource [proj-path-or-resource connections]
+                     (letfn [(connect-resource [proj-path-or-resource connections]
                                (:tx-data (project/connect-resource-node evaluation-context project proj-path-or-resource self connections)))]
                        (-> (g/set-property self :embedded-component-resource-data->index
                              (collection-desc->embedded-component-resource-data->index new-value))
@@ -367,8 +366,7 @@
                                    (collection-desc->referenced-game-object-proj-path->index new-value)))
                            (into (g/set-property self :referenced-collection-proj-path->index
                                    (collection-desc->referenced-collection-proj-path->index new-value)))
-                           (into (mapcat #(disconnect-resource % resource-property-connections))
-                                 (collection-desc->referenced-property-resources old-value proj-path->resource))
+                           (into (game-object-non-editable/disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (collection-desc->referenced-property-resources new-value proj-path->resource))))))))
 

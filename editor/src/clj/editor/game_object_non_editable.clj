@@ -38,7 +38,7 @@
 
 (def ^:private referenced-component-connections
   [[:build-targets :referenced-component-build-targets]
-   [:resource-property-build-targets :resource-property-build-targets]
+   [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-component-scenes]])
 
 (defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data ext->embedded-component-resource-type project]
@@ -60,34 +60,40 @@
                    util/only-or-throw))
         embedded-component-build-targets))
 
+(defn mapv-source-ids [source-id->tx-data basis target-id target-label]
+  (into []
+        (comp (map gt/source-id)
+              (distinct)
+              (mapcat source-id->tx-data))
+        (ig/explicit-inputs basis target-id target-label)))
+
+(defn delete-connected-nodes-tx-data [basis target-id target-label]
+  (mapv-source-ids g/delete-node basis target-id target-label))
+
+(defn disconnect-connected-nodes-tx-data [basis target-id target-label connections]
+  (mapv-source-ids (fn [source-id]
+                     (map (fn [[source-label target-label]]
+                            (g/disconnect source-id source-label target-id target-label))
+                          connections))
+                   basis target-id target-label))
+
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
   (let [basis (:basis evaluation-context)
         project (project/get-project basis self)
         workspace (project/workspace project)
         ext->resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (-> []
-        (into (comp (map gt/source-id)
-                    (distinct)
-                    (mapcat g/delete-node))
-              (ig/explicit-inputs basis self old-sources-input-label))
-        (into (mapcat (fn [[data]]
-                        (add-resource-node-fn self data ext->resource-type project)))
-              (sort-by val new-value)))))
+    (into (delete-connected-nodes-tx-data basis self old-sources-input-label)
+          (mapcat (fn [[data]]
+                    (add-resource-node-fn self data ext->resource-type project)))
+          (sort-by val new-value))))
 
 (defn proj-path->index-setter [evaluation-context self new-value old-sources-input-label resource-connections]
   (let [basis (:basis evaluation-context)
         project (project/get-project basis self)]
-    (-> []
-        (into (comp (map gt/source-id)
-                    (distinct)
-                    (mapcat (fn [source-id]
-                              (map (fn [[source-label target-label]]
-                                     (g/disconnect source-id source-label self target-label))
-                                   resource-connections))))
-              (ig/explicit-inputs basis self old-sources-input-label))
-        (into (mapcat (fn [[proj-path]]
-                        (:tx-data (project/connect-resource-node evaluation-context project proj-path self resource-connections))))
-              (sort-by val new-value)))))
+    (into (disconnect-connected-nodes-tx-data basis self old-sources-input-label resource-connections)
+          (mapcat (fn [[proj-path]]
+                    (:tx-data (project/connect-resource-node evaluation-context project proj-path self resource-connections))))
+          (sort-by val new-value))))
 
 (g/defnode ComponentHostResourceNode
   (inherits resource-node/NonEditableResourceNode)
@@ -106,13 +112,14 @@
   (input embedded-component-scenes g/Any :array)
   (input referenced-component-build-targets g/Any :array)
   (input referenced-component-scenes g/Any :array)
-  (input resource-property-build-targets g/Any :array)
+  (input own-resource-property-build-targets g/Any :array)
+  (input other-resource-property-build-targets g/Any :array)
 
   (output embedded-component-build-targets g/Any :cached produce-embedded-component-build-targets)
   (output embedded-component-scenes g/Any :cached (gu/passthrough embedded-component-scenes))
   (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (mapv util/only-or-throw referenced-component-build-targets)))
   (output referenced-component-scenes g/Any :cached (gu/passthrough referenced-component-scenes))
-  (output resource-property-build-targets g/Any :cached (gu/passthrough resource-property-build-targets)))
+  (output resource-property-build-targets g/Any :cached (g/fnk [other-resource-property-build-targets own-resource-property-build-targets] (into other-resource-property-build-targets own-resource-property-build-targets))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -301,7 +308,7 @@
     (prototype-desc->scene prototype-desc _node-id)))
 
 (def ^:private resource-property-connections
-  [[:build-targets :resource-property-build-targets]])
+  [[:build-targets :own-resource-property-build-targets]])
 
 (g/defnode NonEditableGameObjectNode
   (inherits ComponentHostResourceNode)
@@ -315,16 +322,13 @@
                          project (project/get-project basis self)
                          workspace (project/workspace project)
                          proj-path->resource (g/node-value workspace :resource-map)]
-                     (letfn [(disconnect-resource [proj-path-or-resource connections]
-                               (project/disconnect-resource-node evaluation-context project proj-path-or-resource self connections))
-                             (connect-resource [proj-path-or-resource connections]
+                     (letfn [(connect-resource [proj-path-or-resource connections]
                                (:tx-data (project/connect-resource-node evaluation-context project proj-path-or-resource self connections)))]
                        (-> (g/set-property self :embedded-component-resource-data->index
                              (prototype-desc->embedded-component-resource-data->index new-value))
                            (into (g/set-property self :referenced-component-proj-path->index
                                    (prototype-desc->referenced-component-proj-path->index new-value)))
-                           (into (mapcat #(disconnect-resource % resource-property-connections))
-                                 (prototype-desc->referenced-property-resources old-value proj-path->resource))
+                           (into (disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (prototype-desc->referenced-property-resources new-value proj-path->resource))))))))
 
