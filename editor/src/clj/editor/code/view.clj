@@ -15,6 +15,7 @@
 (ns editor.code.view
   (:require [cljfx.api :as fx]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.region :as fx.region]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.java.io :as io]
             [clojure.string :as string]
@@ -26,6 +27,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
+            [editor.lsp :as lsp]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -877,6 +879,7 @@
                                                                                :top scroll-y))]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
+  (property diagnostics r/Regions (default []) (dynamic visible (g/constantly false)))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -914,7 +917,8 @@
   ;; We cache the lines in the view instead of the resource node, since the
   ;; resource node will read directly from disk unless edits have been made.
   (output lines r/Lines :cached (gu/passthrough lines))
-
+  (output regions r/Regions :cached (g/fnk [regions diagnostics]
+                                      (vec (sort (into regions diagnostics)))))
   (output indent-type r/IndentType produce-indent-type)
   (output indent-string g/Str produce-indent-string)
   (output tab-spaces g/Num produce-tab-spaces)
@@ -1008,8 +1012,14 @@
         (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
               (mapcat (fn [[prop-kw value]]
                         (case prop-kw
-                          (:cursor-ranges :regions)
+                          :cursor-ranges
                           (g/set-property resource-node prop-kw value)
+
+                          :regions
+                          (let [{diagnostics true regions false} (group-by #(= :diagnostic (:type %)) value)]
+                            (concat
+                              (g/set-property view-node :diagnostics (or diagnostics []))
+                              (g/set-property resource-node prop-kw (or regions []))))
 
                           ;; Several actions might have invalidated rows since
                           ;; we last produced syntax-info. We keep an ever-
@@ -2177,7 +2187,7 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn- setup-view! [resource-node view-node app-view]
+(defn- setup-view! [resource-node view-node app-view lsp]
   ;; Grab the unmodified lines or io error before opening the
   ;; file. Otherwise this will happen on the first edit. If a
   ;; background process has modified (or even deleted) the file
@@ -2185,23 +2195,26 @@
   ;; reached after a series of undo's could be something else entirely
   ;; than what the user saw.
   (g/with-auto-evaluation-context ec
-    (r/ensure-unmodified-lines! resource-node ec))
-  (let [glyph-metrics (g/node-value view-node :glyph-metrics)
-        tab-spaces (g/node-value view-node :tab-spaces)
-        tab-stops (data/tab-stops glyph-metrics tab-spaces)
-        lines (g/node-value resource-node :lines)
-        document-width (data/max-line-width glyph-metrics tab-stops lines)]
-    (g/transact
-      (concat
-        (g/set-property view-node :document-width document-width)
-        (g/connect resource-node :completions view-node :completions)
-        (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
-        (g/connect resource-node :indent-type view-node :indent-type)
-        (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
-        (g/connect resource-node :lines view-node :lines)
-        (g/connect resource-node :regions view-node :regions)
-        (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)))
-    view-node))
+    (r/ensure-unmodified-lines! resource-node ec)
+    (let [glyph-metrics (g/node-value view-node :glyph-metrics ec)
+          tab-spaces (g/node-value view-node :tab-spaces ec)
+          tab-stops (data/tab-stops glyph-metrics tab-spaces)
+          lines (g/node-value resource-node :lines ec)
+          document-width (data/max-line-width glyph-metrics tab-stops lines)
+          resource (g/node-value resource-node :resource ec)]
+      (when (resource/file-resource? resource)
+        (lsp/open-view! lsp view-node resource lines))
+      (g/transact
+        (concat
+          (g/set-property view-node :document-width document-width)
+          (g/connect resource-node :completions view-node :completions)
+          (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
+          (g/connect resource-node :indent-type view-node :indent-type)
+          (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
+          (g/connect resource-node :lines view-node :lines)
+          (g/connect resource-node :regions view-node :regions)
+          (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)))
+      view-node)))
 
 (defn- cursor-opacity
   ^double [^double elapsed-time-at-last-action ^double elapsed-time]
@@ -2464,12 +2477,20 @@
 
 (defmulti hoverable-region-view :type)
 
-(defmethod hoverable-region-view :diagnostic [{:keys [message]}]
-  {:fx/type fx.label/lifecycle
-   :wrap-text true
-   :text (str message)})
+(defmethod hoverable-region-view :diagnostic [{:keys [messages]}]
+  {:fx/type fx.v-box/lifecycle
+   :children (into []
+                   (comp
+                     (map (fn [message]
+                            {:fx/type fx.label/lifecycle
+                             :padding 5
+                             :wrap-text true
+                             :text message}))
+                     (interpose {:fx/type fx.region/lifecycle
+                                 :style-class "hover-separator"}))
+                   messages)})
 
-(defn- hover-view [canvas {:keys [hovered-element layout lines]}]
+(defn- hover-view [^Canvas canvas {:keys [hovered-element layout lines]}]
   (let [r ^Rect (first (data/cursor-range-rects layout lines (:region hovered-element)))
         anchor (.localToScreen canvas (.-x r) (.-y r))]
     {:fx/type fxui/with-popup
@@ -2490,7 +2511,7 @@
                              :fx/type hoverable-region-view
                              :v-box/vgrow :always)]}]}))
 
-(defn- create-hover! [view-node canvas]
+(defn- create-hover! [view-node canvas ^Tab tab]
   (let [state (atom nil)
         refresh (fn refresh []
                   (g/with-auto-evaluation-context evaluation-context
@@ -2501,7 +2522,9 @@
                                        :layout (g/node-value view-node :layout evaluation-context)
                                        :lines (g/node-value view-node :lines evaluation-context)})
                         (reset! state nil)))))
-        timer (ui/->timer 10 "hover-code-editor-timer" (fn [_ _] (refresh)))]
+        timer (ui/->timer 10 "hover-code-editor-timer" (fn [_ _]
+                                                         (when (and (.isSelected tab) (not (ui/ui-disabled?)))
+                                                           (refresh))))]
     (fx/mount-renderer state (fx/create-renderer
                                :error-handler editor.error-reporting/report-exception!
                                :middleware (comp
@@ -2521,6 +2544,7 @@
         suggestions-list-view (make-suggestions-list-view canvas)
         suggestions-popup (popup/make-choices-popup canvas-pane suggestions-list-view)
         undo-grouping-info (pair :navigation (gensym))
+        lsp (lsp/get-node-lsp resource-node)
         view-node (setup-view! resource-node
                                (g/make-node! graph CodeEditorView
                                              :canvas canvas
@@ -2537,14 +2561,15 @@
                                              :visible-indentation-guides? (.getValue visible-indentation-guides-property)
                                              :visible-minimap? (.getValue visible-minimap-property)
                                              :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property)))
-                               app-view)
+                               app-view
+                               lsp)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
         repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time]
                                                            (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                                              (repaint-view! view-node elapsed-time {:cursor-visible? true}))))
-        dispose-hover! (create-hover! view-node canvas)
+        dispose-hover! (create-hover! view-node canvas tab)
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
@@ -2628,6 +2653,7 @@
 
         ;; Remove callbacks when our tab is closed.
         (ui/on-closed! tab (fn [_]
+                             (lsp/close-view! lsp view-node)
                              (ui/kill-event-dispatch! canvas)
                              (ui/timer-stop! repainter)
                              (dispose-hover!)

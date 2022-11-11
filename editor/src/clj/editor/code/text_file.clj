@@ -27,42 +27,52 @@
 
 (def ^:private text-file-defs
   [{:ext "cpp"
+    :language "cpp"
     :label "C++"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "cxx"
+    :language "cpp"
     :label "C++"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "C"
+    :language "cpp"
     :label "C++"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "cc"
+    :language "cpp"
     :label "C++"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "hpp"
+    :language "cpp"
     :label "C++"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "h"
+    :language "cpp"
     :label "C/C++ Header"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "mm"
+    :language "objective-c"
     :label "Objective-C"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "c"
+    :language "c"
     :label "C"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "json"
+    :language "json"
     :label "JSON"
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :view-opts json-opts}
    {:ext "manifest"
+    :language "yaml"
     :label "Manifest"
     :icon "icons/32/Icons_11-Script-general.png"}
    {:ext "defignore"
