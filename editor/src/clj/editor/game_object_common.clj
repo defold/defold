@@ -259,8 +259,10 @@
           (scene/map-scene #(assoc % :updatable claimed-updatable)
                            scene))))
 
-    ;; This handles the case of no scene from actual component - typically bad
-    ;; data. Covered by for instance unknown_components.go in the test project.
+    ;; This handles the case of no scene from actual component. It could be bad
+    ;; data, but then there are also components that don't have a scene output,
+    ;; such as the Script component. The bad data case is covered by for
+    ;; instance unknown_components.go in the test project.
     {:node-id node-id
      :transform transform-matrix
      :aabb geom/empty-bounding-box

@@ -27,8 +27,8 @@
             [support.test-support :refer [with-clean-system]]
             [util.coll :refer [pair]]
             [util.digestable :as digestable])
-  (:import [com.google.protobuf ByteString]
-           [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+  (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+           [com.google.protobuf ByteString]
            [com.jogamp.opengl.util.texture TextureData]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]))
@@ -309,13 +309,16 @@
     (tu/make-atlas-resource-node! project "/assets/from-chair-embedded-sprite.atlas")
     (tu/make-atlas-resource-node! project "/assets/from-room-embedded-chair-embedded-sprite.atlas")
     (let [sprite-resource-type (workspace/get-resource-type workspace "sprite")
+          script (tu/make-resource-node! project "/assets/script.script")
           sprite (tu/make-resource-node! project "/assets/sprite.sprite")
           chair (tu/make-resource-node! project "/assets/chair.go")
           chair-embedded-sprite (tu/add-embedded-component! chair sprite-resource-type)
+          chair-referenced-script (tu/add-referenced-component! chair (resource-node/resource script))
           chair-referenced-sprite (tu/add-referenced-component! chair (resource-node/resource sprite))
           room (tu/make-resource-node! project "/assets/room.collection")
           room-embedded-chair (tu/add-embedded-game-object! room)
           room-embedded-chair-embedded-sprite (tu/add-embedded-component! room-embedded-chair sprite-resource-type)
+          room-embedded-chair-referenced-script (tu/add-referenced-component! room-embedded-chair (resource-node/resource script))
           room-embedded-chair-referenced-sprite (tu/add-referenced-component! room-embedded-chair (resource-node/resource sprite))
           room-referenced-chair (tu/add-referenced-game-object! room (resource-node/resource chair))
           house (tu/make-resource-node! project "/assets/house.collection")
@@ -332,6 +335,9 @@
         (tu/prop! :scale [1.4 1.5 1.6])
         (tu/prop! :image (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
         (tu/prop! :default-animation "from-chair-embedded-sprite"))
+
+      (doto chair-referenced-script
+        (tu/prop! :id "chair-referenced-script"))
 
       (doto chair-referenced-sprite
         (tu/prop! :id "chair-referenced-sprite")
@@ -352,6 +358,9 @@
         (tu/prop! :scale [4.4 4.5 4.6])
         (tu/prop! :image (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
         (tu/prop! :default-animation "from-room-embedded-chair-embedded-sprite"))
+
+      (doto room-embedded-chair-referenced-script
+        (tu/prop! :id "room-embedded-chair-referenced-script"))
 
       (doto room-embedded-chair-referenced-sprite
         (tu/prop! :id "room-embedded-chair-referenced-sprite")

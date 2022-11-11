@@ -21,6 +21,7 @@
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
+            [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [internal.graph :as ig]
@@ -59,6 +60,37 @@
         (map (comp #(assoc % :resource (bt/make-content-hash-build-resource %))
                    util/only-or-throw))
         embedded-component-build-targets))
+
+(g/defnk produce-embedded-component-resource-data->scene-index [embedded-component-resource-data->index resource]
+  (let [workspace (resource/workspace resource)
+        ext->resource-type (workspace/get-resource-type-map workspace :non-editable)]
+    (into {}
+          (comp (keep (fn [[embedded-component-resource-data]]
+                        (let [embedded-resource-ext (:type embedded-component-resource-data)
+                              embedded-resource-type (ext->resource-type embedded-resource-ext)
+                              embedded-resource-node-type (:node-type embedded-resource-type)]
+                          (when (g/has-output? embedded-resource-node-type :scene)
+                            embedded-component-resource-data))))
+                (map-indexed (fn [index embedded-component-resource-data]
+                               (pair embedded-component-resource-data index))))
+          (sort-by val embedded-component-resource-data->index))))
+
+(g/defnk produce-referenced-component-proj-path->scene-index [referenced-component-proj-path->index resource]
+  ;; We do a naughty g/node-value inside a production function here, but we only
+  ;; use it to get the Resource associated with the referenced proj-path, so we
+  ;; can obtain the resource-type from it.
+  (let [workspace (resource/workspace resource)
+        proj-path->resource (g/node-value workspace :resource-map)]
+    (into {}
+          (comp (keep (fn [[referenced-component-proj-path]]
+                        (when-some [referenced-resource (proj-path->resource referenced-component-proj-path)]
+                          (let [referenced-resource-type (resource/resource-type referenced-resource)
+                                referenced-resource-node-type (:node-type referenced-resource-type)]
+                            (when (g/has-output? referenced-resource-node-type :scene)
+                              referenced-component-proj-path)))))
+                (map-indexed (fn [index referenced-component-proj-path]
+                               (pair referenced-component-proj-path index))))
+          (sort-by val referenced-component-proj-path->index))))
 
 (defn mapv-source-ids [source-id->tx-data basis target-id target-label]
   (into []
@@ -116,8 +148,10 @@
   (input other-resource-property-build-targets g/Any :array)
 
   (output embedded-component-build-targets g/Any :cached produce-embedded-component-build-targets)
+  (output embedded-component-resource-data->scene-index g/Any :cached produce-embedded-component-resource-data->scene-index)
   (output embedded-component-scenes g/Any :cached (gu/passthrough embedded-component-scenes))
   (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (mapv util/only-or-throw referenced-component-build-targets)))
+  (output referenced-component-proj-path->scene-index g/Any :cached produce-referenced-component-proj-path->scene-index)
   (output referenced-component-scenes g/Any :cached (gu/passthrough referenced-component-scenes))
   (output resource-property-build-targets g/Any :cached (g/fnk [other-resource-property-build-targets own-resource-property-build-targets] (into other-resource-property-build-targets own-resource-property-build-targets))))
 
@@ -227,35 +261,38 @@
         embedded-component-build-targets
         (make-embedded-component-desc->index embedded-component-resource-data->index)))
 
-(defn make-any-component-desc->source-scene [embedded-component-scenes embedded-component-resource-data->index referenced-component-scenes referenced-component-proj-path->index]
+(defn- make-any-component-desc->source-scene [embedded-component-scenes embedded-component-resource-data->scene-index referenced-component-scenes referenced-component-proj-path->scene-index]
   {:pre [(vector? embedded-component-scenes)
          (not (vector? (first embedded-component-scenes)))
-         (ifn? embedded-component-resource-data->index)
+         (map? embedded-component-resource-data->scene-index)
          (vector? referenced-component-scenes)
          (not (vector? (first referenced-component-scenes)))
-         (ifn? referenced-component-proj-path->index)]}
+         (map? referenced-component-proj-path->scene-index)]}
   (fn any-component-desc->source-scene [any-component-desc]
     ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
     (if-some [referenced-component-proj-path (:component any-component-desc)]
-      (-> referenced-component-proj-path
-          referenced-component-proj-path->index
-          referenced-component-scenes)
-      (-> any-component-desc
-          embedded-component-desc->embedded-component-resource-data
-          embedded-component-resource-data->index
-          embedded-component-scenes))))
+      (some-> referenced-component-proj-path
+              referenced-component-proj-path->scene-index
+              referenced-component-scenes)
+      (some-> any-component-desc
+              embedded-component-desc->embedded-component-resource-data
+              embedded-component-resource-data->scene-index
+              embedded-component-scenes))))
 
-(defn make-any-component-desc->component-scene [any-component-desc->source-scene]
+(defn- make-any-component-desc->component-scene [any-component-desc->source-scene]
   {:pre [(ifn? any-component-desc->source-scene)]}
   (fn any-component-desc->component-scene [any-component-desc node-id]
     (let [node-outline-key (:id any-component-desc)
           transform (any-component-desc->transform-matrix any-component-desc)
           source-scene (any-component-desc->source-scene any-component-desc)]
+      ;; TODO: Currently we return an empty scene for components that do not
+      ;; have a scene output. Can we exclude these or is it necessary for
+      ;; selection to work, or something like that?
       (game-object-common/component-scene node-id node-outline-key transform source-scene))))
 
-(defn make-prototype-desc->scene [embedded-component-resource-data->index embedded-component-scenes referenced-component-proj-path->index referenced-component-scenes]
+(defn make-prototype-desc->scene [embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes]
   (let [any-component-desc->source-scene
-        (make-any-component-desc->source-scene embedded-component-scenes embedded-component-resource-data->index referenced-component-scenes referenced-component-proj-path->index)
+        (make-any-component-desc->source-scene embedded-component-scenes embedded-component-resource-data->scene-index referenced-component-scenes referenced-component-proj-path->scene-index)
 
         any-component-desc->component-scene
         (make-any-component-desc->component-scene any-component-desc->source-scene)]
@@ -299,12 +336,12 @@
 
 (g/defnk produce-node-outline [_node-id]
   {:node-id _node-id
-   :node-outline-key "Game Object Data"
-   :label "Game Object Data"
+   :node-outline-key "Non-Editable Game Object"
+   :label "Non-Editable Game Object"
    :icon game-object-common/game-object-icon})
 
-(g/defnk produce-scene [_node-id prototype-desc embedded-component-resource-data->index embedded-component-scenes referenced-component-proj-path->index referenced-component-scenes]
-  (let [prototype-desc->scene (make-prototype-desc->scene embedded-component-resource-data->index embedded-component-scenes referenced-component-proj-path->index referenced-component-scenes)]
+(g/defnk produce-scene [_node-id prototype-desc embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes]
+  (let [prototype-desc->scene (make-prototype-desc->scene embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes)]
     (prototype-desc->scene prototype-desc _node-id)))
 
 (def ^:private resource-property-connections

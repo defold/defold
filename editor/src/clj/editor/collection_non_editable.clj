@@ -265,8 +265,8 @@
 
 (g/defnk produce-node-outline [_node-id]
   {:node-id _node-id
-   :node-outline-key "Collection Data"
-   :label "Collection Data"
+   :node-outline-key "Non-Editable Collection"
+   :label "Non-Editable Collection"
    :icon collection-common/collection-icon})
 
 (defn- make-desc->instance-scene [node-id desc->source-scene child-id->desc]
@@ -284,9 +284,9 @@
                       (update :children util/intov child-instance-scenes))))]
     desc->instance-scene))
 
-(g/defnk produce-scene [_node-id collection-desc embedded-component-resource-data->index embedded-component-scenes referenced-component-proj-path->index referenced-component-scenes referenced-collection-proj-path->index referenced-collection-scenes referenced-game-object-proj-path->index referenced-game-object-scenes]
+(g/defnk produce-scene [_node-id collection-desc embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes referenced-collection-proj-path->index referenced-collection-scenes referenced-game-object-proj-path->index referenced-game-object-scenes]
   (let [prototype-desc->scene
-        (game-object-non-editable/make-prototype-desc->scene embedded-component-resource-data->index embedded-component-scenes referenced-component-proj-path->index referenced-component-scenes)
+        (game-object-non-editable/make-prototype-desc->scene embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes)
 
         any-game-object-instance-desc->source-scene
         (fn any-game-object-instance-desc->source-scene [game-object-instance-desc]
