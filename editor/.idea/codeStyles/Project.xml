@@ -35,6 +35,7 @@
           <entry key="editor.handler/defhandler" value="-1" />
           <entry key="editor.handler/register-dynamic!" value="-1" />
           <entry key="editor.handler/register-menu!" value="-1" />
+          <entry key="editor.lsp.async/with-auto-evaluation-context" value="-1" />
           <entry key="editor.resource-io/with-error-translation" value="-1" />
           <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
           <entry key="editor.resource-node/register-settings-resource-type" value="-1" />

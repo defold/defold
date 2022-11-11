@@ -473,6 +473,7 @@
   (r/register-code-resource-type
     workspace
     :ext "appmanifest"
+    :language "yaml"
     :label "App Manifest"
     :icon "icons/32/Icons_05-Project-info.png"
     :node-type AppManifestNode
