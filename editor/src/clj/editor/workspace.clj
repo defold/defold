@@ -68,11 +68,14 @@ ordinary paths."
    (io/file (project-path workspace) (str (skip-first-char plugins-dir) (skip-first-char path)))))
 
 (defn as-proj-path
-  ^String [workspace file-or-path]
-  (let [file (io/as-file file-or-path)
-        project-directory (project-path workspace)]
-    (when (fs/below-directory? file project-directory)
-      (resource/file->proj-path project-directory file))))
+  (^String [workspace file-or-path]
+   (g/with-auto-evaluation-context evaluation-context
+     (as-proj-path workspace file-or-path evaluation-context)))
+  (^String [workspace file-or-path evaluation-context]
+   (let [file (io/as-file file-or-path)
+         project-directory (project-path workspace evaluation-context)]
+     (when (fs/below-directory? file project-directory)
+       (resource/file->proj-path project-directory file)))))
 
 (defrecord BuildResource [resource prefix]
   resource/Resource
@@ -168,9 +171,65 @@ ordinary paths."
 (def ^:private editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn true))
 (def ^:private non-editable-resource-type-map-update-fn (make-editable-resource-type-map-update-fn false))
 
-(defn register-resource-type [workspace & {:keys [textual? editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
+(defn register-resource-type
+  "Register new resource type to be handled by the editor
+
+  Required kv-args:
+    :ext    file extension associated with the resource type, either a string
+            or a coll of strings
+
+  Optional kv-args:
+    :node-type          a loaded resource node type; defaults to
+                        editor.placeholder-resource/PlaceholderResourceNode
+    :textual?           whether the resource is saved as text and needs proper
+                        lf/crlf handling, default false
+    :language           language identifier string used for textual resources
+                        that can be opened as code, used for LSP interactions,
+                        see https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers
+                        for common values; defaults to \"plaintext\"
+    :build-ext          file extension of a built resource, defaults to :ext's
+                        value with appended \"c\"
+    :dependencies-fn    fn of node's :source-value output to a collection of
+                        resource project paths that this node depends on,
+                        affects loading order
+    :load-fn            a function from project, new node id and resource to
+                        transaction step, invoked on loading the resource of
+                        the type; default editor.placeholder-resource/load-node
+    :read-fn            a fn from clojure.java.io/reader-able object (e.g.
+                        a resource or a Reader) to a data structure
+                        representation of the resource (a source value)
+    :read-raw-fn        similar to :read-fn, but used during sanitization
+    :sanitize-fn        if present, will be applied to read data (from
+                        :read-raw-fn or, if absent, from :read-fn) on loading to
+                        transform the loaded data
+    :write-fn           a fn from a data representation of the resource
+                        (a save value) to string
+    :icon               classpath path to an icon image or project resource path
+                        string; default \"icons/32/Icons_29-AT-Unknown.png\"
+    :view-types         vector of alternative views that can be used for
+                        resources of the resource type, e.g. :code, :scene,
+                        :cljfx-form-view, :text, :html or :default.
+    :view-opts          a map from a view-type keyword to options map that will
+                        be merged with other opts used when opening a view
+    :tags               a set of keywords that can be used for customizing the
+                        behavior of the resource throughout the project
+    :tag-opts           a map from tag keyword from :tags to additional options
+                        map the configures the behavior of the resource with the
+                        tag
+    :template           classpath or project resource path to a template file
+                        for a new resource file creation; defaults to
+                        \"templates/template.{ext}\"
+    :label              label for a resource type when shown in the editor
+    :stateless?         whether the resource can be modified in the editor, by
+                        default true if there is no :load-fn and false otherwise
+    :auto-connect-save-data?    whether changes to the resource are saved
+                                to disc (this can also be enabled in load-fn)
+                                when there is a :write-fn, default true"
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
   (let [editable (if (nil? editable) true (boolean editable))
-        resource-type {:textual? (true? textual?)
+        textual (true? textual?)
+        resource-type {:textual? textual
+                       :language (when textual (or language "plaintext"))
                        :editable editable
                        :editor-openable (some? (some editor-openable-view-type? view-types))
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
@@ -600,7 +659,6 @@ ordinary paths."
   (property resource-types g/Any)
   (property resource-types-non-editable g/Any)
   (property snapshot-cache g/Any (default {}))
-  (property resource->diagnostics g/Any (default {})) ;; a map from resources to sorted diagnostic ranges
   (property build-settings g/Any)
   (property editable-proj-path? g/Any)
 
