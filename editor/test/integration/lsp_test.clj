@@ -56,7 +56,11 @@
         (reify lsp.server/Connection
           (input-stream [_] public-in)
           (output-stream [_] public-out)
-          (dispose [_]))))))
+          (dispose [_]
+            (.close public-in)
+            (.close public-out)
+            (.close private-in)
+            (.close private-out)))))))
 
 (def default-handlers
   {"initialize" (fn [_ _] {:capabilities {:textDocumentSync lsp.server/lsp-text-document-sync-kind-incremental}})
