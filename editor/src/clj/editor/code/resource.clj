@@ -164,7 +164,6 @@
         args (-> args
                  (dissoc :additional-load-fn :eager-loading?)
                  (assoc :load-fn load-fn
-                        :read-fn read-fn
                         :write-fn write-fn
                         :textual? true))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

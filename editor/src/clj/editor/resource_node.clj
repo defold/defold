@@ -176,9 +176,6 @@
                          (some? sanitize-fn) (comp sanitize-fn))
         args (assoc args
                :textual? true
-               :load-fn (fn [project self resource]
-                          (let [source-value (read-fn resource)]
-                            (load-fn project self resource source-value)))
                :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                :read-raw-fn read-raw-fn
                :read-fn read-fn
@@ -192,9 +189,6 @@
                     (settings-core/parse-settings setting-reader)))
         args (assoc args
                :textual? true
-               :load-fn (fn [project self resource]
-                          (let [source-value (read-fn resource)]
-                            (load-fn project self resource source-value)))
                :read-fn read-fn
                :write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
                                settings-core/settings-with-value))]
