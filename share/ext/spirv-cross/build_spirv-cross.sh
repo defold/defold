@@ -47,12 +47,13 @@ EXE_SUFFIX=
 case $PLATFORM in
     win32|x86_64-win32)
         EXE_SUFFIX=.exe
+        SRC_EXE=./Release/spirv-cross${EXE_SUFFIX}
         ;;
     *)
+        SRC_EXE=./spirv-cross${EXE_SUFFIX}
         ;;
 esac
 
-SRC_EXE=./spirv-cross${EXE_SUFFIX}
 TARGET_EXE=./bin/$PLATFORM/spirv-cross${EXE_SUFFIX}
 
 mkdir -p ./bin/$PLATFORM
