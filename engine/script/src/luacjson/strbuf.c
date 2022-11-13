@@ -37,19 +37,19 @@ static void die(const char *fmt, ...)
     vfprintf(stderr, fmt, arg);
     va_end(arg);
     fprintf(stderr, "\n");
-    #if 0 // Defold change, we don't want to exit like this
+
     exit(-1);
-    #endif
 }
 
-// ++++++
-int strbuf_init(strbuf_t *s, int len)
+void strbuf_init(strbuf_t *s, int len)
 {
     int size;
+
     if (len <= 0)
         size = STRBUF_DEFAULT_SIZE;
     else
-        size = len + 1;
+        size = len + 1;         /* \0 terminator */
+
     s->buf = NULL;
     s->size = size;
     s->length = 0;
@@ -57,45 +57,38 @@ int strbuf_init(strbuf_t *s, int len)
     s->dynamic = 0;
     s->reallocs = 0;
     s->debug = 0;
-    s->buf = (char *)malloc(size);
+
+    s->buf = malloc(size);
     if (!s->buf)
-    {
-        die("luacjson: Out of memory");
-        return 0;
-    }
+        die("Out of memory");
+
     strbuf_ensure_null(s);
-    return 1;
 }
 
 strbuf_t *strbuf_new(int len)
 {
     strbuf_t *s;
-    s = (strbuf_t *)malloc(sizeof(strbuf_t));
+
+    s = malloc(sizeof(strbuf_t));
     if (!s)
-    {
-        die("luacjson: Out of memory");
-        return 0;
-    }
-    if (!strbuf_init(s, len))
-    {
-        return 0;
-    }
+        die("Out of memory");
+
+    strbuf_init(s, len);
+
+    /* Dynamic strbuf allocation / deallocation */
     s->dynamic = 1;
+
     return s;
 }
 
-int strbuf_set_increment(strbuf_t *s, int increment)
+void strbuf_set_increment(strbuf_t *s, int increment)
 {
     /* Increment > 0:  Linear buffer growth rate
      * Increment < -1: Exponential buffer growth rate */
     if (increment == 0 || increment == -1)
-    {
-        die("luacjson: BUG - Invalid string increment");
-        return 0;
-    }
+        die("BUG: Invalid string increment");
 
     s->increment = increment;
-    return 1;
 }
 
 static inline void debug_stats(strbuf_t *s)
@@ -106,7 +99,8 @@ static inline void debug_stats(strbuf_t *s)
     }
 }
 
-// +++++
+/* If strbuf_t has not been dynamically allocated, strbuf_free() can
+ * be called any number of times strbuf_init() */
 void strbuf_free(strbuf_t *s)
 {
     debug_stats(s);
@@ -142,10 +136,7 @@ static int calculate_new_size(strbuf_t *s, int len)
     int reqsize, newsize;
 
     if (len <= 0)
-    {
-        die("luacjson: BUG - Invalid strbuf length requested");
-        return 0;
-    }
+        die("BUG: Invalid strbuf length requested");
 
     /* Ensure there is room for optional NULL termination */
     reqsize = len + 1;
@@ -159,7 +150,7 @@ static int calculate_new_size(strbuf_t *s, int len)
         /* Exponential sizing */
         while (newsize < reqsize)
             newsize *= -s->increment;
-    } else {
+    } else if (s->increment != 0)  {
         /* Linear sizing */
         newsize = ((newsize + s->increment - 1) / s->increment) * s->increment;
     }
@@ -170,15 +161,11 @@ static int calculate_new_size(strbuf_t *s, int len)
 
 /* Ensure strbuf can handle a string length bytes long (ignoring NULL
  * optional termination). */
-int strbuf_resize(strbuf_t *s, int len)
+void strbuf_resize(strbuf_t *s, int len)
 {
     int newsize;
 
     newsize = calculate_new_size(s, len);
-    if (newsize == 0)
-    {
-        return 0;
-    }
 
     if (s->debug > 1) {
         fprintf(stderr, "strbuf(%lx) resize: %d => %d\n",
@@ -186,17 +173,13 @@ int strbuf_resize(strbuf_t *s, int len)
     }
 
     s->size = newsize;
-    s->buf = (char*)realloc(s->buf, s->size);
+    s->buf = realloc(s->buf, s->size);
     if (!s->buf)
-    {
         die("Out of memory");
-        return 0;
-    }
     s->reallocs++;
-    return 1;
 }
 
-int strbuf_append_string(strbuf_t *s, const char *str)
+void strbuf_append_string(strbuf_t *s, const char *str)
 {
     int space, i;
 
@@ -204,10 +187,7 @@ int strbuf_append_string(strbuf_t *s, const char *str)
 
     for (i = 0; str[i]; i++) {
         if (space < 1) {
-            if (strbuf_resize(s, s->length + 1) == 0)
-            {
-                return 0;
-            }
+            strbuf_resize(s, s->length + 1);
             space = strbuf_empty_length(s);
         }
 
@@ -215,13 +195,11 @@ int strbuf_append_string(strbuf_t *s, const char *str)
         s->length++;
         space--;
     }
-
-    return 1;
 }
 
 /* strbuf_append_fmt() should only be used when an upper bound
  * is known for the output string. */
-int strbuf_append_fmt(strbuf_t *s, int len, const char *fmt, ...)
+void strbuf_append_fmt(strbuf_t *s, int len, const char *fmt, ...)
 {
     va_list arg;
     int fmt_len;
@@ -233,27 +211,22 @@ int strbuf_append_fmt(strbuf_t *s, int len, const char *fmt, ...)
     va_end(arg);
 
     if (fmt_len < 0)
-    {
-        die("luacjson: BUG - Unable to convert number");  /* This should never happen.. */
-        return 0;
-    }
+        die("BUG: Unable to convert number");  /* This should never happen.. */
 
     s->length += fmt_len;
-    return 1;
 }
 
 /* strbuf_append_fmt_retry() can be used when the there is no known
  * upper bound for the output string. */
-int strbuf_append_fmt_retry(strbuf_t *s, const char *fmt, ...)
+void strbuf_append_fmt_retry(strbuf_t *s, const char *fmt, ...)
 {
     va_list arg;
-    int fmt_len;
-    int tryy;
+    int fmt_len, try;
     int empty_len;
 
     /* If the first attempt to append fails, resize the buffer appropriately
      * and try again */
-    for (tryy = 0; ; tryy++) {
+    for (try = 0; ; try++) {
         va_start(arg, fmt);
         /* Append the new formatted string */
         /* fmt_len is the length of the string required, excluding the
@@ -265,20 +238,13 @@ int strbuf_append_fmt_retry(strbuf_t *s, const char *fmt, ...)
 
         if (fmt_len <= empty_len)
             break;  /* SUCCESS */
-            if (tryy > 0)
-            {
-                die("BUG: length of formatted string changed");
-                return 0;
-            }
+        if (try > 0)
+            die("BUG: length of formatted string changed");
 
-        if (strbuf_resize(s, s->length + fmt_len) == 0)
-        {
-            return 0;
-        }
+        strbuf_resize(s, s->length + fmt_len);
     }
 
     s->length += fmt_len;
-    return 1;
 }
 
 /* vi:ai et sw=4 ts=4:

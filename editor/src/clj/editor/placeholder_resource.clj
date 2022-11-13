@@ -16,8 +16,8 @@
   (:require [dynamo.graph :as g]
             [editor.code.resource :as r]
             [editor.resource :as resource]
-            [util.text-util :as text-util]
-            [editor.workspace :as workspace]))
+            [editor.workspace :as workspace]
+            [util.text-util :as text-util]))
 
 (g/defnk produce-undecorated-save-data [_node-id resource save-value]
   (cond-> {:node-id _node-id :resource resource :value save-value}
@@ -32,10 +32,11 @@
   (output undecorated-save-data g/Any produce-undecorated-save-data))
 
 (defn load-node [project node-id resource]
-  (if (text-util/binary? resource)
-    (g/set-property node-id :editable? false)
+  (if (or (not (resource/editable? resource))
+          (text-util/binary? resource))
+    (g/set-property node-id :editable false)
     (concat
-      (g/set-property node-id :editable? true)
+      (g/set-property node-id :editable true)
       (when (resource/file-resource? resource)
         (g/connect node-id :save-data project :save-data)))))
 

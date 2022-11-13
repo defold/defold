@@ -10,7 +10,7 @@ An option is to use a 32 bit VM of an old osx
 ## Win32 + Win64
 
 Start a "Native Tools Command Prompt for VS" for x86 and x64 respectively.
-Use the buld_win32.bat to download, build and package the bundle
+Use the build_win32.bat to download, build and package the bundle
 
 Needs the `git` tool to apply the patch.
 
@@ -27,6 +27,8 @@ Make sure you've set the necessary root SDK environment variables.
 Use the build_nx64.bat to download, build and package the bundle.
 
 ## `armv7-android`, `arm64-android` + `x86_64-linux`
+
+Note: Building 32 bit host executable is tricky on macOS, so we recommend using Linux for this
 
 In order to build these platforms more easily it's easier to use a docker container.
 

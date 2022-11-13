@@ -83,11 +83,11 @@ namespace dmSocket
             DM_SOCKET_NATIVE_TO_RESULT_CASE(ADDRINUSE);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(CONNABORTED);
             DM_SOCKET_NATIVE_TO_RESULT_CASE(INPROGRESS);
+        default:
+            // TODO: Add log-domain support
+            dmLogError("%s( %d ): SOCKET: Unknown result code %d", filename, line, r);
+            return RESULT_UNKNOWN;
         }
-
-        // TODO: Add log-domain support
-        dmLogError("%s( %d ): SOCKET: Unknown result code %d", filename, line, r);
-        return RESULT_UNKNOWN;
     }
     #undef DM_SOCKET_NATIVE_TO_RESULT_CASE
 
@@ -171,7 +171,7 @@ namespace dmSocket
         switch(type)
         {
             case TYPE_STREAM:  return SOCK_STREAM;
-            case TYPE_DGRAM:  return SOCK_DGRAM;
+            case TYPE_DGRAM:   return SOCK_DGRAM;
         }
     }
     static int ProtocolToNative(Protocol protocol)

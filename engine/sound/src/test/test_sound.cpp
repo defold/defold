@@ -1056,6 +1056,56 @@ TEST_P(dmSoundVerifyOggTest, SkipSync)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
+// Verifies that the ref counted for HSoundData works correct
+TEST_P(dmSoundVerifyOggTest, SoundDataRefCount)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    // We create a muted instance, to make sure that they end at the same time
+    dmSound::HSoundInstance muted_instance = 0;
+    r = dmSound::NewSoundInstance(sd, &muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, muted_instance);
+
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0,0,0,0)); // gain 0
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::SetParameter(muted_instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(muted_instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    ASSERT_EQ(dmSound::GetRefCount(sd), 3);
+    dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::GetRefCount(sd), 2);
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::GetRefCount(sd), 1);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    r = dmSound::DeleteSoundInstance(muted_instance);
+    ASSERT_EQ(dmSound::GetRefCount(sd), 0);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
 const TestParams params_verify_ogg_test[] = {TestParams("loopback",
                                             MONO_RESAMPLE_FRAMECOUNT_16000_OGG,
                                             MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE,

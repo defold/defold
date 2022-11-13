@@ -67,14 +67,10 @@ namespace dmGui
 
     const uint32_t INITIAL_SCENE_COUNT = 32;
 
-    const uint64_t LAYER_RANGE = 4; // 16 layers
-    const uint64_t INDEX_RANGE = 13; // 8192 nodes
-    const uint64_t CLIPPER_RANGE = 8;
-
-    const uint64_t SUB_INDEX_SHIFT = 0;
-    const uint64_t SUB_LAYER_SHIFT = INDEX_RANGE;
-    const uint64_t CLIPPER_SHIFT = SUB_LAYER_SHIFT + LAYER_RANGE;
-    const uint64_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
+    // Currently not used, here for reference only
+    // const uint64_t LAYER_RANGE = 8; // 256 layers
+    const uint64_t INDEX_RANGE = 24; // 16777216 nodes
+    const uint64_t INDEX_SHIFT = 0;
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
 
@@ -295,16 +291,15 @@ namespace dmGui
     {
         memset(params, 0, sizeof(*params));
         // The default max value for a scene is 512 (same as in gui_ddf.proto). Absolute max value is 2^INDEX_RANGE.
-        params->m_MaxNodes = 512;
-        params->m_MaxAnimations = 128;
-        params->m_MaxTextures = 32;
-        params->m_MaxFonts = 4;
+        params->m_MaxNodes       = 512;
+        params->m_MaxAnimations  = 128;
+        params->m_MaxTextures    = 32;
+        params->m_MaxFonts       = 4;
         params->m_MaxParticlefxs = 128;
-        // 16 is a hard cap for max layers since only 4 bits is available in the render key (see LAYER_RANGE above)
-        params->m_MaxLayers = 16;
+        // 256 is a hard cap for max layers, we use 8 bits in the render key (see LAYER_RANGE above)
+        params->m_MaxLayers       = 256;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
-
-        params->m_ScriptWorld = 0x0;
+        params->m_ScriptWorld     = 0x0;
     }
 
     static void ResetScene(HScene scene) {
@@ -1149,12 +1144,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return (1 << bits) - 1;
     }
 
-    static uint64_t CalcRenderKey(uint64_t layer, uint64_t index, uint64_t inv_clipper_id, uint64_t sub_layer, uint64_t sub_index) {
-        return (layer << LAYER_SHIFT)
-                | (index << INDEX_SHIFT)
-                | (inv_clipper_id << CLIPPER_SHIFT)
-                | (sub_layer << SUB_LAYER_SHIFT)
-                | (sub_index << SUB_INDEX_SHIFT);
+    static uint64_t CalcRenderKey(uint64_t layer, uint64_t index) {
+        return (layer << LAYER_SHIFT) | (index << INDEX_SHIFT);
     }
 
     static void UpdateScope(InternalNode* node, StencilScope& scope, StencilScope& child_scope, const StencilScope* parent_scope, uint16_t index, uint16_t non_inv_clipper_count, uint16_t inv_clipper_count, uint16_t bit_field_offset) {
@@ -1284,20 +1275,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
-    static void Increment(Scope* scope) {
-        scope->m_Index = dmMath::Min(255, scope->m_Index + 1);
-    }
+    static uint16_t CollectRenderEntries(HScene scene, uint16_t start_index, uint16_t order, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries) {
+        #define PUSH_RENDER_ENTRY(e) \
+            if (render_entries.Full()) \
+                render_entries.OffsetCapacity(16U); \
+            render_entries.Push(e);
 
-    static uint64_t CalcRenderKey(Scope* scope, uint16_t layer, uint16_t index) {
-        if (scope != 0x0) {
-            return CalcRenderKey(scope->m_RootLayer, scope->m_RootIndex, scope->m_Index, layer, index);
-        } else {
-            return CalcRenderKey(layer, index, 0, 0, 0);
-        }
-    }
-
-    static uint16_t CollectRenderEntries(HScene scene, uint16_t start_index, uint16_t order, Scope* scope, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries) {
         uint16_t index = start_index;
+
         while (index != INVALID_INDEX) {
             InternalNode* n = &scene->m_Nodes[index];
             if (n->m_Node.m_Enabled) {
@@ -1306,41 +1291,24 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 if (n->m_ClipperIndex != INVALID_INDEX) {
                     InternalClippingNode& clipper = clippers[n->m_ClipperIndex];
                     if (clipper.m_NodeIndex == index) {
-                        bool root_clipper = scope == 0x0;
-                        Scope tmp_scope(0, order);
-                        Scope* current_scope = scope;
-                        if (current_scope == 0x0) {
-                            current_scope = &tmp_scope;
-                            ++order;
-                        } else {
-                            Increment(current_scope);
-                        }
-                        uint64_t clipping_key = CalcRenderKey(current_scope, 0, 0);
-                        uint64_t render_key = CalcRenderKey(current_scope, layer, 1);
-                        CollectRenderEntries(scene, n->m_ChildHead, 2, current_scope, clippers, render_entries);
-                        if (layer > 0) {
-                            render_key = CalcRenderKey(current_scope, layer, 1);
-                        }
+                        uint64_t clipping_key = CalcRenderKey(layer, order++);
+                        uint64_t render_key   = CalcRenderKey(layer, order++);
+
+                        order = CollectRenderEntries(scene, n->m_ChildHead, order, clippers, render_entries);
+
                         clipper.m_VisibleRenderKey = render_key;
+
                         RenderEntry entry;
                         entry.m_Node = node;
                         entry.m_RenderKey = clipping_key;
-                        if (render_entries.Full())
-                        {
-                            render_entries.OffsetCapacity(16U);
-                        }
-                        render_entries.Push(entry);
+
+                        PUSH_RENDER_ENTRY(entry);
+
                         if (n->m_Node.m_ClippingVisible) {
                             entry.m_RenderKey = render_key;
-                            if (render_entries.Full())
-                            {
-                                render_entries.OffsetCapacity(16U);
-                            }
-                            render_entries.Push(entry);
+                            PUSH_RENDER_ENTRY(entry);
                         }
-                        if (!root_clipper) {
-                            Increment(current_scope);
-                        }
+
                         index = n->m_NextIndex;
                         continue;
                     }
@@ -1368,14 +1336,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
                                 RenderEntry emitter_render_entry;
                                 emitter_render_entry.m_Node = node;
-                                emitter_render_entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
+                                emitter_render_entry.m_RenderKey = CalcRenderKey(layer, order++);
                                 emitter_render_entry.m_RenderData = emitter_render_data;
 
-                                if (render_entries.Full())
-                                {
-                                    render_entries.OffsetCapacity(16U);
-                                }
-                                render_entries.Push(emitter_render_entry);
+                                PUSH_RENDER_ENTRY(emitter_render_entry);
                             }
                         }
                     }
@@ -1384,25 +1348,23 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 {
                     RenderEntry entry;
                     entry.m_Node = node;
-                    entry.m_RenderKey = CalcRenderKey(scope, layer, order++);
-                    if (render_entries.Full())
-                    {
-                        render_entries.OffsetCapacity(16U);
-                    }
-                    render_entries.Push(entry);
+                    entry.m_RenderKey = CalcRenderKey(layer, order++);
+                    PUSH_RENDER_ENTRY(entry);
                 }
 
-                order = CollectRenderEntries(scene, n->m_ChildHead, order, scope, clippers, render_entries);
+                order = CollectRenderEntries(scene, n->m_ChildHead, order, clippers, render_entries);
             }
             index = n->m_NextIndex;
         }
+        #undef PUSH_RENDER_ENTRY
+
         return order;
     }
 
     static void CollectNodes(HScene scene, dmArray<InternalClippingNode>& clippers, dmArray<RenderEntry>& render_entries)
     {
         CollectClippers(scene, scene->m_RenderHead, 0, 0, clippers, INVALID_INDEX);
-        CollectRenderEntries(scene, scene->m_RenderHead, 0, 0x0, clippers, render_entries);
+        CollectRenderEntries(scene, scene->m_RenderHead, 0, clippers, render_entries);
     }
 
     static inline bool IsVisible(InternalNode* n, float opacity)
