@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,6 +25,7 @@
 #include "script_resource.h"
 #include "../gamesys.h"
 #include "../resources/res_buffer.h"
+#include "../resources/res_texture.h"
 #include "script_resource_liveupdate.h"
 
 #include <dmsdk/script/script.h>
@@ -414,10 +415,10 @@ static int CheckTableInteger(lua_State* L, int index, const char* name)
 {
     return CheckTableValue<int>(L, index, name);
 }
-// static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
-// {
-//     return CheckTableValue<int>(L, index, name, default_value);
-// }
+static int CheckTableInteger(lua_State* L, int index, const char* name, int default_value)
+{
+    return CheckTableValue<int>(L, index, name, default_value);
+}
 // static float CheckTableNumber(lua_State* L, int index, const char* name)
 // {
 //     return CheckTableValue<float>(L, index, name);
@@ -472,6 +473,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  * : [type:number] The texture type. Supported values:
  *
  * - `resource.TEXTURE_TYPE_2D`
+ * - `resource.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels)
@@ -486,9 +488,18 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
  *
+ * `x`
+ * : [type:number] optional x offset of the texture (in pixels)
+ *
+ * `y`
+ * : [type:number] optional y offset of the texture (in pixels)
+ *
+ * `mipmap`
+ * : [type:number] optional mipmap to upload the data to
+ *
  * @param buffer [type:buffer] The buffer of precreated pixel data
  *
- * [icon:attention] Currently, only 1 mipmap is generated.
+ * [icon:attention] To update a cube map texture you need to pass in six times the amount of data via the buffer, since a cube map has six sides!
  *
  * @examples
  * How to set all pixels of an atlas
@@ -508,26 +519,62 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  *           self.stream[index + 2] = 0x10
  *       end
  *   end
-
+ *
  *   local resource_path = go.get("#sprite", "texture0")
- *   local header = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
- *   resource.set_texture( resource_path, header, self.buffer )
+ *   local args = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   resource.set_texture( resource_path, args, self.buffer )
+ * end
+ * ```
+ *
+ * @examples
+ * How to update a specific region of an atlas by using the x,y values. Assumes the already set atlas is a 128x128 texture.
+ *
+ * ```lua
+ * function init(self)
+ *   self.x = 16
+ *   self.y = 16
+ *   self.height = 128 - self.x * 2
+ *   self.width = 128 - self.y * 2
+ *   self.buffer = buffer.create(self.width * self.height, { {name=hash("rgb"), type=buffer.VALUE_TYPE_UINT8, count=3} } )
+ *   self.stream = buffer.get_stream(self.buffer, hash("rgb"))
+ *
+ *   for y=1,self.height do
+ *       for x=1,self.width do
+ *           local index = (y-1) * self.width * 3 + (x-1) * 3 + 1
+ *           self.stream[index + 0] = 0xff
+ *           self.stream[index + 1] = 0x80
+ *           self.stream[index + 2] = 0x10
+ *       end
+ *   end
+ *
+ *   local resource_path = go.get("#sprite", "texture0")
+ *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   resource.set_texture( resource_path, args, self.buffer )
  * end
  * ```
  */
 static int SetTexture(lua_State* L)
 {
+    // Note: We only support uploading a single mipmap for a single slice at a time
+    const uint32_t NUM_MIP_MAPS = 1;
+    const int32_t DEFAULT_INT_NOT_SET = -1;
+
     int top = lua_gettop(L);
 
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    uint32_t type = (uint32_t)CheckTableInteger(L, 2, "type");
-    uint32_t width = (uint32_t)CheckTableInteger(L, 2, "width");
-    uint32_t height = (uint32_t)CheckTableInteger(L, 2, "height");
-    uint32_t format = (uint32_t)CheckTableInteger(L, 2, "format");
+    uint32_t type   = (uint32_t) CheckTableInteger(L, 2, "type");
+    uint32_t width  = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t format = (uint32_t) CheckTableInteger(L, 2, "format");
+    uint32_t mipmap = (uint32_t) CheckTableInteger(L, 2, "mipmap", 0);
+    int32_t x       = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
+    int32_t y       = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
 
-    uint32_t num_mip_maps = 1;
+    bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET;
+    x               = dmMath::Max(0, x);
+    y               = dmMath::Max(0, y);
 
     dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
 
@@ -535,48 +582,40 @@ static int SetTexture(lua_State* L)
     uint32_t datasize = 0;
     dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
 
-    dmGraphics::TextureImage* texture_image = new dmGraphics::TextureImage;
-    texture_image->m_Alternatives.m_Data = new dmGraphics::TextureImage::Image[1];
-    texture_image->m_Alternatives.m_Count = 1;
-    texture_image->m_Type = (dmGraphics::TextureImage::Type)GraphicsTextureTypeToImageType(type);
+    dmGraphics::TextureImage::Image image  = {};
+    dmGraphics::TextureImage texture_image = {};
+    texture_image.m_Alternatives.m_Data    = &image;
+    texture_image.m_Alternatives.m_Count   = 1;
+    texture_image.m_Type                   = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
 
-    for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
-    {
-        dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
-        image->m_Width = width;
-        image->m_Height = height;
-        image->m_OriginalWidth = width;
-        image->m_OriginalHeight = height;
-        image->m_Format = (dmGraphics::TextureImage::TextureFormat)GraphicsTextureFormatToImageFormat(format);
-        image->m_CompressionType = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
-        image->m_CompressionFlags = 0;
-        image->m_Data.m_Data = data;
-        image->m_Data.m_Count = datasize;
-        image->m_MipMapOffset.m_Data = new uint32_t[num_mip_maps];
-        image->m_MipMapOffset.m_Count = num_mip_maps;
+    image.m_Width                = width;
+    image.m_Height               = height;
+    image.m_OriginalWidth        = width;
+    image.m_OriginalHeight       = height;
+    image.m_Format               = (dmGraphics::TextureImage::TextureFormat)GraphicsTextureFormatToImageFormat(format);
+    image.m_CompressionType      = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+    image.m_CompressionFlags     = 0;
+    image.m_Data.m_Data          = data;
+    image.m_Data.m_Count         = datasize;
 
-        image->m_MipMapSize.m_Data = new uint32_t[num_mip_maps];
-        image->m_MipMapSize.m_Count = num_mip_maps;
+    uint32_t mip_map_offsets     = 0;
+    uint32_t mip_map_sizes       = datasize;
+    image.m_MipMapOffset.m_Data  = &mip_map_offsets;
+    image.m_MipMapOffset.m_Count = NUM_MIP_MAPS;
+    image.m_MipMapSize.m_Data    = &mip_map_sizes;
+    image.m_MipMapSize.m_Count   = NUM_MIP_MAPS;
 
-        for( uint32_t mip = 0; mip < num_mip_maps; ++mip )
-        {
-            image->m_MipMapOffset[mip] = 0; // TODO: Fix mip offsets
-            image->m_MipMapSize[mip] = datasize;
-        }
-    }
+    ResTextureReCreateParams recreate_params;
+    recreate_params.m_TextureImage = &texture_image;
 
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*)texture_image);
+    ResTextureUploadParams& upload_params = recreate_params.m_UploadParams;
+    upload_params.m_X                     = x;
+    upload_params.m_Y                     = y;
+    upload_params.m_MipMap                = mipmap;
+    upload_params.m_SubUpdate             = sub_update;
+    upload_params.m_UploadSpecificMipmap  = 1;
 
-    // cleanup memory
-
-    for (uint32_t i = 0; i < texture_image->m_Alternatives.m_Count; ++i)
-    {
-        dmGraphics::TextureImage::Image* image = &texture_image->m_Alternatives[i];
-        delete[] image->m_MipMapSize.m_Data;
-        delete[] image->m_MipMapOffset.m_Data;
-    }
-    delete[] texture_image->m_Alternatives.m_Data;
-    delete texture_image;
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &recreate_params);
 
     if( r != dmResource::RESULT_OK )
     {
@@ -929,6 +968,12 @@ static const luaL_reg Module_methods[] =
 /*# 2D texture type
  *
  * @name resource.TEXTURE_TYPE_2D
+ * @variable
+ */
+
+/*# Cube map texture type
+ *
+ * @name resource.TEXTURE_TYPE_CUBE_MAP
  * @variable
  */
 
