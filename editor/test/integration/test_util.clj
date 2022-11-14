@@ -33,6 +33,7 @@
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
@@ -41,6 +42,7 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.system :as is]
+            [internal.util :as util]
             [service.log :as log]
             [support.test-support :as test-support]
             [util.http-server :as http-server]
@@ -610,18 +612,73 @@
             (g/undo! graph-id)
             (recur (g/undo-stack-count graph-id))))))))
 
-(defn to-game-object-id [node-id]
-  (let [go-id (cond
-                (g/node-instance? game-object/GameObjectNode node-id)
-                node-id
+(defn- throw-invalid-component-resource-node-id-exception [basis node-id]
+  (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
+                  {:node-id node-id
+                   :node-type (g/node-type* basis node-id)})))
 
-                (g/node-instance? collection/GameObjectInstanceNode node-id)
-                (g/node-value node-id :source-id))]
-    (assert (g/node-instance? game-object/GameObjectNode go-id)
-            (format "Invalid conversion from %s to %s."
-                    (:k (g/node-type* node-id))
-                    (:k game-object/GameObjectNode)))
-    go-id))
+(defn- validate-component-resource-node-id
+  ([node-id]
+   (validate-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (if (and (g/node-instance? basis resource-node/ResourceNode node-id)
+            (when-some [resource-type (resource/resource-type (resource-node/resource basis node-id))]
+              (contains? (:tags resource-type) :component)))
+     node-id
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-component-resource-node-id
+  ([node-id]
+   (to-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [resource-node/ResourceNode
+                                                  game-object/EmbeddedComponent
+                                                  game-object/ReferencedComponent])
+     resource-node/ResourceNode
+     (validate-component-resource-node-id basis node-id)
+
+     game-object/EmbeddedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :embedded-resource-id))
+
+     game-object/ReferencedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
+
+     :else
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-game-object-node-id
+  ([node-id]
+   (to-game-object-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [game-object/GameObjectNode
+                                                  collection/GameObjectInstanceNode])
+     game-object/GameObjectNode
+     node-id
+
+     collection/GameObjectInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
+
+(defn to-collection-node-id
+  ([node-id]
+   (to-collection-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [collection/CollectionNode
+                                                  collection/CollectionInstanceNode])
+     collection/CollectionNode
+     node-id
+
+     collection/CollectionInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
 
 (defn- created-node [select-fn-call-logger]
   (let [calls (call-logger-calls select-fn-call-logger)
@@ -634,55 +691,101 @@
   "Adds a new instance of a referenced component to the specified game object
   node. Returns the id of the added ReferencedComponent node."
   [game-object-or-instance-id component-resource]
-  (let [select-fn (make-call-logger)
-        game-object-id (to-game-object-id game-object-or-instance-id)]
-    (game-object/add-component-file game-object-id component-resource select-fn)
+  (let [game-object-id (to-game-object-node-id game-object-or-instance-id)
+        select-fn (make-call-logger)]
+    (game-object/add-referenced-component! game-object-id component-resource select-fn)
     (created-node select-fn)))
 
 (defn add-embedded-component!
   "Adds a new instance of an embedded component to the specified game object
   node. Returns the id of the added EmbeddedComponent node."
   [game-object-or-instance-id resource-type]
-  (let [select-fn (make-call-logger)
-        game-object-id (to-game-object-id game-object-or-instance-id)]
-    (game-object/add-embedded-component-handler {:_node-id game-object-id :resource-type resource-type} select-fn)
+  (let [game-object-id (to-game-object-node-id game-object-or-instance-id)
+        select-fn (make-call-logger)]
+    (game-object/add-embedded-component! game-object-id resource-type select-fn)
     (created-node select-fn)))
 
 (defn add-referenced-game-object!
   "Adds a new instance of a referenced game object to the specified collection
   node. Returns the id of the added ReferencedGOInstanceNode."
-  ([collection-id game-object-resource]
-   (add-referenced-game-object! collection-id collection-id game-object-resource))
-  ([collection-id parent-id game-object-resource]
-   (let [select-fn (make-call-logger)]
-     (collection/add-game-object-file collection-id parent-id game-object-resource select-fn)
+  ([collection-or-instance-id game-object-resource]
+   (let [collection-id (to-collection-node-id collection-or-instance-id)]
+     (add-referenced-game-object! collection-id collection-id game-object-resource)))
+  ([collection-or-instance-id parent-id game-object-resource]
+   (let [collection-id (to-collection-node-id collection-or-instance-id)
+         select-fn (make-call-logger)]
+     (collection/add-referenced-game-object! collection-id parent-id game-object-resource select-fn)
      (created-node select-fn))))
 
 (defn add-embedded-game-object!
   "Adds a new instance of an embedded game object to the specified collection
   node. Returns the id of the added EmbeddedGOInstanceNode."
-  ([collection-id]
-   (add-embedded-game-object! collection-id collection-id))
-  ([collection-id parent-id]
-   (let [project (project/get-project collection-id)
+  ([collection-or-instance-id]
+   (let [collection-id (to-collection-node-id collection-or-instance-id)]
+     (add-embedded-game-object! collection-id collection-id)))
+  ([collection-or-instance-id parent-id]
+   (let [collection-id (to-collection-node-id collection-or-instance-id)
+         project (project/get-project collection-id)
          workspace (project/workspace project)
          select-fn (make-call-logger)]
-     (collection/add-game-object workspace project collection-id parent-id select-fn)
+     (collection/add-embedded-game-object! workspace project collection-id parent-id select-fn)
      (created-node select-fn))))
 
 (defn add-referenced-collection!
   "Adds a new instance of a referenced collection to the specified collection
   node. Returns the id of the added CollectionInstanceNode."
-  [collection-id collection-resource]
-  (let [id (resource/base-name collection-resource)
+  [collection-or-instance-id collection-resource]
+  (let [collection-id (to-collection-node-id collection-or-instance-id)
+        id (resource/base-name collection-resource)
         position [0.0 0.0 0.0]
         rotation [0.0 0.0 0.0 1.0]
         scale [1.0 1.0 1.0]
-        overrides []]
-    (first
-      (g/tx-nodes-added
-        (g/transact
-          (collection/add-collection-instance collection-id collection-resource id position rotation scale overrides))))))
+        overrides []
+        select-fn (make-call-logger)]
+    (collection/add-referenced-collection! collection-id collection-resource id position rotation scale overrides select-fn)
+    (created-node select-fn)))
+
+(defn- checked-source-node-ids
+  ([node-id->target-node-id target-input expected-source-node-type unresolved-target-node-id]
+   (checked-source-node-ids node-id->target-node-id target-input expected-source-node-type (g/now) unresolved-target-node-id))
+  ([node-id->target-node-id target-input expected-source-node-type basis unresolved-target-node-id]
+   (let [target-node-id (node-id->target-node-id basis unresolved-target-node-id)
+         target-node-type (g/node-type* basis target-node-id)]
+     (when-not (g/has-input? target-node-type target-input)
+       (throw (ex-info "Target node does not have the required input."
+                       {:target-node-id target-node-id
+                        :target-node-type target-node-type
+                        :required-target-input target-input})))
+     (mapv (fn [[source-node-id _source-label]]
+             (if (g/node-instance? basis expected-source-node-type source-node-id)
+               source-node-id
+               (throw (ex-info "Source node does not match the expected source node type."
+                               {:source-node-id source-node-id
+                                :source-node-type (g/node-type* basis source-node-id)
+                                :expected-source-node-type expected-source-node-type}))))
+           (g/sources-of basis target-node-id target-input)))))
+
+(def single util/only-or-throw)
+
+(def embedded-components (partial checked-source-node-ids to-game-object-node-id :embed-ddf game-object/EmbeddedComponent))
+
+(def embedded-component (comp single embedded-components))
+
+(def referenced-components (partial checked-source-node-ids to-game-object-node-id :ref-ddf game-object/ReferencedComponent))
+
+(def referenced-component (comp single referenced-components))
+
+(def embedded-game-objects (partial checked-source-node-ids to-collection-node-id :embed-inst-ddf collection/EmbeddedGOInstanceNode))
+
+(def embedded-game-object (comp single embedded-game-objects))
+
+(def referenced-game-objects (partial checked-source-node-ids to-collection-node-id :ref-inst-ddf collection/ReferencedGOInstanceNode))
+
+(def referenced-game-object (comp single referenced-game-objects))
+
+(def referenced-collections (partial checked-source-node-ids to-collection-node-id :ref-coll-ddf collection/CollectionInstanceNode))
+
+(def referenced-collection (comp single referenced-collections))
 
 (defonce ^:private png-image-bytes
   ;; Bytes representing a single-color 256 by 256 pixel PNG file.

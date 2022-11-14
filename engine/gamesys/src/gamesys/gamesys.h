@@ -144,17 +144,6 @@ namespace dmGameSystem
         uint32_t                    m_MaxSoundInstances;
     };
 
-    struct MeshContext
-    {
-        MeshContext()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        dmRender::HRenderContext    m_RenderContext;
-        dmResource::HFactory        m_Factory;
-        uint32_t                    m_MaxMeshCount;
-    };
-
     struct ScriptLibContext
     {
         ScriptLibContext();
@@ -214,7 +203,6 @@ namespace dmGameSystem
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   ModelContext* model_context,
-                                                  MeshContext* Mesh_context,
                                                   LabelContext* label_context,
                                                   TilemapContext* tilemap_context,
                                                   SoundContext* sound_context);

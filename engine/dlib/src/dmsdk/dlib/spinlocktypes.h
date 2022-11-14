@@ -23,7 +23,7 @@
 #include "spinlocktypes_pthread.h"
 #elif defined(__MACH__)
 #include "spinlocktypes_mach.h"
-#elif defined(__NX64__)
+#elif defined(__NX__)
 #include "spinlocktypes_nx64.h"
 #elif defined(__SCE__)
 #include "spinlocktypes_ps4.h"

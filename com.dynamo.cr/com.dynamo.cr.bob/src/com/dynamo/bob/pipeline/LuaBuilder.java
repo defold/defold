@@ -281,7 +281,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         // Doing a bit of custom set up here as the path is required.
         //
-        // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
+        // NOTE: The -F option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
         //       correct chunk name (the original source file) already here.
         //
         // See implementation of luaO_chunkid and why a prefix '@' is used; it is to show the last 60 characters of the name.
@@ -294,7 +294,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
         options.add("-b");
         options.add("-g"); // Keep debug info
-        options.add("-f"); options.add(chunkName);
+        options.add("-F"); options.add(task.input(0).getPath()); // The @ is added in the tool
         options.add(inputFile.getAbsolutePath());
         options.add(outputFile.getAbsolutePath());
 

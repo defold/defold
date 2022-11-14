@@ -609,6 +609,8 @@ namespace dmGraphics
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit, HTexture texture);
     uint32_t GetMaxTextureSize(HContext context);
+    uint16_t GetMipmapSize(uint16_t size_0, uint8_t mipmap);
+    uint8_t GetMipmapCount(uint16_t size);
 
     /**
      * Get status of texture.

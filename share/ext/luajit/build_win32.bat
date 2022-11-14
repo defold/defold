@@ -7,8 +7,8 @@ if not defined PLATFORM goto :FAIL
 set TMP_TARGET=tmp_%PLATFORM%
 
 set URL=https://github.com/LuaJIT/LuaJIT/archive/
-set SHA1=633f265f67f322cbe2c5fd11d3e46d968ac220f7
-set SHA1_SHORT=633f265
+set SHA1=6c4826f12c4d33b8b978004bc681eb1eef2be977
+set SHA1_SHORT=6c4826f
 set VERSION=2.1.0-%SHA1_SHORT%
 set PRODUCT=luajit
 set TARGET_FILE=%PRODUCT%-%VERSION%
@@ -33,7 +33,8 @@ echo "**************************************************"
 
 if exist %TMP_TARGET% goto ZIPEXTRACTED
 unzip -q %ZIPFILENAME% -d %TMP_TARGET%
-
+echo "Deleting zip"
+del %ZIPFILENAME%
 
 if not exist %PATCH_FILE% goto ZIPEXTRACTED
 
@@ -47,6 +48,7 @@ set PATCH_PATH=%~dp0\%PATCH_FILE%
 pushd %FOLDER%
 git apply --unsafe-paths %PATCH_PATH%
 popd
+
 
 :ZIPEXTRACTED
 
@@ -86,6 +88,7 @@ echo "Package %PRODUCT% for %TARGET_PLATFORM%"
 echo "**************************************************"
 
 set PACKAGE_NAME=%~dp0\package\%PRODUCT%-%VERSION%-%TARGET_PLATFORM%.tar.gz
+set COMMON_PACKAGE_NAME=%~dp0\package\%PRODUCT%-%VERSION%-common.tar.gz
 mkdir package
 
 mkdir %TMP_TARGET%\package
@@ -95,16 +98,33 @@ pushd %TMP_TARGET%\package
     mkdir lib\%TARGET_PLATFORM%
     mkdir bin
     mkdir bin\%TARGET_PLATFORM%
+    mkdir share
+    mkdir share\luajit
+    mkdir share\luajit\jit
+    mkdir include
+    mkdir include\luajit-2.1
 
     copy "%SOURCE_TARGET%\lua51.lib" lib\%TARGET_PLATFORM%\libluajit-5.1.lib
     copy "%SOURCE_TARGET%\luajit.exe" bin\%TARGET_PLATFORM%\luajit-%BITDEPTH%.exe
 
+    copy "%SOURCE_TARGET%\lua.h" include\luajit-2.1
+    copy "%SOURCE_TARGET%\lua.hpp" include\luajit-2.1
+    copy "%SOURCE_TARGET%\luaconf.h" include\luajit-2.1
+    copy "%SOURCE_TARGET%\luajit.h" include\luajit-2.1
+    copy "%SOURCE_TARGET%\lualib.h" include\luajit-2.1
+    copy "%SOURCE_TARGET%\lauxlib.h" include\luajit-2.1
+
+    copy "%SOURCE_TARGET%\jit\*.lua" share\luajit\jit
+
     tar cfvz %PACKAGE_NAME% lib bin
+    tar cfvz %COMMON_PACKAGE_NAME% include share
 
 rem package
 popd
 
 echo "Wrote %PACKAGE_NAME%"
+echo "Wrote %COMMON_PACKAGE_NAME%"
+
 
 
 goto :END

@@ -235,6 +235,7 @@ namespace dmSocket
                 return dmFileDescriptor::EVENT_ERROR;
             default:
                 assert(false);
+                return dmFileDescriptor::EVENT_ERROR;
         }
     }
 

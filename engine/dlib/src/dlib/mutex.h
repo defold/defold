@@ -20,7 +20,7 @@
 #if defined(__SCE__)
 #include <dlib/ps4/mutex.h>
 
-#elif defined(__NX64__)
+#elif defined(__NX__)
 #include <dlib/nx64/mutex.h>
 
 #elif defined(_WIN32)
