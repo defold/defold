@@ -6,15 +6,8 @@ from waflib.TaskGen import feature, after
 from waf_dynamo import dmsdk_add_files, remove_flag, is_platform_private, platform_supports_feature
 from BuildUtility import BuildUtilityException, create_build_utility
 
-def _get_native_file(target_os, name):
-    native_source = 'dlib/%s/dlib/%s' % (target_os, name)
-    if not os.path.exists(os.path.join('src',native_source)):
-        native_source = 'dlib/%s' % name
-    return native_source
-
 def options(opt):
     pass
-
 
 @feature('config_neon')
 @after('configure')
@@ -28,7 +21,7 @@ def build(bld):
 
     build_util = create_build_utility(bld.env)
 
-    source_dirs = 'dlib/*.cpp dlib/jsmn/*.c zlib/*.c lz4/*.c'.split(' ')
+    source_dirs = 'dlib/*.cpp zlib/*.c lz4/*.c'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux/**/*.cpp')
@@ -43,12 +36,14 @@ def build(bld):
         source_dirs.append('dlib/js/**/*.cpp')
     elif 'nx64' in bld.env.PLATFORM:
         source_dirs.append('dlib/nx64/**/*.cpp')
+    elif 'ps4' in bld.env.PLATFORM:
+        source_dirs.append('dlib/ps4/**/*.cpp')
 
     private_source_dir = ''
     private_include_dir = ''
     if is_platform_private(bld.env.PLATFORM):
         private_source_dir = 'dlib/%s/dlib/**/*.cpp' % build_util.get_target_os()
-        private_include_dir = 'dlib/%s/**/*.cpp' % build_util.get_target_os()
+        private_include_dir = 'dlib/%s' % build_util.get_target_os()
         if os.path.exists('src/'+private_source_dir):
             source_dirs.append(private_source_dir)
 
@@ -64,11 +59,17 @@ def build(bld):
         # on windows due to compile error in RNG_custom_init()
         # when CONFIG_WIN32_USE_CRYPTO_LIB is set (missing entropy_pool, see top of file)
 
+    platform = build_util.get_target_os()
+    if platform == 'win':
+        platform = "win32"
+
+    platform_include_dir = 'dlib/%s' % platform
+
     source_files = bld.path.ant_glob(source_dirs)
 
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files,
-                     includes = private_include_dir + ' . ./mbedtls/include ./mbedtls/crypto/include',
+                     includes = [private_include_dir, platform_include_dir] + ['.', './mbedtls/include', './mbedtls/crypto/include'],
                      target   = 'dlib',
                      defines  = ['VALGRIND'] + extra_defines)
 
@@ -101,7 +102,7 @@ def build(bld):
     if is_platform_private(bld.env.PLATFORM):
         # Replace with any specialized sources that the private platform uses
         _dir = 'dlib/%s' % build_util.get_target_os()
-        for feature, source in lib_features.iteritems():
+        for feature, source in lib_features.items():
             private_source = os.path.join(_dir, source)
             private_source = os.path.normpath(private_source) # slashes
             if os.path.exists(os.path.join(os.path.join('src',private_source))):
@@ -124,11 +125,15 @@ def build(bld):
 
     # If we have optimizations on, let's minimize this library
     opt_level = getattr(Options.options, 'opt_level', '')
-    FLAG_ST = '/O%s' if ('win32' in bld.env.BUILD_PLATFORM) else '-O%s'
+    FLAG_ST = '/O%s' if ('cl.exe' in bld.env.CXX) else '-O%s'
     remove_flags = {}
+    new_opt_level = False
     if opt_level in ['3','2']:
         remove_flags['CFLAGS'] = []
         remove_flags['CFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        remove_flags['CXXFLAGS'] = []
+        remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
+        new_opt_level = True
         # if in release mode we'll only keep a (non verbose) print function
         extra_defines += ['MBEDTLS_ERROR_STRERROR_DUMMY']
     else:
@@ -140,7 +145,8 @@ def build(bld):
                   source      = bld.path.ant_glob(mbedtls_dirs),
                   remove_flags= remove_flags,
                   defines     = ['VALGRIND'] + extra_defines)
-    mbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
+    if new_opt_level:
+        mbedtls.env.append_unique('CFLAGS', FLAG_ST % 's')
 
     # Create a separate library, in order to separate it from the ASAN builds
     mbedtls_noasan = bld.stlib(features     = ' '.join(mbedtls.features) + ' skip_asan',
@@ -170,7 +176,7 @@ def build(bld):
     libprofile_features = 'c cxx'
     libprofile_includes = '. ./dlib/profile ./remotery'
     libprofile_defines = ['VALGRIND'] + extra_defines
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'x86_64-ps4'):
         libprofile = bld.stlib(features     = libprofile_features,
                                includes     = libprofile_includes,
                                defines      = libprofile_defines,
@@ -199,7 +205,8 @@ def build(bld):
     # ******************************************************************
 
     remotery_defines = []
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web'):
+
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'x86_64-ps4'):
         libremotery = bld.stlib(features     = 'c cxx',
                                 includes     = '. ./remotery/lib',
                                 target       = 'remotery',
@@ -224,7 +231,7 @@ def build(bld):
                                  source       = bld.path.ant_glob('remotery/*.c'),
                                  defines     = ['VALGRIND'] + extra_defines + remotery_defines)
 
-    libremotery_null_noasan = bld.stlib(features  = 'cc cxx cstaticlib skip_asan',
+    libremotery_null_noasan = bld.stlib(features  = 'c cxx skip_asan',
                                         includes  = '. ./remotery/lib',
                                         source    = bld.path.ant_glob('remotery/*.c'),
                                         defines   = ['VALGRIND'] + extra_defines + remotery_defines,
@@ -241,7 +248,7 @@ def build(bld):
                                 includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                use = ['PLATFORM_SOCKET', 'CARES', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan'])
+                                use = ['PLATFORM_SOCKET', 'PROFILE_NULL_NOASAN', 'mbedtls_noasan', 'zip_noasan'])
 
         dlib_shared.source = [x for x in dlib.source]
 
@@ -258,18 +265,11 @@ def build(bld):
 
     # Basis libraries
 
-    opt_level = getattr(Options.options, 'opt_level', '')
-    FLAG_ST = '/O%s' if ('win32' in bld.env.BUILD_PLATFORM) else '-O%s'
-    remove_flags = {}
-    remove_flags['CXXFLAGS'] = []
-    new_opt_level = False
-    if opt_level in ['3','2']:
-        remove_flags['CXXFLAGS'].append( (FLAG_ST % opt_level, 0) )
-        new_opt_level = True
-
     extra_encoder_flags = []
     if bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos'):
         # SSE4.1 was added in 10.12
+        if not 'CXXFLAGS' in remove_flags:
+            remove_flags['CXXFLAGS'] = []
         remove_flags['CXXFLAGS'].append( ('-mmacosx-version-min=10.7', 0) )
         extra_encoder_flags += ['-mmacosx-version-min=10.12']
 
@@ -278,17 +278,20 @@ def build(bld):
     if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-macos'):
         basis_flags += ['BASISU_SUPPORT_SSE=1']
 
-    basis_encoder = bld.stlib(features = 'c cxx skip_asan remove_flags',
-                            includes = ['basis'],
-                            target = 'basis_encoder',
-                            source = bld.path.ant_glob(["basis/**/*.cpp", "basis/**/*.c"]),
-                            remove_flags = remove_flags,
-                            defines = ['DM_BASIS_ENCODER'] + basis_flags)
+    # for desktop only
+    if bld.env['PLATFORM'] in ('win32', 'x86_64-win32','x86_64-macos','x86_64-linux'):
+        basis_encoder = bld.stlib(features = 'c cxx skip_asan remove_flags',
+                                    includes = ['basis'],
+                                    source = bld.path.ant_glob("basis/encoder/**/*.c") +
+                                             bld.path.ant_glob("basis/encoder/**/*.cpp") +
+                                             bld.path.ant_glob("basis/transcoder/**/*.cpp"),
+                                    target = 'basis_encoder',
+                                    remove_flags = remove_flags,
+                                    defines = ['DM_BASIS_ENCODER'] + basis_flags)
+        basis_encoder.env.append_unique('CXXFLAGS', extra_encoder_flags)
 
-    basis_encoder.env.append_unique('CXXFLAGS', extra_encoder_flags)
-
-    if new_opt_level:
-        basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
+        if new_opt_level:
+            basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
 
     # For the runtime
     basis_transcoder = bld.stlib(features = 'cxx remove_flags',
@@ -343,7 +346,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
-    bld.install_as('${PREFIX}/include/dlib/endian.h', _get_native_file(build_util.get_target_os(), 'endian.h'))
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
@@ -358,7 +361,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memory.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/memprofile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
-    bld.install_as('${PREFIX}/include/dlib/mutex.h', _get_native_file(build_util.get_target_os(), 'mutex.h'))
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
@@ -388,6 +391,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/zip.h')
 
     # for tools
+    bld.install_files('${PREFIX}/include/dlib/', 'dlib/testutil.h')
     bld.install_files('${PREFIX}/ext/include/basis/encoder', bld.path.ant_glob('basis/encoder/*.h'))
     bld.install_files('${PREFIX}/ext/include/basis/transcoder', bld.path.ant_glob('basis/transcoder/*.h'))
     bld.install_files('${PREFIX}/ext/include/stb/', bld.path.ant_glob('stb/*.h'))
@@ -399,8 +403,12 @@ def build(bld):
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
 
-    if is_platform_private(bld.env.PLATFORM):
-        # TODO, make this generic for loop
-        bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/endian.h')
-        bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/mutex.h')
-        bld.install_files('${PREFIX}/include/dlib/%s' % bld.env.PLATFORM, private_include_dir + '/dlib/spinlocktypes.h')
+    # For the private platforms, check if the file exist and, if so, install them
+    def check_install(bld, tgtpath, srcpath):
+        if os.path.exists('src/' + srcpath):
+            bld.install_files(tgtpath, srcpath)
+
+    check_install(bld, '${PREFIX}/include/dlib/%s' % platform, platform_include_dir + '/endian.h')
+    check_install(bld, '${PREFIX}/include/dlib/%s' % platform, platform_include_dir + '/mutex.h')
+    check_install(bld, '${PREFIX}/include/dlib/%s' % platform, platform_include_dir + '/spinlocktypes.h')
+    check_install(bld, '${PREFIX}/include/dlib/%s' % platform, platform_include_dir + '/memory.h')

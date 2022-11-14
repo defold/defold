@@ -22,7 +22,7 @@
 #include "math.h"
 #include "hash.h"
 
-#include <dlib/mutex.h>
+#include <dmsdk/dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/sslsocket.h>
 

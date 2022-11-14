@@ -31,9 +31,9 @@ def build(bld):
                       target = 'model')
 
     # Used by bob.jar + editor
-    model_shared = bld(features = 'c cxx cshlib extract_symbols',
+    model_shared = bld(features = 'c cxx cshlib skip_asan extract_symbols',
                        includes = model.includes,
-                       uselib = 'DLIB PROFILE_NULL JDK',
+                       uselib = 'DLIB_NOASAN PROFILE_NULL_NOASAN JDK',
                        source = modelc_sources,
                        target = 'modelc_shared')
 

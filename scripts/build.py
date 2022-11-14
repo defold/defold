@@ -45,8 +45,20 @@ sys.dont_write_bytecode = True
 try:
     import build_nx64
     sys.modules['build_private'] = build_nx64
-except Exception:
+except ModuleNotFoundError:
     pass
+except Exception as e:
+    print("Failed to import build_nx64.py:")
+    raise e
+
+try:
+    import build_ps4
+    sys.modules['build_private'] = build_ps4
+except ModuleNotFoundError:
+    pass
+except Exception as e:
+    print("Failed to import build_ps4.py:")
+    raise e
 
 sys.dont_write_bytecode = False
 try:
@@ -78,9 +90,16 @@ if 'build_private' not in sys.modules:
         def get_tag_suffix(self):
             return ''
 
+assert(hasattr(build_private, 'get_target_platforms'))
+assert(hasattr(build_private, 'get_install_host_packages'))
+assert(hasattr(build_private, 'get_install_target_packages'))
+assert(hasattr(build_private, 'install_sdk'))
+assert(hasattr(build_private, 'is_library_supported'))
+assert(hasattr(build_private, 'is_repo_private'))
+assert(hasattr(build_private, 'get_tag_suffix'))
+
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
-
 
 PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-633f265 tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
 PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-633f265 tremolo-0.0.8".split()
@@ -144,6 +163,9 @@ def format_exes(name, platform):
     elif platform in ['arm64-nx64']:
         prefix = ''
         suffix = ['.nss', '.nso']
+    elif platform in ['x86_64-ps4']:
+        prefix = ''
+        suffix = ['.elf']
     else:
         suffix = ['']
 
@@ -770,37 +792,45 @@ class Configuration(object):
             paths = _findlibs(libdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            # Android Jars (Dynamo)
-            jardir = os.path.join(self.dynamo_home, 'share/java')
-            paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            if platform in ['armv7-android', 'arm64-android']:
+                # Android Jars (Dynamo)
+                jardir = os.path.join(self.dynamo_home, 'share/java')
+                paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            # Android Jars (external)
-            external_jars = ("android-support-multidex.jar",
-                             "androidx-multidex.jar",
-                             "android.jar")
-            jardir = os.path.join(self.dynamo_home, 'ext/share/java')
-            paths = _findjars(jardir, external_jars)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+                # Android Jars (external)
+                external_jars = ("android-support-multidex.jar",
+                                 "androidx-multidex.jar",
+                                 "android.jar")
+                jardir = os.path.join(self.dynamo_home, 'ext/share/java')
+                paths = _findjars(jardir, external_jars)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Win32 resource files
-            engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
-            defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
-            self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
+            if platform in ['win32', 'x86_64-win32']:
+                engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
+                defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
+                self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
-            # JavaScript files
-            # js-web-pre-x files
-            jsdir = os.path.join(self.dynamo_home, 'share')
-            paths = _findjslibs(jsdir)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-            # libraries for js-web
-            jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
-            paths = _findjslibs(jsdir)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-            # libraries for wasm-web
-            jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
-            paths = _findjslibs(jsdir)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            if platform in ['js-web']:
+                # JavaScript files
+                # js-web-pre-x files
+                jsdir = os.path.join(self.dynamo_home, 'share')
+                paths = _findjslibs(jsdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+                jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
+                paths = _findjslibs(jsdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            if platform in ['wasm-web']:
+                jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
+                paths = _findjslibs(jsdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            if platform in ['x86_64-ps4']:
+                memory_init = os.path.join(self.dynamo_home, 'ext/lib/x86_64-ps4/memory_init.o')
+                self._add_files_to_zip(zip, [memory_init], self.dynamo_home, topfolder)
 
             # .proto files
             for d in ['share/proto/', 'ext/include/google/protobuf']:
@@ -1429,9 +1459,11 @@ class Configuration(object):
         process = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         output = process.communicate()[1]
 
-        lines = str(output).replace('\r', '').split('\n')
+        lines = output.decode("utf-8").replace('\r', '').split('\n')
+
         for line in lines:
             line = line.strip()
+
             if 'java.home' in line:
                 tokens = line.split(' = ')
                 java_home = tokens[1].strip()

@@ -1,8 +1,42 @@
 #! /usr/bin/env python
 
-import waflib.Task, waflib.TaskGen, waflib.Options
+import waflib.Task, waflib.TaskGen
+from waflib import Options
 import os, sys, glob, re
+import run, sdk
 import waf_gamesys
+
+# 1. We want to run it with run.py so that it logs nicely with [exec] ...
+# 2. We need to add DYLD_INSERT_LIBRARIES for macOS
+def run_bob(task):
+    env = dict(os.environ)
+    merged_table = task.env.get_merged_dict()
+    keys=list(merged_table.keys())
+    for key in keys:
+        v = merged_table[key]
+        if isinstance(v, str):
+            env[key] = v
+
+    if Options.options.with_asan:
+        platform = env['PLATFORM']
+        if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+            sdkinfo = sdk.get_sdk_info(sdk.SDK_ROOT, platform)
+            if 'DYLD_INSERT_LIBRARIES' in env:
+                env['DYLD_INSERT_LIBRARIES'] += os.pathsep
+            else:
+                env['DYLD_INSERT_LIBRARIES'] = ""
+            env['DYLD_INSERT_LIBRARIES'] += sdkinfo['asan']['path']
+
+            # Making sure java can find its libmlib_image.dylib
+            # I didn't need this locally, but on Github CI /MAWE
+            java_lib_path = os.path.join(os.environ['JAVA_HOME'], 'lib')
+            if 'DYLD_LIBRARY_PATH' in env:
+                env['DYLD_LIBRARY_PATH'] += os.pathsep + java_lib_path
+            else:
+                env['DYLD_LIBRARY_PATH'] = java_lib_path
+
+    args = task.generator.run_args
+    output = run.env_command(env, args.split())
 
 def build(bld):
     defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -29,12 +63,12 @@ def build(bld):
     bld.add_group()
     obj = bld(
         features = 'c cxx cprogram test',
-        use = 'TESTMAIN RECORD CRASH VPX GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB CARES engine engine_service'.split() + additional_libs + profile_lib,
+        use = 'TESTMAIN RECORD CRASH VPX GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE DMGLFW GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI SOUND_NULL DLIB PLATFORM_APP engine engine_service'.split() + additional_libs + profile_lib,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         web_libs = ['library_sys.js', 'library_script.js'],
         includes = '../../proto .',
         defines = defines,
-        source = 'test_engine.cpp',
+        source = bld.path.ant_glob('**/*.cpp'),
         target = 'test_engine')
 
     # Psapi.lib is needed by ProfilerExt
@@ -50,11 +84,12 @@ def build(bld):
 
     bob_flags = []
     bob_flags.append("--platform=%s" % platform)
-    if waflib.Options.options.use_vanilla_lua:
+    if Options.options.use_vanilla_lua:
         bob_flags.append("--use-vanilla-lua")
 
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
-    bld(rule = 'java -jar content/bob-engine.jar -root ../src/test -k distclean build %s' % ' '.join(bob_flags),
+    bld(rule = run_bob,
+        run_args = 'java -jar ./build/content/bob-engine.jar -root ./src/test -k distclean build %s' % ' '.join(bob_flags),
         source = 'wscript',
         always = True)

@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if !(defined(__NX64__) || defined(__SCE__))
+
 #include <assert.h>
 #include "condition_variable.h"
 #include "mutex.h"
@@ -147,3 +149,6 @@ namespace dmConditionVariable
 #endif
 
 }
+
+
+#endif // supported platforms

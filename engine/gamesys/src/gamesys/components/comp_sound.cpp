@@ -28,6 +28,7 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_sound.h"
+#include "../resources/res_sound_data.h"
 #include "comp_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
@@ -102,7 +103,6 @@ namespace dmGameSystem
             {
                 dmSound::Stop(entry.m_SoundInstance);
                 dmSound::DeleteSoundInstance(entry.m_SoundInstance);
-                dmResource::Release(entry.m_Factory, entry.m_Sound);
             }
         }
 
@@ -172,7 +172,6 @@ namespace dmGameSystem
                     }
                     else if (!dmSound::IsPlaying(entry.m_SoundInstance) && !(entry.m_PauseRequested || entry.m_Paused))
                     {
-                        dmResource::Release(entry.m_Factory, entry.m_Sound);
                         dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_SoundInstance);
                         entry.m_SoundInstance = 0;
                         world->m_EntryIndices.Push(i);
@@ -369,12 +368,10 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)params.m_Message->m_Data;
                 Sound* sound = component->m_Resource;
-                dmSound::HSoundData sound_data = sound->m_SoundData;
+                dmSound::HSoundData sound_data = sound->m_SoundDataRes->m_SoundData;
                 uint32_t index = world->m_EntryIndices.Pop();
                 PlayEntry& entry = world->m_Entries[index];
                 dmResource::HFactory factory = dmGameObject::GetFactory(dmGameObject::GetCollection(params.m_Instance));
-                // NOTE: We must increase ref-count as a sound might be active after the component is destroyed
-                dmResource::IncRef(factory, sound);
                 entry.m_Factory = factory;
                 entry.m_Sound = sound;
                 entry.m_StopRequested = 0;
@@ -482,7 +479,7 @@ namespace dmGameSystem
         SoundComponent* component = &world->m_Components.Get(index);
 
         if (params.m_PropertyId == SOUND_PROP_SOUND) {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), component->m_Resource->m_SoundData, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), component->m_Resource->m_SoundDataRes, out_value);
         } else {
             dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
             if (parameter == dmSound::PARAMETER_MAX) {

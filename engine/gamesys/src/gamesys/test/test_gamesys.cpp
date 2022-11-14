@@ -36,6 +36,16 @@
 
 using namespace dmVMath;
 
+#if !defined(__SCE__)
+    bool GameSystemTest_PlatformInit()
+    {
+        return true;
+    }
+    void GameSystemTest_PlatformExit()
+    {
+    }
+#endif
+
 namespace dmGameSystem
 {
     void DumpResourceRefs(dmGameObject::HCollection collection);
@@ -44,13 +54,29 @@ namespace dmGameSystem
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS ""
-#endif
+const char* ROOT = DM_HOSTFS "build/src/gamesys/test";
 
-const char* ROOT = MOUNTFS "build/src/gamesys/test";
+static bool RunString(lua_State* L, const char* script)
+{
+    if (luaL_dostring(L, script) != 0)
+    {
+        dmLogError("%s", lua_tolstring(L, -1, 0));
+        return false;
+    }
+    return true;
+}
+
+static void WrapIoFunctions(lua_State* L)
+{
+    RunString(L,
+        "local function new_open(path, attrs)\n" \
+        "    return io._old_open('" DM_HOSTFS "' .. path, attrs)\n" \
+        "end\n" \
+        "if io._old_open == nil then\n" \
+        "    io._old_open = io.open;\n" \
+        "    io.open = new_open;\n" \
+        "end\n");
+}
 
 bool CopyResource(const char* src, const char* dst)
 {
@@ -310,9 +336,6 @@ TEST_P(InvalidVertexSpaceTest, InvalidVertexSpace)
     ASSERT_NE(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
 }
 
-
-
-
 // Test for input consuming in collection proxy
 TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
 {
@@ -449,6 +472,9 @@ TEST_F(SoundTest, UpdateSoundResource)
     scriptlibcontext.m_Register = m_Register;
     scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Since the script uses "io.open()" we want to override the path
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
 
     const char* go_path = "/sound/updated_sound.goc";
     dmhash_t comp_name = dmHashString64("dynamic-sound"); // id of soundc component
@@ -1572,7 +1598,7 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
 TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
 {
     const GroupAndMaskParams& params = GetParam();
-    
+
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -1583,8 +1609,8 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
-    An example actions set: 
-    
+    An example actions set:
+
     "group body1-go#co user\n"
     "addmask body1-go#co enemy\n"
     "removemask body1-go#co default\n"
@@ -1592,7 +1618,7 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     "addmask body2-go#co user\n"
     "removemask body2-go#co default"
     ;
-*/    
+*/
 
     lua_pushstring(L, params.m_Actions); //actions);
     lua_setglobal(L, "actions");
@@ -1605,14 +1631,14 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     // place this body standing on the base with its center at (20,5)
     dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body2_go);
-    
+
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body1_go = "/collision_object/groupmask_body1.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body1_go);
-  
+
     // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
     while (!tests_done)
@@ -1631,7 +1657,7 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
 TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
 {
     const GroupAndMaskParams& params = GetParam();
-    
+
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -1642,8 +1668,8 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
-    An example actions set: 
-    
+    An example actions set:
+
     "group body1-go#co user\n"
     "addmask body1-go#co enemy\n"
     "removemask body1-go#co default\n"
@@ -1651,7 +1677,7 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     "addmask body2-go#co user\n"
     "removemask body2-go#co default"
     ;
-*/    
+*/
 
     lua_pushstring(L, params.m_Actions); //actions);
     lua_setglobal(L, "actions");
@@ -1664,14 +1690,14 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     // place this body standing on the base with its center at (20,5)
     dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body2_go);
-    
+
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body1_go = "/collision_object/groupmask_body1.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body1_go);
-  
+
     // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
     while (!tests_done)
@@ -1743,7 +1769,6 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
-
 
 /* Physics joints */
 TEST_F(ComponentTest, JointTest)
@@ -2540,17 +2565,6 @@ INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, jc_test_values_in(cursor_properties)
 #undef F1T3
 #undef F2T3
 
-
-static bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
     int top = lua_gettop(L);
@@ -3121,7 +3135,7 @@ TEST_F(ScriptBufferTest, RefCount)
     // is just when Buffer_tostring issues a lua_error that we end up with a ASAN error
     // in ScriptBufferCopyTest.CopyBuffer
     // Disabling this test to make the dev nightly builds pass.
-#if !defined(__SANITIZE_ADDRESS__)
+#if defined(GITHUB_CI) && !defined(DM_SANITIZE_ADDRESS)
     dmLogWarning("Expected error outputs ->");
 
     ASSERT_FALSE(RunString(L, "print(test_buffer)"));

@@ -330,6 +330,25 @@ uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer)
     return buffer->m_Constants.Size();
 }
 
+struct IterateConstantCtx
+{
+    void (*m_Callback)(dmhash_t name_hash, void* ctx);
+    void* m_Ctx;
+};
+
+static inline void IterateConstants(IterateConstantCtx* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
+{
+    context->m_Callback(constant->m_NameHash, context->m_Ctx);
+}
+
+void IterateNamedConstants(HNamedConstantBuffer buffer, void (*callback)(dmhash_t name_hash, void* ctx), void* ctx)
+{
+    IterateConstantCtx context;
+    context.m_Ctx = ctx;
+    context.m_Callback = callback;
+    buffer->m_Constants.Iterate(IterateConstants, &context);
+}
+
 struct ApplyConstantContext
 {
     dmGraphics::HContext m_GraphicsContext;

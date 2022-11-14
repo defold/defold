@@ -14,8 +14,7 @@
 
 #if defined(_WIN32)
 
-#include "file_descriptor.h"
-#include <stdint.h>
+#include "../file_descriptor.h"
 #include <winsock2.h>
 #include <assert.h>
 
