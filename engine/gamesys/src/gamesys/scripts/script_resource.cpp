@@ -16,6 +16,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/time.h> // sleep
 #include <gamesys/mesh_ddf.h>
 #include <graphics/graphics_ddf.h>
 #include <liveupdate/liveupdate.h>
@@ -208,6 +209,7 @@ namespace dmGameSystem
 struct ResourceModule
 {
     dmResource::HFactory m_Factory;
+    dmGraphics::HContext m_GraphicsContext;
 } g_ResourceModule;
 
 
@@ -458,6 +460,129 @@ static int GraphicsTextureTypeToImageType(int texturetype)
     }
     assert(false);
     return -1;
+}
+
+/*# create a texture
+ * Creates a new texture resource.
+ *
+ * @name resource.create_texture
+ *
+ * @param path [type:string] The path to the resource.
+ * @param table [type:table] A table containing info about how to create the texture. Supported entries:
+ *
+ * `type`
+ * : [type:number] The texture type. Supported values:
+ *
+ * - `resource.TEXTURE_TYPE_2D`
+ * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ *
+ * `width`
+ * : [type:number] The width of the texture (in pixels)
+ *
+ * `height`
+ * : [type:number] The width of the texture (in pixels)
+ *
+ * `format`
+ * : [type:number] The texture format. Supported values:
+ *
+ * - `resource.TEXTURE_FORMAT_LUMINANCE`
+ * - `resource.TEXTURE_FORMAT_RGB`
+ * - `resource.TEXTURE_FORMAT_RGBA`
+ *
+ * `max_mipmaps`
+ * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
+ *
+ */
+static int CreateTexture(lua_State* L)
+{
+    // This function pushes the hash of the resource created
+    DM_LUA_STACK_CHECK(L, 1);
+    const char* path_str = luaL_checkstring(L, 1);
+
+    /*
+    local tparams = {
+        width          = value,
+        height         = value,
+        type           = 2D|Cube|Array,      -- defaults to 2D
+        format         = LUMINANCE|RGB|RGBA, -- note: what about compressed formats?
+        max_mipmaps    = value,              -- max number of mipmaps
+        max_page_count = value               -- for texture array feature
+        storage_mode   = Shared|CPU|GPU      -- ... or some better naming
+    }
+    */
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+    uint32_t type        = (uint32_t) CheckTableInteger(L, 2, "type");
+    uint32_t width       = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height      = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t format      = (uint32_t) CheckTableInteger(L, 2, "format");
+    uint32_t max_mipmaps = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+
+    uint32_t path_len  = strlen(path_str);
+    dmhash_t path_hash = dmHashBuffer64(path_str, path_len);
+
+    uint32_t bpp = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
+
+    uint32_t image_data_size = width * height * bpp / 8; // bits -> bytes
+    uint8_t* image_data = new uint8_t[image_data_size];
+
+    // Create image desc that holds the data for the resource
+    dmGraphics::TextureImage::Image image  = {};
+    dmGraphics::TextureImage texture_image = {};
+    texture_image.m_Alternatives.m_Data    = &image;
+    texture_image.m_Alternatives.m_Count   = 1;
+    texture_image.m_Type                   = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
+
+    image.m_Width                = width;
+    image.m_Height               = height;
+    image.m_OriginalWidth        = width;
+    image.m_OriginalHeight       = height;
+    image.m_Format               = (dmGraphics::TextureImage::TextureFormat) GraphicsTextureFormatToImageFormat(format);
+    image.m_CompressionType      = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+    image.m_CompressionFlags     = 0;
+    image.m_Data.m_Data          = image_data;
+    image.m_Data.m_Count         = image_data_size;
+
+    uint32_t mip_map_offsets     = 0;
+    uint32_t mip_map_sizes       = image_data_size;
+    image.m_MipMapOffset.m_Data  = &mip_map_offsets;
+    image.m_MipMapOffset.m_Count = 1;
+    image.m_MipMapSize.m_Data    = &mip_map_sizes;
+    image.m_MipMapSize.m_Count   = 1;
+
+    dmResource::ResourceType resource_type;
+    dmResource::Result res = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, "texturec", &resource_type);
+
+    dmResource::SResourceDescriptor res_desc = {};
+    res_desc.m_NameHash       = path_hash;
+    res_desc.m_ReferenceCount = 1;
+    res_desc.m_ResourceType   = (void*) resource_type;
+
+    HImageDesc image_desc = CreateImage(g_ResourceModule.m_GraphicsContext, &texture_image);
+
+    dmResource::ResourceCreateParams create_params = {};
+    create_params.m_Context                        = g_ResourceModule.m_GraphicsContext;
+    create_params.m_Factory                        = g_ResourceModule.m_Factory;
+    create_params.m_Resource                       = &res_desc;
+    create_params.m_PreloadData                    = (void*) image_desc;
+
+    res = ResTextureCreate(create_params);
+
+    delete[] image_data;
+
+    // JG: Do we need to lock the load mutex here?
+    dmMutex::HMutex mutex = dmResource::GetLoadMutex(g_ResourceModule.m_Factory);
+    while(!dmMutex::TryLock(mutex))
+    {
+        dmTime::Sleep(100);
+    }
+
+    res = dmResource::InsertResource(g_ResourceModule.m_Factory, path_str, path_hash, &res_desc);
+    dmMutex::Unlock(mutex);
+
+    dmScript::PushHash(L, path_hash);
+
+    return 1;
 }
 
 
@@ -949,6 +1074,7 @@ static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
+    {"create_texture", CreateTexture},
     {"set_texture", SetTexture},
     {"set_sound", SetSound},
     {"get_buffer", GetBuffer},
@@ -1105,6 +1231,7 @@ void ScriptResourceRegister(const ScriptLibContext& context)
 {
     LuaInit(context.m_LuaState);
     g_ResourceModule.m_Factory = context.m_Factory;
+    g_ResourceModule.m_GraphicsContext = context.m_GraphicsContext;
 }
 
 void ScriptResourceFinalize(const ScriptLibContext& context)

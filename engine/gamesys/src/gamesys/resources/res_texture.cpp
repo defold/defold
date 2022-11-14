@@ -18,7 +18,6 @@
 #include <dlib/profile.h>
 #include <dlib/time.h>
 #include <dlib/math.h>
-#include <graphics/graphics.h>
 
 namespace dmGameSystem
 {
@@ -261,7 +260,7 @@ namespace dmGameSystem
         return result;
     }
 
-    static ImageDesc* CreateImage(const char* path, dmGraphics::HContext context, dmGraphics::TextureImage* texture_image)
+    HImageDesc CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image)
     {
         ImageDesc* image_desc = new ImageDesc;
         memset(image_desc, 0x0, sizeof(ImageDesc));
@@ -289,7 +288,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        ImageDesc* image_desc = CreateImage(params.m_Filename, (dmGraphics::HContext) params.m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
         *params.m_PreloadData = image_desc;
         return dmResource::RESULT_OK;
     }
@@ -350,7 +349,7 @@ namespace dmGameSystem
 
         // Create the image from the DDF data.
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
-        ImageDesc* image_desc = CreateImage(params.m_Filename, (dmGraphics::HContext) params.m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
 
         ResTextureUploadParams upload_params = {};
 

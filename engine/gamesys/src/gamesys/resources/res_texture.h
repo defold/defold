@@ -15,11 +15,14 @@
 #ifndef DM_GAMESYS_RES_TEXTURE_H
 #define DM_GAMESYS_RES_TEXTURE_H
 
+#include <graphics/graphics.h>
 #include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_texture.h>
 
 namespace dmGameSystem
 {
+    typedef struct ImageDesc* HImageDesc;
+
     struct ResTextureUploadParams
     {
         uint16_t m_X;
@@ -35,6 +38,8 @@ namespace dmGameSystem
         void*                  m_TextureImage;
         ResTextureUploadParams m_UploadParams;
     };
+
+    HImageDesc CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image);
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);
 

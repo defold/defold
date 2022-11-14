@@ -579,6 +579,9 @@ namespace dmGraphics
     PipelineState GetPipelineState(HContext context);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
+
+    // Gets the bits per pixel from uncompressed formats
+    uint32_t GetTextureFormatBitsPerPixel(TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
 

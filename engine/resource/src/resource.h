@@ -169,6 +169,8 @@ namespace dmResource
      */
     SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
 
+    Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor);
+
     /**
      * Get raw resource data. Unregistered resources can be loaded with this function.
      * The returned resource data must be deallocated with free()
