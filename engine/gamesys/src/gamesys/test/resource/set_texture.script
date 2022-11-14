@@ -16,7 +16,7 @@ function init(self)
 	self.update_counter = 0
 end
 
--- tile_set of sprite is 84 x 67
+-- oridinal dimensions of the sprite is 84 x 67, but it gets downsized to 64 x 64
 local function test_success_simple(self)
 	local x             = 16
 	local y             = 16

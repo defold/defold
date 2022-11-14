@@ -20,13 +20,20 @@
 
 namespace dmGameSystem
 {
-    struct ResTextureReCreateParams
+    struct ResTextureUploadParams
     {
-        void*    m_TextureImage;
         uint16_t m_X;
         uint16_t m_Y;
-        uint8_t  m_MipMap    : 7;
-        uint8_t  m_SubUpdate : 1;
+        uint8_t  m_MipMap               : 5;
+        uint8_t  m_UploadSpecificMipmap : 1;
+        uint8_t  m_SubUpdate            : 1;
+        uint8_t                         : 1;
+    };
+
+    struct ResTextureReCreateParams
+    {
+        void*                  m_TextureImage;
+        ResTextureUploadParams m_UploadParams;
     };
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);

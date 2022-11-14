@@ -521,8 +521,8 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  *   end
  *
  *   local resource_path = go.get("#sprite", "texture0")
- *   local header = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
- *   resource.set_texture( resource_path, header, self.buffer )
+ *   local args = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   resource.set_texture( resource_path, args, self.buffer )
  * end
  * ```
  *
@@ -548,8 +548,8 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  *   end
  *
  *   local resource_path = go.get("#sprite", "texture0")
- *   local header = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
- *   resource.set_texture( resource_path, header, self.buffer )
+ *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   resource.set_texture( resource_path, args, self.buffer )
  * end
  * ```
  */
@@ -607,10 +607,13 @@ static int SetTexture(lua_State* L)
 
     ResTextureReCreateParams recreate_params;
     recreate_params.m_TextureImage = &texture_image;
-    recreate_params.m_X            = x;
-    recreate_params.m_Y            = y;
-    recreate_params.m_MipMap       = mipmap;
-    recreate_params.m_SubUpdate    = sub_update;
+
+    ResTextureUploadParams& upload_params = recreate_params.m_UploadParams;
+    upload_params.m_X                     = x;
+    upload_params.m_Y                     = y;
+    upload_params.m_MipMap                = mipmap;
+    upload_params.m_SubUpdate             = sub_update;
+    upload_params.m_UploadSpecificMipmap  = 1;
 
     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &recreate_params);
 
