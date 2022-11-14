@@ -25,7 +25,7 @@ public abstract class LuaBuilderPlugin {
      * @param input String containing Lua code
      * @return String with processed Lua code
      */
-    public abstract String create(String input) throws Exception;
+    public abstract String create(String filePath, String input, String buildVariant) throws Exception;
 
     /**
      * Perform a build or processing step on the provided Lua code
