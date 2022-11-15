@@ -635,3 +635,23 @@ Macros currently mean no foreseeable performance gain however."
   ;; values on a case-by-case basis. Related to all this, there has been some
   ;; discussion around perhaps omitting default values from the project data.
   (= [0.0 0.0 0.0] value))
+
+(defn sanitize-repeated
+  ([pb-map field-kw]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)]}
+   (if (contains? pb-map field-kw)
+     (if (empty? (get pb-map field-kw))
+       (dissoc pb-map field-kw)
+       pb-map)
+    pb-map))
+  ([pb-map field-kw sanitize-item-fn]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)
+          (ifn? sanitize-item-fn)]}
+  (if (contains? pb-map field-kw)
+    (let [items (get pb-map field-kw)]
+      (if (seq items)
+        (assoc pb-map field-kw (mapv sanitize-item-fn items))
+        (dissoc pb-map field-kw)))
+    pb-map)))

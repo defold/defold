@@ -43,17 +43,14 @@
    [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-component-scenes]])
 
-(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data ext->embedded-component-resource-type project]
+(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data project]
   (let [embedded-resource-ext (:type embedded-component-resource-data)
-        embedded-resource-type (ext->embedded-component-resource-type embedded-resource-ext)
-        embedded-resource-write-fn (:write-fn embedded-resource-type)
         embedded-resource-pb-map (:data embedded-component-resource-data)
-        embedded-resource-pb-string (embedded-resource-write-fn embedded-resource-pb-map)
-        embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-string)
+        embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-map)
         embedded-resource-node-type (project/resource-node-type embedded-resource)
         graph (g/node-id->graph-id host-node-id)]
     (g/make-nodes graph [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
-      (project/load-node project embedded-resource-node-id embedded-resource-node-type embedded-resource)
+      (project/load-embedded-resource-node project embedded-resource-node-id embedded-resource embedded-resource-pb-map)
       (project/connect-if-output embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
 (g/defnk produce-embedded-component-build-targets [embedded-component-build-targets]
@@ -109,12 +106,10 @@
 
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
   (let [basis (:basis evaluation-context)
-        project (project/get-project basis self)
-        workspace (project/workspace project)
-        ext->resource-type (workspace/get-resource-type-map workspace :non-editable)]
+        project (project/get-project basis self)]
     (into (delete-connected-nodes-tx-data basis self old-sources-input-label)
           (mapcat (fn [[data]]
-                    (add-resource-node-fn self data ext->resource-type project)))
+                    (add-resource-node-fn self data project)))
           (sort-by val new-value))))
 
 (defn referenced-resources-setter [evaluation-context self new-value old-sources-input-label resource-connections]

@@ -28,7 +28,6 @@
             [internal.util :as util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [java.io StringReader]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -57,6 +56,7 @@
   ;; The specified key should address a seq of GameObject$ComponentPropertyDescs in map format.
   (-> any-instance-desc
       (uniform->non-uniform-scale)
+      (protobuf/sanitize-repeated :children)
       (game-object-common/sanitize-component-property-descs-at-key component-property-descs-key)))
 
 (defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type embed-data-handling]
@@ -87,7 +87,7 @@
   ;; GameObject$CollectionInstanceDesc in map format.
   (-> collection-instance-desc
       (uniform->non-uniform-scale)
-      (update :instance-properties (partial mapv #(game-object-common/sanitize-component-property-descs-at-key % :properties)))))
+      (protobuf/sanitize-repeated :instance-properties #(game-object-common/sanitize-component-property-descs-at-key % :properties))))
 
 (defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type embed-data-handling]
   {:pre [(map? collection-desc)
@@ -95,9 +95,10 @@
          (case embed-data-handling (:embed-data-as-maps :embed-data-as-strings) true false)]}
   ;; GameObject$CollectionDesc in map format.
   (-> collection-desc
-      (update :instances (partial mapv sanitize-instance-desc))
-      (update :embedded-instances (partial mapv #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type embed-data-handling)))
-      (update :collection-instances (partial mapv sanitize-collection-instance-desc))))
+      (dissoc :component-types :property-resources)
+      (protobuf/sanitize-repeated :instances sanitize-instance-desc)
+      (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type embed-data-handling))
+      (protobuf/sanitize-repeated :collection-instances sanitize-collection-instance-desc)))
 
 (defn make-collection-dependencies-fn [game-object-resource-type-fn]
   {:pre [(ifn? game-object-resource-type-fn)]}
@@ -105,14 +106,11 @@
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
     (fn [source-value]
       (let [go-resource-type (game-object-resource-type-fn)
-            go-read-fn (:read-fn go-resource-type)
             go-dependencies-fn (:dependencies-fn go-resource-type)]
         (into (default-dependencies-fn source-value)
               (mapcat (fn [embedded-instance-desc]
                         (try
-                          (go-dependencies-fn
-                            (with-open [reader (StringReader. (:data embedded-instance-desc))]
-                              (go-read-fn reader)))
+                          (go-dependencies-fn (:data embedded-instance-desc))
                           (catch Exception error
                             (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
                                       :exception error)

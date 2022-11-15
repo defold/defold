@@ -212,6 +212,18 @@
       (let [{:keys [user-data set]} (:form-ops form-data)]
         (set user-data path value)))))
 
+(defn- dirty-info-by-proj-path [project exclude?]
+  (into (sorted-map)
+        (keep (fn [save-data]
+                (let [proj-path (resource/proj-path (:resource save-data))]
+                  (when-not (exclude? proj-path)
+                    (let [node-id (:node-id save-data)
+                          save-value (:value save-data)
+                          source-value (g/node-value node-id :source-value)]
+                      [proj-path {:disk source-value
+                                  :save save-value}])))))
+        (g/node-value project :dirty-save-data)))
+
 (deftest save-dirty
   (let [black-list #{"/game_object/type_faulty_props.go"
                      "/collection/type_faulty_props.collection"}
@@ -264,10 +276,7 @@
     (with-clean-system
       (let [workspace (test-util/setup-scratch-workspace! world)
             project   (test-util/setup-project! workspace)]
-        (let [xf (comp (map :resource)
-                   (map resource/resource->proj-path)
-                   (filter (complement black-list)))
-              clean? (fn [] (empty? (into [] xf (g/node-value project :dirty-save-data))))]
+        (let [exclude-proj-path? black-list]
           ;; This first check is intended to verify that changes to the file
           ;; formats do not cause undue changes to existing content in game
           ;; projects. For example, adding fields to component protobuf
@@ -281,7 +290,7 @@
           ;; added protobuf field has a default value. But more drastic file
           ;; format changes have happened in the past, and you can find other
           ;; examples of :sanitize-fn usage in non-component resource types.
-          (is (clean?))
+          (is (= {} (dirty-info-by-proj-path project exclude-proj-path?)))
           (doseq [[path f] paths]
             (testing (format "Verifying %s" path)
               (let [resource (test-util/resource workspace path)
@@ -306,9 +315,9 @@
               (let [node-id (test-util/resource-node project path)]
                 (f node-id)
                 (is (true? (dirty? node-id))))))
-          (is (not (clean?)))
+          (is (not= {} (dirty-info-by-proj-path project exclude-proj-path?)))
           (save-all! project)
-          (is (clean?)))))))
+          (is (= {} (dirty-info-by-proj-path project exclude-proj-path?))))))))
 
 (defn- setup-scratch
   [ws-graph]

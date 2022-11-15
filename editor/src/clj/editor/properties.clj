@@ -657,10 +657,11 @@
   "Returns transaction steps that applies the overrides from the supplied
   GameObject$PropertyDescs in map format to the specified node."
   [workspace id-mapping overridable-properties property-descs]
-  (assert (sequential? property-descs))
-  (when (seq overridable-properties)
+  (when (and (seq overridable-properties)
+             (seq property-descs))
     (assert (map? overridable-properties))
     (assert (every? (comp keyword? key) overridable-properties))
+    (assert (sequential? property-descs))
     (mapcat (fn [property-desc]
               (let [prop-kw (user-name->key (:id property-desc))
                     prop (get overridable-properties prop-kw)]

@@ -389,41 +389,44 @@
    :renderable {:passes [pass/selection]}
    :children child-scenes})
 
-(defn- produce-embedded-collision-shape
-  [shapes]
-  (when (seq shapes)
-    (loop [idx 0
-           [shape & rest] shapes
-           ret {:shapes [] :data []}]
-      (if-not shape
-        ret
-        (let [data (:data shape)
-              data-len (count data)
-              shape-msg (-> shape
-                            (assoc :index idx :count data-len)
-                            (dissoc :data))]
-          (recur (+ idx data-len)
-                 rest
-                 (-> ret
-                     (update :shapes conj shape-msg)
-                     (update :data into data))))))))
+(defn- make-embedded-collision-shape [shapes]
+  (loop [idx 0
+         [shape & rest] shapes
+         ret {:shapes [] :data []}]
+    (if-not shape
+      ret
+      (let [data (:data shape)
+            data-len (count data)
+            shape-msg (-> shape
+                          (assoc :index idx :count data-len)
+                          (dissoc :data))]
+        (recur (+ idx data-len)
+               rest
+               (-> ret
+                   (update :shapes conj shape-msg)
+                   (update :data into data)))))))
 
 (g/defnk produce-pb-msg
   [collision-shape-resource type mass friction restitution
    group mask angular-damping linear-damping locked-rotation bullet
    shapes]
-  {:collision-shape (resource/resource->proj-path collision-shape-resource)
-   :type type
-   :mass mass
-   :friction friction
-   :restitution restitution
-   :group group
-   :mask (when mask (->> (string/split mask #",") (map string/trim) (remove string/blank?)))
-   :linear-damping linear-damping
-   :angular-damping angular-damping
-   :locked-rotation locked-rotation
-   :bullet bullet
-   :embedded-collision-shape (produce-embedded-collision-shape shapes)})
+  (cond-> {:collision-shape (resource/resource->proj-path collision-shape-resource)
+           :type type
+           :mass mass
+           :friction friction
+           :restitution restitution
+           :group group
+           :mask (into []
+                       (comp (map string/trim)
+                             (remove string/blank?))
+                       (some-> mask (string/split #",")))
+           :linear-damping linear-damping
+           :angular-damping angular-damping
+           :locked-rotation locked-rotation
+           :bullet bullet}
+
+          (seq shapes)
+          (assoc :embedded-collision-shape (make-embedded-collision-shape shapes))))
 
 (defn build-collision-object
   [resource dep-resources user-data]

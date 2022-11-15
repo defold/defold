@@ -384,7 +384,21 @@
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-sprite [project self resource sprite]
+(def ^:private default-pb-read-v4 [(float 0.0) (float 0.0) (float 0.0) (float 0.0)])
+
+(defn- sanitize-sprite [sprite]
+  (cond-> sprite
+
+          (= :size-mode-auto (:size-mode sprite))
+          (dissoc :size-mode :size)
+
+          (= default-pb-read-v4 (:size sprite))
+          (dissoc :size)
+
+          (= default-pb-read-v4 (:slice9 sprite))
+          (dissoc :slice9)))
+
+(defn- load-sprite [project self resource sprite]
   (let [image    (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))]
     (concat
@@ -392,9 +406,9 @@
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite))
-      (g/set-property self :size-mode (:size-mode sprite))
-      (g/set-property self :size (v4->v3 (:size sprite)))
-      (g/set-property self :slice9 (:slice9 sprite))
+      (g/set-property self :size-mode (or (:size-mode sprite) :size-mode-auto))
+      (g/set-property self :size (v4->v3 (or (:size sprite) default-pb-read-v4)))
+      (g/set-property self :slice9 (or (:slice9 sprite) default-pb-read-v4))
 
       ;; The size property value clause is dependent on size metadata from the
       ;; image, and the old value is evaluated whenever the property is set (for
@@ -410,6 +424,7 @@
     :ext "sprite"
     :node-type SpriteNode
     :ddf-type Sprite$SpriteDesc
+    :sanitize-fn sanitize-sprite
     :load-fn load-sprite
     :icon sprite-icon
     :view-types [:scene :text]

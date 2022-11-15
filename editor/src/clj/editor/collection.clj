@@ -18,6 +18,7 @@
             [editor.build-target :as bt]
             [editor.code.script :as script]
             [editor.collection-common :as collection-common]
+            [editor.collection-string-data :as collection-string-data]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
@@ -26,7 +27,6 @@
             [editor.handler :as handler]
             [editor.outline :as outline]
             [editor.properties :as properties]
-            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
@@ -34,15 +34,16 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.cache :as c]
-            [internal.util :as util])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+            [internal.util :as util]
+            [editor.protobuf :as protobuf])
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
 (defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
   (cond-> {:id id
-           :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
+           :data proto-msg
            :position position
            :rotation rotation
            :scale3 scale}
@@ -232,7 +233,6 @@
   (display-order [:id :url scene/SceneNode])
 
   (input proto-msg g/Any)
-  (input source-save-data g/Any)
   (output node-outline-extras g/Any (g/fnk [source-outline]
                                            {:alt-outline source-outline}))
   (output build-resource resource/Resource (g/fnk [source-build-targets]
@@ -370,23 +370,23 @@
                                              (:resource (first source-build-targets)))))
 
 (g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
-  {:name name
-   :scale-along-z (if scale-along-z 1 0)
-   :instances ref-inst-ddf
-   :embedded-instances embed-inst-ddf
-   :collection-instances ref-coll-ddf})
+  (cond-> {:name name
+           :scale-along-z (if scale-along-z 1 0)}
+
+          (seq ref-inst-ddf)
+          (assoc :instances ref-inst-ddf)
+
+          (seq embed-inst-ddf)
+          (assoc :embedded-instances embed-inst-ddf)
+
+          (seq ref-coll-ddf)
+          (assoc :collection-instances ref-coll-ddf)))
 
 (g/defnk produce-save-value [proto-msg]
-  (update proto-msg :embedded-instances
-          (fn [embedded-instance-descs]
-            (mapv (fn [embedded-instance-desc]
-                    (update embedded-instance-desc :data
-                            (fn [string-encoded-prototype-desc]
-                              (-> (protobuf/str->map GameObject$PrototypeDesc string-encoded-prototype-desc)
-                                  (game-object/strip-default-scale-from-components-in-prototype-desc)
-                                  (as-> prototype-desc
-                                        (protobuf/map->str GameObject$PrototypeDesc prototype-desc false))))))
-                  embedded-instance-descs))))
+  (protobuf/sanitize-repeated
+    proto-msg :embedded-instances
+    (fn [embedded-instance-desc]
+      (update embedded-instance-desc :data game-object/strip-default-scale-from-components-in-prototype-desc))))
 
 (g/defnk produce-build-targets [_node-id name resource sub-build-targets dep-build-targets id-counts scale-along-z]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
@@ -634,20 +634,20 @@
          (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"}))]
            (add-referenced-game-object! collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
-(defn- make-embedded-go [self project data id position rotation scale parent select-fn]
+(defn- make-embedded-go [self project prototype-desc id position rotation scale parent select-fn]
+  {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
   (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project :editable "go" data)
+        resource (project/make-embedded-resource project :editable "go" prototype-desc)
         node-type (project/resource-node-type resource)]
     (g/make-nodes graph [go-node [EmbeddedGOInstanceNode :id id :position position :rotation rotation :scale scale]
                          resource-node [node-type :resource resource]]
                   (g/connect go-node :url resource-node :base-url)
-                  (project/load-node project resource-node node-type resource)
+                  (project/load-embedded-resource-node project resource-node resource prototype-desc)
                   (project/connect-if-output node-type resource-node go-node
                                              [[:_node-id :source-id]
                                               [:resource :source-resource]
                                               [:node-outline :source-outline]
                                               [:proto-msg :proto-msg]
-                                              [:undecorated-save-data :source-save-data]
                                               [:build-targets :source-build-targets]
                                               [:scene :scene]
                                               [:ddf-component-properties :ddf-component-properties]
@@ -661,14 +661,14 @@
                     (select-fn [go-node])))))
 
 (defn add-embedded-game-object! [workspace project coll-node parent select-fn]
-  (let [ext           "go"
+  (let [ext "go"
         resource-type (workspace/get-resource-type workspace ext)
-        template      (workspace/template workspace resource-type)
+        prototype-desc (game-object-common/template-pb-map workspace resource-type)
         id (gen-instance-id coll-node ext)]
     (g/transact
       (concat
         (g/operation-label "Add Game Object")
-        (make-embedded-go coll-node project template id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent select-fn)))))
+        (make-embedded-go coll-node project prototype-desc id [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] parent select-fn)))))
 
 (handler/defhandler :add :workbench
   (active? [selection] (selection->collection selection))
@@ -758,7 +758,12 @@
 
 (defn- sanitize-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type :embed-data-as-strings)))
+    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type :embed-data-as-maps)))
+
+(defn- string-encode-collection [workspace collection-desc]
+  ;; GameObject$CollectionDesc in map format.
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
+    (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -769,6 +774,7 @@
     :load-fn load-collection
     :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
     :sanitize-fn (partial sanitize-collection workspace)
+    :string-encode-fn (partial string-encode-collection workspace)
     :icon collection-common/collection-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

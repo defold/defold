@@ -296,6 +296,12 @@
                                                         (update :properties into p)
                                                         (update :display-order into (map first p)))))))
 
+(defn sanitize-model [model]
+  (cond-> model
+
+          (str/blank? (:name model))
+          (dissoc :name)))
+
 (defn load-model [project self resource pb]
   (concat
     (g/set-property self :name (:name pb) :default-animation (:default-animation pb))
@@ -313,6 +319,7 @@
     :label "Model"
     :node-type ModelNode
     :ddf-type ModelProto$ModelDesc
+    :sanitize-fn sanitize-model
     :load-fn load-model
     :icon model-icon
     :view-types [:scene :text]

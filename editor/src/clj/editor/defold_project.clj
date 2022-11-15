@@ -98,6 +98,11 @@
                        :resource-path (resource/resource->proj-path resource)}
                       t)))))
 
+(defn load-embedded-resource-node [project embedded-resource-node-id embedded-resource source-value]
+  (let [embedded-resource-type (resource/resource-type embedded-resource)
+        load-fn (:load-fn embedded-resource-type)]
+    (load-fn project embedded-resource-node-id embedded-resource source-value)))
+
 (defn- node-load-dependencies
   "Returns node-ids for the immediate dependencies of node-id.
 

@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
+            [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
@@ -42,21 +43,23 @@
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (defn- gen-ref-ddf [id position rotation scale source-resource ddf-properties]
-  {:id id
-   :position position
-   :rotation rotation
-   :scale scale
-   :component (resource/resource->proj-path source-resource)
-   :properties ddf-properties})
+  (cond-> {:id id
+           :position position
+           :rotation rotation
+           :scale scale
+           :component (resource/resource->proj-path source-resource)}
 
-(defn- gen-embed-ddf [id position rotation scale save-data]
+          (seq ddf-properties)
+          (assoc :properties ddf-properties)))
+
+(defn- gen-embed-ddf [id position rotation scale source-resource source-save-value]
   {:id id
-   :type (or (and (:resource save-data) (:ext (resource/resource-type (:resource save-data))))
+   :type (or (:ext (resource/resource-type source-resource))
              "unknown")
    :position position
    :rotation rotation
    :scale scale
-   :data (or (:content save-data) "")})
+   :data source-save-value})
 
 (defn- build-raw-sound [resource dep-resources user-data]
   (let [pb (:pb user-data)
@@ -218,9 +221,9 @@
   (inherits ComponentNode)
 
   (input embedded-resource-id g/NodeID :cascade-delete)
-  (input save-data g/Any)
-  (output ddf-message g/Any (g/fnk [id position rotation scale save-data]
-                              (gen-embed-ddf id position rotation scale save-data)))
+  (input source-save-value g/Any)
+  (output ddf-message g/Any (g/fnk [id position rotation scale source-resource source-save-value]
+                              (gen-embed-ddf id position rotation scale source-resource source-save-value)))
   (output build-resource resource/Resource (g/fnk [source-build-targets]
                                              (some-> source-build-targets first bt/make-content-hash-build-resource))))
 
@@ -336,14 +339,11 @@
   {:components ref-ddf
    :embedded-components embed-ddf})
 
-(defn- strip-default-scale-from-component-descs [component-descs]
-  (mapv game-object-common/strip-default-scale-from-component-desc component-descs))
-
 (defn strip-default-scale-from-components-in-prototype-desc [prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
   (-> prototype-desc
-      (update :components strip-default-scale-from-component-descs)
-      (update :embedded-components strip-default-scale-from-component-descs)))
+      (protobuf/sanitize-repeated :components game-object-common/strip-default-scale-from-component-desc)
+      (protobuf/sanitize-repeated :embedded-components game-object-common/strip-default-scale-from-component-desc)))
 
 (g/defnk produce-save-value [proto-msg]
   (strip-default-scale-from-components-in-prototype-desc proto-msg))
@@ -489,19 +489,20 @@
   (run [workspace project selection app-view]
        (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
-(defn- add-embedded-component [self project type data id {:keys [position rotation scale]} select-fn]
+(defn- add-embedded-component [self project type pb-map id {:keys [position rotation scale]} select-fn]
+  {:pre [(map? pb-map)]}
   (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project :editable type data)
+        resource (project/make-embedded-resource project :editable type pb-map)
         node-type (project/resource-node-type resource)]
     (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]
                          resource-node [node-type :resource resource]]
-                  (project/load-node project resource-node node-type resource)
+                  (project/load-embedded-resource-node project resource-node resource pb-map)
                   (project/connect-if-output node-type resource-node comp-node
                                              [[:_node-id :embedded-resource-id]
                                               [:resource :source-resource]
                                               [:_properties :source-properties]
                                               [:node-outline :source-outline]
-                                              [:undecorated-save-data :save-data]
+                                              [:save-value :source-save-value]
                                               [:scene :scene]
                                               [:build-targets :source-build-targets]])
                   (attach-embedded-component self comp-node)
@@ -511,12 +512,12 @@
 (defn add-embedded-component! [go-id resource-type select-fn]
   (let [project (project/get-project go-id)
         workspace (project/workspace project)
-        template (workspace/template workspace resource-type)
+        pb-map (game-object-common/template-pb-map workspace resource-type)
         id (gen-component-id go-id (:ext resource-type))]
     (g/transact
       (concat
         (g/operation-label "Add Component")
-        (add-embedded-component go-id project (:ext resource-type) template id game-object-common/identity-transform-properties select-fn)))))
+        (add-embedded-component go-id project (:ext resource-type) pb-map id game-object-common/identity-transform-properties select-fn)))))
 
 (defn- add-embedded-component-handler [user-data select-fn]
   (let [go-id (:_node-id user-data)
@@ -575,7 +576,12 @@
 (defn- sanitize-game-object [workspace prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-strings)))
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-maps)))
+
+(defn- string-encode-game-object [workspace prototype-desc]
+  ;; GameObject$PrototypeDesc in map format.
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
+    (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -586,6 +592,7 @@
     :load-fn load-game-object
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
     :sanitize-fn (partial sanitize-game-object workspace)
+    :string-encode-fn (partial string-encode-game-object workspace)
     :icon game-object-common/game-object-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))
