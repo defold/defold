@@ -376,8 +376,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                 }
             }
             else if (!useLuaBytecodeDelta) {
-                 srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
-                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+                Bob.verbose("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
+                srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
+                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
             else {
                 // expect same length on 32 and 64 bit bytecode if storing a delta
