@@ -15,7 +15,6 @@
 #ifndef DM_GAMESYS_RES_TEXTURE_H
 #define DM_GAMESYS_RES_TEXTURE_H
 
-#include <graphics/graphics.h>
 #include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_texture.h>
 

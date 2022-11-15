@@ -209,7 +209,6 @@ namespace dmGameSystem
 struct ResourceModule
 {
     dmResource::HFactory m_Factory;
-    dmGraphics::HContext m_GraphicsContext;
 } g_ResourceModule;
 
 
@@ -1290,7 +1289,6 @@ void ScriptResourceRegister(const ScriptLibContext& context)
 {
     LuaInit(context.m_LuaState);
     g_ResourceModule.m_Factory = context.m_Factory;
-    g_ResourceModule.m_GraphicsContext = context.m_GraphicsContext;
 }
 
 void ScriptResourceFinalize(const ScriptLibContext& context)

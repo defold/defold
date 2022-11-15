@@ -18,6 +18,7 @@
 #include <dlib/profile.h>
 #include <dlib/time.h>
 #include <dlib/math.h>
+#include <graphics/graphics.h>
 
 namespace dmGameSystem
 {

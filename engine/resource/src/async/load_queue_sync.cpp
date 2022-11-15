@@ -76,9 +76,8 @@ namespace dmLoadQueue
         get_resource_data_params.m_Factory                                 = queue->m_Factory;
         get_resource_data_params.m_CanonicalPath                           = request->m_CanonicalPath;
         get_resource_data_params.m_Name                                    = request->m_Name;
-        get_resource_data_params.m_Buffer                                  = &buf;
-        get_resource_data_params.m_BufferSize                              = &size;
-        get_resource_data_params.m_UserData                                = 0x0;
+        get_resource_data_params.m_Buffer                                  = buf;
+        get_resource_data_params.m_BufferSize                              = size;
 
         load_result->m_LoadResult    = dmResource::LoadResource(&get_resource_data_params);
         load_result->m_PreloadResult = dmResource::RESULT_PENDING;
