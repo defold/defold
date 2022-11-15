@@ -359,12 +359,9 @@ public abstract class LuaBuilder extends Builder<Void> {
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         else {
+            boolean useLuaBytecodeDelta = this.project.option("use-lua-bytecode-delta", "false").equals("true");
             byte[] bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
             byte[] bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
-
-            if (bytecode32.length != bytecode64.length) {
-                throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
-            }
 
             List<Platform> architectures = project.getArchitectures();
             if (architectures.size() == 1) {
@@ -378,7 +375,16 @@ public abstract class LuaBuilder extends Builder<Void> {
                     Bob.verbose("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
                 }
             }
+            else if (!useLuaBytecodeDelta) {
+                 srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
+                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+            }
             else {
+                // expect same length on 32 and 64 bit bytecode if storing a delta
+                if (bytecode32.length != bytecode64.length) {
+                    throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
+                }
+
                 Bob.verbose("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
 
