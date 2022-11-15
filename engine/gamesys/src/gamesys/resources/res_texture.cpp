@@ -22,6 +22,7 @@
 namespace dmGameSystem
 {
     static const uint32_t MAX_MIPMAP_COUNT = 14; // 2^14 => 16384
+
     struct ImageDesc
     {
         dmGraphics::TextureImage* m_DDFImage;

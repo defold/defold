@@ -21,8 +21,6 @@
 
 namespace dmGameSystem
 {
-    typedef struct ImageDesc* HImageDesc;
-
     struct ResTextureUploadParams
     {
         uint16_t m_X;

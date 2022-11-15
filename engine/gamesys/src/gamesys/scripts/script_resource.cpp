@@ -462,11 +462,82 @@ static int GraphicsTextureTypeToImageType(int texturetype)
     return -1;
 }
 
-
-dmResource::Result CreateTextureResourceCb(const dmResource::GetResourceDataCallbackParams* params)
+static dmResource::Result GetTextureDataCb(const dmResource::GetResourceDataCallbackParams* params)
 {
     *params->m_Message = (dmGraphics::TextureImage*) params->m_UserData;
     return dmResource::RESULT_OK;
+}
+
+static dmGraphics::TextureImage MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp, dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format)
+{
+    uint32_t* mip_map_sizes   = new uint32_t[max_mipmaps];
+    uint32_t* mip_map_offsets = new uint32_t[max_mipmaps];
+
+    uint32_t data_size = 0;
+    uint16_t mm_width  = width;
+    uint16_t mm_height = height;
+    for (uint32_t i = 0; i < max_mipmaps; ++i)
+    {
+        mip_map_sizes[i]   = dmMath::Max(mm_width, mm_height);
+        mip_map_offsets[i] = data_size / 8;
+        data_size += mm_width * mm_height * bitspp;
+        mm_width  /= 2;
+        mm_height /= 2;
+    }
+    assert(data_size > 0);
+
+    uint32_t image_data_size = data_size / 8; // bits -> bytes for compression formats
+    uint8_t* image_data      = new uint8_t[image_data_size];
+
+    dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
+    dmGraphics::TextureImage texture_image = {};
+    texture_image.m_Alternatives.m_Data    = image;
+    texture_image.m_Alternatives.m_Count   = 1;
+    texture_image.m_Type                   = type;
+
+    image->m_Width                = width;
+    image->m_Height               = height;
+    image->m_OriginalWidth        = width;
+    image->m_OriginalHeight       = height;
+    image->m_Format               = format;
+    image->m_CompressionType      = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+    image->m_CompressionFlags     = 0;
+    image->m_Data.m_Data          = image_data;
+    image->m_Data.m_Count         = image_data_size;
+
+    image->m_MipMapOffset.m_Data  = mip_map_offsets;
+    image->m_MipMapOffset.m_Count = max_mipmaps;
+    image->m_MipMapSize.m_Data    = mip_map_sizes;
+    image->m_MipMapSize.m_Count   = max_mipmaps;
+
+    return texture_image;
+}
+
+static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
+{
+    for (int i = 0; i < texture_image.m_Alternatives.m_Count; ++i)
+    {
+        dmGraphics::TextureImage::Image& image = texture_image.m_Alternatives.m_Data[i];
+        if (image.m_MipMapOffset.m_Data)
+        {
+            delete[] image.m_MipMapOffset.m_Data;
+        }
+        if (image.m_MipMapSize.m_Data)
+        {
+            delete[] image.m_MipMapSize.m_Data;
+        }
+        if (image.m_Data.m_Data)
+        {
+            delete[] image.m_Data.m_Data;
+        }
+    }
+
+    if (texture_image.m_Alternatives.m_Data)
+    {
+        delete[] texture_image.m_Alternatives.m_Data;
+    }
+
+    memset(&texture_image, 0, sizeof(texture_image));
 }
 
 /*# create a texture
@@ -503,8 +574,28 @@ dmResource::Result CreateTextureResourceCb(const dmResource::GetResourceDataCall
 static int CreateTexture(lua_State* L)
 {
     // This function pushes the hash of the resource created
-    DM_LUA_STACK_CHECK(L, 1);
-    const char* path_str = luaL_checkstring(L, 1);
+    int top                  = lua_gettop(L);
+    const char* path_str     = luaL_checkstring(L, 1);
+    const char* texturec_ext = ".texturec";
+
+    char buf_ext[64];
+    const char* path_ext = dmResource::GetExtFromPath(path_str, buf_ext, sizeof(buf_ext));
+
+    if (dmStrCaseCmp(path_ext, texturec_ext) != 0)
+    {
+        luaL_error(L, "Unable to create texture - path '%s' must have the %s extension", path_str, texturec_ext);
+        return 0;
+    }
+
+    char canonical_path[dmResource::RESOURCE_PATH_MAX];
+    uint32_t canonical_path_len  = dmResource::GetCanonicalPath(path_str, canonical_path);
+    dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, canonical_path_len);
+
+    if (dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash))
+    {
+        luaL_error(L, "Unable to create texture - a resource is already registered at path '%s'", path_str);
+        return 0;
+    }
 
     luaL_checktype(L, 2, LUA_TTABLE);
     uint32_t type        = (uint32_t) CheckTableInteger(L, 2, "type");
@@ -513,32 +604,20 @@ static int CreateTexture(lua_State* L)
     uint32_t format      = (uint32_t) CheckTableInteger(L, 2, "format");
     uint32_t max_mipmaps = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
 
-    uint32_t bpp = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
-    uint32_t image_data_size = width * height * bpp / 8; // bits -> bytes
-    uint8_t* image_data = new uint8_t[image_data_size];
+    uint8_t max_mipmaps_actual = dmGraphics::GetMipmapCount(dmMath::Max(width, height));
 
-    dmGraphics::TextureImage::Image image  = {};
-    dmGraphics::TextureImage texture_image = {};
-    texture_image.m_Alternatives.m_Data    = &image;
-    texture_image.m_Alternatives.m_Count   = 1;
-    texture_image.m_Type                   = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
+    if (max_mipmaps > max_mipmaps_actual)
+    {
+        dmLogWarning("Max mipmaps %d requested for texture %s, but max mipmaps supported for size (%d, %d) is %d",
+            max_mipmaps, path_str, width, height, max_mipmaps_actual);
+        max_mipmaps = max_mipmaps_actual;
+    }
 
-    image.m_Width                = width;
-    image.m_Height               = height;
-    image.m_OriginalWidth        = width;
-    image.m_OriginalHeight       = height;
-    image.m_Format               = (dmGraphics::TextureImage::TextureFormat) GraphicsTextureFormatToImageFormat(format);
-    image.m_CompressionType      = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
-    image.m_CompressionFlags     = 0;
-    image.m_Data.m_Data          = image_data;
-    image.m_Data.m_Count         = image_data_size;
-
-    uint32_t mip_map_offsets     = 0;
-    uint32_t mip_map_sizes       = image_data_size;
-    image.m_MipMapOffset.m_Data  = &mip_map_offsets;
-    image.m_MipMapOffset.m_Count = 1;
-    image.m_MipMapSize.m_Data    = &mip_map_sizes;
-    image.m_MipMapSize.m_Count   = 1;
+    max_mipmaps                                        = dmMath::Max((uint32_t) 1, max_mipmaps);
+    uint32_t tex_bpp                                   = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
+    dmGraphics::TextureImage::Type tex_type            = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
+    dmGraphics::TextureImage::TextureFormat tex_format = (dmGraphics::TextureImage::TextureFormat) GraphicsTextureFormatToImageFormat(format);
+    dmGraphics::TextureImage texture_image             = MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format);
 
     // JG: Do we need to lock the load mutex here?
     dmMutex::HMutex mutex = dmResource::GetLoadMutex(g_ResourceModule.m_Factory);
@@ -548,24 +627,20 @@ static int CreateTexture(lua_State* L)
     }
 
     void* resource = 0x0;
-    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, CreateTextureResourceCb, path_str, &texture_image, &resource);
+    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, GetTextureDataCb, path_str, &texture_image, &resource);
 
     dmMutex::Unlock(mutex);
 
-    delete[] image_data;
+    DestroyTextureImage(texture_image);
 
     if (res != dmResource::RESULT_OK)
     {
-        luaL_error(L, "Could not create texture resource: %s", path_str);
-        return 0;
+        assert(top == lua_gettop(L));
+        return ReportPathError(L, res, canonical_path_hash);
     }
 
-    char canonical_path[dmResource::RESOURCE_PATH_MAX];
-    dmResource::GetCanonicalPath(path_str, canonical_path);
-
-    dmhash_t path_hash = dmHashBuffer64(canonical_path, strlen(path_str) + 1);
-    dmScript::PushHash(L, path_hash);
-
+    dmScript::PushHash(L, canonical_path_hash);
+    assert((top+1) == lua_gettop(L));
     return 1;
 }
 

@@ -1027,7 +1027,7 @@ Result LoadResource(const GetResourceDataCallbackParams* params)
 }
 
 
-static const char* GetExtFromPath(const char* name, char* buffer, uint32_t buffersize)
+const char* GetExtFromPath(const char* name, char* buffer, uint32_t buffersize)
 {
     const char* ext = strrchr(name, '.');
     if( !ext )

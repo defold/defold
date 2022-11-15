@@ -185,7 +185,11 @@ namespace dmResource
      */
     SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
 
+    // TODO: Docs
     Result CreateResource(HFactory factory, GetResourceDataCallback get_resource_data_cb, const char* name, void* userdata, void** resource);
+
+    // TODO: Docs
+    const char* GetExtFromPath(const char* name, char* buffer, uint32_t buffersize);
 
     /**
      * Get raw resource data. Unregistered resources can be loaded with this function.
