@@ -145,7 +145,7 @@ namespace dmLoadQueue
                     assert(current->m_Buffer.Size() == size);
                     if (current->m_PreloadInfo.m_Function)
                     {
-                        dmResource::ResourcePreloadParams params;
+                        dmResource::ResourcePreloadParams params = {};
                         params.m_Factory       = queue->m_Factory;
                         params.m_Context       = current->m_PreloadInfo.m_Context;
                         params.m_Buffer        = current->m_Buffer.Begin();

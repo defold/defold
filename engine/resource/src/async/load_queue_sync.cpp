@@ -86,7 +86,7 @@ namespace dmLoadQueue
 
         if (load_result->m_LoadResult == dmResource::RESULT_OK && request->m_PreloadInfo.m_Function)
         {
-            dmResource::ResourcePreloadParams params;
+            dmResource::ResourcePreloadParams params = {};
             params.m_Factory             = queue->m_Factory;
             params.m_Context             = request->m_PreloadInfo.m_Context;
             params.m_Buffer              = *buf;
