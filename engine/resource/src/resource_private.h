@@ -23,9 +23,6 @@
 
 namespace dmResource
 {
-    // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
-    const uint32_t RESOURCE_PATH_MAX = 1024;
-
     const uint32_t MAX_RESOURCE_TYPES = 128;
 
     struct SResourceType
@@ -51,11 +48,11 @@ namespace dmResource
     Result CheckSuppliedResourcePath(const char* name);
 
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
-    Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
+    Result LoadResource(const GetResourceDataCallbackParams* params);
     // load with own buffer
     Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
 
-    uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
+    Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor);
     uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
 
     SResourceType* FindResourceType(SResourceFactory* factory, const char* extension);

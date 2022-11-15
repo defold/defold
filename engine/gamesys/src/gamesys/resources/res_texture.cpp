@@ -27,6 +27,8 @@ namespace dmGameSystem
         dmGraphics::TextureImage* m_DDFImage;
         uint8_t*                  m_DecompressedData[MAX_MIPMAP_COUNT];
         uint32_t                  m_DecompressedDataSize[MAX_MIPMAP_COUNT];
+        uint8_t                   m_DDFImageRaw : 1; // 1 if image was created from raw data, i.e not an actual ddf message
+        uint8_t                                 : 7;
     };
 
     static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format)
@@ -260,11 +262,12 @@ namespace dmGameSystem
         return result;
     }
 
-    HImageDesc CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image)
+    ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, bool texture_image_raw)
     {
         ImageDesc* image_desc = new ImageDesc;
         memset(image_desc, 0x0, sizeof(ImageDesc));
         image_desc->m_DDFImage = texture_image;
+        image_desc->m_DDFImageRaw = texture_image_raw;
         return image_desc;
     }
 
@@ -281,14 +284,19 @@ namespace dmGameSystem
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params)
     {
         DM_PROFILE(__FUNCTION__);
-        dmGraphics::TextureImage* texture_image;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
-        if ( e != dmDDF::RESULT_OK )
+        dmGraphics::TextureImage* texture_image = (dmGraphics::TextureImage*) params.m_Message;
+        bool texture_image_raw = texture_image != 0x0;
+
+        if (!texture_image_raw)
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
+            if ( e != dmDDF::RESULT_OK )
+            {
+                return dmResource::RESULT_FORMAT_ERROR;
+            }
         }
 
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image, texture_image_raw);
         *params.m_PreloadData = image_desc;
         return dmResource::RESULT_OK;
     }
@@ -303,7 +311,11 @@ namespace dmGameSystem
         }
 
         ImageDesc* image_desc = (ImageDesc*) params.m_PreloadData;
-        dmDDF::FreeMessage(image_desc->m_DDFImage);
+
+        if (!image_desc->m_DDFImageRaw)
+        {
+            dmDDF::FreeMessage(image_desc->m_DDFImage);
+        }
         DestroyImage(image_desc);
         params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture);
         return dmResource::RESULT_OK;
@@ -332,11 +344,15 @@ namespace dmGameSystem
     {
         ResTextureReCreateParams* recreate_params = (ResTextureReCreateParams*)params.m_Message;
         dmGraphics::TextureImage* texture_image = 0x0;
+
         if (recreate_params)
         {
             texture_image = (dmGraphics::TextureImage*) recreate_params->m_TextureImage;
         }
-        if(!texture_image)
+
+        bool texture_image_raw = texture_image != 0x0;
+
+        if(!texture_image_raw)
         {
             dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
             if ( e != dmDDF::RESULT_OK )
@@ -349,7 +365,7 @@ namespace dmGameSystem
 
         // Create the image from the DDF data.
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image, texture_image_raw);
 
         ResTextureUploadParams upload_params = {};
 
@@ -367,7 +383,7 @@ namespace dmGameSystem
 
         DestroyImage(image_desc);
 
-        if( params.m_Message == 0 )
+        if(!texture_image_raw)
         {
             dmDDF::FreeMessage(texture_image);
         }

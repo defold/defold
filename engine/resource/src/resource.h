@@ -26,6 +26,9 @@
 
 namespace dmResource
 {
+    // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
+    const uint32_t RESOURCE_PATH_MAX = 1024;
+
     const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
 
     const static uint32_t MANIFEST_VERSION = 0x04;
@@ -90,6 +93,17 @@ namespace dmResource
         void* m_UserData;
     };
 
+    struct GetResourceDataCallbackParams
+    {
+        HFactory    m_Factory;
+        const char* m_CanonicalPath;
+        const char* m_Name;
+        void**      m_Message;
+        void**      m_Buffer;
+        uint32_t*   m_BufferSize;
+        void*       m_UserData;
+    };
+
     /**
      * Function called by UpdatePreloader when preoloading is complete and before postcreate callbacks are processed.
      * @param PreloaderCompleteCallbackParams parameters passed to callback function
@@ -97,6 +111,8 @@ namespace dmResource
      * @see UpdatePreloader
      */
     typedef bool (*FPreloaderCompleteCallback)(const PreloaderCompleteCallbackParams* params);
+
+    typedef Result (*GetResourceDataCallback)(const GetResourceDataCallbackParams* params);
 
     /**
      * Set default NewFactoryParams params
@@ -169,7 +185,7 @@ namespace dmResource
      */
     SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
 
-    Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor);
+    Result CreateResource(HFactory factory, GetResourceDataCallback get_resource_data_cb, const char* name, void* userdata, void** resource);
 
     /**
      * Get raw resource data. Unregistered resources can be loaded with this function.
@@ -413,6 +429,8 @@ namespace dmResource
     /*# Get the support path for the project, with the hashed project name at the end
      */
     Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
+
+    uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
 
     void RegisterArchiveLoader();
 }

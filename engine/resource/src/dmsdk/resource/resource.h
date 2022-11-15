@@ -111,6 +111,8 @@ namespace dmResource
         const void* m_Buffer;
         /// Size of data buffer
         uint32_t m_BufferSize;
+        /// Pointer holding a precreated message
+        const void* m_Message;
         /// Hinter info. Use this when calling PreloadHint
         HPreloadHintInfo m_HintInfo;
         /// Writable user data that will be passed on to ResourceCreate function
@@ -171,6 +173,8 @@ namespace dmResource
         uint32_t m_BufferSize;
         /// Preloaded data from Preload phase
         void* m_PreloadData;
+        /// Pointer holding a precreated message
+        const void* m_Message;
         /// Resource descriptor to fill in
         HResourceDescriptor m_Resource;
     };

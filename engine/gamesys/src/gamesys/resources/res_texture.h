@@ -39,8 +39,6 @@ namespace dmGameSystem
         ResTextureUploadParams m_UploadParams;
     };
 
-    HImageDesc CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image);
-
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResTextureCreate(const dmResource::ResourceCreateParams& params);

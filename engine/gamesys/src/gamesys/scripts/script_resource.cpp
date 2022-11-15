@@ -462,6 +462,13 @@ static int GraphicsTextureTypeToImageType(int texturetype)
     return -1;
 }
 
+
+dmResource::Result CreateTextureResourceCb(const dmResource::GetResourceDataCallbackParams* params)
+{
+    *params->m_Message = (dmGraphics::TextureImage*) params->m_UserData;
+    return dmResource::RESULT_OK;
+}
+
 /*# create a texture
  * Creates a new texture resource.
  *
@@ -499,18 +506,6 @@ static int CreateTexture(lua_State* L)
     DM_LUA_STACK_CHECK(L, 1);
     const char* path_str = luaL_checkstring(L, 1);
 
-    /*
-    local tparams = {
-        width          = value,
-        height         = value,
-        type           = 2D|Cube|Array,      -- defaults to 2D
-        format         = LUMINANCE|RGB|RGBA, -- note: what about compressed formats?
-        max_mipmaps    = value,              -- max number of mipmaps
-        max_page_count = value               -- for texture array feature
-        storage_mode   = Shared|CPU|GPU      -- ... or some better naming
-    }
-    */
-
     luaL_checktype(L, 2, LUA_TTABLE);
     uint32_t type        = (uint32_t) CheckTableInteger(L, 2, "type");
     uint32_t width       = (uint32_t) CheckTableInteger(L, 2, "width");
@@ -518,15 +513,10 @@ static int CreateTexture(lua_State* L)
     uint32_t format      = (uint32_t) CheckTableInteger(L, 2, "format");
     uint32_t max_mipmaps = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
 
-    uint32_t path_len  = strlen(path_str);
-    dmhash_t path_hash = dmHashBuffer64(path_str, path_len);
-
     uint32_t bpp = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
-
     uint32_t image_data_size = width * height * bpp / 8; // bits -> bytes
     uint8_t* image_data = new uint8_t[image_data_size];
 
-    // Create image desc that holds the data for the resource
     dmGraphics::TextureImage::Image image  = {};
     dmGraphics::TextureImage texture_image = {};
     texture_image.m_Alternatives.m_Data    = &image;
@@ -550,26 +540,6 @@ static int CreateTexture(lua_State* L)
     image.m_MipMapSize.m_Data    = &mip_map_sizes;
     image.m_MipMapSize.m_Count   = 1;
 
-    dmResource::ResourceType resource_type;
-    dmResource::Result res = dmResource::GetTypeFromExtension(g_ResourceModule.m_Factory, "texturec", &resource_type);
-
-    dmResource::SResourceDescriptor res_desc = {};
-    res_desc.m_NameHash       = path_hash;
-    res_desc.m_ReferenceCount = 1;
-    res_desc.m_ResourceType   = (void*) resource_type;
-
-    HImageDesc image_desc = CreateImage(g_ResourceModule.m_GraphicsContext, &texture_image);
-
-    dmResource::ResourceCreateParams create_params = {};
-    create_params.m_Context                        = g_ResourceModule.m_GraphicsContext;
-    create_params.m_Factory                        = g_ResourceModule.m_Factory;
-    create_params.m_Resource                       = &res_desc;
-    create_params.m_PreloadData                    = (void*) image_desc;
-
-    res = ResTextureCreate(create_params);
-
-    delete[] image_data;
-
     // JG: Do we need to lock the load mutex here?
     dmMutex::HMutex mutex = dmResource::GetLoadMutex(g_ResourceModule.m_Factory);
     while(!dmMutex::TryLock(mutex))
@@ -577,9 +547,23 @@ static int CreateTexture(lua_State* L)
         dmTime::Sleep(100);
     }
 
-    res = dmResource::InsertResource(g_ResourceModule.m_Factory, path_str, path_hash, &res_desc);
+    void* resource = 0x0;
+    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, CreateTextureResourceCb, path_str, &texture_image, &resource);
+
     dmMutex::Unlock(mutex);
 
+    delete[] image_data;
+
+    if (res != dmResource::RESULT_OK)
+    {
+        luaL_error(L, "Could not create texture resource: %s", path_str);
+        return 0;
+    }
+
+    char canonical_path[dmResource::RESOURCE_PATH_MAX];
+    dmResource::GetCanonicalPath(path_str, canonical_path);
+
+    dmhash_t path_hash = dmHashBuffer64(canonical_path, strlen(path_str) + 1);
     dmScript::PushHash(L, path_hash);
 
     return 1;

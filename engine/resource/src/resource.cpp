@@ -1008,17 +1008,21 @@ Result DoLoadResource(HFactory factory, const char* path, const char* original_n
 }
 
 // Assumes m_LoadMutex is already held
-Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size)
+Result LoadResource(const GetResourceDataCallbackParams* params)
 {
-    if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
-        factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
+    if (params->m_Factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
+        params->m_Factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
     }
-    factory->m_Buffer.SetSize(0);
-    Result r = DoLoadResourceLocked(factory, path, original_name, resource_size, &factory->m_Buffer);
+    params->m_Factory->m_Buffer.SetSize(0);
+    Result r = DoLoadResourceLocked(params->m_Factory, params->m_CanonicalPath, params->m_Name, params->m_BufferSize, &params->m_Factory->m_Buffer);
     if (r == RESULT_OK)
-        *buffer = factory->m_Buffer.Begin();
+    {
+        *params->m_Buffer = params->m_Factory->m_Buffer.Begin();
+    }
     else
-        *buffer = 0;
+    {
+        *params->m_Buffer = 0;
+    }
     return r;
 }
 
@@ -1038,7 +1042,7 @@ static const char* GetExtFromPath(const char* name, char* buffer, uint32_t buffe
 }
 
 // Assumes m_LoadMutex is already held
-static Result DoGet(HFactory factory, const char* name, void** resource)
+Result CreateResource(HFactory factory, GetResourceDataCallback get_resource_data_cb, const char* name, void* userdata, void** resource)
 {
     assert(name);
     assert(resource);
@@ -1081,9 +1085,20 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
             return RESULT_UNKNOWN_RESOURCE_TYPE;
         }
 
-        void *buffer;
-        uint32_t file_size;
-        Result result = LoadResource(factory, canonical_path, name, &buffer, &file_size);
+        void* message = 0;
+        void* buffer = 0;
+        uint32_t buffer_size = 0;
+
+        GetResourceDataCallbackParams get_resource_data_params = {};
+        get_resource_data_params.m_Factory                     = factory;
+        get_resource_data_params.m_CanonicalPath               = canonical_path;
+        get_resource_data_params.m_Name                        = name;
+        get_resource_data_params.m_Message                     = &message;
+        get_resource_data_params.m_Buffer                      = &buffer;
+        get_resource_data_params.m_BufferSize                  = &buffer_size;
+        get_resource_data_params.m_UserData                    = userdata;
+
+        Result result = get_resource_data_cb(&get_resource_data_params);
         if (result != RESULT_OK) {
             if (result == RESULT_RESOURCE_NOT_FOUND) {
                 dmLogWarning("Resource not found: %s", name);
@@ -1091,7 +1106,7 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
             return result;
         }
 
-        assert(buffer == factory->m_Buffer.Begin());
+        assert(buffer || message);
 
         // TODO: We should *NOT* allocate SResource dynamically...
         SResourceDescriptor tmp_resource;
@@ -1108,8 +1123,9 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
             ResourcePreloadParams params;
             params.m_Factory = factory;
             params.m_Context = resource_type->m_Context;
+            params.m_Message = message;
             params.m_Buffer = buffer;
-            params.m_BufferSize = file_size;
+            params.m_BufferSize = buffer_size;
             params.m_PreloadData = &preload_data;
             params.m_Filename = name;
             params.m_HintInfo = 0; // No hinting now
@@ -1118,14 +1134,15 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
 
         if (create_error == RESULT_OK)
         {
-            tmp_resource.m_ResourceSizeOnDisc = file_size;
+            tmp_resource.m_ResourceSizeOnDisc = buffer_size;
             tmp_resource.m_ResourceSize = 0; // Not everything will report a size (but instead rely on the disc size, sinze it's close enough)
 
             ResourceCreateParams params;
             params.m_Factory = factory;
             params.m_Context = resource_type->m_Context;
+            params.m_Message = message;
             params.m_Buffer = buffer;
-            params.m_BufferSize = file_size;
+            params.m_BufferSize = buffer_size;
             params.m_PreloadData = preload_data;
             params.m_Resource = &tmp_resource;
             params.m_Filename = name;
@@ -1227,7 +1244,7 @@ Result Get(HFactory factory, const char* name, void** resource)
         stack.SetCapacity(stack.Capacity() + 16);
     }
     stack.Push(name);
-    Result r = DoGet(factory, name, resource);
+    Result r = CreateResource(factory, LoadResource, name, 0x0, resource);
     stack.SetSize(stack.Size() - 1);
     --factory->m_RecursionDepth;
     return r;
@@ -1282,13 +1299,21 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     GetCanonicalPath(name, canonical_path);
 
     void* buffer;
-    uint32_t file_size;
-    Result result = LoadResource(factory, canonical_path, name, &buffer, &file_size);
+    uint32_t buffer_size;
+
+    GetResourceDataCallbackParams get_resource_data_params = {};
+    get_resource_data_params.m_Factory                     = factory;
+    get_resource_data_params.m_CanonicalPath               = canonical_path;
+    get_resource_data_params.m_Name                        = name;
+    get_resource_data_params.m_Buffer                      = &buffer;
+    get_resource_data_params.m_BufferSize                  = &buffer_size;
+
+    Result result = LoadResource(&get_resource_data_params);
     if (result == RESULT_OK) {
-        *resource = malloc(file_size);
+        *resource = malloc(buffer_size);
         assert(buffer == factory->m_Buffer.Begin());
-        memcpy(*resource, buffer, file_size);
-        *resource_size = file_size;
+        memcpy(*resource, buffer, buffer_size);
+        *resource_size = buffer_size;
     }
     return result;
 }
@@ -1313,8 +1338,16 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
         return RESULT_NOT_SUPPORTED;
 
     void* buffer;
-    uint32_t file_size;
-    Result result = LoadResource(factory, canonical_path, name, &buffer, &file_size);
+    uint32_t buffer_size;
+
+    GetResourceDataCallbackParams get_resource_data_params = {};
+    get_resource_data_params.m_Factory                     = factory;
+    get_resource_data_params.m_CanonicalPath               = canonical_path;
+    get_resource_data_params.m_Name                        = name;
+    get_resource_data_params.m_Buffer                      = &buffer;
+    get_resource_data_params.m_BufferSize                  = &buffer_size;
+
+    Result result = LoadResource(&get_resource_data_params);
     if (result != RESULT_OK)
         return result;
 
@@ -1325,14 +1358,14 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     params.m_Context = resource_type->m_Context;
     params.m_Message = 0;
     params.m_Buffer = buffer;
-    params.m_BufferSize = file_size;
+    params.m_BufferSize = buffer_size;
     params.m_Resource = rd;
     params.m_Filename = name;
     rd->m_PrevResource = 0;
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
-        params.m_Resource->m_ResourceSizeOnDisc = file_size;
+        params.m_Resource->m_ResourceSizeOnDisc = buffer_size;
         if (factory->m_ResourceReloadedCallbacks)
         {
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
