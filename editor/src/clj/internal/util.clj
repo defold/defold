@@ -18,7 +18,7 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [schema.core :as s]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [clojure.lang IEditableCollection]))
 
 (set! *warn-on-reflection* true)
@@ -369,7 +369,7 @@
 (defn only-or-throw
   "Returns the only element in coll, or throw an error if the collection does not have exactly one element."
   [coll]
-  (case (long (bounded-count 2 coll))
+  (case (coll/bounded-count 2 coll)
     0 (throw (ex-info "The collection is empty." {:coll coll}))
     1 (first coll)
     (throw (ex-info "The collection has more than one element." {:coll coll}))))
@@ -569,7 +569,7 @@
   ([tos from]
    (if (empty? from)
      tos
-     (case (long (bounded-count 3 tos))
+     (case (coll/bounded-count 3 tos)
        ;; No destinations - return unaltered.
        0 tos
 
@@ -597,43 +597,54 @@
   ([tos xforms from]
    (if (empty? from)
      tos
-     (case (long (bounded-count 3 tos))
+     (case (coll/bounded-count 3 tos)
        ;; No destinations - return unaltered.
-       0 tos
+       0 (do
+           (assert (= 0 (coll/bounded-count 1 xforms)))
+           tos)
 
        ;; Single destination - use regular into.
-       1 [(into (first tos) (first xforms) from)]
+       1 (do
+           (assert (= 1 (coll/bounded-count 2 xforms)))
+           [(into (first tos) (first xforms) from)])
 
        ;; Optimized for two destinations.
-       2 (let [f0 ((nth xforms 0) conj!)
-               f1 ((nth xforms 1) conj!)
+       2 (do
+           (assert (= 2 (coll/bounded-count 3 xforms)))
+           (let [f0 ((nth xforms 0) conj!)
+                 f1 ((nth xforms 1) conj!)
 
-               transient-tos
-               (reduce (fn [transient-tos item]
-                         (let [transient-to0 (transient-tos 0)
-                               transient-to1 (transient-tos 1)]
-                           (let [transient-to0' (cond-> transient-to0 (not (reduced? transient-to0)) (f0 item))
-                                 transient-to1' (cond-> transient-to1 (not (reduced? transient-to1)) (f1 item))]
-                             (cond-> (pair transient-to0'
-                                           transient-to1')
+                 transient-tos
+                 (reduce (fn [transient-tos item]
+                           (let [transient-to0 (transient-tos 0)
+                                 transient-to1 (transient-tos 1)]
+                             (let [transient-to0' (cond-> transient-to0 (not (reduced? transient-to0)) (f0 item))
+                                   transient-to1' (cond-> transient-to1 (not (reduced? transient-to1)) (f1 item))]
+                               (cond-> (pair transient-to0'
+                                             transient-to1')
 
-                                     (and (reduced? transient-to0')
-                                          (reduced? transient-to1'))
-                                     reduced))))
-                       (pair (transient (nth tos 0))
-                             (transient (nth tos 1)))
-                       from)]
-           (pair (with-meta (persistent! (unreduced (transient-tos 0)))
-                            (meta (nth tos 0)))
-                 (with-meta (persistent! (unreduced (transient-tos 1)))
-                            (meta (nth tos 1)))))
+                                       (and (reduced? transient-to0')
+                                            (reduced? transient-to1'))
+                                       reduced))))
+                         (pair (transient (nth tos 0))
+                               (transient (nth tos 1)))
+                         from)]
+             (pair (with-meta (persistent! (f0 (unreduced (transient-tos 0))))
+                              (meta (nth tos 0)))
+                   (with-meta (persistent! (f1 (unreduced (transient-tos 1))))
+                              (meta (nth tos 1))))))
 
        ;; General case.
        (let [fs (mapv (fn [xform]
                         (xform conj!))
                       xforms)]
-         (mapv #(with-meta (persistent! (unreduced %2)) (meta %1))
+         (assert (let [xform-count (count fs)]
+                   (= xform-count (coll/bounded-count (inc xform-count) tos))))
+         (mapv (fn [orig-to f transient-to']
+                 (with-meta (persistent! (f (unreduced transient-to')))
+                            (meta orig-to)))
                tos
+               fs
                (reduce (fn [transient-tos item]
                          (let [[transient-tos' all-reduced]
                                (reduce-kv (fn [[transient-tos' all-reduced] index transient-to]

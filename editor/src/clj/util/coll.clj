@@ -13,7 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
+  (:refer-clojure :exclude [bounded-count])
   (:import [clojure.lang MapEntry]))
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn pair
   "Constructs a two-element collection that implements IPersistentVector from
@@ -26,3 +30,16 @@
   the reversed arguments."
   [a b]
   (MapEntry. b a))
+
+(defn bounded-count
+  "Like core.bounded-count, but tags the return value and limit argument as long
+  values to avoid boxed math or reflection. If coll is counted? returns its
+  count, else will count at most the first n elements of coll using its seq."
+  ^long [^long n coll]
+  (if (counted? coll)
+    (count coll)
+    (loop [i 0
+           s (seq coll)]
+      (if (and s (< i n))
+        (recur (inc i) (next s))
+        i))))

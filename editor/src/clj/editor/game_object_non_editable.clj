@@ -71,8 +71,7 @@
                               embedded-resource-node-type (:node-type embedded-resource-type)]
                           (when (g/has-output? embedded-resource-node-type :scene)
                             embedded-component-resource-data))))
-                (map-indexed (fn [index embedded-component-resource-data]
-                               (pair embedded-component-resource-data index))))
+                (map-indexed flipped-pair))
           (sort-by val embedded-component-resource-data->index))))
 
 (g/defnk produce-referenced-component-proj-path->scene-index [referenced-component-proj-path->index resource]
@@ -88,8 +87,7 @@
                                 referenced-resource-node-type (:node-type referenced-resource-type)]
                             (when (g/has-output? referenced-resource-node-type :scene)
                               referenced-component-proj-path)))))
-                (map-indexed (fn [index referenced-component-proj-path]
-                               (pair referenced-component-proj-path index))))
+                (map-indexed flipped-pair))
           (sort-by val referenced-component-proj-path->index))))
 
 (defn mapv-source-ids [source-id->tx-data basis target-id target-label]
@@ -196,8 +194,7 @@
 
 (defn- prototype-desc->embedded-component-resource-data->index [prototype-desc]
   (into {}
-        (map-indexed (fn [index embedded-component-resource-data]
-                       (pair embedded-component-resource-data index)))
+        (map-indexed flipped-pair)
         (prototype-desc->embedded-component-resource-datas prototype-desc)))
 
 (defn prototype-desc->component-property-descs [prototype-desc]
