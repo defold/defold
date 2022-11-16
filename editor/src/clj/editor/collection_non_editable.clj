@@ -223,13 +223,13 @@
               (map-indexed flipped-pair))
         (:instances collection-desc)))
 
-(defn- collection-desc->referenced-component-proj-path->index [collection-desc]
-  (into {}
-        (comp (map :data)
-              (mapcat game-object-non-editable/prototype-desc->referenced-component-proj-paths)
-              (distinct)
-              (map-indexed flipped-pair))
-        (:embedded-instances collection-desc)))
+(defn- collection-desc->referenced-component-resources [collection-desc workspace]
+  (eduction
+    (map :data)
+    (mapcat game-object-non-editable/prototype-desc->referenced-component-proj-paths)
+    (distinct)
+    (map (partial workspace/resolve-workspace-resource workspace))
+    (:embedded-instances collection-desc)))
 
 (defn- collection-desc->embedded-component-resource-datas [collection-desc]
   (eduction
@@ -360,8 +360,8 @@
                                (:tx-data (project/connect-resource-node evaluation-context project proj-path-or-resource self connections)))]
                        (-> (g/set-property self :embedded-component-resource-data->index
                              (collection-desc->embedded-component-resource-data->index new-value))
-                           (into (g/set-property self :referenced-component-proj-path->index
-                                   (collection-desc->referenced-component-proj-path->index new-value)))
+                           (into (g/set-property self :referenced-components
+                                   (collection-desc->referenced-component-resources new-value workspace)))
                            (into (g/set-property self :referenced-game-object-proj-path->index
                                    (collection-desc->referenced-game-object-proj-path->index new-value)))
                            (into (g/set-property self :referenced-collection-proj-path->index
