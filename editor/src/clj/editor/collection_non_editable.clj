@@ -19,6 +19,7 @@
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.game-object-non-editable :as game-object-non-editable]
+            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.properties :as properties]
@@ -28,7 +29,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [util.coll :refer [flipped-pair pair]])
+            [util.coll :refer [pair]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [javax.vecmath Matrix4d]))
 
@@ -209,19 +210,19 @@
     (distinct)
     instance-property-descs))
 
-(defn- collection-desc->referenced-collection-proj-path->index [collection-desc]
-  (into {}
-        (comp (map :collection)
-              (distinct)
-              (map-indexed flipped-pair))
-        (:collection-instances collection-desc)))
+(defn- collection-desc->referenced-collection-resources [collection-desc workspace]
+  (eduction
+    (map :collection)
+    (distinct)
+    (map (partial workspace/resolve-workspace-resource workspace))
+    (:collection-instances collection-desc)))
 
-(defn- collection-desc->referenced-game-object-proj-path->index [collection-desc]
-  (into {}
-        (comp (map :prototype)
-              (distinct)
-              (map-indexed flipped-pair))
-        (:instances collection-desc)))
+(defn- collection-desc->referenced-game-object-resources [collection-desc workspace]
+  (eduction
+    (map :prototype)
+    (distinct)
+    (map (partial workspace/resolve-workspace-resource workspace))
+    (:instances collection-desc)))
 
 (defn- collection-desc->referenced-component-resources [collection-desc workspace]
   (eduction
@@ -333,11 +334,13 @@
 
 (def ^:private referenced-collection-connections
   [[:build-targets :referenced-collection-build-targets]
+   [:resource :referenced-collection-resources]
    [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-collection-scenes]])
 
 (def ^:private referenced-game-object-connections
   [[:build-targets :referenced-game-object-build-targets]
+   [:resource :referenced-game-object-resources]
    [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-game-object-scenes]])
 
@@ -362,32 +365,37 @@
                              (collection-desc->embedded-component-resource-data->index new-value))
                            (into (g/set-property self :referenced-components
                                    (collection-desc->referenced-component-resources new-value workspace)))
-                           (into (g/set-property self :referenced-game-object-proj-path->index
-                                   (collection-desc->referenced-game-object-proj-path->index new-value)))
-                           (into (g/set-property self :referenced-collection-proj-path->index
-                                   (collection-desc->referenced-collection-proj-path->index new-value)))
+                           (into (g/set-property self :referenced-game-objects
+                                   (collection-desc->referenced-game-object-resources new-value workspace)))
+                           (into (g/set-property self :referenced-collections
+                                   (collection-desc->referenced-collection-resources new-value workspace)))
                            (into (game-object-non-editable/disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
                                  (collection-desc->referenced-property-resources new-value proj-path->resource))))))))
 
-  (property referenced-collection-proj-path->index g/Any
+  (property referenced-collections resource/ResourceVec
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (game-object-non-editable/proj-path->index-setter evaluation-context self new-value :referenced-collection-build-targets referenced-collection-connections))))
+                   (game-object-non-editable/referenced-resources-setter evaluation-context self new-value :referenced-collection-resources referenced-collection-connections))))
 
-  (property referenced-game-object-proj-path->index g/Any
+  (property referenced-game-objects resource/ResourceVec
             (dynamic visible (g/constantly false))
+            (value (gu/passthrough referenced-game-object-resources))
             (set (fn [evaluation-context self _old-value new-value]
-                   (game-object-non-editable/proj-path->index-setter evaluation-context self new-value :referenced-game-object-build-targets referenced-game-object-connections))))
+                   (game-object-non-editable/referenced-resources-setter evaluation-context self new-value :referenced-game-object-resources referenced-game-object-connections))))
 
   (input referenced-collection-build-targets g/Any :array)
+  (input referenced-collection-resources g/Any :array)
   (input referenced-collection-scenes g/Any :array)
   (input referenced-game-object-build-targets g/Any :array)
+  (input referenced-game-object-resources g/Any :array)
   (input referenced-game-object-scenes g/Any :array)
 
   ;; Internal outputs.
   (output proj-path->build-target g/Any :cached produce-proj-path->build-target)
+  (output referenced-collection-proj-path->index g/Any :cached (g/fnk [referenced-collection-resources] (game-object-non-editable/resources->proj-path->index referenced-collection-resources)))
   (output referenced-game-object-instance-build-targets g/Any :cached produce-referenced-game-object-instance-build-targets)
+  (output referenced-game-object-proj-path->index g/Any :cached (g/fnk [referenced-game-object-resources] (game-object-non-editable/resources->proj-path->index referenced-game-object-resources)))
   (output embedded-game-object-instance-build-targets g/Any :cached produce-embedded-game-object-instance-build-targets)
 
   ;; Collection interface.

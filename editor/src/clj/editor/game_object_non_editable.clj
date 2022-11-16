@@ -75,20 +75,20 @@
                 (map-indexed flipped-pair))
           (sort-by val embedded-component-resource-data->index))))
 
-(g/defnk produce-referenced-component-proj-path->index [referenced-component-resources]
-  (into {}
-        (map-indexed (fn [index resource]
-                       (pair (resource/proj-path resource)
-                             index)))
-        referenced-component-resources))
+(defn resources->proj-path->index
+  ([resources]
+   (resources->proj-path->index resources nil))
+  ([resources resource-pred]
+   (into {}
+         (cond->> (map-indexed (fn [index resource]
+                                 (pair (resource/proj-path resource)
+                                       index)))
+                  resource-pred (comp (filter resource-pred)))
+         resources)))
 
 (g/defnk produce-referenced-component-proj-path->scene-index [referenced-component-resources]
-  (into {}
-        (comp (filter #(-> % project/resource-node-type (g/has-output? :scene)))
-              (map-indexed (fn [index resource]
-                             (pair (resource/proj-path resource)
-                                   index))))
-        referenced-component-resources))
+  (resources->proj-path->index referenced-component-resources
+                               #(-> % project/resource-node-type (g/has-output? :scene))))
 
 (defn mapv-source-ids [source-id->tx-data basis target-id target-label]
   (into []
@@ -125,14 +125,6 @@
                     (:tx-data (project/connect-resource-node evaluation-context project resource self resource-connections))))
           new-value)))
 
-(defn proj-path->index-setter [evaluation-context self new-value old-sources-input-label resource-connections]
-  (let [basis (:basis evaluation-context)
-        project (project/get-project basis self)]
-    (into (disconnect-connected-nodes-tx-data basis self old-sources-input-label resource-connections)
-          (mapcat (fn [[proj-path]]
-                    (:tx-data (project/connect-resource-node evaluation-context project proj-path self resource-connections))))
-          (sort-by val new-value))))
-
 (g/defnode ComponentHostResourceNode
   (inherits resource-node/NonEditableResourceNode)
 
@@ -159,7 +151,7 @@
   (output embedded-component-resource-data->scene-index g/Any :cached produce-embedded-component-resource-data->scene-index)
   (output embedded-component-scenes g/Any :cached (gu/passthrough embedded-component-scenes))
   (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (mapv util/only-or-throw referenced-component-build-targets)))
-  (output referenced-component-proj-path->index g/Any :cached produce-referenced-component-proj-path->index)
+  (output referenced-component-proj-path->index g/Any :cached (g/fnk [referenced-component-resources] (resources->proj-path->index referenced-component-resources)))
   (output referenced-component-proj-path->scene-index g/Any :cached produce-referenced-component-proj-path->scene-index)
   (output referenced-component-scenes g/Any :cached (gu/passthrough referenced-component-scenes))
   (output resource-property-build-targets g/Any :cached (g/fnk [other-resource-property-build-targets own-resource-property-build-targets] (into other-resource-property-build-targets own-resource-property-build-targets))))
@@ -170,15 +162,6 @@
   ^Matrix4d [{:keys [position rotation scale]}]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
   (math/clj->mat4 position rotation (or scale 1.0)))
-
-(defn- add-default-scale-to-component-descs [component-descs]
-  (mapv game-object-common/add-default-scale-to-component-desc component-descs))
-
-(defn add-default-scale-to-components-in-prototype-desc [prototype-desc]
-  ;; GameObject$PrototypeDesc in map format.
-  (-> prototype-desc
-      (update :components add-default-scale-to-component-descs)
-      (update :embedded-components add-default-scale-to-component-descs)))
 
 (defn prototype-desc->referenced-component-proj-paths [prototype-desc]
   (eduction
@@ -360,7 +343,7 @@
 
   (property prototype-desc g/Any
             (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self old-value new-value]
+            (set (fn [evaluation-context self _old-value new-value]
                    ;; We use default evaluation-context in queries to ensure the
                    ;; results are cached. See comment in connect-resource-node.
                    (let [basis (:basis evaluation-context)
