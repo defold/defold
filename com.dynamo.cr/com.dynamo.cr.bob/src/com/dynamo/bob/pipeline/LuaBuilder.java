@@ -414,7 +414,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     // find sequences of consecutive bytes that differ
                     // max 255 at a time
                     int count = 0;
-                    while(count < 256 && (i + count) < bytecode32.length) {
+                    while(count < 255 && (i + count) < bytecode32.length) {
                         if (bytecode32[i + count] == bytecode64[i + count]) {
                             break;
                         }
