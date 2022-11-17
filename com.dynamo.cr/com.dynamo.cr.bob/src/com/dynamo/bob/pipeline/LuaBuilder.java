@@ -118,6 +118,8 @@ public abstract class LuaBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(params.outExt()));
 
         LuaScanner scanner = getLuaScanner(input);
+        long finalLuaHash = MurmurHash.hash64(scanner.getParsedLua());
+        taskBuilder.addExtraCacheKey(Long.toString(finalLuaHash));
 
         List<LuaScanner.Property> properties = scanner.getProperties();
         for (LuaScanner.Property property : properties) {
