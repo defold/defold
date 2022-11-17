@@ -16,11 +16,14 @@
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.game-object-common :as game-object-common]
+            [editor.geom :as geom]
+            [editor.gl.pass :as pass]
             [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log])
@@ -31,6 +34,7 @@
 (set! *warn-on-reflection* true)
 
 (def collection-icon "icons/32/Icons_09-Collection.png")
+
 (def path-sep "/")
 
 (defn- read-scale3-or-scale [{:keys [scale3 scale] :as _any-instance-desc}]
@@ -309,3 +313,20 @@
        :deps (into (vec (concat game-object-instance-build-targets property-deps))
                    (mapcat :deps)
                    collection-instance-build-targets)})))
+
+(defn any-instance-scene [node-id node-outline-key ^Matrix4d transform-matrix source-scene]
+  {:pre [(g/node-id? node-id)
+         (instance? Matrix4d transform-matrix)
+         (or (nil? source-scene) (map? source-scene))]}
+  (-> source-scene
+      (scene/claim-scene node-id node-outline-key)
+      (assoc :transform transform-matrix
+             :aabb geom/empty-bounding-box
+             :renderable {:passes [pass/selection]})))
+
+(defn collection-scene [node-id child-game-object-and-collection-instance-scenes]
+  {:pre [(g/node-id? node-id)
+         (not (vector? (first child-game-object-and-collection-instance-scenes)))]}
+  {:node-id node-id
+   :aabb geom/null-aabb
+   :children child-game-object-and-collection-instance-scenes})

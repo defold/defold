@@ -113,7 +113,7 @@
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
 
-(g/defnode ImmutableResourceNode
+(g/defnode NonEditableResourceNode
   (inherits ResourceNode)
 
   (property editable g/Bool :unjammable
