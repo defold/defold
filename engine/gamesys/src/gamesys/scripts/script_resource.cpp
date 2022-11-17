@@ -22,6 +22,7 @@
 #include <liveupdate/liveupdate.h>
 #include <render/font_renderer.h>
 #include <resource/resource.h>
+#include <gameobject/gameobject.h>
 
 #include "script_resource.h"
 #include "../gamesys.h"
@@ -211,7 +212,6 @@ struct ResourceModule
     dmResource::HFactory m_Factory;
 } g_ResourceModule;
 
-
 static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
 {
     char msg[256];
@@ -224,6 +224,36 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     }
     dmSnPrintf(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
     return luaL_error(L, "%s", msg);
+}
+
+static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+{
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
+    if (!rd) {
+        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
+        return 0;
+    }
+
+    dmResource::ResourceType resource_type;
+    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
+    if( r != dmResource::RESULT_OK )
+    {
+        ReportPathError(L, r, path_hash);
+    }
+
+    dmResource::ResourceType expected_resource_type;
+    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
+    if( r != dmResource::RESULT_OK )
+    {
+        ReportPathError(L, r, path_hash);
+    }
+
+    if (resource_type != expected_resource_type) {
+        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
+        return 0;
+    }
+
+    return rd->m_Resource;
 }
 
 /*# Set a resource
@@ -596,6 +626,9 @@ static int CreateTexture(lua_State* L)
         return 0;
     }
 
+    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
+    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+
     luaL_checktype(L, 2, LUA_TTABLE);
     uint32_t type        = (uint32_t) CheckTableInteger(L, 2, "type");
     uint32_t width       = (uint32_t) CheckTableInteger(L, 2, "width");
@@ -638,11 +671,35 @@ static int CreateTexture(lua_State* L)
         return ReportPathError(L, res, canonical_path_hash);
     }
 
+    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+
     dmScript::PushHash(L, canonical_path_hash);
     assert((top+1) == lua_gettop(L));
     return 1;
 }
 
+/*# release a texture
+ * Release a texture resource.
+ *
+ * @name resource.release_texture
+ *
+ * @param path [type:string] The path to the resource.
+ *
+ */
+static int ReleaseTexture(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    void* resource = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
+
+    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
+    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+
+    dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
+    dmResource::Release(g_ResourceModule.m_Factory, resource);
+
+    return 0;
+}
 
 /*# set a texture
  * Sets the pixel data for a specific texture.
@@ -835,36 +892,6 @@ static int SetSound(lua_State* L) {
     }
 
     return 0;
-}
-
-static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
-{
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
-    if (!rd) {
-        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
-        return 0;
-    }
-
-    dmResource::ResourceType resource_type;
-    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
-    dmResource::ResourceType expected_resource_type;
-    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
-    if (resource_type != expected_resource_type) {
-        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
-        return 0;
-    }
-
-    return rd->m_Resource;
 }
 
 
@@ -1133,6 +1160,7 @@ static const luaL_reg Module_methods[] =
     {"set", Set},
     {"load", Load},
     {"create_texture", CreateTexture},
+    {"release_texture", ReleaseTexture},
     {"set_texture", SetTexture},
     {"set_sound", SetSound},
     {"get_buffer", GetBuffer},

@@ -416,6 +416,9 @@ namespace dmGameObject
      * Allows for updating transforms an extra time
      */
     void UpdateTransforms(HCollection hcollection);
+
+    void AddDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
+    void RemoveDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 }
 
 #endif // GAMEOBJECT_H

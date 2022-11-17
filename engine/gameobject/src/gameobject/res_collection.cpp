@@ -273,6 +273,7 @@ bail:
     static dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
     {
         HCollection hcollection = (HCollection) params.m_Resource->m_Resource;
+        //ReleaseDynamicResources(hcollection);
         UnloadPropertyResources(params.m_Factory, hcollection->m_Collection->m_PropertyResources);
         DeleteCollection(hcollection); // delay delete
         return dmResource::RESULT_OK;

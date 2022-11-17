@@ -152,7 +152,6 @@ namespace dmGameSystem
         dmResource::HFactory    m_Factory;
         dmGameObject::HRegister m_Register;
         dmHID::HContext         m_HidContext;
-        dmGraphics::HContext    m_GraphicsContext;
     };
 
 
