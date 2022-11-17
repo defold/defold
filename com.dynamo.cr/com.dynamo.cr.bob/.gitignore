@@ -1,9 +1,7 @@
 /build
 /dist
 /tmp
-/lib/*texc_shared*
-/lib/*/*modelc_shared*
-/lib/*modelc_shared*
+/lib/*/*texc_shared*
 /lib/*/*modelc_shared*
 /lib/*/*OpenAL32*
 /lib/*/*wrap_oal*
