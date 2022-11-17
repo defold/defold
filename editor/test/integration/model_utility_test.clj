@@ -17,7 +17,8 @@
             [editor.model-loader :as model-loader]
             [editor.defold-project :as project]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [service.log :as log]))
 
 (defn- sequence-buffer-in-mesh [mesh data-stride data-key index-key]
   (let [partitioned-data (vec (partition data-stride (mesh data-key)))
@@ -64,7 +65,8 @@
 
 (deftest comma-decimal-points-throws-number-format-exception
   (test-util/with-loaded-project
-    (is (g/error? (load-scene workspace project "/mesh/test_autodesk_dae.dae")))))
+    (is (g/error? (log/without-logging
+                    (load-scene workspace project "/mesh/test_autodesk_dae.dae"))))))
 
 (deftest bones
   (test-util/with-loaded-project
