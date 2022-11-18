@@ -289,6 +289,79 @@ public abstract class LuaBuilder extends Builder<Void> {
         return constructBytecode(task, source, inputFile, outputFile, options, env);
     }
 
+    public byte[] constructBytecodeDelta(byte[] bytecode64, byte[] bytecode32) throws CompileExceptionError
+    {
+        // expect same length on 32 and 64 bit bytecode if storing a delta
+        if (bytecode32.length != bytecode64.length) {
+            throw new CompileExceptionError("Byte code length mismatch");
+        }
+
+       /**
+         * Calculate the difference/delta between the 64-bit and 32-bit
+         * bytecode.
+         * The delta is stored together with the 64-bit bytecode and when
+         * the 32-bit bytecode is needed the delta is applied to the 64-bit
+         * bytecode to transform it to the equivalent 32-bit version.
+         * 
+         * The delta is stored in the following format:
+         * 
+         * * index - The index where to apply the next change. 1-4 bytes.
+         *           The size depends on the size of the entire bytecode:
+         *           1 byte - Size less than 2^8
+         *           2 bytes - Size less than 2^16
+         *           3 bytes - Size less than 2^24
+         *           4 bytes - Size more than or equal to 2^24
+         * * count - The number of consecutive bytes to alter. 1 byte (ie max 255 changes)
+         * * bytes - The 32-bit bytecode values to apply to the 64-bit bytecode starting
+         *           at the index.
+         */
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        int i = 0;
+        while(i < bytecode32.length) {
+            // find sequences of consecutive bytes that differ
+            // max 255 at a time
+            int count = 0;
+            while(count < 255 && (i + count) < bytecode32.length) {
+                if (bytecode32[i + count] == bytecode64[i + count]) {
+                    break;
+                }
+                count++;
+            }
+
+            // found a sequence of bytes
+            // write index, count and bytes
+            if (count > 0) {
+                if (count == 256) {
+                    Bob.verbose("\n\nLuaBuilder count %d\n\n", count);
+                }
+
+                // write index of diff
+                bos.write(i);
+                if (bytecode32.length >= (1 << 8)) {
+                    bos.write((i & 0xFF00) >> 8);
+                }
+                if (bytecode32.length >= (1 << 16)) {
+                    bos.write((i & 0xFF0000) >> 16);
+                }
+                if (bytecode32.length >= (1 << 24)) {
+                    bos.write((i & 0xFF000000) >> 24);
+                }
+
+                bos.write(count);
+
+                // write consecutive bytes that differ
+                bos.write(bytecode32, i, count);
+                i += count;
+            }
+            else {
+                i += 1;
+            }
+        }
+
+        byte[] delta = bos.toByteArray();
+        return delta;
+    }
+
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
@@ -359,12 +432,9 @@ public abstract class LuaBuilder extends Builder<Void> {
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         else {
+            boolean useLuaBytecodeDelta = this.project.option("use-lua-bytecode-delta", "false").equals("true");
             byte[] bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
             byte[] bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
-
-            if (bytecode32.length != bytecode64.length) {
-                throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
-            }
 
             List<Platform> architectures = project.getArchitectures();
             if (architectures.size() == 1) {
@@ -378,71 +448,17 @@ public abstract class LuaBuilder extends Builder<Void> {
                     Bob.verbose("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
                 }
             }
+            else if (!useLuaBytecodeDelta) {
+                Bob.verbose("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
+                srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
+                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+            }
             else {
+                byte[] delta = constructBytecodeDelta(bytecode32, bytecode64);
+                srcBuilder.setDelta(ByteString.copyFrom(delta));
+
                 Bob.verbose("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
-
-                /**
-                 * Calculate the difference/delta between the 64-bit and 32-bit
-                 * bytecode.
-                 * The delta is stored together with the 64-bit bytecode and when
-                 * the 32-bit bytecode is needed the delta is applied to the 64-bit
-                 * bytecode to transform it to the equivalent 32-bit version.
-                 * 
-                 * The delta is stored in the following format:
-                 * 
-                 * * index - The index where to apply the next change. 1-4 bytes.
-                 *           The size depends on the size of the entire bytecode:
-                 *           1 byte - Size less than 2^8
-                 *           2 bytes - Size less than 2^16
-                 *           3 bytes - Size less than 2^24
-                 *           4 bytes - Size more than or equal to 2^24
-                 * * count - The number of consecutive bytes to alter. 1 byte (ie max 255 changes)
-                 * * bytes - The 32-bit bytecode values to apply to the 64-bit bytecode starting
-                 *           at the index.
-                 */
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                int i = 0;
-                while(i < bytecode32.length) {
-                    // find sequences of consecutive bytes that differ
-                    // max 255 at a time
-                    int count = 0;
-                    while(count < 256 && (i + count) < bytecode32.length) {
-                        if (bytecode32[i + count] == bytecode64[i + count]) {
-                            break;
-                        }
-                        count++;
-                    }
-
-                    // found a sequence of bytes
-                    // write index, count and bytes
-                    if (count > 0) {
-
-                        // write index of diff
-                        bos.write(i);
-                        if (bytecode32.length >= (1 << 8)) {
-                            bos.write((i & 0xFF00) >> 8);
-                        }
-                        if (bytecode32.length >= (1 << 16)) {
-                            bos.write((i & 0xFF0000) >> 16);
-                        }
-                        if (bytecode32.length >= (1 << 24)) {
-                            bos.write((i & 0xFF000000) >> 24);
-                        }
-
-                        bos.write(count);
-
-                        // write consecutive bytes that differ
-                        bos.write(bytecode32, i, count);
-                        i += count;
-                    }
-                    else {
-                        i += 1;
-                    }
-                }
-
-                byte[] delta = bos.toByteArray();
-                srcBuilder.setDelta(ByteString.copyFrom(delta));
             }
         }
 
