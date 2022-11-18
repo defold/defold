@@ -30,7 +30,6 @@ namespace dmGameSystem
         uint8_t*                  m_DecompressedData[MAX_MIPMAP_COUNT];
         uint32_t                  m_DecompressedDataSize[MAX_MIPMAP_COUNT];
         uint8_t                   m_DDFImageRaw : 1; // 1 if image was created from raw data, i.e not an actual ddf message
-        uint8_t                                 : 7;
     };
 
     static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format)
@@ -211,8 +210,8 @@ namespace dmGameSystem
             {
                 for (uint32_t i = 0; i < num_mips; ++i)
                 {
-                    params.m_MipMap = i;
-                    params.m_Data = image_desc->m_DecompressedData[i] == 0 ? &image->m_Data[image->m_MipMapOffset[i]] : image_desc->m_DecompressedData[i];
+                    params.m_MipMap   = i;
+                    params.m_Data     = image_desc->m_DecompressedData[i] == 0 ? &image->m_Data[image->m_MipMapOffset[i]] : image_desc->m_DecompressedData[i];
                     params.m_DataSize = image_desc->m_DecompressedData[i] == 0 ? image->m_MipMapSize[i] : image_desc->m_DecompressedDataSize[i];
                     dmGraphics::SetTextureAsync(texture, params);
 
@@ -264,7 +263,7 @@ namespace dmGameSystem
         return result;
     }
 
-    ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, bool texture_image_raw)
+    static ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, bool texture_image_raw)
     {
         ImageDesc* image_desc = new ImageDesc;
         memset(image_desc, 0x0, sizeof(ImageDesc));

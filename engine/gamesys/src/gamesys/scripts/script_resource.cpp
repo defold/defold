@@ -497,10 +497,12 @@ static dmResource::Result GetTextureDataCb(const dmResource::GetResourceDataCall
     return dmResource::RESULT_OK;
 }
 
-static dmGraphics::TextureImage MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp, dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format)
+static dmGraphics::TextureImage MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp,
+    dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format)
 {
     uint32_t* mip_map_sizes   = new uint32_t[max_mipmaps];
     uint32_t* mip_map_offsets = new uint32_t[max_mipmaps];
+    uint8_t layer_count       = type == dmGraphics::TextureImage::TYPE_CUBEMAP ? 6 : 1;
 
     uint32_t data_size = 0;
     uint16_t mm_width  = width;
@@ -508,15 +510,36 @@ static dmGraphics::TextureImage MakeTextureImage(uint16_t width, uint16_t height
     for (uint32_t i = 0; i < max_mipmaps; ++i)
     {
         mip_map_sizes[i]   = dmMath::Max(mm_width, mm_height);
-        mip_map_offsets[i] = data_size / 8;
-        data_size += mm_width * mm_height * bitspp;
+        mip_map_offsets[i] = (data_size / 8);
+        data_size += mm_width * mm_height * bitspp * layer_count;
         mm_width  /= 2;
         mm_height /= 2;
     }
     assert(data_size > 0);
 
-    uint32_t image_data_size = data_size / 8; // bits -> bytes for compression formats
-    uint8_t* image_data      = new uint8_t[image_data_size];
+    data_size                *= layer_count;
+    uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
+    uint8_t* image_data       = new uint8_t[image_data_size];
+
+    /* DEBUG CODE REMOVE THIS!
+    uint32_t data_offset = 0;
+    for (uint32_t i = 0; i < max_mipmaps; ++i)
+    {
+        uint8_t* start = image_data + data_offset;
+        uint32_t byte_size = 0;
+        if (i != (max_mipmaps-1))
+        {
+            byte_size = mip_map_offsets[i+1] - data_offset;
+        }
+        else
+        {
+            byte_size = image_data_size - data_offset;
+        }
+        data_offset += byte_size;
+        float val = ((float)i / (float)max_mipmaps) * 191;
+        memset(start, 64 + val, byte_size);
+    }
+    */
 
     dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
     dmGraphics::TextureImage texture_image = {};
@@ -599,6 +622,21 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
  *
+ * @examples
+ * How to create an 128x128 RGBA texture resource and assign it to a model
+ *
+ * ```lua
+ * function init(self)
+ *     local tparams = {
+ *        width          = 128,
+ *        height         = 128,
+ *        type           = resource.TEXTURE_TYPE_2D,
+ *        format         = resource.TEXTURE_FORMAT_RGBA,
+ *    }
+ *    local my_texture_id = resource.create_texture(path, tparams)
+ *    go.set("#model", "texture0", my_texture_id)
+ * end
+ * ```
  */
 static int CreateTexture(lua_State* L)
 {
@@ -612,7 +650,7 @@ static int CreateTexture(lua_State* L)
 
     if (dmStrCaseCmp(path_ext, texturec_ext) != 0)
     {
-        luaL_error(L, "Unable to create texture - path '%s' must have the %s extension", path_str, texturec_ext);
+        luaL_error(L, "Unable to create texture, path '%s' must have the %s extension", path_str, texturec_ext);
         return 0;
     }
 
@@ -622,7 +660,7 @@ static int CreateTexture(lua_State* L)
 
     if (dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash))
     {
-        luaL_error(L, "Unable to create texture - a resource is already registered at path '%s'", path_str);
+        luaL_error(L, "Unable to create texture, a resource is already registered at path '%s'", path_str);
         return 0;
     }
 
@@ -651,7 +689,6 @@ static int CreateTexture(lua_State* L)
     dmGraphics::TextureImage::TextureFormat tex_format = (dmGraphics::TextureImage::TextureFormat) GraphicsTextureFormatToImageFormat(format);
     dmGraphics::TextureImage texture_image             = MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format);
 
-    // JG: Do we need to lock the load mutex here?
     dmMutex::HMutex mutex = dmResource::GetLoadMutex(g_ResourceModule.m_Factory);
     while(!dmMutex::TryLock(mutex))
     {
@@ -678,25 +715,31 @@ static int CreateTexture(lua_State* L)
     return 1;
 }
 
-/*# release a texture
- * Release a texture resource.
+/*# release a resource
+ * Release a resource. Note that this is a potentially dangerous operation, releasing resources
+ * currently being used can cause unexpected behaviour.
  *
- * @name resource.release_texture
+ * @name resource.release
  *
- * @param path [type:string] The path to the resource.
+ * @param path [type:hash|string] The path to the resource.
  *
  */
-static int ReleaseTexture(lua_State* L)
+static int ReleaseResource(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-    void* resource = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
+
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+    if (!rd) {
+        luaL_error(L, "Could not get resource: %s", dmHashReverseSafe64(path_hash));
+        return 0;
+    }
 
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
     dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
-    dmResource::Release(g_ResourceModule.m_Factory, resource);
+    dmResource::Release(g_ResourceModule.m_Factory, rd->m_Resource);
 
     return 0;
 }
@@ -1160,7 +1203,7 @@ static const luaL_reg Module_methods[] =
     {"set", Set},
     {"load", Load},
     {"create_texture", CreateTexture},
-    {"release_texture", ReleaseTexture},
+    {"release", ReleaseResource},
     {"set_texture", SetTexture},
     {"set_sound", SetSound},
     {"get_buffer", GetBuffer},

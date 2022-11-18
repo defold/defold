@@ -93,14 +93,24 @@ namespace dmResource
         void* m_UserData;
     };
 
+    /**
+     * Parameters to GetResourceDataCallback.
+     */
     struct GetResourceDataCallbackParams
     {
+        /// Factory handle
         HFactory    m_Factory;
+        /// The unhashed canonical path to a resource, e.g. "/my/icon.texturec"
         const char* m_CanonicalPath;
+        /// The name of the resource
         const char* m_Name;
+        /// Contains a pointer to raw data message, i.e not DDF data.
         void**      m_Message;
+        /// Contains a pointer to a DDF message
         void**      m_Buffer;
+        /// Size of buffer stored in m_Buffer
         uint32_t*   m_BufferSize;
+        /// User data passed along with the GetResourceDataCallback
         void*       m_UserData;
     };
 
@@ -112,6 +122,13 @@ namespace dmResource
      */
     typedef bool (*FPreloaderCompleteCallback)(const PreloaderCompleteCallbackParams* params);
 
+    /**
+     * Function called by CreateResource before preloading the resource. This can be used to hook into the resource
+     * loading system for resources from custom data.
+     * @param GetResourceDataCallbackParams parameters passed to callback function
+     * @return RESULT_OK on success
+     * @see CreateResource
+     */
     typedef Result (*GetResourceDataCallback)(const GetResourceDataCallbackParams* params);
 
     /**
@@ -185,11 +202,25 @@ namespace dmResource
      */
     SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
 
-    // TODO: Docs
+    /**
+     * Creates and inserts a resource into the factory
+     * @param factory Factory handle
+     * @param get_resource_data_cb Callback for getting data to create resource from
+     * @param name Name of the resource
+     * @param userdata Userdata to pass along to the get_resource_data_cb function
+     * @param resource Will contain a pointer to the resource after this function has completed
+     * @return RESULT_OK on success
+     */
     Result CreateResource(HFactory factory, GetResourceDataCallback get_resource_data_cb, const char* name, void* userdata, void** resource);
 
-    // TODO: Docs
-    const char* GetExtFromPath(const char* name, char* buffer, uint32_t buffersize);
+    /**
+     * Get a resource extension from a path, i.e resource.ext will return .ext. Note the included dot in the output.
+     * @param path The path to the resource
+     * @param buffer Pointer to buffer to use when getting the extension
+     * @param buffersize Size of buffer
+     * @return Pointer to extension string if success (same as buffer), 0 otherwise
+     */
+    const char* GetExtFromPath(const char* path, char* buffer, uint32_t buffersize);
 
     /**
      * Get raw resource data. Unregistered resources can be loaded with this function.
@@ -434,6 +465,12 @@ namespace dmResource
      */
     Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
 
+    /**
+     * Gets the actual resource path e.g. "/my/icon.texturec".
+     * @param relative_dir the relative dir of the resource
+     * @param buf the result of the operation
+     * @return the length of the buffer
+     */
     uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
 
     void RegisterArchiveLoader();
