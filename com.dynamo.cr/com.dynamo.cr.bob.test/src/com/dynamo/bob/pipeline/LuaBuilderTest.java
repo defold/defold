@@ -191,10 +191,26 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testLuaJITBytecode32And64WithoutDelta() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "armv7-android");
+        p.setOption("architectures", "armv7-android,arm64-android");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript().size() == 0);
+        assertTrue(luaSource.getBytecode32().size() > 0);
+        assertTrue(luaSource.getBytecode64().size() > 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+    }
+
+    @Test
     public void testLuaJITBytecode64WithDelta() throws Exception {
         Project p = GetProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "armv7-android,arm64-android");
+        p.setOption("use-lua-bytecode-delta", "true");
 
         StringBuilder src = new StringBuilder();
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
