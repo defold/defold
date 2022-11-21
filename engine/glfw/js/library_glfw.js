@@ -578,9 +578,10 @@ var LibraryGLFW = {
                   //In case when user change gamepad while browser in background (minimized)
                   GLFW.disconnectJoystick(joy);
                 }
+                var gamepad_id = (gamepad.mapping == "standard") ? "Standard Gamepad" : gamepad.id;
                 GLFW.joys[joy] = {
-                  id: allocate(intArrayFromString(gamepad.id), ALLOC_NORMAL),
-                  id_string: gamepad.id,
+                  id: allocate(intArrayFromString(gamepad_id), ALLOC_NORMAL),
+                  id_string: gamepad_id,
                   axesCount: gamepad.axes.length,
                   buttonsCount: gamepad.buttons.length
                 };
