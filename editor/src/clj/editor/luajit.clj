@@ -71,8 +71,8 @@
 (defn- compile-file
   [proj-path ^File input ^File output arch]
   (let [{:keys [exit out err]} (shell/sh (luajit-exec-path arch)
-                                         "-bgf"
-                                         (str "@" (luajit-path-to-chunk-name proj-path))
+                                         "-bgF"
+                                         (luajit-path-to-chunk-name proj-path) ;; "@" is added by the luajit executable
                                          (.getAbsolutePath input)
                                          (.getAbsolutePath output)
                                          :env {"LUA_PATH" (str (luajit-lua-path) "/?.lua")})]

@@ -16,7 +16,8 @@
             [integration.test-util :as test-util]
             [editor.math :as math]
             [editor.model-scene :as model-scene]
-            [editor.types :as types])
+            [editor.types :as types]
+            [service.log :as log])
   (:import [javax.vecmath Point3d]))
 
 (deftest aabb
@@ -44,5 +45,6 @@
 (deftest invalid-scene
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/mesh/invalid.dae")
-          scene (g/node-value node-id :scene)]
+          scene (log/without-logging
+                  (g/node-value node-id :scene))]
       (is (g/error? scene)))))

@@ -111,14 +111,15 @@ local function encode_as_primitive(val)
   return encoder(val)
 end
 
-local function collect_refs(val, refs)
+local function collect_refs(depth, val, refs)
   local t = type(val)
   if t == "table" then
-    if not refs[val] then
+    if depth < 100 and not refs[val] then
       refs[val] = val
+      local next_depth = depth + 1
       for k, v in pairs(val) do
-        collect_refs(k, refs)
-        collect_refs(v, refs)
+        collect_refs(next_depth, k, refs)
+        collect_refs(next_depth, v, refs)
       end
     end
   end
@@ -147,7 +148,7 @@ end
 
 local function encode_structure(val)
   local refs = {}
-  local encoded_refs = encode_refs(collect_refs(val, refs))
+  local encoded_refs = encode_refs(collect_refs(0, val, refs))
   return "#lua/structure{:value " .. encode_as_primitive(val) .. " :refs " .. encoded_refs .. "}"
 end
 
