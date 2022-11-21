@@ -113,13 +113,9 @@ namespace dmInput
         }
     }
 
-    static GamepadConfig* GetGamepadConfigFromDeviceName(HBinding binding, const uint32_t device_name_hash, const uint32_t generic_device_name_hash)
+    static GamepadConfig* GetGamepadConfigFromDeviceName(HBinding binding, const uint32_t device_name_hash)
     {
         GamepadConfig* config = binding->m_Context->m_GamepadMaps.Get(device_name_hash);
-        if (config == 0x0)
-        {
-            config = binding->m_Context->m_GamepadMaps.Get(generic_device_name_hash);
-        }
         if (config == 0x0)
         {
             config = binding->m_Context->m_GamepadMaps.Get(UNKNOWN_GAMEPAD_CONFIG_ID);
@@ -131,8 +127,7 @@ namespace dmInput
     {
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
         const char* device_name = 0x0;
-        const char* generic_device_name = 0x0;
-        dmHID::GetGamepadDeviceName(gamepad, &device_name, &generic_device_name);
+        dmHID::GetGamepadDeviceName(gamepad, &device_name);
         if (device_name == 0x0)
         {
             /*
@@ -147,7 +142,7 @@ namespace dmInput
              */
             return 0x0;
         } else {
-            GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_name), dmHashString32(generic_device_name));
+            GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_name));
             if (config == 0x0)
             {
                 dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
@@ -683,10 +678,8 @@ namespace dmInput
                     if (connected)
                     {
                         const char* device_name;
-                        const char* generic_device_name;
-                        dmHID::GetGamepadDeviceName(gamepad, &device_name, &generic_device_name);
+                        dmHID::GetGamepadDeviceName(gamepad, &device_name);
                         gamepad_binding->m_DeviceId = dmHashString32(device_name);
-                        gamepad_binding->m_GenericDeviceId = dmHashString32(generic_device_name);
                         gamepad_binding->m_Connected = 1;
                         gamepad_binding->m_NoMapWarning = 0;
                     }
@@ -702,7 +695,7 @@ namespace dmInput
                     dmHID::GamepadPacket* packet = &gamepad_binding->m_Packet;
 
                     dmHID::GamepadPacket* prev_packet = &gamepad_binding->m_PreviousPacket;
-                    GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, gamepad_binding->m_DeviceId, gamepad_binding->m_GenericDeviceId);
+                    GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, gamepad_binding->m_DeviceId);
                     if (config != 0x0)
                     {
                         dmHID::GetGamepadPacket(gamepad, packet);
@@ -758,8 +751,7 @@ namespace dmInput
                                     if (action->m_GamepadConnected)
                                     {
                                         const char* device_name;
-                                        const char* generic_device_name;
-                                        dmHID::GetGamepadDeviceName(gamepad, &device_name, &generic_device_name);
+                                        dmHID::GetGamepadDeviceName(gamepad, &device_name);
                                         action->m_TextCount = dmStrlCpy(action->m_Text, device_name, sizeof(action->m_Text));
                                     }
                                 }

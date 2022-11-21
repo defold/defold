@@ -246,7 +246,6 @@ void _glfwPlatformUnacquireAuxContextOpenGL(void* context);
 void _glfwPlatformSetViewType(int view_type);
 void _glfwPlatformSetWindowBackgroundColor(unsigned int color);
 float _glfwPlatformGetDisplayScaleFactor();
-int _glfwPlatformGetJoystickGenericDeviceId( int joy, char** generic_device_id );
 
 //========================================================================
 // Prototypes for platform independent internal functions

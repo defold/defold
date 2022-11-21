@@ -80,10 +80,9 @@ namespace dmHID
         context->m_Gamepads[0].m_AxisCount = MAX_GAMEPAD_AXIS_COUNT;
     }
 
-    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name, const char** out_generic_device_name)
+    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name)
     {
         *out_device_name = "null_device";
-        *out_generic_device_name = "null_device";
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)

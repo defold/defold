@@ -135,15 +135,3 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id )
 
     return _glfwPlatformGetJoystickDeviceId( joy, device_id );
 }
-
-
-GLFWAPI int glfwGetJoystickGenericDeviceId( int joy, char** generic_device_id )
-{
-    // Is GLFW initialized?
-    if( !_glfwInitialized )
-    {
-        return 0;
-    }
-
-    return _glfwPlatformGetJoystickGenericDeviceId( joy, generic_device_id );
-}

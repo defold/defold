@@ -223,9 +223,8 @@ static void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
 
     if (connected) {
         const char* name;
-        const char* generic_name;
-        dmHID::GetGamepadDeviceName(pad, &name, &generic_name);
-        printf("Gamepad %d connected: %s (%s)\n", gamepad_index, name, generic_name);
+        dmHID::GetGamepadDeviceName(pad, &name);
+        printf("Gamepad %d connected: %s (%s)\n", gamepad_index, name);
     } else {
         printf("Gamepad %d disconnected\n", gamepad_index);
     }

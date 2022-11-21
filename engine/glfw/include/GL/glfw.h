@@ -571,7 +571,6 @@ GLFWAPI void glfwSetViewType(int view_type);
 GLFWAPI void glfwSetWindowBackgroundColor(unsigned int color);
 GLFWAPI float glfwGetDisplayScaleFactor();
 GLFWAPI int glfwGetMouseLocked();
-GLFWAPI int glfwGetJoystickGenericDeviceId( int joy, char** generic_device_id );
 
 // Defold extensions (Android)
 #if defined(ANDROID)
