@@ -226,36 +226,6 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     return luaL_error(L, "%s", msg);
 }
 
-static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
-{
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
-    if (!rd) {
-        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
-        return 0;
-    }
-
-    dmResource::ResourceType resource_type;
-    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
-    dmResource::ResourceType expected_resource_type;
-    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
-    if (resource_type != expected_resource_type) {
-        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
-        return 0;
-    }
-
-    return rd->m_Resource;
-}
-
 /*# Set a resource
  * Sets the resource data for a specific resource
  *
@@ -521,26 +491,6 @@ static dmGraphics::TextureImage MakeTextureImage(uint16_t width, uint16_t height
     uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
     uint8_t* image_data       = new uint8_t[image_data_size];
 
-    /* DEBUG CODE REMOVE THIS!
-    uint32_t data_offset = 0;
-    for (uint32_t i = 0; i < max_mipmaps; ++i)
-    {
-        uint8_t* start = image_data + data_offset;
-        uint32_t byte_size = 0;
-        if (i != (max_mipmaps-1))
-        {
-            byte_size = mip_map_offsets[i+1] - data_offset;
-        }
-        else
-        {
-            byte_size = image_data_size - data_offset;
-        }
-        data_offset += byte_size;
-        float val = ((float)i / (float)max_mipmaps) * 191;
-        memset(start, 64 + val, byte_size);
-    }
-    */
-
     dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
     dmGraphics::TextureImage texture_image = {};
     texture_image.m_Alternatives.m_Data    = image;
@@ -648,7 +598,7 @@ static int CreateTexture(lua_State* L)
     char buf_ext[64];
     const char* path_ext = dmResource::GetExtFromPath(path_str, buf_ext, sizeof(buf_ext));
 
-    if (dmStrCaseCmp(path_ext, texturec_ext) != 0)
+    if (path_ext == 0x0 || dmStrCaseCmp(path_ext, texturec_ext) != 0)
     {
         luaL_error(L, "Unable to create texture, path '%s' must have the %s extension", path_str, texturec_ext);
         return 0;
@@ -683,6 +633,7 @@ static int CreateTexture(lua_State* L)
         max_mipmaps = max_mipmaps_actual;
     }
 
+    // Max mipmap count is inclusive, so need at least 1
     max_mipmaps                                        = dmMath::Max((uint32_t) 1, max_mipmaps);
     uint32_t tex_bpp                                   = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
     dmGraphics::TextureImage::Type tex_type            = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
@@ -738,6 +689,8 @@ static int ReleaseResource(lua_State* L)
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
+    // This will remove the entry in the collections list of dynamically allocated resource (if it exists),
+    // but we do the actual release here since we allow releasing arbitrary resources now
     dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
     dmResource::Release(g_ResourceModule.m_Factory, rd->m_Resource);
 
@@ -937,6 +890,35 @@ static int SetSound(lua_State* L) {
     return 0;
 }
 
+static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+{
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
+    if (!rd) {
+        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
+        return 0;
+    }
+
+    dmResource::ResourceType resource_type;
+    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
+    if( r != dmResource::RESULT_OK )
+    {
+        ReportPathError(L, r, path_hash);
+    }
+
+    dmResource::ResourceType expected_resource_type;
+    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
+    if( r != dmResource::RESULT_OK )
+    {
+        ReportPathError(L, r, path_hash);
+    }
+
+    if (resource_type != expected_resource_type) {
+        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
+        return 0;
+    }
+
+    return rd->m_Resource;
+}
 
 /*# get resource buffer
  * gets the buffer from a resource
