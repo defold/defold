@@ -39,7 +39,6 @@
            ["Alt+Meta+E" :select-next-occurrence]
            ["Alt+Meta+F" :replace-text]
            ["Alt+Meta+G" :replace-next]
-           ["Alt+Meta+Y" :async-reload]
            ["Alt+Right" :next-word]
            ["Alt+Up" :beginning-of-line]
            ["Alt+Up" :move-up]
@@ -138,6 +137,7 @@
            ["Shift+Meta+T" :reopen-recent-file]
            ["Shift+Meta+Up" :select-beginning-of-file]
            ["Shift+Meta+W" :close-all]
+           ["Shift+Meta+Y" :async-reload]
            ["Shift+Meta+Z" :redo]
            ["Shift+Page Down" :select-page-down]
            ["Shift+Page Up" :select-page-up]
@@ -159,7 +159,6 @@
            ["Ctrl+'+'" :zoom-in]
            ["Ctrl+'-'" :zoom-out]
            ["Ctrl+A" :select-all]
-           ["Ctrl+Alt+Y" :async-reload]
            ["Ctrl+B" :build]
            ["Ctrl+Backspace" :delete-prev-word]
            ["Ctrl+C" :copy]
@@ -234,6 +233,7 @@
            ["Shift+Ctrl+Right" :select-next-word]
            ["Shift+Ctrl+T" :reopen-recent-file]
            ["Shift+Ctrl+W" :close-all]
+           ["Shift+Ctrl+Y" :async-reload]
            ["Shift+Ctrl+Z" :redo]
            ["Shift+Down" :down-major]
            ["Shift+Down" :select-down]
@@ -264,7 +264,6 @@
            ["Ctrl+'+'" :zoom-in]
            ["Ctrl+'-'" :zoom-out]
            ["Ctrl+A" :select-all]
-           ["Ctrl+Alt+Y" :async-reload]
            ["Ctrl+B" :build]
            ["Ctrl+Backspace" :delete-prev-word]
            ["Ctrl+C" :copy]
@@ -339,6 +338,7 @@
            ["Shift+Ctrl+Right" :select-next-word]
            ["Shift+Ctrl+T" :reopen-recent-file]
            ["Shift+Ctrl+W" :close-all]
+           ["Shift+Ctrl+Y" :async-reload]
            ["Shift+Ctrl+Z" :redo]
            ["Shift+Down" :down-major]
            ["Shift+Down" :select-down]
@@ -381,14 +381,13 @@
 ;; These are only (?) used in contexts where there is no text field
 ;; interested in the actual typable input.
 (def ^:private default-allowed-typable-shortcuts
-  #{"A"          ; :add
-    "E"          ; :rotate-tool
-    "F"          ; :frame-selection
-    "R"          ; :scale-tool
-    "W"          ; :move-tool
-    "Ctrl+Alt+Y" ; :async-reload
-    "Shift+A"    ; :add-secondary
-    "Shift+E"})  ; :erase-tool
+  #{"A"         ; :add
+    "E"         ; :rotate-tool
+    "F"         ; :frame-selection
+    "R"         ; :scale-tool
+    "W"         ; :move-tool
+    "Shift+A"   ; :add-secondary
+    "Shift+E"}) ; :erase-tool
 
 (defprotocol KeyComboData
   (key-combo->map [this] "returns a data representation of a KeyCombination."))
