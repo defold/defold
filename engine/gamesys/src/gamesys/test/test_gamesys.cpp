@@ -130,6 +130,13 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
     return Spawn(factory, collection, prototype_name, id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
 }
 
+static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
+    dmGameObject::UpdateContext ctx;
+    dmGameObject::Update(collection, &ctx);
+    dmGameObject::Delete(collection, instance, false);
+    dmGameObject::PostUpdate(collection);
+}
+
 TEST_P(ResourceTest, Test)
 {
     const char* resource_name = GetParam();
@@ -216,22 +223,19 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     void* resource = 0x0;
     dmhash_t res_hash = dmHashString64("/test_simple.texturec");
     dmResource::SResourceDescriptor* rd = dmResource::FindByHash(m_Factory, res_hash);
-    ASSERT_EQ(1, rd->m_ReferenceCount);
+    ASSERT_EQ(2, rd->m_ReferenceCount);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_simple.texturec", &resource));
     ASSERT_TRUE(resource != 0x0);
 
     // 1 for create 1 for get
-    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, res_hash));
+    ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, res_hash));
 
     ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 2: remove resource twice (should delete)
+    // Test 2: remove resource twice (#model has 1 ref still)
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, res_hash));
-
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 3: fail by using use wrong extension
@@ -246,11 +250,20 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 5: fail by trying to release a resource that doesn't exist
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
     // cleanup
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    DeleteInstance(m_Collection, go);
+
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
@@ -557,13 +570,6 @@ TEST_P(ComponentFailTest, Test)
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_name);
     ASSERT_EQ((void*)0, go);
-}
-
-static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
-    dmGameObject::UpdateContext ctx;
-    dmGameObject::Update(collection, &ctx);
-    dmGameObject::Delete(collection, instance, false);
-    dmGameObject::PostUpdate(collection);
 }
 
 static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t* out_val) {

@@ -32,32 +32,44 @@ local tparams = {
 }
 
 function test_simple()
-	resource.create_texture("/test_simple.texturec", tparams)
+	local t_id = resource.create_texture("/test_simple.texturec", tparams)
+	go.set("#model", "texture0", t_id)
 end
 
 function test_release()
 	resource.release("/test_simple.texturec")
+	resource.release("/test_simple.texturec")
 end
 
 function test_wrong_ext()
-	resource.create_texture("no_ext", tparams)
+	assert_error(function()
+		resource.create_texture("no_ext", tparams)
+	end)
 end
 
 function test_already_exist()
-	resource.create_texture("/test_exists.texturec", tparams)
-	resource.create_texture("/test_exists.texturec", tparams)
+	assert_error(function()
+		resource.create_texture("/test_exists.texturec", tparams)
+		resource.create_texture("/test_exists.texturec", tparams)
+	end)
+end
+
+function test_release_not_found()
+	assert_error(function()
+		resource.release("/not_found")
+	end)
 end
 
 function update(self)
-	if self.update_counter == 0 then
-		test_simple()
-	elseif self.update_counter == 1 or self.update_counter == 2 then
-		test_release()
-	elseif self.update_counter == 3 then
-		assert_error(test_wrong_ext)
-	elseif self.update_counter == 4 then
-		assert_error(test_already_exist)
-	end
-
 	self.update_counter = self.update_counter + 1
+
+	local tests = {
+		test_simple,
+		test_release,
+		test_wrong_ext,
+		test_already_exist,
+		test_release_not_found
+	}
+
+	tests[self.update_counter]()
 end
