@@ -72,20 +72,13 @@ namespace dmLoadQueue
             return RESULT_INVALID_PARAM;
         }
 
-        dmResource::GetResourceDataCallbackParams get_resource_data_params = {};
-        get_resource_data_params.m_Factory                                 = queue->m_Factory;
-        get_resource_data_params.m_CanonicalPath                           = request->m_CanonicalPath;
-        get_resource_data_params.m_Name                                    = request->m_Name;
-        get_resource_data_params.m_Buffer                                  = buf;
-        get_resource_data_params.m_BufferSize                              = size;
-
-        load_result->m_LoadResult    = dmResource::LoadResource(&get_resource_data_params);
+        load_result->m_LoadResult    = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
         load_result->m_PreloadResult = dmResource::RESULT_PENDING;
         load_result->m_PreloadData   = 0;
 
         if (load_result->m_LoadResult == dmResource::RESULT_OK && request->m_PreloadInfo.m_Function)
         {
-            dmResource::ResourcePreloadParams params = {};
+            dmResource::ResourcePreloadParams params;
             params.m_Factory             = queue->m_Factory;
             params.m_Context             = request->m_PreloadInfo.m_Context;
             params.m_Buffer              = *buf;

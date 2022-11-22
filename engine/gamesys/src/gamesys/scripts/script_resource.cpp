@@ -16,7 +16,6 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
-#include <dlib/time.h> // sleep
 #include <gamesys/mesh_ddf.h>
 #include <graphics/graphics_ddf.h>
 #include <liveupdate/liveupdate.h>
@@ -461,12 +460,6 @@ static int GraphicsTextureTypeToImageType(int texturetype)
     return -1;
 }
 
-static dmResource::Result GetTextureDataCb(const dmResource::GetResourceDataCallbackParams* params)
-{
-    *params->m_Message = (dmGraphics::TextureImage*) params->m_UserData;
-    return dmResource::RESULT_OK;
-}
-
 static dmGraphics::TextureImage MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp,
     dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format)
 {
@@ -572,6 +565,8 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
  *
+ * @return path [type:hash] The path to the resource.
+ *
  * @examples
  * How to create an 128x128 RGBA texture resource and assign it to a model
  *
@@ -640,16 +635,12 @@ static int CreateTexture(lua_State* L)
     dmGraphics::TextureImage::TextureFormat tex_format = (dmGraphics::TextureImage::TextureFormat) GraphicsTextureFormatToImageFormat(format);
     dmGraphics::TextureImage texture_image             = MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format);
 
-    dmMutex::HMutex mutex = dmResource::GetLoadMutex(g_ResourceModule.m_Factory);
-    while(!dmMutex::TryLock(mutex))
-    {
-        dmTime::Sleep(100);
-    }
+    dmArray<uint8_t> ddf_buffer;
+    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
+    assert(ddf_result == dmDDF::RESULT_OK);
 
     void* resource = 0x0;
-    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, GetTextureDataCb, path_str, &texture_image, &resource);
-
-    dmMutex::Unlock(mutex);
+    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
 
     DestroyTextureImage(texture_image);
 
@@ -667,8 +658,9 @@ static int CreateTexture(lua_State* L)
 }
 
 /*# release a resource
- * Release a resource. Note that this is a potentially dangerous operation, releasing resources
- * currently being used can cause unexpected behaviour.
+ * Release a resource.
+ *
+ * @warning This is a potentially dangerous operation, releasing resources currently being used can cause unexpected behaviour.
  *
  * @name resource.release
  *

@@ -94,42 +94,12 @@ namespace dmResource
     };
 
     /**
-     * Parameters to GetResourceDataCallback.
-     */
-    struct GetResourceDataCallbackParams
-    {
-        /// Factory handle
-        HFactory    m_Factory;
-        /// The unhashed canonical path to a resource, e.g. "/my/icon.texturec"
-        const char* m_CanonicalPath;
-        /// The name of the resource
-        const char* m_Name;
-        /// Contains a pointer to raw data message, i.e not DDF data.
-        void**      m_Message;
-        /// Contains a pointer to a DDF message
-        void**      m_Buffer;
-        /// Size of buffer stored in m_Buffer
-        uint32_t*   m_BufferSize;
-        /// User data passed along with the GetResourceDataCallback
-        void*       m_UserData;
-    };
-
-    /**
      * Function called by UpdatePreloader when preoloading is complete and before postcreate callbacks are processed.
      * @param PreloaderCompleteCallbackParams parameters passed to callback function
      * @return true if succeeded
      * @see UpdatePreloader
      */
     typedef bool (*FPreloaderCompleteCallback)(const PreloaderCompleteCallbackParams* params);
-
-    /**
-     * Function called by CreateResource before preloading the resource. This can be used to hook into the resource
-     * loading system for resources from custom data.
-     * @param GetResourceDataCallbackParams parameters passed to callback function
-     * @return RESULT_OK on success
-     * @see CreateResource
-     */
-    typedef Result (*GetResourceDataCallback)(const GetResourceDataCallbackParams* params);
 
     /**
      * Set default NewFactoryParams params
@@ -205,13 +175,13 @@ namespace dmResource
     /**
      * Creates and inserts a resource into the factory
      * @param factory Factory handle
-     * @param get_resource_data_cb Callback for getting data to create resource from
      * @param name Name of the resource
-     * @param userdata Userdata to pass along to the get_resource_data_cb function
+     * @param data Resource data
+     * @param data_size Resource data size
      * @param resource Will contain a pointer to the resource after this function has completed
      * @return RESULT_OK on success
      */
-    Result CreateResource(HFactory factory, GetResourceDataCallback get_resource_data_cb, const char* name, void* userdata, void** resource);
+    Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource);
 
     /**
      * Get a resource extension from a path, i.e resource.ext will return .ext. Note the included dot in the output.
