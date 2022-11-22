@@ -19,7 +19,7 @@
 #include <dlib/log.h>
 #include <dlib/memory.h>
 #include <dlib/math.h>
-#include <dmsdk/dlib/vmath.h> // for Point3
+#include <dmsdk/dlib/vmath.h>
 #include <dlib/array.h>
 
 #include <string.h>
@@ -667,7 +667,7 @@ namespace dmBuffer
         }
 
         *count = item->m_ValueCount;
-        *type = (ValueType)item->m_ValueType; // assumes item->m_ValueType is properly initialized when setting the metadata
+        *type = (ValueType)item->m_ValueType;
         *data = item->m_Data;
 
         return RESULT_OK;
@@ -696,11 +696,10 @@ namespace dmBuffer
             if (metadata_items.Full()) {
                 metadata_items.OffsetCapacity(2);
             }
-            // assume OffsetCapacity(2) worked
             item = (Buffer::MetaData*) malloc(sizeof(Buffer::MetaData));
             item->m_Name = name_hash;
-            item->m_ValueCount = count; // no restriction in max number of values
-            item->m_ValueType = type; // no validation, all ValueTypes do
+            item->m_ValueCount = count;
+            item->m_ValueType = type;
             item->m_Data = malloc(values_block_size);
             memcpy(item->m_Data, data, values_block_size);
             metadata_items.Push(item);
