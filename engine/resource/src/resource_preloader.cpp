@@ -530,7 +530,7 @@ namespace dmResource
         tmp_resource.m_ReferenceCount = 1;
         tmp_resource.m_ResourceType   = (void*)resource_type;
 
-        ResourceCreateParams params = {};
+        ResourceCreateParams params;
         params.m_Factory     = preloader->m_Factory;
         params.m_Context     = resource_type->m_Context;
         params.m_PreloadData = req->m_PreloadData;

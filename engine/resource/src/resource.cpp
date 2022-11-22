@@ -1207,6 +1207,7 @@ static Result CreateResourceFromDisk(HFactory factory, const char* name, void** 
     {
         return result;
     }
+    assert(buffer == factory->m_Buffer.Begin());
 
     return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, buffer, buffer_size, resource);
 }
