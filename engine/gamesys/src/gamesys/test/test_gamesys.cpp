@@ -193,63 +193,6 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     dmResource::Release(m_Factory, (void**) resource);
 }
 
-TEST_F(ResourceTest, TestSetTextureFromScript)
-{
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory    = m_Factory;
-    scriptlibcontext.m_Register   = m_Register;
-    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
-
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
-    ASSERT_TRUE(dmGameObject::Init(m_Collection));
-
-    // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/set_texture.goc", dmHashString64("/set_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
-
-    dmGameSystem::TextureSetResource* texture_set_res = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &texture_set_res));
-
-    dmGraphics::HTexture backing_texture = texture_set_res->m_Texture;
-    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 64);
-    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 64);
-
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 1: Update a sub-region of the texture
-    //      -> set_texture.script::test_success_simple
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 2: Update the entire texture, should be 256x256 after the call
-    //      -> set_texture.script::test_success_resize
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 256);
-    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 256);
-
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail 
-    //      -> set_texture.script::test_fail_out_of_bounds
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 4: Try updating the texture with a mipmap that's outside of the allowed range
-    //      -> set_texture.script::test_fail_wrong_mipmap
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-
-    // cleanup
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
-}
-
 TEST_P(ResourceFailTest, Test)
 {
     const ResourceFailParams& p = GetParam();
@@ -519,6 +462,31 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
     dmGameObject::PropertyOptions opt;
     opt.m_Index = 0;
     return dmGameObject::SetProperty(instance, comp_name, prop_name, opt, prop_var);
+}
+
+TEST_F(BufferMetadataTest, MetadataLuaApi)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Since the script uses "io.open()" we want to override the path
+    //WrapIoFunctions(scriptlibcontext.m_LuaState);
+
+    const char* go_path = "/buffer/metadata.goc";
+
+    // Create gameobject
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    // release GO
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(SoundTest, UpdateSoundResource)
@@ -3347,6 +3315,9 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
 
 int main(int argc, char **argv)
 {
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
     dmHashEnableReverseHash(true);
     // Enable message descriptor translation when sending messages
     dmDDF::RegisterAllTypes();

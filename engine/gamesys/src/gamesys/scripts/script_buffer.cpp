@@ -106,6 +106,7 @@ namespace dmGameSystem
 #define SCRIPT_LIB_NAME "buffer"
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
 #define SCRIPT_TYPE_NAME_BUFFERSTREAM "bufferstream"
+#define SCRIPT_TYPE_NAME_BUFFERMETADATA "buffermetadata"
 
     typedef void (*FStreamSetter)(void* data, int index, lua_Number v);
     typedef lua_Number (*FStreamGetter)(void* data, int index);
@@ -879,6 +880,209 @@ namespace dmGameSystem
         return 0;
     }
 
+
+    // Allocates and fills up an array of ints/floats from a table at the top of the stack. It pops the table before returning.
+    template <typename T>
+    static T* luaTableToArray(lua_State* L, uint32_t count, dmBuffer::ValueType valueType) {
+
+        T* buffer = (T*) malloc(count*dmBuffer::GetSizeForValueType(valueType));
+
+        uint32_t i = 0;
+        lua_pushnil(L);
+        if (valueType == dmBuffer::VALUE_TYPE_FLOAT32) {
+            while (lua_next(L, -2) != 0) {
+                buffer[i] = luaL_checknumber(L, -1);
+                luaL_checknumber(L, -2); // index of the value. Make sure it's a number
+
+                i++;
+                lua_pop(L, 1); // pop value, keep index for next iteration
+            }
+        } else {
+            // array of ints
+            while (lua_next(L, -2) != 0) {
+                buffer[i] = luaL_checkinteger(L, -1);
+                luaL_checknumber(L, -2); // index of the value. Make sure it's a number
+
+                i++;
+                lua_pop(L, 1); // pop value, keep index for next iteration
+            }
+        }
+
+        lua_pop(L, 1); // pop the table itself
+
+        return buffer;
+    }
+
+    // lua: buffer.set_metadata(buf, hash("aabb"), {-1.0, -2.0, -3.0,...}, buffer.VALUE_TYPE_FLOAT32)
+    static int SetMetadata(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        int top = lua_gettop(L);
+
+        if (top >= 4)
+        {
+            // get buffer
+            dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
+            dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+
+            // get metadata entry name
+            dmhash_t entry_name = dmScript::CheckHashOrString(L, 2);
+
+            // get number type
+            lua_Integer valueTypeRaw = (dmBuffer::ValueType) luaL_checkinteger(L, 4);
+            if (!lua_isnumber(L,4)) {
+                return DM_LUA_ERROR("%s.%s invalid value type supplied: %ld.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, valueTypeRaw);
+            }
+            dmBuffer::ValueType valueType = (dmBuffer::ValueType) valueTypeRaw;
+
+            // get array of values
+            luaL_checktype(L, 3, LUA_TTABLE);
+            uint32_t count = lua_objlen(L, 3);
+            if (count > 0) {
+                void* values;
+                lua_pushvalue(L, 3);
+
+                switch(valueType) {
+                    case dmBuffer::VALUE_TYPE_FLOAT32:
+                        values = (void*) luaTableToArray<float>(L, count, valueType);
+                    break;
+                    case dmBuffer::VALUE_TYPE_UINT8:
+                        values = (void*) luaTableToArray<uint8_t>(L, count, valueType);
+                    break;
+                    case dmBuffer::VALUE_TYPE_UINT16:
+                        values = (void*) luaTableToArray<uint16_t>(L, count, valueType);
+                    break;
+                    case dmBuffer::VALUE_TYPE_UINT32:
+                        values = (void*) luaTableToArray<uint32_t>(L, count, valueType);
+                    break;
+                    case dmBuffer::VALUE_TYPE_UINT64:
+                        values = (void*) luaTableToArray<uint64_t>(L, count, valueType);
+                    break;
+                    case dmBuffer::VALUE_TYPE_INT8:
+                        values = (void*) luaTableToArray<int8_t>(L, count, valueType);
+                    break;
+                    case dmBuffer::VALUE_TYPE_INT16:
+                        values = (void*) luaTableToArray<int16_t>(L, count, valueType);
+                    break;
+                    case dmBuffer::VALUE_TYPE_INT32:
+                        values = (void*) luaTableToArray<int32_t>(L, count, valueType);
+                    break;
+                    case dmBuffer::VALUE_TYPE_INT64:
+                        values = (void*) luaTableToArray<int64_t>(L, count, valueType);
+                    break;
+                    default:
+                        return DM_LUA_ERROR("%s.%s invalid value type supplied: %ld.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, valueTypeRaw);
+                }
+
+                dmBuffer::Result r = dmBuffer::SetMetaData(hbuffer, entry_name, (void*) values, count, valueType);
+                free(values);
+
+                if( r != dmBuffer::RESULT_OK )
+                {
+                    return DM_LUA_ERROR("%s.%s: cannot set metadata for buffer: %s", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, dmBuffer::GetResultString(r));
+                }
+            } else {
+                return DM_LUA_ERROR("%s.%s: invalid metadata", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA);
+            }
+        } else
+            return DM_LUA_ERROR("%s.%s: invalid number of arguments", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA);
+
+        return 0;
+    }
+
+    // copies values from array to (empty) lua table on top of the stack
+    template <typename T>
+    static void arrayToLuaTable(lua_State* L, const T* values, uint32_t count, dmBuffer::ValueType valueType) {
+        if (valueType == dmBuffer::VALUE_TYPE_FLOAT32) {
+            for (uint32_t i=0; i<count; i++) {
+                T value = values[i];
+                lua_pushnumber(L, value);
+                lua_rawseti(L, -2, i+1); // lua indices start from 1
+            }
+        } else {
+            for (uint32_t i=0; i<count; i++) {
+                T value = values[i];
+                lua_pushinteger(L, value);
+                lua_rawseti(L, -2, i+1); // lua indices start from 1
+            }
+        }
+    }
+
+    // local metadata, numbertype  = buffer.get_metadata(self.new_buffer, "aabb")
+    static int GetMetadata(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 2); // return metadata table and value type
+        int top = lua_gettop(L);
+
+        if (top == 2)
+        {
+            // get buffer
+            dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
+            dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+
+            // get metadata entry name
+            dmhash_t entry_name = dmScript::CheckHashOrString(L, 2);
+
+            uint32_t count;
+            dmBuffer::ValueType valueType;
+            void* values;
+            dmBuffer::Result r = dmBuffer::GetMetaData(hbuffer, entry_name, &values, &count, &valueType);
+            if ( r != dmBuffer::RESULT_OK )
+            {
+                if ( r == dmBuffer::RESULT_METADATA_NOT_EXIST) {
+                    lua_pushnil(L);  // nil for metadata entry
+                    lua_pushnil(L); // nil for numbertype
+                    return 2;
+                } else {
+                    return DM_LUA_ERROR("%s.%s: error getting metadata for buffer: %s", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, dmBuffer::GetResultString(r));
+                }
+            }
+
+            lua_newtable(L);
+            switch (valueType) {
+                case dmBuffer::VALUE_TYPE_FLOAT32:
+                    arrayToLuaTable<float>(L, (float*) values, count, valueType);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT8:
+                    arrayToLuaTable<uint8_t>(L, (uint8_t*) values, count, valueType);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT16:
+                    arrayToLuaTable<uint16_t>(L, (uint16_t*) values, count, valueType);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT32:
+                    arrayToLuaTable<uint32_t>(L, (uint32_t*) values, count, valueType);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT64:
+                    arrayToLuaTable<uint64_t>(L, (uint64_t*) values, count, valueType);
+                break;
+                case dmBuffer::VALUE_TYPE_INT8:
+                    arrayToLuaTable<int8_t>(L, (int8_t*) values, count, valueType);
+                break;
+                case dmBuffer::VALUE_TYPE_INT16:
+                    arrayToLuaTable<int16_t>(L, (int16_t*) values, count, valueType);
+                break;
+                case dmBuffer::VALUE_TYPE_INT32:
+                    arrayToLuaTable<int32_t>(L, (int32_t*) values, count, valueType);
+                break;
+                case dmBuffer::VALUE_TYPE_INT64:
+                    arrayToLuaTable<int64_t>(L, (int64_t*) values, count, valueType);
+                break;
+                default:
+                    // we shouldn't reach this point
+                    return DM_LUA_ERROR("invalid value type supplied: %d.", valueType);
+            }
+            lua_pushinteger(L, (uint32_t) valueType);
+
+            return 2; // table with values and valueType in the stack
+
+
+        } else
+            return DM_LUA_ERROR("invalid number of arguments. Expected %d", 2);
+
+        return 0; // unreached point
+    }
+
+
     static const luaL_reg Stream_methods[] =
     {
         {0,0}
@@ -902,6 +1106,8 @@ namespace dmGameSystem
         {"get_bytes", GetBytes},
         {"copy_stream", CopyStream},
         {"copy_buffer", CopyBuffer},
+        {"set_metadata",SetMetadata},
+        {"get_metadata",GetMetadata},
         {0, 0}
     };
 

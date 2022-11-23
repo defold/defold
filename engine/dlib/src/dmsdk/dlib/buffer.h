@@ -91,6 +91,8 @@ namespace dmBuffer
      * @member dmBuffer::RESULT_STREAM_MISSING
      * @member dmBuffer::RESULT_STREAM_TYPE_MISMATCH
      * @member dmBuffer::RESULT_STREAM_COUNT_MISMATCH
+     * @member dmBuffer::RESULT_METADATA_INVALID
+     * @member dmBuffer::RESULT_METADATA_NOT_EXIST
      *
      */
     enum Result
