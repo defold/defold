@@ -22,7 +22,7 @@
 
 set -e
 
-ANDROID_NDK_VERSION=r20
+ANDROID_NDK_VERSION=r25b
 ANDROID_NDK=android-ndk-${ANDROID_NDK_VERSION}
 
 HOST=$1
@@ -33,10 +33,9 @@ else
 fi
 
 # Contains the entire NDK (we only need the standalone toochain)
-ANDROID_NDK_BASENAME=android-ndk-${ANDROID_NDK_VERSION}-${HOST}-x86_64
+ANDROID_NDK_BASENAME=android-ndk-${ANDROID_NDK_VERSION}-${HOST}
 ANDROID_NDK_FILENAME=${ANDROID_NDK_BASENAME}.zip
 ANDROID_NDK_URL=https://dl.google.com/android/repository/${ANDROID_NDK_FILENAME}
-
 # Contains the sdkmanager, which is used to install the sdk
 ANDROID_TOOLS_FILENAME=sdk-tools-${HOST}-4333796.zip
 ANDROID_TOOLS_URL=https://dl.google.com/android/repository/${ANDROID_TOOLS_FILENAME}
