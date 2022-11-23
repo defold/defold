@@ -54,8 +54,16 @@ local function encode_number(val)
   end
 end
 
+local strings_cache = {}
+local strings_cache_count = 0
 local function encode_string(val)
-  return '"'..val:gsub('[%z\1-\31\\"]', escape_char)..'"'
+  if strings_cache[val] then
+    return strings_cache[val]
+  end
+  local str = '"'..val:gsub('[%z\1-\31\\"]', escape_char)..'"'
+  strings_cache[val] = str
+  strings_cache_count = strings_cache_count + 1
+  return str
 end
 
 local function encode_table(val)
@@ -132,6 +140,10 @@ local function encode_structure(val)
   collect_refs(0, val, refs, dups)
   local encoded_refs = encode_refs(refs)
   local str = "#lua/structure{:value " .. encode_as_primitive(val) .. " :refs " .. encoded_refs .. "}"
+  if strings_cache_count > 5000000 then
+    strings_cache_count = 0
+    strings_cache = {}
+  end
   return str
 end
 
