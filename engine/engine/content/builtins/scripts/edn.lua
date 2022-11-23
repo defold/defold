@@ -127,14 +127,11 @@ local function collect_refs(depth, val, refs, dups)
 end
 
 local function encode_structure(val)
-  local start_time = socket.gettime()
   local dups = {}
   local refs = {}
   collect_refs(0, val, refs, dups)
   local encoded_refs = encode_refs(refs)
   local str = "#lua/structure{:value " .. encode_as_primitive(val) .. " :refs " .. encoded_refs .. "}"
-  print("Result time = ", socket.gettime() - start_time)
-  print(str)
   return str
 end
 
