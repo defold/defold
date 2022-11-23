@@ -141,6 +141,7 @@
               (complete! false)
               (do
                 (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
+                (workspace/saved! workspace (into #{} (map :resource) save-data))
                 (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
                   (render-save-progress! progress/done)
                   (ui/run-later

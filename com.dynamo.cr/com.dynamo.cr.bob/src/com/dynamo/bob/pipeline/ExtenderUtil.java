@@ -417,6 +417,31 @@ public class ExtenderUtil {
     }
 
     /**
+     * Get a list of paths to engine extension directories in the project (i.e. extensions
+     * that need to be built remotely)
+     * @param project
+     * @return A list of paths to engine extension directories
+     */
+    public static List<String> getEngineExtensionFolders(Project project) {
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+
+        List<String> folders = new ArrayList<>();
+
+        for (String p : paths) {
+            File f = new File(p);
+            if (f.getName().equals(ExtenderClient.extensionFilename)) {
+                ArrayList<String> siblings = new ArrayList<>();
+                project.findResourceDirs(f.getParent(), siblings);
+                if (siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"))) {
+                    folders.add(f.getParent());
+                }
+            }
+        }
+        return folders;
+    }
+
+    /**
      * Get a list of paths to extension directories in the project.
      * @param project
      * @return A list of paths to extension directories
@@ -472,7 +497,11 @@ public class ExtenderUtil {
         for (String p : paths) {
             File f = new File(p);
             if (f.getName().equals(ExtenderClient.extensionFilename)) {
-                return true;
+                ArrayList<String> siblings = new ArrayList<>();
+                project.findResourceDirs(f.getParent(), siblings);
+                if (siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"))) {
+                    return true;
+                }
             }
         }
         return false;
@@ -520,8 +549,8 @@ public class ExtenderUtil {
             }
         }
 
-        // Find extension folders
-        List<String> extensionFolders = getExtensionFolders(project);
+        // Find engine extension folders
+        List<String> extensionFolders = getEngineExtensionFolders(project);
         for (String extension : extensionFolders) {
             IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
             if (!resource.exists()) {
@@ -787,6 +816,9 @@ public class ExtenderUtil {
             try {
                 byte[] data = resource.getContent();
                 FileUtils.writeByteArrayToFile(outputFile, data);
+                if (relativePath.contains("plugins/bin/")) {
+                    outputFile.setExecutable(true);
+                }
             } catch (Exception e) {
                 throw new CompileExceptionError(resource, 0, e);
             }
