@@ -6,6 +6,12 @@
 
 local M = {}
 
+local tostring = tostring
+local string = string
+local debug = debug
+local type = type
+local table = table
+
 local escape_char_map = {
   ["\\" ] = "\\\\",
   ["\"" ] = "\\\"",
@@ -14,34 +20,15 @@ local escape_char_map = {
   ["\t" ] = "\\t",
 }
 
-local function raw_tostring(val)
-  local old_mt = debug.getmetatable(val)
-  debug.setmetatable(val, nil)
-  local raw_str = tostring(val)
-  debug.setmetatable(val, old_mt)
-  return raw_str
-end
-
-local function has_custom_tostring(val)
-  local mt = debug.getmetatable(val)
-  return mt ~= nil and mt.__tostring ~= nil
-end
-
-local function get_prefixed_addr(prefix, val)
-  local raw_string = raw_tostring(val)
-  local b, e = string.find(raw_string, prefix)
-  if e ~= nil then
-    return string.sub(raw_string, e + 1)
-  else
-    return ""
-  end
-end
-
 local function str(val)
-  if getmetatable(val) == NodeProxy then
-    return tostring(val) .. get_prefixed_addr("userdata: ", val)
-  elseif type(val) == "table" and has_custom_tostring(val) then
-    return tostring(val) .. " " .. get_prefixed_addr("table: ", val)
+  local mt = debug.getmetatable(val)
+  if mt then 
+    if mt.__metatable == NodeProxy then
+      return string.format("%s%p", val, val)
+    elseif type(val) == "table" and mt.__tostring then
+      return string.format("%s %p", val, val)
+    end
+    return tostring(val)
   else
     return tostring(val)
   end
@@ -68,27 +55,23 @@ local function encode_number(val)
 end
 
 local function encode_string(val)
-  return '"' .. val:gsub('[%z\1-\31\\"]', escape_char) .. '"'
+  return '"'..val:gsub('[%z\1-\31\\"]', escape_char)..'"'
 end
 
-local function encode_as_tagged_string(tag, val)
-  return tag .. encode_string(str(val))
+local function encode_table(val)
+  return string.format('#lua/ref"%p"', val)
 end
 
-local function make_tagged_string_encoder(tag)
-  return function(val)
-    return encode_as_tagged_string(tag, val)
-  end
+function encode_userdata(val)
+  return '#lua/userdata"'..str(val)..'"'
 end
 
-local function get_table_ref(t)
-  return get_prefixed_addr("table: ", t)
+function encode_function(val)
+  return '#lua/function"'..str(val)..'"'
 end
 
-local function make_ref_encoder(get_ref)
-  return function(val)
-    return encode_as_tagged_string("#lua/ref", get_ref(val))
-  end
+function encode_thread(val)
+  return '#lua/thread"'..str(val)..'"'
 end
 
 local type_to_primitive_encoder = {
@@ -96,10 +79,10 @@ local type_to_primitive_encoder = {
   ["boolean"] = tostring,
   ["number"] = encode_number,
   ["string"] = encode_string,
-  ["table"] = make_ref_encoder(get_table_ref),
-  ["userdata"] = make_tagged_string_encoder("#lua/userdata"),
-  ["function"] = make_tagged_string_encoder("#lua/function"),
-  ["thread"] = make_tagged_string_encoder("#lua/thread"),
+  ["table"] = encode_table,
+  ["userdata"] = encode_userdata,
+  ["function"] = encode_function,
+  ["thread"] = encode_thread
 }
 
 local function fail_on_unexpected_type(x)
@@ -111,57 +94,60 @@ local function encode_as_primitive(val)
   return encoder(val)
 end
 
-local function collect_refs(depth, val, refs)
-  local t = type(val)
-  if t == "table" then
-    if depth < 100 and not refs[val] then
-      refs[val] = val
-      local next_depth = depth + 1
-      for k, v in pairs(val) do
-        collect_refs(next_depth, k, refs)
-        collect_refs(next_depth, v, refs)
-      end
-    end
-  end
-  return refs
-end
-
 local function encode_table(val)
   local encoded_kvs = {}
   for k, v in pairs(val) do
-    table.insert(
-      encoded_kvs,
-      encode_as_primitive(k) .. " " .. encode_as_primitive(v))
+    encoded_kvs[#encoded_kvs + 1] = encode_as_primitive(k) .. " " .. encode_as_primitive(v)
   end
   return "#lua/table{:content [" .. table.concat(encoded_kvs, " ") .. "] :string " .. encode_string(str(val)) .. "}"
 end
 
 local function encode_refs(refs)
   local encoded_refs = {}
-  for k, v in pairs(refs) do
-    table.insert(
-      encoded_refs,
-      encode_as_primitive(k) .. " " .. encode_table(v))
+  local val
+  for i = 1, #refs do
+    val = refs[i]
+    encoded_refs[i] = encode_as_primitive(val).." "..encode_table(val)
   end
   return "{" .. table.concat(encoded_refs, " ") .. "}"
 end
 
+local function collect_refs(depth, val, refs, dups)
+  if type(val) == "table" then
+    if depth < 100 and not dups[val] then
+      dups[val] = true
+      refs[#refs + 1] = val
+      local next_depth = depth + 1
+      for k, v in pairs(val) do
+        collect_refs(next_depth, k, refs, dups)
+        collect_refs(next_depth, v, refs, dups)
+      end
+    end
+  end
+end
+
 local function encode_structure(val)
+  local start_time = socket.gettime()
+  local dups = {}
   local refs = {}
-  local encoded_refs = encode_refs(collect_refs(0, val, refs))
-  return "#lua/structure{:value " .. encode_as_primitive(val) .. " :refs " .. encoded_refs .. "}"
+  collect_refs(0, val, refs, dups)
+  local encoded_refs = encode_refs(refs)
+  local str = "#lua/structure{:value " .. encode_as_primitive(val) .. " :refs " .. encoded_refs .. "}"
+  print("Result time = ", socket.gettime() - start_time)
+  print(str)
+  return str
 end
 
 function M.encode(val)
   local err_trace
   local success, error_or_result = xpcall(
-    function ()
-      return encode_structure(val)
-    end,
-    function (err)
-      err_trace = debug.traceback();
-      return err
-    end)
+  function ()
+    return encode_structure(val)
+  end,
+  function (err)
+    err_trace = debug.traceback();
+    return err
+  end)
   if success then
     return error_or_result
   else
