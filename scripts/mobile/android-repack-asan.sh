@@ -50,7 +50,7 @@ function terminate_trap() {
 [ ! -z "${DYNAMO_HOME:-}" ] || terminate "DYNAMO_HOME is not set"
 DEFOLD_HOME="$(cd "${DYNAMO_HOME}/../.."; pwd)"
 
-ANDROID_NDK_VERSION=20
+ANDROID_NDK_VERSION="25b"
 ANDROID_BUILD_TOOLS_VERSION="32.0.0"
 PLATFORM="darwin-x86_64"
 ANDROID_NDK_ROOT="${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}"
@@ -70,15 +70,13 @@ ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-macos/zi
 APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
 GDBSERVER=${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver
 
-OBJDUMP_32=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${PLATFORM}/bin/arm-linux-androideabi-objdump
-OBJDUMP_64=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${PLATFORM}/bin/aarch64-linux-android-objdump
+OBJDUMP=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${PLATFORM}/bin/llvm-objdump
 
 [ $(which "${ZIP}") ] || terminate "'${ZIP}' is not installed"
 [ $(which "${UNZIP}") ] || terminate "'${UNZIP}' is not installed"
 [ $(which "${ZIPALIGN}") ] || terminate "'${ZIPALIGN}' is not installed"
 [ $(which "${APKSIGNER}") ] || terminate "'${APKSIGNER}' is not installed"
-[ $(which "${OBJDUMP_32}") ] || terminate "'${OBJDUMP_32}' is not installed"
-[ $(which "${OBJDUMP_64}") ] || terminate "'${OBJDUMP_64}' is not installed"
+[ $(which "${OBJDUMP}") ] || terminate "'${OBJDUMP}' is not installed"
 
 [ -f "${SOURCE}" ] || terminate "Source does not exist: ${SOURCE}"
 [ -f "${KEYSTORE}" ] || terminate "Keystore does not exist: ${KEYSTORE}"
@@ -111,7 +109,7 @@ WRAP_ASAN=${SCRIPT_PATH}/android-wrap-asan.sh
     cd "${BUILD}"
 
     for file in `ls ./lib/armeabi-v7a/*.so`; do
-        ASAN_DEPENDENCY=$(${OBJDUMP_32} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
+        ASAN_DEPENDENCY=$(${OBJDUMP} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
         if [ "$ASAN_DEPENDENCY" != "" ]; then
             echo "Found ASAN dependency in $file"
             cp -v ${ASAN_PATH_32} "lib/armeabi-v7a/"
@@ -122,7 +120,7 @@ WRAP_ASAN=${SCRIPT_PATH}/android-wrap-asan.sh
     done
 
     for file in `ls ./lib/arm64-v8a/*.so`; do
-        ASAN_DEPENDENCY=$(${OBJDUMP_64} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
+        ASAN_DEPENDENCY=$(${OBJDUMP} -p ${file} | grep NEEDED | grep libclang_rt.asan | awk '{print $2;}')
         if [ "$ASAN_DEPENDENCY" != "" ]; then
             echo "Found ASAN dependency in $file"
             cp -v ${ASAN_PATH_64} "lib/arm64-v8a/"
