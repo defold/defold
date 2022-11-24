@@ -1512,7 +1512,7 @@ def detect(conf):
             conf.env['CPP']     = '%s/clang -E' % bin_dir
             conf.env['AR']      = '%s/ar' % bin_dir
             conf.env['RANLIB']  = '%s/ranlib' % bin_dir
-            conf.env['LD']      = '%s/ld' % bin_dir
+            conf.env['LD']      = '%s/lld' % bin_dir
 
         conf.env['GCC-OBJCXX'] = '-xobjective-c++'
         conf.env['GCC-OBJCLINK'] = '-lobjc'
@@ -1535,7 +1535,7 @@ def detect(conf):
         conf.env['CPP']      = '%s/%s -E' % (bintools, clang_name)
         conf.env['AR']       = '%s/%s-ar' % (bintools, tool_name)
         conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
-        conf.env['LD']       = '%s/ld' % (bintools)
+        conf.env['LD']       = '%s/lld' % (bintools)
         conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
 
     elif 'linux' == build_util.get_target_os():

@@ -300,7 +300,7 @@ function cmi() {
             export CXX="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang++"
             export AR=${llvm}/llvm-ar
             export AS=${llvm}/llvm-as
-            export LD=${llvm}/ld
+            export LD=${llvm}/lld
             export RANLIB=${llvm}/llvm-ranlib
             cmi_cross $1 arm-linux
             ;;
@@ -318,7 +318,7 @@ function cmi() {
             export CXX="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang++"
             export AR=${llvm}/llvm-ar
             export AS=${llvm}/llvm-as
-            export LD=${llvm}/ld
+            export LD=${llvm}/lld
             export RANLIB=${llvm}/llvm-ranlib
             # TODO: for protobuf, we need to add -llog to LDFLAGS
             #export LDFLAGS="-llog"
