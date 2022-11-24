@@ -92,7 +92,7 @@ namespace dmBuffer
      * @member dmBuffer::RESULT_STREAM_TYPE_MISMATCH
      * @member dmBuffer::RESULT_STREAM_COUNT_MISMATCH
      * @member dmBuffer::RESULT_METADATA_INVALID
-     * @member dmBuffer::RESULT_METADATA_NOT_EXIST
+     * @member dmBuffer::RESULT_METADATA_MISSING
      *
      */
     enum Result
@@ -108,7 +108,7 @@ namespace dmBuffer
         RESULT_STREAM_COUNT_MISMATCH,
         RESULT_STREAM_MISMATCH,
         RESULT_METADATA_INVALID,
-        RESULT_METADATA_NOT_EXIST,
+        RESULT_METADATA_MISSING,
     };
 
     /*# StreamDeclaration struct

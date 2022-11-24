@@ -530,16 +530,11 @@ TEST_F(BufferMetadataTest, MetadataLuaApi)
     scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
-    // Since the script uses "io.open()" we want to override the path
-    //WrapIoFunctions(scriptlibcontext.m_LuaState);
-
     const char* go_path = "/buffer/metadata.goc";
 
-    // Create gameobject
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
     ASSERT_NE((void*)0, go);
 
-    // release GO
     DeleteInstance(m_Collection, go);
 
     // release lua api deps

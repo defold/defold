@@ -79,7 +79,7 @@ function init(self)
              count = 3 }
     })
 
-    -- chaning the number type should fail with RESULT_METADATA_INVALID
+    -- changing the number type should fail with RESULT_METADATA_INVALID
     local status, result = pcall(function (thebuffer)
         local metadata1 = { 1, 2, 3}
         buffer.set_metadata(thebuffer, hash("metadata-entry"), metadata1, buffer.VALUE_TYPE_INT8)
@@ -117,12 +117,19 @@ function init(self)
     assert(metadata == nil, "returned metadata entry should be nil")
     assert(datatype == nil, "datatype should be nil")
 
-    -- too many arguments
+    -- too few arguments for set_metadata
     local status, result = pcall(function (thebuffer)
         local metadata1 = { 1, 2, 3}
-        buffer.set_metadata(thebuffer, hash("metadata-entry3"), metadata1, buffer.VALUE_TYPE_INT8, "additional param")
+        buffer.set_metadata(thebuffer, hash("metadata-entry3"), metadata1)
     end, self.new_buffer)
-    assert(status)
+    assert(not status)
+
+    -- too few arguments for get_metadata
+    local status, result = pcall(function (thebuffer)
+        local metadata1 = { 1, 2, 3}
+        buffer.get_metadata(thebuffer)
+    end, self.new_buffer)
+    assert(not status)
 
     -- bad number type
     --[[ TODO - this fails with 'LuaStackCheck: Unbalanced Lua stack, expected (4), actual (5)'. why ?

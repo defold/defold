@@ -255,7 +255,7 @@ TEST_F(MetaDataTest, WrongParams)
     uint32_t count;
     dmBuffer::ValueType valuetype;
     r = dmBuffer::GetMetaData(buffer, dmHashString64("not_exists"), &data, &count, &valuetype);
-    ASSERT_EQ(dmBuffer::RESULT_METADATA_NOT_EXIST, r);
+    ASSERT_EQ(dmBuffer::RESULT_METADATA_MISSING, r);
 }
 
 template <typename T>
