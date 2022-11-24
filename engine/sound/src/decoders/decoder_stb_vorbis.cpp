@@ -95,26 +95,12 @@ namespace dmSoundCodec
 
     static Result StbVorbisSkipInStream(HDecodeStream stream, uint32_t num_bytes, uint32_t* skipped)
     {
-        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-        int sample_size = streamInfo->m_Info.m_Channels * (streamInfo->m_Info.m_BitsPerSample / 8);
-        int num_samples = num_bytes / sample_size;
-
-        int prev_sample = stb_vorbis_get_sample_offset(streamInfo->m_StbVorbis);
-        int samplepos = prev_sample >= 0 ? prev_sample + num_samples : num_samples;
-        if (samplepos > streamInfo->m_NumSamples)
-        {
-            samplepos = streamInfo->m_NumSamples;
-        }
-        int ret = stb_vorbis_seek(streamInfo->m_StbVorbis, samplepos);
-
-        if (ret < 0) {
-            return RESULT_DECODE_ERROR;
-        }
-
-        int cur_sample = stb_vorbis_get_sample_offset(streamInfo->m_StbVorbis);
-
-        *skipped = (cur_sample - prev_sample) * sample_size;
-        return RESULT_OK;
+        // Decode with buffer = null corresponding number of bytes.
+        // We've modified stb_vorbis to accept a null pointer, which allows us skipping a lot of decoding work.
+        // NOTE: Although the stb-vorbis api has functions for seeking forward in the stream
+        // there seem to be no clear cut way to get the exact position afterwards.
+        // So, we revert to the "decode and discard" approach to keep the internal state of the stream intact.
+        return StbVorbisDecode(stream, 0, num_bytes, skipped);
     }
 
     static void StbVorbisCloseStream(HDecodeStream stream)

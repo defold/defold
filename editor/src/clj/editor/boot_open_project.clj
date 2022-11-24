@@ -44,6 +44,7 @@
             [editor.scene :as scene]
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.sync :as sync]
             [editor.system :as system]
             [editor.targets :as targets]
@@ -86,8 +87,8 @@
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(defn- setup-workspace! [project-path build-settings]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings)]
+(defn- setup-workspace! [project-path build-settings workspace-config]
+  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config)]
     (g/transact
       (concat
         (text/register-view-types workspace)
@@ -407,7 +408,8 @@
   [^File game-project-file prefs render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
-        workspace (setup-workspace! project-path build-settings)
+        workspace-config (shared-editor-settings/load-project-workspace-config project-path)
+        workspace (setup-workspace! project-path build-settings workspace-config)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         extensions (extensions/make *project-graph*)
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]

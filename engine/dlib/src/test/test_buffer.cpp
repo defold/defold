@@ -33,6 +33,27 @@ class BufferTest : public jc_test_base_class
     }
 };
 
+class MetaDataTest : public jc_test_base_class
+{
+public:
+    dmBuffer::HBuffer buffer;
+protected:
+    virtual void SetUp() {
+        dmBuffer::NewContext();
+
+        dmBuffer::StreamDeclaration streams_decl[] = {
+            {dmHashString64("position"), dmBuffer::VALUE_TYPE_UINT8, 3},
+            {dmHashString64("texcoord"), dmBuffer::VALUE_TYPE_UINT8, 1}
+        };
+        dmBuffer::Create(4, streams_decl, 2, &buffer);
+    }
+
+    virtual void TearDown() {
+        dmBuffer::Destroy(buffer);
+        dmBuffer::DeleteContext();
+    }
+};
+
 class GetDataTest : public jc_test_base_class
 {
 public:
@@ -216,6 +237,108 @@ TEST_F(BufferTest, ValidateBuffer)
 
     dmBuffer::Destroy(buffer);
 }
+
+TEST_F(MetaDataTest, WrongParams)
+{
+    float min_aabb[] = {-1.0f, -2.0f, -3.0f};
+
+    // zero buffer
+    dmBuffer::Result r = dmBuffer::SetMetaData(0, dmHashString64("min_AABB"), min_aabb, 3, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_BUFFER_INVALID, r);
+
+    // count == 0
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb, 0, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_METADATA_INVALID, r);
+
+}
+
+template <typename T>
+void verifyMetadataByType(dmBuffer::HBuffer buffer, const char* name, T value1, T value2, T value3, dmBuffer::ValueType value_type) {
+    T values[3] = {value1, value2, value3};
+    T* verify_data;
+    uint32_t verify_count;
+    dmBuffer::ValueType verify_type;
+
+    // generic set & get
+    dmBuffer::Result r = dmBuffer::SetMetaData(buffer, dmHashString64(name), values, 3, value_type);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    r = dmBuffer::GetMetaData(buffer, dmHashString64(name), (void**)&verify_data, &verify_count, &verify_type);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(value1, verify_data[0]);
+    ASSERT_EQ(value2, verify_data[1]);
+    ASSERT_EQ(value3, verify_data[2]);
+    ASSERT_EQ(3, verify_count);
+    ASSERT_EQ(value_type, verify_type);
+}
+
+TEST_F(MetaDataTest, DifferentDataTypes)
+{
+    verifyMetadataByType<float>(buffer, "float32_values", 1.0f, 2.0f, 3.0f, dmBuffer::VALUE_TYPE_FLOAT32);
+
+    verifyMetadataByType<uint8_t>(buffer, "uint8_values", 1, 2, 3, dmBuffer::VALUE_TYPE_UINT8);
+    verifyMetadataByType<uint16_t>(buffer, "uint16_values", 257, 258, 259, dmBuffer::VALUE_TYPE_UINT16);
+    verifyMetadataByType<uint32_t>(buffer, "uint32_values", 65537, 65538, 65539, dmBuffer::VALUE_TYPE_UINT32);
+    verifyMetadataByType<uint64_t>(buffer, "uint64_values", 1, 2, 3, dmBuffer::VALUE_TYPE_UINT64);
+
+    verifyMetadataByType<int8_t>(buffer, "int8_values", -1, -2, -3, dmBuffer::VALUE_TYPE_INT8);
+    verifyMetadataByType<int16_t>(buffer, "int16_values", -257, -258, -259, dmBuffer::VALUE_TYPE_INT16);
+    verifyMetadataByType<int32_t>(buffer, "int32_values", -65537, -65538, -65539, dmBuffer::VALUE_TYPE_INT32);
+    verifyMetadataByType<int64_t>(buffer, "int64_values", -1, -2, -3, dmBuffer::VALUE_TYPE_INT64);
+}
+
+TEST_F(MetaDataTest, MultipleItems)
+{
+    float min_aabb[] = {-1.0f, -2.0f, -3.0f};
+    float max_aabb[] = {1.0f, 2.0f, 3.0f};
+    float* verify_data;
+    uint32_t verify_count;
+    dmBuffer::ValueType verify_type;
+
+    // set first
+    dmBuffer::Result r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb, 3, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    // set second and verify
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("max_AABB"), max_aabb, 3, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    r = dmBuffer::GetMetaData(buffer, dmHashString64("max_AABB"), (void**)&verify_data, &verify_count, &verify_type);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(1.0f, verify_data[0]);
+    ASSERT_EQ(2.0f, verify_data[1]);
+    ASSERT_EQ(3.0f, verify_data[2]);
+}
+
+TEST_F(MetaDataTest, Update)
+{
+    float min_aabb[] = {-1.0f, -2.0f, -3.0f};
+    float max_aabb[] = {1.0f, 2.0f, 3.0f};
+    float* verify_data;
+    uint32_t verify_count;
+    dmBuffer::ValueType verify_type;
+
+    // set
+    dmBuffer::Result r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb, 3, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    // update
+    float min_aabb2[] = {-10.0f, -20.0f, -30.0f};
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb2, 3, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    r = dmBuffer::GetMetaData(buffer, dmHashString64("min_AABB"), (void**)&verify_data, &verify_count, &verify_type);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+    ASSERT_EQ(-10.0f, verify_data[0]);
+    ASSERT_EQ(-20.0f, verify_data[1]);
+    ASSERT_EQ(-30.0f, verify_data[2]);
+
+    // update with wrong count
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb2, 4, dmBuffer::VALUE_TYPE_FLOAT32);
+    ASSERT_EQ(dmBuffer::RESULT_METADATA_INVALID, r);
+
+    // update with wrong type
+    r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb2, 3, dmBuffer::VALUE_TYPE_UINT32);
+    ASSERT_EQ(dmBuffer::RESULT_METADATA_INVALID, r);
+}
+
 
 TEST_F(GetDataTest, GetStreamType)
 {

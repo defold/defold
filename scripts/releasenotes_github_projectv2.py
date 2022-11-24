@@ -24,6 +24,7 @@ import json
 
 token = None
 
+TYPE_BREAKING_CHANGE = "BREAKING CHANGE"
 TYPE_FIX = "FIX"
 TYPE_NEW = "NEW"
 
@@ -154,7 +155,9 @@ def get_labels(issue_or_pr):
 
 def get_issue_type(issue):
     labels = get_labels(issue)
-    if "bug" in labels:
+    if "breaking change" in labels:
+        return TYPE_BREAKING_CHANGE
+    elif "bug" in labels:
         return TYPE_FIX
     elif "task" in labels:
         return TYPE_NEW
@@ -202,6 +205,9 @@ def generate(version, hide_details = False):
             continue
 
         issue_labels = get_labels(content)
+        if "skip release notes" in issue_labels:
+            continue
+
         issue_type = get_issue_type(content)
         if is_issue:
             content = get_closing_pr(content)
@@ -231,32 +237,21 @@ def generate(version, hide_details = False):
         else:
             engine.append(o)
 
-
-    content = ("# Defold %s\n" % version)
-
-    # list of issue titles
-    content += ("\n## Summary\n")
-    for issue_type in [TYPE_NEW, TYPE_FIX]:
+    types = [ TYPE_BREAKING_CHANGE, TYPE_NEW, TYPE_FIX ]
+    summary = ("\n## Summary\n")
+    details_engine = ("\n## Engine\n")
+    details_editor = ("\n## Editor\n")
+    for issue_type in types:
         for issue in engine:
             if issue["type"] == issue_type:
-                content += issue_to_markdown(issue, title_only = True)
+                summary += issue_to_markdown(issue, title_only = True)
+                details_engine += issue_to_markdown(issue, hide_details = hide_details)
         for issue in editor:
             if issue["type"] == issue_type:
-                content += issue_to_markdown(issue, title_only = True)
+                summary += issue_to_markdown(issue, title_only = True)
+                details_editor += issue_to_markdown(issue, hide_details = hide_details)
 
-    # the details
-    content += ("\n## Engine\n")
-    for issue_type in [TYPE_NEW, TYPE_FIX]:
-        for issue in engine:
-            if issue["type"] == issue_type:
-                content += issue_to_markdown(issue, hide_details = hide_details)
-
-    content += ("\n## Editor\n")
-    for issue_type in [TYPE_NEW, TYPE_FIX]:
-        for issue in editor:
-            if issue["type"] == issue_type:
-                content += issue_to_markdown(issue, hide_details = hide_details)
-
+    content = ("# Defold %s\n" % version) + summary + details_engine + details_editor
     with io.open("releasenotes-forum-%s.md" % version, "wb") as f:
         f.write(content.encode('utf-8'))
 

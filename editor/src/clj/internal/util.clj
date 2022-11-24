@@ -17,7 +17,8 @@
   (:require [camel-snake-kebab :refer [->Camel_Snake_Case_String]]
             [clojure.set :as set]
             [clojure.string :as str]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.coll :as coll :refer [pair]])
   (:import [clojure.lang IEditableCollection]))
 
 (set! *warn-on-reflection* true)
@@ -41,6 +42,18 @@
 
 (defn conjv [coll x]
   (conj (or coll []) x))
+
+(defn intov
+  ([] [])
+  ([to]
+   {:pre [(or (nil? to) (vector? to))]}
+   (or to []))
+  ([to from]
+   {:pre [(or (nil? to) (vector? to))]}
+   (into (or to []) from))
+  ([to xform from]
+   {:pre [(or (nil? to) (vector? to))]}
+   (into (or to []) xform from)))
 
 (defn distinct-by
   "Returns a lazy sequence of the elements of coll with duplicates removed.
@@ -353,12 +366,40 @@
   (when (nil? (next coll))
     (first coll)))
 
+(defn only-or-throw
+  "Returns the only element in coll, or throw an error if the collection does not have exactly one element."
+  [coll]
+  (case (coll/bounded-count 2 coll)
+    0 (throw (ex-info "The collection is empty." {:coll coll}))
+    1 (first coll)
+    (throw (ex-info "The collection has more than one element." {:coll coll}))))
+
 (defn map->sort-key
   "Given any map, returns a vector that can be used to order it relative to any other map in a deterministic order."
   [m]
   (into []
         (mapcat (juxt identity (partial get m)))
         (sort (keys m))))
+
+(defn with-sorted-keys [coll]
+  (cond
+    (record? coll)
+    coll
+
+    (map? coll)
+    (if (sorted? coll)
+      coll
+      (with-meta (into (sorted-map) coll)
+                 (meta coll)))
+
+    (set? coll)
+    (if (sorted? coll)
+      coll
+      (with-meta (into (sorted-set) coll)
+                 (meta coll)))
+
+    :else
+    coll))
 
 (declare select-keys-deep)
 
@@ -387,3 +428,235 @@
                              [key (select-keys-deep-value-helper kept-keys value)])))
                    kept-keys)
              (meta m)))
+
+(defn deep-map
+  "Performs the map operation on a nested collection. The value-fn will be
+  called with the value for each entry in nested maps and sequences and is
+  expected to return a replacement value for the entry. Optionally, a
+  finalize-coll-value-fn function can be supplied to be called with the
+  resulting collection values."
+  ([value-fn value]
+   (deep-map identity value-fn value))
+  ([finalize-coll-value-fn value-fn value]
+   (cond
+     (record? value)
+     (value-fn value)
+
+     (map? value)
+     (finalize-coll-value-fn
+       (into (empty value)
+             (map (fn [[k v]]
+                    (let [v' (deep-map finalize-coll-value-fn value-fn v)]
+                      (pair k v'))))
+             value))
+
+     (coll? value)
+     (finalize-coll-value-fn
+       (into (empty value)
+             (map #(deep-map finalize-coll-value-fn value-fn %))
+             value))
+
+     :else
+     (value-fn value))))
+
+(defn deep-map-kv-helper [finalize-coll-value-fn value-fn key value]
+  (cond
+    (record? value)
+    (value-fn key value)
+
+    (map? value)
+    (finalize-coll-value-fn
+      (into (empty value)
+            (map (fn [[k v]]
+                   (let [v' (deep-map-kv-helper finalize-coll-value-fn value-fn k v)]
+                     (pair k v'))))
+            value))
+
+    (coll? value)
+    (finalize-coll-value-fn
+      (into (empty value)
+            (map-indexed #(deep-map-kv-helper finalize-coll-value-fn value-fn %1 %2))
+            value))
+
+    :else
+    (value-fn key value)))
+
+(defn deep-map-kv
+  "Performs the map operation on a nested collection. The value-fn will be
+  called with the key and value for each entry in nested maps and sequences.
+  The key will be nil for the root entry and indices for entries in sequential
+  collections. The value-fn is expected to return a value to associate with the
+  key. Optionally, a finalize-coll-value-fn function can be supplied to be
+  called with the resulting collection values."
+  ([value-fn value]
+   (deep-map-kv-helper identity value-fn nil value))
+  ([finalize-coll-value-fn value-fn value]
+   (deep-map-kv-helper finalize-coll-value-fn value-fn nil value)))
+
+(defn deep-keep
+  "Performs the keep operation on a nested collection. The value-fn will be
+  called with the value for each entry in nested maps and sequences and is
+  expected to return a replacement value for that entry, or nil to exclude the
+  entry. Optionally, a finalize-coll-value-fn function can be supplied to be
+  called with the resulting collection values. Returning nil from it will
+  exclude the entry from the result."
+  ([value-fn value]
+   (deep-keep identity value-fn value))
+  ([finalize-coll-value-fn value-fn value]
+   (cond
+     (record? value)
+     (value-fn value)
+
+     (map? value)
+     (finalize-coll-value-fn
+       (into (empty value)
+             (keep (fn [entry]
+                     (when-some [v' (deep-keep finalize-coll-value-fn value-fn (val entry))]
+                       (pair (key entry) v'))))
+             value))
+
+     (coll? value)
+     (finalize-coll-value-fn
+       (into (empty value)
+             (keep #(deep-keep finalize-coll-value-fn value-fn %))
+             value))
+
+     :else
+     (value-fn value))))
+
+(defn deep-keep-kv-helper [finalize-coll-value-fn value-fn key value]
+  (cond
+    (record? value)
+    (value-fn key value)
+
+    (map? value)
+    (finalize-coll-value-fn
+      (into (empty value)
+            (keep (fn [[k v]]
+                    (when-some [v' (deep-keep-kv-helper finalize-coll-value-fn value-fn k v)]
+                      (pair k v'))))
+            value))
+
+    (coll? value)
+    (finalize-coll-value-fn
+      (into (empty value)
+            (keep-indexed #(deep-keep-kv-helper finalize-coll-value-fn value-fn %1 %2))
+            value))
+
+    :else
+    (value-fn key value)))
+
+(defn deep-keep-kv
+  "Performs the keep operation on a nested collection. The value-fn will be
+  called with the key and value for each entry in nested maps and sequences.
+  The key will be nil for the root entry and indices for entries in sequential
+  collections. The value-fn is expected to return a value to associate with the
+  key, or nil to exclude the entry. Optionally, a finalize-coll-value-fn
+  function can be supplied to be called with the resulting collection values.
+  Returning nil from it will exclude the entry from the result."
+  ([value-fn value]
+   (deep-keep-kv-helper identity value-fn nil value))
+  ([finalize-coll-value-fn value-fn value]
+   (deep-keep-kv-helper finalize-coll-value-fn value-fn nil value)))
+
+(defn into-multiple
+  "Like core.into, but transfers the input into multiple collections in a single
+  pass. Instead of a single destination and optional transducer, takes a seq of
+  destinations and a seq of transducers. The number of destinations must match
+  the number of transducers. Returns a seq of the populated destinations."
+  ([] [])
+  ([tos] tos)
+  ([tos from]
+   (if (empty? from)
+     tos
+     (case (coll/bounded-count 3 tos)
+       ;; No destinations - return unaltered.
+       0 tos
+
+       ;; Single destination - use regular into.
+       1 [(into (first tos) from)]
+
+       ;; Optimized for two destinations.
+       2 (let [transient-tos
+               (reduce (fn [transient-tos item]
+                         (pair (conj! (transient-tos 0) item)
+                               (conj! (transient-tos 1) item)))
+                       (pair (transient (nth tos 0))
+                             (transient (nth tos 1)))
+                       from)]
+           (pair (with-meta (persistent! (transient-tos 0)) (meta (nth tos 0)))
+                 (with-meta (persistent! (transient-tos 1)) (meta (nth tos 1)))))
+
+       ;; General case.
+       (mapv #(with-meta (persistent! %2) (meta %1))
+             tos
+             (reduce (fn [transient-tos item]
+                       (mapv conj! transient-tos (repeat item)))
+                     (mapv transient tos)
+                     from)))))
+  ([tos xforms from]
+   (if (empty? from)
+     tos
+     (case (coll/bounded-count 3 tos)
+       ;; No destinations - return unaltered.
+       0 (do
+           (assert (= 0 (coll/bounded-count 1 xforms)))
+           tos)
+
+       ;; Single destination - use regular into.
+       1 (do
+           (assert (= 1 (coll/bounded-count 2 xforms)))
+           [(into (first tos) (first xforms) from)])
+
+       ;; Optimized for two destinations.
+       2 (do
+           (assert (= 2 (coll/bounded-count 3 xforms)))
+           (let [f0 ((nth xforms 0) conj!)
+                 f1 ((nth xforms 1) conj!)
+
+                 transient-tos
+                 (reduce (fn [transient-tos item]
+                           (let [transient-to0 (transient-tos 0)
+                                 transient-to1 (transient-tos 1)]
+                             (let [transient-to0' (cond-> transient-to0 (not (reduced? transient-to0)) (f0 item))
+                                   transient-to1' (cond-> transient-to1 (not (reduced? transient-to1)) (f1 item))]
+                               (cond-> (pair transient-to0'
+                                             transient-to1')
+
+                                       (and (reduced? transient-to0')
+                                            (reduced? transient-to1'))
+                                       reduced))))
+                         (pair (transient (nth tos 0))
+                               (transient (nth tos 1)))
+                         from)]
+             (pair (with-meta (persistent! (f0 (unreduced (transient-tos 0))))
+                              (meta (nth tos 0)))
+                   (with-meta (persistent! (f1 (unreduced (transient-tos 1))))
+                              (meta (nth tos 1))))))
+
+       ;; General case.
+       (let [fs (mapv (fn [xform]
+                        (xform conj!))
+                      xforms)]
+         (assert (let [xform-count (count fs)]
+                   (= xform-count (coll/bounded-count (inc xform-count) tos))))
+         (mapv (fn [orig-to f transient-to']
+                 (with-meta (persistent! (f (unreduced transient-to')))
+                            (meta orig-to)))
+               tos
+               fs
+               (reduce (fn [transient-tos item]
+                         (let [[transient-tos' all-reduced]
+                               (reduce-kv (fn [[transient-tos' all-reduced] index transient-to]
+                                            (let [f (fs index)
+                                                  transient-to' (cond-> transient-to (not (reduced? transient-to)) (f item))]
+                                              (pair (conj transient-tos' transient-to')
+                                                    (and all-reduced
+                                                         (reduced? transient-to')))))
+                                          (pair []
+                                                true)
+                                          transient-tos)]
+                           (cond-> transient-tos'
+                                   all-reduced reduced)))
+                       (mapv transient tos)
+                       from)))))))

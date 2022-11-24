@@ -943,7 +943,7 @@ public class Project {
             } catch (ConnectException e) {
                 throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
             } catch (ExtenderClientException e) {
-                throw new CompileExceptionError("Failed to build engine", e);
+                throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
             }
 
             m.worked(1);
