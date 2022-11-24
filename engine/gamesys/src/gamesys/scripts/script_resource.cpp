@@ -17,6 +17,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <gamesys/mesh_ddf.h>
+#include <gamesys/texture_set_ddf.h>
 #include <graphics/graphics_ddf.h>
 #include <liveupdate/liveupdate.h>
 #include <render/font_renderer.h>
@@ -27,6 +28,7 @@
 #include "../gamesys.h"
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
+#include "../resources/res_textureset.h"
 #include "script_resource_liveupdate.h"
 
 #include <dmsdk/script/script.h>
@@ -223,6 +225,43 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     }
     dmSnPrintf(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
     return luaL_error(L, "%s", msg);
+}
+
+static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+{
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
+    if (!rd) {
+        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
+        return 0;
+    }
+
+    dmResource::ResourceType resource_type;
+    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
+    if( r != dmResource::RESULT_OK )
+    {
+        ReportPathError(L, r, path_hash);
+    }
+
+    dmResource::ResourceType expected_resource_type;
+    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
+    if( r != dmResource::RESULT_OK )
+    {
+        ReportPathError(L, r, path_hash);
+    }
+
+    if (resource_type != expected_resource_type) {
+        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
+        return 0;
+    }
+
+    return rd->m_Resource;
+}
+
+static dmhash_t GetCanonicalPathHash(const char* path)
+{
+    char canonical_path[dmResource::RESOURCE_PATH_MAX];
+    uint32_t path_len  = dmResource::GetCanonicalPath(path, canonical_path);
+    return dmHashBuffer64(canonical_path, path_len);
 }
 
 /*# Set a resource
@@ -599,10 +638,7 @@ static int CreateTexture(lua_State* L)
         return 0;
     }
 
-    char canonical_path[dmResource::RESOURCE_PATH_MAX];
-    uint32_t canonical_path_len  = dmResource::GetCanonicalPath(path_str, canonical_path);
-    dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, canonical_path_len);
-
+    dmhash_t canonical_path_hash = GetCanonicalPathHash(path_str);
     if (dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash))
     {
         luaL_error(L, "Unable to create texture, a resource is already registered at path '%s'", path_str);
@@ -855,6 +891,380 @@ static int SetTexture(lua_State* L)
     return 0;
 }
 
+// Allocates a new array and fills it with data from a lua table.
+// Only supports number values.
+// Return false if any error happened
+template<typename T>
+static bool MakeNumberArrayFromLuaTable(lua_State* L, const char* field, void** data_out, uint32_t* count_out)
+{
+    lua_getfield(L, -1, field);
+    if (!lua_istable(L, -1))
+    {
+        return false;
+    }
+
+    int num_entries = lua_objlen(L, -1);
+
+    T* data_ptr = new T[num_entries];
+
+    lua_pushnil(L);
+    while (lua_next(L, -2))
+    {
+        if (!lua_isnumber(L, -1) || !lua_isnumber(L, -2))
+        {
+            return false;
+        }
+        int32_t table_index     = lua_tonumber(L, -2);
+        data_ptr[table_index-1] = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+
+    *data_out  = data_ptr;
+    *count_out = num_entries;
+    return true;
+}
+
+static void DestroyTextureSet(dmGameSystemDDF::TextureSet& texture_set)
+{
+    if (texture_set.m_Animations.m_Data)
+        delete[] texture_set.m_Animations.m_Data;
+    if (texture_set.m_Geometries.m_Data)
+        delete[] texture_set.m_Geometries.m_Data;
+    if (texture_set.m_FrameIndices.m_Data)
+        delete[] texture_set.m_FrameIndices.m_Data;
+    memset(&texture_set, 0, sizeof(dmGameSystemDDF::TextureSet));
+}
+
+static dmGameSystemDDF::Playback GameObjectPlaybackToDDFPlayback(dmGameObject::Playback playback)
+{
+    switch(playback)
+    {
+        case dmGameObject::PLAYBACK_NONE:          return dmGameSystemDDF::PLAYBACK_NONE;
+        case dmGameObject::PLAYBACK_ONCE_FORWARD:  return dmGameSystemDDF::PLAYBACK_ONCE_FORWARD;
+        case dmGameObject::PLAYBACK_ONCE_BACKWARD: return dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD;
+        case dmGameObject::PLAYBACK_ONCE_PINGPONG: return dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG;
+        case dmGameObject::PLAYBACK_LOOP_FORWARD:  return dmGameSystemDDF::PLAYBACK_LOOP_FORWARD;
+        case dmGameObject::PLAYBACK_LOOP_BACKWARD: return dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD;
+        case dmGameObject::PLAYBACK_LOOP_PINGPONG: return dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG;
+        default:break;
+    }
+    assert(0);
+    return (dmGameSystemDDF::Playback) -1;
+}
+
+static int SetAtlasData(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    void* atlas_res    = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturesetc");
+    assert(atlas_res);
+
+    dmGameSystemDDF::TextureSet texture_set_ddf = {};
+    uint32_t frame_index_count                  = 0;
+    uint32_t tex_width                          = 0;
+    uint32_t tex_height                         = 0;
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_pushvalue(L, 2);
+
+    // Set texture resource path
+    lua_getfield(L, -1, "texture");
+    {
+        const char* texture_path         = luaL_checkstring(L, -1);
+        dmhash_t tex_canonical_path_hash = GetCanonicalPathHash(texture_path);
+        void* texture_res                = CheckResource(L, g_ResourceModule.m_Factory, tex_canonical_path_hash, "texturec");
+        assert(texture_res);
+        texture_set_ddf.m_Texture        = texture_path;
+        dmGraphics::HTexture texture     = (dmGraphics::HTexture) texture_res;
+        tex_width                        = dmGraphics::GetTextureWidth(texture);
+        tex_height                       = dmGraphics::GetTextureHeight(texture);
+    }
+    lua_pop(L, 1);
+
+    #define DESTROY_TEXTURE_SET_AND_RAISE_ERROR(...) \
+        DestroyTextureSet(texture_set_ddf); \
+        luaL_error(L, __VA_ARGS__);
+
+    // We can't use the normal luaL_check*** functions after we allocate dynamic memory for the texture set,
+    // because the error check will longjmp away and never release that memory
+    #define CHECK_LUA_FIELD_TYPE(l_index, l_type, ...) \
+        if (lua_type(L, l_index) != l_type) { \
+            DESTROY_TEXTURE_SET_AND_RAISE_ERROR(__VA_ARGS__); \
+        }
+
+    // Set geometry data
+    lua_getfield(L, -1, "geometries");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    {
+        int num_geometries = lua_objlen(L, -1);
+        texture_set_ddf.m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
+        texture_set_ddf.m_Geometries.m_Count = num_geometries;
+        memset(texture_set_ddf.m_Geometries.m_Data, 0, sizeof(dmGameSystemDDF::SpriteGeometry) * num_geometries);
+
+        lua_pushnil(L);
+        while (lua_next(L, -2))
+        {
+            luaL_checktype(L, -1, LUA_TTABLE);
+            int32_t geometry_index = luaL_checknumber(L, -2) - 1;
+            dmGameSystemDDF::SpriteGeometry& geometry = texture_set_ddf.m_Geometries[geometry_index];
+
+            if (!MakeNumberArrayFromLuaTable<float>(L, "vertices", (void**) &geometry.m_Vertices.m_Data, &geometry.m_Vertices.m_Count))
+            {
+                DESTROY_TEXTURE_SET_AND_RAISE_ERROR("Invalid field 'vertices' for geometry %d", geometry_index);
+            }
+            if (!MakeNumberArrayFromLuaTable<float>(L, "uvs", (void**) &geometry.m_Uvs.m_Data, &geometry.m_Uvs.m_Count))
+            {
+                DESTROY_TEXTURE_SET_AND_RAISE_ERROR("Invalid field 'uvs' for geometry %d", geometry_index);
+            }
+            if (!MakeNumberArrayFromLuaTable<int>(L, "indices", (void**) &geometry.m_Indices.m_Data, &geometry.m_Indices.m_Count))
+            {
+                DESTROY_TEXTURE_SET_AND_RAISE_ERROR("Invalid field 'indices' for geometry %d", geometry_index);
+            }
+
+            frame_index_count++;
+
+            lua_pop(L, 1);
+        }
+    }
+    lua_pop(L, 1);
+
+    // Set animation data
+    lua_getfield(L, -1, "animations");
+    luaL_checktype(L, -1, LUA_TTABLE);
+    {
+        int num_animations = lua_objlen(L, -1);
+        if (num_animations > 0)
+        {
+            texture_set_ddf.m_Animations.m_Data  = new dmGameSystemDDF::TextureSetAnimation[num_animations];
+            texture_set_ddf.m_Animations.m_Count = num_animations;
+            memset(texture_set_ddf.m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
+
+            int frames_start = texture_set_frame_indices.Size();
+
+            lua_pushnil(L);
+            while (lua_next(L, -2))
+            {
+                luaL_checktype(L, -1, LUA_TTABLE);
+                CHECK_LUA_FIELD_TYPE(-2, LUA_TNUMBER, "Invalid key for animation, keys must be numbers");
+                int32_t table_index_lua = lua_tonumber(L, -2);
+
+                dmGameSystemDDF::TextureSetAnimation& animation = texture_set_ddf.m_Animations[table_index_lua-1];
+
+                // Default values, might be overridden later
+                animation.m_Fps      = 30;
+                animation.m_Playback = dmGameSystemDDF::PLAYBACK_ONCE_FORWARD;
+
+                lua_getfield(L, -1, "id");
+                CHECK_LUA_FIELD_TYPE(-1, LUA_TSTRING, "Invalid field 'id' for animation %d, string expected", table_index_lua);
+                animation.m_Id  = lua_tostring(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "width");
+                CHECK_LUA_FIELD_TYPE(-1, LUA_TNUMBER, "Invalid field 'width' for animation %d, number expected", table_index_lua);
+                animation.m_Width  = lua_tointeger(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "height");
+                CHECK_LUA_FIELD_TYPE(-1, LUA_TNUMBER, "Invalid field 'height' for animation %d, number expected", table_index_lua);
+                animation.m_Height = lua_tointeger(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "frame_start");
+                CHECK_LUA_FIELD_TYPE(-1, LUA_TNUMBER, "Invalid field 'frame_start' for animation %d", table_index_lua);
+                animation.m_Start = lua_tointeger(L, -1) - 1;
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "frame_end");
+                CHECK_LUA_FIELD_TYPE(-1, LUA_TNUMBER, "Invalid field 'frame_end' for animation %d", table_index_lua);
+                animation.m_End = lua_tointeger(L, -1) - 1;
+                lua_pop(L, 1);
+
+                frame_index_count += animation.m_End - animation.m_Start;
+
+                lua_getfield(L, -1, "playback");
+                if (lua_isnumber(L, -1))
+                {
+                    animation.m_Playback = GameObjectPlaybackToDDFPlayback((dmGameObject::Playback) lua_tointeger(L,-1));
+                }
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "fps");
+                if (lua_isnumber(L, -1))
+                {
+                    animation.m_Fps = lua_tointeger(L, -1);
+                }
+                lua_pop(L, 1);
+
+                lua_pop(L, 1);
+            }
+        }
+    }
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+
+    #undef CHECK_LUA_FIELD_TYPE
+    #undef DESTROY_TEXTURE_SET_AND_RAISE_ERROR
+
+    texture_set_ddf.m_UseGeometries        = 1;
+    texture_set_ddf.m_FrameIndices.m_Data  = new uint32_t[frame_index_count];
+    texture_set_ddf.m_FrameIndices.m_Count = frame_index_count;
+    memset(texture_set_ddf.m_FrameIndices.m_Data, 0, sizeof(uint32_t) * frame_index_count);
+
+    uint32_t frame_index = 0;
+    for (int i = 0; i < texture_set_ddf.m_Geometries.m_Count; ++i)
+    {
+        texture_set_ddf.m_FrameIndices[frame_index++] = i;
+    }
+
+    for (int i = 0; i < texture_set_ddf.m_Animations.m_Count; ++i)
+    {
+        uint32_t frame_count = texture_set_ddf.m_Animations[i].m_End - texture_set_ddf.m_Animations[i].m_Start;
+        for (int j = 0; j < frame_count; ++j)
+        {
+            texture_set_ddf.m_FrameIndices[frame_index] = j;
+        }
+    }
+
+    dmArray<uint8_t> ddf_buffer;
+    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
+    assert(ddf_result == dmDDF::RESULT_OK);
+
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, ddf_buffer.Begin(), ddf_buffer.Size());
+
+    DestroyTextureSet(texture_set_ddf);
+
+    if(r != dmResource::RESULT_OK) {
+        return ReportPathError(L, r, path_hash);
+    }
+
+    return 0;
+}
+
+static int GetAtlasData(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+
+    TextureSetResource* texture_set_res = (TextureSetResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturesetc");
+    assert(texture_set_res);
+
+    dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
+    assert(texture_set);
+
+    lua_newtable(L);
+
+    // JG: This returns a hash, but should we return the actual path?
+    //     Which requires us to keep the m_ResourceToHash table in factories around in non-debug..
+    lua_pushliteral(L, "texture");
+    dmScript::PushHash(L, texture_set_res->m_TexturePath);
+    lua_rawset(L, -3);
+
+    lua_pushliteral(L, "animations");
+    lua_newtable(L);
+
+    for (int i = 0; i < texture_set->m_Animations.m_Count; ++i)
+    {
+        dmGameSystemDDF::TextureSetAnimation& anim = texture_set->m_Animations[i];
+
+        lua_pushinteger(L, (lua_Integer) (i+1));
+        lua_newtable(L);
+
+        lua_pushliteral(L, "id");
+        lua_pushstring(L, anim.m_Id);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "width");
+        lua_pushinteger(L, anim.m_Width);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "height");
+        lua_pushinteger(L, anim.m_Height);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "frame_start");
+        lua_pushinteger(L, anim.m_Start + 1);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "frame_end");
+        lua_pushinteger(L, anim.m_End + 1);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "fps");
+        lua_pushinteger(L, anim.m_Fps);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "playback");
+        lua_pushinteger(L, (lua_Integer) anim.m_Playback);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "flip_horizontal");
+        lua_pushinteger(L, anim.m_FlipHorizontal);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "flip_vertical");
+        lua_pushinteger(L, anim.m_FlipVertical);
+        lua_rawset(L, -3);
+
+        lua_rawset(L, -3);
+    }
+
+    lua_rawset(L, -3);
+
+    {
+        lua_pushliteral(L, "geometries");
+        lua_newtable(L);
+
+        for (int i = 0; i < texture_set->m_Geometries.m_Count; ++i)
+        {
+            dmGameSystemDDF::SpriteGeometry& geom = texture_set->m_Geometries[i];
+
+            lua_pushinteger(L, (lua_Integer) (i+1));
+            lua_newtable(L);
+
+            {
+                lua_pushliteral(L, "vertices");
+                lua_newtable(L);
+                for (int j = 0; j < geom.m_Vertices.m_Count; ++j)
+                {
+                    lua_pushinteger(L, j + 1);
+                    lua_pushnumber(L, geom.m_Vertices[j]);
+                    lua_rawset(L, -3);
+                }
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "uvs");
+                lua_newtable(L);
+                for (int j = 0; j < geom.m_Uvs.m_Count; ++j)
+                {
+                    lua_pushinteger(L, j + 1);
+                    lua_pushnumber(L, geom.m_Uvs[j]);
+                    lua_rawset(L, -3);
+                }
+                lua_rawset(L, -3);
+
+                lua_pushliteral(L, "indices");
+                lua_newtable(L);
+                for (int j = 0; j < geom.m_Indices.m_Count; ++j)
+                {
+                    lua_pushinteger(L, j + 1);
+                    lua_pushinteger(L, geom.m_Indices[j]);
+                    lua_rawset(L, -3);
+                }
+                lua_rawset(L, -3);
+            }
+
+            lua_rawset(L, -3);
+        }
+        lua_rawset(L, -3);
+    }
+
+    return 1;
+}
+
 /*# Update internal sound resource
  * Update internal sound resource (wavc/oggc) with new data
  *
@@ -880,36 +1290,6 @@ static int SetSound(lua_State* L) {
     }
 
     return 0;
-}
-
-static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
-{
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
-    if (!rd) {
-        luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
-        return 0;
-    }
-
-    dmResource::ResourceType resource_type;
-    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
-    dmResource::ResourceType expected_resource_type;
-    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
-    if (resource_type != expected_resource_type) {
-        luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
-        return 0;
-    }
-
-    return rd->m_Resource;
 }
 
 /*# get resource buffer
@@ -1178,6 +1558,8 @@ static const luaL_reg Module_methods[] =
     {"load", Load},
     {"create_texture", CreateTexture},
     {"release", ReleaseResource},
+    {"set_atlas", SetAtlasData},
+    {"get_atlas", GetAtlasData},
     {"set_texture", SetTexture},
     {"set_sound", SetSound},
     {"get_buffer", GetBuffer},
