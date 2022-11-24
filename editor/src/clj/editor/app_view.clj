@@ -37,6 +37,7 @@
             [editor.editor-extensions :as extensions]
             [editor.engine :as engine]
             [editor.engine.build-errors :as engine-build-errors]
+            [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.fxui :as fxui]
@@ -1046,10 +1047,11 @@ If you do not specifically require different script states, consider changing th
           render-save-progress! (make-render-task-progress :save-all)
           render-build-progress! (make-render-task-progress :build)
           task-cancelled? (make-task-cancelled-query :build)
+          build-server-headers (native-extensions/get-build-server-headers prefs)
           bob-args (bob/build-html5-bob-args project prefs)]
       (build-errors-view/clear-build-errors build-errors-view)
       (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! pipe-log-stream-to-console! task-cancelled?
-                             render-build-error! bob/build-html5-bob-commands bob-args project changes-view
+                             render-build-error! bob/build-html5-bob-commands bob-args build-server-headers project changes-view
                              (fn [successful?]
                                (when successful?
                                  (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
@@ -1735,7 +1737,10 @@ If you do not specifically require different script states, consider changing th
            (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
                  tab-panes (.getItems editor-tabs-split)
                  open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
-                 view-type (if (g/node-value resource-node :editable?) view-type text-view-type)
+                 view-type (if (and (= :code (:id view-type))
+                                    (not (g/node-value resource-node :editable)))
+                             text-view-type
+                             view-type)
                  make-view-fn (:make-view-fn view-type)
                  ^Tab tab (or (some #(when (and (= (tab->resource-node %) resource-node)
                                                 (= view-type (ui/user-data % ::view-type)))
@@ -2020,7 +2025,7 @@ If you do not specifically require different script states, consider changing th
         filter-term-atom (atom prev-filter-term)
         selected-resources (resource-dialog/make workspace project
                                                  (cond-> {:title "Open Assets"
-                                                          :accept-fn resource/editable-resource?
+                                                          :accept-fn resource/editor-openable-resource?
                                                           :selection :multiple
                                                           :ok-label "Open"
                                                           :filter-atom filter-term-atom
@@ -2062,12 +2067,13 @@ If you do not specifically require different script states, consider changing th
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
         task-cancelled? (make-task-cancelled-query :build)
+        build-server-headers (native-extensions/get-build-server-headers prefs)
         bob-args (bob/bundle-bob-args prefs platform bundle-options)]
     (when-not (.exists output-directory)
       (fs/create-directories! output-directory))
     (build-errors-view/clear-build-errors build-errors-view)
     (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! pipe-log-stream-to-console! task-cancelled?
-                           render-build-error! bob/bundle-bob-commands bob-args project changes-view
+                           render-build-error! bob/bundle-bob-commands bob-args build-server-headers project changes-view
                            (fn [successful?]
                              (when successful?
                                (if (some-> output-directory .isDirectory)

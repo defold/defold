@@ -45,7 +45,7 @@
           old-count (node-count (g/graph graph-id))
           old-node-ids (set (ig/node-ids (g/graph graph-id)))
           old-basis (g/now)
-          mem-resource (project/make-embedded-resource project resource-type-name inline-resource)]
+          mem-resource (project/make-embedded-resource project :editable resource-type-name inline-resource)]
       (#'project/load-nodes! project (#'project/make-nodes! project [mem-resource]) (constantly nil) {} nil nil)
       (let [new-resource-node (project/get-resource-node project mem-resource)
             new-count (node-count (g/graph graph-id))]
@@ -55,6 +55,7 @@
               final-node-ids (set (ig/node-ids (g/graph graph-id)))
               new (clojure.set/difference final-node-ids old-node-ids)
               remainders (clojure.set/difference old-node-ids final-node-ids)]
+          (is (= old-count final-count))
           (is (= [] (map #(g/node-type* old-basis %) remainders)))
           (is (= [] (map g/node-type* new))))))))
 

@@ -32,7 +32,6 @@
 #include <graphics/graphics.h>
 #include <render/render.h>
 
-#include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "comp_private.h"
 
@@ -97,6 +96,17 @@ namespace dmGameSystem
         void*                              m_WorldVertexData;
         size_t                             m_WorldVertexDataSize;
 
+    };
+
+    struct MeshContext
+    {
+        MeshContext()
+        {
+            memset(this, 0, sizeof(*this));
+        }
+        dmRender::HRenderContext    m_RenderContext;
+        dmResource::HFactory        m_Factory;
+        uint32_t                    m_MaxMeshCount;
     };
 
     static inline void DeallocVertexBuffer(MeshWorld* world, dmGraphics::HVertexBuffer vertex_buffer)
@@ -385,7 +395,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("UpdateTransforms");
 
-        dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -422,7 +432,7 @@ namespace dmGameSystem
 
         MeshWorld* world = (MeshWorld*)params.m_World;
 
-        dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
         for (uint32_t i = 0; i < count; ++i)
@@ -770,7 +780,7 @@ namespace dmGameSystem
 
         UpdateTransforms(world);
 
-        dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         const uint32_t count = components.Size();
 
         // Prepare list submit
@@ -975,7 +985,7 @@ namespace dmGameSystem
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
     {
         MeshWorld* world = (MeshWorld*) params.m_UserData;
-        dmArray<MeshComponent*>& components = world->m_Components.m_Objects;
+        const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -1037,4 +1047,46 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompMeshIterPropertiesGetNext;
     }
 
+    static dmGameObject::Result CompMeshTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        MeshContext* mesh_context = new MeshContext;
+        mesh_context->m_Factory = ctx->m_Factory;
+        mesh_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
+        mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128);
+
+        ComponentTypeSetPrio(type, 725);
+
+        ComponentTypeSetContext(type, mesh_context);
+        ComponentTypeSetNewWorldFn(type, CompMeshNewWorld);
+        ComponentTypeSetDeleteWorldFn(type, CompMeshDeleteWorld);
+        ComponentTypeSetCreateFn(type, CompMeshCreate);
+        ComponentTypeSetDestroyFn(type, CompMeshDestroy);
+        ComponentTypeSetAddToUpdateFn(type, CompMeshAddToUpdate);
+        ComponentTypeSetUpdateFn(type, CompMeshUpdate);
+        ComponentTypeSetRenderFn(type, CompMeshRender);
+        ComponentTypeSetOnMessageFn(type, CompMeshOnMessage);
+        ComponentTypeSetGetPropertyFn(type, CompMeshGetProperty);
+        ComponentTypeSetSetPropertyFn(type, CompMeshSetProperty);
+
+        ComponentTypeSetPropertyIteratorFn(type, CompMeshIterProperties);
+
+        return dmGameObject::RESULT_OK;
+    }
+
+    static dmGameObject::Result CompMeshTypeDestroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        MeshContext* mesh_context = (MeshContext*)dmGameObject::ComponentTypeGetContext(type);
+        if (!mesh_context)
+        {
+            // if the initialization process failed (e.g. unit tests)
+            return dmGameObject::RESULT_OK;
+        }
+
+        delete mesh_context;
+
+        return dmGameObject::RESULT_OK;
+    }
+
 }
+
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeMesh, "meshc", dmGameSystem::CompMeshTypeCreate, dmGameSystem::CompMeshTypeDestroy);

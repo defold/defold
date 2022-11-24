@@ -12,7 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <signal.h>
 #include <dlib/dlib.h>
 #include <dlib/log.h>
 #include <dlib/sys.h>

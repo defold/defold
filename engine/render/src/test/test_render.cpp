@@ -908,6 +908,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*7, metrics.m_Width);
     ASSERT_EQ(ExpectedHeight(lineheight, numlines, leading), metrics.m_Height);
+    ASSERT_EQ(numlines, metrics.m_LineCount);
 }
 
 TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)
@@ -1102,6 +1103,27 @@ TEST(Constants, Constant)
     dmRender::DeleteConstant(constant);
 }
 
+struct IterConstantContext
+{
+    int m_Count;
+    dmArray<dmhash_t> m_Expected;
+};
+
+static void IterateNameConstantsCallback(dmhash_t name_hash, void* _ctx)
+{
+    IterConstantContext* ctx = (IterConstantContext*)_ctx;
+    ctx->m_Count++;
+
+    for (uint32_t i = 0; i < ctx->m_Expected.Size(); ++i)
+    {
+        if (ctx->m_Expected[i] == name_hash)
+        {
+            ctx->m_Expected.EraseSwap(i);
+            break;
+        }
+    }
+}
+
 TEST(Constants, NamedConstantsArray)
 {
     #define ASSERT_VEC4_EPS 0.0001f
@@ -1197,6 +1219,25 @@ TEST(Constants, NamedConstantsArray)
         ASSERT_VEC4(test_zero_vec, values[i]);
     }
     ASSERT_VEC4(original_values[2], values[6]);
+
+    ////////////////////////////////////////////////////////////
+    // Test: Test iteration of the names constants
+    ////////////////////////////////////////////////////////////
+
+    // Readd it to have some more data
+    dmRender::SetNamedConstant(buffer, dmHashString64("Value1"), &test_single_value, 1);
+    dmRender::SetNamedConstant(buffer, dmHashString64("Value2"), &test_single_value, 1);
+
+    IterConstantContext iter_ctx;
+    iter_ctx.m_Count = 0;
+    iter_ctx.m_Expected.SetCapacity(3);
+    iter_ctx.m_Expected.Push(name_hash_array);
+    iter_ctx.m_Expected.Push(dmHashString64("Value1"));
+    iter_ctx.m_Expected.Push(dmHashString64("Value2"));
+    dmRender::IterateNamedConstants(buffer, IterateNameConstantsCallback, &iter_ctx);
+
+    ASSERT_EQ(0u, iter_ctx.m_Expected.Size());
+    ASSERT_EQ(3, iter_ctx.m_Count);
 
     dmRender::DeleteNamedConstantBuffer(buffer);
 

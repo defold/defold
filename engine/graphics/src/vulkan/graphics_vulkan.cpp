@@ -774,6 +774,11 @@ namespace dmGraphics
         return true;
     }
 
+    static PipelineState VulkanGetPipelineState(HContext context)
+    {
+        return context->m_PipelineState;
+    }
+
     static void SetupSupportedTextureFormats(HContext context)
     {
     #if defined(__MACH__)
@@ -3280,7 +3285,16 @@ bail:
             if (texture->m_Format != vk_format || texture->m_Width != params.m_Width || texture->m_Height != params.m_Height)
             {
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture);
-                texture->m_Format = vk_format;
+                texture->m_Format      = vk_format;
+                texture->m_Width       = params.m_Width;
+                texture->m_Height      = params.m_Height;
+
+                // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps
+                // JG: Might want to go back to this part and recreate if mipmap count has changed from when the texture was originally created
+                if (texture->m_MipMapCount > 1)
+                {
+                    texture->m_MipMapCount = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Width, texture->m_Height));
+                }
             }
         }
 
@@ -3552,6 +3566,7 @@ bail:
         fn_table.m_GetNumSupportedExtensions = VulkanGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = VulkanGetSupportedExtension;
         fn_table.m_IsMultiTargetRenderingSupported = VulkanIsMultiTargetRenderingSupported;
+        fn_table.m_GetPipelineState = VulkanGetPipelineState;
         return fn_table;
     }
 }

@@ -31,6 +31,13 @@ def _to_str(x):
         x = str(x, encoding='utf-8')
     return x
 
+def _to_str(x):
+    if x is None:
+        return ''
+    elif isinstance(x, (bytes, bytearray)):
+        x = str(x, encoding='utf-8')
+    return x
+
 def _exec_command(arg_list, **kwargs):
     arg_str = arg_list
     if not isinstance(arg_str, str):
@@ -79,10 +86,10 @@ def command(args, **kwargs):
     except ExecException as e:
         sys.exit(e.retcode)
 
-def shell_command(args):
+def shell_command(args, **kwargs):
     # Executes a command, and exits if it fails
     try:
-        return _exec_command(args, shell = True)
+        return _exec_command(args, shell = True, **kwargs)
     except ExecException as e:
         sys.exit(e.retcode)
 

@@ -37,13 +37,19 @@
            [java.util Collection]
            [javafx.application Platform]
            [javafx.collections ObservableList]
+           [javafx.event Event]
            [javafx.scene Node]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.scene.control TextInputControl ListView ScrollPane]
+           [javafx.stage Window]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
+
+(defn event->window
+  ^Window [^Event event]
+  (.getWindow (.getScene ^Node (.getSource event))))
 
 (def ext-value
   "Extension lifecycle that returns value on `:value` key"

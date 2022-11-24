@@ -15,9 +15,12 @@
 #ifndef DMSDK_HID_NATIVE_DEFINES_H
 #define DMSDK_HID_NATIVE_DEFINES_H
 
+// Maps platform defines/constants to Defold defines
 #include <stdint.h>
 #if defined(__NX__)
 #include <dmsdk/hid/nx64/hid_native_defines.h>
+#elif defined(__SCE__)
+#include <dmsdk/hid/ps4/hid_native_defines.h>
 #else
 #include <dmsdk/hid/glfw/hid_native_defines.h>
 #endif

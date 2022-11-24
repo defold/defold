@@ -169,7 +169,7 @@ message StopRecord
  *
  * ```lua
  * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
- * local arg2 = 'build/default/game.projectc'
+ * local arg2 = 'build/game.projectc'
  * msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2})
  * ```
  */

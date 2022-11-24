@@ -208,6 +208,14 @@ namespace dmSoundCodec
         *out = ((DecodeStreamInfo *) stream)->m_Info;
     }
 
+    static int64_t TremoloGetInternalPos(HDecodeStream stream)
+    {
+        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+        return streamInfo->m_SeekTo == -1 ? (int64_t)ov_pcm_tell(&streamInfo->m_File) : streamInfo->m_SeekTo;
+    }
+
     DM_DECLARE_SOUND_DECODER(AudioDecoderTremolo, "VorbisDecoderTremolo", FORMAT_VORBIS, 8,
-                             TremoloOpenStream, TremoloCloseStream, TremoloDecode, TremoloResetStream, TremoloSkipInStream, TremoloGetInfo);
+                             TremoloOpenStream, TremoloCloseStream, TremoloDecode,
+                             TremoloResetStream, TremoloSkipInStream, TremoloGetInfo,
+                             TremoloGetInternalPos);
 }

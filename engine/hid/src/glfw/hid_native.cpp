@@ -252,9 +252,9 @@ namespace dmHID
         }
     }
 
-    void GetGamepadDeviceName(HGamepad gamepad, const char** device_name)
+    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name)
     {
-        glfwGetJoystickDeviceId(gamepad->m_Index, (char**)device_name);
+        glfwGetJoystickDeviceId(gamepad->m_Index, (char**)out_device_name);
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
@@ -292,6 +292,21 @@ namespace dmHID
     void EnableAccelerometer()
     {
         glfwAccelerometerEnable();
+    }
+
+    void ShowMouseCursor(HContext context)
+    {
+        glfwEnable(GLFW_MOUSE_CURSOR);
+    }
+
+    void HideMouseCursor(HContext context)
+    {
+        glfwDisable(GLFW_MOUSE_CURSOR);
+    }
+
+    bool GetCursorVisible(HContext context)
+    {
+        return !glfwGetMouseLocked();
     }
 
     const char* GetKeyName(Key key)

@@ -70,7 +70,16 @@ It is important that you provide the `--platform` option to let the `install_ext
 You need to rerun the `install_ext` command whenever you switch target platform, as different packages and SDKs are installed.
 
 #### Installing packages
-The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet and Protocol Buffers (a.k.a. protobuf). This step also installs some Python dependencies such as `requests`, `boto` and `Pygments`.
+The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet and Protocol Buffers (a.k.a. protobuf).
+
+This step also installs some Python dependencies:
+
+* `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
+* `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
+* `protobuf` - Installed from wheel package in `packages/`
+* `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
+* `requests` - Installed using pip
+* `pyaml` - Installed using pip
 
 #### Installing SDKs
 The second step of the `install_ext` command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.

@@ -13,39 +13,39 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.engine.native-extensions
-  (:require
-   [clojure.java.io :as io]
-   [clojure.data.json :as json]
-   [dynamo.graph :as g]
-   [editor.connection-properties :refer [connection-properties]]
-   [editor.prefs :as prefs]
-   [editor.defold-project :as project]
-   [editor.engine.build-errors :as engine-build-errors]
-   [editor.fs :as fs]
-   [editor.resource :as resource]
-   [editor.system :as system]
-   [editor.workspace :as workspace]
-   [util.http-client :as http])
-  (:import
-   (java.io File)
-   (java.net URI)
-   (java.util Base64)
-   (java.security MessageDigest)
-   (javax.ws.rs.core MediaType)
-   (org.apache.commons.codec.binary Hex)
-   (org.apache.commons.codec.digest DigestUtils)
-   (org.apache.commons.io IOUtils)
-   (com.dynamo.bob Platform)
-   (com.sun.jersey.api.client.config DefaultClientConfig)
-   (com.sun.jersey.api.client Client ClientResponse WebResource$Builder)
-   (com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider)
-   (com.sun.jersey.multipart FormDataMultiPart)
-   (com.sun.jersey.multipart.impl MultiPartWriter)
-   (com.sun.jersey.multipart.file StreamDataBodyPart)))
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.connection-properties :refer [connection-properties]]
+            [editor.defold-project :as project]
+            [editor.engine.build-errors :as engine-build-errors]
+            [editor.fs :as fs]
+            [editor.prefs :as prefs]
+            [editor.resource :as resource]
+            [editor.system :as system]
+            [editor.workspace :as workspace]
+            [util.http-client :as http])
+  (:import [com.dynamo.bob Platform]
+           [com.sun.jersey.api.client Client ClientResponse WebResource$Builder]
+           [com.sun.jersey.api.client.config DefaultClientConfig]
+           [com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider]
+           [com.sun.jersey.multipart FormDataMultiPart]
+           [com.sun.jersey.multipart.file StreamDataBodyPart]
+           [com.sun.jersey.multipart.impl MultiPartWriter]
+           [java.io File]
+           [java.net URI]
+           [java.security MessageDigest]
+           [java.util Base64]
+           [javax.ws.rs.core MediaType]
+           [org.apache.commons.codec.binary Hex]
+           [org.apache.commons.codec.digest DigestUtils]
+           [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:const defold-build-server-url (get-in connection-properties [:native-extensions :build-server-url]))
+(def ^:const defold-build-server-headers "")
 (def ^:const connect-timeout-ms (* 30 1000))
 (def ^:const read-timeout-ms (* 10 60 1000))
 
@@ -222,8 +222,8 @@
                 (get info "cached")]))
         ne-cache-info))
 
-(defn- build-engine-archive ^File
-  [server-url extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
+(defn- build-engine-archive
+  ^File [server-url server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
   ;; NOTE:
   ;; sdk-version is likely to be nil unless you're running a bundled editor.
   ;; In this case things will only work correctly if you're running a local
@@ -247,10 +247,13 @@
         ne-cache-info (query-cached-files server-url resource-nodes-by-upload-path evaluation-context)
         ne-cache-info-map (make-cached-info-map ne-cache-info)]
     (.accept builder #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
-    (if (not-empty user-info)
-        (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info)))))
-    (if (and (not-empty extender-username) (not-empty extender-password))
-        (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes (str extender-username ":" extender-password))))))
+    (when (not-empty user-info)
+      (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info)))))
+    (when (and (not-empty extender-username) (not-empty extender-password))
+      (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes (str extender-username ":" extender-password))))))
+    (doseq [header (string/split-lines server-headers)]
+      (let [[key value] (string/split header #"\s*:\s*" 2)]
+        (.header builder key value)))
     (with-open [form (FormDataMultiPart.)]
       ; upload the file to the server, basically telling it what we are sending (and what we aren't)
       (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes ^String (json/write-str {:files ne-cache-info})))))
@@ -270,6 +273,10 @@
 (defn get-build-server-url
   ^String [prefs]
   (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
+
+(defn get-build-server-headers
+  ^String [prefs]
+  (prefs/get-prefs prefs "extensions-server-headers" defold-build-server-headers))
 
 ;; Note: When we do bundling for Android via the editor, we need add
 ;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
@@ -334,7 +341,7 @@
   (not (empty? (merge (extension-roots project evaluation-context)
                       (global-resource-nodes-by-upload-path project evaluation-context)))))
 
-(defn get-engine-archive [project evaluation-context platform build-server-url]
+(defn get-engine-archive [project evaluation-context platform build-server-url build-server-headers]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
     (let [extender-platform (get-in extender-platforms [platform :platform])
@@ -347,6 +354,6 @@
           key (cache-key extender-platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)) evaluation-context)]
       (if-let [cached-archive (cached-engine-archive cache-dir extender-platform key)]
         {:id {:type :custom :version key} :cached true :engine-archive cached-archive :extender-platform extender-platform}
-        (let [temp-archive (build-engine-archive build-server-url extender-platform sdk-version resource-nodes-by-upload-path evaluation-context)
+        (let [temp-archive (build-engine-archive build-server-url build-server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context)
               engine-archive (cache-engine-archive! cache-dir extender-platform key temp-archive)]
           {:id {:type :custom :version key} :engine-archive engine-archive :extender-platform extender-platform})))))

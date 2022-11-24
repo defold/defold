@@ -27,6 +27,7 @@
  *
  * ```cpp
  * dmArray<int> a;
+ * a.SetCapacity(1);
  * a.Push(1);
  * int b = a[0];
  * ```

@@ -24,7 +24,7 @@ import os, sys, platform
 PLATFORMS_PRIVATE = ('x86_64-ps4', 'arm64-nx64')
 
 # We use this function to determine if we should skip this platform
-def can_build_private_platform(platform):
+def can_build_private_platform(repository, platform):
     return False
 
 def repo_name_to_platforms(repository):
@@ -40,8 +40,11 @@ def is_platform_private(platform):
     return platform in PLATFORMS_PRIVATE
 
 def is_platform_supported(platform):
+    repository = os.environ.get('GITHUB_REPOSITORY', None)
+    if repository is None:
+        return True # probably a local build so we assume the dev knows how to build
     if is_platform_private(platform):
-        return can_build_private_platform(platform)
+        return can_build_private_platform(repository, platform)
     return True
 
 def is_repo_private():

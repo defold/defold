@@ -549,6 +549,11 @@ namespace dmHttpCache
         return RESULT_OK;
     }
 
+    void SetError(HCache cache, HCacheCreator cache_creator)
+    {
+        cache_creator->m_Error = 1;
+    }
+
     Result End(HCache cache, HCacheCreator cache_creator)
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
@@ -565,6 +570,7 @@ namespace dmHttpCache
 
         if (cache_creator->m_Error)
         {
+            dmSys::Unlink(cache_creator->m_Filename);
             FreeCacheCreator(cache, cache_creator);
             cache->m_CacheTable.Erase(uri_hash);
             return RESULT_IO_ERROR;

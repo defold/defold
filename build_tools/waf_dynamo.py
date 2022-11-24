@@ -26,7 +26,7 @@ if not 'DYNAMO_HOME' in os.environ:
     sys.exit(1)
 
 def is_platform_private(platform):
-    return platform in ['arm64-nx64']
+    return platform in ['arm64-nx64', 'x86_64-ps4']
 
 for platform in ('nx64', 'ps4'):
     path = os.path.join(os.path.dirname(__file__), 'waf_dynamo_%s.py' % platform)
@@ -60,6 +60,8 @@ if 'waf_dynamo_private' not in sys.modules:
     globals()['waf_dynamo_private'] = waf_dynamo_private
 
 def platform_supports_feature(platform, feature, data):
+    if is_platform_private(platform):
+        return waf_dynamo_private.supports_feature(platform, feature, data)
     if feature == 'vulkan':
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux']
     return waf_dynamo_private.supports_feature(platform, feature, data)
@@ -351,11 +353,11 @@ def default_flags(self):
         os.makedirs(libpath)
     self.env.append_value('LIBPATH', libpath)
 
-    self.env.append_value('INCLUDES', build_util.get_dynamo_ext('include'))
     self.env.append_value('INCLUDES', build_util.get_dynamo_home('sdk','include'))
-    self.env.append_value('INCLUDES', build_util.get_dynamo_home('include'))
     self.env.append_value('INCLUDES', build_util.get_dynamo_home('include', build_util.get_target_platform()))
+    self.env.append_value('INCLUDES', build_util.get_dynamo_home('include'))
     self.env.append_value('INCLUDES', build_util.get_dynamo_ext('include', build_util.get_target_platform()))
+    self.env.append_value('INCLUDES', build_util.get_dynamo_ext('include'))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
     # Platform specific paths etc comes after the project specific stuff
@@ -376,7 +378,7 @@ def default_flags(self):
 
     elif "macos" == build_util.get_target_os():
 
-        sys_root = '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_MACOSX)
+        sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
@@ -412,10 +414,9 @@ def default_flags(self):
             extra_linkflags += ['-fobjc-link-runtime']
 
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
-        sys_root = '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_IPHONEOS)
+        sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
         if 'x86_64' == build_util.get_target_architecture():
-            sys_root = '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), sdk.VERSION_IPHONESIMULATOR)
             swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
@@ -477,7 +478,7 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
-                                        '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS'])
+                                        '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])
             self.env.append_value(f, emflags)
             self.env.append_value(f, flags)
 
@@ -502,6 +503,11 @@ def default_flags(self):
 
     platform_setup_vars(self, build_util)
 
+    hostfs = ''
+    if 'DM_HOSTFS' in self.env:
+        hostfs = self.env['DM_HOSTFS']
+    self.env.append_unique('DEFINES', 'DM_HOSTFS=\"%s\"' % hostfs)
+
     if Options.options.with_iwyu and 'IWYU' in self.env:
         wrapper = build_util.get_dynamo_home('..', '..', 'scripts', 'iwyu-clang.sh')
         for f in ['CC', 'CXX']:
@@ -514,7 +520,7 @@ def default_flags(self):
 @after('c')
 @after('cxx')
 def remove_flags_fn(self):
-    lookup = getattr(self, 'remove_flags', [])
+    lookup = getattr(self, 'remove_flags', {})
     for name, values in lookup.items():
         for flag, argcount in values:
             remove_flag(self.env[name], flag, argcount)
@@ -581,16 +587,16 @@ def asan_cxxflags(self):
         return
     build_util = create_build_utility(self.env)
     if Options.options.with_asan and build_util.get_target_os() in ('macos','ios','android'):
-        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
-        self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
+        self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
     elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android'):
-        self.env.append_value('CXXFLAGS', ['-fsanitize=undefined'])
-        self.env.append_value('CFLAGS', ['-fsanitize=undefined'])
+        self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
+        self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
     elif Options.options.with_tsan and build_util.get_target_os() in ('macos','ios','android'):
-        self.env.append_value('CXXFLAGS', ['-fsanitize=thread'])
-        self.env.append_value('CFLAGS', ['-fsanitize=thread'])
+        self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
+        self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
 
 @task_gen
@@ -1253,7 +1259,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
     return ret
 
 def run_tests(ctx, valgrind = False, configfile = None):
-    if ctx == None or getattr(Options.options, 'skip_tests', False):
+    if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
 
     # TODO: Add something similar to this
@@ -1364,23 +1370,23 @@ Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
                       after='dSYM') # Not sure how I could ensure this task running after the dSYM task /MAWE
 
 @feature('extract_symbols')
-@after('cprogram', 'cxxprogram')
+@after('cprogram', 'cxxprogram', 'cshlib', 'cxxshlib')
+@after('apply_link')
 def extract_symbols(self):
     platform = self.env['PLATFORM']
     if not ('macos' in platform or 'ios' in platform):
         return
 
-    engine = self.path.find_or_declare(self.target)
-    dsym = engine.change_ext('.dSYM')
+    link_output = self.link_task.outputs[0]
+    dsym = link_output.change_ext('.dSYM')
     dsymtask = self.create_task('dSYM')
-    dsymtask.set_inputs(engine)
+    dsymtask.set_inputs(link_output)
     dsymtask.set_outputs(dsym)
 
-    archive = engine.change_ext('.dSYM.zip')
+    archive = link_output.change_ext('.dSYM.zip')
     ziptask = self.create_task('DSYMZIP')
     ziptask.set_inputs(dsymtask.outputs[0])
     ziptask.set_outputs(archive)
-    ziptask.install_path = self.install_path
 
 def remove_flag_at_index(arr, index, count):
     for i in range(count):
@@ -1583,6 +1589,8 @@ def detect(conf):
         if not Options.options.skip_codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
     else:
+        conf.options.check_c_compiler = 'clang gcc'
+        conf.options.check_cxx_compiler = 'clang++ g++'
         conf.load('compiler_c')
         conf.load('compiler_cxx')
 
@@ -1703,6 +1711,9 @@ def detect(conf):
     conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
     conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null_noasan']
+
+    if platform in ('arm64-nx64',):
+        conf.env['STLIB_PROFILE'] = conf.env['STLIB_PROFILE_NULL']
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'

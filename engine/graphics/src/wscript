@@ -43,8 +43,8 @@ def build(bld):
                         source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
                         target          = 'graphics_vulkan')
 
-        if bld.env.PLATFORM == 'arm64-nx64':
-          obj.source.remove(os.path.join('.','graphics_glfw_wrappers.cpp'))
+        if bld.env.PLATFORM in ('arm64-nx64', 'x86_64-ps4'):
+            obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
         obj.source = [x for x in obj.source if not x.abspath().endswith(os.path.join('vulkan','graphics_native.cpp'))]
         obj.source.append(_get_native_source(build_util.get_target_os(), 'vulkan'))
@@ -61,8 +61,18 @@ def build(bld):
         elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
             obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
 
+    if bld.env.PLATFORM == 'x86_64-ps4':
+        obj = bld.stlib(features = 'ddf cxx',
+                       includes = ['.', '../proto'],
+                       source   = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                       proto_gen_py = True,
+                       protoc_includes = '../proto',
+                       use    = 'DDF DLIB',
+                       target = 'graphics_ps4')
+        obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
+
     obj = bld.stlib(features        = 'ddf cxx',
-                    includes        = ['. null', '../proto'],
+                    includes        = ['.', 'null', '../proto'],
                     source          = bld.path.ant_glob(['*.cpp', 'null/*.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
                     proto_gen_py    = True,
                     protoc_includes = '../proto',

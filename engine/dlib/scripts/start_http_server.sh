@@ -18,7 +18,16 @@ set -e
 
 SCRIPTDIR=$(dirname "$0")
 
-CLASSPATH=$SCRIPTDIR/../ext/jetty-all-7.0.2.v20100331.jar:$SCRIPTDIR/../ext/servlet-api-2.5.jar:$SCRIPTDIR/../build/src/test/http_server:.:$CLASSPATH
+PATHSEP=":"
+if [ "${OS}" == "Windows_NT" ]; then
+	if [ "${TERM}" == "cygwin" ]; then
+		PATHSEP=":"
+	else
+		PATHSEP="\\;"
+	fi
+fi
+
+CLASSPATH=$SCRIPTDIR/../ext/jetty-all-7.0.2.v20100331.jar${PATHSEP}$SCRIPTDIR/../ext/servlet-api-2.5.jar${PATHSEP}$SCRIPTDIR/../build/src/test/http_server${PATHSEP}.${PATHSEP}$CLASSPATH
 
 echo $CLASSPATH
 

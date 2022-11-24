@@ -45,8 +45,20 @@ sys.dont_write_bytecode = True
 try:
     import build_nx64
     sys.modules['build_private'] = build_nx64
-except Exception:
+except ModuleNotFoundError:
     pass
+except Exception as e:
+    print("Failed to import build_nx64.py:")
+    raise e
+
+try:
+    import build_ps4
+    sys.modules['build_private'] = build_ps4
+except ModuleNotFoundError:
+    pass
+except Exception as e:
+    print("Failed to import build_ps4.py:")
+    raise e
 
 sys.dont_write_bytecode = False
 try:
@@ -78,21 +90,28 @@ if 'build_private' not in sys.modules:
         def get_tag_suffix(self):
             return ''
 
+assert(hasattr(build_private, 'get_target_platforms'))
+assert(hasattr(build_private, 'get_install_host_packages'))
+assert(hasattr(build_private, 'get_install_target_packages'))
+assert(hasattr(build_private, 'install_sdk'))
+assert(hasattr(build_private, 'is_library_supported'))
+assert(hasattr(build_private, 'is_repo_private'))
+assert(hasattr(build_private, 'get_tag_suffix'))
+
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-633f265 tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
-PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-633f265 tremolo-0.0.8".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-633f265 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41 luac-32-5.1.5".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-633f265 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41 luac-32-5.1.5".split()
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-633f265 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-633f265 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-633f265 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
+PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
+PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb MoltenVK-1.0.41 luac-32-5.1.5".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb MoltenVK-1.0.41 luac-32-5.1.5".split()
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -120,7 +139,8 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+ENGINE_LIBS = "testmain dlib texc ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+HOST_LIBS = "testmain dlib texc modelc".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
 
@@ -144,6 +164,9 @@ def format_exes(name, platform):
     elif platform in ['arm64-nx64']:
         prefix = ''
         suffix = ['.nss', '.nso']
+    elif platform in ['x86_64-ps4']:
+        prefix = ''
+        suffix = ['.elf']
     else:
         suffix = ['']
 
@@ -326,7 +349,7 @@ class Configuration(object):
             self._log('Removing %s' % self.dynamo_home)
             shutil.rmtree(self.dynamo_home)
 
-        for lib in ['dlib','texc']+ENGINE_LIBS:
+        for lib in ENGINE_LIBS:
             builddir = join(self.defold_root, 'engine/%s/build' % lib)
             if os.path.exists(builddir):
                 self._log('Removing %s' % builddir)
@@ -770,37 +793,45 @@ class Configuration(object):
             paths = _findlibs(libdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            # Android Jars (Dynamo)
-            jardir = os.path.join(self.dynamo_home, 'share/java')
-            paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            if platform in ['armv7-android', 'arm64-android']:
+                # Android Jars (Dynamo)
+                jardir = os.path.join(self.dynamo_home, 'share/java')
+                paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            # Android Jars (external)
-            external_jars = ("android-support-multidex.jar",
-                             "androidx-multidex.jar",
-                             "android.jar")
-            jardir = os.path.join(self.dynamo_home, 'ext/share/java')
-            paths = _findjars(jardir, external_jars)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+                # Android Jars (external)
+                external_jars = ("android-support-multidex.jar",
+                                 "androidx-multidex.jar",
+                                 "android.jar")
+                jardir = os.path.join(self.dynamo_home, 'ext/share/java')
+                paths = _findjars(jardir, external_jars)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Win32 resource files
-            engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
-            defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
-            self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
+            if platform in ['win32', 'x86_64-win32']:
+                engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
+                defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
+                self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
 
-            # JavaScript files
-            # js-web-pre-x files
-            jsdir = os.path.join(self.dynamo_home, 'share')
-            paths = _findjslibs(jsdir)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-            # libraries for js-web
-            jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
-            paths = _findjslibs(jsdir)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-            # libraries for wasm-web
-            jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
-            paths = _findjslibs(jsdir)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            if platform in ['js-web']:
+                # JavaScript files
+                # js-web-pre-x files
+                jsdir = os.path.join(self.dynamo_home, 'share')
+                paths = _findjslibs(jsdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+                jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
+                paths = _findjslibs(jsdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            if platform in ['wasm-web']:
+                jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
+                paths = _findjslibs(jsdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+            if platform in ['x86_64-ps4']:
+                memory_init = os.path.join(self.dynamo_home, 'ext/lib/x86_64-ps4/memory_init.o')
+                self._add_files_to_zip(zip, [memory_init], self.dynamo_home, topfolder)
 
             # .proto files
             for d in ['share/proto/', 'ext/include/google/protobuf']:
@@ -958,6 +989,7 @@ class Configuration(object):
         if self.target_platform == 'x86_64-linux':
             # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
+            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
             files = [
@@ -972,7 +1004,7 @@ class Configuration(object):
             self.upload_to_archive(resources, '%s/android-resources.zip' % (full_archive_path))
 
         if self.is_desktop_target():
-            libs = ['dlib', 'texc', 'particle']
+            libs = ['dlib', 'texc', 'particle', 'modelc']
             for lib in libs:
                 lib_name = format_lib('%s_shared' % (lib), self.target_platform)
                 lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
@@ -1041,8 +1073,6 @@ class Configuration(object):
 
         env = self._form_env()
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-        env['DM_BOB_EXT_LIB_DIR'] = os.path.join(common_dir, 'ext')
-        env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
 
         s = run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
                                     cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
@@ -1065,7 +1095,7 @@ class Configuration(object):
         args = cmd.split()
         host = self.host
         # Make sure we build these for the host platform for the toolchain (bob light)
-        for lib in ['dlib', 'texc']:
+        for lib in HOST_LIBS:
             skip_tests = host != self.target_platform
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         if not self.skip_bob_light:
@@ -1074,14 +1104,17 @@ class Configuration(object):
         # Target libs to build
 
         engine_libs = list(ENGINE_LIBS)
-        if host != self.target_platform:
-            engine_libs.insert(0, 'dlib')
-            if self.is_desktop_target():
-                engine_libs.insert(1, 'texc')
         for lib in engine_libs:
+
+            # No need to rebuild a library if it has already been built
+            if host == self.target_platform:
+                if lib in HOST_LIBS:
+                    continue
+
             if not build_private.is_library_supported(target_platform, lib):
                 continue
             self._build_engine_lib(args, lib, target_platform)
+
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
         if not self.skip_docs:
             self.build_docs()
@@ -1114,6 +1147,7 @@ class Configuration(object):
 
     def copy_local_bob_artefacts(self):
         texc_name = format_lib('texc_shared', self.host)
+        modelc_name = format_lib('modelc_shared', self.host)
         luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         missing = {}
@@ -1127,7 +1161,7 @@ class Configuration(object):
                     ['x86_64-linux', 'x86_64-linux'],
                     ['x86_64-macos', 'x86_64-macos'],
                     ['arm64-macos', 'arm64-macos']]:
-            luajit_path = join(cwd, '../../packages/luajit-2.1.0-633f265-%s.tar.gz' % (plf[0]))
+            luajit_path = join(cwd, '../../packages/luajit-2.1.0-6c4826f-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
@@ -1150,8 +1184,10 @@ class Configuration(object):
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
+                                 'share/java/modelimporter.jar': 'lib/modelimporter.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
-                                 'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name)},
+                                 'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
+                                 'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name)},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
                      'js-bundling': js_files,
@@ -1204,12 +1240,10 @@ class Configuration(object):
 
         ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
         ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
-        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+        if self.verbose:
+            ant_args += ['-v']
 
-        env = self._form_env()
         env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-        env['DM_BOB_EXT_LIB_DIR'] = os.path.join(common_dir, 'ext')
-        env['DM_BOB_CLASS_DIR'] = os.path.join(bob_dir, 'build')
 
         run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
 
@@ -1423,12 +1457,30 @@ class Configuration(object):
         with open(self.save_env_path, "w") as f:
             f.write(res)
 
+    def find_and_set_java_home(self):
+        cmd = ['java', '-XshowSettings:properties', '-version']
+        process = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
+        output = process.communicate()[1]
+
+        lines = output.decode("utf-8").replace('\r', '').split('\n')
+
+        for line in lines:
+            line = line.strip()
+
+            if 'java.home' in line:
+                tokens = line.split(' = ')
+                java_home = tokens[1].strip()
+                os.environ['JAVA_HOME'] = java_home
+
+
     def shell(self):
-        print ('Setting up shell with DYNAMO_HOME, PATH, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
         if "win32" in self.host:
             preexec_fn = None
         else:
             preexec_fn = self.check_ems
+
+        self.find_and_set_java_home()
 
         if "macos" in self.host and "arm" in platform.processor():
             print ('Detected Apple M1 CPU - running shell with x86 architecture')
@@ -1960,6 +2012,8 @@ class Configuration(object):
                       '%s/build_tools' % self.defold,
                       '%s/ext/lib/python' % self.dynamo_home]
         env['PYTHONPATH'] = os.path.pathsep.join(pythonpaths)
+        env['PYTHONIOENCODING'] = 'UTF-8'
+        env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
         env['DYNAMO_HOME'] = self.dynamo_home
 

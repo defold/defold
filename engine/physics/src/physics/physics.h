@@ -305,6 +305,8 @@ namespace dmPhysics
         GetWorldTransformCallback m_GetWorldTransformCallback;
         /// param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
         SetWorldTransformCallback m_SetWorldTransformCallback;
+        /// max number of collision objects
+        uint32_t m_MaxCollisionObjectsCount;
     };
 
     /**

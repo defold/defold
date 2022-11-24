@@ -306,6 +306,20 @@ namespace dmGraphics
         }
     }
 
+    uint16_t GetMipmapSize(uint16_t size_0, uint8_t mipmap)
+    {
+        for (uint32_t i = 0; i < mipmap; ++i)
+        {
+            size_0 /= 2;
+        }
+        return size_0;
+    }
+
+    uint8_t GetMipmapCount(uint16_t size)
+    {
+        return (uint8_t) floor(log2f(size)) + 1;
+    }
+
     PipelineState GetDefaultPipelineState()
     {
         PipelineState ps;

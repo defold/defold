@@ -25,6 +25,7 @@ import java.io.StringWriter;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -219,6 +220,15 @@ public class IOSBundler implements IBundler {
 
     }
 
+    private void copyManifestFile(BundleHelper helper, Platform platform, File destDir) throws IOException, CompileExceptionError {
+        File manifestFile = helper.copyOrWriteManifestFile(platform, destDir);
+        String manifest = FileUtils.readFileToString(manifestFile, StandardCharsets.UTF_8);
+        // remove attribute definition (https://github.com/defold/defold/pull/6914)
+        // it is automatically removed if the manifest was merged
+        manifest = manifest.replace("[ <!ATTLIST key merge (keep) #IMPLIED> ]", "");
+        FileUtils.write(manifestFile, manifest);
+    }
+
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
@@ -290,9 +300,11 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy archive and game.projectc
-        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
-            FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
+        if (BundleHelper.isArchiveExcluded(project)) {
+            // Copy archive and game.projectc
+            for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+                FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
+            }
         }
 
         BundleHelper.throwIfCanceled(canceled);
@@ -366,8 +378,7 @@ public class IOSBundler implements IBundler {
         }
 
         BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant);
-
-        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
+        copyManifestFile(helper, architectures.get(0), appDir);
         helper.copyIosIcons();
 
         BundleHelper.throwIfCanceled(canceled);

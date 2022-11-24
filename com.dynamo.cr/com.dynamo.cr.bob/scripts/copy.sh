@@ -61,12 +61,18 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/armv7-android/classes.dex lib/classes.
 cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/modelimporter.jar lib/modelimporter.jar
 
 # TEXC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libtexc_shared.dylib lib/x86_64-macos/libtexc_shared.dylib
 #cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libtexc_shared.dylib lib/arm64-macos/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
+
+# MODELC Shared
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libmodelc_shared.so lib/x86_64-linux/libmodelc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libmodelc_shared.dylib lib/x86_64-macos/libmodelc_shared.dylib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/modelc_shared.dll lib/x86_64-win32/modelc_shared.dll
 
 # Win32 32
 cp -v $DYNAMO_HOME/ext/lib/win32/OpenAL32.dll lib/x86-win32/OpenAL32.dll
@@ -78,10 +84,10 @@ cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.d
 
 rm -rf tmp
 mkdir -p tmp
-tar xf ../../packages/luajit-2.1.0-633f265-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-633f265-x86_64-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-633f265-x86_64-linux.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-633f265-x86_64-macos.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-6c4826f-win32.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-6c4826f-x86_64-win32.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-6c4826f-x86_64-linux.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-6c4826f-x86_64-macos.tar.gz -C tmp
 
 cp -v tmp/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v tmp/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
