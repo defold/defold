@@ -360,18 +360,13 @@ ordinary paths."
            :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
       false)))
 
-(defn- runduce!
-  "Like run!, but with added transducer"
-  [xform f coll]
-  (transduce xform (completing #(f %2)) nil coll)
-  nil)
-
 (defn- load-editor-plugins! [workspace added]
   (->> added
+       (filterv is-plugin-clojure-file?)
        ;; FIXME: hack for extension-spine: spineguiext.clj requires spineext.clj
-       ;;        that need to be loaded first
+       ;;        that needs to be loaded first
        (sort-by resource/proj-path util/natural-order)
-       (runduce! (filter is-plugin-clojure-file?) #(load-plugin! workspace %))))
+       (run! #(load-plugin! workspace %))))
 
 ; Determine if the extension has plugins, if so, it needs to be extracted
 
@@ -383,19 +378,16 @@ ordinary paths."
   [resource]
   (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
 
-(defn- is-extension-file? [workspace resource]
+(defn- is-extension-file? [resource]
   (let [parent-path (resource/parent-proj-path (resource/proj-path resource))
-        parent (find-resource workspace (str parent-path))]
-    (if (extension-root? resource)
-      true
-      (if parent
-        (is-extension-file? workspace parent)
-        false))))
+        parent (find-resource (resource/workspace resource) (str parent-path))]
+    (or (extension-root? resource)
+        (and (some? parent) (recur parent)))))
 
-(defn- is-plugin-file? [workspace resource]
+(defn- is-plugin-file? [resource]
   (and
     (string/includes? (resource/proj-path resource) "/plugins/")
-    (is-extension-file? workspace resource)))
+    (is-extension-file? resource)))
 
 (defn- is-shared-library? [resource]
   (contains? #{"dylib" "dll" "so"} (resource/ext resource)))
@@ -457,7 +449,7 @@ ordinary paths."
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
-  (let [changed-plugin-resources (into [] (filter #(is-plugin-file? workspace %)) changed)]
+  (let [changed-plugin-resources (filterv is-plugin-file? changed)]
     (doseq [x changed-plugin-resources]
       (try
         (unpack-resource! workspace x)
@@ -468,9 +460,9 @@ ordinary paths."
       (when (is-shared-library? x)
         (register-shared-library-file! workspace x)))))
 
-(defn saved! [workspace saved-resources]
-  (unpack-editor-plugins! workspace saved-resources)
-  (load-editor-plugins! workspace saved-resources))
+(defn reload-plugins! [workspace touched-resources]
+  (unpack-editor-plugins! workspace touched-resources)
+  (load-editor-plugins! workspace touched-resources))
 
 (defn resource-sync!
   ([workspace]
@@ -546,8 +538,7 @@ ordinary paths."
                  added (:added changes)
                  changed (:changed changes)
                  all-changed (set/union added changed)]
-             (unpack-editor-plugins! workspace all-changed)
-             (load-editor-plugins! workspace all-changed)
+             (reload-plugins! workspace all-changed)
              (loop [listeners listeners
                     parent-progress (progress/make "" total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]

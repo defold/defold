@@ -26,15 +26,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -417,6 +410,25 @@ public class ExtenderUtil {
     }
 
     /**
+     * Given a project path to ext.manifest, return an extension root dir if this path has engine extensions
+     * and should be built remotely, or null otherwise
+     * @return root dir of engine extension or null
+     */
+    private static String pathToMaybeEngineExtensionDir(Project project, String path) {
+        File f = new File(path);
+        if (f.getName().equals(ExtenderClient.extensionFilename)) {
+            ArrayList<String> siblings = new ArrayList<>();
+            String parent = f.getParent() ;
+            parent = parent == null ? "" : parent;
+            project.findResourceDirs(parent, siblings);
+            if (siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"))) {
+                return parent;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Get a list of paths to engine extension directories in the project (i.e. extensions
      * that need to be built remotely)
      * @param project
@@ -425,20 +437,10 @@ public class ExtenderUtil {
     public static List<String> getEngineExtensionFolders(Project project) {
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
-
-        List<String> folders = new ArrayList<>();
-
-        for (String p : paths) {
-            File f = new File(p);
-            if (f.getName().equals(ExtenderClient.extensionFilename)) {
-                ArrayList<String> siblings = new ArrayList<>();
-                project.findResourceDirs(f.getParent(), siblings);
-                if (siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"))) {
-                    folders.add(f.getParent());
-                }
-            }
-        }
-        return folders;
+        return paths.stream()
+                .map(p -> pathToMaybeEngineExtensionDir(project, p))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -494,17 +496,7 @@ public class ExtenderUtil {
 
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
-        for (String p : paths) {
-            File f = new File(p);
-            if (f.getName().equals(ExtenderClient.extensionFilename)) {
-                ArrayList<String> siblings = new ArrayList<>();
-                project.findResourceDirs(f.getParent(), siblings);
-                if (siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"))) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return paths.stream().anyMatch(v -> pathToMaybeEngineExtensionDir(project, v) != null);
     }
 
     private static IResource getPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) throws CompileExceptionError {
@@ -816,7 +808,7 @@ public class ExtenderUtil {
             try {
                 byte[] data = resource.getContent();
                 FileUtils.writeByteArrayToFile(outputFile, data);
-                if (relativePath.contains("plugins/bin/")) {
+                if (relativePath.startsWith("plugins/bin/") || relativePath.contains("/plugins/bin/")) {
                     outputFile.setExecutable(true);
                 }
             } catch (Exception e) {
