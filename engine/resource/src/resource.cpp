@@ -1143,7 +1143,7 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
         assert(factory->m_ResourceToHash->Get((uintptr_t) rd->m_Resource));
         rd->m_ReferenceCount++;
         *resource_out = rd->m_Resource;
-        return RESULT_ALREADY_REGISTERED;
+        return RESULT_OK;
     }
 
     if (factory->m_Resources->Full())
@@ -1177,7 +1177,7 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
 }
 
 // Assumes m_LoadMutex is already held
-static Result CreateResourceFromDisk(HFactory factory, const char* name, void** resource)
+static Result CreateAndLoadResource(HFactory factory, const char* name, void** resource)
 {
     assert(name);
     assert(resource);
@@ -1190,14 +1190,14 @@ static Result CreateResourceFromDisk(HFactory factory, const char* name, void** 
 
     SResourceType* resource_type;
     Result res = PrepareResourceCreation(factory, canonical_path, canonical_path_hash, resource, &resource_type);
-
-    if (res == RESULT_ALREADY_REGISTERED)
-    {
-        return RESULT_OK;
-    }
-    else if (res != RESULT_OK)
+    if (res != RESULT_OK)
     {
         return res;
+    }
+    else if (*resource != 0x0)
+    {
+        // Resource already created
+        return RESULT_OK;
     }
 
     void* buffer         = 0;
@@ -1228,13 +1228,14 @@ Result CreateResource(HFactory factory, const char* name, void* data, uint32_t d
     SResourceType* resource_type;
     Result res = PrepareResourceCreation(factory, canonical_path, canonical_path_hash, resource, &resource_type);
 
-    if (res == RESULT_ALREADY_REGISTERED)
-    {
-        return RESULT_OK;
-    }
-    else if (res != RESULT_OK)
+    if (res != RESULT_OK)
     {
         return res;
+    }
+    else if (*resource != 0x0)
+    {
+        // Resource already created
+        return RESULT_OK;
     }
 
     return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, resource);
@@ -1282,7 +1283,7 @@ Result Get(HFactory factory, const char* name, void** resource)
         stack.SetCapacity(stack.Capacity() + 16);
     }
     stack.Push(name);
-    Result r = CreateResourceFromDisk(factory, name, resource);
+    Result r = CreateAndLoadResource(factory, name, resource);
     stack.SetSize(stack.Size() - 1);
     --factory->m_RecursionDepth;
     return r;
