@@ -23,7 +23,6 @@ import optparse
 import re
 import shutil
 import subprocess
-import tarfile
 import zipfile
 import configparser
 import datetime
@@ -77,15 +76,7 @@ def mkdirs(path):
         os.makedirs(path)
 
 def extract_tar(file, path, is_mac):
-    if is_mac:
-        # We use the system tar command for macOS because tar (and
-        # others) on macOS has special handling of ._ files that
-        # contain additional HFS+ attributes. See for example:
-        # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
-        run.command(['tar', '-C', path, '-xzf', file])
-    else:
-        with tarfile.TarFile.open(file, 'r:gz') as tf:
-            tf.extractall(path)
+    run.command(['tar', '-C', path, '-xzf', file])
 
 def extract_zip(file, path, is_mac):
     if is_mac:
@@ -102,7 +93,7 @@ def extract(file, path, is_mac):
     print('Extracting %s to %s' % (file, path))
 
     if fnmatch.fnmatch(file, "*.tar.gz-*"):
-        extract_tar(file, path, is_mac)
+        extract_tar(file, path)
     elif fnmatch.fnmatch(file, "*.zip-*"):
         extract_zip(file, path, is_mac)
     else:
