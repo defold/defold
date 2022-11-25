@@ -1265,12 +1265,12 @@ bail:
             VkImageAspectFlags vk_aspect = 0;
             if (flags & BUFFER_TYPE_DEPTH_BIT)
             {
-                vk_aspect |= BUFFER_TYPE_DEPTH_BIT;
+                vk_aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
             }
 
             if (flags & BUFFER_TYPE_STENCIL_BIT)
             {
-                vk_aspect |= BUFFER_TYPE_STENCIL_BIT;
+                vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
             }
 
             VkClearAttachment& vk_depth_attachment              = vk_clear_attachments[attachment_count++];
