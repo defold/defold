@@ -360,6 +360,7 @@ class Configuration(object):
 
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
+        self._mkdirs(path)
         suffix = os.path.splitext(file)[1]
         fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
         run.env_command(self._form_env(), ['tar', 'xf%s' % fmts.get(suffix, 'z'), file], cwd = path)
@@ -375,8 +376,7 @@ class Configuration(object):
         parentdir, dirname = os.path.split(target_folder)
         old_dir = os.getcwd()
         os.chdir(parentdir)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
+        self._mkdirs(dirname)
 
         if format is None:
             suffix = os.path.splitext(src)[1]
