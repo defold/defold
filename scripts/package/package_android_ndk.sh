@@ -62,7 +62,7 @@ if [ ! -e "${TARGET_PATH}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 	# Cleanup the package, shrinking 2.9GB down to 1.6GB (extracted)
 	echo "Cleaning NDK" ${TMP}/${ANDROID_NDK}
 
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/prebuilt)
+	# keep: (cd ${TMP} && rm -rf ${ANDROID_NDK}/prebuilt) -- it's easier to rebuild packages using NDKs cmake
 	# keep: (cd ${TMP} && rm -rf ${ANDROID_NDK}/sources) // android_native_app_glue.h
 
 	# keep: (cd ${TMP} && rm -rf ${ANDROID_NDK}/platforms/android-16)
