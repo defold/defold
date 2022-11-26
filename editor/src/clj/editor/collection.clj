@@ -22,8 +22,6 @@
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.game-object-common :as game-object-common]
-            [editor.geom :as geom]
-            [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.outline :as outline]
@@ -35,7 +33,8 @@
             [editor.scene :as scene]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.cache :as c])
+            [internal.cache :as c]
+            [internal.util :as util])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [internal.graph.types Arc]))
 
@@ -222,11 +221,8 @@
   (output build-error g/Err (g/constantly nil))
 
   (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
-                                     (-> (scene/claim-scene scene _node-id id)
-                                         (assoc :transform transform
-                                                :aabb geom/empty-bounding-box
-                                                :renderable {:passes [pass/selection]})
-                                         (update :children (fn [s] (reduce conj (or s []) child-scenes))))))
+                                (-> (collection-common/any-instance-scene _node-id id transform scene)
+                                    (update :children util/intov child-scenes))))
   (output go-inst-ids g/Any (g/fnk [_node-id id] {id _node-id}))
   (output ddf-properties g/Any (g/fnk [id ddf-component-properties] {:id id :properties ddf-component-properties})))
 
@@ -455,9 +451,7 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output node-outline outline/OutlineData :cached produce-coll-outline)
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
-                                     {:node-id _node-id
-                                      :children child-scenes
-                                      :aabb geom/null-aabb}))
+                                (collection-common/collection-scene _node-id child-scenes)))
   (output go-inst-ids g/Any :cached (g/fnk [go-inst-ids] (reduce merge {} go-inst-ids)))
   (output ddf-properties g/Any (g/fnk [ddf-properties] (reduce (fn [props m]
                                                                  (if (empty? (:properties m))
@@ -586,10 +580,7 @@
                                     :scale3 scale
                                     :instance-properties ddf-properties}))
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
-                                     (assoc (scene/claim-scene scene _node-id id)
-                                            :transform transform
-                                            :aabb geom/empty-bounding-box
-                                            :renderable {:passes [pass/selection]})))
+                                (collection-common/any-instance-scene _node-id id transform scene)))
   (output build-targets g/Any produce-coll-inst-build-targets)
   (output sub-ddf-properties g/Any :cached (g/fnk [id ddf-properties]
                                                   (map (fn [m] (update m :id (fn [s] (format "%s/%s" id s)))) ddf-properties)))

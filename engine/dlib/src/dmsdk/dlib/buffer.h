@@ -105,6 +105,8 @@ namespace dmBuffer
         RESULT_STREAM_TYPE_MISMATCH,
         RESULT_STREAM_COUNT_MISMATCH,
         RESULT_STREAM_MISMATCH,
+        RESULT_METADATA_INVALID,
+        RESULT_METADATA_NOT_EXIST,
     };
 
     /*# StreamDeclaration struct
@@ -395,6 +397,35 @@ namespace dmBuffer
      * @return result [type:dmBuffer::Result] Returns BUFFER_OK if all went ok
      */
     Result UpdateContentVersion(HBuffer hbuffer);
+
+    /*# set a metadata entry
+     *
+     * Create or update a new metadata entry with a number of values of a specific type.
+     * It will allocate space to store these values.
+     *
+     * @name dmBuffer::SetMetaData
+     * @param hbuffer [type:dmBuffer::HBuffer] A buffer handle
+     * @param name_hash [type:dmhash_t] The entry name as a hash
+     * @param data [type:void*] A pointer to an array of the values
+     * @param count [type:uint32_t] Number of values in the array
+     * @param type [type:dmBuffer::ValueType] The type of the values
+     * @return result [type:dmBuffer::Result] RESULT_OK if the metadata entry was successfully stored
+     */
+    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type);
+
+    /*# retrieve a metadata entry
+     *
+     * Retrieve metadata entry information
+     *
+     * @name dmBuffer::GetMetaData
+     * @param hbuffer [type:dmBuffer::HBuffer] A buffer handle
+     * @param name_hash [type:dmhash_t] The entry name as a hash
+     * @param data [type:void**] Gets the internal address of metadata values
+     * @param count [type:uint32_t] Gets the number of metadata values stored
+     * @param type [type:dmBuffer::ValueType] Gets the type of values of the metadata
+     */
+    Result GetMetaData(HBuffer hbuffer, dmhash_t name_hash, void** data, uint32_t* count, ValueType* type);
+
 }
 
 #endif // DMSDK_BUFFER_H

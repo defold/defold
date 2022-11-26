@@ -512,11 +512,12 @@ public class Bob {
 
         addOption(options, null, "use-vanilla-lua", false, "DEPRECATED! Use --use-uncompressed-lua-source instead.", true);
         addOption(options, null, "use-uncompressed-lua-source", false, "Use uncompressed and unencrypted Lua source code instead of byte code", true);
+        addOption(options, null, "use-lua-bytecode-delta", false, "Use byte code delta compression when building for multiple architectures", true);
         addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
 
         addOption(options, "l", "liveupdate", true, "Yes if liveupdate content should be published", true);
 
-        addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", false);
+        addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", true);
 
         addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.", false);
 
