@@ -170,7 +170,7 @@ namespace dmConfigFile
      *
      * @examples
      *
-     * Register a new onfig file extension:
+     * Register a new config file extension:
      *
      * ```cpp
      * DM_DECLARE_CONFIGFILE_EXTENSION(MyConfigfileExtension, "MyConfigfileExtension", create, destroy, get_string, get_int, get_float);
