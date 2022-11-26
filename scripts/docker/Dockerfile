@@ -9,7 +9,6 @@ RUN \
   apt-get install -y openjdk-11-jdk
 
 RUN \
-  dpkg --add-architecture i386 && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
     gcc \
@@ -41,7 +40,6 @@ RUN \
     unzip \
     tree \
     silversearcher-ag \
-    valgrind \
     git
 
 ENV CLANG_VERSION 13.0.1

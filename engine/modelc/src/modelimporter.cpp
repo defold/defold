@@ -114,6 +114,11 @@ static void DestroyAnimation(Animation* animation)
 
 void DestroyScene(Scene* scene)
 {
+    if (!scene)
+    {
+        return;
+    }
+
     if (!scene->m_OpaqueSceneData)
     {
         printf("Already deleted!\n");

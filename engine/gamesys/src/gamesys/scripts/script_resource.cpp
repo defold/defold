@@ -499,8 +499,8 @@ static int GraphicsTextureTypeToImageType(int texturetype)
     return -1;
 }
 
-static dmGraphics::TextureImage MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp,
-    dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format)
+static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp,
+    dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format, dmGraphics::TextureImage* texture_image)
 {
     uint32_t* mip_map_sizes   = new uint32_t[max_mipmaps];
     uint32_t* mip_map_offsets = new uint32_t[max_mipmaps];
@@ -524,10 +524,9 @@ static dmGraphics::TextureImage MakeTextureImage(uint16_t width, uint16_t height
     uint8_t* image_data       = new uint8_t[image_data_size];
 
     dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
-    dmGraphics::TextureImage texture_image = {};
-    texture_image.m_Alternatives.m_Data    = image;
-    texture_image.m_Alternatives.m_Count   = 1;
-    texture_image.m_Type                   = type;
+    texture_image->m_Alternatives.m_Data   = image;
+    texture_image->m_Alternatives.m_Count  = 1;
+    texture_image->m_Type                  = type;
 
     image->m_Width                = width;
     image->m_Height               = height;
@@ -543,8 +542,6 @@ static dmGraphics::TextureImage MakeTextureImage(uint16_t width, uint16_t height
     image->m_MipMapOffset.m_Count = max_mipmaps;
     image->m_MipMapSize.m_Data    = mip_map_sizes;
     image->m_MipMapSize.m_Count   = max_mipmaps;
-
-    return texture_image;
 }
 
 static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
@@ -552,26 +549,11 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
     for (int i = 0; i < texture_image.m_Alternatives.m_Count; ++i)
     {
         dmGraphics::TextureImage::Image& image = texture_image.m_Alternatives.m_Data[i];
-        if (image.m_MipMapOffset.m_Data)
-        {
-            delete[] image.m_MipMapOffset.m_Data;
-        }
-        if (image.m_MipMapSize.m_Data)
-        {
-            delete[] image.m_MipMapSize.m_Data;
-        }
-        if (image.m_Data.m_Data)
-        {
-            delete[] image.m_Data.m_Data;
-        }
+        delete[] image.m_MipMapOffset.m_Data;
+        delete[] image.m_MipMapSize.m_Data;
+        delete[] image.m_Data.m_Data;
     }
-
-    if (texture_image.m_Alternatives.m_Data)
-    {
-        delete[] texture_image.m_Alternatives.m_Data;
-    }
-
-    memset(&texture_image, 0, sizeof(texture_image));
+    delete[] texture_image.m_Alternatives.m_Data;
 }
 
 /*# create a texture
@@ -669,7 +651,8 @@ static int CreateTexture(lua_State* L)
     uint32_t tex_bpp                                   = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
     dmGraphics::TextureImage::Type tex_type            = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
     dmGraphics::TextureImage::TextureFormat tex_format = (dmGraphics::TextureImage::TextureFormat) GraphicsTextureFormatToImageFormat(format);
-    dmGraphics::TextureImage texture_image             = MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format);
+    dmGraphics::TextureImage texture_image             = {};
+    MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, &texture_image);
 
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
@@ -709,9 +692,9 @@ static int ReleaseResource(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
-    if (!rd) {
-        luaL_error(L, "Could not get resource: %s", dmHashReverseSafe64(path_hash));
-        return 0;
+    if (!rd)
+    {
+        return DM_LUA_ERROR("Could not get resource: %s", dmHashReverseSafe64(path_hash));
     }
 
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);

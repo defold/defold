@@ -138,3 +138,103 @@
   (is (nil? (util/only #{:a :b})))
   (is (nil? (util/only '(:a :b))))
   (is (nil? (util/only {:a 1 :b 2}))))
+
+(deftest into-multiple-test
+
+  (testing "Standard operation."
+    (is (= [] (util/into-multiple)))
+    (is (= [] (util/into-multiple [])))
+    (is (= [[]] (util/into-multiple [[]])))
+    (is (= [{}] (util/into-multiple [{}])))
+    (is (= [#{}] (util/into-multiple [#{}])))
+    (is (= [#{0 1 2 3 4 5 6 7 8 9}]
+           (util/into-multiple [#{}] (range 10))))
+    (is (= [#{0 1 2 3 4 5 6 7 8 9} [0 1 2 3 4 5 6 7 8 9]]
+           (util/into-multiple [#{} []] (range 10))))
+    (is (= [#{0 1 2 3 4 5 6 7 8 9} [0 1 2 3 4 5 6 7 8 9] [0 1 2 3 4 5 6 7 8 9]]
+           (util/into-multiple [#{} [] []] (range 10))))
+    (is (= [[1 3 5 7 9]]
+           (util/into-multiple [[]] [(filter odd?)] (range 10))))
+    (is (= [[1 3 5 7 9] [0 2 4 6 8]]
+           (util/into-multiple [[] []] [(filter odd?) (filter even?)] (range 10))))
+    (is (= [[1 3 5 7 9] [0 2 4 6 8] [1 2 3 4 5 6 7 8 9 10]]
+           (util/into-multiple [[] [] []] [(filter odd?) (filter even?) (map inc)] (range 10))))
+    (let [[a] (util/into-multiple [[]] [(take 10)] (repeatedly rand))]
+      (is (= 10 (count a))))
+    (let [[a b] (util/into-multiple [[] []] [(take 10) (take 10)] (repeatedly rand))]
+      (is (= a b)))
+    (let [[a b c] (util/into-multiple [[] [] []] [(take 10) (take 10) (take 10)] (repeatedly rand))]
+      (is (= a b c))))
+
+  (testing "Reduced and completion steps."
+
+    (testing "Take."
+      (letfn [(xf []
+                (take 3))]
+        (is (= [[0 1 2]]
+               (util/into-multiple [[]] [(xf)] (range 9))))
+        (is (= [[0 1 2]
+                [0 1 2]]
+               (util/into-multiple [[] []] [(xf) (xf)] (range 9))))
+        (is (= [[0 1 2]
+                [0 1 2]
+                [0 1 2]]
+               (util/into-multiple [[] [] []] [(xf) (xf) (xf)] (range 9))))))
+
+    (testing "Partition."
+      (letfn [(xf []
+                (partition-all 2))]
+        (is (= [[[0 1] [2 3] [4 5] [6 7] [8]]]
+               (util/into-multiple [[]] [(xf)] (range 9))))
+        (is (= [[[0 1] [2 3] [4 5] [6 7] [8]]
+                [[0 1] [2 3] [4 5] [6 7] [8]]]
+               (util/into-multiple [[] []] [(xf) (xf)] (range 9))))
+        (is (= [[[0 1] [2 3] [4 5] [6 7] [8]]
+                [[0 1] [2 3] [4 5] [6 7] [8]]
+                [[0 1] [2 3] [4 5] [6 7] [8]]]
+               (util/into-multiple [[] [] []] [(xf) (xf) (xf)] (range 9))))))
+
+    (testing "Take, then partition."
+      (letfn [(xf []
+                (comp (take 3)
+                      (partition-all 2)))]
+        (is (= [[[0 1] [2]]]
+               (util/into-multiple [[]] [(xf)] (range 9))))
+        (is (= [[[0 1] [2]]
+                [[0 1] [2]]]
+               (util/into-multiple [[] []] [(xf) (xf)] (range 9))))
+        (is (= [[[0 1] [2]]
+                [[0 1] [2]]
+                [[0 1] [2]]]
+               (util/into-multiple [[] [] []] [(xf) (xf) (xf)] (range 9))))))
+
+    (testing "Partition, then take."
+      (letfn [(xf []
+                (comp (partition-all 2)
+                      (take 3)))]
+        (is (= [[[0 1] [2 3] [4 5]]]
+               (util/into-multiple [[]] [(xf)] (range 9))))
+        (is (= [[[0 1] [2 3] [4 5]]
+                [[0 1] [2 3] [4 5]]]
+               (util/into-multiple [[] []] [(xf) (xf)] (range 9))))
+        (is (= [[[0 1] [2 3] [4 5]]
+                [[0 1] [2 3] [4 5]]
+                [[0 1] [2 3] [4 5]]]
+               (util/into-multiple [[] [] []] [(xf) (xf) (xf)] (range 9)))))))
+
+  (testing "Asserts when the number of destinations differ from the number of xforms."
+    (let [xf (map inc)
+          coll (range 10)]
+      (is (thrown? AssertionError (util/into-multiple [] [xf] coll)))
+
+      (is (thrown? AssertionError (util/into-multiple [[]] [] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[]] [xf xf] coll)))
+
+      (is (thrown? AssertionError (util/into-multiple [[] []] [] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] []] [xf] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] []] [xf xf xf] coll)))
+
+      (is (thrown? AssertionError (util/into-multiple [[] [] []] [] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf xf] coll)))
+      (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf xf xf xf] coll))))))

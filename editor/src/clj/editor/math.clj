@@ -15,7 +15,7 @@
 (ns editor.math
   (:import [java.lang Math]
            [java.math RoundingMode]
-           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d Tuple3d Tuple4d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d Tuple2d Tuple3d Tuple4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -383,6 +383,9 @@
   (vecmath->clj [this]))
 
 (extend-protocol VecmathConverter
+  Tuple2d
+  (clj->vecmath [this v] (.set this (nth v 0) (nth v 1)))
+  (vecmath->clj [this] [(.getX this) (.getY this)])
   Tuple3d
   (clj->vecmath [this v] (.set this (nth v 0) (nth v 1) (nth v 2)))
   (vecmath->clj [this] [(.getX this) (.getY this) (.getZ this)])

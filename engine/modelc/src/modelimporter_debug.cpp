@@ -207,6 +207,12 @@ static void OutputAnimation(Animation* animation, int indent)
 
 void DebugScene(Scene* scene)
 {
+    if (!scene)
+    {
+        printf("Output model importer scene: Scene is null!\n");
+        return;
+    }
+
     printf("Output model importer scene:\n");
 
     printf("------------------------------\n");

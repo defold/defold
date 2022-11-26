@@ -19,8 +19,6 @@
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
-            [editor.geom :as geom]
-            [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.outline :as outline]
@@ -37,7 +35,7 @@
             [internal.util :as util])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
-           [javax.vecmath Matrix4d Vector3d]))
+           [javax.vecmath Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -210,26 +208,7 @@
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
-                                (if (some? scene)
-                                  (let [transform (if-let [local-transform (:transform scene)]
-                                                    (doto (Matrix4d. ^Matrix4d transform)
-                                                      (.mul ^Matrix4d local-transform))
-                                                    transform)
-                                        updatable (some-> (:updatable scene)
-                                                          (assoc :node-id _node-id))]
-                                    ;; label has scale and thus transform, others have identity transform
-                                    (cond-> (assoc (scene/claim-scene scene _node-id id)
-                                                   :transform transform)
-                                            updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))
-                                  ;; This handles the case of no scene
-                                  ;; from actual component - typically
-                                  ;; bad data. Covered by for instance
-                                  ;; unknown_components.go in the test
-                                  ;; project.
-                                  {:node-id _node-id
-                                   :transform transform
-                                   :aabb geom/empty-bounding-box
-                                   :renderable {:passes [pass/selection]}})))
+                                (game-object-common/component-scene _node-id id transform scene)))
   (output build-resource resource/Resource :abstract)
   (output build-targets g/Any :cached produce-component-build-targets)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
@@ -382,9 +361,7 @@
         [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
 
 (g/defnk produce-scene [_node-id child-scenes]
-  {:node-id _node-id
-   :aabb geom/null-aabb
-   :children child-scenes})
+  (game-object-common/game-object-scene _node-id child-scenes))
 
 (defn- attach-component [self-id comp-id ddf-input resolve-id?]
   ;; self-id: GameObjectNode
