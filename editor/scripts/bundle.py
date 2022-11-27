@@ -75,7 +75,7 @@ def mkdirs(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def extract_tar(file, path, is_mac):
+def extract_tar(file, path):
     run.command(['tar', '-C', path, '-xzf', file])
 
 def extract_zip(file, path, is_mac):
