@@ -27,7 +27,9 @@
             [internal.util :as util]
             [util.coll :refer [pair]])
   (:import [editor.code.data CursorRange]
-           [clojure.core.async.impl.channels ManyToManyChannel]))
+           [clojure.core.async.impl.channels ManyToManyChannel]
+           [java.util.regex Pattern]
+           [sun.nio.fs Globs]))
 
 (set! *warn-on-reflection* true)
 
@@ -89,7 +91,11 @@
 (s/def ::language string?)
 (s/def ::languages (s/coll-of ::language :kind set? :min-count 1))
 (s/def ::launcher #(satisfies? lsp.server/Launcher %))
-(s/def ::server (s/keys :req-un [::languages ::launcher]))
+(s/def ::pattern string?)
+(s/def ::watched-file (s/keys :req-un [::pattern]))
+(s/def ::watched-files (s/coll-of ::watched-file :distinct true :min-count 1))
+(s/def ::server (s/keys :req-un [::languages ::launcher]
+                        :opt-un [::watched-files]))
 (s/def ::resource resource/resource?)
 
 (defn- on-diagnostics-published [server resource diagnostics]
@@ -341,7 +347,9 @@
                        ;; server->server-state is a map from server to server state, where
                        ;; server is:
                        ;; {:languages #{"lang"}
-                       ;;  :launcher {:command ["shell-command"]}}
+                       ;;  :launcher {:command ["shell-command"]}
+                       ;;  ; optional:
+                       ;;  :watched-files [{:pattern "**/*.json"}]}
                        ;; and server state is:
                        ;; {:in ch
                        ;;  :out ch
@@ -442,11 +450,49 @@
                 (lsp.async/with-auto-evaluation-context evaluation-context
                   (reduce #(sync-resource-state! %1 %2 evaluation-context) state polled-resources)))))
 
+(let [method (-> Globs
+                 (.getDeclaredMethod "toUnixRegexPattern" (into-array Class [String]))
+                 (doto (.setAccessible true)))]
+  (defn- ^Pattern make-glob-pattern [s]
+    (re-pattern (.invoke method nil (into-array Object [s])))))
+
+(defn- notify-files-changed! [state change-type->resources]
+  {:pre [(every? #{:created :changed :deleted} (keys change-type->resources))]}
+  (let [watcher->server-ins
+        (util/group-into
+          {} []
+          key val
+          (eduction
+            (mapcat
+              (fn [[server {:keys [in]}]]
+                (eduction
+                  (map #(pair % in))
+                  (:watched-files server))))
+            (:server->server-state state)))
+
+        server-in->changes
+        (util/group-into
+          {} []
+          key val
+          (for [[{:keys [pattern]} server-ins] watcher->server-ins
+                :let [re (make-glob-pattern pattern)]
+                [change-type resources] change-type->resources
+                resource resources
+                :when (.matches (.matcher re (resource/proj-path resource)))
+                in server-ins]
+            (pair in (pair resource change-type))))]
+    (doseq [[server-in changes] server-in->changes]
+      (a/put! server-in (lsp.server/watched-file-change changes)))))
+
+(defn touch-resources! [lsp resources]
+  (a/put! lsp #(doto % (notify-files-changed! {:changed resources}))))
+
 (defn apply-resource-changes!
   "Notify the LSP manager about resource sync"
-  [lsp {:keys [removed changed moved]}]
+  [lsp {:keys [added removed changed moved]}]
   ;; bound-fn only needed for tests to pick up the test system
   (a/put! lsp (bound-fn apply-resource-changes [{:keys [project get-resource-node] :as state}]
+                (notify-files-changed! state {:deleted removed :changed changed :created added})
                 (let [interesting-added (into []
                                               (keep (fn [[from to]]
                                                       (when (interesting-resource? state from)
@@ -489,4 +535,7 @@
   (set-servers!
     (g/graph-value 1 :lsp)
     #{{:languages #{"json" "jsonc"}
-       :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}}))
+       :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}
+      {:languages #{"lua"}
+       :watched-files [{:pattern "**/.luacheckrc"}]
+       :launcher {:command ["/opt/homebrew/bin/node" "/Users/vlaaad/Projects/vscode-luacheck/out/src/lua_language_server.js"]}}}))

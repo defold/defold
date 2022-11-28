@@ -20,6 +20,7 @@
             [editor.editor-extensions :as extensions]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
+            [editor.lsp :as lsp]
             [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -141,6 +142,7 @@
               (complete! false)
               (do
                 (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
+                (lsp/touch-resources! (lsp/get-node-lsp project) (into #{} (map :resource) save-data))
                 (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
                   (render-save-progress! progress/done)
                   (ui/run-later
