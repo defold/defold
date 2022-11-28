@@ -874,49 +874,51 @@ static int SetTexture(lua_State* L)
     return 0;
 }
 
-// Allocates a new array and fills it with data from a lua table.
-// Only supports number values.
-// Return false if any error happened
+// Allocates a new array and fills it with data from a lua table at top of stack.
+// Only supports number values. Note: Doesn't do any error checking!
 template<typename T>
-static bool MakeNumberArrayFromLuaTable(lua_State* L, const char* field, void** data_out, uint32_t* count_out)
+static void MakeNumberArrayFromLuaTable(lua_State* L, const char* field, void** data_out, uint32_t* count_out)
 {
     lua_getfield(L, -1, field);
-    if (!lua_istable(L, -1))
-    {
-        return false;
-    }
-
     int num_entries = lua_objlen(L, -1);
-
     T* data_ptr = new T[num_entries];
 
     lua_pushnil(L);
     while (lua_next(L, -2))
     {
-        if (!lua_isnumber(L, -1) || !lua_isnumber(L, -2))
-        {
-            return false;
-        }
         int32_t table_index     = lua_tonumber(L, -2);
         data_ptr[table_index-1] = lua_tonumber(L, -1);
         lua_pop(L, 1);
     }
     lua_pop(L, 1);
-
     *data_out  = data_ptr;
     *count_out = num_entries;
-    return true;
 }
 
 static void DestroyTextureSet(dmGameSystemDDF::TextureSet& texture_set)
 {
-    if (texture_set.m_Animations.m_Data)
-        delete[] texture_set.m_Animations.m_Data;
-    if (texture_set.m_Geometries.m_Data)
-        delete[] texture_set.m_Geometries.m_Data;
-    if (texture_set.m_FrameIndices.m_Data)
-        delete[] texture_set.m_FrameIndices.m_Data;
-    memset(&texture_set, 0, sizeof(dmGameSystemDDF::TextureSet));
+    delete[] texture_set.m_Animations.m_Data;
+    delete[] texture_set.m_Geometries.m_Data;
+    delete[] texture_set.m_FrameIndices.m_Data;
+}
+
+// These lookup functions are needed because the values for the two enums are different,
+// so we can't rely on the raw value to convert between them
+static dmGameObject::Playback DDFPlaybackToGameObjectPlayback(dmGameSystemDDF::Playback playback)
+{
+    switch(playback)
+    {
+        case dmGameSystemDDF::PLAYBACK_NONE          : return dmGameObject::PLAYBACK_NONE;
+        case dmGameSystemDDF::PLAYBACK_ONCE_FORWARD  : return dmGameObject::PLAYBACK_ONCE_FORWARD;
+        case dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD : return dmGameObject::PLAYBACK_ONCE_BACKWARD;
+        case dmGameSystemDDF::PLAYBACK_ONCE_PINGPONG : return dmGameObject::PLAYBACK_ONCE_PINGPONG;
+        case dmGameSystemDDF::PLAYBACK_LOOP_FORWARD  : return dmGameObject::PLAYBACK_LOOP_FORWARD;
+        case dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD : return dmGameObject::PLAYBACK_LOOP_BACKWARD;
+        case dmGameSystemDDF::PLAYBACK_LOOP_PINGPONG : return dmGameObject::PLAYBACK_LOOP_PINGPONG;
+        default:break;
+    }
+    assert(0);
+    return (dmGameObject::Playback) -1;
 }
 
 static dmGameSystemDDF::Playback GameObjectPlaybackToDDFPlayback(dmGameObject::Playback playback)
@@ -936,6 +938,99 @@ static dmGameSystemDDF::Playback GameObjectPlaybackToDDFPlayback(dmGameObject::P
     return (dmGameSystemDDF::Playback) -1;
 }
 
+static void ValidateSetAtlasAnimations(lua_State* L, uint32_t* num_animations_out)
+{
+    int top = lua_gettop(L);
+    uint32_t num_animations = 0;
+
+    lua_getfield(L, -1, "animations");
+    luaL_checktype(L, -1, LUA_TTABLE);
+
+    lua_pushnil(L);
+    while (lua_next(L, -2))
+    {
+        luaL_checktype(L, -1, LUA_TTABLE);
+        luaL_checkinteger(L, -2);
+
+        // Note: checkstring can change the lua stack, so we use isstring instead
+        lua_getfield(L, -1, "id");
+        if (!lua_isstring(L, -1))
+        {
+            luaL_error(L, "Invalid 'id' in animations table at index [%d], either missing or wrong type", num_animations + 1);
+        }
+        lua_pop(L, 1);
+
+        #define CHECK_FIELD_INTEGER(field_name, required) \
+            lua_getfield(L, -1, field_name); \
+            if (required || !lua_isnil(L,-1)) \
+                luaL_checkinteger(L, -1); \
+            lua_pop(L, 1);
+
+        CHECK_FIELD_INTEGER("width", true);
+        CHECK_FIELD_INTEGER("height", true);
+        CHECK_FIELD_INTEGER("frame_start", true);
+        CHECK_FIELD_INTEGER("frame_end", true);
+        CHECK_FIELD_INTEGER("playback", false);
+        CHECK_FIELD_INTEGER("fps", false );
+
+        #undef CHECK_FIELD_INTEGER
+
+        lua_pop(L, 1);
+
+        num_animations++;
+    }
+
+    lua_pop(L, 1);
+    *num_animations_out = num_animations;
+
+    assert(lua_gettop(L) == top);
+}
+
+static void ValidateSetAtlasGeometries(lua_State* L, uint32_t* num_geometries_out)
+{
+    int top = lua_gettop(L);
+    uint32_t num_geometries = 0;
+
+    lua_getfield(L, -1, "geometries");
+    luaL_checktype(L, -1, LUA_TTABLE);
+
+    lua_pushnil(L);
+    while (lua_next(L, -2))
+    {
+        luaL_checktype(L, -1, LUA_TTABLE);
+        luaL_checkinteger(L, -2);
+
+        #define CHECK_NUMBER_ARRAY(field_name) \
+            { \
+                lua_getfield(L, -1, field_name); \
+                luaL_checktype(L, -1, LUA_TTABLE); \
+                lua_pushnil(L); \
+                while (lua_next(L, -2)) \
+                { \
+                    luaL_checkinteger(L, -1); \
+                    luaL_checktype(L, -2, LUA_TNUMBER); \
+                    lua_pop(L, 1); \
+                } \
+                lua_pop(L, 1); \
+            }
+
+        CHECK_NUMBER_ARRAY("vertices");
+        CHECK_NUMBER_ARRAY("uvs");
+        CHECK_NUMBER_ARRAY("indices");
+
+        #undef CHECK_NUMBER_ARRAY
+
+        lua_pop(L, 1);
+
+        num_geometries++;
+    }
+    lua_pop(L, 1);
+
+    *num_geometries_out = num_geometries;
+
+    assert(lua_gettop(L) == top);
+}
+
 static int SetAtlasData(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
@@ -948,6 +1043,8 @@ static int SetAtlasData(lua_State* L)
     uint32_t frame_index_count                  = 0;
     uint32_t tex_width                          = 0;
     uint32_t tex_height                         = 0;
+    uint32_t num_geometries                     = 0;
+    uint32_t num_animations                     = 0;
 
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_pushvalue(L, 2);
@@ -964,8 +1061,171 @@ static int SetAtlasData(lua_State* L)
         tex_width                        = dmGraphics::GetTextureWidth(texture);
         tex_height                       = dmGraphics::GetTextureHeight(texture);
     }
-    lua_pop(L, 1);
+    lua_pop(L, 1); // "texture"
 
+    // Note: We do separate passes over the lua state to validate the data in the args table,
+    //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
+    //       since they longjmp away so we can't release the memory..
+    ValidateSetAtlasGeometries(L, &num_geometries);
+    ValidateSetAtlasAnimations(L, &num_animations);
+
+    if (num_animations > 0 && num_geometries == 0)
+    {
+        return DM_LUA_ERROR("Setting atlas with animations requires geometry");
+    }
+
+    texture_set_ddf.m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
+    texture_set_ddf.m_Geometries.m_Count = num_geometries;
+    memset(texture_set_ddf.m_Geometries.m_Data, 0, sizeof(dmGameSystemDDF::SpriteGeometry) * num_geometries);
+
+    texture_set_ddf.m_Animations.m_Data  = new dmGameSystemDDF::TextureSetAnimation[num_animations];
+    texture_set_ddf.m_Animations.m_Count = num_animations;
+    memset(texture_set_ddf.m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
+
+    if (num_geometries > 0)
+    {
+        lua_getfield(L, -1, "geometries");
+        for (int i = 0; i < num_geometries; ++i)
+        {
+            lua_pushnumber(L, i+1);
+            lua_gettable(L, -2);
+            assert(lua_istable(L, -1));
+
+            dmGameSystemDDF::SpriteGeometry& geometry = texture_set_ddf.m_Geometries[i];
+            MakeNumberArrayFromLuaTable<float>(L, "vertices", (void**) &geometry.m_Vertices.m_Data, &geometry.m_Vertices.m_Count);
+            MakeNumberArrayFromLuaTable<float>(L, "uvs", (void**) &geometry.m_Uvs.m_Data, &geometry.m_Uvs.m_Count);
+            MakeNumberArrayFromLuaTable<int>(L, "indices", (void**) &geometry.m_Indices.m_Data, &geometry.m_Indices.m_Count);
+
+            lua_pop(L, 1);
+
+            frame_index_count++;
+        }
+        lua_pop(L, 1); // geometries
+    }
+
+    if (num_animations > 0)
+    {
+        lua_getfield(L, -1, "animations");
+        for (int i = 0; i < num_animations; ++i)
+        {
+            lua_pushnumber(L, i+1);
+            lua_gettable(L, -2);
+            assert(lua_istable(L, -1));
+
+            dmGameSystemDDF::TextureSetAnimation& animation = texture_set_ddf.m_Animations[i];
+
+            // Default values, might be overridden later
+            animation.m_Fps      = 30;
+            animation.m_Playback = dmGameSystemDDF::PLAYBACK_ONCE_FORWARD;
+
+            lua_getfield(L, -1, "id");
+            animation.m_Id = lua_tostring(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "width");
+            animation.m_Width = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "height");
+            animation.m_Height = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "frame_start");
+            int frame_start = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "frame_end");
+            int frame_end = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            // Get optional arguments
+            lua_getfield(L, -1, "playback");
+            if (lua_isnumber(L, -1))
+            {
+                animation.m_Playback = GameObjectPlaybackToDDFPlayback((dmGameObject::Playback) lua_tointeger(L,-1));
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "fps");
+            if (lua_isnumber(L, -1))
+            {
+                animation.m_Fps = lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+
+            // Check ranges now that we have all geometry entries
+            if (frame_start < 1 || frame_start > (num_geometries+1)) // +1 for lua indexing
+            {
+                DestroyTextureSet(texture_set_ddf);
+                return DM_LUA_ERROR("Invalid frame_start in animation [%d], index %d is outside of geometry bounds 0..%d",
+                    i, frame_start, num_geometries);
+            }
+
+            if (frame_end < 1 || frame_end > (num_geometries+1)) // +1 for lua indexing
+            {
+                DestroyTextureSet(texture_set_ddf);
+                return DM_LUA_ERROR("Invalid frame_end in animation [%d], index %d is outside of geometry bounds 0..%d",
+                    i, frame_end, num_geometries);
+            }
+
+            int frame_interval = frame_end - frame_start;
+            if (frame_interval <= 0)
+            {
+                DestroyTextureSet(texture_set_ddf);
+                return DM_LUA_ERROR("Invalid frame interval in animation [%d], start - end = %d", i, frame_interval);
+            }
+
+            // Correct frame start/end
+            animation.m_Start = frame_start + num_geometries - 1;
+            animation.m_End   = frame_end + num_geometries - 1;
+            frame_index_count += frame_interval;
+        }
+        lua_pop(L, 1); // animations
+    }
+
+    lua_pop(L, 1); // args table
+
+    texture_set_ddf.m_UseGeometries        = 1;
+    texture_set_ddf.m_FrameIndices.m_Data  = new uint32_t[frame_index_count];
+    texture_set_ddf.m_FrameIndices.m_Count = frame_index_count;
+    memset(texture_set_ddf.m_FrameIndices.m_Data, 0, sizeof(uint32_t) * frame_index_count);
+
+    uint32_t frame_index = 0;
+    for (int i = 0; i < num_geometries; ++i)
+    {
+        texture_set_ddf.m_FrameIndices[frame_index++] = i;
+    }
+
+    for (int i = 0; i < texture_set_ddf.m_Animations.m_Count; ++i)
+    {
+        uint32_t frame_start = texture_set_ddf.m_Animations[i].m_Start;
+        uint32_t frame_count = texture_set_ddf.m_Animations[i].m_End - frame_start;
+
+        // Values stored in the frame indices table refer to entries in the
+        // m_Geometry table of the DDF, so we need to adjust the values so
+        // that the start and end values are based from zero
+        for (int j = 0; j < frame_count; ++j)
+        {
+            texture_set_ddf.m_FrameIndices[frame_index++] = frame_start + j - num_geometries;
+        }
+    }
+
+    dmArray<uint8_t> ddf_buffer;
+    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
+    assert(ddf_result == dmDDF::RESULT_OK);
+
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, ddf_buffer.Begin(), ddf_buffer.Size());
+
+    DestroyTextureSet(texture_set_ddf);
+
+    if(r != dmResource::RESULT_OK)
+    {
+        return ReportPathError(L, r, path_hash);
+    }
+
+    /*
     #define DESTROY_TEXTURE_SET_AND_RAISE_ERROR(...) \
         DestroyTextureSet(texture_set_ddf); \
         luaL_error(L, __VA_ARGS__);
@@ -977,20 +1237,25 @@ static int SetAtlasData(lua_State* L)
             DESTROY_TEXTURE_SET_AND_RAISE_ERROR(__VA_ARGS__); \
         }
 
+    int num_geometries = 0;
     // Set geometry data
     lua_getfield(L, -1, "geometries");
-    luaL_checktype(L, -1, LUA_TTABLE);
+    CHECK_LUA_FIELD_TYPE(-1, LUA_TTABLE, "Invalid field 'geometries', table expected");
     {
-        int num_geometries = lua_objlen(L, -1);
+        num_geometries = lua_objlen(L, -1);
         texture_set_ddf.m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
         texture_set_ddf.m_Geometries.m_Count = num_geometries;
         memset(texture_set_ddf.m_Geometries.m_Data, 0, sizeof(dmGameSystemDDF::SpriteGeometry) * num_geometries);
 
+        uint32_t field_index = 0;
+
         lua_pushnil(L);
         while (lua_next(L, -2))
         {
-            luaL_checktype(L, -1, LUA_TTABLE);
-            int32_t geometry_index = luaL_checknumber(L, -2) - 1;
+            CHECK_LUA_FIELD_TYPE(-1, LUA_TTABLE, "Invalid field at %d, table expected", field_index);
+            CHECK_LUA_FIELD_TYPE(-2, LUA_TNUMBER, "Invalid field 'width' for animation %d, number expected", table_index_lua);
+
+            int32_t geometry_index                    = lua_tonumber(L, -2) - 1;
             dmGameSystemDDF::SpriteGeometry& geometry = texture_set_ddf.m_Geometries[geometry_index];
 
             if (!MakeNumberArrayFromLuaTable<float>(L, "vertices", (void**) &geometry.m_Vertices.m_Data, &geometry.m_Vertices.m_Count))
@@ -1024,8 +1289,6 @@ static int SetAtlasData(lua_State* L)
             texture_set_ddf.m_Animations.m_Count = num_animations;
             memset(texture_set_ddf.m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
 
-            int frames_start = texture_set_frame_indices.Size();
-
             lua_pushnil(L);
             while (lua_next(L, -2))
             {
@@ -1041,12 +1304,12 @@ static int SetAtlasData(lua_State* L)
 
                 lua_getfield(L, -1, "id");
                 CHECK_LUA_FIELD_TYPE(-1, LUA_TSTRING, "Invalid field 'id' for animation %d, string expected", table_index_lua);
-                animation.m_Id  = lua_tostring(L, -1);
+                animation.m_Id = lua_tostring(L, -1);
                 lua_pop(L, 1);
 
                 lua_getfield(L, -1, "width");
                 CHECK_LUA_FIELD_TYPE(-1, LUA_TNUMBER, "Invalid field 'width' for animation %d, number expected", table_index_lua);
-                animation.m_Width  = lua_tointeger(L, -1);
+                animation.m_Width = lua_tointeger(L, -1);
                 lua_pop(L, 1);
 
                 lua_getfield(L, -1, "height");
@@ -1056,12 +1319,12 @@ static int SetAtlasData(lua_State* L)
 
                 lua_getfield(L, -1, "frame_start");
                 CHECK_LUA_FIELD_TYPE(-1, LUA_TNUMBER, "Invalid field 'frame_start' for animation %d", table_index_lua);
-                animation.m_Start = lua_tointeger(L, -1) - 1;
+                animation.m_Start = lua_tointeger(L, -1) - 1 + num_geometries;
                 lua_pop(L, 1);
 
                 lua_getfield(L, -1, "frame_end");
                 CHECK_LUA_FIELD_TYPE(-1, LUA_TNUMBER, "Invalid field 'frame_end' for animation %d", table_index_lua);
-                animation.m_End = lua_tointeger(L, -1) - 1;
+                animation.m_End = lua_tointeger(L, -1) - 1 + num_geometries;
                 lua_pop(L, 1);
 
                 frame_index_count += animation.m_End - animation.m_Start;
@@ -1090,38 +1353,7 @@ static int SetAtlasData(lua_State* L)
 
     #undef CHECK_LUA_FIELD_TYPE
     #undef DESTROY_TEXTURE_SET_AND_RAISE_ERROR
-
-    texture_set_ddf.m_UseGeometries        = 1;
-    texture_set_ddf.m_FrameIndices.m_Data  = new uint32_t[frame_index_count];
-    texture_set_ddf.m_FrameIndices.m_Count = frame_index_count;
-    memset(texture_set_ddf.m_FrameIndices.m_Data, 0, sizeof(uint32_t) * frame_index_count);
-
-    uint32_t frame_index = 0;
-    for (int i = 0; i < texture_set_ddf.m_Geometries.m_Count; ++i)
-    {
-        texture_set_ddf.m_FrameIndices[frame_index++] = i;
-    }
-
-    for (int i = 0; i < texture_set_ddf.m_Animations.m_Count; ++i)
-    {
-        uint32_t frame_count = texture_set_ddf.m_Animations[i].m_End - texture_set_ddf.m_Animations[i].m_Start;
-        for (int j = 0; j < frame_count; ++j)
-        {
-            texture_set_ddf.m_FrameIndices[frame_index] = j;
-        }
-    }
-
-    dmArray<uint8_t> ddf_buffer;
-    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
-    assert(ddf_result == dmDDF::RESULT_OK);
-
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, ddf_buffer.Begin(), ddf_buffer.Size());
-
-    DestroyTextureSet(texture_set_ddf);
-
-    if(r != dmResource::RESULT_OK) {
-        return ReportPathError(L, r, path_hash);
-    }
+    */
 
     return 0;
 }
@@ -1149,6 +1381,8 @@ static int GetAtlasData(lua_State* L)
     lua_pushliteral(L, "animations");
     lua_newtable(L);
 
+    uint32_t num_geometries = texture_set->m_Geometries.m_Count;
+
     for (int i = 0; i < texture_set->m_Animations.m_Count; ++i)
     {
         dmGameSystemDDF::TextureSetAnimation& anim = texture_set->m_Animations[i];
@@ -1160,37 +1394,26 @@ static int GetAtlasData(lua_State* L)
         lua_pushstring(L, anim.m_Id);
         lua_rawset(L, -3);
 
-        lua_pushliteral(L, "width");
-        lua_pushinteger(L, anim.m_Width);
-        lua_rawset(L, -3);
+        #define SET_LUA_INTEGER(id, val) \
+            lua_pushliteral(L, id); \
+            lua_pushinteger(L, val); \
+            lua_rawset(L, -3);
 
-        lua_pushliteral(L, "height");
-        lua_pushinteger(L, anim.m_Height);
-        lua_rawset(L, -3);
+        SET_LUA_INTEGER("width", anim.m_Width);
+        SET_LUA_INTEGER("height", anim.m_Height);
+        SET_LUA_INTEGER("fps", anim.m_Fps);
+        SET_LUA_INTEGER("playback", (lua_Integer) DDFPlaybackToGameObjectPlayback(anim.m_Playback));
+        SET_LUA_INTEGER("flip_horizontal", anim.m_FlipHorizontal);
+        SET_LUA_INTEGER("flip_vertical", anim.m_FlipVertical);
 
-        lua_pushliteral(L, "frame_start");
-        lua_pushinteger(L, anim.m_Start + 1);
-        lua_rawset(L, -3);
+        // Note: To make setting atlas data more intuitive we remove the geometry count
+        //       from the indices, otherwise the user has to know about the number of geometries
+        //       and offset this by themselves since this is what the build pipeline does,
+        //       and what the rest of the engine expects..
+        SET_LUA_INTEGER("frame_start", anim.m_Start + 1 - num_geometries);
+        SET_LUA_INTEGER("frame_end", anim.m_End + 1 - num_geometries);
 
-        lua_pushliteral(L, "frame_end");
-        lua_pushinteger(L, anim.m_End + 1);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "fps");
-        lua_pushinteger(L, anim.m_Fps);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "playback");
-        lua_pushinteger(L, (lua_Integer) anim.m_Playback);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "flip_horizontal");
-        lua_pushinteger(L, anim.m_FlipHorizontal);
-        lua_rawset(L, -3);
-
-        lua_pushliteral(L, "flip_vertical");
-        lua_pushinteger(L, anim.m_FlipVertical);
-        lua_rawset(L, -3);
+        #undef SET_LUA_INTEGER
 
         lua_rawset(L, -3);
     }
@@ -1201,7 +1424,7 @@ static int GetAtlasData(lua_State* L)
         lua_pushliteral(L, "geometries");
         lua_newtable(L);
 
-        for (int i = 0; i < texture_set->m_Geometries.m_Count; ++i)
+        for (int i = 0; i < num_geometries; ++i)
         {
             dmGameSystemDDF::SpriteGeometry& geom = texture_set->m_Geometries[i];
 
