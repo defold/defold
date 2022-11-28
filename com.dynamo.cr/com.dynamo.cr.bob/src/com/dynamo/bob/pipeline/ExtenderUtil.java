@@ -418,23 +418,20 @@ public class ExtenderUtil {
         }
     }
 
-    /**
-     * Given a project path to ext.manifest, return an extension root dir if this path has engine extensions
-     * and should be built remotely, or null otherwise
-     * @return root dir of engine extension or null
+    /***
+     * @return true if a path is an ext.manifest that defines engine extensions (i.e. should be built remotely)
      */
-    private static String pathToMaybeEngineExtensionDir(Project project, String path) {
+    private static boolean isEngineExtensionManifest(Project project, String path) {
         File f = new File(path);
         if (f.getName().equals(ExtenderClient.extensionFilename)) {
-            ArrayList<String> siblings = new ArrayList<>();
-            String parent = f.getParent() ;
-            parent = parent == null ? "" : parent;
-            project.findResourceDirs(parent, siblings);
-            if (siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"))) {
-                return parent;
+            String parent = f.getParent();
+            if (parent != null) {
+                ArrayList<String> siblings = new ArrayList<>();
+                project.findResourceDirs(parent, siblings);
+                return siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"));
             }
         }
-        return null;
+        return false;
     }
 
     /**
@@ -447,8 +444,8 @@ public class ExtenderUtil {
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
         return paths.stream()
-                .map(p -> pathToMaybeEngineExtensionDir(project, p))
-                .filter(Objects::nonNull)
+                .filter(p -> isEngineExtensionManifest(project, p))
+                .map(p -> new File(p).getParent())
                 .collect(Collectors.toList());
     }
 
@@ -505,7 +502,7 @@ public class ExtenderUtil {
 
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
-        return paths.stream().anyMatch(v -> pathToMaybeEngineExtensionDir(project, v) != null);
+        return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
     }
 
     private static IResource getPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) throws CompileExceptionError {
