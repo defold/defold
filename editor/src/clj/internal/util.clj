@@ -660,3 +660,15 @@
                                    all-reduced reduced)))
                        (mapv transient tos)
                        from)))))))
+
+(defn make-dedupe-fn
+  "Given a sequence of non-unique items, returns a function that will return the
+  same instance of each item if it is determined to be equal to an item already
+  in the ever-growing set of unique items."
+  [items]
+  (let [unique-volatile (volatile! (set items))]
+    (fn dedupe-fn [item]
+      (or (get @unique-volatile item)
+          (do
+            (vswap! unique-volatile conj item)
+            item)))))

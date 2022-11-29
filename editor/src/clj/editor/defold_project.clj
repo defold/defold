@@ -241,6 +241,21 @@
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
 
+(defn workspace
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (workspace project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :workspace evaluation-context)))
+
+(defn code-preprocessors
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (code-preprocessors project evaluation-context)))
+  ([project evaluation-context]
+   (let [workspace (workspace project evaluation-context)]
+     (workspace/code-preprocessors workspace evaluation-context))))
+
 (defn script-intelligence
   ([project]
    (g/with-auto-evaluation-context evaluation-context
@@ -334,13 +349,6 @@
 
 (defn invalidate-save-data-source-values! [save-data]
   (g/invalidate-outputs! (mapv (fn [sd] (g/endpoint (:node-id sd) :source-value)) save-data)))
-
-(defn workspace
-  ([project]
-   (g/with-auto-evaluation-context evaluation-context
-     (workspace project evaluation-context)))
-  ([project evaluation-context]
-   (g/node-value project :workspace evaluation-context)))
 
 (defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
   (fn [state node output-type label]

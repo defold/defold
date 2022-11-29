@@ -20,6 +20,8 @@ package com.dynamo.bob.pipeline;
  */
 public abstract class LuaBuilderPlugin {
 
+    public final static String SCANNED_PACKAGE_NAME = "com.dynamo.bob.pipeline";
+
     /**
      * Perform a create preprocessing step on the provided Lua code
      * @param input String containing Lua code

@@ -90,8 +90,8 @@ public abstract class LuaBuilder extends Builder<Void> {
             final byte[] scriptBytes = resource.getContent();
             String script = new String(scriptBytes, "UTF-8");
 
-            // create and apply builder plugind if some exists
-            luaBuilderPlugins = PluginScanner.getOrCreatePlugins("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
+            // create and apply builder plugins if some exists
+            luaBuilderPlugins = PluginScanner.getOrCreatePlugins(LuaBuilderPlugin.SCANNED_PACKAGE_NAME, LuaBuilderPlugin.class);
             if (luaBuilderPlugins != null) {
                 for (LuaBuilderPlugin luaBuilderPlugin : luaBuilderPlugins) {
                     try {
