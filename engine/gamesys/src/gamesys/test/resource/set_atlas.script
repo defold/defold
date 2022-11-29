@@ -13,13 +13,15 @@
 -- specific language governing permissions and limitations under the License.
 
 local function assert_anim(a, b)
-    assert(a.id          == b.id)
-    assert(a.width       == b.width)
-    assert(a.height      == b.height)
-    assert(a.frame_start == b.frame_start)
-    assert(a.frame_end   == b.frame_end)
-    assert(a.fps         == b.fps)
-    assert(a.playback    == b.playback)
+    assert(a.id              == b.id)
+    assert(a.width           == b.width)
+    assert(a.height          == b.height)
+    assert(a.frame_start     == b.frame_start)
+    assert(a.frame_end       == b.frame_end)
+    assert(a.fps             == b.fps)
+    assert(a.playback        == b.playback)
+    assert(a.flip_vertical   == b.flip_vertical)
+    --assert(a.flip_horizontal == b.flip_horizontal)
 end
 
 local function assert_near(exp, act)
@@ -52,13 +54,15 @@ local function test_simple(self)
     assert(data.texture == self.valid_texture_path)
 
     assert_anim(data.animations[1], {
-        id          = "anim",
-        width       = 16,
-        height      = 16,
-        frame_start = 1,
-        frame_end   = 2,
-        fps         = 30,
-        playback    = go.PLAYBACK_ONCE_FORWARD
+        id              = "anim",
+        width           = 16,
+        height          = 16,
+        frame_start     = 1,
+        frame_end       = 2,
+        fps             = 30,
+        playback        = go.PLAYBACK_ONCE_FORWARD,
+        flip_vertical   = false,
+        flip_horizontal = false,
     })
 
     resource.set_atlas(self.valid_tileset_path, data)
@@ -91,22 +95,26 @@ end
 local function test_setting_valid(self)
     local animations = {
         {
-            id          = "anim_1",
-            width       = 4,
-            height      = 4,
-            frame_start = 1,
-            frame_end   = 2,
-            fps         = 15,
-            playback    = go.PLAYBACK_LOOP_PINGPONG
+            id              = "anim_1",
+            width           = 4,
+            height          = 4,
+            frame_start     = 1,
+            frame_end       = 2,
+            fps             = 15,
+            playback        = go.PLAYBACK_LOOP_PINGPONG,
+            flip_vertical   = false,
+            flip_horizontal = true
         },
         {
-            id          = "anim_2",
-            width       = 16,
-            height      = 16,
-            frame_start = 2,
-            frame_end   = 3,
-            fps         = 2,
-            playback    = go.PLAYBACK_NONE
+            id              = "anim_2",
+            width           = 16,
+            height          = 16,
+            frame_start     = 2,
+            frame_end       = 3,
+            fps             = 2,
+            playback        = go.PLAYBACK_NONE,
+            flip_vertical   = true,
+            flip_horizontal = false
         },
     }
     local geometries = {

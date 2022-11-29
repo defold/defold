@@ -960,20 +960,22 @@ static void ValidateSetAtlasAnimations(lua_State* L, uint32_t* num_animations_ou
         }
         lua_pop(L, 1);
 
-        #define CHECK_FIELD_INTEGER(field_name, required) \
+        #define CHECK_LUA_FIELD(check_fn, field_name, required) \
             lua_getfield(L, -1, field_name); \
             if (required || !lua_isnil(L,-1)) \
-                luaL_checkinteger(L, -1); \
+                check_fn(L, -1); \
             lua_pop(L, 1);
 
-        CHECK_FIELD_INTEGER("width", true);
-        CHECK_FIELD_INTEGER("height", true);
-        CHECK_FIELD_INTEGER("frame_start", true);
-        CHECK_FIELD_INTEGER("frame_end", true);
-        CHECK_FIELD_INTEGER("playback", false);
-        CHECK_FIELD_INTEGER("fps", false );
+        CHECK_LUA_FIELD(luaL_checkinteger,      "width", true);
+        CHECK_LUA_FIELD(luaL_checkinteger,      "height", true);
+        CHECK_LUA_FIELD(luaL_checkinteger,      "frame_start", true);
+        CHECK_LUA_FIELD(luaL_checkinteger,      "frame_end", true);
+        CHECK_LUA_FIELD(luaL_checkinteger,      "playback", false);
+        CHECK_LUA_FIELD(luaL_checkinteger,      "fps", false );
+        CHECK_LUA_FIELD(dmScript::CheckBoolean, "flip_vertical", false );
+        CHECK_LUA_FIELD(dmScript::CheckBoolean, "flip_horizontal", false );
 
-        #undef CHECK_FIELD_INTEGER
+        #undef CHECK_LUA_FIELD
 
         lua_pop(L, 1);
 
@@ -1079,6 +1081,12 @@ static void ValidateSetAtlasGeometries(lua_State* L, uint32_t* num_geometries_ou
  *
  * * `fps`
  * : [type:integer] optional fps of the animation, the default value is 30
+ *
+ * * `flip_vertical`
+ * : [type:boolean] optional flip the animation vertically, the default value is false
+ *
+ * * `flip_horizontal`
+ * : [type:boolean] optional flip the animation horizontally, the default value is false
  *
  * * `geometries`
  * : [type:table] A list of the geometries that should map to the texture data. Supports the following fields:
@@ -1209,7 +1217,6 @@ static int SetAtlas(lua_State* L)
     {
         float inv_tex_width  = 1.0f / tex_width;
         float inv_tex_height = 1.0f / tex_height;
-        float tex_aspect     = tex_width / tex_height;
 
         lua_getfield(L, -1, "geometries");
         for (int i = 0; i < num_geometries; ++i)
@@ -1318,6 +1325,20 @@ static int SetAtlas(lua_State* L)
             if (lua_isnumber(L, -1))
             {
                 animation.m_Fps = lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "flip_vertical");
+            if (lua_isboolean(L, -1))
+            {
+                animation.m_FlipVertical = lua_toboolean(L, -1);
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "flip_horizontal");
+            if (lua_isboolean(L, -1))
+            {
+                animation.m_FlipHorizontal = lua_toboolean(L, -1);
             }
             lua_pop(L, 1);
 
@@ -1464,21 +1485,21 @@ static int GetAtlas(lua_State* L)
         lua_pushstring(L, anim.m_Id);
         lua_rawset(L, -3);
 
-        #define SET_LUA_INTEGER(id, val) \
+        #define SET_LUA_VAL(set_fn, id, val) \
             lua_pushliteral(L, id); \
-            lua_pushinteger(L, val); \
+            set_fn(L, val); \
             lua_rawset(L, -3);
 
-        SET_LUA_INTEGER("width", anim.m_Width);
-        SET_LUA_INTEGER("height", anim.m_Height);
-        SET_LUA_INTEGER("fps", anim.m_Fps);
-        SET_LUA_INTEGER("playback", (lua_Integer) DDFPlaybackToGameObjectPlayback(anim.m_Playback));
-        SET_LUA_INTEGER("flip_horizontal", anim.m_FlipHorizontal);
-        SET_LUA_INTEGER("flip_vertical", anim.m_FlipVertical);
-        SET_LUA_INTEGER("frame_start", index_start + 1);
-        SET_LUA_INTEGER("frame_end", index_end + 1);
+        SET_LUA_VAL(lua_pushinteger, "width", anim.m_Width);
+        SET_LUA_VAL(lua_pushinteger, "height", anim.m_Height);
+        SET_LUA_VAL(lua_pushinteger, "fps", anim.m_Fps);
+        SET_LUA_VAL(lua_pushinteger, "playback", (lua_Integer) DDFPlaybackToGameObjectPlayback(anim.m_Playback));
+        SET_LUA_VAL(lua_pushinteger, "frame_start", index_start + 1);
+        SET_LUA_VAL(lua_pushinteger, "frame_end", index_end + 1);
+        SET_LUA_VAL(lua_pushboolean, "flip_horizontal", anim.m_FlipHorizontal);
+        SET_LUA_VAL(lua_pushboolean, "flip_vertical", anim.m_FlipVertical);
 
-        #undef SET_LUA_INTEGER
+        #undef SET_LUA_VAL
 
         lua_rawset(L, -3);
     }
