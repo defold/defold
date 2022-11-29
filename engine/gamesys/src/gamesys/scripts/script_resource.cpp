@@ -1193,6 +1193,7 @@ static int SetAtlas(lua_State* L)
 
     if (num_animations > 0 && num_geometries == 0)
     {
+        lua_pop(L, 1);
         return DM_LUA_ERROR("Setting atlas with animations requires geometry");
     }
 
@@ -1243,9 +1244,12 @@ static int SetAtlas(lua_State* L)
             float geo_height = 0.0f;
             for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
             {
-                geo_width  = dmMath::Max(geo_width, geometry.m_Vertices[j]);
-                geo_height = dmMath::Max(geo_height, geometry.m_Vertices[j+1]);
+                geo_width  = dmMath::Max(geo_width, geometry.m_Vertices.m_Data[j]);
+                geo_height = dmMath::Max(geo_height, geometry.m_Vertices.m_Data[j+1]);
             }
+
+            geometry.m_Width  = geo_width;
+            geometry.m_Height = geo_height;
 
             // Transform from texel to local space for position and uvs
             // Position and texcoords are flipped on y/t axis so that coordinates are
@@ -1430,10 +1434,8 @@ static int GetAtlas(lua_State* L)
 
     lua_newtable(L);
 
-    // JG: This returns a hash, but should we return the actual path?
-    //     Which requires us to keep the m_ResourceToHash table in factories around in non-debug..
     lua_pushliteral(L, "texture");
-    dmScript::PushHash(L, texture_set_res->m_TexturePath);
+    lua_pushstring(L, texture_set->m_Texture);
     lua_rawset(L, -3);
 
     lua_pushliteral(L, "animations");
@@ -1495,26 +1497,40 @@ static int GetAtlas(lua_State* L)
             lua_newtable(L);
 
             {
+                assert(geom.m_Vertices.m_Count % 2 == 0);
+                assert(geom.m_Uvs.m_Count      % 2 == 0);
+                assert(geom.m_Indices.m_Count  % 3 == 0);
+
                 lua_pushliteral(L, "vertices");
                 lua_newtable(L);
-                for (int j = 0; j < geom.m_Vertices.m_Count; ++j)
+                for (int j = 0; j < geom.m_Vertices.m_Count; j += 2)
                 {
-                    float dim = j % 2 == 0 ? tex_width : tex_height;
-                    float p   = (geom.m_Vertices[j] + 0.5) * dim;
+                    float x = (geom.m_Vertices[j] + 0.5) * geom.m_Width;
+                    float y = (0.5 - geom.m_Vertices[j+1]) * geom.m_Height;
+
                     lua_pushinteger(L, j + 1);
-                    lua_pushnumber(L, p);
+                    lua_pushnumber(L, x);
+                    lua_rawset(L, -3);
+
+                    lua_pushinteger(L, j + 2);
+                    lua_pushnumber(L, y);
                     lua_rawset(L, -3);
                 }
                 lua_rawset(L, -3);
 
                 lua_pushliteral(L, "uvs");
                 lua_newtable(L);
-                for (int j = 0; j < geom.m_Uvs.m_Count; ++j)
+                for (int j = 0; j < geom.m_Uvs.m_Count; j += 2)
                 {
-                    float dim = j % 2 == 0 ? tex_width : tex_height;
-                    float tc  = geom.m_Uvs[j] * dim;
+                    float s = geom.m_Uvs[j] * tex_width;
+                    float t = (1.0 - geom.m_Uvs[j + 1]) * tex_height;
+
                     lua_pushinteger(L, j + 1);
-                    lua_pushnumber(L, tc);
+                    lua_pushnumber(L, s);
+                    lua_rawset(L, -3);
+
+                    lua_pushinteger(L, j + 2);
+                    lua_pushnumber(L, t);
                     lua_rawset(L, -3);
                 }
                 lua_rawset(L, -3);
