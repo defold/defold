@@ -38,6 +38,8 @@
       unpack-lua-source
       code.data/string->lines))
 
+;; Temporarily disabled until we can get an updated extension-lua-preprocessor published.
+#_
 (deftest extension-lua-preprocessor-test
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")

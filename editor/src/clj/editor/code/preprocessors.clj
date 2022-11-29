@@ -22,16 +22,18 @@
             [internal.java :as java]
             [internal.util :as util]
             [service.log :as log])
-  (:import [com.dynamo.bob ClassLoaderScanner]
-           [com.dynamo.bob.pipeline LuaBuilderPlugin]))
+  (:import [com.defold.extension.pipeline ILuaPreprocessor]
+           [com.dynamo.bob ClassLoaderScanner]))
 
 (set! *warn-on-reflection* true)
 
-(def ^String smoke-test-build-variant-string (name :debug))
+(defonce ^:private ^String scanned-package-name "com.defold.extension.pipeline")
 
-(def ^String smoke-test-lua-source-proj-path "/__lua_preprocessor_smoke_test__.lua")
+(defonce ^:private ^String smoke-test-build-variant-string (name :debug))
 
-(def ^String smoke-test-lua-source "
+(defonce ^:private ^String smoke-test-lua-source-proj-path "/__lua_preprocessor_smoke_test__.lua")
+
+(defonce ^:private ^String smoke-test-lua-source "
 -- This is the Lua preprocessor smoke test.
 local m = {}
 m.f = function () return nil end
@@ -70,30 +72,30 @@ return m
         coll))
 
 (defn- run-lua-preprocessor
-  ^String [^LuaBuilderPlugin lua-preprocessor ^String lua-source ^String lua-source-proj-path ^String build-variant-string]
-  (.create lua-preprocessor lua-source-proj-path lua-source build-variant-string))
+  ^String [^ILuaPreprocessor lua-preprocessor ^String lua-source ^String lua-source-proj-path ^String build-variant-string]
+  (.preprocess lua-preprocessor lua-source lua-source-proj-path build-variant-string))
 
 (defn- try-initialize-lua-preprocessors [^ClassLoader class-loader]
   (into []
         (keep (fn [^String class-name]
                 (try
                   (let [uninitialized-class (Class/forName class-name false class-loader)]
-                    (when (java/public-implementation? uninitialized-class LuaBuilderPlugin)
+                    (when (java/public-implementation? uninitialized-class ILuaPreprocessor)
                       (let [initialized-class (Class/forName class-name true class-loader)]
                         {:type :success
                          :value initialized-class})))
                   (catch Exception e
-                    (log/error :msg (str "Exception in static initializer of LuaBuilderPlugin subclass " class-name ": " (.getMessage e))
+                    (log/error :msg (str "Exception in static initializer of ILuaPreprocessor implementation " class-name ": " (.getMessage e))
                                :exception e)
                     {:type :error
                      :class-name class-name}))))
-        (ClassLoaderScanner/scanClassLoader class-loader LuaBuilderPlugin/SCANNED_PACKAGE_NAME)))
+        (ClassLoaderScanner/scanClassLoader class-loader scanned-package-name)))
 
-(defn- try-create-lua-preprocessors [lua-builder-plugin-subclasses]
+(defn- try-create-lua-preprocessors [lua-preprocessor-classes]
   (into []
-        (map (fn [^Class lua-builder-plugin-subclass]
+        (map (fn [^Class lua-preprocessor-class]
                (try
-                 (let [lua-preprocessor (java/invoke-no-arg-constructor lua-builder-plugin-subclass)]
+                 (let [lua-preprocessor (java/invoke-no-arg-constructor lua-preprocessor-class)]
                    ;; Perform a smoke test on the Lua preprocessor before
                    ;; registering it with our system. This will help catch
                    ;; incompatibilities caused by interface changes early.
@@ -102,32 +104,32 @@ return m
                        (if (string? result)
                          {:type :success
                           :value lua-preprocessor}
-                         (let [class-name (.getName lua-builder-plugin-subclass)]
-                           (log/error :msg (str "Error when testing LuaBuilderPlugin subclass " class-name " - failed to return string value."))
+                         (let [class-name (.getName lua-preprocessor-class)]
+                           (log/error :msg (str "Error when testing ILuaPreprocessor implementation " class-name " - failed to return string value."))
                            {:type :error
                             :class-name class-name})))
                      (catch Exception e
-                       (let [class-name (.getName lua-builder-plugin-subclass)]
-                         (log/error :msg (str "Exception when testing LuaBuilderPlugin subclass " class-name ": " (.getMessage e))
+                       (let [class-name (.getName lua-preprocessor-class)]
+                         (log/error :msg (str "Exception when testing ILuaPreprocessor implementation " class-name ": " (.getMessage e))
                                     :exception e)
                          {:type :error
                           :class-name class-name}))))
                  (catch Exception e
-                   (let [class-name (.getName lua-builder-plugin-subclass)]
-                     (log/error :msg (str "Exception when constructing LuaBuilderPlugin subclass " class-name ": " (.getMessage e))
+                   (let [class-name (.getName lua-preprocessor-class)]
+                     (log/error :msg (str "Exception when constructing ILuaPreprocessor implementation " class-name ": " (.getMessage e))
                                 :exception e)
                      {:type :error
                       :class-name class-name})))))
-        lua-builder-plugin-subclasses))
+        lua-preprocessor-classes))
 
-(defn- set-lua-builder-plugin-subclasses! [code-preprocessors lua-builder-plugin-subclasses]
-  {:pre [(every? #(and (class? %) (isa? % LuaBuilderPlugin)) lua-builder-plugin-subclasses)]}
-  (let [new-lua-builder-plugin-subclasses (set lua-builder-plugin-subclasses)
-        old-lua-builder-plugin-subclasses (into #{}
-                                                (map class)
-                                                (g/node-value code-preprocessors :lua-preprocessors))]
-    (when (not= old-lua-builder-plugin-subclasses new-lua-builder-plugin-subclasses)
-      (let [create-infos (try-create-lua-preprocessors lua-builder-plugin-subclasses)
+(defn- set-lua-preprocessor-classes! [code-preprocessors lua-preprocessor-classes]
+  {:pre [(every? #(and (class? %) (isa? % ILuaPreprocessor)) lua-preprocessor-classes)]}
+  (let [new-lua-preprocessor-classes (set lua-preprocessor-classes)
+        old-lua-preprocessor-classes (into #{}
+                                           (map class)
+                                           (g/node-value code-preprocessors :lua-preprocessors))]
+    (when (not= old-lua-preprocessor-classes new-lua-preprocessor-classes)
+      (let [create-infos (try-create-lua-preprocessors lua-preprocessor-classes)
             errors (filter #(= :error (:type %)) create-infos)]
         (if (seq errors)
           (report-error! "Failed to construct Lua preprocessors" (map :class-name errors))
@@ -139,14 +141,14 @@ return m
         errors (filter #(= :error (:type %)) initialize-infos)]
     (if (seq errors)
       (report-error! "Failed to initialize Lua preprocessors" (map :class-name errors))
-      (let [lua-builder-plugin-subclasses (success-values initialize-infos)]
-        (set-lua-builder-plugin-subclasses! code-preprocessors lua-builder-plugin-subclasses)))))
+      (let [lua-preprocessor-classes (success-values initialize-infos)]
+        (set-lua-preprocessor-classes! code-preprocessors lua-preprocessor-classes)))))
 
 (defn preprocess-lua [lua-preprocessors ^String lua-source lua-resource build-variant]
   {:pre [(case build-variant (:debug :headless :release) true false)]}
   (let [lua-source-proj-path (resource/proj-path lua-resource)
         build-variant-string (name build-variant)]
-    (reduce (fn [^String lua-source ^LuaBuilderPlugin lua-preprocessor]
+    (reduce (fn [^String lua-source ^ILuaPreprocessor lua-preprocessor]
               (run-lua-preprocessor lua-preprocessor lua-source lua-source-proj-path build-variant-string))
             lua-source
             lua-preprocessors)))
