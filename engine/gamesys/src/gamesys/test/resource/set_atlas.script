@@ -21,7 +21,7 @@ local function assert_anim(a, b)
     assert(a.fps             == b.fps)
     assert(a.playback        == b.playback)
     assert(a.flip_vertical   == b.flip_vertical)
-    --assert(a.flip_horizontal == b.flip_horizontal)
+    assert(a.flip_horizontal == b.flip_horizontal)
 end
 
 local function assert_near(exp, act)
