@@ -1500,7 +1500,7 @@
   (when-some [parent (or (.getParentMenu old) menu-bar)]
     (when-some [parent-children (menu-items parent)]
       (let [index (.indexOf parent-children old)]
-        (when (pos? index)
+        (when-not (neg? index)
           (.set parent-children index new))))))
 
 (defn- refresh-menubar? [menu-bar menu visible-command-contexts]

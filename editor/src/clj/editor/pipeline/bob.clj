@@ -193,7 +193,7 @@
         (System/setOut build-out)
         (System/setErr build-err)
         (if (and (some #(= "build" %) bob-commands)
-                 (native-extensions/has-extensions? project evaluation-context)
+                 (native-extensions/has-engine-extensions? project evaluation-context)
                  (not (native-extensions/supported-platform? (get bob-args "platform"))))
           {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
           (let [ws (project/workspace project evaluation-context)

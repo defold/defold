@@ -40,7 +40,7 @@
           project (test-util/setup-project! workspace)]
       (g/with-auto-evaluation-context evaluation-context
         (is (= #{"/extension1" "/subdir/extension2"}
-               (set (map resource/proj-path (native-extensions/extension-roots project evaluation-context)))))))))
+               (set (map resource/proj-path (native-extensions/engine-extension-roots project evaluation-context)))))))))
 
 (deftest extension-resource-nodes-test
   (letfn [(platform-resources [project platform]
