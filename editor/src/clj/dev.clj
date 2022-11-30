@@ -23,7 +23,6 @@
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
-            [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
@@ -37,11 +36,7 @@
 (set! *warn-on-reflection* true)
 
 (defn workspace []
-  (let [workspace-graph (is/graph @g/*the-system* 0)]
-    (some (fn [[node-id node]]
-            (when (= workspace/Workspace (in/node-type node))
-              node-id))
-          (:nodes workspace-graph))))
+  0)
 
 (defn project []
   (ffirst (g/targets-of (workspace) :resource-map)))

@@ -685,18 +685,18 @@ ordinary paths."
   (let [editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
                               (make-editable-proj-path-predicate non-editable-directory-proj-paths)
                               (constantly true))]
-    (second
+    (first
       (g/tx-nodes-added
         (g/transact
           (g/make-nodes graph
-            [code-preprocessors code.preprocessors/CodePreprocessorsNode
-             workspace [Workspace
+            [workspace [Workspace
                         :root project-path
                         :resource-snapshot (resource-watch/empty-snapshot)
                         :view-types {:default {:id :default}}
                         :resource-listeners (atom [])
                         :build-settings build-settings
-                        :editable-proj-path? editable-proj-path?]]
+                        :editable-proj-path? editable-proj-path?]
+             code-preprocessors code.preprocessors/CodePreprocessorsNode]
             (g/connect code-preprocessors :_node-id workspace :code-preprocessors)))))))
 
 (defn register-view-type

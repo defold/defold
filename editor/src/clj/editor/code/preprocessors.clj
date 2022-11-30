@@ -34,9 +34,24 @@
 (defonce ^:private ^String smoke-test-lua-source-proj-path "/__lua_preprocessor_smoke_test__.lua")
 
 (defonce ^:private ^String smoke-test-lua-source "
--- This is the Lua preprocessor smoke test.
+-- This is the Lua source transformer smoke test.
+-- We instantiate Lua source transformers from project dependencies and register
+-- them with our system. To ensure they confirm to our expectations, we feed
+-- them this smoke-test and check that they return a string without issues. This
+-- enables us to catch problems early and notify the user about potentially
+-- incompatible plugins.
+
 local m = {}
-m.f = function () return nil end
+
+m.b = true
+m.i = 1
+m.s = ''
+m.t = {}
+
+function m.f()
+    return nil
+end
+
 return m
 ")
 
@@ -146,16 +161,21 @@ return m
 
 (defn preprocess-lua [lua-preprocessors ^String lua-source lua-resource build-variant]
   {:pre [(case build-variant (:debug :headless :release) true false)]}
-  (let [lua-source-proj-path (resource/proj-path lua-resource)
-        build-variant-string (name build-variant)]
-    (reduce (fn [^String lua-source ^ILuaPreprocessor lua-preprocessor]
-              (run-lua-preprocessor lua-preprocessor lua-source lua-source-proj-path build-variant-string))
-            lua-source
-            lua-preprocessors)))
+  (if (empty? lua-preprocessors)
+    lua-source
+    (let [lua-source-proj-path (resource/proj-path lua-resource)
+          build-variant-string (name build-variant)]
+      (reduce (fn [^String lua-source ^ILuaPreprocessor lua-preprocessor]
+                (run-lua-preprocessor lua-preprocessor lua-source lua-source-proj-path build-variant-string))
+              lua-source
+              lua-preprocessors))))
 
 (defn preprocess-lua-lines [lua-preprocessors lua-lines lua-resource build-variant]
-  (let [dedupe-fn (util/make-dedupe-fn lua-lines)
-        original-lua-source (data/lines->string lua-lines)
-        preprocessed-lua-source (preprocess-lua lua-preprocessors original-lua-source lua-resource build-variant)]
-    (mapv dedupe-fn
-          (data/string->lines preprocessed-lua-source))))
+  (if (empty? lua-preprocessors)
+    lua-lines
+    (let [original-lua-source (data/lines->string lua-lines)
+          preprocessed-lua-source (preprocess-lua lua-preprocessors original-lua-source lua-resource build-variant)]
+      (if (identical? original-lua-source preprocessed-lua-source)
+        lua-lines
+        (mapv (util/make-dedupe-fn lua-lines) ; Reuse original lines where possible to avoid duplicates in the graph.
+              (data/string->lines preprocessed-lua-source))))))

@@ -40,7 +40,7 @@ import javax.vecmath.Vector4d;
 
 import org.apache.commons.io.IOUtils;
 
-import com.defold.extension.pipeline.ILuaPrebundler;
+import com.defold.extension.pipeline.ILuaObfuscator;
 import com.defold.extension.pipeline.ILuaPreprocessor;
 
 import com.dynamo.bob.Bob;
@@ -75,7 +75,7 @@ public abstract class LuaBuilder extends Builder<Void> {
     private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
     private static List<ILuaPreprocessor> luaPreprocessors = null;
-    private static List<ILuaPrebundler> luaPrebundlers = null;
+    private static List<ILuaObfuscator> luaObfuscators = null;
 
     private Map<String, LuaScanner> luaScanners = new HashMap();
 
@@ -413,12 +413,12 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
 
-        // Create and run prebundlers if some exists.
-        if (luaPrebundlers == null) {
-            luaPrebundlers = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaPrebundler.class);
+        // Create and run obfuscators if some exists.
+        if (luaObfuscators == null) {
+            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
 
-            if (luaPrebundlers == null) {
-                luaPrebundlers = new ArrayList<ILuaPrebundler>(0);
+            if (luaObfuscators == null) {
+                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
             }
         }
 
@@ -426,12 +426,12 @@ public abstract class LuaBuilder extends Builder<Void> {
         final String sourcePath = sourceResource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
 
-        for (ILuaPrebundler luaPrebundler : luaPrebundlers) {
+        for (ILuaObfuscator luaObfuscator : luaObfuscators) {
             try {
-                script = luaPrebundler.prebundle(script, sourcePath, variant);
+                script = luaObfuscator.obfuscate(script, sourcePath, variant);
             }
             catch (Exception e) {
-                throw new CompileExceptionError(sourceResource, 0, "Unable to run Lua prebundler", e);
+                throw new CompileExceptionError(sourceResource, 0, "Unable to run Lua obfuscator", e);
             }
         }
 
