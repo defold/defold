@@ -556,6 +556,50 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
     delete[] texture_image.m_Alternatives.m_Data;
 }
 
+static int CreateAtlas(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const char* path_str     = luaL_checkstring(L, 1);
+    const char* texturec_ext = ".texturesetc";
+
+    char buf_ext[64];
+    const char* path_ext = dmResource::GetExtFromPath(path_str, buf_ext, sizeof(buf_ext));
+
+    if (path_ext == 0x0 || dmStrCaseCmp(path_ext, texturec_ext) != 0)
+    {
+        return DM_LUA_ERROR("Unable to create atlas, path '%s' must have the %s extension", path_str, texturec_ext);
+    }
+
+    dmhash_t canonical_path_hash = GetCanonicalPathHash(path_str);
+    if (dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash))
+    {
+        return DM_LUA_ERROR("Unable to create atlas, a resource is already registered at path '%s'", path_str);
+    }
+
+    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
+    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+
+    dmGameSystemDDF::TextureSet texture_set_ddf = {};
+
+    dmArray<uint8_t> ddf_buffer;
+    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
+    assert(ddf_result == dmDDF::RESULT_OK);
+
+    void* resource = 0x0;
+    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+
+    if (res != dmResource::RESULT_OK)
+    {
+        return ReportPathError(L, res, canonical_path_hash);
+    }
+
+    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+    dmScript::PushHash(L, canonical_path_hash);
+
+    return 1;
+}
+
 /*# create a texture
  * Creates a new texture resource that can be used in the same way as any texture created during build time.
  * The path used for creating the texture must be unique, trying to create a resource at a path that is already
@@ -1870,6 +1914,7 @@ static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
+    {"create_atlas", CreateAtlas},
     {"create_texture", CreateTexture},
     {"release", ReleaseResource},
     {"set_atlas", SetAtlas},
