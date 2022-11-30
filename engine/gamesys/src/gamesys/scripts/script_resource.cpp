@@ -518,7 +518,11 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
 }
 
 /*# create a texture
- * Creates a new texture resource.
+ * Creates a new texture resource that can be used in the same way as any texture created during build time.
+ * The path used for creating the texture must be unique, trying to create a resource at a path that is already
+ * registered will trigger an error. If the intention is to instead modify an existing texture, use the [ref:resource.set_texture]
+ * function. Also note that the path to the new texture resource must have a '.texturec' extension,
+ * meaning "/path/my_texture" is not a valid path but "/path/my_texture.texturec" is.
  *
  * @name resource.create_texture
  *
@@ -560,7 +564,7 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
  *        type           = resource.TEXTURE_TYPE_2D,
  *        format         = resource.TEXTURE_FORMAT_RGBA,
  *    }
- *    local my_texture_id = resource.create_texture(path, tparams)
+ *    local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams)
  *    go.set("#model", "texture0", my_texture_id)
  * end
  * ```
