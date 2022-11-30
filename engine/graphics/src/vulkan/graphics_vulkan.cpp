@@ -1265,12 +1265,12 @@ bail:
             VkImageAspectFlags vk_aspect = 0;
             if (flags & BUFFER_TYPE_DEPTH_BIT)
             {
-                vk_aspect |= BUFFER_TYPE_DEPTH_BIT;
+                vk_aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
             }
 
             if (flags & BUFFER_TYPE_STENCIL_BIT)
             {
-                vk_aspect |= BUFFER_TYPE_STENCIL_BIT;
+                vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
             }
 
             VkClearAttachment& vk_depth_attachment              = vk_clear_attachments[attachment_count++];
@@ -3289,8 +3289,13 @@ bail:
                 texture->m_Width       = params.m_Width;
                 texture->m_Height      = params.m_Height;
 
-                // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps
-                // JG: Might want to go back to this part and recreate if mipmap count has changed from when the texture was originally created
+                // Note:
+                // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
+                // For vulkan this means that we can't cap a texture to a specific mipmap count since the engine expects
+                // that setting texture data works like the OpenGL backend where we set the mipmap count to zero and then
+                // update the mipmap count based on the params. If we recreate the texture when that is detected (i.e we have too few mipmaps in the texture)
+                // we will lose all the data that was previously uploaded. We could copy that data, but for now this is the easiest way of dealing with this..
+
                 if (texture->m_MipMapCount > 1)
                 {
                     texture->m_MipMapCount = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Width, texture->m_Height));
