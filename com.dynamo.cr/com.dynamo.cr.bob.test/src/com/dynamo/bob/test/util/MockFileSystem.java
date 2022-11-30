@@ -113,8 +113,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
 
             boolean isInPath = entryPath.startsWith(path);
             if (isInPath) {
-
-                boolean isDirectory = entryPath.lastIndexOf('/') == entryPath.length() - 1;
+                boolean isDirectory = !resources.get(entryPath).isFile();
                 if (isDirectory) {
                     if (!walker.handleDirectory(entryPath, results)) {
                         // If we should skip this directory, continue loop until entryPath does not match anymore.
