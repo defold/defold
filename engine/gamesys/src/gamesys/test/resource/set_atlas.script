@@ -51,6 +51,9 @@ local function test_simple(self)
     assert(data.geometries)
     assert(data.animations)
 
+    assert(#data.geometries > 0)
+    assert(#data.animations > 0)
+
     assert(data.texture == self.valid_texture_path)
 
     assert_anim(data.animations[1], {
@@ -149,23 +152,34 @@ end
 local function test_fail_all(self)
     -- test get wrong path
     assert_error(function() resource.get_atlas("/missing-path") end)
+
     -- test set wrong path
     assert_error(function() resource.set_atlas("/missing-path", {}) end)
+
     -- test set wrong texture path
     assert_error(function() resource.set_atlas(self.valid_tileset_path, {
         texture = "wrong-path", animations = {}, geometries = {}}) end)
+
+    -- test having no animations or geometry table
+    assert_error(function() resource.set_atlas(self.valid_tileset_path, {
+        texture = self.valid_texture_path}) end)
+
     -- test set missing fields in animation
     assert_error(function() resource.set_atlas(self.valid_tileset_path, {
         texture = self.valid_texture_path, animations = {{}}, geometries = {}}) end)
+
     -- test set missing fields in geometry
     assert_error(function() resource.set_atlas(self.valid_tileset_path, {
         texture = self.valid_texture_path, animations = {}, geometries = {{}}}) end)
+
     -- test specifying animations but no geometry
     assert_error(function() resource.set_atlas(self.valid_tileset_path, {
         texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, 1, 2)}, geometries = {}}) end)
+
     -- test specifying incorrect animation start/end
     assert_error(function() resource.set_atlas(self.valid_tileset_path, {
         texture = self.valid_texture_path, animations = {make_anim("test", 1, 1, 0, 0)}, geometries = {make_quad(1,1,1,1)}}) end)
+
     -- test uneven components in data array
     assert_error(function() resource.set_atlas(self.valid_tileset_path, {
         texture = self.valid_texture_path, animations = {}, geometries = { {vertices = {1}, uvs = {}, indices = {}} }}) end)
