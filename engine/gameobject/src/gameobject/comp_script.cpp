@@ -502,8 +502,8 @@ namespace dmGameObject
                 lua_settable(L, -3);
 
                 lua_pushliteral(L, "gamepad_buttons");
-                lua_createtable(L, dmHID::MAX_GAMEPAD_AXIS_COUNT, 0);
-                for (int i = 0; i < dmHID::MAX_GAMEPAD_AXIS_COUNT; ++i)
+                lua_createtable(L, dmHID::MAX_GAMEPAD_BUTTON_COUNT, 0);
+                for (int i = 0; i < dmHID::MAX_GAMEPAD_BUTTON_COUNT; ++i)
                 {
                     lua_pushinteger(L, (lua_Integer) (i+1));
                     lua_pushnumber(L, dmHID::GetGamepadButton(&gamepadPacket, i));
