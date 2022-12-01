@@ -37,11 +37,12 @@ function test_number_types(thebuffer)
     assert( comparetables(metadata1, metadata2) )
     assert( thetype == buffer.VALUE_TYPE_UINT32 )
 
-    metadata1 = { math.pow(2,32)+2, 2, 3, 4, 5, 6 }
-    buffer.set_metadata(thebuffer, hash("unsigned64"), metadata1, buffer.VALUE_TYPE_UINT64)
-    metadata2, thetype = buffer.get_metadata(thebuffer, "unsigned64")
-    assert( comparetables(metadata1, metadata2) )
-    assert( thetype == buffer.VALUE_TYPE_UINT64 )
+    -- set UINT64 metadata should fail
+    local status, result = pcall(function (thebuffer)
+        local metadata1 = {}
+        buffer.set_metadata(thebuffer, hash("metadata-entry15"), metadata1, buffer.VALUE_TYPE_UINT64)
+    end, thebuffer)
+    assert(not status)
 
     -- signed int data
     local metadata1 = { -1, -2, -3, 4, 5, 6 }
@@ -62,11 +63,13 @@ function test_number_types(thebuffer)
     assert( comparetables(metadata1, metadata2) )
     assert( thetype == buffer.VALUE_TYPE_INT32 )
 
-    metadata1 = { -math.pow(2,32), 2, 3, 4, 5, 6 }
-    buffer.set_metadata(thebuffer, hash("signed64"), metadata1, buffer.VALUE_TYPE_INT64)
-    metadata2, thetype = buffer.get_metadata(thebuffer, "signed64")
-    assert( comparetables(metadata1, metadata2) )
-    assert( thetype == buffer.VALUE_TYPE_INT64 )
+    -- set INT64 metadata should fail
+    local status, result = pcall(function (thebuffer)
+        local metadata1 = {}
+        buffer.set_metadata(thebuffer, hash("metadata-entry15"), metadata1, buffer.VALUE_TYPE_INT64)
+    end, thebuffer)
+    assert(not status)
+
 
 end
 

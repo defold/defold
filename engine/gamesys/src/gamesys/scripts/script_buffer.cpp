@@ -969,9 +969,6 @@ namespace dmGameSystem
                 case dmBuffer::VALUE_TYPE_UINT32:
                     DM_LUA_TABLE_TO_ARRAY(uint32_t);
                 break;
-                case dmBuffer::VALUE_TYPE_UINT64:
-                    DM_LUA_TABLE_TO_ARRAY(uint64_t);
-                break;
                 case dmBuffer::VALUE_TYPE_INT8:
                     DM_LUA_TABLE_TO_ARRAY(int8_t);
                 break;
@@ -981,8 +978,9 @@ namespace dmGameSystem
                 case dmBuffer::VALUE_TYPE_INT32:
                     DM_LUA_TABLE_TO_ARRAY(int32_t);
                 break;
+                case dmBuffer::VALUE_TYPE_UINT64:
                 case dmBuffer::VALUE_TYPE_INT64:
-                    DM_LUA_TABLE_TO_ARRAY(int64_t);
+                    return DM_LUA_ERROR("%s.%s 64 bit integer types are not supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA);
                 break;
                 default:
                     return DM_LUA_ERROR("%s.%s invalid value type supplied: %ld.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, (long) valueType);
@@ -1086,9 +1084,6 @@ namespace dmGameSystem
             case dmBuffer::VALUE_TYPE_UINT32:
                 DM_ARRAY_TO_LUA_TABLE(uint32_t);
             break;
-            case dmBuffer::VALUE_TYPE_UINT64:
-                DM_ARRAY_TO_LUA_TABLE(uint64_t);
-            break;
             case dmBuffer::VALUE_TYPE_INT8:
                 DM_ARRAY_TO_LUA_TABLE(int8_t);
             break;
@@ -1098,8 +1093,10 @@ namespace dmGameSystem
             case dmBuffer::VALUE_TYPE_INT32:
                 DM_ARRAY_TO_LUA_TABLE(int32_t);
             break;
+            case dmBuffer::VALUE_TYPE_UINT64:
             case dmBuffer::VALUE_TYPE_INT64:
-                DM_ARRAY_TO_LUA_TABLE(int64_t);
+                return DM_LUA_ERROR("%s.%s retrieving 64 bit integer types is not supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA);
+                return DM_LUA_ERROR("invalid value type supplied: %d.", valueType);
             break;
             default:
                 // we shouldn't reach this point
