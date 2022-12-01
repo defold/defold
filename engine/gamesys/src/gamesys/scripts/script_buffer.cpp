@@ -951,6 +951,16 @@ namespace dmGameSystem
         uint32_t count = lua_objlen(L, 3);
         if (count > 0)
         {
+            // validate valuetype early
+            if (valueType < 0 || valueType >= dmBuffer::MAX_VALUE_TYPE_COUNT)
+            {
+                return DM_LUA_ERROR("%s.%s invalid value type supplied: %ld.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, (long) valueType);
+            }
+            if (valueType == dmBuffer::VALUE_TYPE_UINT64 || valueType == dmBuffer::VALUE_TYPE_INT64)
+            {
+                return DM_LUA_ERROR("%s.%s 64 bit integer types are not supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA);
+            }
+
             void* values;
             lua_pushvalue(L, 3);
 
@@ -978,12 +988,6 @@ namespace dmGameSystem
                 case dmBuffer::VALUE_TYPE_INT32:
                     DM_LUA_TABLE_TO_ARRAY(int32_t);
                 break;
-                case dmBuffer::VALUE_TYPE_UINT64:
-                case dmBuffer::VALUE_TYPE_INT64:
-                    return DM_LUA_ERROR("%s.%s 64 bit integer types are not supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA);
-                break;
-                default:
-                    return DM_LUA_ERROR("%s.%s invalid value type supplied: %ld.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, (long) valueType);
             }
             #undef DM_LUA_TABLE_TO_ARRAY
 
