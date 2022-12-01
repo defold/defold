@@ -20,6 +20,7 @@
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]
             [editor.build :as build]
+            [editor.code.data :as code.data]
             [editor.collection :as collection]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
@@ -31,6 +32,7 @@
             [editor.pipeline :as pipeline]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -47,7 +49,9 @@
             [support.test-support :as test-support]
             [util.http-server :as http-server]
             [util.thread-util :as thread-util])
-  (:import [java.io ByteArrayOutputStream File FilenameFilter FileInputStream]
+  (:import [java.awt.image BufferedImage]
+           [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
+           [java.net URI URL]
            [java.util UUID]
            [java.util.concurrent LinkedBlockingQueue]
            [java.util.zip ZipEntry ZipOutputStream]
@@ -55,6 +59,8 @@
            [javafx.scene.layout VBox]
            [javax.imageio ImageIO]
            [org.apache.commons.io FilenameUtils IOUtils]))
+
+(set! *warn-on-reflection* true)
 
 (def project-path "test/resources/test_project")
 
@@ -77,7 +83,7 @@
 (defn- file-tree-helper [^File entry]
   (if (.isDirectory entry)
     {(.getName entry)
-     (mapv file-tree-helper (sort-by #(.getName %) (filter #(not (.isHidden %)) (.listFiles entry))))}
+     (mapv file-tree-helper (sort-by #(.getName ^File %) (filter #(not (.isHidden ^File %)) (.listFiles entry))))}
     (.getName entry)))
 
 (defn file-tree
@@ -109,7 +115,12 @@
   (string/join "\n" (prop script-id :modified-lines)))
 
 (defn code-editor-source! [script-id source]
-  (prop! script-id :modified-lines (string/split source #"\r?\n" -1)))
+  (let [lines (cond
+                (string? source) (code.data/string->lines source)
+                (vector? source) source
+                :else (throw (ex-info "source must be a string or a vector of lines."
+                                      {:source source})))]
+    (prop! script-id :modified-lines lines)))
 
 (defn setup-workspace!
   ([graph]
@@ -145,6 +156,20 @@
         dependencies (project/read-dependencies game-project-resource)]
     (->> (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)
          (workspace/install-validated-libraries! workspace dependencies))
+    (workspace/resource-sync! workspace [] progress/null-render-progress!)))
+
+(defn set-libraries! [workspace library-uris]
+  (let [library-uris
+        (mapv (fn [value]
+                (cond
+                  (instance? URI value) value
+                  (instance? URL value) (.toURI ^URL value)
+                  (string? value) (.toURI (URL. ^String value))
+                  :else (throw (ex-info "library-uris contain invalid values."
+                                        {:library-uris library-uris}))))
+              library-uris)]
+    (->> (workspace/fetch-and-validate-libraries workspace library-uris progress/null-render-progress!)
+         (workspace/install-validated-libraries! workspace library-uris))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn setup-project!
@@ -411,7 +436,7 @@
   (mouse-release! view x1 y1))
 
 (defn dump-frame! [view path]
-  (let [image (g/node-value view :frame)]
+  (let [^BufferedImage image (g/node-value view :frame)]
     (let [file (io/file path)]
       (ImageIO/write image "png" file))))
 
@@ -470,7 +495,7 @@
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
 
-(defn file ^File [workspace path]
+(defn file ^File [workspace ^String path]
   (File. (workspace/project-path workspace) path))
 
 (defn selection [app-view]
@@ -491,7 +516,7 @@
                                                         (filter (fn [^File f] (not (.isDirectory f)))))]
                                             (with-open [byte-stream (ByteArrayOutputStream.)
                                                         out (ZipOutputStream. byte-stream)]
-                                              (doseq [f files]
+                                              (doseq [^File f files]
                                                 (with-open [in (FileInputStream. f)]
                                                   (let [entry (doto (ZipEntry. (subs (.getPath f) path-offset))
                                                                 (.setSize (.length f)))]
@@ -802,18 +827,18 @@
   "Adds a PNG image file to the workspace. Returns the created FileResource."
   [workspace proj-path]
   (assert (integer? workspace))
-  (assert (.startsWith proj-path "/"))
+  (assert (string/starts-with? proj-path "/"))
   (let [resource (resource workspace proj-path)]
     (fs/create-parent-directories! (io/as-file resource))
     (with-open [out (io/output-stream resource)]
-      (.write out png-image-bytes))
+      (.write out ^bytes png-image-bytes))
     resource))
 
 (defn make-resource!
   "Adds a new file to the workspace. Returns the created FileResource."
   ([workspace proj-path]
    (assert (integer? workspace))
-   (assert (.startsWith proj-path "/"))
+   (assert (string/starts-with? proj-path "/"))
    (let [resource (resource workspace proj-path)
          resource-type (resource/resource-type resource)
          template (workspace/template workspace resource-type)]
@@ -822,7 +847,7 @@
      resource))
   ([workspace proj-path pb-map]
    (assert (integer? workspace))
-   (assert (.startsWith proj-path "/"))
+   (assert (string/starts-with? proj-path "/"))
    (assert (map? pb-map))
    (let [resource (resource workspace proj-path)
          resource-type (resource/resource-type resource)
@@ -849,6 +874,10 @@
     (g/transact
       (atlas/add-images atlas [image-resource]))
     atlas))
+
+(defn make-code-resource-node! [project proj-path source]
+  (doto (make-resource-node! project proj-path)
+    (code-editor-source! source)))
 
 (defn move-file!
   "Moves or renames a file in the workspace, then performs a resource sync."
@@ -911,6 +940,10 @@
   (when-some [resource-node (resource-node project path)]
     (node-build-resource resource-node)))
 
+(defn texture-build-resource [project path]
+  (when-some [resource-node (resource-node project path)]
+    (:resource (first (:deps (first (g/node-value resource-node :build-targets)))))))
+
 (defn build-output
   ^bytes [project path]
   (with-open [in (io/input-stream (build-resource project path))
@@ -925,7 +958,19 @@
     (io/copy in out)
     (.toByteArray out)))
 
-(defn node-built-source-paths [node-id]
+(defn node-built-build-resources
+  "Returns the set of all BuildResources that will potentially be written to
+  when building the specified node-id."
+  [node-id]
+  (into #{}
+        (map :resource)
+        (pipeline/flatten-build-targets
+          (g/node-value node-id :build-targets))))
+
+(defn node-built-source-paths
+  "Returns the set of all source resource proj-paths that will be built when
+  building the specified node-id."
+  [node-id]
   (into #{}
         (keep (comp resource/proj-path :resource :resource))
         (pipeline/flatten-build-targets
@@ -938,3 +983,14 @@
 (defmacro built-pb [node-id pb-class]
   (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
              {:tag pb-class}))
+
+(defn unpack-property-declarations [property-declarations]
+  {:pre [(map? property-declarations)]}
+  (into {}
+        (mapcat (fn [[entries-key values-key]]
+                  (let [entries (get property-declarations entries-key)
+                        values (get property-declarations values-key)]
+                    (map (fn [{:keys [key index]}]
+                           [key (values index)])
+                         entries))))
+        (vals properties/type->entry-keys)))

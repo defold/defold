@@ -238,3 +238,14 @@
       (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf] coll)))
       (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf xf] coll)))
       (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf xf xf xf] coll))))))
+
+(defn elements-identical? [a b]
+  (every? true? (map identical? a b)))
+
+(deftest make-dedupe-fn-test
+  (let [original-items (mapv #(str (mod % 10)) (range 100))
+        dedupe-fn (util/make-dedupe-fn original-items)
+        additional-items (mapv #(str (mod % 10)) (range 100))
+        partitions (partition 10 (map dedupe-fn (concat original-items additional-items)))]
+    (is (every? (partial elements-identical? (first partitions))
+                partitions))))
