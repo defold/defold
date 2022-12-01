@@ -23,7 +23,7 @@
    [internal.util :as util])
   (:import
    [com.jogamp.common.nio Buffers]
-   [java.nio ByteBuffer ByteOrder]
+   [java.nio ByteBuffer ByteOrder IntBuffer]
    [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
@@ -248,6 +248,13 @@
     (vertex-disable-attribs gl attrib-locs))
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
 
+(defn- bind-index-buffer! [^GL2 gl request-id ^"[I" index-buffer]
+  (let [ibo (scene-cache/request-object! ::ibo2 request-id gl index-buffer)]
+    (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)))
+
+(defn- unbind-index-buffer! [^GL2 gl]
+  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER 0))
+
 (defrecord VertexBufferShaderLink [request-id ^VertexBuffer vertex-buffer shader]
   GlBind
   (bind [_this gl render-args]
@@ -256,9 +263,21 @@
   (unbind [_this gl render-args]
     (unbind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
+(defrecord VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^"[I" index-buffer shader]
+  GlBind
+  (bind [_this gl render-args]
+    (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
+    (bind-index-buffer! gl request-id index-buffer))
+
+  (unbind [_this gl render-args]
+    (unbind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
+    (unbind-index-buffer! gl)))
+
 (defn use-with
-  [request-id vertex-buffer shader]
-  (->VertexBufferShaderLink request-id vertex-buffer shader))
+  ([request-id vertex-buffer shader]
+   (->VertexBufferShaderLink request-id vertex-buffer shader))
+  ([request-id vertex-buffer ^"[I" index-buffer shader]
+   (->VertexIndexBufferShaderLink request-id vertex-buffer index-buffer shader)))
 
 (defn- update-vbo [^GL2 gl [vbo _] data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
@@ -279,3 +298,20 @@
   (apply gl/gl-delete-buffers gl (map first objs)))
 
 (scene-cache/register-object-cache! ::vbo2 make-vbo update-vbo destroy-vbos)
+
+(defn- update-ibo [^GL2 gl ibo data]
+  (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)
+  (let [int-buffer (IntBuffer/wrap (int-array data))
+        count (.remaining int-buffer)
+        size (* count 4)]
+    (gl/gl-buffer-data ^GL2 gl GL/GL_ELEMENT_ARRAY_BUFFER size int-buffer GL2/GL_STATIC_DRAW))
+  ibo)
+
+(defn- make-ibo [^GL2 gl data]
+  (let [ibo (first (gl/gl-gen-buffers gl 1))]
+    (update-ibo gl ibo data)))
+
+(defn- destroy-ibos [^GL2 gl ibos _]
+  (apply gl/gl-delete-buffers gl ibos))
+
+(scene-cache/register-object-cache! ::ibo2 make-ibo update-ibo destroy-ibos)
