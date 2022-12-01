@@ -104,6 +104,23 @@
         (when (. m (find))
           (cons (.toMatchResult m) (lazy-seq (step)))))))))
 
+(defn- join-lines-rf
+  ([] (StringBuilder.))
+  ([ret] (str ret))
+  ([^StringBuilder acc ^String input] (.append acc input)))
+
+(defn join-lines
+  "Joins the supplied sequence of lines into a string with the optionally
+  specified separator string between the lines. If no separator is specified,
+  newlines are used."
+  (^String [lines]
+   (join-lines "\n" lines))
+  (^String [separator lines]
+   (transduce
+     (interpose separator)
+     join-lines-rf
+     lines)))
+
 (defn split-lines
   "Splits s on \\n or \\r\\n. Contrary to string/split-lines, keeps trailing
   newline at the end of a text."

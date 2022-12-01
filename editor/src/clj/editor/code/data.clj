@@ -338,8 +338,7 @@
 
 (defn lines->string
   ^String [lines]
-  (with-open [reader (lines-reader lines)]
-    (slurp reader)))
+  (util/join-lines "\n" lines))
 
 (defn string->lines [^String string]
   (util/split-lines string))

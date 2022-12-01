@@ -21,7 +21,8 @@
             [editor.ui :as ui]
             [internal.java :as java]
             [internal.util :as util]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :refer [pair]])
   (:import [com.defold.extension.pipeline ILuaPreprocessor]
            [com.dynamo.bob ClassLoaderScanner]))
 
@@ -91,51 +92,49 @@ return m
   (.preprocess lua-preprocessor lua-source lua-source-proj-path build-variant-string))
 
 (defn- try-initialize-lua-preprocessors [^ClassLoader class-loader]
-  (into []
-        (keep (fn [^String class-name]
-                (try
-                  (let [uninitialized-class (Class/forName class-name false class-loader)]
-                    (when (java/public-implementation? uninitialized-class ILuaPreprocessor)
-                      (let [initialized-class (Class/forName class-name true class-loader)]
-                        {:type :success
-                         :value initialized-class})))
-                  (catch Exception e
-                    (log/error :msg (str "Exception in static initializer of ILuaPreprocessor implementation " class-name ": " (.getMessage e))
-                               :exception e)
-                    {:type :error
-                     :class-name class-name}))))
-        (ClassLoaderScanner/scanClassLoader class-loader scanned-package-name)))
+  (util/group-into
+    {} []
+    key val
+    (keep (fn [^String class-name]
+            (try
+              (let [uninitialized-class (Class/forName class-name false class-loader)]
+                (when (java/public-implementation? uninitialized-class ILuaPreprocessor)
+                  (let [initialized-class (Class/forName class-name true class-loader)]
+                    (pair :lua-preprocessor-classes initialized-class))))
+              (catch Exception e
+                (log/error :msg (str "Exception in static initializer of ILuaPreprocessor implementation " class-name ": " (.getMessage e))
+                           :exception e)
+                (pair :faulty-class-names class-name))))
+          (ClassLoaderScanner/scanClassLoader class-loader scanned-package-name))))
 
 (defn- try-create-lua-preprocessors [lua-preprocessor-classes]
-  (into []
-        (map (fn [^Class lua-preprocessor-class]
+  (util/group-into
+    {} []
+    key val
+    (map (fn [^Class lua-preprocessor-class]
+           (try
+             (let [lua-preprocessor (java/invoke-no-arg-constructor lua-preprocessor-class)]
+               ;; Perform a smoke test on the Lua preprocessor before
+               ;; registering it with our system. This will help catch
+               ;; incompatibilities caused by interface changes early.
                (try
-                 (let [lua-preprocessor (java/invoke-no-arg-constructor lua-preprocessor-class)]
-                   ;; Perform a smoke test on the Lua preprocessor before
-                   ;; registering it with our system. This will help catch
-                   ;; incompatibilities caused by interface changes early.
-                   (try
-                     (let [result (run-lua-preprocessor lua-preprocessor smoke-test-lua-source smoke-test-lua-source-proj-path smoke-test-build-variant-string)]
-                       (if (string? result)
-                         {:type :success
-                          :value lua-preprocessor}
-                         (let [class-name (.getName lua-preprocessor-class)]
-                           (log/error :msg (str "Error when testing ILuaPreprocessor implementation " class-name " - failed to return string value."))
-                           {:type :error
-                            :class-name class-name})))
-                     (catch Exception e
-                       (let [class-name (.getName lua-preprocessor-class)]
-                         (log/error :msg (str "Exception when testing ILuaPreprocessor implementation " class-name ": " (.getMessage e))
-                                    :exception e)
-                         {:type :error
-                          :class-name class-name}))))
+                 (let [result (run-lua-preprocessor lua-preprocessor smoke-test-lua-source smoke-test-lua-source-proj-path smoke-test-build-variant-string)]
+                   (if (string? result)
+                     (pair :created-lua-preprocessors lua-preprocessor)
+                     (let [class-name (.getName lua-preprocessor-class)]
+                       (log/error :msg (str "Error when testing ILuaPreprocessor implementation " class-name " - failed to return string value."))
+                       (pair :faulty-class-names class-name))))
                  (catch Exception e
                    (let [class-name (.getName lua-preprocessor-class)]
-                     (log/error :msg (str "Exception when constructing ILuaPreprocessor implementation " class-name ": " (.getMessage e))
+                     (log/error :msg (str "Exception when testing ILuaPreprocessor implementation " class-name ": " (.getMessage e))
                                 :exception e)
-                     {:type :error
-                      :class-name class-name})))))
-        lua-preprocessor-classes))
+                     (pair :faulty-class-names class-name)))))
+             (catch Exception e
+               (let [class-name (.getName lua-preprocessor-class)]
+                 (log/error :msg (str "Exception when constructing ILuaPreprocessor implementation " class-name ": " (.getMessage e))
+                            :exception e)
+                 (pair :faulty-class-names class-name)))))
+         lua-preprocessor-classes)))
 
 (defn- set-lua-preprocessor-classes! [code-preprocessors lua-preprocessor-classes]
   {:pre [(every? #(and (class? %) (isa? % ILuaPreprocessor)) lua-preprocessor-classes)]}
@@ -144,20 +143,18 @@ return m
                                            (map class)
                                            (g/node-value code-preprocessors :lua-preprocessors))]
     (when (not= old-lua-preprocessor-classes new-lua-preprocessor-classes)
-      (let [create-infos (try-create-lua-preprocessors lua-preprocessor-classes)
-            errors (filter #(= :error (:type %)) create-infos)]
-        (if (seq errors)
-          (report-error! "Failed to construct Lua preprocessors" (map :class-name errors))
-          (let [new-lua-preprocessors (success-values create-infos)]
-            (g/set-property! code-preprocessors :lua-preprocessors new-lua-preprocessors)))))))
+      (let [{:keys [created-lua-preprocessors faulty-class-names]}
+            (try-create-lua-preprocessors lua-preprocessor-classes)]
+        (if (seq faulty-class-names)
+          (report-error! "Failed to construct Lua preprocessors" faulty-class-names)
+          (g/set-property! code-preprocessors :lua-preprocessors created-lua-preprocessors))))))
 
 (defn reload-lua-preprocessors! [code-preprocessors ^ClassLoader class-loader]
-  (let [initialize-infos (try-initialize-lua-preprocessors class-loader)
-        errors (filter #(= :error (:type %)) initialize-infos)]
-    (if (seq errors)
-      (report-error! "Failed to initialize Lua preprocessors" (map :class-name errors))
-      (let [lua-preprocessor-classes (success-values initialize-infos)]
-        (set-lua-preprocessor-classes! code-preprocessors lua-preprocessor-classes)))))
+  (let [{:keys [lua-preprocessor-classes faulty-class-names]}
+        (try-initialize-lua-preprocessors class-loader)]
+    (if (seq faulty-class-names)
+      (report-error! "Failed to initialize Lua preprocessors" faulty-class-names)
+      (set-lua-preprocessor-classes! code-preprocessors lua-preprocessor-classes))))
 
 (defn preprocess-lua [lua-preprocessors ^String lua-source lua-resource build-variant]
   {:pre [(case build-variant (:debug :headless :release) true false)]}
