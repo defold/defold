@@ -106,7 +106,6 @@ namespace dmGameSystem
 #define SCRIPT_LIB_NAME "buffer"
 #define SCRIPT_TYPE_NAME_BUFFER "buffer"
 #define SCRIPT_TYPE_NAME_BUFFERSTREAM "bufferstream"
-#define SCRIPT_TYPE_NAME_BUFFERMETADATA "buffermetadata"
 
     typedef void (*FStreamSetter)(void* data, int index, lua_Number v);
     typedef lua_Number (*FStreamGetter)(void* data, int index);
@@ -954,11 +953,11 @@ namespace dmGameSystem
             // validate valuetype early
             if (valueType < 0 || valueType >= dmBuffer::MAX_VALUE_TYPE_COUNT)
             {
-                return DM_LUA_ERROR("%s.%s invalid value type supplied: %ld.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, (long) valueType);
+                return DM_LUA_ERROR("invalid metadata value type supplied: %ld", (long) valueType);
             }
             if (valueType == dmBuffer::VALUE_TYPE_UINT64 || valueType == dmBuffer::VALUE_TYPE_INT64)
             {
-                return DM_LUA_ERROR("%s.%s 64 bit integer types are not supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA);
+                return DM_LUA_ERROR("64 bit integer metadata are not supported.");
             }
 
             void* values;
@@ -996,11 +995,11 @@ namespace dmGameSystem
 
             if( r != dmBuffer::RESULT_OK )
             {
-                return DM_LUA_ERROR("%s.%s: cannot set metadata for buffer: %s", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, dmBuffer::GetResultString(r));
+                return DM_LUA_ERROR("cannot set metadata for buffer: %s", dmBuffer::GetResultString(r));
             }
         } else
         {
-            return DM_LUA_ERROR("%s.%s: invalid metadata", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA);
+            return DM_LUA_ERROR("invalid metadata");
         }
 
         return 0;
@@ -1069,7 +1068,7 @@ namespace dmGameSystem
         }
         if ( r != dmBuffer::RESULT_OK )
         {
-            return DM_LUA_ERROR("%s.%s: error getting metadata for buffer: %s", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA, dmBuffer::GetResultString(r));
+            return DM_LUA_ERROR("error getting metadata for buffer: %s", dmBuffer::GetResultString(r));
         }
 
         lua_newtable(L);
@@ -1099,12 +1098,11 @@ namespace dmGameSystem
             break;
             case dmBuffer::VALUE_TYPE_UINT64:
             case dmBuffer::VALUE_TYPE_INT64:
-                return DM_LUA_ERROR("%s.%s retrieving 64 bit integer types is not supported.", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_BUFFERMETADATA);
-                return DM_LUA_ERROR("invalid value type supplied: %d.", valueType);
+                return DM_LUA_ERROR("retrieving 64 bit integer metadata is not supported");
             break;
             default:
                 // we shouldn't reach this point
-                return DM_LUA_ERROR("invalid value type supplied: %d.", valueType);
+                return DM_LUA_ERROR("invalid value type supplied: %d", valueType);
         }
         #undef DM_ARRAY_TO_LUA_TABLE
         lua_pushinteger(L, (uint32_t) valueType);
