@@ -250,6 +250,12 @@ TEST_F(MetaDataTest, WrongParams)
     r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb, 0, dmBuffer::VALUE_TYPE_FLOAT32);
     ASSERT_EQ(dmBuffer::RESULT_METADATA_INVALID, r);
 
+    // no such metadata entry
+    void* data;
+    uint32_t count;
+    dmBuffer::ValueType valuetype;
+    r = dmBuffer::GetMetaData(buffer, dmHashString64("not_exists"), &data, &count, &valuetype);
+    ASSERT_EQ(dmBuffer::RESULT_METADATA_MISSING, r);
 }
 
 template <typename T>
