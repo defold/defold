@@ -453,7 +453,8 @@
 (let [method (-> Globs
                  (.getDeclaredMethod "toUnixRegexPattern" (into-array Class [String]))
                  (doto (.setAccessible true)))]
-  (defn- ^Pattern make-glob-pattern [s]
+  (defn- make-glob-pattern
+    ^Pattern [s]
     (re-pattern (.invoke method nil (into-array Object [s])))))
 
 (defn- notify-files-changed! [state change-type->resources]
