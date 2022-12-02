@@ -2491,7 +2491,11 @@
                    messages)})
 
 (defn- hover-view [^Canvas canvas {:keys [hovered-element layout lines]}]
-  (let [r ^Rect (first (data/cursor-range-rects layout lines (:region hovered-element)))
+  (let [r ^Rect (->> hovered-element
+                     :region
+                     (data/adjust-cursor-range lines)
+                     (data/cursor-range-rects layout lines)
+                     first)
         anchor (.localToScreen canvas (.-x r) (.-y r))]
     {:fx/type fxui/with-popup
      :desc {:fx/type fxui/ext-value :value canvas}

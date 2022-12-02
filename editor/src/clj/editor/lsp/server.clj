@@ -286,3 +286,17 @@
                                   {:range (editor-cursor-range->lsp-range cursor-range)
                                    :text (string/join "\n" replacement)}))
                            incremental-diff)}))
+
+(defn watched-file-change
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#workspace_didChangeWatchedFiles"
+  [resource+change-types]
+  (lsp.jsonrpc/notification
+    "workspace/didChangeWatchedFiles"
+    {:changes (mapv (fn [[resource change-type]]
+                      {:uri (resource-uri resource)
+                       :type (case change-type
+                               :created 1
+                               :changed 2
+                               :deleted 3)})
+                    resource+change-types)}))
