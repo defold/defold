@@ -713,7 +713,7 @@ static int CreateTexture(lua_State* L)
 /*# release a resource
  * Release a resource.
  *
- * @warning This is a potentially dangerous operation, releasing resources currently being used can cause unexpected behaviour.
+ * [icon:attention] This is a potentially dangerous operation, releasing resources currently being used can cause unexpected behaviour.
  *
  * @name resource.release
  *
@@ -1261,6 +1261,126 @@ static void MakeTextureSetFromLua(lua_State* L, const char* texture_path, dmGrap
     assert(top == lua_gettop(L));
 }
 
+/*# create an atlas resource
+ * This function creates a new atlas resource that can be used in the same way as any atlas created during build time.
+ * The path used for creating the atlas must be unique, trying to create a resource at a path that is already
+ * registered will trigger an error. If the intention is to instead modify an existing atlas, use the [ref:resource.set_atlas]
+ * function. Also note that the path to the new atlas resource must have a '.texturesetc' extension,
+ * meaning "/path/my_atlas" is not a valid path but "/path/my_atlas.texturesetc" is.
+ *
+ * When creating the atlas, at least one geometry and one animation is required, and an error will be
+ * raised if these requierments are not met. A reference to the resource will be held by the collection
+ * that created the resource and will automatically be released when that collection is destroyed.
+ * Note that releasing a resource essentially means decreasing the reference count of that resource,
+ * and not necessarily that it will be deleted.
+ *
+ * @name resource.create_atlas
+ *
+ * @param path [type:string] The path to the resource.
+ * @param table [type:table] A table containing info about how to create the texture. Supported entries:
+ *
+ * * `texture`
+ * : [type:string] the path to the texture resource, e.g "/main/my_texture.texturec"
+ *
+ * * `animations`
+ * : [type:table] a list of the animations in the atlas. Supports the following fields:
+ *
+ * * `id`
+ * : [type:string] the id of the animation, used in e.g sprite.play_animation
+ *
+ * * `width`
+ * : [type:integer] the width of the animation
+ *
+ * * `height`
+ * : [type:integer] the height of the animation
+ *
+ * * `frame_start`
+ * : [type:integer] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ *
+ * * `frame_end`
+ * : [type:integer] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ *
+ * * `playback`
+ * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
+ *
+ * * `fps`
+ * : [type:integer] optional fps of the animation, the default value is 30
+ *
+ * * `flip_vertical`
+ * : [type:boolean] optional flip the animation vertically, the default value is false
+ *
+ * * `flip_horizontal`
+ * : [type:boolean] optional flip the animation horizontally, the default value is false
+ *
+ * * `geometries`
+ * : [type:table] A list of the geometries that should map to the texture data. Supports the following fields:
+ *
+ * * `vertices`
+ * : [type:table] a list of the vertices in texture space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
+ *
+ * * `uvs`
+ * : [type:table] a list of the uv coordinates in texture space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}
+ *
+ * * `indices`
+ * : [type:table] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
+ *
+ * @note The index values are zero based where zero refers to the first entry of the vertex and uv lists
+ *
+ * @return path [type:hash] Returns the atlas resource path
+ *
+ * @examples
+ * Create a backing texture and an atlas
+ *
+ * ```lua
+ * function init(self)
+ *     -- create an empty texture
+ *     local my_texture_id = resource.create_texture("/my_texture.texturec", {
+ *         width          = 128,
+ *         height         = 128,
+ *         type           = resource.TEXTURE_TYPE_2D,
+ *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *     })
+ *
+ *     -- optionally use resource.set_texture to upload data to texture
+ *
+ *     -- create an atlas with one animation and one square geometry
+ *     -- note that the function doesn't support hashes for the texture,
+ *     -- you need to use a string for the texture path here aswell
+ *     local my_atlas_id = resource.create_atlas("/my_atlas.texturesetc", {
+ *         texture = "/my_texture.texturec",
+ *         animations = {
+ *             {
+ *                 id          = "my_animation",
+ *                 width       = 128,
+ *                 height      = 128,
+ *                 frame_start = 1,
+ *                 frame_end   = 2,
+ *             }
+ *         },
+ *         geometries = {
+ *             {
+ *                 vertices  = {
+ *                     0,   0,
+ *                     0,   128,
+ *                     128, 128,
+ *                     128, 0
+ *                 },
+ *                 uvs = {
+ *                     0, 0,
+ *                     0, 256,
+ *                     256, 256,
+ *                     256, 0
+ *                 },
+ *                 indices = {0,1,2,0,2,3}
+ *             }
+ *         }
+ *     })
+ *
+ *     -- assign the atlas to the 'sprite' component on the same go
+ *     go.set("#sprite", "image", my_atlas_id)
+ * end
+ * ```
+ */
 static int CreateAtlas(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
@@ -1325,7 +1445,7 @@ static int CreateAtlas(lua_State* L)
  * Vertex and uv coordinates for the geometries are expected to be
  * in pixel coordinates where 0,0 is the top left corner of the texture.
  *
- * Note that there is no automatic padding or margin support when setting custom data,
+ * There is no automatic padding or margin support when setting custom data,
  * which could potentially cause filtering artifacts if used with a material sampler that has linear filtering.
  * If that is an issue, you need to calculate padding and margins manually before passing in the geometry data to
  * this function.
