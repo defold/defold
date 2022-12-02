@@ -384,7 +384,7 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
-        info['xcode-clang'] = defold_info['xcode-clang']
+        info['xcode-clang'] = defold_info['xcode-clang']['version']
         info['asan'] = {}
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
