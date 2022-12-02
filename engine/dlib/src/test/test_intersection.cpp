@@ -160,6 +160,34 @@ TEST(dmVMath, TestFrustumOBB)
     ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint));
 }
 
+/*
+TEST(dmVMath, TestFrustumOBBPerspective)
+{
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(0.0f, FRUSTUM_WIDTH, 0.0f, FRUSTUM_HEIGHT, FRUSTUM_NEAR, FRUSTUM_FAR);
+
+    // frustum lies on positive X axis from 0 to FRUSTUM_WIDTH, on Y from 0 to FRUSTUM_HEIGHT and on Z from -FRUSTUM_NEAR to -FRUSTUM_FAR
+    dmIntersection::Frustum frustum;
+    dmIntersection::CreateFrustumFromMatrix(proj, true, frustum);
+
+    #define BOX_SIDE 1
+    dmVMath::Vector3 minPoint(0,0,0);
+    dmVMath::Vector3 maxPoint(BOX_SIDE,BOX_SIDE,BOX_SIDE); // note, the box lies in the +Z axis
+
+    dmVMath::Matrix4 trans;
+
+    // place BB at (0,0,0), outside the frustum that starts at -FRUSTUM_NEAR
+    trans = dmVMath::Matrix4::identity();
+    ASSERT_FALSE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint));
+
+    //place BB to the left of the frustum
+    trans = dmVMath::Matrix4::translation(dmVMath::Vector3(-BOX_SIDE-0.1,0.0,-FRUSTUM_FAR));
+    ASSERT_FALSE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint));
+    trans = dmVMath::Matrix4::translation(dmVMath::Vector3(-BOX_SIDE+0.1,0.0,-FRUSTUM_FAR));
+    ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint));
+
+}
+*/
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
