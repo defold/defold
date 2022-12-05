@@ -424,7 +424,6 @@
                              (data/->Cursor row (count line)))
     :type type))
 
-;; todo fit in 4 args?
 (defn- make-line-regions [resource-map resource-suffix-map-delay on-region-click! row [type line]]
   (assert (keyword? type))
   (assert (string? line))

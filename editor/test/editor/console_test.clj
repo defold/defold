@@ -142,3 +142,12 @@
                 (console/make-resource-suffix-map-delay resource-map)
                 identity 10
                 "...to/some/resource/in/the/project/the_resource.script:25: in function <...to/some/resource/in/the/project/the_resource.script:24> </absolute/project/path/file.lua:65>"))))))
+
+(deftest match-full-path-without-slash-prefix
+  (let [resource-map {"/foo/bar.json" true}]
+    (is (= 1 (count (#'console/make-line-sub-regions
+                      resource-map
+                      (console/make-resource-suffix-map-delay resource-map)
+                      identity
+                      10
+                      "DEBUG: foo/bar.json:1"))))))
