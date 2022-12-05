@@ -129,8 +129,8 @@ bool TestFrustumOBB(const Frustum& frustum, const dmVMath::Matrix4& world, dmVMa
         bool positive_found = false;
         for (int corner_i=1; corner_i<8; corner_i++)
         {
-            float dotproduct = DistanceToPlane(frustum.m_Planes[plane_i], corner_points[corner_i]);
-            if (dotproduct >= 0)
+            float distance = DistanceToPlane(frustum.m_Planes[plane_i], corner_points[corner_i]);
+            if (distance >= 0)
             {
                 positive_found = true;
                 break; // no need to check for the rest of the points

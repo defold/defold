@@ -34,7 +34,6 @@ const float PER_FRUSTUM_FOV = 0.5*PI;     // radians
 const float PER_FRUSTUM_WIDTH_NEAR = PER_FRUSTUM_NEAR * tan(PER_FRUSTUM_FOV/2) * 2;
 const float PER_FRUSTUM_HEIGHT_NEAR = PER_FRUSTUM_WIDTH_NEAR / PER_FRUSTUM_RATIO;
 const float PER_FRUSTUM_WIDTH_FAR = PER_FRUSTUM_FAR * tan(PER_FRUSTUM_FOV/2) * 2;
-const float PER_FRUSTUM_HEIGHT_FAR = PER_FRUSTUM_WIDTH_FAR / PER_FRUSTUM_RATIO;
 const float PER_FRUSTUM_DEPTH = PER_FRUSTUM_FAR - PER_FRUSTUM_NEAR;
 
 using namespace dmVMath;
@@ -230,6 +229,12 @@ TEST(dmVMath, TestFrustumOBBPerspective)
     ASSERT_FALSE(dmIntersection::TestFrustumOBB(frustum, world, minPoint, maxPoint, false));
     world = dmVMath::Matrix4::translation(dmVMath::Vector3(0, 0, -PER_FRUSTUM_NEAR -PER_FRUSTUM_DEPTH -BOX_SIDE + 0.1f));
     ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, world, minPoint, maxPoint, false));
+
+    // front and back plane should be ingored with skip_near_far = true
+    world = dmVMath::Matrix4::translation(dmVMath::Vector3(0, 0, -PER_FRUSTUM_NEAR -PER_FRUSTUM_DEPTH -BOX_SIDE - 0.1f));
+    ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, world, minPoint, maxPoint, true));
+    world = dmVMath::Matrix4::translation(dmVMath::Vector3(0, 0, -PER_FRUSTUM_NEAR + 0.1f));
+    ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, world, minPoint, maxPoint, true));
 
 }
 
