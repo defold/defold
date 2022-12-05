@@ -17,6 +17,7 @@
 #include "../resource_archive_private.h"
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
+#include <dlib/testutil.h>
 
 // TODO: replace with dmEndian
 #if defined(_WIN32)
@@ -102,23 +103,6 @@ static const uint8_t compressed_content_hash[][20] = {
 };
 
 static const uint32_t ENTRY_SIZE = sizeof(dmResourceArchive::EntryData) + dmResourceArchive::MAX_HASH;
-
-
-static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
-{
-#if defined(__NX__)
-    dmStrlCpy(dst, "host:/", dst_len);
-    dmStrlCat(dst, path, dst_len);
-    return dst;
-#else
-    return path;
-#endif
-}
-#if defined(__NX__)
-    #define MOUNTFS  "host:/"
-#else
-    #define MOUNTFS
-#endif
 
 void PopulateLiveUpdateResource(dmResourceArchive::LiveUpdateResource*& resource)
 {
@@ -233,7 +217,7 @@ TEST(dmResourceArchive, ShiftInsertResource)
 {
     const char* resource_filename = "test_resource_liveupdate.arcd";
     char host_name[512];
-    const char* path = MakeHostPath(host_name, sizeof(host_name), resource_filename);
+    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
 
     FILE* resource_file = fopen(path, "wb");
     bool success = resource_file != 0x0;
@@ -291,7 +275,7 @@ TEST(dmResourceArchive, ShiftInsertResource_InsertIssue)
 {
     const char* resource_filename = "test_resource_liveupdate.arcd";
     char host_name[512];
-    const char* path = MakeHostPath(host_name, sizeof(host_name), resource_filename);
+    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
 
     FILE* resource_file = fopen(path, "wb");
     bool success = resource_file != 0x0;
@@ -782,8 +766,8 @@ TEST(dmResourceArchive, Wrap_Compressed)
 TEST(dmResourceArchive, LoadFromDisk)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = MOUNTFS "build/src/test/resources.arci";
-    const char* resource_path = MOUNTFS "build/src/test/resources.arcd";
+    const char* archive_path = DM_HOSTFS "build/src/test/resources.arci";
+    const char* resource_path = DM_HOSTFS "build/src/test/resources.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));
@@ -817,8 +801,8 @@ TEST(dmResourceArchive, LoadFromDisk)
 TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = MOUNTFS "build/src/test/missing-archive.arci";
-    const char* resource_path = MOUNTFS "build/src/test/resources.arcd";
+    const char* archive_path = DM_HOSTFS "build/src/test/missing-archive.arci";
+    const char* resource_path = DM_HOSTFS "build/src/test/resources.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_IO_ERROR, result);
 }
@@ -826,8 +810,8 @@ TEST(dmResourceArchive, LoadFromDisk_MissingArchive)
 TEST(dmResourceArchive, LoadFromDisk_Compressed)
 {
     dmResourceArchive::HArchiveIndexContainer archive = 0;
-    const char* archive_path = MOUNTFS "build/src/test/resources_compressed.arci";
-    const char* resource_path = MOUNTFS "build/src/test/resources_compressed.arcd";
+    const char* archive_path = DM_HOSTFS "build/src/test/resources_compressed.arci";
+    const char* resource_path = DM_HOSTFS "build/src/test/resources_compressed.arcd";
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
     ASSERT_EQ(7U, dmResourceArchive::GetEntryCount(archive));

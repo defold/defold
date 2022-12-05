@@ -40,6 +40,9 @@ import javax.vecmath.Vector4d;
 
 import org.apache.commons.io.IOUtils;
 
+import com.defold.extension.pipeline.ILuaObfuscator;
+import com.defold.extension.pipeline.ILuaPreprocessor;
+
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.Project;
@@ -71,7 +74,8 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
-    private static LuaBuilderPlugin luaBuilderPlugin = null;
+    private static List<ILuaPreprocessor> luaPreprocessors = null;
+    private static List<ILuaObfuscator> luaObfuscators = null;
 
     private Map<String, LuaScanner> luaScanners = new HashMap();
 
@@ -82,12 +86,32 @@ public abstract class LuaBuilder extends Builder<Void> {
      * @param resource The resource to get a LuaScanner for
      * @return A LuaScanner instance
      */
-    private LuaScanner getLuaScanner(IResource resource) throws IOException {
+    private LuaScanner getLuaScanner(IResource resource) throws IOException, CompileExceptionError {
         final String path = resource.getAbsPath();
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         LuaScanner scanner = luaScanners.get(path);
         if (scanner == null) {
             final byte[] scriptBytes = resource.getContent();
-            final String script = new String(scriptBytes, "UTF-8");
+            String script = new String(scriptBytes, "UTF-8");
+
+            // Create and run preprocessors if some exists.
+            if (luaPreprocessors == null) {
+                luaPreprocessors = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaPreprocessor.class);
+
+                if (luaPreprocessors == null) {
+                    luaPreprocessors = new ArrayList<ILuaPreprocessor>(0);
+                }
+            }
+
+            for (ILuaPreprocessor luaPreprocessor : luaPreprocessors) {
+                try {
+                    script = luaPreprocessor.preprocess(script, path, variant);
+                }
+                catch (Exception e) {
+                    throw new CompileExceptionError(resource, 0, "Unable to run Lua preprocessor", e);
+                }
+            }
+
             scanner = new LuaScanner();
             scanner.parse(script);
             luaScanners.put(path, scanner);
@@ -103,6 +127,8 @@ public abstract class LuaBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(params.outExt()));
 
         LuaScanner scanner = getLuaScanner(input);
+        long finalLuaHash = MurmurHash.hash64(scanner.getParsedLua());
+        taskBuilder.addExtraCacheKey(Long.toString(finalLuaHash));
 
         List<LuaScanner.Property> properties = scanner.getProperties();
         for (LuaScanner.Property property : properties) {
@@ -165,6 +191,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                             }
                         }
                     }
+                    else {
+                        System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
+                    }
                     // Since parsing out the actual error failed, as a backup just
                     // spit out whatever luajit/luac said.
                     inputFile.delete();
@@ -189,6 +218,15 @@ public abstract class LuaBuilder extends Builder<Void> {
             IOUtils.closeQuietly(fo);
             IOUtils.closeQuietly(rdr);
         }
+    }
+
+    // we use the same chunk name across the board
+    // we always use @ + full path
+    // if the path is shorter than 60 characters the runtime will show the full path
+    // if the path is longer than 60 characters the runtime will show ... and the last portion of the path
+    private String getChunkName(Task<Void> task) {
+        String chunkName = "@" + task.input(0).getPath();
+        return chunkName;
     }
 
     public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
@@ -220,7 +258,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             + (bytecode[LUAC_HEADERSIZE + 3] << 24);
 
         // the new chunkname, created from the original filename
-        final String chunkName = "@" + task.input(0).getPath();
+        final String chunkName = getChunkName(task);
         final byte[] chunkNameBytes = chunkName.getBytes();
         final int chunkNameLength = chunkNameBytes.length;
 
@@ -254,7 +292,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         // Doing a bit of custom set up here as the path is required.
         //
-        // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
+        // NOTE: The -F option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
         //       correct chunk name (the original source file) already here.
         //
         // See implementation of luaO_chunkid and why a prefix '@' is used; it is to show the last 60 characters of the name.
@@ -262,12 +300,12 @@ public abstract class LuaBuilder extends Builder<Void> {
         // If a script error occurs in runtime we want Lua to report the end of the filepath
         // associated with the chunk, since this is where the filename is visible.
         //
-        final String chunkName = "@" + task.input(0).getPath();
+        final String chunkName = getChunkName(task);
         List<String> options = new ArrayList<String>();
         options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
         options.add("-b");
-        options.add("-g");
-        options.add("-f"); options.add(chunkName);
+        options.add("-g"); // Keep debug info
+        options.add("-F"); options.add(task.input(0).getPath()); // The @ is added in the tool
         options.add(inputFile.getAbsolutePath());
         options.add(outputFile.getAbsolutePath());
 
@@ -275,6 +313,79 @@ public abstract class LuaBuilder extends Builder<Void> {
         env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
 
         return constructBytecode(task, source, inputFile, outputFile, options, env);
+    }
+
+    public byte[] constructBytecodeDelta(byte[] bytecode64, byte[] bytecode32) throws CompileExceptionError
+    {
+        // expect same length on 32 and 64 bit bytecode if storing a delta
+        if (bytecode32.length != bytecode64.length) {
+            throw new CompileExceptionError("Byte code length mismatch");
+        }
+
+       /**
+         * Calculate the difference/delta between the 64-bit and 32-bit
+         * bytecode.
+         * The delta is stored together with the 64-bit bytecode and when
+         * the 32-bit bytecode is needed the delta is applied to the 64-bit
+         * bytecode to transform it to the equivalent 32-bit version.
+         * 
+         * The delta is stored in the following format:
+         * 
+         * * index - The index where to apply the next change. 1-4 bytes.
+         *           The size depends on the size of the entire bytecode:
+         *           1 byte - Size less than 2^8
+         *           2 bytes - Size less than 2^16
+         *           3 bytes - Size less than 2^24
+         *           4 bytes - Size more than or equal to 2^24
+         * * count - The number of consecutive bytes to alter. 1 byte (ie max 255 changes)
+         * * bytes - The 32-bit bytecode values to apply to the 64-bit bytecode starting
+         *           at the index.
+         */
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        int i = 0;
+        while(i < bytecode32.length) {
+            // find sequences of consecutive bytes that differ
+            // max 255 at a time
+            int count = 0;
+            while(count < 255 && (i + count) < bytecode32.length) {
+                if (bytecode32[i + count] == bytecode64[i + count]) {
+                    break;
+                }
+                count++;
+            }
+
+            // found a sequence of bytes
+            // write index, count and bytes
+            if (count > 0) {
+                if (count == 256) {
+                    Bob.verbose("\n\nLuaBuilder count %d\n\n", count);
+                }
+
+                // write index of diff
+                bos.write(i);
+                if (bytecode32.length >= (1 << 8)) {
+                    bos.write((i & 0xFF00) >> 8);
+                }
+                if (bytecode32.length >= (1 << 16)) {
+                    bos.write((i & 0xFF0000) >> 16);
+                }
+                if (bytecode32.length >= (1 << 24)) {
+                    bos.write((i & 0xFF000000) >> 24);
+                }
+
+                bos.write(count);
+
+                // write consecutive bytes that differ
+                bos.write(bytecode32, i, count);
+                i += count;
+            }
+            else {
+                i += 1;
+            }
+        }
+
+        byte[] delta = bos.toByteArray();
+        return delta;
     }
 
     @Override
@@ -302,14 +413,25 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
 
-        // create and apply a builder plugin if one exists
-        LuaBuilderPlugin luaBuilderPlugin = PluginScanner.getOrCreatePlugin("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
-        if (luaBuilderPlugin != null) {
-            try {
-                script = luaBuilderPlugin.build(script);
+        // Create and run obfuscators if some exists.
+        if (luaObfuscators == null) {
+            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
+
+            if (luaObfuscators == null) {
+                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
             }
-            catch(Exception e) {
-                throw new CompileExceptionError(task.input(0), 0, "Unable to run Lua builder plugin", e);
+        }
+
+        final IResource sourceResource = task.input(0);
+        final String sourcePath = sourceResource.getAbsPath();
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+
+        for (ILuaObfuscator luaObfuscator : luaObfuscators) {
+            try {
+                script = luaObfuscator.obfuscate(script, sourcePath, variant);
+            }
+            catch (Exception e) {
+                throw new CompileExceptionError(sourceResource, 0, "Unable to run Lua obfuscator", e);
             }
         }
 
@@ -330,7 +452,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         }
 
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
-        srcBuilder.setFilename(task.input(0).getPath());
+        srcBuilder.setFilename(getChunkName(task));
 
         // for platforms using Lua 5.1 we include Lua source code even though
         // there is a constructLuaBytecode() function above
@@ -347,12 +469,9 @@ public abstract class LuaBuilder extends Builder<Void> {
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         else {
+            boolean useLuaBytecodeDelta = this.project.option("use-lua-bytecode-delta", "false").equals("true");
             byte[] bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
             byte[] bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
-
-            if (bytecode32.length != bytecode64.length) {
-                throw new CompileExceptionError(task.input(0), 0, "Byte code length mismatch");
-            }
 
             List<Platform> architectures = project.getArchitectures();
             if (architectures.size() == 1) {
@@ -366,71 +485,17 @@ public abstract class LuaBuilder extends Builder<Void> {
                     Bob.verbose("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
                 }
             }
+            else if (!useLuaBytecodeDelta) {
+                Bob.verbose("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
+                srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
+                srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
+            }
             else {
+                byte[] delta = constructBytecodeDelta(bytecode32, bytecode64);
+                srcBuilder.setDelta(ByteString.copyFrom(delta));
+
                 Bob.verbose("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
-
-                /**
-                 * Calculate the difference/delta between the 64-bit and 32-bit
-                 * bytecode.
-                 * The delta is stored together with the 64-bit bytecode and when
-                 * the 32-bit bytecode is needed the delta is applied to the 64-bit
-                 * bytecode to transform it to the equivalent 32-bit version.
-                 * 
-                 * The delta is stored in the following format:
-                 * 
-                 * * index - The index where to apply the next change. 1-4 bytes.
-                 *           The size depends on the size of the entire bytecode:
-                 *           1 byte - Size less than 2^8
-                 *           2 bytes - Size less than 2^16
-                 *           3 bytes - Size less than 2^24
-                 *           4 bytes - Size more than or equal to 2^24
-                 * * count - The number of consecutive bytes to alter. 1 byte (ie max 255 changes)
-                 * * bytes - The 32-bit bytecode values to apply to the 64-bit bytecode starting
-                 *           at the index.
-                 */
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                int i = 0;
-                while(i < bytecode32.length) {
-                    // find sequences of consecutive bytes that differ
-                    // max 255 at a time
-                    int count = 0;
-                    while(count < 256 && (i + count) < bytecode32.length) {
-                        if (bytecode32[i + count] == bytecode64[i + count]) {
-                            break;
-                        }
-                        count++;
-                    }
-
-                    // found a sequence of bytes
-                    // write index, count and bytes
-                    if (count > 0) {
-
-                        // write index of diff
-                        bos.write(i);
-                        if (bytecode32.length >= (1 << 8)) {
-                            bos.write((i & 0xFF00) >> 8);
-                        }
-                        if (bytecode32.length >= (1 << 16)) {
-                            bos.write((i & 0xFF0000) >> 16);
-                        }
-                        if (bytecode32.length >= (1 << 24)) {
-                            bos.write((i & 0xFF000000) >> 24);
-                        }
-
-                        bos.write(count);
-
-                        // write consecutive bytes that differ
-                        bos.write(bytecode32, i, count);
-                        i += count;
-                    }
-                    else {
-                        i += 1;
-                    }
-                }
-
-                byte[] delta = bos.toByteArray();
-                srcBuilder.setDelta(ByteString.copyFrom(delta));
             }
         }
 

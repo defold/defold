@@ -17,24 +17,14 @@
             [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
-            [editor.collection :as collection]
             [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.game-object :as game-object]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [internal.util :as util]
-            [support.test-support :refer [with-clean-system]]))
+            [internal.util :as util]))
 
 (def ^:private project-path "test/resources/errors_project")
-
-(defn- created-node [select-fn-call-logger]
-  (let [calls (test-util/call-logger-calls select-fn-call-logger)
-        args (last calls)
-        selection (first args)
-        node-id (first selection)]
-    node-id))
 
 (defn- build-error [render-error-fn-call-logger]
   (let [calls (test-util/call-logger-calls render-error-fn-call-logger)
@@ -42,21 +32,11 @@
         error-value (first args)]
     error-value))
 
-(defn- add-empty-game-object! [workspace project collection]
-  (let [select-fn (test-util/make-call-logger)]
-    (collection/add-game-object workspace project collection collection select-fn)
-    (let [embedded-go-instance (created-node select-fn)]
-      (g/node-value embedded-go-instance :source-id))))
-
 (defn- add-game-object-from-file! [workspace collection resource-path]
-  (let [select-fn (test-util/make-call-logger)]
-    (collection/add-game-object-file collection collection (test-util/resource workspace resource-path) select-fn)
-    (created-node select-fn)))
+  (test-util/add-referenced-game-object! collection (test-util/resource workspace resource-path)))
 
 (defn- add-component-from-file! [workspace game-object resource-path]
-  (let [select-fn (test-util/make-call-logger)]
-    (game-object/add-component-file game-object (test-util/resource workspace resource-path) select-fn)
-    (created-node select-fn)))
+  (test-util/add-referenced-component! game-object (test-util/resource workspace resource-path)))
 
 (defn- find-outline-node [outline-node labels]
   (loop [labels (seq labels)
@@ -71,7 +51,7 @@
 (deftest build-errors-test
   (test-util/with-loaded-project project-path
     (let [main-collection (test-util/resource-node project "/main/main.collection")
-          game-object (add-empty-game-object! workspace project main-collection)
+          game-object (test-util/add-embedded-game-object! main-collection)
           resource (partial test-util/resource workspace)
           resource-node (partial test-util/resource-node project)
           outline-node (fn [resource-path labels] (find-outline-node (resource-node resource-path) labels))

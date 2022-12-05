@@ -560,14 +560,6 @@ namespace dmGameSystem
         }
     }
 
-    static bool CheckBoolean(lua_State* L, int index)
-    {
-        if ( lua_isboolean( L, index ) )
-            return lua_toboolean( L, index );
-
-        return luaL_error(L, "Argument %d must be a boolean", index);
-    }
-
     static void UnpackConnectJointParams(lua_State* L, dmPhysics::JointType type, int table_index, dmPhysics::ConnectJointParams& params)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -1225,7 +1217,7 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
-        bool boolvalue = CheckBoolean(L, 3);
+        bool boolvalue = dmScript::CheckBoolean(L, 3);
 
         if (! dmGameSystem::SetCollisionMaskBit(comp_world, comp, group_id, boolvalue)) {
             return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));

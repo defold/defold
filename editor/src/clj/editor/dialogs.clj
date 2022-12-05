@@ -46,8 +46,8 @@
            [javafx.application Platform]
            [javafx.collections ListChangeListener]
            [javafx.event Event]
-           [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button ListView TextField]
+           [javafx.scene Node]
+           [javafx.scene.control ListView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseEvent MouseButton]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
            [org.apache.commons.io FilenameUtils]))
@@ -181,6 +181,12 @@
         :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
         :variant :borderless
         :editable false)))
+
+(def ^String indented-bullet
+  ;; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+  "\u00A0\u00A0\u2022\u00A0")
+
+(def indent-with-bullet (partial str indented-bullet))
 
 (defn make-info-dialog
   "Shows a dialog with selectable text content and blocks current thread until
@@ -470,7 +476,7 @@
                 :result :continue}]}))
 
 (defn make-file-dialog
-  ^File [title filter-descs ^File initial-file ^Window owner-window]
+  ^File [^String title filter-descs ^File initial-file ^Window owner-window]
   (let [chooser (FileChooser.)
         initial-directory (some-> initial-file .getParentFile)
         initial-file-name (some-> initial-file .getName)
@@ -486,6 +492,13 @@
     (.addAll (.getExtensionFilters chooser) ^Collection extension-filters)
     (.setTitle chooser title)
     (.showOpenDialog chooser owner-window)))
+
+(defn make-directory-dialog
+  ^File [^String title ^File initial-dir ^Window owner-window]
+  (-> (doto (DirectoryChooser.)
+        (.setInitialDirectory initial-dir)
+        (.setTitle title))
+      (.showDialog owner-window)))
 
 (handler/defhandler ::confirm :dialog
   (enabled? [selection]
@@ -935,15 +948,12 @@
                        :set-file-name (assoc state :name event)
                        :set-location (assoc state :location (io/file base-dir (sanitize-path event)))
                        :pick-location (assoc state :location
-                                             (let [window (.getWindow (.getScene ^Node (.getSource ^Event event)))
+                                             (let [window (fxui/event->window event)
                                                    previous-location (:location state)
                                                    initial-dir (if (.exists ^File previous-location)
                                                                  previous-location
                                                                  base-dir)
-                                                   path (-> (doto (DirectoryChooser.)
-                                                              (.setInitialDirectory initial-dir)
-                                                              (.setTitle "Set Path"))
-                                                            (.showDialog window))]
+                                                   path (make-directory-dialog "Set Path" initial-dir window)]
                                                (if path
                                                  (io/file base-dir (relativize base-dir path))
                                                  previous-location)))

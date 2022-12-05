@@ -8,6 +8,7 @@ blddir = 'build'
 
 import os, sys, re
 
+from waf_dynamo import platform_supports_feature
 import waf_ddf, waf_dynamo
 import waflib.Options
 import TestContext
@@ -23,6 +24,10 @@ def options(opt):
     opt.load('waf_dynamo')
 
 def configure(conf):
+    if not platform_supports_feature(conf.env.PLATFORM, "opengl", None):
+        print("GLFW isn't supported on this platform", bld.env.PLATFORM)
+        return
+
     conf.load('waf_dynamo')
     conf.load('java')
     waf_ddf.configure(conf)
@@ -57,6 +62,10 @@ def configure(conf):
 
 def build(bld):
     global test_context
+    if not platform_supports_feature(bld.env.PLATFORM, "opengl", None):
+        print("GLFW isn't supported on this platform", bld.env.PLATFORM)
+        return
+
     bld.recurse('lib')
     bld.install_files('${PREFIX}/sdk/include/dmsdk/graphics/glfw', 'include/GL/glfw.h')
     bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw_native.h')

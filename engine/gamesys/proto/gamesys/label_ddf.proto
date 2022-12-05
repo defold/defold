@@ -39,7 +39,7 @@ message LabelDesc
 
 
     required dmMath.Vector4 size        = 1;
-    required dmMath.Vector4 scale       = 2;
+    optional dmMath.Vector4 scale       = 2;
     required dmMath.Vector4 color       = 3;
     required dmMath.Vector4 outline     = 4;
     required dmMath.Vector4 shadow      = 5;

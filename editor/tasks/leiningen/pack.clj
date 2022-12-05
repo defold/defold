@@ -46,7 +46,7 @@
   {"${DYNAMO-HOME}/ext/lib/win32/OpenAL32.dll"        "x86-win32/bin/OpenAL32.dll"
    "${DYNAMO-HOME}/ext/lib/win32/wrap_oal.dll"        "x86-win32/bin/wrap_oal.dll"
 
-   "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-32.exe" "x86_64-win32/bin/luajit-32.exe"
+   "${DYNAMO-HOME}/ext/bin/win32/luajit-32.exe"        "x86_64-win32/bin/luajit-32.exe"
    "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe" "x86_64-win32/bin/luajit-64.exe"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"  "x86_64-win32/bin/OpenAL32.dll"
    "${DYNAMO-HOME}/ext/lib/x86_64-win32/wrap_oal.dll"  "x86_64-win32/bin/wrap_oal.dll"

@@ -15,7 +15,7 @@ def build(bld):
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
     web_libs = ['library_sys.js', 'library_script.js']
-    libs = 'TESTMAIN PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA CARES script'
+    libs = 'TESTMAIN PLATFORM_SOCKET THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA script'
 
     if not 'web' in bld.env['PLATFORM']:
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
@@ -65,7 +65,7 @@ def build(bld):
                                      use = libs,
                                      web_libs = web_libs,
                                      proto_gen_py = True,
-                                     embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat data/table_v818192.dat data/table_tstring_v1.dat data/table_tstring_v2.dat',
+                                     embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat data/table_v818192.dat data/table_tstring_v1.dat data/table_tstring_v2.dat data/table_tstring_v3.dat',
                                      target = 'test_script_table',
                                      source = 'test_script_table.cpp test_script_table.lua')
 

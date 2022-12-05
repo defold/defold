@@ -118,7 +118,7 @@
                         :result true}]})
       (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
         (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-        (async-reload! workspace changes-view moved-files)))))
+        (async-reload! changes-view moved-files)))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
@@ -179,7 +179,7 @@
       (when (some? git)
         (.close git)))))
 
-(defn make-changes-view [view-graph workspace prefs async-reload! ^Parent parent]
+(defn make-changes-view [view-graph workspace prefs ^Parent parent async-reload!]
   (assert (fn? async-reload!))
   (let [^ListView list-view     (.lookup parent "#changes")
         diff-button             (.lookup parent "#changes-diff")

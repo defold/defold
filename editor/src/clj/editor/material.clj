@@ -167,7 +167,10 @@
                        :label "Filter Mag"
                        :type :choicebox
                        :options (protobuf-forms/make-options mag-options)
-                       :default (ffirst mag-options)}])}
+                       :default (ffirst mag-options)}
+                      {:path [:max-anisotropy]
+                       :label "Max Anisotropy"
+                       :type :number}])}
          {:path [:tags]
           :label "Tags"
           :type :list
@@ -197,6 +200,12 @@
   (case (:type constant)
     :constant-type-user (let [[x y z w] (:value constant)]
                           (Vector4d. x y z w))
+    :constant-type-user-matrix4 (let [[x y z w] (:value constant)]
+                                  (doto (Matrix4d.)
+                                    (.setElement 0 0 x)
+                                    (.setElement 1 0 y)
+                                    (.setElement 2 0 z)
+                                    (.setElement 3 0 w)))
     :constant-type-viewproj :view-proj
     :constant-type-world :world
     :constant-type-texture :texture
@@ -223,7 +232,8 @@
 (def ^:private default-sampler {:wrap-u :wrap-mode-clamp-to-edge
                                 :wrap-v :wrap-mode-clamp-to-edge
                                 :filter-min :filter-mode-min-linear
-                                :filter-mag :filter-mode-mag-linear})
+                                :filter-mag :filter-mode-mag-linear
+                                :max-anisotropy 1.0})
 
 (defn sampler->tex-params
   ([sampler]

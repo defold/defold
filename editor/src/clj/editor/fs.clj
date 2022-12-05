@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.fs
-  (:require [clojure.java.io :as io])
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string])
   (:import [java.util UUID]
            [java.io File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
@@ -285,6 +286,19 @@
         upper-file (io/file (io/file fs-temp-dir "CASETEST"))]
     (touch-file! lower-file)
     (not (same-path? (.toPath lower-file) (.toPath upper-file)))))
+
+(defn- comparable-path
+  ^String [entry]
+  (cond-> (-> entry io/as-file .toPath .normalize .toAbsolutePath .toString)
+          (not case-sensitive?) .toLowerCase))
+
+(defn below-directory?
+  "Returns true if the file system entry is located below the directory."
+  [^File entry ^File directory]
+  (let [entry-path (comparable-path entry)
+        directory-path (comparable-path directory)]
+    (and (= \/ (get entry-path (count directory-path)))
+         (string/starts-with? entry-path directory-path))))
 
 (declare copy-directory!)
 

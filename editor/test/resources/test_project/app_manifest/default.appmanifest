@@ -1,0 +1,101 @@
+# App manifest generated Fri Sep 02 2022 14:15:09 GMT+0200 (Central European Summer Time)
+# Settings: OpenGL
+platforms:
+    x86_64-osx:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            frameworks: []
+            linkFlags: []
+
+    x86_64-linux:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
+    js-web:
+        context:
+            excludeLibs: []
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
+    wasm-web:
+        context:
+            excludeLibs: []
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
+    x86-win32:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
+    x86_64-win32:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
+    armv7-android:
+        context:
+            excludeLibs: []
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+            jetifier: true
+
+    arm64-android:
+        context:
+            excludeLibs: []
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+            jetifier: true
+
+    armv7-ios:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            frameworks: []
+            linkFlags: []
+
+    arm64-ios:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            frameworks: []
+            linkFlags: []
+
+    x86_64-ios:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            frameworks: []
+            linkFlags: []
+

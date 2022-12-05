@@ -1,0 +1,101 @@
+# App manifest generated Fri Sep 02 2022 16:15:35 GMT+0200 (Central European Summer Time)
+# Settings: Physics3D,OpenGL
+platforms:
+    x86_64-osx:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            frameworks: []
+            linkFlags: []
+
+    x86_64-linux:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            linkFlags: []
+
+    js-web:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            linkFlags: []
+
+    wasm-web:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeJsLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            linkFlags: []
+
+    x86-win32:
+        context:
+            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["libphysics_2d.lib"]
+            linkFlags: []
+
+    x86_64-win32:
+        context:
+            excludeLibs: ["libphysics","libLinearMath","libBulletDynamics","libBulletCollision"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["libphysics_2d.lib"]
+            linkFlags: []
+
+    armv7-android:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            linkFlags: []
+            jetifier: true
+
+    arm64-android:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            linkFlags: []
+            jetifier: true
+
+    armv7-ios:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            frameworks: []
+            linkFlags: []
+
+    arm64-ios:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            frameworks: []
+            linkFlags: []
+
+    x86_64-ios:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_2d"]
+            frameworks: []
+            linkFlags: []
+

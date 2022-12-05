@@ -174,7 +174,7 @@ size_t dmStrlCpy(char *dst, const char *src, size_t siz)
             if ((*d++ = *s++) == 0)
                 break;
         } while (--n != 0);
-}
+    }
 
     /* Not enough room in dst, add NUL and traverse rest of src */
     if (n == 0) {
@@ -232,30 +232,38 @@ int dmStrCaseCmp(const char *s1, const char *s2)
 #endif
 }
 
-#if defined(ANDROID)
-    #if defined(__USE_GNU) && __ANDROID_API__ >= 23
-        #define DM_STRERROR_USE_GNU
-    #else
-        #define DM_STRERROR_USE_POSIX
-    #endif
-#elif defined(__EMSCRIPTEN__)
-    // Emscripten wraps strerror_r as strerror anyway
-    #define DM_STRERROR_USE_UNSAFE
-#else
-    #if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
-        #define DM_STRERROR_USE_POSIX
-    #else
-        #define DM_STRERROR_USE_GNU
-    #endif
-#endif
 
-#ifdef DM_STRERROR_USE_POSIX
-    #if defined(_WIN32)
-        #define DM_STRERROR_FN(buf, size, errval) (int) strerror_s(buf, size, errval)
-    #else
-        #define DM_STRERROR_FN(buf, size, errval) strerror_r(errval, buf, size)
+#if defined(DM_NO_ERRNO)
+    #define DM_STRERROR_USE_POSIX
+    #define DM_STRERROR_FN(buf, size, errval) (int) dmSnPrintf(buf, size, "%d", errval) == -1 ? 0 : 1
+#else
+    #if !(defined(DM_STRERROR_USE_POSIX) || defined(DM_STRERROR_USE_GNU))
+        #if defined(ANDROID)
+            #if defined(__USE_GNU) && __ANDROID_API__ >= 23
+                #define DM_STRERROR_USE_GNU
+            #else
+                #define DM_STRERROR_USE_POSIX
+            #endif
+        #elif defined(__EMSCRIPTEN__)
+            // Emscripten wraps strerror_r as strerror anyway
+            #define DM_STRERROR_USE_UNSAFE
+        #else
+            #if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE || defined(_WIN32) || defined(__MACH__)
+                #define DM_STRERROR_USE_POSIX
+            #else
+                #define DM_STRERROR_USE_GNU
+            #endif
+        #endif
     #endif
-#endif
+
+    #ifdef DM_STRERROR_USE_POSIX
+        #if defined(_WIN32)
+            #define DM_STRERROR_FN(buf, size, errval) (int) strerror_s(buf, size, errval)
+        #else
+            #define DM_STRERROR_FN(buf, size, errval) strerror_r(errval, buf, size)
+        #endif
+    #endif
+#endif // DM_NO_ERRNO
 
 void dmStrError(char* dst, size_t size, int err)
 {
@@ -321,7 +329,6 @@ void dmStrError(char* dst, size_t size, int err)
     memcpy(dst, retstr, err_msg_len);
     dst[err_msg_len-1] = '\0';
 }
-
 
 #undef DM_STRERROR_USE_GNU
 #undef DM_STRERROR_USE_POSIX

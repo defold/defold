@@ -72,6 +72,7 @@
     (test-util/with-ui-run-later-rebound
       (let [workspace (workspace/make-workspace world
                                                 (.getAbsolutePath (io/file "test/resources/load_project"))
+                                                {}
                                                 {})]
         (g/transact
           (register-resource-types workspace [{:ext "type_a"

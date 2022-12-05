@@ -18,11 +18,12 @@
             [dynamo.graph :as g]
             [editor.game-object :as game-object]
             [editor.defold-project :as project]
-            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util])
-  (:import (com.dynamo.gameobject.proto GameObject$PrototypeDesc)
-           (java.io StringReader)))
+  (:import [java.io StringReader]))
+
+(set! *warn-on-reflection* true)
 
 (defn- build-error? [node-id]
   (g/error? (g/node-value node-id :build-targets)))
@@ -45,7 +46,7 @@
                    (is (build-error? go-id)))))
       (testing "component embedded instance"
                (let [r-type (workspace/get-resource-type workspace "factory")]
-                 (game-object/add-embedded-component-handler {:_node-id go-id :resource-type r-type} nil)
+                 (game-object/add-embedded-component! go-id r-type nil)
                  (let [factory (:node-id (test-util/outline go-id [0]))]
                    (test-util/with-prop [factory :id "script"]
                      (is (g/error? (test-util/prop-error factory :id)))
@@ -60,18 +61,23 @@
 (deftest embedded-components
   (test-util/with-loaded-project
     (let [resource-types (game-object/embeddable-component-resource-types workspace)
-          save-data (partial save-data project)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
-          add-component! (partial test-util/add-embedded-component! app-view nil)
           go-id (project/get-resource-node project "/game_object/test.go")
-          go-resource (g/node-value go-id :resource)]
+          go-resource (g/node-value go-id :resource)
+          go-read-fn (:read-fn (resource/resource-type go-resource))]
       (doseq [resource-type resource-types]
         (testing (:label resource-type)
-          (with-open [_ (make-restore-point!)]
-            (add-component! resource-type go-id)
-            (let [saved-string (:content (save-data go-resource))
-                  saved-embedded-components (g/node-value go-id :embed-ddf)
-                  loaded-embedded-components (:embedded-components (protobuf/read-text GameObject$PrototypeDesc (StringReader. saved-string)))
+          (with-open [_ (test-util/make-graph-reverter (project/graph project))]
+            (test-util/add-embedded-component! go-id resource-type)
+            (let [save-value (g/node-value go-id :save-value)
+                  load-value (with-open [reader (StringReader. (:content (g/node-value go-id :save-data)))]
+                               (go-read-fn reader))
+                  saved-embedded-components (:embedded-components save-value)
+                  loaded-embedded-components (:embedded-components load-value)
                   [only-in-saved only-in-loaded] (data/diff saved-embedded-components loaded-embedded-components)]
               (is (nil? only-in-saved))
-              (is (nil? only-in-loaded)))))))))
+              (is (nil? only-in-loaded))
+              (when (or (some? only-in-saved)
+                        (some? only-in-loaded))
+                (println "When comparing" (:label resource-type))
+                (prn 'disk only-in-loaded)
+                (prn 'save only-in-saved)))))))))

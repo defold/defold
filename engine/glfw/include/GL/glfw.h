@@ -570,6 +570,7 @@ GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwSetViewType(int view_type);
 GLFWAPI void glfwSetWindowBackgroundColor(unsigned int color);
 GLFWAPI float glfwGetDisplayScaleFactor();
+GLFWAPI int glfwGetMouseLocked();
 
 // Defold extensions (Android)
 #if defined(ANDROID)

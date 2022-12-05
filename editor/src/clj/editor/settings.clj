@@ -84,11 +84,8 @@
     (contains? setting :options)
     (assoc :type :choicebox)
 
-    (= :library-list (:type setting))
-    (assoc :type :list :element {:type :url :default "https://url.to/library"})
-
     (= :comma-separated-list (:type setting))
-    (assoc :type :list :element {:type :string :default (or (first (:default setting)) "item")})))
+    (assoc :type :list)))
 
 (defn- section-title [category-name category-info]
   (or (:title category-info)
@@ -249,4 +246,5 @@
     :icon icon
     :node-type SimpleSettingsResourceNode
     :load-fn (partial load-simple-settings-resource-node meta-info)
+    :meta-settings (:settings meta-info)
     :view-types [:cljfx-form-view :text]))

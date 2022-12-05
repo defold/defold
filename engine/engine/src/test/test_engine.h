@@ -26,16 +26,21 @@
 #include "../engine.h"
 #include "../engine_private.h"
 
+extern bool EngineTest_PlatformInit();
+extern void EngineTest_PlatformExit();
+
 class EngineTest : public jc_test_base_class
 {
 protected:
     virtual void SetUp()
     {
+        EngineTest_PlatformInit();
         m_DT = 1.0f / 60.0f;
     }
 
     virtual void TearDown()
     {
+        EngineTest_PlatformExit();
     }
 
     float m_DT;
@@ -48,6 +53,7 @@ class EngineParamsTest : public jc_test_params_class<T>
 protected:
     virtual void SetUp()
     {
+        EngineTest_PlatformInit();
         m_DT = 1.0f / 60.0f;
         dmEngineInitialize();
         m_Engine = dmEngine::New(0);
@@ -57,6 +63,7 @@ protected:
     {
         dmEngine::Delete(m_Engine);
         dmEngineFinalize();
+        EngineTest_PlatformExit();
     }
 
     dmEngine::HEngine m_Engine;

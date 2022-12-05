@@ -16,7 +16,6 @@
 #include <graphics/glfw/glfw_native.h>
 
 #include <dlib/log.h>
-#include "../graphics.h"
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
 

@@ -141,8 +141,9 @@
     (count (get refs value))))
 
 (defn- lua-ref->identity-string [ref structure-refs]
-  (let [lua-table (get structure-refs ref)]
-    (format "<%s>" (:string (meta lua-table)))))
+  (if-let [lua-table (get structure-refs ref)]
+    (format "<%s>" (:string (meta lua-table)))
+    (str "..." (:address ref))))
 
 (defn lua-value->identity-string
   "Returns string representing identity of a lua value. Does not show internal

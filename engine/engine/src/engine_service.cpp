@@ -557,7 +557,7 @@ namespace dmEngineService
     {
         uint16_t engine_port = default_port;
 
-        char* service_port_env = getenv("DM_SERVICE_PORT");
+        char* service_port_env = dmSys::GetEnv("DM_SERVICE_PORT");
 
         // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
         if (service_port_env) {

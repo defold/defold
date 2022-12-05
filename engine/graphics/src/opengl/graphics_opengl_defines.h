@@ -145,25 +145,33 @@
 #define DMGRAPHICS_TEXTURE_FORMAT_RG                        (GL_LUMINANCE_ALPHA)
 #endif
 
-#if defined(GL_RGB32F) && !defined (__EMSCRIPTEN__)
+#if defined(GL_RGB32F_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB32F_EXT)
+#elif defined(GL_RGB32F) && !defined (__EMSCRIPTEN__)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB32F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB32F                    (GL_RGB)
 #endif
 
-#if defined(GL_RGBA32F) && !defined (__EMSCRIPTEN__)
+#if defined(GL_RGBA32F_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA32F_EXT)
+#elif defined(GL_RGBA32F) && !defined (__EMSCRIPTEN__)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA32F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA32F                   (GL_RGBA)
 #endif
 
-#if defined(GL_RGB16F) && !defined (__EMSCRIPTEN__)
+#if defined(GL_RGB16F_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB16F_EXT)
+#elif defined(GL_RGB16F) && !defined (__EMSCRIPTEN__)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB16F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB16F                    (GL_RGB)
 #endif
 
-#if defined(GL_RGBA16F) && !defined (__EMSCRIPTEN__)
+#if defined(GL_RGBA16F_EXT)
+#define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA16F_EXT)
+#elif defined(GL_RGBA16F) && !defined (__EMSCRIPTEN__)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA16F)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA16F                   (GL_RGBA)
@@ -352,24 +360,5 @@
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ASTC_4x4_KHR 0x93D0
 #endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #endif // DMGRAPHICS_OPENGL_DEFINES_H

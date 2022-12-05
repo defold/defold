@@ -17,6 +17,7 @@
     [clojure.java.io :as io]
     [clojure.string :as string]
     [dynamo.graph :as g]
+    [editor.code.util :as util]
     [editor.defold-project :as project]
     [editor.engine.build-errors :as engine-build-errors]
     [editor.engine.native-extensions :as native-extensions]
@@ -28,14 +29,29 @@
     [editor.prefs :as prefs]
     [editor.workspace :as workspace])
   (:import
-    [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
+    [com.dynamo.bob Bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
+    [java.io File InputStream PrintStream PrintWriter PipedInputStream PipedOutputStream]
+    [java.net URI]
+    [java.nio.charset StandardCharsets]
     [org.apache.commons.io FilenameUtils]
-    [java.io File InputStream]
-    [java.net URI]))
+    [org.apache.commons.io.output WriterOutputStream]))
 
 (set! *warn-on-reflection* true)
+
+(defn set-verbose-logging! [enable]
+  (doto (.getDeclaredField Bob "verbose")
+    (.setAccessible true)
+    (.setBoolean nil enable)))
+
+;; Disable verbose logging in Bob by default. Doing this here will let us know
+;; if the verbose field is no longer in Bob. We enable verbose logging while a
+;; Bob build is in progress, but disable it otherwise because it can be a lot.
+(try
+  (set-verbose-logging! false)
+  (catch Exception e
+    (throw (ex-info "Failed to set verbose logging field in Bob." {} e))))
 
 (def skip-dirs #{".git" "build/default" ".internal"})
 (def html5-url-prefix "/html5")
@@ -147,52 +163,89 @@
     (catch Exception e
       {:exception e})))
 
-(def ^:private build-in-progress-atom (atom false))
+(defonce ^:private build-in-progress-atom
+  (add-watch
+    (atom false)
+    ::build-in-progress-watch
+    (fn build-in-progress-watch-fn [_ _ _ new-state]
+      (try
+        (set-verbose-logging! new-state)
+        (catch Exception _
+          ;; We can safely ignore any errors here since we've already
+          ;; thrown an exception in case we're unable to change it to
+          ;; false at the top of this file.
+          nil)))))
 
 (defn build-in-progress? []
   @build-in-progress-atom)
 
-(defn bob-build! [project evaluation-context bob-commands bob-args render-progress! task-cancelled?]
-  (assert (vector? bob-commands))
-  (assert (every? string? bob-commands))
-  (assert (map? bob-args))
-  (assert (every? (fn [[key val]] (and (string? key) (string? val))) bob-args))
-  (assert (ifn? render-progress!))
-  (assert (ifn? task-cancelled?))
+(defn- PrintStream-on ^PrintStream [fn]
+  (-> fn
+      (PrintWriter-on nil)
+      (WriterOutputStream. StandardCharsets/UTF_8 1024 true)
+      (PrintStream. true StandardCharsets/UTF_8)))
+
+(defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! show-build-log-stream! task-cancelled?]
+  {:pre [(vector? bob-commands)
+         (every? string? bob-commands)
+         (map? bob-args)
+         (every? (fn [[key val]] (and (string? key) (string? val))) bob-args)
+         (ifn? render-progress!)
+         (ifn? show-build-log-stream!)
+         (ifn? task-cancelled?)]}
   (reset! build-in-progress-atom true)
-  (try
-    (if (and (some #(= "build" %) bob-commands)
-             (native-extensions/has-extensions? project evaluation-context)
-             (not (native-extensions/supported-platform? (get bob-args "platform"))))
-      {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
-      (let [ws (project/workspace project evaluation-context)
-            proj-path (str (workspace/project-path ws evaluation-context))
-            bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
-        (doseq [[key val] bob-args]
-          (.setOption bob-project key val))
-        (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
-        (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
-          (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
-            (.scan bob-project scanner pkg)))
-        (let [deps (workspace/dependencies ws)]
-          (when (seq deps)
-            (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
+  (let [prev-out System/out
+        prev-err System/err]
+    (with-open [log-stream (PipedInputStream.)
+                log-stream-writer (PrintWriter. (PipedOutputStream. log-stream) true StandardCharsets/UTF_8)
+                build-out (PrintStream-on
+                            #(doseq [line (util/split-lines %)]
+                               (when (string/starts-with? line "Bob: ")
+                                 (.println log-stream-writer (subs line 5)))))
+                build-err (PrintStream-on
+                            #(doseq [line (util/split-lines %)]
+                               (.println log-stream-writer line)))]
+      (try
+        (show-build-log-stream! log-stream)
+        (System/setOut build-out)
+        (System/setErr build-err)
+        (if (and (some #(= "build" %) bob-commands)
+                 (native-extensions/has-engine-extensions? project evaluation-context)
+                 (not (native-extensions/supported-platform? (get bob-args "platform"))))
+          {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
+          (let [ws (project/workspace project evaluation-context)
+                proj-path (str (workspace/project-path ws evaluation-context))
+                bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
+            (doseq [[key val] bob-args]
+              (.setOption bob-project key val))
+            (when-not (string/blank? build-server-headers)
+              (doseq [header (string/split-lines build-server-headers)]
+                (.addBuildServerHeader bob-project header)))
+            (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
+            (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
+              (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
+                (.scan bob-project scanner pkg)))
+            (let [deps (workspace/dependencies ws)]
+              (when (seq deps)
+                (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
+                (ui/with-progress [render-progress! render-progress!]
+                  (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
+            (.mount bob-project (->graph-resource-scanner ws))
+            (.findSources bob-project proj-path skip-dirs)
             (ui/with-progress [render-progress! render-progress!]
-              (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
-        (.mount bob-project (->graph-resource-scanner ws))
-        (.findSources bob-project proj-path skip-dirs)
-        (ui/with-progress [render-progress! render-progress!]
-          (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
-    (catch Throwable error
-      {:exception error})
-    (finally
-      (reset! build-in-progress-atom false))))
+              (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
+        (catch Throwable error
+          {:exception error})
+        (finally
+          (reset! build-in-progress-atom false)
+          (System/setOut prev-out)
+          (System/setErr prev-err))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? bundle-contentless? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
@@ -207,12 +260,12 @@
              "variant" variant
 
              ;; From AbstractBundleHandler
-             "archive" "true"
+             (if bundle-contentless? "exclude-archive" "archive") "true"
              "bundle-output" bundle-output-path
              "texture-compression" (case texture-compression
-                                    "enabled" "true"
-                                    "disabled" "false"
-                                    "editor" editor-texture-compression)
+                                     "enabled" "true"
+                                     "disabled" "false"
+                                     "editor" editor-texture-compression)
 
              ;; From BundleGenericHandler
              "build-server" build-server-url
@@ -327,9 +380,10 @@
       {:code 302
        :headers {"Location" (str html5-url-prefix "/index.html")}}
 
-      (let [served-file   (try-resolve-html5-file project url)
+      (let [url-without-query-params  (.getPath (java.net.URL. (str "http://" url)))
+            served-file   (try-resolve-html5-file project url-without-query-params)
             extra-headers {"Content-Type" (html5-mime-types
-                                            (FilenameUtils/getExtension (clojure.string/lower-case url))
+                                            (FilenameUtils/getExtension (clojure.string/lower-case url-without-query-params))
                                             "application/octet-stream")}]
         (cond
           ;; The requested URL is a directory or located outside build-html5-output-path.

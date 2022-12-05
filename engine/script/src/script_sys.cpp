@@ -27,6 +27,7 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <malloc.h>
 #endif
 
 #include <dlib/dstrings.h>
@@ -34,6 +35,8 @@
 #include <dlib/log.h>
 #include <dlib/socket.h>
 #include <dlib/path.h>
+#include <dlib/align.h>
+#include <dlib/memory.h>
 #include <resource/resource.h>
 #include "script.h"
 #include "script/sys_ddf.h"
@@ -56,7 +59,7 @@ union SaveLoadBuffer
 {
     uint32_t m_alignment; // This alignment is required for js-web
     char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
-} g_saveload;
+} DM_ALIGNED(16) g_saveload;
 
 #define LIB_NAME "sys"
 
@@ -69,6 +72,28 @@ union SaveLoadBuffer
      * @name System
      * @namespace sys
      */
+
+    char* Sys_SetupTableSerializationBuffer(int required_size)
+    {
+        if (required_size > MAX_BUFFER_SIZE)
+        {
+            char* buffer = 0;
+            dmMemory::Result r = dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
+            return buffer;
+        }
+        else
+        {
+            return g_saveload.m_buffer;
+        }
+    }
+
+    void Sys_FreeTableSerializationBuffer(char* buffer)
+    {
+        if (buffer != g_saveload.m_buffer)
+        {
+            dmMemory::AlignedFree(buffer);
+        }
+    }
 
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
@@ -98,13 +123,23 @@ union SaveLoadBuffer
      * ```
      */
 
-#if !defined(__EMSCRIPTEN__)
     int Sys_Save(lua_State* L)
     {
-        luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
-
         const char* filename = luaL_checkstring(L, 1);
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+
+        uint32_t table_size = CheckTableSize(L, 2);
+
+        char* buffer = Sys_SetupTableSerializationBuffer(table_size);
+        if (!buffer)
+        {
+            return luaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
+        }
+        uint32_t n_used = CheckTable(L, buffer, table_size, 2);
+
+#if !defined(__EMSCRIPTEN__)
+
         char tmp_filename[DMPATH_MAX_PATH];
         // The counter and hash are there to make the files unique enough to avoid that the user
         // accidentally writes to it.
@@ -113,19 +148,22 @@ union SaveLoadBuffer
         int res = dmSnPrintf(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
         if (res == -1)
         {
+            Sys_FreeTableSerializationBuffer(buffer);
             return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
         }
 
         FILE* file = fopen(tmp_filename, "wb");
         if (!file)
         {
+            Sys_FreeTableSerializationBuffer(buffer);
             char errmsg[128] = {};
             dmStrError(errmsg, sizeof(errmsg), errno);
             return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
         }
 
-        bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
+        bool result = fwrite(buffer, 1, n_used, file) == n_used;
         result = (fclose(file) == 0) && result;
+        Sys_FreeTableSerializationBuffer(buffer);
 
         if (!result)
         {
@@ -133,38 +171,38 @@ union SaveLoadBuffer
             return luaL_error(L, "Could not write to the file %s.", filename);
         }
 
-        if (dmSys::RenameFile(filename, tmp_filename) == dmSys::RESULT_OK)
+        if (dmSys::RenameFile(filename, tmp_filename) != dmSys::RESULT_OK)
         {
-            lua_pushboolean(L, result);
-            return 1;
+            return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
         }
-        return luaL_error(L, "Could not rename %s to the file %s.", tmp_filename, filename);
-    }
+
+        lua_pushboolean(L, result);
+        return 1;
 
 #else // __EMSCRIPTEN__
 
-    int Sys_Save(lua_State* L)
-    {
-        const char* filename = luaL_checkstring(L, 1);
-        luaL_checktype(L, 2, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 2);
         FILE* file = fopen(filename, "wb");
-        if (file != 0x0)
+        if (!file)
         {
-            bool result = fwrite(g_saveload.m_buffer, 1, n_used, file) == n_used;
-            result = (fclose(file) == 0) && result;
-            if (result)
-            {
-                lua_pushboolean(L, result);
-                return 1;
-            }
-
-            dmSys::Unlink(filename);
+            Sys_FreeTableSerializationBuffer(buffer);
+            return luaL_error(L, "Could not write to the file %s.", filename);
         }
-        return luaL_error(L, "Could not write to the file %s.", filename);
+
+        bool result = fwrite(buffer, 1, n_used, file) == n_used;
+        result = (fclose(file) == 0) && result;
+        Sys_FreeTableSerializationBuffer(buffer);
+
+        if (!result)
+        {
+            dmSys::Unlink(filename);
+            return luaL_error(L, "Could not write to the file %s.", filename);
+        }
+
+        lua_pushboolean(L, result);
+        return 1;
+#endif
     }
 
-#endif
 
     /*# loads a lua table from a file on disk
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
@@ -193,22 +231,27 @@ union SaveLoadBuffer
             lua_newtable(L);
             return 1;
         }
-        size_t nread = fread(g_saveload.m_buffer, 1, sizeof(g_saveload.m_buffer), file);
-        bool file_size_ok = feof(file) != 0;
-        bool result = ferror(file) == 0 && file_size_ok;
+
+        fseek(file, 0L, SEEK_END);
+        uint32_t file_size = ftell(file);
+        fseek(file, 0L, SEEK_SET);
+
+        char* buffer = Sys_SetupTableSerializationBuffer(file_size);
+        if (!buffer)
+        {
+            return luaL_error(L, "Could not allocate %d bytes for table deserialization.", file_size);
+        }
+        size_t nread = fread(buffer, 1, file_size, file);
+        bool result = ferror(file) == 0;
         fclose(file);
-        if (result)
+        if (!result)
         {
-            PushTable(L, g_saveload.m_buffer, nread);
-            return 1;
+            Sys_FreeTableSerializationBuffer(buffer);
+            return luaL_error(L, "Could not read from the file %s.", filename);
         }
-        else
-        {
-            if(file_size_ok)
-                return luaL_error(L, "Could not read from the file %s.", filename);
-            else
-                return luaL_error(L, "File size exceeding size limit of %dkb: %s.", MAX_BUFFER_SIZE/1024, filename);
-        }
+        PushTable(L, buffer, nread);
+        Sys_FreeTableSerializationBuffer(buffer);
+        return 1;
     }
 
     /*# gets the save-file path
@@ -241,8 +284,7 @@ union SaveLoadBuffer
         }
 
         const char* filename = luaL_checkstring(L, 2);
-        char* dm_home = getenv("DM_SAVE_HOME");
-
+        char* dm_home = dmSys::GetEnv("DM_SAVE_HOME");
         // Higher priority
         if (dm_home)
         {
@@ -300,54 +342,46 @@ union SaveLoadBuffer
         return 1;
     }
 
-    /*# get config value
-     * Get config value from the game.project configuration file.
-     *
-     * In addition to the project file, configuration values can also be passed
-     * to the runtime as command line arguments with the `--config` argument.
-     *
-     * @name sys.get_config
-     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @return value [type:string] config value as a string. nil if the config key doesn't exists
-     * @examples
-     *
-     * Get display width
-     *
-     * ```lua
-     * local width = tonumber(sys.get_config("display.width"))
-     * ```
-     *
-     * Start the engine with a bootstrap config override and a custom config value
-     *
-     * ```
-     * $ mygame --config=bootstrap.main_collection=/mytest.collectionc --config=mygame.testmode=1
-     * ```
-     *
-     * Set and read a custom config value
-     *
-     * ```lua
-     * local testmode = tonumber(sys.get_config("mygame.testmode"))
-     * ```
-     */
+    static dmConfigFile::HConfig GetConfigFile(lua_State* L)
+    {
+        HContext context = dmScript::GetScriptContext(L);
+        if (context)
+        {
+            return context->m_ConfigFile;
+        }
+        return 0;
+    }
 
-    /*# get config value with default value
-     * Get config value from the game.project configuration file with default value
+    /*# get string config value with optional default value
+     * Get string config value from the game.project configuration file with optional default value
      *
-     * @name sys.get_config
+     * @name sys.get_config_string
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @param default_value [type:string] default value to return if the value does not exist
-     * @return value [type:string] config value as a string. default_value if the config key does not exist
+     * @param [default_value] [type:string] (optional) default value to return if the value does not exist
+     * @return value [type:string] config value as a string. default_value if the config key does not exist. nil if no default value was supplied.
      * @examples
      *
      * Get user config value
      *
      * ```lua
-     * local speed = tonumber(sys.get_config("my_game.speed", "10.23"))
+     * local text = sys.get_config_string("my_game.text", "default text"))
+     * ```
+     *
+     * Start the engine with a bootstrap config override and add a custom config value
+     *
+     * ```
+     * $ dmengine --config=bootstrap.main_collection=/mytest.collectionc --config=mygame.testmode=1
+     * ```
+     *
+     * Read the custom config value from the command line
+     *
+     * ```lua
+     * local testmode = sys.get_config_int("mygame.testmode")
      * ```
      */
-    int Sys_GetConfig(lua_State* L)
+    static int Sys_GetConfigString(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 1);
 
         const char* key = luaL_checkstring(L, 1);
         const char* default_value = 0;
@@ -356,31 +390,101 @@ union SaveLoadBuffer
             default_value = lua_tostring(L, 2);
         }
 
-        HContext context = dmScript::GetScriptContext(L);
-
-        dmConfigFile::HConfig config_file = 0;
-        if (context)
-        {
-            config_file = context->m_ConfigFile;
-        }
-
-        const char* value;
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
         if (config_file)
-            value = dmConfigFile::GetString(config_file, key, default_value);
-        else
-            value = 0;
-
-        if (value)
         {
+            const char* value = dmConfigFile::GetString(config_file, key, default_value);
             lua_pushstring(L, value);
         }
         else
         {
             lua_pushnil(L);
         }
+        return 1;
+    }
 
-        assert(top + 1 == lua_gettop(L));
+    /*# get integer config value with optional default value
+     * Get integer config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_int
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:integer] (optional) default value to return if the value does not exist
+     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. nil if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local speed = sys.get_config_int("my_game.speed", 20) -- with default value
+     * ```
+     *
+     * ```lua
+     * local testmode = sys.get_config_int("my_game.testmode") -- without default value
+     * if testmode ~= nil then
+     *     -- do stuff
+     * end
+     * ```
+     */
+    static int Sys_GetConfigInt(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
 
+        const char* key = luaL_checkstring(L, 1);
+        int default_value = 0;
+        if (!lua_isnil(L, 2))
+        {
+            default_value = luaL_checkinteger(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            int value = dmConfigFile::GetInt(config_file, key, default_value);
+            lua_pushinteger(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
+    /*# get number config value with optional default value
+     * Get number config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_number
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:number] (optional) default value to return if the value does not exist
+     * @return value [type:number] config value as an number. default_value if the config key does not exist. nil if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local speed = sys.get_config_float("my_game.speed", 20.0)
+     * ```
+     */
+    static int Sys_GetConfigNumber(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const char* key = luaL_checkstring(L, 1);
+        float default_value = 0;
+        if (!lua_isnil(L, 2))
+        {
+            default_value = luaL_checknumber(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            float value = dmConfigFile::GetFloat(config_file, key, default_value);
+            lua_pushnumber(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
         return 1;
     }
 
@@ -393,7 +497,7 @@ union SaveLoadBuffer
      *
      * `target`
      * - [type:string] [icon:html5]: Optional. Specifies the target attribute or the name of the window. The following values are supported:
-     * - `_self` - URL replaces the current page. This is default.
+     * - `_self` - (default value) URL replaces the current page.
      * - `_blank` - URL is loaded into a new window, or tab.
      * - `_parent` - URL is loaded into the parent frame.
      * - `_top` - URL replaces any framesets that may be loaded.
@@ -497,7 +601,7 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
-     * @param options [type:table] (optional) options table
+     * @param [options] [type:table] optional options table
      * - ignore_secure [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
      * @return sys_info [type:table] table with system information in the following fields:
      *
@@ -569,7 +673,7 @@ union SaveLoadBuffer
         if (!ignore_secure_values)
         {
             dmSys::GetSecureInfo(&info);
-        } 
+        }
 
         lua_newtable(L);
         lua_pushliteral(L, "device_model");
@@ -1033,7 +1137,7 @@ union SaveLoadBuffer
     *
     * ```lua
     * local arg1 = '--config=bootstrap.main_collection=/my.collectionc'
-    * local arg2 = 'build/default/game.projectc'
+    * local arg2 = 'build/game.projectc'
     * sys.reboot(arg1, arg2)
     * ```
     */
@@ -1166,8 +1270,17 @@ union SaveLoadBuffer
     {
         DM_LUA_STACK_CHECK(L, 1);
         luaL_checktype(L, 1, LUA_TTABLE);
-        uint32_t n_used = CheckTable(L, g_saveload.m_buffer, sizeof(g_saveload.m_buffer), 1);
-        lua_pushlstring(L, (const char*)g_saveload.m_buffer, n_used);
+
+        uint32_t table_size = CheckTableSize(L, 1);
+        char* buffer = Sys_SetupTableSerializationBuffer(table_size);
+        if (!buffer)
+        {
+            return luaL_error(L, "Could not allocate %d bytes for table serialization.", table_size);
+        }
+
+        uint32_t n_used = CheckTable(L, buffer, table_size, 1);
+        lua_pushlstring(L, (const char*)buffer, n_used);
+        Sys_FreeTableSerializationBuffer(buffer);
         return 1;
 
     }
@@ -1201,7 +1314,10 @@ union SaveLoadBuffer
         {"save", Sys_Save},
         {"load", Sys_Load},
         {"get_save_file", Sys_GetSaveFile},
-        {"get_config", Sys_GetConfig},
+        {"get_config", Sys_GetConfigString}, // deprecated
+        {"get_config_string", Sys_GetConfigString},
+        {"get_config_int", Sys_GetConfigInt},
+        {"get_config_number", Sys_GetConfigNumber},
         {"open_url", Sys_OpenURL},
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},

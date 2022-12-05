@@ -28,6 +28,19 @@ public class BuilderUtil {
         return str;
     }
 
+    public static String replaceExt(String str, String to) {
+        int last_dot = str.lastIndexOf(".");
+        if (last_dot != -1) {
+            return str.substring(0, last_dot).concat(to);
+        }
+        return str.concat(to);
+    }
+
+    // Returns "dae" from "path/to.dae"
+    public static String getSuffix(String path) {
+        return path.substring(path.lastIndexOf(".") + 1);
+    }
+
     public static IResource checkResource(Project project, IResource owner, String field, String path) throws CompileExceptionError {
         if (path.isEmpty()) {
             String message = BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, field);
