@@ -118,7 +118,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < stream_count; ++i)
         {
             const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-            streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
+            streams_decl[i].m_Name = ddf_stream.m_NameHash;
             streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
             streams_decl[i].m_Count = ddf_stream.m_ValueCount;
 
@@ -233,22 +233,45 @@ namespace dmGameSystem
 
     dmResource::Result ResBufferRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmBufferDDF::BufferDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
-        if (e != dmDDF::RESULT_OK)
-        {
-            return dmResource::RESULT_DDF_ERROR;
-        }
-        BufferResource* buffer_resource = (BufferResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, buffer_resource);
-        buffer_resource->m_BufferDDF = ddf;
+        BufferResource* buffer_resource = (BufferResource*) params.m_Resource->m_Resource;
 
-        if (!BuildBuffer(buffer_resource))
+        if (params.m_Message != 0x0)
         {
-            return dmResource::RESULT_INVALID_DATA;
-        }
+            ReleaseResources(params.m_Factory, buffer_resource);
+            ResBufferReCreateParams* recreate_params = (ResBufferReCreateParams*) params.m_Message;
 
-        dmBuffer::UpdateContentVersion(buffer_resource->m_Buffer);
+            dmBufferDDF::BufferDesc* ddf;
+            dmDDF::Result e = dmDDF::LoadMessage(recreate_params->m_DDFData, recreate_params->m_DDFDataSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
+
+            if (e != dmDDF::RESULT_OK)
+            {
+                return dmResource::RESULT_DDF_ERROR;
+            }
+
+            buffer_resource->m_Buffer    = recreate_params->m_Buffer;
+            buffer_resource->m_BufferDDF = ddf;
+        }
+        else
+        {
+            ReleaseResources(params.m_Factory, buffer_resource);
+
+            dmBufferDDF::BufferDesc* ddf;
+            dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
+
+            if (e != dmDDF::RESULT_OK)
+            {
+                return dmResource::RESULT_DDF_ERROR;
+            }
+
+            buffer_resource->m_BufferDDF = ddf;
+
+            if (!BuildBuffer(buffer_resource))
+            {
+                return dmResource::RESULT_INVALID_DATA;
+            }
+
+            dmBuffer::UpdateContentVersion(buffer_resource->m_Buffer);
+        }
 
         return dmResource::RESULT_OK;
     }

@@ -20,6 +20,13 @@
 
 namespace dmGameSystem
 {
+    struct ResBufferReCreateParams
+    {
+        dmBuffer::HBuffer  m_Buffer;
+        uint8_t*           m_DDFData;
+        uint32_t           m_DDFDataSize;
+    };
+
     dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams& params);

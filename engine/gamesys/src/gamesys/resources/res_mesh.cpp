@@ -105,21 +105,15 @@ namespace dmGameSystem
     {
         switch (primitive_type)
         {
-            // case dmMeshDDF::MeshDesc::PRIMITIVE_POINTS:
-            //     return dmGraphics::PRIMITIVE_POINTS;
             case dmMeshDDF::MeshDesc::PRIMITIVE_LINES:
                 return dmGraphics::PRIMITIVE_LINES;
-            // case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_LOOP:
-            //     return dmGraphics::PRIMITIVE_LINE_LOOP;
-            // case dmMeshDDF::MeshDesc::PRIMITIVE_LINE_STRIP:
-            //     return dmGraphics::PRIMITIVE_LINE_STRIP;
             case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLES:
                 return dmGraphics::PRIMITIVE_TRIANGLES;
             case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_STRIP:
                 return dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
-            // case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_FAN:
-            //     return dmGraphics::PRIMITIVE_TRIANGLE_FAN;
         }
+        assert(0 && "Unsupported primitive_type");
+        return (dmGraphics::PrimitiveType) -1;
     }
 
     bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl)
@@ -135,13 +129,13 @@ namespace dmGameSystem
             const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
 
             if (!IsSupportedGraphicsType(ddf_stream.m_ValueType)) {
-                dmLogError("Value type for stream %s is not supported.", ddf_stream.m_Name);
+                dmLogError("Value type for stream %s is not supported.", dmHashReverseSafe64(ddf_stream.m_NameHash));
                 free(vert_decls);
                 return false;
             }
 
             dmGraphics::VertexElement& vert_decl = vert_decls[i];
-            vert_decl.m_Name = ddf_stream.m_Name;
+            vert_decl.m_Name = ddf_stream.m_NameHash;
             vert_decl.m_Stream = i;
             vert_decl.m_Size = ddf_stream.m_ValueCount;
             vert_decl.m_Type = StreamTypeToGraphicsType(ddf_stream.m_ValueType);
