@@ -813,12 +813,7 @@ namespace dmGameSystem
             }
 
             bool intersect = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax, false);
-
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
-            if (entry->m_Visibility == dmRender::VISIBILITY_NONE) {
-                dmLogError("culled!");
-            } else
-                dmLogError("NOT culled!");
 
         }
 
