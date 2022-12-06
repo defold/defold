@@ -805,7 +805,7 @@
     (let [[workspace project] (setup-scratch world)]
       (let [all-files (->>
                         (workspace/resolve-workspace-resource workspace "/")
-                        (tree-seq (fn [r] (and (not (resource/read-only? r)) (resource/children r))) resource/children)
+                        (tree-seq (fn [r] (and (resource/editable? r) (not (resource/read-only? r)) (resource/children r))) resource/children)
                         (filter (fn [r] (= (resource/source-type r) :file))))
             paths (map resource/proj-path all-files)]
         (bulk-change workspace

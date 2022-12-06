@@ -261,8 +261,6 @@ namespace dmEngine
         m_SpriteContext.m_MaxSpriteCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
-        m_MeshContext.m_RenderContext = 0x0;
-        m_MeshContext.m_MaxMeshCount = 0;
         m_AccumFrameTime = 0;
         m_PreviousFrameTime = dmTime::GetTime();
     }
@@ -568,8 +566,8 @@ namespace dmEngine
         char* qoe_s = dmSys::GetEnv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
-        char project_file[DMPATH_MAX_PATH];
-        char project_file_uri[DMPATH_MAX_PATH];
+        char project_file[DMPATH_MAX_PATH] = "";
+        char project_file_uri[DMPATH_MAX_PATH] = "";
         char project_file_folder[DMPATH_MAX_PATH] = ".";
         bool loaded_ok = false;
 
@@ -632,8 +630,13 @@ namespace dmEngine
         char engine_ssl_keys_path[DMPATH_MAX_PATH];
         dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
         char editor_ssl_keys_path[DMPATH_MAX_PATH];
-        dmPath::Concat(project_file_folder, dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", ""), editor_ssl_keys_path, sizeof(editor_ssl_keys_path));
-        const char* paths[] = {engine_ssl_keys_path, editor_ssl_keys_path};
+        const char* custom_ssl_certificate = dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", 0);
+        if (custom_ssl_certificate != 0)
+        {
+            dmPath::Concat(project_file_folder, custom_ssl_certificate, editor_ssl_keys_path, sizeof(editor_ssl_keys_path));
+        }
+
+        const char* paths[] = {engine_ssl_keys_path, custom_ssl_certificate != 0 ? editor_ssl_keys_path : 0};
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
         {
             if (paths[i] && LoadAndSetSslKeys(paths[i]))
@@ -1009,10 +1012,10 @@ namespace dmEngine
         }
 
         // rig.max_instance_count is deprecated in favour of component specific max count values.
-        // For backwards combatibility we get the rig generic value and take the max of it and each
-        // specific component max value.
-        int32_t max_rig_instance = dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", 128);
-        int32_t max_model_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128), max_rig_instance);
+        if (dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", -1) != -1)
+        {
+            dmLogWarning("`rig.max_instance_count` deprecated. Use component specific counters.");
+        }
 
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
@@ -1099,11 +1102,7 @@ namespace dmEngine
 
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ModelContext.m_Factory = engine->m_Factory;
-        engine->m_ModelContext.m_MaxModelCount = max_model_count;
-
-        engine->m_MeshContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_MeshContext.m_Factory       = engine->m_Factory;
-        engine->m_MeshContext.m_MaxMeshCount = dmConfigFile::GetInt(engine->m_Config, "mesh.max_count", 128);
+        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
@@ -1161,7 +1160,7 @@ namespace dmEngine
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
-                                                                                                &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
+                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext,
                                                                                                 &engine->m_SoundContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;

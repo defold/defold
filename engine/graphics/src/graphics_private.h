@@ -25,10 +25,6 @@ namespace dmGraphics
     uint64_t GetDrawCount();
     void SetForceFragmentReloadFail(bool should_fail);
     void SetForceVertexReloadFail(bool should_fail);
-
-    // Gets the bits per pixel from uncompressed formats
-    uint32_t GetTextureFormatBitsPerPixel(TextureFormat format);
-
     bool IsTextureFormatCompressed(TextureFormat format);
 }
 

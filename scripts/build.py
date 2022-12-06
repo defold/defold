@@ -28,7 +28,6 @@ import release_to_github
 import BuildUtility
 import http_cache
 from urllib.parse import urlparse
-from tarfile import TarFile
 from glob import glob
 from threading import Thread, Event
 from queue import Queue
@@ -101,17 +100,17 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-633f265 tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
-PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-633f265 tremolo-0.0.8".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-633f265 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41 luac-32-5.1.5".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-633f265 vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 MoltenVK-1.0.41 luac-32-5.1.5".split()
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-633f265 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-633f265 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-633f265 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-2018-08-07 glslc-v2018.0 vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-633f265 tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.8 vulkan-1.1.108".split()
+PACKAGES_HOST="cg-3.1 vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
+PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb MoltenVK-1.0.41 luac-32-5.1.5".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb MoltenVK-1.0.41 luac-32-5.1.5".split()
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -139,7 +138,8 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+ENGINE_LIBS = "testmain dlib texc ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+HOST_LIBS = "testmain dlib texc modelc".split()
 
 EXTERNAL_LIBS = "bullet3d".split()
 
@@ -348,7 +348,7 @@ class Configuration(object):
             self._log('Removing %s' % self.dynamo_home)
             shutil.rmtree(self.dynamo_home)
 
-        for lib in ['dlib','texc','modelc']+ENGINE_LIBS:
+        for lib in ENGINE_LIBS:
             builddir = join(self.defold_root, 'engine/%s/build' % lib)
             if os.path.exists(builddir):
                 self._log('Removing %s' % builddir)
@@ -360,17 +360,10 @@ class Configuration(object):
 
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
-        version = sys.version_info
+        self._mkdirs(path)
         suffix = os.path.splitext(file)[1]
-        # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
-        if self.host == 'x86_64-linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
-            fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
-            run.env_command(self._form_env(), ['tar', 'xf%s' % fmts.get(suffix, 'z'), file], cwd = path)
-        else:
-            fmts = {'.gz': 'gz', '.xz': 'xz', '.bzip2': 'bz2'}
-            tf = TarFile.open(file, 'r:%s' % fmts.get(suffix, 'gz'))
-            tf.extractall(path)
-            tf.close()
+        fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
+        run.env_command(self._form_env(), ['tar', 'xf%s' % fmts.get(suffix, 'z'), file], cwd = path)
 
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1, format=None):
         src = src.replace('\\', '/')
@@ -383,8 +376,7 @@ class Configuration(object):
         parentdir, dirname = os.path.split(target_folder)
         old_dir = os.getcwd()
         os.chdir(parentdir)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
+        self._mkdirs(dirname)
 
         if format is None:
             suffix = os.path.splitext(src)[1]
@@ -1094,7 +1086,7 @@ class Configuration(object):
         args = cmd.split()
         host = self.host
         # Make sure we build these for the host platform for the toolchain (bob light)
-        for lib in ['dlib', 'texc', 'modelc']:
+        for lib in HOST_LIBS:
             skip_tests = host != self.target_platform
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         if not self.skip_bob_light:
@@ -1103,15 +1095,17 @@ class Configuration(object):
         # Target libs to build
 
         engine_libs = list(ENGINE_LIBS)
-        if host != self.target_platform:
-            engine_libs.insert(0, 'dlib')
-            if self.is_desktop_target():
-                engine_libs.insert(1, 'texc')
-                engine_libs.insert(2, 'modelc')
         for lib in engine_libs:
+
+            # No need to rebuild a library if it has already been built
+            if host == self.target_platform:
+                if lib in HOST_LIBS:
+                    continue
+
             if not build_private.is_library_supported(target_platform, lib):
                 continue
             self._build_engine_lib(args, lib, target_platform)
+
         self._build_engine_lib(args, 'extender', target_platform, dir = 'share')
         if not self.skip_docs:
             self.build_docs()
@@ -1158,7 +1152,7 @@ class Configuration(object):
                     ['x86_64-linux', 'x86_64-linux'],
                     ['x86_64-macos', 'x86_64-macos'],
                     ['arm64-macos', 'arm64-macos']]:
-            luajit_path = join(cwd, '../../packages/luajit-2.1.0-633f265-%s.tar.gz' % (plf[0]))
+            luajit_path = join(cwd, '../../packages/luajit-2.1.0-6c4826f-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
@@ -2009,6 +2003,7 @@ class Configuration(object):
                       '%s/build_tools' % self.defold,
                       '%s/ext/lib/python' % self.dynamo_home]
         env['PYTHONPATH'] = os.path.pathsep.join(pythonpaths)
+        env['PYTHONIOENCODING'] = 'UTF-8'
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
         env['DYNAMO_HOME'] = self.dynamo_home

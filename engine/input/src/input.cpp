@@ -113,9 +113,9 @@ namespace dmInput
         }
     }
 
-    static GamepadConfig* GetGamepadConfigFromDeviceName(HBinding binding, const uint32_t device_hash)
+    static GamepadConfig* GetGamepadConfigFromDeviceName(HBinding binding, const uint32_t device_name_hash)
     {
-        GamepadConfig* config = binding->m_Context->m_GamepadMaps.Get(device_hash);
+        GamepadConfig* config = binding->m_Context->m_GamepadMaps.Get(device_name_hash);
         if (config == 0x0)
         {
             config = binding->m_Context->m_GamepadMaps.Get(UNKNOWN_GAMEPAD_CONFIG_ID);

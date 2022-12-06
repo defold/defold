@@ -148,11 +148,11 @@
           go-id     (test-util/resource-node project "/game_object/test.go")
           script-id (test-util/resource-node project "/script/props.script")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-      (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] []))
-      (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
+      (collection/add-referenced-collection! parent-id (test-util/resource workspace "/collection/test.collection") "child" [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] [] select-fn)
+      (collection/add-referenced-game-object! coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
       (is (nil? (test-util/outline coll-id [0 0])))
       (let [inst (first (test-util/selection app-view))]
-        (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script") select-fn)
+        (game-object/add-referenced-component! go-id (test-util/resource workspace "/script/props.script") select-fn)
         (let [parent-comp (:node-id (test-util/outline parent-id [0 0 0]))
               coll-comp (:node-id (test-util/outline coll-id [0 0]))
               go-comp (:node-id (test-util/outline go-id [0]))]
@@ -190,11 +190,10 @@
     (let [parent-id (test-util/resource-node project "/collection/parent.collection")
           coll-id   (test-util/resource-node project "/collection/test.collection")
           go-id     (test-util/resource-node project "/game_object/test.go")
-          script-id (test-util/resource-node project "/script/props.script")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-      (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] []))
-      (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
-      (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script") select-fn)
+      (collection/add-referenced-collection! parent-id (test-util/resource workspace "/collection/test.collection") "child" [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] [] select-fn)
+      (collection/add-referenced-game-object! coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
+      (game-object/add-referenced-component! go-id (test-util/resource workspace "/script/props.script") select-fn)
       (testing "component id should only be editable on the game object including the component"
         (let [go-comp (:node-id (test-util/outline go-id [0]))
               coll-comp (:node-id (test-util/outline coll-id [0 0]))
@@ -235,7 +234,7 @@
       (testing "collection ref instance"
                (is (not (build-error? coll-id)))
                (let [res (workspace/resolve-workspace-resource workspace "/collection/test.collection")]
-                 (g/transact (collection/add-collection-instance coll-id res "coll" [0 0 0] [0 0 0 1] [1 1 1] []))
+                 (collection/add-referenced-collection! coll-id res "coll" [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] [] nil)
                  (let [inst-id (:node-id (test-util/outline coll-id [0]))]
                    (is (nil? (test-util/prop-error inst-id :path)))
                    (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
@@ -258,10 +257,10 @@
       (.build)))
 
 (deftest component-ddf-scale
-  (letfn [(make-components! [game-object sprite-resource atlas-resource app-view]
+  (letfn [(make-components! [game-object sprite-resource atlas-resource]
             (let [sprite-resource-type (resource/resource-type sprite-resource)
-                  embedded-component (test-util/add-embedded-component! app-view sprite-resource-type game-object)
-                  referenced-component (test-util/add-referenced-component! app-view sprite-resource game-object)]
+                  embedded-component (test-util/add-embedded-component! game-object sprite-resource-type)
+                  referenced-component (test-util/add-referenced-component! game-object sprite-resource)]
               (test-util/prop! embedded-component :image atlas-resource)
               (test-util/prop! embedded-component :default-animation "logo")
               [embedded-component referenced-component]))
@@ -351,7 +350,7 @@
 
           (testing "Components in game object."
             (let [game-object (project/get-resource-node project game-object-resource)
-                  [embedded-component referenced-component] (make-components! game-object sprite-resource atlas-resource app-view)]
+                  [embedded-component referenced-component] (make-components! game-object sprite-resource atlas-resource)]
               (test-unscaled embedded-component referenced-component)
               (test-unscaled-saved-pb (game-object-saved-pb game-object))
               (with-open [_ (test-util/build! game-object)]
@@ -363,9 +362,9 @@
 
           (testing "Components in game object embedded inside collection."
             (let [collection (project/get-resource-node project collection-resource)
-                  game-object-instance (test-util/add-embedded-game-object! app-view project collection)
-                  game-object (test-util/to-game-object-id game-object-instance)
-                  [embedded-component referenced-component] (make-components! game-object sprite-resource atlas-resource app-view)]
+                  game-object-instance (test-util/add-embedded-game-object! collection)
+                  game-object (test-util/to-game-object-node-id game-object-instance)
+                  [embedded-component referenced-component] (make-components! game-object sprite-resource atlas-resource)]
               (test-unscaled embedded-component referenced-component)
               (test-unscaled-saved-pb (collection-game-object-saved-pb collection 0))
               (with-open [_ (test-util/build! collection)]
@@ -378,9 +377,9 @@
           (testing "Components in child game object embedded inside collection."
             (let [collection (project/get-resource-node project collection-resource)
                   game-object-instance (:node-id (test-util/outline collection [0]))
-                  child-game-object-instance (test-util/add-embedded-game-object! app-view project collection game-object-instance)
-                  child-game-object (test-util/to-game-object-id child-game-object-instance)
-                  [embedded-component referenced-component] (make-components! child-game-object sprite-resource atlas-resource app-view)]
+                  child-game-object-instance (test-util/add-embedded-game-object! collection game-object-instance)
+                  child-game-object (test-util/to-game-object-node-id child-game-object-instance)
+                  [embedded-component referenced-component] (make-components! child-game-object sprite-resource atlas-resource)]
               (test-unscaled embedded-component referenced-component)
               (test-unscaled-saved-pb (collection-game-object-saved-pb collection 1))
               (with-open [_ (test-util/build! collection)]

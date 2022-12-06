@@ -233,6 +233,11 @@
                (inc counter))
         result))))
 
+(defn- parse-quat-euler [s]
+  (let [v (parse-vec s 4)
+        q (Quat4d. (double-array v))]
+    (math/quat->euler q)))
+
 (defn- ->decl [keys]
   (into {} (map (fn [k] [k (transient [])]) keys)))
 
@@ -583,14 +588,34 @@
 (defmethod go-prop-value->clj-value [:property-type-vector4 g/Num]  [_ _ go-prop-value _] (first (parse-vec go-prop-value 1)))
 (defmethod go-prop-value->clj-value [:property-type-vector4 t/Vec3] [_ _ go-prop-value _] (parse-vec go-prop-value 3))
 (defmethod go-prop-value->clj-value [:property-type-vector4 t/Vec4] [_ _ go-prop-value _] (parse-vec go-prop-value 4))
-
-(defmethod go-prop-value->clj-value [:property-type-quat t/Vec3] [_ _ go-prop-value _]
-  (let [v (parse-vec go-prop-value 4)
-        q (Quat4d. (double-array v))]
-    (math/quat->euler q)))
+(defmethod go-prop-value->clj-value [:property-type-quat t/Vec3]    [_ _ go-prop-value _] (parse-quat-euler go-prop-value))
 
 (defmethod go-prop-value->clj-value [:property-type-hash resource/Resource] [_ _ go-prop-value workspace]
   (workspace/resolve-workspace-resource workspace go-prop-value))
+
+(defn property-desc->resource [property-desc proj-path->resource]
+  ;; This is not strictly correct. We cannot distinguish between a resource
+  ;; property and other properties backed by hashed strings without looking at
+  ;; the property declaration in the originating .script file.
+  (case (:type property-desc)
+    :property-type-hash (proj-path->resource (:value property-desc))
+    nil))
+
+(defn property-desc->clj-value [property-desc proj-path->resource]
+  ;; This is not strictly correct. We cannot know the expected type without
+  ;; looking at the property declaration in the originating .script file.
+  (let [go-prop-value (:value property-desc)]
+    (case (:type property-desc)
+      :property-type-boolean (Boolean/parseBoolean go-prop-value)
+      :property-type-number (parse-num go-prop-value)
+      :property-type-vector3 (parse-vec go-prop-value 3)
+      :property-type-vector4 (parse-vec go-prop-value 4)
+      :property-type-quat (parse-quat-euler go-prop-value)
+      :property-type-hash (or (proj-path->resource go-prop-value) go-prop-value)
+      go-prop-value)))
+
+(defn property-desc->go-prop [property-desc proj-path->resource]
+  (assoc property-desc :clj-value (property-desc->clj-value property-desc proj-path->resource)))
 
 (defmulti sanitize-go-prop-value (fn [go-prop-type _go-prop-value] go-prop-type))
 (defmethod sanitize-go-prop-value :default [_go-prop-type go-prop-value]
@@ -613,9 +638,9 @@
         property-desc))))
 
 (defn- apply-property-override [workspace id-mapping prop-kw prop property-desc]
-  ;; This can be used with raw PropertyDescs in map format. However, we decorate
-  ;; these with a :clj-value field when they enter the graph, so if that is
-  ;; already present we don't attempt conversion here.
+  ;; This can be used with raw GameObject$PropertyDescs in map format. However,
+  ;; we decorate these with a :clj-value field when they enter the graph, so if
+  ;; that is already present we don't attempt conversion here.
   (let [clj-value-entry (find property-desc :clj-value)
         clj-value (if (some? clj-value-entry)
                     (val clj-value-entry)
@@ -630,7 +655,7 @@
 
 (defn apply-property-overrides
   "Returns transaction steps that applies the overrides from the supplied
-  PropertyDescs in map format to the specified node."
+  GameObject$PropertyDescs in map format to the specified node."
   [workspace id-mapping overridable-properties property-descs]
   (assert (sequential? property-descs))
   (when (seq overridable-properties)
@@ -656,64 +681,58 @@
   the go-props with the final BuildResource references once equivalent
   build-targets have been fused.
 
-  The term `go-prop` is used to describe a protobuf PropertyDesc in map format
-  with an additional :clj-value field that contains a more sophisticated
-  representation of the :value. For example, the :value might be a string path,
-  but the :clj-value is a Resource."
-  [resource-property-build-targets go-props-with-source-resources]
-  ;; Create a map that will be used to locate the build target that was produced
-  ;; from a specific resource in the project. Embedded resources (i.e. MemoryResources)
-  ;; are excluded from the map, since these have no source path in the project,
-  ;; and it should not be possible for another resource to reference them.
-  (let [build-targets-by-source-proj-path
-        (into {}
-              (keep (fn [build-target]
-                      (when-some [source-resource (-> build-target :resource :resource)]
-                        [(resource/proj-path source-resource) build-target])))
-              (flatten resource-property-build-targets))]
-    (loop [go-props-with-source-resources go-props-with-source-resources
-           go-props-with-build-resources (transient [])
-           dep-build-targets (transient [])
-           seen-dep-build-resource-paths #{}]
-      (if-some [go-prop (first go-props-with-source-resources)]
-        (do
-          (assert (go-prop? go-prop))
-          (let [clj-value (:clj-value go-prop)
+  The term `go-prop` is used to describe a protobuf GameObject$PropertyDesc in
+  map format with an additional :clj-value field that contains a more
+  sophisticated representation of the :value. For example, the :value might be a
+  string path, but the :clj-value is a Resource."
+  [proj-path->resource-property-build-target go-props-with-source-resources]
+  (loop [go-props-with-source-resources go-props-with-source-resources
+         go-props-with-build-resources (transient [])
+         dep-build-targets (transient [])
+         seen-dep-build-resource-paths #{}]
+    (if-some [go-prop (first go-props-with-source-resources)]
+      (do
+        (assert (go-prop? go-prop))
+        (let [clj-value (:clj-value go-prop)
 
-                dep-build-target
-                (when (resource/resource? clj-value)
-                  (or (build-targets-by-source-proj-path (resource/proj-path clj-value))
+              dep-build-target
+              (when (resource/resource? clj-value)
+                (or (proj-path->resource-property-build-target (resource/proj-path clj-value))
 
-                      ;; If this fails, it is likely because the collection of
-                      ;; resource-property-build-targets supplied to this
-                      ;; function does not include a resource that is referenced
-                      ;; by one of the properties. This typically means that
-                      ;; you've forgotten to connect a dependent build target to
-                      ;; an array input in the graph.
-                      (throw (ex-info (str "unable to resolve build target from value "
-                                           (pr-str clj-value))
-                                      {:property (:id go-prop)
-                                       :resource-reference clj-value}))))
+                    ;; If this fails, it is likely because the collection of
+                    ;; resource-property-build-targets supplied to this
+                    ;; function does not include a resource that is referenced
+                    ;; by one of the properties. This typically means that
+                    ;; you've forgotten to connect a dependent build target to
+                    ;; an array input in the graph.
+                    (throw (ex-info (str "unable to resolve build target from value "
+                                         (pr-str clj-value))
+                                    {:property (:id go-prop)
+                                     :resource-reference clj-value}))))
 
-                build-resource (some-> dep-build-target :resource)
-                build-resource-path (some-> build-resource resource/proj-path)
-                go-prop (if (nil? build-resource)
-                          go-prop
-                          (assoc go-prop
-                            :clj-value build-resource
-                            :value build-resource-path))]
-            (recur (next go-props-with-source-resources)
-                   (conj! go-props-with-build-resources go-prop)
-                   (if (and (some? dep-build-target)
-                            (not (contains? seen-dep-build-resource-paths
-                                            build-resource-path)))
-                     (conj! dep-build-targets dep-build-target)
-                     dep-build-targets)
-                   (if (some? build-resource-path)
-                     (conj seen-dep-build-resource-paths build-resource-path)
-                     seen-dep-build-resource-paths))))
-        [(persistent! go-props-with-build-resources)
-         (persistent! dep-build-targets)]))))
+              build-resource (some-> dep-build-target :resource)
+              build-resource-path (some-> build-resource resource/proj-path)
+              go-prop (cond-> go-prop
+
+                              (and (contains? go-prop :error)
+                                   (nil? (:error go-prop)))
+                              (dissoc :error)
+
+                              (some? build-resource)
+                              (assoc :clj-value build-resource
+                                     :value build-resource-path))]
+          (recur (next go-props-with-source-resources)
+                 (conj! go-props-with-build-resources go-prop)
+                 (if (and (some? dep-build-target)
+                          (not (contains? seen-dep-build-resource-paths
+                                          build-resource-path)))
+                   (conj! dep-build-targets dep-build-target)
+                   dep-build-targets)
+                 (if (some? build-resource-path)
+                   (conj seen-dep-build-resource-paths build-resource-path)
+                   seen-dep-build-resource-paths))))
+      [(persistent! go-props-with-build-resources)
+       (persistent! dep-build-targets)])))
 
 (defn build-go-props
   "Typically called from a :build-fn provided by a build-target. Takes a

@@ -13,6 +13,7 @@ def configure(conf):
 
 def build(bld):
     dirs = ['animationset/*',
+            'buffer/*',
             'camera/*',
             'collection_proxy/*',
             'collision_object/*',

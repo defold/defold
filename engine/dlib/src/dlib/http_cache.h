@@ -146,6 +146,13 @@ namespace dmHttpCache
     Result Add(HCache cache, HCacheCreator cache_creator, const void* content, uint32_t content_len);
 
     /**
+     * Set cache entry as erroneous
+     * @param cache cache
+     * @param cache_creator cache creator handle
+     */
+    void SetError(HCache cache, HCacheCreator cache_creator);
+
+    /**
      * End cache entry creation
      * @param cache cache
      * @param cache_creator cache creator handle

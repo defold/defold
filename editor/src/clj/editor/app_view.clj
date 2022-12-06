@@ -66,6 +66,7 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
+            [editor.sync :as sync]
             [editor.system :as system]
             [editor.targets :as targets]
             [editor.types :as types]
@@ -511,9 +512,10 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :preferences :global
-  (run [workspace prefs]
+  (run [workspace prefs app-view]
     (prefs-dialog/open-prefs prefs)
-    (workspace/update-build-settings! workspace prefs)))
+    (workspace/update-build-settings! workspace prefs)
+    (ui/invalidate-menubar-item! ::file)))
 
 (defn- collect-resources [{:keys [children] :as resource}]
   (if (empty? children)
@@ -639,8 +641,36 @@
 (defn- report-build-launch-progress! [message]
   (render-main-task-progress! (progress/make message)))
 
-(defn clear-build-launch-progress! []
+(defn- clear-build-launch-progress! []
   (render-main-task-progress! progress/done))
+
+(def ^:private build-in-progress-atom (atom false))
+
+(defn- build-in-progress? []
+  @build-in-progress-atom)
+
+(defn- async-reload-on-app-focus? [prefs]
+  (prefs/get-prefs prefs "external-changes-load-on-app-focus" true))
+
+(defn- can-async-reload? []
+  (and (disk-availability/available?)
+       (not (build-in-progress?))
+       (not (sync/sync-dialog-open?))))
+
+(defn async-reload!
+  [app-view changes-view workspace moved-files]
+  (let [render-reload-progress! (make-render-task-progress :resource-sync)]
+    (disk/async-reload! render-reload-progress! workspace moved-files changes-view
+                        (fn [_success]
+                          (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))
+
+(defn handle-application-focused! [app-view changes-view workspace prefs]
+  (when (and (disk-availability/available?)
+             (not (build-in-progress?)))
+    (clear-build-launch-progress!))
+  (when (and (async-reload-on-app-focus? prefs)
+             (can-async-reload?))
+    (async-reload! app-view changes-view workspace [])))
 
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
@@ -688,11 +718,6 @@
     (catch Exception e
       (report-build-launch-progress! "Reboot failed")
       (throw e))))
-
-(def ^:private build-in-progress-atom (atom false))
-
-(defn build-in-progress? []
-  @build-in-progress-atom)
 
 (defn- on-launched-hook! [project process url]
   (let [hook-options {:exception-policy :ignore :opts {:url url}}]
@@ -1311,6 +1336,9 @@ If you do not specifically require different script states, consider changing th
                {:label "Open"
                 :id ::open
                 :command :open}
+               {:label "Load External Changes"
+                :id ::async-reload
+                :command :async-reload}
                {:label "Synchronize..."
                 :id ::synchronize
                 :command :synchronize}
@@ -1737,7 +1765,10 @@ If you do not specifically require different script states, consider changing th
            (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
                  tab-panes (.getItems editor-tabs-split)
                  open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
-                 view-type (if (g/node-value resource-node :editable?) view-type text-view-type)
+                 view-type (if (and (= :code (:id view-type))
+                                    (not (g/node-value resource-node :editable)))
+                             text-view-type
+                             view-type)
                  make-view-fn (:make-view-fn view-type)
                  ^Tab tab (or (some #(when (and (= (tab->resource-node %) resource-node)
                                                 (= view-type (ui/user-data % ::view-type)))
@@ -1888,6 +1919,11 @@ If you do not specifically require different script states, consider changing th
                              (when successful?
                                (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))))
 
+(handler/defhandler :async-reload :global
+  (active? [prefs] (not (async-reload-on-app-focus? prefs)))
+  (enabled? [] (can-async-reload?))
+  (run [app-view changes-view workspace] (async-reload! app-view changes-view workspace [])))
+
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection evaluation-context]
            (context-resource app-view selection evaluation-context))
@@ -2022,7 +2058,7 @@ If you do not specifically require different script states, consider changing th
         filter-term-atom (atom prev-filter-term)
         selected-resources (resource-dialog/make workspace project
                                                  (cond-> {:title "Open Assets"
-                                                          :accept-fn resource/editable-resource?
+                                                          :accept-fn resource/editor-openable-resource?
                                                           :selection :multiple
                                                           :ok-label "Open"
                                                           :filter-atom filter-term-atom

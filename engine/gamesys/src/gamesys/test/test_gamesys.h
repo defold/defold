@@ -108,7 +108,6 @@ protected:
     dmGameSystem::FactoryContext m_FactoryContext;
     dmGameSystem::CollectionFactoryContext m_CollectionFactoryContext;
     dmGameSystem::ModelContext m_ModelContext;
-    dmGameSystem::MeshContext m_MeshContext;
     dmGameSystem::LabelContext m_LabelContext;
     dmGameSystem::TilemapContext m_TilemapContext;
     dmGameSystem::SoundContext m_SoundContext;
@@ -214,6 +213,12 @@ class ComponentFailTest : public GamesysTest<const char*>
 {
 public:
     virtual ~ComponentFailTest() {}
+};
+
+class BufferMetadataTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~BufferMetadataTest() {}
 };
 
 struct FactoryTestParams
@@ -473,10 +478,6 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
 
-    m_MeshContext.m_RenderContext = m_RenderContext;
-    m_MeshContext.m_Factory       = m_Factory;
-    m_MeshContext.m_MaxMeshCount  = 128;
-
     dmBuffer::NewContext(); // ???
 
     m_SoundContext.m_MaxComponentCount = 32;
@@ -502,7 +503,7 @@ void GamesysTest<T>::SetUp()
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
-                                                                                                    &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
+                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
 
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
     //dmGameObject::SortComponentTypes(m_Register);
@@ -542,6 +543,7 @@ void GamesysTest<T>::TearDown()
 
     GameSystemTest_PlatformExit();
 }
+
 
 // Specific test class for testing dmBuffers in scripts
 class ScriptBufferTest : public jc_test_base_class

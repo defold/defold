@@ -235,6 +235,20 @@
       (.close reader)
       (is (thrown? IOException (.read reader))))))
 
+(deftest lines->string-test
+  (testing "Output equivalence with lines-reader"
+    (are [lines]
+      (= (with-open [reader (data/lines-reader lines)]
+           (slurp reader))
+         (data/lines->string lines))
+
+      []
+      [""]
+      ["" ""]
+      ["first" "second"]
+      ["" "first" "" "second" ""]
+      ["" "" "first" "" "" "second" "" ""])))
+
 (deftest guess-indent-type-test
   (are [expected lines]
     (= expected (data/guess-indent-type lines 4))

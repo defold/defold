@@ -342,54 +342,46 @@ union SaveLoadBuffer
         return 1;
     }
 
-    /*# get config value
-     * Get config value from the game.project configuration file.
-     *
-     * In addition to the project file, configuration values can also be passed
-     * to the runtime as command line arguments with the `--config` argument.
-     *
-     * @name sys.get_config
-     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @return value [type:string] config value as a string. nil if the config key doesn't exists
-     * @examples
-     *
-     * Get display width
-     *
-     * ```lua
-     * local width = tonumber(sys.get_config("display.width"))
-     * ```
-     *
-     * Start the engine with a bootstrap config override and a custom config value
-     *
-     * ```
-     * $ mygame --config=bootstrap.main_collection=/mytest.collectionc --config=mygame.testmode=1
-     * ```
-     *
-     * Set and read a custom config value
-     *
-     * ```lua
-     * local testmode = tonumber(sys.get_config("mygame.testmode"))
-     * ```
-     */
+    static dmConfigFile::HConfig GetConfigFile(lua_State* L)
+    {
+        HContext context = dmScript::GetScriptContext(L);
+        if (context)
+        {
+            return context->m_ConfigFile;
+        }
+        return 0;
+    }
 
-    /*# get config value with default value
-     * Get config value from the game.project configuration file with default value
+    /*# get string config value with optional default value
+     * Get string config value from the game.project configuration file with optional default value
      *
-     * @name sys.get_config
+     * @name sys.get_config_string
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
-     * @param default_value [type:string] default value to return if the value does not exist
-     * @return value [type:string] config value as a string. default_value if the config key does not exist
+     * @param [default_value] [type:string] (optional) default value to return if the value does not exist
+     * @return value [type:string] config value as a string. default_value if the config key does not exist. nil if no default value was supplied.
      * @examples
      *
      * Get user config value
      *
      * ```lua
-     * local speed = tonumber(sys.get_config("my_game.speed", "10.23"))
+     * local text = sys.get_config_string("my_game.text", "default text"))
+     * ```
+     *
+     * Start the engine with a bootstrap config override and add a custom config value
+     *
+     * ```
+     * $ dmengine --config=bootstrap.main_collection=/mytest.collectionc --config=mygame.testmode=1
+     * ```
+     *
+     * Read the custom config value from the command line
+     *
+     * ```lua
+     * local testmode = sys.get_config_int("mygame.testmode")
      * ```
      */
-    int Sys_GetConfig(lua_State* L)
+    static int Sys_GetConfigString(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 1);
 
         const char* key = luaL_checkstring(L, 1);
         const char* default_value = 0;
@@ -398,31 +390,101 @@ union SaveLoadBuffer
             default_value = lua_tostring(L, 2);
         }
 
-        HContext context = dmScript::GetScriptContext(L);
-
-        dmConfigFile::HConfig config_file = 0;
-        if (context)
-        {
-            config_file = context->m_ConfigFile;
-        }
-
-        const char* value;
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
         if (config_file)
-            value = dmConfigFile::GetString(config_file, key, default_value);
-        else
-            value = 0;
-
-        if (value)
         {
+            const char* value = dmConfigFile::GetString(config_file, key, default_value);
             lua_pushstring(L, value);
         }
         else
         {
             lua_pushnil(L);
         }
+        return 1;
+    }
 
-        assert(top + 1 == lua_gettop(L));
+    /*# get integer config value with optional default value
+     * Get integer config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_int
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:integer] (optional) default value to return if the value does not exist
+     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. nil if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local speed = sys.get_config_int("my_game.speed", 20) -- with default value
+     * ```
+     *
+     * ```lua
+     * local testmode = sys.get_config_int("my_game.testmode") -- without default value
+     * if testmode ~= nil then
+     *     -- do stuff
+     * end
+     * ```
+     */
+    static int Sys_GetConfigInt(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
 
+        const char* key = luaL_checkstring(L, 1);
+        int default_value = 0;
+        if (!lua_isnil(L, 2))
+        {
+            default_value = luaL_checkinteger(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            int value = dmConfigFile::GetInt(config_file, key, default_value);
+            lua_pushinteger(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
+    /*# get number config value with optional default value
+     * Get number config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_number
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:number] (optional) default value to return if the value does not exist
+     * @return value [type:number] config value as an number. default_value if the config key does not exist. nil if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local speed = sys.get_config_float("my_game.speed", 20.0)
+     * ```
+     */
+    static int Sys_GetConfigNumber(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const char* key = luaL_checkstring(L, 1);
+        float default_value = 0;
+        if (!lua_isnil(L, 2))
+        {
+            default_value = luaL_checknumber(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            float value = dmConfigFile::GetFloat(config_file, key, default_value);
+            lua_pushnumber(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
         return 1;
     }
 
@@ -539,7 +601,7 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
-     * @param options [type:table] (optional) options table
+     * @param [options] [type:table] optional options table
      * - ignore_secure [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
      * @return sys_info [type:table] table with system information in the following fields:
      *
@@ -1252,7 +1314,10 @@ union SaveLoadBuffer
         {"save", Sys_Save},
         {"load", Sys_Load},
         {"get_save_file", Sys_GetSaveFile},
-        {"get_config", Sys_GetConfig},
+        {"get_config", Sys_GetConfigString}, // deprecated
+        {"get_config_string", Sys_GetConfigString},
+        {"get_config_int", Sys_GetConfigInt},
+        {"get_config_number", Sys_GetConfigNumber},
         {"open_url", Sys_OpenURL},
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},

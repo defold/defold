@@ -32,15 +32,11 @@
   (or (instance? Named value)
       (string? value)))
 
-(defn- ignored-key? [value]
-  (and (instance? Named value)
-       (= "digest-ignored" (namespace value))))
-
 (defn- node-id-key? [value]
   (and (named? value)
        (string/ends-with? (name value) "node-id")))
 
-(defn- node-id-entry? [key value]
+(defn node-id-entry? [key value]
   (and (g/node-id? value)
        (node-id-key? key)))
 
@@ -51,7 +47,7 @@
     (throw (ex-info (str "Unknown node id in digestable: " node-id)
                     {:node-id node-id}))))
 
-(defn- fn->symbol [fn]
+(defn fn->symbol [fn]
   (let [class-name (.getName (class fn))]
     (if (re-find #"__\d+$" class-name)
       (throw (ex-info (str "Lambda function in digestable: " class-name)
@@ -85,12 +81,11 @@
     (digest-tagged! tag-sym (resource/resource-hash resource) writer)))
 
 (defn- digest-map-entry! [[key value] ^Writer writer]
-  (when-not (ignored-key? key)
-    (digest! key writer)
-    (digest-raw! " " writer)
-    (if (node-id-entry? key value)
-      (digest-tagged! 'Node (node-id-data-representation value) writer)
-      (digest! value writer))))
+  (digest! key writer)
+  (digest-raw! " " writer)
+  (if (node-id-entry? key value)
+    (digest-tagged! 'Node (node-id-data-representation value) writer)
+    (digest! value writer)))
 
 (defn- digest-map! [coll writer]
   (let [sorted-sequence (if (sorted? coll) coll (sort-by key coll))]

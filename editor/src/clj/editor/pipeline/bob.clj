@@ -38,14 +38,20 @@
     [org.apache.commons.io FilenameUtils]
     [org.apache.commons.io.output WriterOutputStream]))
 
-(try
+(set! *warn-on-reflection* true)
+
+(defn set-verbose-logging! [enable]
   (doto (.getDeclaredField Bob "verbose")
     (.setAccessible true)
-    (.setBoolean nil true))
-  (catch Exception e
-    (throw (Exception. "Couldn't make Bob verbose" e))))
+    (.setBoolean nil enable)))
 
-(set! *warn-on-reflection* true)
+;; Disable verbose logging in Bob by default. Doing this here will let us know
+;; if the verbose field is no longer in Bob. We enable verbose logging while a
+;; Bob build is in progress, but disable it otherwise because it can be a lot.
+(try
+  (set-verbose-logging! false)
+  (catch Exception e
+    (throw (ex-info "Failed to set verbose logging field in Bob." {} e))))
 
 (def skip-dirs #{".git" "build/default" ".internal"})
 (def html5-url-prefix "/html5")
@@ -157,7 +163,18 @@
     (catch Exception e
       {:exception e})))
 
-(def ^:private build-in-progress-atom (atom false))
+(defonce ^:private build-in-progress-atom
+  (add-watch
+    (atom false)
+    ::build-in-progress-watch
+    (fn build-in-progress-watch-fn [_ _ _ new-state]
+      (try
+        (set-verbose-logging! new-state)
+        (catch Exception _
+          ;; We can safely ignore any errors here since we've already
+          ;; thrown an exception in case we're unable to change it to
+          ;; false at the top of this file.
+          nil)))))
 
 (defn build-in-progress? []
   @build-in-progress-atom)
@@ -193,7 +210,7 @@
         (System/setOut build-out)
         (System/setErr build-err)
         (if (and (some #(= "build" %) bob-commands)
-                 (native-extensions/has-extensions? project evaluation-context)
+                 (native-extensions/has-engine-extensions? project evaluation-context)
                  (not (native-extensions/supported-platform? (get bob-args "platform"))))
           {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
           (let [ws (project/workspace project evaluation-context)
@@ -201,8 +218,9 @@
                 bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
             (doseq [[key val] bob-args]
               (.setOption bob-project key val))
-            (doseq [header (string/split-lines build-server-headers)]
-              (.addBuildServerHeader bob-project header))
+            (when-not (string/blank? build-server-headers)
+              (doseq [header (string/split-lines build-server-headers)]
+                (.addBuildServerHeader bob-project header)))
             (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
             (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
               (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]

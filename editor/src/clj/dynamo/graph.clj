@@ -153,15 +153,18 @@
   "
   ([txs]
    (transact nil txs))
-  ([metrics-collector txs]
+  ([opts txs]
    (when *tps-debug*
      (send-off tps-counter tick (System/nanoTime)))
    (let [system (deref *the-system*)
          basis (is/basis system)
          id-generators (is/id-generators system)
          override-id-generator (is/override-id-generator system)
-         tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator metrics-collector) txs)]
-     (when (= :ok (:status tx-result))
+         metrics-collector (:metrics opts)
+         transaction-context (it/new-transaction-context basis id-generators override-id-generator metrics-collector)
+         tx-result (it/transact* transaction-context txs)]
+     (when (and (not (:dry-run opts))
+                (= :ok (:status tx-result)))
        (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
      tx-result)))
 
@@ -948,25 +951,24 @@
   ([basis type node-id]
    (node-instance*? type (gt/node-by-id-at basis node-id))))
 
-(defn node-instance-of-any*?
-  "Returns true if the node is a member of any of the given types, including
-   their supertypes."
-  [node types]
-  (let [node-type-key (-> node gt/node-type deref :key)]
-    (some? (and node-type-key
-                (some (fn [type]
-                        (let [type-key (:key @type)]
-                          (when (isa? node-type-key type-key)
-                            type)))
-                      types)))))
+(defn node-instance-match*
+  "Returns the first node-type from the provided sequence of node-types that
+  matches the node or one of its supertypes, or nil if no match was found."
+  [node node-types]
+  (when-some [node-type-key (-> node gt/node-type deref :key)]
+    (some (fn [type]
+            (let [type-key (:key @type)]
+              (when (isa? node-type-key type-key)
+                type)))
+          node-types)))
 
-(defn node-instance-of-any?
-  "Returns true if the node is a member of any of the given types, including
-  their supertypes."
-  ([node-id types]
-   (node-instance-of-any? (now) node-id types))
-  ([basis node-id types]
-   (node-instance-of-any*? (gt/node-by-id-at basis node-id) types)))
+(defn node-instance-match
+  "Returns the first node-type from the provided sequence of node-types that
+  matches the node or one of its supertypes, or nil if no match was found."
+  ([node-id node-types]
+   (node-instance-match (now) node-id node-types))
+  ([basis node-id node-types]
+   (node-instance-match* (gt/node-by-id-at basis node-id) node-types)))
 
 ;; ---------------------------------------------------------------------------
 ;; Support for serialization, copy & paste, and drag & drop

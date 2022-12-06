@@ -579,6 +579,8 @@ namespace dmGraphics
     PipelineState GetPipelineState(HContext context);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
+
+    uint32_t GetTextureFormatBitsPerPixel(TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
 
@@ -609,6 +611,8 @@ namespace dmGraphics
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit, HTexture texture);
     uint32_t GetMaxTextureSize(HContext context);
+    uint16_t GetMipmapSize(uint16_t size_0, uint8_t mipmap);
+    uint8_t GetMipmapCount(uint16_t size);
 
     /**
      * Get status of texture.

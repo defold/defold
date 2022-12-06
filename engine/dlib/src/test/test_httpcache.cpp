@@ -169,6 +169,37 @@ TEST_F(dmHttpCacheTest, Simple)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 }
 
+TEST_F(dmHttpCacheTest, SetError)
+{
+    dmHttpCache::HCache cache;
+    dmHttpCache::NewParams params;
+    params.m_Path = "tmp/cache";
+    dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+
+    // Start cache entry creation
+    dmHttpCache::HCacheCreator cache_creator;
+    r = dmHttpCache::Begin(cache, "uri", "etag", 0, &cache_creator);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    r = dmHttpCache::Add(cache, cache_creator, "data", strlen("data"));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    // Raise an error
+    dmHttpCache::SetError(cache, cache_creator);
+    // Finish cache entry creation, which due to the error will not generate
+    // a cache entry
+    r = dmHttpCache::End(cache, cache_creator);
+    ASSERT_EQ(dmHttpCache::RESULT_IO_ERROR, r);
+
+    // Check that there is no stored etag
+    char tag_buffer[16];
+    r = dmHttpCache::GetETag(cache, "uri", tag_buffer, sizeof(tag_buffer));
+    ASSERT_EQ(dmHttpCache::RESULT_NO_ENTRY, r);
+
+    // Free
+    r = dmHttpCache::Close(cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+}
+
 TEST_F(dmHttpCacheTest, MaxAge)
 {
     dmHttpCache::HCache cache;

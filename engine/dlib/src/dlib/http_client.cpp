@@ -967,6 +967,10 @@ bail:
 
             if (response.m_CacheCreator)
             {
+                if (r != RESULT_OK)
+                {
+                    dmHttpCache::SetError(client->m_HttpCache, response.m_CacheCreator);
+                }
                 dmHttpCache::End(client->m_HttpCache, response.m_CacheCreator);
                 response.m_CacheCreator = 0;
             }
