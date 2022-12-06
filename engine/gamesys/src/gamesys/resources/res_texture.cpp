@@ -103,7 +103,7 @@ namespace dmGameSystem
                 // Note: Requesting an upload of a specific mipmap level is only done in the resource.set_texture function,
                 //       which doesn't support any format that needs to be transcoded. So we should not hit this assert
                 //       but we'll leave this assert as a mental reminder that we need to fix it at some point if we want to support that.
-                assert(!specific_mip_requested);
+                // assert(!specific_mip_requested);
 
                 num_mips = MAX_MIPMAP_COUNT;
                 output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
@@ -199,19 +199,34 @@ namespace dmGameSystem
             // -> See script_resource.cpp::SetTexture
             if (specific_mip_requested)
             {
-                // Note: We don't support transcoded data for uploading specific mipmaps yet
-                assert(image_desc->m_DecompressedData[0] == 0);
-                params.m_Data     = &image->m_Data[image->m_MipMapOffset[0]];
-                params.m_DataSize = image->m_MipMapSize[0];
+                if (image_desc->m_DecompressedData[0] == 0)
+                {
+                    params.m_Data     = &image->m_Data[image->m_MipMapOffset[0]];
+                    params.m_DataSize = image->m_MipMapSize[0];
+                }
+                else
+                {
+                    params.m_Data     = image_desc->m_DecompressedData[0];
+                    params.m_DataSize = image_desc->m_DecompressedDataSize[0];
+                }
                 dmGraphics::SetTextureAsync(texture, params);
             }
             else
             {
                 for (uint32_t i = 0; i < num_mips; ++i)
                 {
+                    if (image_desc->m_DecompressedData[i] == 0)
+                    {
+                        params.m_Data     = &image->m_Data[image->m_MipMapOffset[i]];
+                        params.m_DataSize = image->m_MipMapSize[i];
+                    }
+                    else
+                    {
+                        params.m_Data     = image_desc->m_DecompressedData[i];
+                        params.m_DataSize = image_desc->m_DecompressedDataSize[i];
+                    }
+
                     params.m_MipMap   = i;
-                    params.m_Data     = image_desc->m_DecompressedData[i] == 0 ? &image->m_Data[image->m_MipMapOffset[i]] : image_desc->m_DecompressedData[i];
-                    params.m_DataSize = image_desc->m_DecompressedData[i] == 0 ? image->m_MipMapSize[i] : image_desc->m_DecompressedDataSize[i];
                     dmGraphics::SetTextureAsync(texture, params);
 
                     params.m_Width >>= 1;

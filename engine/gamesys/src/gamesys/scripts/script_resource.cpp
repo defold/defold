@@ -476,7 +476,7 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
     return CheckTableValue<float>(L, index, name, default_value);
 }
 
-static int GraphicsTextureFormatToImageFormat(int textureformat)
+static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(int textureformat)
 {
     switch(textureformat)
     {
@@ -488,12 +488,14 @@ static int GraphicsTextureFormatToImageFormat(int textureformat)
         case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
         case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1;
+        case dmGraphics::TEXTURE_FORMAT_RGB_BC1:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_BC1;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_BC3;
     };
-    assert(false);
-    return -1;
+    dmLogError("Unsupported texture format (%d)", textureformat);
+    return (dmGraphics::TextureImage::TextureFormat) -1;
 }
 
-static int GraphicsTextureTypeToImageType(int texturetype)
+static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(int texturetype)
 {
     if (texturetype == dmGraphics::TEXTURE_TYPE_2D)
     {
@@ -503,8 +505,8 @@ static int GraphicsTextureTypeToImageType(int texturetype)
     {
         return dmGraphics::TextureImage::TYPE_CUBEMAP;
     }
-    assert(false);
-    return -1;
+    dmLogError("Unsupported texture type (%d)", texturetype);
+    return (dmGraphics::TextureImage::Type) -1;
 }
 
 static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp,
@@ -643,11 +645,11 @@ static int CreateTexture(lua_State* L)
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    uint32_t type        = (uint32_t) CheckTableInteger(L, 2, "type");
-    uint32_t width       = (uint32_t) CheckTableInteger(L, 2, "width");
-    uint32_t height      = (uint32_t) CheckTableInteger(L, 2, "height");
-    uint32_t format      = (uint32_t) CheckTableInteger(L, 2, "format");
-    uint32_t max_mipmaps = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+    uint32_t type             = (uint32_t) CheckTableInteger(L, 2, "type");
+    uint32_t width            = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height           = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t format           = (uint32_t) CheckTableInteger(L, 2, "format");
+    uint32_t max_mipmaps      = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
 
     uint8_t max_mipmaps_actual = dmGraphics::GetMipmapCount(dmMath::Max(width, height));
 
@@ -661,8 +663,8 @@ static int CreateTexture(lua_State* L)
     // Max mipmap count is inclusive, so need at least 1
     max_mipmaps                                        = dmMath::Max((uint32_t) 1, max_mipmaps);
     uint32_t tex_bpp                                   = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
-    dmGraphics::TextureImage::Type tex_type            = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
-    dmGraphics::TextureImage::TextureFormat tex_format = (dmGraphics::TextureImage::TextureFormat) GraphicsTextureFormatToImageFormat(format);
+    dmGraphics::TextureImage::Type tex_type            = GraphicsTextureTypeToImageType(type);
+    dmGraphics::TextureImage::TextureFormat tex_format = GraphicsTextureFormatToImageFormat(format);
     dmGraphics::TextureImage texture_image             = {};
     MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, &texture_image);
 
@@ -691,7 +693,7 @@ static int CreateTexture(lua_State* L)
 /*# release a resource
  * Release a resource.
  *
- * @warning This is a potentially dangerous operation, releasing resources currently being used can cause unexpected behaviour.
+ * @note This is a potentially dangerous operation, releasing resources currently being used can cause unexpected behaviour.
  *
  * @name resource.release
  *
@@ -831,6 +833,8 @@ static int SetTexture(lua_State* L)
     int32_t x       = (int32_t)  CheckTableInteger(L, 2, "x", DEFAULT_INT_NOT_SET);
     int32_t y       = (int32_t)  CheckTableInteger(L, 2, "y", DEFAULT_INT_NOT_SET);
 
+    dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
+
     bool sub_update = x != DEFAULT_INT_NOT_SET || y != DEFAULT_INT_NOT_SET;
     x               = dmMath::Max(0, x);
     y               = dmMath::Max(0, y);
@@ -845,14 +849,14 @@ static int SetTexture(lua_State* L)
     dmGraphics::TextureImage texture_image = {};
     texture_image.m_Alternatives.m_Data    = &image;
     texture_image.m_Alternatives.m_Count   = 1;
-    texture_image.m_Type                   = (dmGraphics::TextureImage::Type) GraphicsTextureTypeToImageType(type);
+    texture_image.m_Type                   = GraphicsTextureTypeToImageType(type);
 
     image.m_Width                = width;
     image.m_Height               = height;
     image.m_OriginalWidth        = width;
     image.m_OriginalHeight       = height;
-    image.m_Format               = (dmGraphics::TextureImage::TextureFormat)GraphicsTextureFormatToImageFormat(format);
-    image.m_CompressionType      = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+    image.m_Format               = GraphicsTextureFormatToImageFormat(format);
+    image.m_CompressionType      = compression_type;
     image.m_CompressionFlags     = 0;
     image.m_Data.m_Data          = data;
     image.m_Data.m_Count         = datasize;
@@ -1964,6 +1968,16 @@ static void LuaInit(lua_State* L)
     SETGRAPHICSCONSTANT(TEXTURE_FORMAT_RGBA_BC7);
 
 #undef SETGRAPHICSCONSTANT
+
+
+#define SETCOMPRESSIONTYPE(name) \
+    lua_pushnumber(L, (lua_Number) dmGraphics::TextureImage:: name); \
+    lua_setfield(L, -2, #name);
+
+    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_UASTC);
+    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_ETC1S);
+
+#undef SETCOMPRESSIONTYPE
 
 #define SETCONSTANT(name, val) \
         lua_pushnumber(L, (lua_Number) val); \
