@@ -28,6 +28,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/intersection.h>
 #include <gameobject/gameobject_ddf.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -739,6 +740,91 @@ namespace dmGameSystem
         }
     }
 
+
+    template <typename T>
+    static void MetadataAabbToPoints(const T* data, dmBuffer::ValueType valueType, dmVMath::Vector3& minPoint, dmVMath::Vector3& maxPoint) {
+        minPoint = Vector3(data[0], data[1], data[2]);
+        maxPoint = Vector3(data[3], data[4], data[5]);
+    }
+
+    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
+    {
+        DM_PROFILE("Mesh");
+
+        MeshWorld* mesh_world = (MeshWorld*)params.m_UserData;
+
+
+        const dmIntersection::Frustum frustum = *params.m_Frustum;
+        uint32_t num_entries = params.m_NumEntries;
+        for (uint32_t i = 0; i < num_entries; ++i)
+        {
+            dmRender::RenderListEntry* entry = &params.m_Entries[i];
+            MeshComponent* component_p = (MeshComponent*)entry->m_UserData;
+
+            dmGameSystem::BufferResource* br = GetVerticesBuffer(component_p, component_p->m_Resource);
+            dmVMath::Vector3 boundsMin, boundsMax;
+
+            void* data;
+            uint32_t count;
+            dmBuffer::ValueType valueType;
+            dmBuffer::Result r = dmBuffer::GetMetaData(br->m_Buffer, dmHashString64("AABB"), &data, &count, &valueType );
+            if (r == dmBuffer::RESULT_METADATA_MISSING) {
+                // no bounding box available - no culling
+                entry->m_Visibility = dmRender::VISIBILITY_FULL; // TODO - or shall we just "continue"
+                continue;
+            } else
+            if (r != dmBuffer::RESULT_OK) {
+                dmLogError("Error getting AABB for mesh buffer");
+                continue;
+            }
+
+            switch (valueType) {
+                case dmBuffer::VALUE_TYPE_FLOAT32:
+                    MetadataAabbToPoints((float*)data, valueType, boundsMin, boundsMax);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT8:
+                    MetadataAabbToPoints((uint8_t*)data, valueType, boundsMin, boundsMax);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT16:
+                    MetadataAabbToPoints((uint16_t*)data, valueType, boundsMin, boundsMax);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT32:
+                    MetadataAabbToPoints((uint32_t*)data, valueType, boundsMin, boundsMax);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT64:
+                    MetadataAabbToPoints((uint64_t*)data, valueType, boundsMin, boundsMax);
+                break;
+                case dmBuffer::VALUE_TYPE_INT8:
+                    MetadataAabbToPoints((int8_t*)data, valueType, boundsMin, boundsMax);
+                break;
+                case dmBuffer::VALUE_TYPE_INT16:
+                    MetadataAabbToPoints((int16_t*)data, valueType, boundsMin, boundsMax);
+                break;
+                case dmBuffer::VALUE_TYPE_INT32:
+                    MetadataAabbToPoints((int32_t*)data, valueType, boundsMin, boundsMax);
+                break;
+                case dmBuffer::VALUE_TYPE_INT64:
+                    MetadataAabbToPoints((int64_t*)data, valueType, boundsMin, boundsMax);
+                break;
+                default:
+                    dmLogError("Invalid typeValue in buffer metadata");
+                    continue;
+
+            }
+
+            bool intersect = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax, false);
+
+            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+            if (entry->m_Visibility == dmRender::VISIBILITY_NONE) {
+                dmLogError("culled!");
+            } else
+                dmLogError("NOT culled!");
+
+        }
+
+    }
+
+
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         MeshWorld *world = (MeshWorld *) params.m_UserData;
@@ -785,7 +871,7 @@ namespace dmGameSystem
 
         // Prepare list submit
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < count; ++i)
