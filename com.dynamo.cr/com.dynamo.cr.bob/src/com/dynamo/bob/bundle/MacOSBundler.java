@@ -88,7 +88,6 @@ public class MacOSBundler implements IBundler {
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled)
             throws IOException, CompileExceptionError {
 
-        final Platform platform = Platform.Arm64MacOS; // Default platform
         final List<Platform> architectures = Platform.getArchitecturesFromString(project.option("architectures", ""), platform);
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
