@@ -516,7 +516,8 @@ static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(int texture
 
 static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmaps, uint8_t bitspp,
     dmGraphics::TextureImage::Type type, dmGraphics::TextureImage::TextureFormat format,
-    dmGraphics::TextureImage::CompressionType compression_type, dmGraphics::TextureImage* texture_image)
+    dmGraphics::TextureImage::CompressionType compression_type, dmBuffer::HBuffer texture_buffer,
+    dmGraphics::TextureImage* texture_image)
 {
     uint32_t* mip_map_sizes   = new uint32_t[max_mipmaps];
     uint32_t* mip_map_offsets = new uint32_t[max_mipmaps];
@@ -537,7 +538,20 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
 
     data_size                *= layer_count;
     uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
-    uint8_t* image_data       = new uint8_t[image_data_size];
+    uint8_t* image_data       = 0;
+
+    if (texture_buffer)
+    {
+        uint8_t* data     = 0;
+        uint32_t datasize = 0;
+        dmBuffer::GetBytes(texture_buffer, (void**)&data, &datasize);
+        image_data      = data;
+        image_data_size = datasize;
+    }
+    else
+    {
+        image_data = new uint8_t[image_data_size];
+    }
 
     dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
     texture_image->m_Alternatives.m_Data   = image;
@@ -560,14 +574,15 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
     image->m_MipMapSize.m_Count   = max_mipmaps;
 }
 
-static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
+static void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data)
 {
     for (int i = 0; i < texture_image.m_Alternatives.m_Count; ++i)
     {
         dmGraphics::TextureImage::Image& image = texture_image.m_Alternatives.m_Data[i];
         delete[] image.m_MipMapOffset.m_Data;
         delete[] image.m_MipMapSize.m_Data;
-        delete[] image.m_Data.m_Data;
+        if (destroy_image_data)
+            delete[] image.m_Data.m_Data;
     }
     delete[] texture_image.m_Alternatives.m_Data;
 }
@@ -617,6 +632,15 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
+ *
+ * `compression_type`
+ * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
+ * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ *
+ * - `COMPRESSION_TYPE_DEFAULT`
+ * - `COMPRESSION_TYPE_BASIS_UASTC`
+ *
+ * @param buffer [type:buffer] optional buffer of precreated pixel data
  *
  * @return path [type:hash] The path to the resource.
  *
@@ -679,13 +703,22 @@ static int CreateTexture(lua_State* L)
         max_mipmaps = max_mipmaps_actual;
     }
 
+    dmBuffer::HBuffer buffer = 0;
+    if (dmScript::IsBuffer(L, 3))
+    {
+        // If a buffer has been passed in we can optionally support compression type
+        dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
+        buffer                         = l_buffer->m_Buffer;
+        compression_type               = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
+    }
+
     // Max mipmap count is inclusive, so need at least 1
     max_mipmaps                                        = dmMath::Max((uint32_t) 1, max_mipmaps);
     uint32_t tex_bpp                                   = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
     dmGraphics::TextureImage::Type tex_type            = GraphicsTextureTypeToImageType(type);
     dmGraphics::TextureImage::TextureFormat tex_format = GraphicsTextureFormatToImageFormat(format);
     dmGraphics::TextureImage texture_image             = {};
-    MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, compression_type, &texture_image);
+    MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, compression_type, buffer, &texture_image);
 
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
@@ -694,7 +727,7 @@ static int CreateTexture(lua_State* L)
     void* resource = 0x0;
     dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
 
-    DestroyTextureImage(texture_image);
+    DestroyTextureImage(texture_image, buffer == 0);
 
     if (res != dmResource::RESULT_OK)
     {
