@@ -83,7 +83,7 @@ namespace dmGameSystem
         world->m_Entries.SetCapacity(max_instances);
         world->m_Entries.SetSize(max_instances);
         world->m_EntryIndices.SetCapacity(max_instances);
-        memset(&world->m_Entries.Front(), 0, max_instances * sizeof(PlayEntry));
+        memset(world->m_Entries.Begin(), 0, max_instances * sizeof(PlayEntry));
 
         world->m_Components.SetCapacity(comp_count);
 

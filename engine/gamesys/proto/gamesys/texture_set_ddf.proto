@@ -75,9 +75,12 @@ message TextureSet
     // Maps animation frames to geometry index
     repeated uint32 frame_indices           = 22;
 
+    // A hash of the texture name/path
+    optional uint64 texture_hash            = 23;
+
     // Maps animation frames to atlas page index
-    repeated uint32 page_indices            = 23;
+    repeated uint32 page_indices            = 24;
 
     // Max number of pages this texture set was generated with
-    optional uint32 max_page_count          = 24;
+    optional uint32 max_page_count          = 25;
 }

@@ -566,8 +566,8 @@ namespace dmEngine
         char* qoe_s = dmSys::GetEnv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 
-        char project_file[DMPATH_MAX_PATH];
-        char project_file_uri[DMPATH_MAX_PATH];
+        char project_file[DMPATH_MAX_PATH] = "";
+        char project_file_uri[DMPATH_MAX_PATH] = "";
         char project_file_folder[DMPATH_MAX_PATH] = ".";
         bool loaded_ok = false;
 

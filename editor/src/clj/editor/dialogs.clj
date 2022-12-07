@@ -182,6 +182,12 @@
         :variant :borderless
         :editable false)))
 
+(def ^String indented-bullet
+  ;; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+  "\u00A0\u00A0\u2022\u00A0")
+
+(def indent-with-bullet (partial str indented-bullet))
+
 (defn make-info-dialog
   "Shows a dialog with selectable text content and blocks current thread until
   user closes it.

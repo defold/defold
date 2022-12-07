@@ -40,6 +40,9 @@ import javax.vecmath.Vector4d;
 
 import org.apache.commons.io.IOUtils;
 
+import com.defold.extension.pipeline.ILuaObfuscator;
+import com.defold.extension.pipeline.ILuaPreprocessor;
+
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.Project;
@@ -71,7 +74,8 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
-    private static List<LuaBuilderPlugin> luaBuilderPlugins = null;
+    private static List<ILuaPreprocessor> luaPreprocessors = null;
+    private static List<ILuaObfuscator> luaObfuscators = null;
 
     private Map<String, LuaScanner> luaScanners = new HashMap();
 
@@ -90,16 +94,21 @@ public abstract class LuaBuilder extends Builder<Void> {
             final byte[] scriptBytes = resource.getContent();
             String script = new String(scriptBytes, "UTF-8");
 
-            // create and apply builder plugind if some exists
-            luaBuilderPlugins = PluginScanner.getOrCreatePlugins("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
-            if (luaBuilderPlugins != null) {
-                for (LuaBuilderPlugin luaBuilderPlugin : luaBuilderPlugins) {
-                    try {
-                        script = luaBuilderPlugin.create(path, script, variant);
-                    }
-                    catch(Exception e) {
-                        throw new CompileExceptionError(resource, 0, "Unable to run Lua builder plugin", e);
-                    }
+            // Create and run preprocessors if some exists.
+            if (luaPreprocessors == null) {
+                luaPreprocessors = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaPreprocessor.class);
+
+                if (luaPreprocessors == null) {
+                    luaPreprocessors = new ArrayList<ILuaPreprocessor>(0);
+                }
+            }
+
+            for (ILuaPreprocessor luaPreprocessor : luaPreprocessors) {
+                try {
+                    script = luaPreprocessor.preprocess(script, path, variant);
+                }
+                catch (Exception e) {
+                    throw new CompileExceptionError(resource, 0, "Unable to run Lua preprocessor", e);
                 }
             }
 
@@ -404,15 +413,25 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
 
-        // create and apply a builder plugin if one exists
-        if (luaBuilderPlugins != null) {
-            for (LuaBuilderPlugin luaBuilderPlugin : luaBuilderPlugins) {
-                try {
-                    script = luaBuilderPlugin.build(script);
-                }
-                catch(Exception e) {
-                    throw new CompileExceptionError(task.input(0), 0, "Unable to run Lua builder plugin", e);
-                }
+        // Create and run obfuscators if some exists.
+        if (luaObfuscators == null) {
+            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
+
+            if (luaObfuscators == null) {
+                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
+            }
+        }
+
+        final IResource sourceResource = task.input(0);
+        final String sourcePath = sourceResource.getAbsPath();
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+
+        for (ILuaObfuscator luaObfuscator : luaObfuscators) {
+            try {
+                script = luaObfuscator.obfuscate(script, sourcePath, variant);
+            }
+            catch (Exception e) {
+                throw new CompileExceptionError(sourceResource, 0, "Unable to run Lua obfuscator", e);
             }
         }
 
