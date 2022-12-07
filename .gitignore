@@ -5,6 +5,8 @@
 .lock-waf*
 /share/ext/build
 /share/ext/download
+/share/ext/tremolo/tmp/
+/share/ext/protobuf/cross_tmp/
 /share/extender/build
 /go/pkg
 /go/bin
@@ -50,3 +52,7 @@ external/**/build/
 editor/resources/splash.css
 editor/.calva/output-window/output.calva-repl
 editor/.lsp/sqlite.db
+
+#build_external
+/packages/bullet-2.77/
+/packages/lib/
