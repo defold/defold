@@ -607,14 +607,34 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool de
  * : [type:number] The width of the texture (in pixels)
  *
  * `format`
- * : [type:number] The texture format. Supported values:
+ * : [type:number] The texture format, note that some of these formats are platform specific. Supported values:
  *
  * - `resource.TEXTURE_FORMAT_LUMINANCE`
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_ETC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `resource.TEXTURE_FORMAT_RGB_BC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC3`
+ * - `resource.TEXTURE_FORMAT_R_BC4`
+ * - `resource.TEXTURE_FORMAT_RG_BC5`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC7`
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
+ *
+ * `compression_type`
+ * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
+ * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ *
+ * - `COMPRESSION_TYPE_DEFAULT`
+ * - `COMPRESSION_TYPE_BASIS_UASTC`
+ * - `COMPRESSION_TYPE_BASIS_ETC1S`
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
  *
@@ -669,7 +689,7 @@ static int CreateTexture(lua_State* L)
     uint32_t format           = (uint32_t) CheckTableInteger(L, 2, "format");
     uint32_t max_mipmaps      = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
 
-    dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
+    dmGraphics::TextureImage::CompressionType compression_type = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
     uint8_t max_mipmaps_actual = dmGraphics::GetMipmapCount(dmMath::Max(width, height));
 
     if (max_mipmaps > max_mipmaps_actual)
@@ -682,8 +702,10 @@ static int CreateTexture(lua_State* L)
     dmBuffer::HBuffer buffer = 0;
     if (dmScript::IsBuffer(L, 3))
     {
+        // If a buffer has been passed in we can optionally support compression type
         dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
-        buffer = l_buffer->m_Buffer;
+        buffer                         = l_buffer->m_Buffer;
+        compression_type               = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
     }
 
     // Max mipmap count is inclusive, so need at least 1
@@ -774,6 +796,18 @@ static int ReleaseResource(lua_State* L)
  * - `resource.TEXTURE_FORMAT_LUMINANCE`
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_ETC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `resource.TEXTURE_FORMAT_RGB_BC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC3`
+ * - `resource.TEXTURE_FORMAT_R_BC4`
+ * - `resource.TEXTURE_FORMAT_RG_BC5`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC7`
  *
  * `x`
  * : [type:number] optional x offset of the texture (in pixels)
@@ -783,6 +817,13 @@ static int ReleaseResource(lua_State* L)
  *
  * `mipmap`
  * : [type:number] optional mipmap to upload the data to
+ *
+ * `compression_type`
+ * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ *
+ * - `COMPRESSION_TYPE_DEFAULT`
+ * - `COMPRESSION_TYPE_BASIS_UASTC`
+ * - `COMPRESSION_TYPE_BASIS_ETC1S`
  *
  * @param buffer [type:buffer] The buffer of precreated pixel data
  *
@@ -1908,6 +1949,90 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
+/*# RGB_PVRTC_2BPPV1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
+ * @variable
+ */
+
+/*# RGB_PVRTC_4BPPV1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
+ * @variable
+ */
+
+/*# RGBA_PVRTC_2BPPV1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
+ * @variable
+ */
+
+/*# RGBA_PVRTC_4BPPV1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
+ * @variable
+ */
+
+/*# RGB_ETC1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB_ETC1
+ * @variable
+ */
+
+/*# RGBA_ETC2 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_ETC2
+ * @variable
+ */
+
+/*# RGBA_ASTC_4x4 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_ASTC_4x4
+ * @variable
+ */
+
+/*# RGB_BC1 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGB_BC1
+ * @variable
+ */
+
+/*# RGBA_BC3 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_BC3
+ * @variable
+ */
+
+/*# R_BC4 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_R_BC4
+ * @variable
+ */
+
+/*# RG_BC5 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RG_BC5
+ * @variable
+ */
+
+/*# RGBA_BC7 type texture format
+ *
+ * @name resource.TEXTURE_FORMAT_RGBA_BC7
+ * @variable
+ */
+
+/*# BASIS_UASTC compression type
+ *
+ * @name resource.COMPRESSION_TYPE_BASIS_UASTC
+ * @variable
+ */
+
+/*# BASIS_ETC1S compression type
+ *
+ * @name resource.COMPRESSION_TYPE_BASIS_ETC1S
+ * @variable
+ */
+
  /*# LIVEUPDATE_OK
  *
  * @name resource.LIVEUPDATE_OK
@@ -2000,6 +2125,7 @@ static void LuaInit(lua_State* L)
     lua_pushnumber(L, (lua_Number) dmGraphics::TextureImage:: name); \
     lua_setfield(L, -2, #name);
 
+    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_DEFAULT);
     SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_UASTC);
     SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_ETC1S);
 

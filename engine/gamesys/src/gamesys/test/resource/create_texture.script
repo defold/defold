@@ -31,8 +31,22 @@ local tparams = {
 	format         = resource.TEXTURE_FORMAT_RGBA,
 }
 
+local args_compressed = {
+	type             = resource.TEXTURE_TYPE_2D,
+	width            = 32,
+	height           = 32,
+	format           = resource.TEXTURE_FORMAT_RGB_ETC1,
+	compression_type = resource.COMPRESSION_TYPE_BASIS_UASTC,
+}
+
 function test_simple()
 	local t_id = resource.create_texture("/test_simple.texturec", tparams)
+	go.set("#model", "texture0", t_id)
+end
+
+function test_with_buffer()
+	local tex_buffer = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+	local t_id = resource.create_texture("/test_with_buffer.texturec", tparams, tex_buffer)
 	go.set("#model", "texture0", t_id)
 end
 
@@ -60,6 +74,28 @@ function test_release_not_found()
 	end)
 end
 
+function test_compressed()
+	local f     = io.open("src/gamesys/test/resource/blank.basis", "rb")
+    local c     = f:read("*all")
+    local fsize = f:seek("end")
+    f:close()
+
+    local tex_buffer = buffer.create(fsize, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
+	local stream     = buffer.get_stream(tex_buffer, hash("data"))
+
+	for i=1, fsize do
+		stream[i] = c:byte(i)
+	end
+
+    resource.create_texture("/test_compressed.texturec", args_compressed, tex_buffer)
+end
+
+function test_compressed_fail()
+	-- Note: res_texture won't yield an error here, we need to check the result of this operation on the C side
+	local tex_buffer = buffer.create(128, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 1 }})
+	resource.create_texture("/test_compressed_fail.texturec", args_compressed, tex_buffer)
+end
+
 function update(self)
 	self.update_counter = self.update_counter + 1
 
@@ -68,7 +104,9 @@ function update(self)
 		test_release,
 		test_wrong_ext,
 		test_already_exist,
-		test_release_not_found
+		test_release_not_found,
+		test_compressed,
+		test_compressed_fail,
 	}
 
 	tests[self.update_counter]()

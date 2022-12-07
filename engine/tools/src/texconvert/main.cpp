@@ -125,8 +125,8 @@ void PrintEncodeParams(EncodeParams params)
     printf("Compression type  : %s\n", GetArgTypeName(params.m_CompressionType, g_ct_lut));
     printf("Compression level : %s\n", GetArgTypeName(params.m_CompressionLevel, g_cl_lut));
     printf("PreMultiplyAlpha  : %s\n", YES_NO_LABEL(params.m_PremultiplyAlpha));
-    printf("Flip-x            : %s\n", YES_NO_LABEL(params.m_FlipY));
-    printf("Flip-y            : %s\n", YES_NO_LABEL(params.m_FlipX));
+    printf("Flip-x            : %s\n", YES_NO_LABEL(params.m_FlipX));
+    printf("Flip-y            : %s\n", YES_NO_LABEL(params.m_FlipY));
     printf("Mipmaps           : %s\n", YES_NO_LABEL(params.m_MipMaps));
 #undef YES_NO_LABEL
 }

@@ -100,11 +100,6 @@ namespace dmGameSystem
 
             if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
             {
-                // Note: Requesting an upload of a specific mipmap level is only done in the resource.set_texture function,
-                //       which doesn't support any format that needs to be transcoded. So we should not hit this assert
-                //       but we'll leave this assert as a mental reminder that we need to fix it at some point if we want to support that.
-                // assert(!specific_mip_requested);
-
                 num_mips = MAX_MIPMAP_COUNT;
                 output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
                 bool result = dmGraphics::Transcode(path, image, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips);
