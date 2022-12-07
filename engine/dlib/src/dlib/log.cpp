@@ -35,6 +35,9 @@
 #ifdef ANDROID
 #include <android/log.h>
 #endif
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
 
 namespace dmLog
 {
@@ -269,7 +272,7 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
         __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
 
 // iOS
-#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
+#elif TARGET_OS_IOS==1
         dmLog::__ios_log_print(severity, output);
 #endif
 
