@@ -618,15 +618,6 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
  *
- * `compression_type`
- * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
- * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
- *
- * - `COMPRESSION_TYPE_DEFAULT`
- * - `COMPRESSION_TYPE_BASIS_UASTC`
- *
- * @param buffer [type:buffer] optional buffer of precreated pixel data
- *
  * @return path [type:hash] The path to the resource.
  *
  * @examples
