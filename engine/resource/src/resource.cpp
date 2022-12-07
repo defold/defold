@@ -1289,6 +1289,18 @@ Result Get(HFactory factory, const char* name, void** resource)
     return r;
 }
 
+Result Get(HFactory factory, dmhash_t name, void** resource)
+{
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, name);
+    if (!rd)
+    {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+    dmResource::IncRef(factory, rd->m_Resource);
+    *resource = rd->m_Resource;
+    return RESULT_OK;
+}
+
 SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)
 {
     return factory->m_Resources->Get(canonical_path_hash);

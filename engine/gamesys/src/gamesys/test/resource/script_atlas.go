@@ -1,6 +1,6 @@
 components {
-  id: "set_atlas_go"
-  component: "/resource/set_atlas.script"
+  id: "script_atlas"
+  component: "/resource/script_atlas.script"
 }
 
 components {
