@@ -19,11 +19,10 @@
    [editor.gl.protocols :refer [GlBind]]
    [editor.gl.shader :as shader]
    [editor.scene-cache :as scene-cache]
-   [editor.types :as types]
    [internal.util :as util])
   (:import
    [com.jogamp.common.nio Buffers]
-   [java.nio ByteBuffer ByteOrder IntBuffer]
+   [java.nio Buffer ByteBuffer ByteOrder IntBuffer]
    [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
@@ -83,7 +82,7 @@
   (position! [this position])
   (version [this]))
 
-(deftype VertexBuffer [vertex-description usage ^ByteBuffer buf ^{:unsynchronized-mutable true} version]
+(deftype VertexBuffer [vertex-description usage ^Buffer buf ^{:unsynchronized-mutable true} version]
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
   (flipped? [this] (and (= 0 (.position buf))))
@@ -248,8 +247,9 @@
     (vertex-disable-attribs gl attrib-locs))
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
 
-(defn- bind-index-buffer! [^GL2 gl request-id ^"[I" index-buffer]
-  (let [ibo (scene-cache/request-object! ::ibo2 request-id gl index-buffer)]
+(defn- bind-index-buffer! [^GL2 gl request-id ^IntBuffer index-buffer]
+  ;; TODO: Feed in actual version. Perhaps deftype IndexBuffer with IntBuffer + version?
+  (let [ibo (scene-cache/request-object! ::ibo2 request-id gl {:index-buffer index-buffer :version 0})]
     (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)))
 
 (defn- unbind-index-buffer! [^GL2 gl]
@@ -263,7 +263,7 @@
   (unbind [_this gl render-args]
     (unbind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
-(defrecord VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^"[I" index-buffer shader]
+(defrecord VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader]
   GlBind
   (bind [_this gl render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
@@ -274,15 +274,15 @@
     (unbind-index-buffer! gl)))
 
 (defn use-with
-  ([request-id vertex-buffer shader]
+  ([request-id ^VertexBuffer vertex-buffer shader]
    (->VertexBufferShaderLink request-id vertex-buffer shader))
-  ([request-id vertex-buffer ^"[I" index-buffer shader]
+  ([request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader]
    (->VertexIndexBufferShaderLink request-id vertex-buffer index-buffer shader)))
 
 (defn- update-vbo [^GL2 gl [vbo _] data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
   (let [^VertexBuffer vbuf (:vertex-buffer data)
-        ^ByteBuffer buf (.buf vbuf)
+        ^Buffer buf (.buf vbuf)
         shader (:shader data)
         attributes (:attributes (.vertex-description vbuf))
         attrib-locs (vertex-locate-attribs gl shader attributes)]
@@ -301,9 +301,9 @@
 
 (defn- update-ibo [^GL2 gl ibo data]
   (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)
-  (let [int-buffer (IntBuffer/wrap (int-array data))
+  (let [^IntBuffer int-buffer (:index-buffer data)
         count (.remaining int-buffer)
-        size (* count 4)]
+        size (* count Buffers/SIZEOF_INT)]
     (gl/gl-buffer-data ^GL2 gl GL/GL_ELEMENT_ARRAY_BUFFER size int-buffer GL2/GL_STATIC_DRAW))
   ibo)
 
