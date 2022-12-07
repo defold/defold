@@ -30,6 +30,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
@@ -41,6 +43,7 @@ import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
+import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -140,33 +143,18 @@ public class ArchiveBuilder {
         }
     }
 
-    // Checks if any of the parents are excluded
-    // Parents are sorted, deepest parent first, root parent last
-    public boolean isTreeExcluded(List<String> parents, List<String> excludedResources) {
-        for (String parent : parents) {
-            if (excludedResources.contains(parent))
-                return true;
-        }
-        return false;
-    }
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory,
+                        Set<String> excludedResources, List<ArchiveResources> archives) throws IOException, CompileExceptionError {
 
-    public boolean excludeResource(String filepath, List<String> excludedResources) {
-        boolean result = false;
-        if (this.manifestBuilder != null) {
-            List<ArrayList<String>> parentChains = this.manifestBuilder.getParentCollections(filepath);
-            for (List<String> parents : parentChains) {
-                boolean excluded = isTreeExcluded(parents, excludedResources);
-                if (!excluded) {
-                    return false; // as long as one tree path requires this resource, we cannot exclude it
-                }
-                result = true;
-            }
-        }
+System.out.printf("\n");
+System.out.printf("ArchiveBuilder.write\n");
 
-        return result;
-    }
+System.out.printf("  excludedResources:\n");
+for (String url : excludedResources) {
+    System.out.printf("    %s\n", url);
+}
+System.out.printf("\n");
 
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
         // INDEX
         archiveIndex.writeInt(VERSION); // Version
         archiveIndex.writeInt(0); // Pad
@@ -217,11 +205,29 @@ public class ArchiveBuilder {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
 
-            // Write resource to data archive
-            if (this.excludeResource(normalisedPath, excludedResources)) {
-                resourceEntryFlags = ResourceEntryFlag.EXCLUDED.getNumber();
-                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, archiveEntryFlags, entry.size);
+            // Write resource to data archive(s)
+
+            boolean isExcluded = excludedResources.contains(normalisedPath);
+
+System.out.printf("%s - %s\n", normalisedPath, isExcluded?"excluded":"");
+
+            if (isExcluded) { // then at least one archive references it
+                for (ArchiveResources archiveResources : archives) {
+                    String archiveName = archiveResources.archiveName;
+
+                    if (archiveResources.contains(normalisedPath)) {
+                        File archiveDir = new File(resourcePackDirectory.toFile(), archiveName);
+System.out.printf("  Writing to archive '%s': %s\n", archiveName, normalisedPath);
+                        this.writeResourcePack(hexDigest, archiveDir.getAbsolutePath(), buffer, archiveEntryFlags, entry.size);
+                    }
+                }
+            }
+
+            System.out.printf("%s - %s\n", normalisedPath, isExcluded?"excluded":"");
+
+            if (isExcluded) {
                 entries.remove(i);
+                resourceEntryFlags = ResourceEntryFlag.EXCLUDED.getNumber();
             } else {
                 alignBuffer(archiveData, this.resourcePadding);
                 entry.resourceOffset = (int) archiveData.getFilePointer();
@@ -290,9 +296,10 @@ public class ArchiveBuilder {
         System.err.println("Usage: ArchiveBuilder <root> <output> [-c] <file> [<file> ...]\n");
         System.err.println("  <root>            - directorypath to root of input files (<file>)");
         System.err.println("  <output>          - filepath for output content.");
-        System.err.println("                      Three files (arci, arcd, dmanifest) will be generated.");
+        System.err.println("                      These files (.arci, .arcd, .dmanifest .public, .private, .manifest_hash) will be generated.");
         System.err.println("  <file>            - filepath relative to <root> of file to build.");
         System.err.println("  -c                - Compress archive (default false).");
+        System.err.println("  -m                - Output manifest hash file (default false).");
         if (message != null) {
             System.err.println("\nError: " + message);
         }
@@ -319,13 +326,10 @@ public class ArchiveBuilder {
         }
 
         boolean doCompress = false;
-        boolean doOutputManifestHashFile = false;
         List<File> inputs = new ArrayList<File>();
         for (int i = 2; i < args.length; ++i) {
             if (args[i].equals("-c")) {
                 doCompress = true;
-            } else if (args[i].equals("-m")) {
-                doOutputManifestHashFile = true;
             } else {
                 File currentInput = new File(args[i]);
                 if (!currentInput.isFile()) {
@@ -342,7 +346,7 @@ public class ArchiveBuilder {
 
         // Create manifest and archive
 
-        ManifestBuilder manifestBuilder = new ManifestBuilder(doOutputManifestHashFile);
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setProjectIdentifier("<anonymous project>");
         manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
@@ -375,7 +379,7 @@ public class ArchiveBuilder {
         }
         System.out.println("Added " + Integer.toString(archivedEntries + excludedEntries) + " entries to archive (" + Integer.toString(excludedEntries) + " entries tagged as 'liveupdate' in archive).");
 
-        manifestBuilder.setRoot(rootNode);
+        //manifestBuilder.setRoot(rootNode);
 
         RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
         RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");
@@ -388,23 +392,15 @@ public class ArchiveBuilder {
             System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-            List<String> excludedResources = new ArrayList<String>();
-            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, new HashSet<String>(), new ArrayList<ArchiveResources>());
             manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
-            byte[] manifestFile = manifestBuilder.buildManifest();
-            outputStreamManifest.write(manifestFile);
 
-            if (doOutputManifestHashFile) {
-                if (filepathManifestHash.exists()) {
-                    filepathManifestHash.delete();
-                    filepathManifestHash.createNewFile();
-                }
-                FileOutputStream manifestHashOutoutStream = new FileOutputStream(filepathManifestHash);
-                manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
-                manifestHashOutoutStream.close();
-            }
+            ManifestData mainManifestData = manifestBuilder.buildManifestData();
+            byte[] mainManifestFileData = manifestBuilder.buildManifestFileByteArray(mainManifestData);
+            outputStreamManifest.write(mainManifestFileData);
+
         } finally {
             FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {

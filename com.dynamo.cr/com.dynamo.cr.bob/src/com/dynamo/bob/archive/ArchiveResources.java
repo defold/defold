@@ -44,10 +44,10 @@ public class ArchiveResources {
     }
 
     // E.g. "this" is Level1, and it is dependent on other, the "common" asset pack
-    private void addIncludeDependency(ArchiveResources other) {
+    public void addIncludeDependency(ArchiveResources other) {
         includeArchives.add(other);
     }
-    private void addExcludeDependency(ArchiveResources other) {
+    public void addExcludeDependency(ArchiveResources other) {
         excludeArchives.add(other);
     }
 
@@ -74,17 +74,19 @@ public class ArchiveResources {
     public void addResource(String url) {
         resources.add(url);
     }
+    public void addResources(Set<String> urls) {
+        resources.addAll(urls);
+    }
     public void addResources(ArchiveResources other) {
         resources.addAll(other.resources);
     }
     public void removeResource(String url) {
         resources.remove(url);
     }
+    public void removeResources(Set<String> urls) {
+        resources.removeAll(urls);
+    }
     public void removeResources(ArchiveResources other) {
         resources.removeAll(other.resources);
     }
-    public void removeResources(Set<String> other) {
-        resources.removeAll(other);
-    }
-
 }

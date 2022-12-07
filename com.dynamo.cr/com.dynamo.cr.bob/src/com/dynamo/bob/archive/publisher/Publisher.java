@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
@@ -27,7 +28,7 @@ import com.dynamo.bob.fs.IResource;
 public abstract class Publisher {
 
     private final PublisherSettings settings;
-    private final Map<String, File> entries = new HashMap<String, File>();
+    private final Map<String, Map<String, File>> entries = new HashMap<>();
     protected String platform = "";
 
     public Publisher(PublisherSettings settings) {
@@ -50,8 +51,12 @@ public abstract class Publisher {
         return this.settings;
     }
 
-    protected final Map<String, File> getEntries() {
-        return this.entries;
+    protected final Set<String> getArchiveNames() {
+        return this.entries.keySet();
+    }
+
+    protected final Map<String, File> getEntries(String archiveName) {
+        return this.entries.get(archiveName);
     }
     
     public String getPlatform() {
@@ -74,8 +79,11 @@ public abstract class Publisher {
         return outputs;
     }
 
-    public final void AddEntry(String hexDigest, File fhandle) {
-        this.entries.put(hexDigest, fhandle);
+    public final void AddEntry(String archiveName, String hexDigest, File fhandle) {
+        if (!this.entries.containsKey(archiveName)) {
+            this.entries.put(archiveName, new HashMap<String, File>());
+        }
+        this.entries.get(archiveName).put(hexDigest, fhandle);
     }
 
 }

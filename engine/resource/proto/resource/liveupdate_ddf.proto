@@ -81,12 +81,12 @@ message ManifestHeader {
 /*
  * An entry that is produced for each resource that is part of the manifest.
  *
- * - url                      : The URL that is used by the engine to identify
- *                              a resource
+ * - url                      : The URL that is used by the engine to identify a resource
+ * - url_hash                 : The URL in hashed for, for faster lookups and efficient storage
  * - hash                     : The hash of the resource data. This is used to
  *                              index each resource in the archive with their
  *                              actual hash.
- * - dependants               : A list of resources (hashes) that are required
+ * - dependants               : A list of resources (path hashes) that are required
  *                              to load the current resource. A Collection that
  *                              is childed to a CollectionProxy is not
  *                              considered a dependant since it is not required
@@ -100,7 +100,7 @@ message ResourceEntry {
     required string             url = 1;
     required uint64             url_hash = 2;
     required HashDigest         hash = 3;
-    repeated uint32             dependants = 4;
+    repeated uint64             dependants = 4;
     required uint32             flags = 5 [default = 0]; // ResourceEntryFlag
 }
 

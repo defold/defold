@@ -25,34 +25,42 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
 
 public class ZipPublisher extends Publisher {
 
-    private File resourcePackZip = null;
     private String projectRoot = null;
+    private String archivePrefix = "";
 
-    public ZipPublisher(String projectRoot, PublisherSettings settings) {
+    public ZipPublisher(String projectRoot, String archivePrefix, PublisherSettings settings) {
         super(settings);
         this.projectRoot = projectRoot;
+        this.archivePrefix = archivePrefix;
     }
 
-    @Override
-    public void Publish() throws CompileExceptionError {
+    private File createArchive(String archiveName) throws CompileExceptionError {
         try {
-            String tempFilePrefix = "defold.resourcepack_" + this.platform + "_";
-            this.resourcePackZip = File.createTempFile(tempFilePrefix, ".zip");
-            FileOutputStream resourcePackOutputStream = new FileOutputStream(this.resourcePackZip);
+            String namePrefix = String.format("%s_%s_%s_", this.archivePrefix, this.platform, archiveName);
+            File zipFile = File.createTempFile(namePrefix, ".zip");
+
+            Bob.verbose("Compressing %s\n", zipFile.getName());
+
+            FileOutputStream resourcePackOutputStream = new FileOutputStream(zipFile);
             ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
             try {
-                for (String hexDigest : this.getEntries().keySet()) {
-                    File fhandle = this.getEntries().get(hexDigest);
+                Map<String, File> entries = this.getEntries(archiveName);
+
+                for (String hexDigest : entries.keySet()) {
+                    File fhandle = entries.get(hexDigest);
+
                     ZipEntry currentEntry = new ZipEntry(fhandle.getName());
                     zipOutputStream.putNextEntry(currentEntry);
 
@@ -74,25 +82,52 @@ public class ZipPublisher extends Publisher {
                 IOUtils.closeQuietly(zipOutputStream);
             }
 
-            File exportFilehandle = new File(this.getPublisherSettings().getZipFilepath(), this.resourcePackZip.getName());
-            if (!exportFilehandle.isAbsolute())
-            {
-                File cwd = new File(this.projectRoot);
-                exportFilehandle = new File(cwd, exportFilehandle.getPath());
-            }
-
-            File parentDir = exportFilehandle.getParentFile();
-            if (!parentDir.exists()) {
-                parentDir.mkdirs();
-            } else if (!parentDir.isDirectory()) {
-                throw new IOException(String.format("'%s' exists, and is not a directory", parentDir));
-            }
-
-            Files.move(this.resourcePackZip.toPath(), exportFilehandle.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            System.out.printf("\nZipPublisher: Wrote '%s'\n", exportFilehandle);
+            return zipFile;
         } catch (IOException exception) {
-            throw new CompileExceptionError("Unable to create zip archive for liveupdate resources: " + exception.getMessage(), exception);
+            throw new CompileExceptionError(String.format("Unable to create zip archive '%s' for liveupdate resources: %s", exception.getMessage()), exception);
         }
+    }
+
+    private void moveFiles(File outputDir, List<File> files) throws CompileExceptionError {
+        try {
+            for (File file : files) {
+                File target = new File(outputDir, file.getName());
+                if (!target.isAbsolute())
+                {
+                    File cwd = new File(this.projectRoot);
+                    target = new File(cwd, target.getPath());
+                }
+
+                File parentDir = target.getParentFile();
+                if (!parentDir.exists()) {
+                    parentDir.mkdirs();
+                } else if (!parentDir.isDirectory()) {
+                    throw new IOException(String.format("'%s' exists, and is not a directory", parentDir));
+                }
+
+                Files.move(file.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                System.out.printf("\nZipPublisher: Wrote '%s'\n", target);
+            }
+        } catch (IOException exception) {
+            throw new CompileExceptionError(String.format("Unable to create zip archive '%s' for liveupdate resources: %s",  exception.getMessage()), exception);
+        }
+    }
+
+    @Override
+    public void Publish() throws CompileExceptionError {
+        List<File> outputArchives = new ArrayList<>();
+
+        for (String archiveName : this.getArchiveNames()) {
+            File archive = createArchive(archiveName);
+            outputArchives.add(archive);
+        }
+
+        File outputDir = new File(this.getPublisherSettings().getZipFilepath());
+        if (!outputDir.isAbsolute()) {
+            File cwd = new File(this.projectRoot);
+            outputDir = new File(cwd, outputDir.getPath());
+        }
+        moveFiles(outputDir, outputArchives);
     }
 
     public List<IResource> getOutputs(IResource input) {

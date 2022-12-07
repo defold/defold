@@ -14,6 +14,8 @@
 
 package com.dynamo.bob.archive.publisher;
 
+import java.io.File;
+import java.util.Map;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
@@ -59,7 +61,12 @@ public class AWSPublisher extends Publisher {
     		throw compileException("AWS Prefix is not specified", null);
     	} else if (this.getPublisherSettings().getAmazonCredentialProfile() == null) {
     		throw compileException("AWS Credential profile is not specified", null);
-    	}
+    	} else if (this.getArchiveNames().size() > 1) {
+            // TODO: Currently we only support 1 live update archive for AWS due to:
+            //      We need to figure out how to store conflicting filenames (i.e. liveupdate.game.dmanifest)
+            //      Assuming they contain different data
+            throw compileException("AWS Credential profile is not specified", null);
+        }
     	
         try {
         	String credentialProfile = this.getPublisherSettings().getAmazonCredentialProfile();
@@ -70,12 +77,15 @@ public class AWSPublisher extends Publisher {
             if (client.doesBucketExist(bucket)) {
                 if (hasWritePermissions(client, bucket)) {
                 	String prefix = this.getPublisherSettings().getAmazonPrefix();
-                    for (String hexDigest : this.getEntries().keySet()) {
-                        String key = (prefix + "/" + hexDigest).replaceAll("//+", "/");
-                        try {
-                        	client.putObject(bucket, key, this.getEntries().get(hexDigest));
-                        } catch (AmazonS3Exception exception) {
-                        	throw amazonException("Unable to upload file, " + exception.getErrorMessage() + ": " + key, exception);
+                    for (String archiveName : this.getArchiveNames()) {
+                        Map<String, File> entries = this.getEntries(archiveName);
+                        for (String hexDigest : entries.keySet()) {
+                            String key = (prefix + "/" + hexDigest).replaceAll("//+", "/");
+                            try {
+                            	client.putObject(bucket, key, entries.get(hexDigest));
+                            } catch (AmazonS3Exception exception) {
+                            	throw amazonException("Unable to upload file, " + exception.getErrorMessage() + ": " + key, exception);
+                            }
                         }
                     }
                 } else {

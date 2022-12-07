@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -282,15 +283,14 @@ public class ManifestBuilder {
     private String privateKeyFilepath = null;
     private String publicKeyFilepath = null;
     private String projectIdentifier = null;
-    private ResourceNode root = null;
-    private boolean outputManifestHash = false;
-    private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
+    private List<ManifestData> manifestData = new ArrayList<>();
+
     private Set<String> excludedResources = new HashSet<>();
-    private HashMap<String, ResourceNode> pathToNode = new HashMap<>();
-    private HashMap<String, List<String>> pathToDependants = new HashMap<>();
-    private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
-    private HashMap<String, List<ResourceNode>> pathToOccurrances = null; // We build it at first request
+    private Map<String, ResourceNode> pathToNode = new HashMap<>();
+    private Map<String, Set<String>> pathToDependants = new HashMap<>();
+    private Map<String, ResourceEntry> urlToResource = new HashMap<>();
+    private Map<String, List<ResourceNode>> pathToOccurrances = null; // We build it at first request
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         // We need to make sure the entries are sorted properly in order to do the binary search
@@ -319,12 +319,8 @@ public class ManifestBuilder {
 
     }
 
-    public ManifestBuilder(boolean outputManifestHash) {
-        this.outputManifestHash = outputManifestHash;
-    }
-
-    public byte[] getManifestDataHash() {
-        return this.manifestDataHash;
+    public List<ManifestData> getManifestData() {
+        return this.manifestData;
     }
 
     public void setResourceHashAlgorithm(HashAlgorithm algorithm) {
@@ -351,12 +347,8 @@ public class ManifestBuilder {
         return this.signatureSignAlgorithm;
     }
 
-    public void setRoot(ResourceNode root) {
-        this.root = root;
-    }
-
-    public ResourceNode getRoot() {
-        return this.root;
+    public void setPathToNodeMap(Map<String, ResourceNode> pathToNode) {
+        this.pathToNode = pathToNode;
     }
 
     public void setPrivateKeyFilepath(String filepath) {
@@ -417,6 +409,14 @@ public class ManifestBuilder {
     private void buildResourceOccurrancesMap(ResourceNode node) {
         // The resource may occur at many instances in the tree
         // This map contains the mapping url -> occurrances (i.e. nodes)
+        // root (node1)
+        //      a.collection (node2)
+        //          s.sprite (node3)
+        //      b.collection (node4)
+        //          s.sprite (node5)
+        // ->
+        //      s.sprite: [node3, node5]
+        //
 
         String key = node.relativeFilepath;
         if (!pathToOccurrances.containsKey(key)) {
@@ -431,42 +431,8 @@ public class ManifestBuilder {
         }
     }
 
-    // Calculate all parent collection paths (to the root) for a resource
-    // Resource could occur multiple times in the tree (referenced from several collections) or several times within the same collection
-    public List<ArrayList<String>> getParentCollections(String filepath) {
-        if (pathToOccurrances == null) {
-            pathToOccurrances = new HashMap<>();
-
-            ResourceNode root = getRoot();
-            if (root != null) // for tests really
-                buildResourceOccurrancesMap(root);
-        }
-
-        List<ArrayList<String>> result = new ArrayList<ArrayList<String>>();
-
-        List<ResourceNode> candidates = pathToOccurrances.get(filepath);
-        if (candidates == null)
-            return result;
-
-        int i = 0;
-        while (!candidates.isEmpty()) {
-            ResourceNode current = candidates.remove(0).getParent();
-            result.add(new ArrayList<String>());
-            while (current != null) {
-                if (current.relativeFilepath.endsWith("collectionproxyc") ||
-                    current.relativeFilepath.endsWith("collectionc")) {
-                    result.get(i).add(current.relativeFilepath);
-                }
-
-                current = current.getParent();
-            }
-            ++i;
-        }
-        return result;
-    }
-
-    public List<String> getDependants(String filepath) throws IOException {
-        /* Once a candidate has been found the children, the children, and so
+    static public Set<ResourceNode> getDependants(ResourceNode node) {
+        /* Once a candidate has been found the children, the grand children, and so
            on are added to the list of dependants. If a CollectionProxy is
            found that resource itself is added to the list of dependants, but
            it is seen as a leaf and the Collection that it points to is ignored.
@@ -477,25 +443,32 @@ public class ManifestBuilder {
            and thus create a partial archive that has to be updated (through
            LiveUpdate) before that CollectionProxy can be loaded.
         */
+        Set<ResourceNode> dependants = new HashSet<>();
+        for (ResourceNode child : node.getChildren()) {
+            dependants.add(child);
 
-        ResourceNode candidate = pathToNode.get(filepath);
+            if (!child.relativeFilepath.endsWith("collectionproxyc")) {
+                dependants.addAll(getDependants(child));
+            }
+        }
+        return dependants;
+    }
 
-        if (candidate == null)
-            return new ArrayList<String>();
-
-        List<String> dependants = pathToDependants.get(filepath);
+    public Set<String> getDependants(String filepath) {
+        Set<String> dependants = pathToDependants.get(filepath);
         if (dependants != null) {
             return dependants;
         }
 
-        dependants = new ArrayList<String>();
+        ResourceNode candidate = pathToNode.get(filepath);
+        if (candidate == null)
+            return new HashSet<String>();
 
-        for (ResourceNode child : candidate.getChildren()) {
-            dependants.add(child.relativeFilepath);
+        dependants = new HashSet<String>();
 
-            if (!child.relativeFilepath.endsWith("collectionproxyc")) {
-                dependants.addAll(getDependants(child.relativeFilepath));
-            }
+        Set<ResourceNode> dependantNodes = ManifestBuilder.getDependants(candidate);
+        for (ResourceNode node : dependantNodes) {
+            dependants.add(node.relativeFilepath);
         }
 
         pathToDependants.put(filepath, dependants);
@@ -521,13 +494,6 @@ public class ManifestBuilder {
         return builder.build();
     }
 
-    private void buildPathToNodeMap(ResourceNode node) {
-        pathToNode.put(node.relativeFilepath, node);
-        for (ResourceNode child : node.getChildren()) {
-            buildPathToNodeMap(child);
-        }
-    }
-
     private void buildUrlToResourceMap(Set<ResourceEntry> entries) throws IOException {
         for (ResourceEntry entry : entries) {
             if (entry.hasHash()) {
@@ -539,12 +505,16 @@ public class ManifestBuilder {
         }
     }
 
-    public void setExcludedResources(List<String> excludedResources) {
+    public void setExcludedResources(Set<String> excludedResources) { // all excluded resources
         this.excludedResources.addAll(excludedResources);
     }
 
+    private boolean isExcludedResource(String url) {
+        return this.excludedResources.contains(url);
+    }
+
     public ManifestData buildManifestData() throws IOException {
-        Bob.verbose("buildManifestData begin\n");
+        Bob.verbose("ManifestBuilder.buildManifestData begin\n");
         long tstart = System.currentTimeMillis();
 
         ManifestData.Builder builder = ManifestData.newBuilder();
@@ -552,17 +522,9 @@ public class ManifestBuilder {
         ManifestHeader manifestHeader = this.buildManifestHeader();
         builder.setHeader(manifestHeader);
 
-        buildPathToNodeMap(getRoot());
         buildUrlToResourceMap(this.resourceEntries);
 
         builder.addAllEngineVersions(this.supportedEngineVersions);
-
-        int resourceIndex = 0;
-        HashMap<String, Integer> resourceToIndex = new HashMap<>(); // at what index is the resource stored?
-        for (ResourceEntry entry : this.resourceEntries) {
-            resourceToIndex.put(entry.getUrl(), resourceIndex);
-            resourceIndex++;
-        }
 
         for (ResourceEntry entry : this.resourceEntries) {
             String url = entry.getUrl();
@@ -571,20 +533,32 @@ public class ManifestBuilder {
             // Since we'll only ever ask collection proxies, we only store those lists
             if (url.endsWith("collectionproxyc"))
             {
-                // We'll only store the dependencies for the excluded collection proxies
-                if (excludedResources.contains(url)) {
-                    List<String> dependants = this.getDependants(url);
+                boolean isExcluded = false;
+                ResourceNode proxyNode = pathToNode.get(url);
+                for (ResourceNode child : proxyNode.getChildren()) {
+                    System.out.printf("child.relativeFilepath: %s\n", child.relativeFilepath);
+                    if (isExcludedResource(child.relativeFilepath)) {
+                        isExcluded = true;
+                        break;
+                    }
+                }
 
+                // We only want store the dependencies for the excluded collection proxies
+                // (no need to keep the full tree at runtime)
+                if (isExcluded) {
+                    System.out.printf("Excluded %s\n", url);
+                    Set<String> dependants = this.getDependants(url);
                     for (String dependant : dependants) {
+
                         ResourceEntry resource = urlToResource.get(dependant);
                         if (resource == null) {
                             continue;
                         }
 
-
-                        int index = resourceToIndex.get(dependant);
-                        resourceEntryBuilder.addDependants(index);
+                        resourceEntryBuilder.addDependants(resource.getUrlHash());
                     }
+
+                    System.out.printf("done (%s)\n", url);
                 }
             }
 
@@ -597,10 +571,45 @@ public class ManifestBuilder {
         return builder.build();
     }
 
-    public ManifestFile buildManifestFile() throws IOException {
+    // Creates a copy of the main manifest data and filters out resources that don't belong to the archive
+    public ManifestData buildArchiveManifestData(ManifestData mainManifestData, String archiveName, Set<String> excludedResources) throws IOException {
+System.out.printf("ManifestBuilder.buildArchiveManifestData %s begin\n", archiveName);
+        long tstart = System.currentTimeMillis();
+
+        ManifestData.Builder builder = ManifestData.newBuilder(mainManifestData);
+
+        Set<Long> resourceHashes = new HashSet<>();
+
+        for (String url : excludedResources) {
+            long url_hash = MurmurHash.hash64(url);
+            System.out.printf("  %s: %d\n", url, url_hash);
+            resourceHashes.add(url_hash);
+        }
+
+        List<ResourceEntry> archiveEntries = new ArrayList<>();
+
+        for (ResourceEntry entry : this.resourceEntries) {
+            if (!resourceHashes.contains(entry.getUrlHash()))
+                continue;
+
+            String url = entry.getUrl();
+            ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
+
+            archiveEntries.add(resourceEntryBuilder.build());
+        }
+        builder.addAllResources(archiveEntries);
+
+        ManifestData data = builder.build();
+
+        long tend = System.currentTimeMillis();
+        Bob.verbose("ManifestBuilder.buildArchiveManifestData took %f\n", (tend-tstart)/1000.0);
+
+        return data;
+    }
+
+    public ManifestFile buildManifestFile(ManifestData manifestData) throws IOException { // public for unit tests only
         ManifestFile.Builder builder = ManifestFile.newBuilder();
 
-        ManifestData manifestData = this.buildManifestData();
         builder.setData(ByteString.copyFrom(manifestData.toByteArray()));
         builder.setArchiveIdentifier(ByteString.copyFrom(this.archiveIdentifier));
         PrivateKey privateKey = null;
@@ -608,9 +617,6 @@ public class ManifestBuilder {
             privateKey = CryptographicOperations.loadPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);
             byte[] signature = CryptographicOperations.sign(manifestData.toByteArray(), this.signatureHashAlgorithm, this.signatureSignAlgorithm, privateKey);
             builder.setSignature(ByteString.copyFrom(signature));
-            if (this.outputManifestHash) {
-                this.manifestDataHash = CryptographicOperations.hash(manifestData.toByteArray(), this.signatureHashAlgorithm);
-            }
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create ManifestFile, hashing algorithm is not supported!");
         } catch (InvalidKeySpecException | InvalidKeyException exception) {
@@ -633,8 +639,7 @@ public class ManifestBuilder {
         return builder.build();
     }
 
-    public byte[] buildManifest() throws IOException {
-        return this.buildManifestFile().toByteArray();
+    public byte[] buildManifestFileByteArray(ManifestData manifestData) throws IOException {
+        return this.buildManifestFile(manifestData).toByteArray();
     }
-
 }

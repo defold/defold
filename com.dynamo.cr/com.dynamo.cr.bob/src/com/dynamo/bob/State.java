@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.HashSet;
 import java.util.ArrayList;
 
 import com.dynamo.bob.fs.IResource;
@@ -86,7 +87,7 @@ public class State implements Serializable {
      * @return list of all excluded collection proxies
      */
     public List<String> getExcludedCollectionProxies() {
-        return excludedCollectionProxies;
+        return new ArrayList<>(new HashSet<>(excludedCollectionProxies));
     }
 
     /**

@@ -501,7 +501,7 @@ public class Project {
         System.out.println(String.format(fmt, args));
     }
 
-    public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
+    public void createPublisher(boolean shouldPublish, String archivePrefix) throws CompileExceptionError {
         try {
             String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
             IResource publisherSettings = this.fileSystem.get(settingsPath);
@@ -521,7 +521,7 @@ public class Project {
                     } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
                         this.publisher = new DefoldPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
-                        this.publisher = new ZipPublisher(getRootDirectory(), settings);
+                        this.publisher = new ZipPublisher(getRootDirectory(), archivePrefix, settings);
                     } else {
                         throw new CompileExceptionError("The publisher specified is not supported", null);
                     }

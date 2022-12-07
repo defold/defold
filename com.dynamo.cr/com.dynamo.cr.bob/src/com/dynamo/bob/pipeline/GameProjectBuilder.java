@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -52,6 +53,7 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ArchiveResources;
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.bundle.BundleHelper;
@@ -63,6 +65,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
+import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.proto.DdfExtensions;
 
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
@@ -82,6 +85,11 @@ import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.Message;
 
+import java.util.Calendar;
+import java.util.Date;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
 
@@ -90,6 +98,17 @@ public class GameProjectBuilder extends Builder<Void> {
         RandomAccessFile file = new RandomAccessFile(handle, "rw");
         file.setLength(0);
         return file;
+    }
+
+    private String getDateAsBuildId() {
+        Date date = Calendar.getInstance().getTime();
+        DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_hhmm");
+        return dateFormat.format(date);
+    }
+
+    private String getArchivePrefix() {
+        // TODO: Potentially control this via the liveupdate.settings
+        return "defold.resourcepack_" + getDateAsBuildId();
     }
 
     @Override
@@ -115,7 +134,8 @@ public class GameProjectBuilder extends Builder<Void> {
         ProtoBuilder.addMessageClass(".texturesetc", TextureSet.class);
 
         boolean shouldPublish = project.option("liveupdate", "false").equals("true");
-        project.createPublisher(shouldPublish);
+
+        project.createPublisher(shouldPublish, getArchivePrefix());
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
                 .setName(params.name())
                 .disableCache()
@@ -194,7 +214,22 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+    private void gatherPublisherResources(String archiveName, File dir) throws IOException {
+        System.out.printf("gatherPublisherResources: %s from %s\n", archiveName, dir);
+
+        if (!dir.isDirectory()) {
+            throw new IOException(String.format("%s is not a directory!\n", dir));
+        }
+        for (File fhandle : dir.listFiles()) {
+        System.out.printf("  %s\n", fhandle);
+            if (fhandle.isFile()) {
+                project.getPublisher().AddEntry(archiveName, fhandle.getName(), fhandle);
+            }
+        }
+    }
+
+    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData,
+        ManifestBuilder manifestBuilder, Set<String> excludedResources, List<ArchiveResources> archives, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         Bob.verbose("GameProjectBuilder.createArchive\n");
         long tstart = System.currentTimeMillis();
@@ -224,18 +259,14 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         TimeProfiler.addData("resources", resources.size());
-        TimeProfiler.addData("excludedResources", excludedResources.size());
 
-        archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+        archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources, archives);
         manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
         archiveIndex.close();
         archiveData.close();
 
-        // Populate publisher with the resource pack
-        for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
-            if (fhandle.isFile()) {
-                project.getPublisher().AddEntry(fhandle.getName(), fhandle);
-            }
+        for (ArchiveResources archive : archives) {
+            gatherPublisherResources(archive.archiveName, new File(resourcePackDirectory.toFile(), archive.archiveName));
         }
 
         long tend = System.currentTimeMillis();
@@ -427,14 +458,21 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResources) throws IOException {
+    private void buildPathToNodeMap(ResourceNode node, Map<String, ResourceNode> pathToNode) {
+        pathToNode.put(node.relativeFilepath, node);
+        for (ResourceNode child : node.getChildren()) {
+            buildPathToNodeMap(child, pathToNode);
+        }
+    }
+
+    private ManifestBuilder prepareManifestBuilder(Map<String, ResourceNode> pathToNode, Set<String> excludedResources) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
         String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
-        manifestBuilder.setRoot(rootNode);
+        manifestBuilder.setPathToNodeMap(pathToNode);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
@@ -522,6 +560,53 @@ public class GameProjectBuilder extends Builder<Void> {
         properties.putStringValue("project", "title_as_file_name", fileNameTitle);
     }
 
+    // Gets all tree nodes down to the .collectionproxyc (they're included)
+    private Set<String> getTreeAsStrings(ResourceNode node) {
+        Set<ResourceNode> dependants = ManifestBuilder.getDependants(node);
+
+        Set<String> out = new HashSet<>();
+        out.add(node.relativeFilepath);
+        for (ResourceNode dep : dependants) {
+            out.add(dep.relativeFilepath);
+        }
+        return out;
+    }
+
+    private void buildArchiveResourceSets(Map<String, ResourceNode> pathToNode, List<ArchiveResources> archives) {
+        // TODO: Verify they don't have cyclic dependencies
+
+        // We assume they're sorted in dependency order.
+        //      The ones with no dependencies first
+        for (ArchiveResources archive : archives) {
+
+            // First, we add all resources
+            for (String url : archive.includes) {
+                Set<String> resources = getTreeAsStrings(pathToNode.get(url));
+                archive.addResources(resources);
+            }
+            for (ArchiveResources includeArchive : archive.includeArchives) {
+                if (includeArchive.archiveName == archive.archiveName) {
+                    System.err.printf("Archive %s references itself!\n", archive.archiveName);
+                    continue;
+                }
+                archive.addResources(includeArchive.resources);
+            }
+
+            // Now, we remove the specified resources
+            for (String url : archive.excludes) {
+                Set<String> resources = getTreeAsStrings(pathToNode.get(url));
+                archive.removeResources(resources);
+            }
+            for (ArchiveResources excludeArchive : archive.excludeArchives) {
+                if (excludeArchive.archiveName == archive.archiveName) {
+                    System.err.printf("Archive %s references itself!\n", archive.archiveName);
+                    continue;
+                }
+                archive.removeResources(excludeArchive.resources);
+            }
+        }
+    }
+
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
@@ -534,19 +619,70 @@ public class GameProjectBuilder extends Builder<Void> {
         BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles());
 
         try {
+
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<String> resources = findResources(project, rootNode);
 
-                List<String> excludedResources = new ArrayList<String>();
+                Map<String, ResourceNode> pathToNode = new HashMap<>();
+                buildPathToNodeMap(rootNode, pathToNode);
+
+                List<ArchiveResources> archives = new ArrayList<>();
+
                 boolean shouldPublish = project.option("liveupdate", "false").equals("true");
                 if (shouldPublish) {
+                    TimeProfiler.start("createLiveUpdateArchives");
+
+                    //TODO: Figure out a way to do this with our new way of defining archives
+                    // E.g. do we want to use this somehow as a default way of creating an excluded package?
                     for (String excludedResource : project.getExcludedCollectionProxies()) {
-                        excludedResources.add(excludedResource);
+System.out.printf("Excluded proxy: %s\n", excludedResource);
                     }
+
+                    //excludedCollectionProxies = project.getExcludedCollectionProxies();
+
+                    // By default, if no extra info is specified in the liveupdate.settings,
+                    // then we use the "default" archive name
+
+                    // Each name will produce a separate archive
+
+                    ArchiveResources common = new ArchiveResources("common");
+                    common.addInclude("/main/common/common.collectionc");
+                    archives.add(common);
+                    {
+                        ArchiveResources a = new ArchiveResources("level1");
+                        a.addInclude("/main/level1/level1.collectionc");
+                        a.addIncludeDependency(common);
+                        archives.add(a);
+                    }
+                    {
+                        ArchiveResources a = new ArchiveResources("level2");
+                        a.addInclude("/main/level2/level2.collectionc");
+                        a.addExcludeDependency(common);
+                        archives.add(a);
+                    }
+                    {
+                        ArchiveResources a = new ArchiveResources("level3");
+                        a.addInclude("/main/level3/level3.collectionc");
+                        a.addIncludeDependency(common);
+                        archives.add(a);
+                    }
+                    // TODO: Detect cyclic dependencies
+
+                    TimeProfiler.addData("archives", archives.size());
+
+                    buildArchiveResourceSets(pathToNode, archives);
+
+                    TimeProfiler.stop();
                 }
 
-                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
+                // Make one set of all the excluded resources
+                Set<String> excludedResources = new HashSet<>();
+                for (ArchiveResources archive : archives) {
+                    excludedResources.addAll(archive.resources);
+                }
+
+                ManifestBuilder manifestBuilder = this.prepareManifestBuilder(pathToNode, excludedResources);
 
                 // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {
@@ -561,10 +697,18 @@ public class GameProjectBuilder extends Builder<Void> {
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
                 Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
-                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources, resourcePackDirectory);
+
+                for (ArchiveResources archive : archives) {
+                    File archiveDir = new File(resourcePackDirectory.toFile(), archive.archiveName);
+                    if (!archiveDir.exists())
+                        archiveDir.mkdirs();
+                }
+
+                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources, archives, resourcePackDirectory);
 
                 // Create manifest
-                byte[] manifestFile = manifestBuilder.buildManifest();
+                ManifestData mainManifestData = manifestBuilder.buildManifestData();
+                byte[] mainManifestFileData = manifestBuilder.buildManifestFileByteArray(mainManifestData);
 
                 // Write outputs to the build system
                 // game.arci
@@ -576,18 +720,26 @@ public class GameProjectBuilder extends Builder<Void> {
                 task.getOutputs().get(2).setContent(archiveDataInputStream);
 
                 // game.dmanifest
-                task.getOutputs().get(3).setContent(manifestFile);
+                task.getOutputs().get(3).setContent(mainManifestFileData);
 
                 // game.public.der
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
 
-                // Add copy of game.dmanifest to be published with liveuodate resources
-                File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
-                String liveupdateManifestFilename = "liveupdate.game.dmanifest";
-                File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
-                FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
-                project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
+                // Add copy of game.dmanifest to be published with liveupdate resources
+                for (ArchiveResources archive : archives) {
+                    String archiveName = archive.archiveName;
+                    ManifestData manifestData = manifestBuilder.buildArchiveManifestData(mainManifestData, archiveName, archive.resources);
+                    byte[] manifestFileData = manifestBuilder.buildManifestFileByteArray(manifestData);
+
+                    File archiveDir = new File(resourcePackDirectory.toFile(), archiveName);
+                    String manifestFileName = "liveupdate.game.dmanifest";
+                    File manifestFile = new File(archiveDir, manifestFileName);
+                    FileUtils.writeByteArrayToFile(manifestFile, manifestFileData);
+
+                    project.getPublisher().AddEntry(archiveName, manifestFileName, manifestFile);
+                }
+
                 project.getPublisher().Publish();
 
                 // Copy SSL public keys if specified
@@ -600,12 +752,13 @@ public class GameProjectBuilder extends Builder<Void> {
                     FileUtils.copyFile(source, dist);
                 }
 
-                manifestTmpFileHandle.delete();
-                File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
-                if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
-                    FileUtils.deleteDirectory(resourcePackDirectoryHandle);
+                File resourcePackDirectoryFile = resourcePackDirectory.toFile();
+                if (resourcePackDirectoryFile.exists() && resourcePackDirectoryFile.isDirectory()) {
+                    FileUtils.deleteDirectory(resourcePackDirectoryFile);
                 }
 
+                // TODO: Are we doing a full copy of the data here?
+                // It would be nice to copy the files on disc instead.
                 List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
                 for (int i = 0; i < publisherOutputs.size(); ++i) {
                     task.getOutputs().get(5 + i).setContent(publisherOutputs.get(i));
