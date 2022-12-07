@@ -5,10 +5,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -326,16 +326,15 @@ function cmi_setup_cc() {
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
-            export TARGET_ARCH=x86_64
-            export CFLAGS="${CFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
-            export CXXFLAGS="${CXXFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
-            export LDFLAGS="${LDFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
+            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export LDFLAGS="${LDFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
 
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
-            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
-            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
-            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
+            export CPP="arch -x86_64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC="arch -x86_64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
+            export CXX="arch -x86_64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++"
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
@@ -346,17 +345,13 @@ function cmi_setup_cc() {
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
-            export TARGET_ARCH=arm64
-            # export CFLAGS="${CFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ -isysroot ${OSX_SDK_ROOT} -isystem ${OSX_SDK_ROOT}/usr/include -isystem ${DARWIN_TOOLCHAIN_ROOT}/usr/include"
-            # export CXXFLAGS="${CXXFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ -isysroot ${OSX_SDK_ROOT} -isystem ${OSX_SDK_ROOT}/usr/include -isystem ${DARWIN_TOOLCHAIN_ROOT}/usr/include -isystem ${DARWIN_TOOLCHAIN_ROOT}/usr/include/c++/v1"
-            # export LDFLAGS="${LDFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
-            export CFLAGS="${CFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
-            export CXXFLAGS="${CXXFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
-            export LDFLAGS="${LDFLAGS} -arch ${TARGET_ARCH} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
+            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export LDFLAGS="${LDFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
 
-            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
-            export CC=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang
-            export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
+            export CPP="arch -arm64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC="arch -arm64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
+            export CXX="arch -arm64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++"
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
@@ -433,7 +428,7 @@ function cmi() {
             ;;
 
         # desktop
-        arm64-macos|x86_64-linux|win32|x86_64-win32)
+        x86_64-macos|arm64-macos|x86_64-linux|win32|x86_64-win32)
             cmi_buildplatform $1
             ;;
 
