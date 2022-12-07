@@ -117,18 +117,18 @@ void PrintEncodeParams(EncodeParams params)
 {
     if (!params.m_Verbose)
         return;
-#define YES_NO_LABEL(cond) (cond?"YES":"NO")
+#define TRUE_FALSE_LABEL(cond) (cond?"TRUE":"FALSE")
     printf("-----------------------------\n");
     printf("Input path        : %s\n", params.m_PathIn);
     printf("Output path       : %s\n", params.m_PathOut);
     printf("Color space       : %s\n", GetArgTypeName(params.m_ColorSpace, g_cs_lut));
     printf("Compression type  : %s\n", GetArgTypeName(params.m_CompressionType, g_ct_lut));
     printf("Compression level : %s\n", GetArgTypeName(params.m_CompressionLevel, g_cl_lut));
-    printf("PreMultiplyAlpha  : %s\n", YES_NO_LABEL(params.m_PremultiplyAlpha));
-    printf("Flip-x            : %s\n", YES_NO_LABEL(params.m_FlipX));
-    printf("Flip-y            : %s\n", YES_NO_LABEL(params.m_FlipY));
-    printf("Mipmaps           : %s\n", YES_NO_LABEL(params.m_MipMaps));
-#undef YES_NO_LABEL
+    printf("PreMultiplyAlpha  : %s\n", TRUE_FALSE_LABEL(params.m_PremultiplyAlpha));
+    printf("Flip-x            : %s\n", TRUE_FALSE_LABEL(params.m_FlipX));
+    printf("Flip-y            : %s\n", TRUE_FALSE_LABEL(params.m_FlipY));
+    printf("Mipmaps           : %s\n", TRUE_FALSE_LABEL(params.m_MipMaps));
+#undef TRUE_FALSE_LABEL
 }
 
 void GetEncodeParamsFromArgs(int argc, const char* argv[], EncodeParams& params)
@@ -213,19 +213,47 @@ int DoEncode(EncodeParams params)
     return 0;
 }
 
+void ShowHelp()
+{
+#define PRINT_ARG_LIST(lst) \
+    { \
+        for(int i=0; lst[i].m_Name != 0; i++) \
+            printf("    %s\n", lst[i].m_Name); \
+    }
+    printf("Usage: texconvert <input-file> <output-file> [options]\n");
+    printf("Options:\n");
+    printf("  --premultiply-alpha         : Use premultiply alpha\n");
+    printf("  --flip-x                    : Flip image on X axis\n");
+    printf("  --flip-y                    : Flip image on Y axis\n");
+    printf("  --verbose                   : Verbose output\n");
+    printf("  --color-space <color-space> : Sets the color space, defaults to 'SRGB'. Supported values are:\n");
+    PRINT_ARG_LIST(g_cs_lut);
+    printf("  --compression-type          : Sets the compression type, defaults to 'DEFAULT'. Supported values are:\n");
+    PRINT_ARG_LIST(g_ct_lut);
+    printf("  --compression-level         : Sets the compression level, defaults to 'NORMAL'. Supported values are:\n");
+    PRINT_ARG_LIST(g_cl_lut);
+#undef PRINT_ARG_LIST
+}
+
 int main(int argc, char const *argv[])
 {
     EncodeParams params = GetDefaultEncodeParams();
     GetEncodeParamsFromArgs(argc, argv, params);
 
-    if (!params.m_PathIn)
+    if (!params.m_PathIn || !params.m_PathOut)
     {
-        printf("No input file found in arguments\n");
-    }
+        if (!params.m_PathIn)
+        {
+            printf("No input file found in arguments\n");
+        }
 
-    if (!params.m_PathOut)
-    {
-        printf("No output path found in arguments\n");
+        if (!params.m_PathOut)
+        {
+            printf("No output path found in arguments\n");
+        }
+
+        ShowHelp();
+        return -1;
     }
 
     PrintEncodeParams(params);

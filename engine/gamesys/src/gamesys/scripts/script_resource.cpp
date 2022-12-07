@@ -634,7 +634,6 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool de
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
- * - `COMPRESSION_TYPE_BASIS_ETC1S`
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
  *
@@ -683,11 +682,11 @@ static int CreateTexture(lua_State* L)
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
     luaL_checktype(L, 2, LUA_TTABLE);
-    uint32_t type             = (uint32_t) CheckTableInteger(L, 2, "type");
-    uint32_t width            = (uint32_t) CheckTableInteger(L, 2, "width");
-    uint32_t height           = (uint32_t) CheckTableInteger(L, 2, "height");
-    uint32_t format           = (uint32_t) CheckTableInteger(L, 2, "format");
-    uint32_t max_mipmaps      = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+    uint32_t type        = (uint32_t) CheckTableInteger(L, 2, "type");
+    uint32_t width       = (uint32_t) CheckTableInteger(L, 2, "width");
+    uint32_t height      = (uint32_t) CheckTableInteger(L, 2, "height");
+    uint32_t format      = (uint32_t) CheckTableInteger(L, 2, "format");
+    uint32_t max_mipmaps = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
 
     dmGraphics::TextureImage::CompressionType compression_type = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
     uint8_t max_mipmaps_actual = dmGraphics::GetMipmapCount(dmMath::Max(width, height));
@@ -791,7 +790,7 @@ static int ReleaseResource(lua_State* L)
  * : [type:number] The width of the texture (in pixels)
  *
  * `format`
- * : [type:number] The texture format. Supported values:
+ * : [type:number] The texture format, note that some of these formats are platform specific. Supported values:
  *
  * - `resource.TEXTURE_FORMAT_LUMINANCE`
  * - `resource.TEXTURE_FORMAT_RGB`
@@ -823,7 +822,6 @@ static int ReleaseResource(lua_State* L)
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
- * - `COMPRESSION_TYPE_BASIS_ETC1S`
  *
  * @param buffer [type:buffer] The buffer of precreated pixel data
  *
@@ -2027,12 +2025,6 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
-/*# BASIS_ETC1S compression type
- *
- * @name resource.COMPRESSION_TYPE_BASIS_ETC1S
- * @variable
- */
-
  /*# LIVEUPDATE_OK
  *
  * @name resource.LIVEUPDATE_OK
@@ -2127,7 +2119,6 @@ static void LuaInit(lua_State* L)
 
     SETCOMPRESSIONTYPE(COMPRESSION_TYPE_DEFAULT);
     SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_UASTC);
-    SETCOMPRESSIONTYPE(COMPRESSION_TYPE_BASIS_ETC1S);
 
 #undef SETCOMPRESSIONTYPE
 
