@@ -583,19 +583,13 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
     delete[] texture_image.m_Alternatives.m_Data;
 }
 
-static void CheckTextureResource(lua_State* L, int i, const char* field_name, const char** texture_path_out, dmGraphics::HTexture* texture_out)
+static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
 {
     lua_getfield(L, i, field_name);
-    if (!lua_isstring(L, -1))
-    {
-        luaL_error(L, "Unable to get texture resource from field '%s', string expected", field_name);
-    }
-
-    const char* texture_path         = luaL_checkstring(L, -1);
-    dmhash_t tex_canonical_path_hash = GetCanonicalPathHash(texture_path);
-    void* texture_res                = CheckResource(L, g_ResourceModule.m_Factory, tex_canonical_path_hash, "texturec");
-    *texture_path_out = texture_path;
-    *texture_out = (dmGraphics::HTexture) texture_res;
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, -1);
+    void* texture_res  = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
+    *texture_out       = (dmGraphics::HTexture) texture_res;
+    *texture_path_out  = path_hash;
     lua_pop(L, 1); // "texture"
 }
 
@@ -1091,11 +1085,12 @@ static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries
 
 // Creates a texture set from the lua stack, it is expected that the argument
 // table is on top of the stack and that all fields have valid data
-static void MakeTextureSetFromLua(lua_State* L, const char* texture_path, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, dmGameSystemDDF::TextureSet* texture_set_ddf)
+static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, dmGameSystemDDF::TextureSet* texture_set_ddf)
 {
     int top = lua_gettop(L);
+    texture_set_ddf->m_Texture     = 0;
+    texture_set_ddf->m_TextureHash = texture_path_hash;
 
-    texture_set_ddf->m_Texture = texture_path;
     float tex_width            = dmGraphics::GetTextureWidth(texture);
     float tex_height           = dmGraphics::GetTextureHeight(texture);
     uint32_t frame_index_count = 0;
@@ -1269,7 +1264,7 @@ static void MakeTextureSetFromLua(lua_State* L, const char* texture_path, dmGrap
  * meaning "/path/my_atlas" is not a valid path but "/path/my_atlas.texturesetc" is.
  *
  * When creating the atlas, at least one geometry and one animation is required, and an error will be
- * raised if these requierments are not met. A reference to the resource will be held by the collection
+ * raised if these requirements are not met. A reference to the resource will be held by the collection
  * that created the resource and will automatically be released when that collection is destroyed.
  * Note that releasing a resource essentially means decreasing the reference count of that resource,
  * and not necessarily that it will be deleted.
@@ -1280,7 +1275,7 @@ static void MakeTextureSetFromLua(lua_State* L, const char* texture_path, dmGrap
  * @param table [type:table] A table containing info about how to create the texture. Supported entries:
  *
  * * `texture`
- * : [type:string] the path to the texture resource, e.g "/main/my_texture.texturec"
+ * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
  *
  * * `animations`
  * : [type:table] a list of the animations in the atlas. Supports the following fields:
@@ -1366,10 +1361,10 @@ static void MakeTextureSetFromLua(lua_State* L, const char* texture_path, dmGrap
  *                     128, 0
  *                 },
  *                 uvs = {
- *                     0, 0,
- *                     0, 256,
- *                     256, 256,
- *                     256, 0
+ *                     0,   0,
+ *                     0,   128,
+ *                     128, 128,
+ *                     128, 0
  *                 },
  *                 indices = {0,1,2,0,2,3}
  *             }
@@ -1399,7 +1394,7 @@ static int CreateAtlas(lua_State* L)
         luaL_checktype(L, 2, LUA_TTABLE);
         lua_pushvalue(L, 2);
         dmGraphics::HTexture texture;
-        const char* texture_path;
+        dmhash_t texture_path;
         CheckTextureResource(L, -1, texture_field_name, &texture_path, &texture);
 
         uint32_t num_geometries = 0;
@@ -1458,7 +1453,7 @@ static int CreateAtlas(lua_State* L)
  * @param table [type:table] A table containing info about the atlas. Supported entries:
  *
  * * `texture`
- * : [type:string] the path to the texture resource, e.g "/main/my_texture.texturec"
+ * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
  *
  * * `animations`
  * : [type:table] a list of the animations in the atlas. Supports the following fields:
@@ -1578,7 +1573,7 @@ static int SetAtlas(lua_State* L)
     lua_pushvalue(L, 2);
 
     dmGraphics::HTexture texture;
-    const char* texture_path;
+    dmhash_t texture_path;
     CheckTextureResource(L, -1, "texture", &texture_path, &texture);
 
     // Note: We do a separate pass over the lua state to validate the data in the args table,
@@ -1640,7 +1635,14 @@ static int GetAtlas(lua_State* L)
 
     lua_newtable(L);
 
-    SET_LUA_TABLE_FIELD(lua_pushstring, "texture", texture_set->m_Texture);
+    if (texture_set->m_TextureHash)
+    {
+        SET_LUA_TABLE_FIELD(dmScript::PushHash, "texture", texture_set->m_TextureHash);
+    }
+    else
+    {
+        SET_LUA_TABLE_FIELD(lua_pushstring, "texture", texture_set->m_Texture);
+    }
 
     lua_pushliteral(L, "animations");
     lua_newtable(L);
