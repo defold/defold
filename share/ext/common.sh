@@ -293,15 +293,18 @@ function cmi() {
             export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
             export LDFLAGS="-isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
 
-            # TODO: for protobuf, we need to add -llog to LDFLAGS
+            if [ "$PRODUCT" == "protobuf" ]; then
+                export LDFLAGS="$LDFLAGS -llog"
+                echo LDFLAGS: $LDFLAGS
+            fi
 
             export CPP="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang -E"
             export CC="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang"
             export CXX="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang++"
-            export AR=${llvm}/llvm-ar
-            export AS=${llvm}/llvm-as
-            export LD=${llvm}/lld
-            export RANLIB=${llvm}/llvm-ranlib
+            export AR="${llvm}/llvm-ar"
+            export AS="${llvm}/llvm-as"
+            export LD="${llvm}/lld"
+            export RANLIB="${llvm}/llvm-ranlib"
             cmi_cross $1 arm-linux
             ;;
 
@@ -316,12 +319,14 @@ function cmi() {
             export CPP="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang -E"
             export CC="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang"
             export CXX="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang++"
-            export AR=${llvm}/llvm-ar
-            export AS=${llvm}/llvm-as
-            export LD=${llvm}/lld
-            export RANLIB=${llvm}/llvm-ranlib
-            # TODO: for protobuf, we need to add -llog to LDFLAGS
-            #export LDFLAGS="-llog"
+            export AR="${llvm}/llvm-ar"
+            export AS="${llvm}/llvm-as"
+            export LD="${llvm}/lld"
+            export RANLIB="${llvm}/llvm-ranlib"
+
+            if [ "$PRODUCT" == "protobuf" ]; then
+                export LDFLAGS="$LDFLAGS -llog"
+            fi
 
             cmi_cross $1 arm-linux
             ;;

@@ -6,6 +6,7 @@
 /share/ext/build
 /share/ext/download
 /share/ext/tremolo/tmp/
+/share/ext/protobuf/tmp/
 /share/ext/protobuf/cross_tmp/
 /share/extender/build
 /go/pkg
