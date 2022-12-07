@@ -255,27 +255,6 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 6: test creating with compressed basis data
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-
-    // If the transcode function failed, the texture will be 1x1
-    dmGraphics::HTexture compressed_texture = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed.texturec", (void**) &compressed_texture));
-    ASSERT_EQ(32, dmGraphics::GetTextureWidth(compressed_texture));
-    ASSERT_EQ(32, dmGraphics::GetTextureHeight(compressed_texture));
-
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // Test 7: fail by using an empty buffer
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-
-    // res_texture will make an empty texture here if the test "worked", i.e coulnd't create a valid transcoded texture
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed_fail.texturec", (void**) &compressed_texture));
-    ASSERT_EQ(1, dmGraphics::GetTextureWidth(compressed_texture));
-    ASSERT_EQ(1, dmGraphics::GetTextureHeight(compressed_texture));
-
     // cleanup
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
