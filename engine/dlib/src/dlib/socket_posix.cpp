@@ -633,7 +633,7 @@ namespace dmSocket
         return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
     }
 
-#if !(defined(__MACH__) && (defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR)))
+#if !defined(__APPLE__)
     Result GetLocalAddress(Address* address)
     {
 #ifdef __ANDROID__
