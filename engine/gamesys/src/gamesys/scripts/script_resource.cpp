@@ -488,8 +488,13 @@ static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageForma
         case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
         case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
         case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_ETC1;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:          return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ETC2;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:      return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_4x4;
         case dmGraphics::TEXTURE_FORMAT_RGB_BC1:            return dmGraphics::TextureImage::TEXTURE_FORMAT_RGB_BC1;
         case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_BC3;
+        case dmGraphics::TEXTURE_FORMAT_R_BC4:              return dmGraphics::TextureImage::TEXTURE_FORMAT_R_BC4;
+        case dmGraphics::TEXTURE_FORMAT_RG_BC5:             return dmGraphics::TextureImage::TEXTURE_FORMAT_RG_BC5;
+        case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:           return dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_BC7;
     };
     dmLogError("Unsupported texture format (%d)", textureformat);
     return (dmGraphics::TextureImage::TextureFormat) -1;
