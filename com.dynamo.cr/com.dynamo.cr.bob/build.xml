@@ -188,11 +188,11 @@
                     <file file="../../packages/luajit-2.1.0-6c4826f-x86_64-macos.tar.gz" />
                 </gzipresource>
             </tarfileset>
-            <!-- <tarfileset includes="bin/arm64-macos/**">
+            <tarfileset includes="bin/arm64-macos/**">
                 <gzipresource>
                     <file file="../../packages/luajit-2.1.0-6c4826f-arm64-macos.tar.gz" />
                 </gzipresource>
-            </tarfileset> -->
+            </tarfileset>
         </copy>
 
         <javac srcdir="generated"
@@ -237,6 +237,7 @@
         <copy todir="${bob.dir}/lib/arm64-macos" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
                 <include name="arm64-macos/*texc_shared*"/>
+                <include name="x86_64-macos/*modelc_shared*"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/lib/x86_64-linux" overwrite="true" flatten="true">
@@ -245,8 +246,6 @@
                 <include name="x86_64-linux/*modelc_shared*"/>
                 <exclude name="**/*dSYM.zip"/>
             </fileset>
-<!--             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
-            </fileset> -->
         </copy>
         <copy todir="${bob.dir}/lib/x86-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/lib">
@@ -261,8 +260,6 @@
                 <include name="x86_64-win32/*modelc_shared*"/>
                 <exclude name="**/*dSYM.zip"/>
             </fileset>
-<!--             <fileset dir="${env.DYNAMO_HOME}/lib">
-            </fileset> -->
         </copy>
 <!--         <copy todir="${bob.dir}/lib/x86_64-win32" overwrite="true" flatten="true">
             <fileset dir="${env.DYNAMO_HOME}/ext/lib">
