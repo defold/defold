@@ -318,7 +318,7 @@ namespace dmBuffer
             _TOSTRING(RESULT_STREAM_TYPE_MISMATCH)
             _TOSTRING(RESULT_STREAM_COUNT_MISMATCH)
             _TOSTRING(RESULT_METADATA_INVALID)
-            _TOSTRING(RESULT_METADATA_NOT_EXIST)
+            _TOSTRING(RESULT_METADATA_MISSING)
             default: return "buffer.cpp: Unknown result";
         }
 
@@ -719,7 +719,7 @@ namespace dmBuffer
 
         Buffer::MetaData* item = FindMetaDataItem(buffer, name_hash);
         if (!item) {
-            return RESULT_METADATA_NOT_EXIST;
+            return RESULT_METADATA_MISSING;
         }
 
         *count = item->m_ValueCount;

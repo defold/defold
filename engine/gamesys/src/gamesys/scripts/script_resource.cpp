@@ -583,19 +583,13 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
     delete[] texture_image.m_Alternatives.m_Data;
 }
 
-static void CheckTextureResource(lua_State* L, int i, const char* field_name, const char** texture_path_out, dmGraphics::HTexture* texture_out)
+static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
 {
     lua_getfield(L, i, field_name);
-    if (!lua_isstring(L, -1))
-    {
-        luaL_error(L, "Unable to get texture resource from field '%s', string expected", field_name);
-    }
-
-    const char* texture_path         = luaL_checkstring(L, -1);
-    dmhash_t tex_canonical_path_hash = GetCanonicalPathHash(texture_path);
-    void* texture_res                = CheckResource(L, g_ResourceModule.m_Factory, tex_canonical_path_hash, "texturec");
-    *texture_path_out = texture_path;
-    *texture_out = (dmGraphics::HTexture) texture_res;
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, -1);
+    void* texture_res  = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
+    *texture_out       = (dmGraphics::HTexture) texture_res;
+    *texture_path_out  = path_hash;
     lua_pop(L, 1); // "texture"
 }
 
@@ -1091,11 +1085,12 @@ static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries
 
 // Creates a texture set from the lua stack, it is expected that the argument
 // table is on top of the stack and that all fields have valid data
-static void MakeTextureSetFromLua(lua_State* L, const char* texture_path, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, dmGameSystemDDF::TextureSet* texture_set_ddf)
+static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, dmGameSystemDDF::TextureSet* texture_set_ddf)
 {
     int top = lua_gettop(L);
+    texture_set_ddf->m_Texture     = 0;
+    texture_set_ddf->m_TextureHash = texture_path_hash;
 
-    texture_set_ddf->m_Texture = texture_path;
     float tex_width            = dmGraphics::GetTextureWidth(texture);
     float tex_height           = dmGraphics::GetTextureHeight(texture);
     uint32_t frame_index_count = 0;
@@ -1269,7 +1264,7 @@ static void MakeTextureSetFromLua(lua_State* L, const char* texture_path, dmGrap
  * meaning "/path/my_atlas" is not a valid path but "/path/my_atlas.texturesetc" is.
  *
  * When creating the atlas, at least one geometry and one animation is required, and an error will be
- * raised if these requierments are not met. A reference to the resource will be held by the collection
+ * raised if these requirements are not met. A reference to the resource will be held by the collection
  * that created the resource and will automatically be released when that collection is destroyed.
  * Note that releasing a resource essentially means decreasing the reference count of that resource,
  * and not necessarily that it will be deleted.
@@ -1280,7 +1275,7 @@ static void MakeTextureSetFromLua(lua_State* L, const char* texture_path, dmGrap
  * @param table [type:table] A table containing info about how to create the texture. Supported entries:
  *
  * * `texture`
- * : [type:string] the path to the texture resource, e.g "/main/my_texture.texturec"
+ * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
  *
  * * `animations`
  * : [type:table] a list of the animations in the atlas. Supports the following fields:
@@ -1366,10 +1361,10 @@ static void MakeTextureSetFromLua(lua_State* L, const char* texture_path, dmGrap
  *                     128, 0
  *                 },
  *                 uvs = {
- *                     0, 0,
- *                     0, 256,
- *                     256, 256,
- *                     256, 0
+ *                     0,   0,
+ *                     0,   128,
+ *                     128, 128,
+ *                     128, 0
  *                 },
  *                 indices = {0,1,2,0,2,3}
  *             }
@@ -1399,7 +1394,7 @@ static int CreateAtlas(lua_State* L)
         luaL_checktype(L, 2, LUA_TTABLE);
         lua_pushvalue(L, 2);
         dmGraphics::HTexture texture;
-        const char* texture_path;
+        dmhash_t texture_path;
         CheckTextureResource(L, -1, texture_field_name, &texture_path, &texture);
 
         uint32_t num_geometries = 0;
@@ -1458,7 +1453,7 @@ static int CreateAtlas(lua_State* L)
  * @param table [type:table] A table containing info about the atlas. Supported entries:
  *
  * * `texture`
- * : [type:string] the path to the texture resource, e.g "/main/my_texture.texturec"
+ * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
  *
  * * `animations`
  * : [type:table] a list of the animations in the atlas. Supports the following fields:
@@ -1578,7 +1573,7 @@ static int SetAtlas(lua_State* L)
     lua_pushvalue(L, 2);
 
     dmGraphics::HTexture texture;
-    const char* texture_path;
+    dmhash_t texture_path;
     CheckTextureResource(L, -1, "texture", &texture_path, &texture);
 
     // Note: We do a separate pass over the lua state to validate the data in the args table,
@@ -1640,7 +1635,14 @@ static int GetAtlas(lua_State* L)
 
     lua_newtable(L);
 
-    SET_LUA_TABLE_FIELD(lua_pushstring, "texture", texture_set->m_Texture);
+    if (texture_set->m_TextureHash)
+    {
+        SET_LUA_TABLE_FIELD(dmScript::PushHash, "texture", texture_set->m_TextureHash);
+    }
+    else
+    {
+        SET_LUA_TABLE_FIELD(lua_pushstring, "texture", texture_set->m_Texture);
+    }
 
     lua_pushliteral(L, "animations");
     lua_newtable(L);
@@ -1769,119 +1771,6 @@ static int SetSound(lua_State* L) {
     }
 
     return 0;
-}
-
-static dmBufferDDF::ValueType GetBufferDDFTypeFromBufferValueType(dmBuffer::ValueType value_type)
-{
-    switch (value_type)
-    {
-        case dmBuffer::ValueType::VALUE_TYPE_UINT8:   return dmBufferDDF::ValueType::VALUE_TYPE_UINT8;
-        case dmBuffer::ValueType::VALUE_TYPE_UINT16:  return dmBufferDDF::ValueType::VALUE_TYPE_UINT16;
-        case dmBuffer::ValueType::VALUE_TYPE_UINT32:  return dmBufferDDF::ValueType::VALUE_TYPE_UINT32;
-        case dmBuffer::ValueType::VALUE_TYPE_UINT64:  return dmBufferDDF::ValueType::VALUE_TYPE_UINT64;
-        case dmBuffer::ValueType::VALUE_TYPE_INT8:    return dmBufferDDF::ValueType::VALUE_TYPE_INT8;
-        case dmBuffer::ValueType::VALUE_TYPE_INT16:   return dmBufferDDF::ValueType::VALUE_TYPE_INT16;
-        case dmBuffer::ValueType::VALUE_TYPE_INT32:   return dmBufferDDF::ValueType::VALUE_TYPE_INT32;
-        case dmBuffer::ValueType::VALUE_TYPE_INT64:   return dmBufferDDF::ValueType::VALUE_TYPE_INT64;
-        case dmBuffer::ValueType::VALUE_TYPE_FLOAT32: return dmBufferDDF::ValueType::VALUE_TYPE_FLOAT32;
-        default:break;
-    }
-    assert(0);
-    return (dmBufferDDF::ValueType) -1;
-}
-
-static int CreateBuffer(lua_State* L)
-{
-    DM_LUA_STACK_CHECK(L, 1);
-
-    const char* path_str     = luaL_checkstring(L, 1);
-    const char* resource_ext = ".bufferc";
-
-    dmhash_t canonical_path_hash = 0;
-    PreCreateResource(L, path_str, resource_ext, &canonical_path_hash);
-
-    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 2);
-
-    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
-    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
-
-    dmBufferDDF::BufferDesc buffer_desc_ddf = {};
-
-    uint32_t num_streams;
-    dmBuffer::Result buffer_res = dmBuffer::GetNumStreams(buffer->m_Buffer, &num_streams);
-
-    dmArray<dmBufferDDF::StreamDesc> buffer_streams;
-    buffer_streams.SetCapacity(num_streams);
-    buffer_streams.SetSize(num_streams);
-    memset(buffer_streams.Begin(), 0, sizeof(dmBufferDDF::StreamDesc) * num_streams);
-
-    buffer_desc_ddf.m_Streams.m_Count = num_streams;
-    buffer_desc_ddf.m_Streams.m_Data  = buffer_streams.Begin();
-
-    for (int i = 0; i < num_streams; ++i)
-    {
-        dmhash_t stream_name;
-        buffer_res = dmBuffer::GetStreamName(buffer->m_Buffer, i, &stream_name);
-        assert(buffer_res == dmBuffer::RESULT_OK);
-
-        dmBuffer::ValueType stream_value_type;
-        uint32_t stream_type_count;
-
-        buffer_res = dmBuffer::GetStreamType(buffer->m_Buffer, stream_name, &stream_value_type, &stream_type_count);
-        assert(buffer_res == dmBuffer::RESULT_OK);
-
-        dmBufferDDF::StreamDesc& stream_ddf = buffer_streams[i];
-        stream_ddf.m_Name = ""; // gah..
-        stream_ddf.m_ValueType = GetBufferDDFTypeFromBufferValueType(stream_value_type);
-        stream_ddf.m_ValueCount = stream_type_count;
-    }
-
-    dmArray<uint8_t> ddf_buffer;
-    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&buffer_desc_ddf, dmBufferDDF::BufferDesc::m_DDFDescriptor, ddf_buffer);
-    assert(ddf_result == dmDDF::RESULT_OK);
-
-    void* resource = 0x0;
-    dmResource::Result resource_res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
-
-    if (resource_res != dmResource::RESULT_OK)
-    {
-        return ReportPathError(L, resource_res, canonical_path_hash);
-    }
-
-    ResBufferReCreateParams recreate_params;
-    recreate_params.m_Buffer      = buffer->m_Buffer;
-    recreate_params.m_DDFData     = ddf_buffer.Begin();
-    recreate_params.m_DDFDataSize = ddf_buffer.Size();
-
-    // Update the resource with the buffer handle
-    resource_res = dmResource::SetResource(g_ResourceModule.m_Factory, canonical_path_hash, (void*) &recreate_params);
-
-    if (resource_res != dmResource::RESULT_OK)
-    {
-        return ReportPathError(L, resource_res, canonical_path_hash);
-    }
-
-    // Transfer ownership to the resource for the buffer
-    buffer->m_BufferRes = resource;
-    buffer->m_Owner = dmScript::OWNER_RES;
-
-    // We need to add a reference here for the collection manually,
-    // since the buffer GC could potentially decref (and delete the res)
-    // before it can be used anywhere.
-    //
-    // For example, if we do:
-    //   local buffer_handle = buffer.create(...)
-    //   self.my_buffer = resource.create_buffer(path, buffer_handle) -- this creates a resource with ref 1
-    //   ~~ moments later ~~
-    //   -> Now a GC has happened and since the ownership is now RES and not LUA, the GC function will release the resource
-    //   -> The ref is now zero and the resource is destroyed, even though one ref should be owned by the collection
-    dmResource::IncRef(g_ResourceModule.m_Factory, resource);
-
-    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
-
-    dmScript::PushHash(L, canonical_path_hash);
-
-    return 1;
 }
 
 /*# get resource buffer
@@ -2148,7 +2037,6 @@ static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
-    {"create_buffer", CreateBuffer},
     {"create_atlas", CreateAtlas},
     {"create_texture", CreateTexture},
     {"release", ReleaseResource},

@@ -100,7 +100,7 @@ local function test_create_get_atlas(self)
 
     local data = resource.get_atlas(atlas_id)
 
-    assert(data.texture == self.valid_texture_path)
+    assert(data.texture == hash(self.valid_texture_path))
     assert(#data.animations == 1)
     assert(#data.geometries == 1)
 
@@ -128,14 +128,12 @@ end
 local function test_get_set_atlas(self)
     local data = resource.get_atlas(self.valid_tileset_path)
 
-    assert(data.texture)
+    assert(data.texture == self.valid_texture_path)
     assert(data.geometries)
     assert(data.animations)
 
     assert(#data.geometries > 0)
     assert(#data.animations > 0)
-
-    assert(data.texture == self.valid_texture_path)
 
     -- these values are specified in the '/tile/valid.t.texturesetc' file
     assert_anim(data.animations[1], {

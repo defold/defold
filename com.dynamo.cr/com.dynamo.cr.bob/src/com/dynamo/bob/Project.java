@@ -1123,6 +1123,7 @@ public class Project {
             registerPipelinePlugins();
             scan(scanner, "com.dynamo.bob");
             scan(scanner, "com.dynamo.bob.pipeline");
+            scan(scanner, "com.defold.extension.pipeline");
             mrep.done();
         }
 
