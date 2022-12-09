@@ -1773,6 +1773,156 @@ static int SetSound(lua_State* L) {
     return 0;
 }
 
+static dmBufferDDF::ValueType GetBufferDDFTypeFromBufferValueType(dmBuffer::ValueType value_type)
+{
+    switch (value_type)
+    {
+        case dmBuffer::ValueType::VALUE_TYPE_UINT8:   return dmBufferDDF::ValueType::VALUE_TYPE_UINT8;
+        case dmBuffer::ValueType::VALUE_TYPE_UINT16:  return dmBufferDDF::ValueType::VALUE_TYPE_UINT16;
+        case dmBuffer::ValueType::VALUE_TYPE_UINT32:  return dmBufferDDF::ValueType::VALUE_TYPE_UINT32;
+        case dmBuffer::ValueType::VALUE_TYPE_UINT64:  return dmBufferDDF::ValueType::VALUE_TYPE_UINT64;
+        case dmBuffer::ValueType::VALUE_TYPE_INT8:    return dmBufferDDF::ValueType::VALUE_TYPE_INT8;
+        case dmBuffer::ValueType::VALUE_TYPE_INT16:   return dmBufferDDF::ValueType::VALUE_TYPE_INT16;
+        case dmBuffer::ValueType::VALUE_TYPE_INT32:   return dmBufferDDF::ValueType::VALUE_TYPE_INT32;
+        case dmBuffer::ValueType::VALUE_TYPE_INT64:   return dmBufferDDF::ValueType::VALUE_TYPE_INT64;
+        case dmBuffer::ValueType::VALUE_TYPE_FLOAT32: return dmBufferDDF::ValueType::VALUE_TYPE_FLOAT32;
+        default:break;
+    }
+    assert(0);
+    return (dmBufferDDF::ValueType) -1;
+}
+
+/*# create a buffer resource
+ * This function creates a new buffer resource that can be used in the same way as any buffer created during build time.
+ * The function requires a valid buffer created from either [ref:buffer.create] or another pre-existing buffer resource.
+ * If the buffer has been created by a script, the new resource will take ownership of the buffer, meaning the buffer
+ * will not be automatically removed when the lua reference to the buffer is garbage collected. This behaviour can
+ * be overruled by specifying 'transfer_ownership = false' in the argument table.
+ *
+ * @name resource.create_buffer
+ *
+ * @param path [type:string] The path to the resource.
+ * @param table [type:table] A table containing info about how to create the buffer. Supported entries:
+ *
+ * * `buffer`
+ * : [type:buffer] the buffer resource to bind to this resource
+ *
+ * * `transfer_ownership`
+ * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object
+ *
+ * @return path [type:hash] Returns the buffer resource path
+ *
+ * @examples
+ * Create a buffer object and bind it to a buffer resource
+ *
+ * ```lua
+ * function init(self)
+ *     local size = 1
+ *     local positions = {
+ *         -- triangle 1
+ *          size,  size, 0, -- top right
+ *         -size, -size, 0, -- bottom left
+ *          size, -size, 0, -- bottom right
+ *         -- triangle 2
+ *          size, size,  0, -- top right
+ *         -size,  size, 0, -- top left
+ *         -size, -size, 0, -- bottom left
+ *     }
+ *
+ *     local buffer_handle = buffer.create(#positions, {
+ *         {
+ *             name  = hash("position"),
+ *             type  = buffer.VALUE_TYPE_FLOAT32,
+ *             count = 3
+ *         }
+ *     })
+ *
+ *     local stream = buffer.get_stream(buffer_handle, hash("position"))
+ *
+ *     -- transfer vertex data to buffer
+ *     for k=1,#positions do
+ *         stream[k] = positions[k]
+ *     end
+ *
+ *     local my_buffer = resource.create_buffer("/my_buffer.bufferc", { buffer = buffer_handle })
+ *     go.set("/go#mesh", "vertices", my_buffer)
+ * end
+ * ```
+ */
+static int CreateBuffer(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const char* path_str     = luaL_checkstring(L, 1);
+    const char* resource_ext = ".bufferc";
+
+    dmhash_t canonical_path_hash = 0;
+    PreCreateResource(L, path_str, resource_ext, &canonical_path_hash);
+
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_pushvalue(L, 2);
+
+    lua_getfield(L, -1, "buffer");
+    dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, -1);
+    lua_pop(L, 1); // "buffer"
+
+    bool transfer_ownership = CheckFieldValue<bool>(L, -1, "transfer_ownership", true);
+
+    lua_pop(L, 1); // args table
+
+    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
+    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+
+    // JG: We have to do this awkwardness because the create functions for the resource
+    //     dmDDF::LoadMessage won't accept an empty dmBufferDDF::BufferDesc structure
+    //     and the buffer res won't accept a bufferdesc a stream that doesn't have data
+    int dummy_value_ptr = 0;
+    dmBufferDDF::StreamDesc buffer_stream_dummy_ddf = {};
+    buffer_stream_dummy_ddf.m_ValueType  = dmBufferDDF::VALUE_TYPE_INT8;
+    buffer_stream_dummy_ddf.m_ValueCount = 1;
+    buffer_stream_dummy_ddf.m_I.m_Data   = &dummy_value_ptr;
+    buffer_stream_dummy_ddf.m_I.m_Count  = 1;
+
+    dmBufferDDF::BufferDesc buffer_desc_dummy_ddf = {};
+    buffer_desc_dummy_ddf.m_Streams.m_Data = &buffer_stream_dummy_ddf;
+    buffer_desc_dummy_ddf.m_Streams.m_Count = 1;
+
+    dmArray<uint8_t> ddf_buffer;
+    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&buffer_desc_dummy_ddf, dmBufferDDF::BufferDesc::m_DDFDescriptor, ddf_buffer);
+    assert(ddf_result == dmDDF::RESULT_OK);
+
+    BufferResource* resource = 0x0;
+    dmResource::Result resource_res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), (void**) &resource);
+
+    if (resource_res != dmResource::RESULT_OK)
+    {
+        return ReportPathError(L, resource_res, canonical_path_hash);
+    }
+
+    resource->m_BufferDDF = 0;
+    resource->m_Buffer    = lua_buffer->m_Buffer;
+    resource->m_Stride    = dmBuffer::GetStructSize(lua_buffer->m_Buffer);
+
+    dmBuffer::GetCount(lua_buffer->m_Buffer, &resource->m_ElementCount);
+    dmBuffer::GetContentVersion(lua_buffer->m_Buffer, &resource->m_Version);
+
+    if (transfer_ownership)
+    {
+        // If user wants to transfer ownership from lua, we need to make sure
+        // that the lua buffer doesn't destroy the buffer, so we remove the reference
+        if (lua_buffer->m_Owner == dmScript::OWNER_LUA)
+        {
+            lua_buffer->m_Buffer = 0;
+        }
+    }
+
+    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+
+    dmScript::PushHash(L, canonical_path_hash);
+
+    return 1;
+}
+
 /*# get resource buffer
  * gets the buffer from a resource
  *
@@ -2038,6 +2188,7 @@ static const luaL_reg Module_methods[] =
     {"set", Set},
     {"load", Load},
     {"create_atlas", CreateAtlas},
+    {"create_buffer", CreateBuffer},
     {"create_texture", CreateTexture},
     {"release", ReleaseResource},
     {"set_atlas", SetAtlas},

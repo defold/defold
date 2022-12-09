@@ -23,7 +23,7 @@ enum ValueType
 
 message StreamDesc
 {
-    required uint64 name_hash     = 1;
+    required string name          = 1;
     required ValueType value_type = 2;
     required uint32 value_count   = 3;
     repeated uint32 ui            = 4;
@@ -31,6 +31,7 @@ message StreamDesc
     repeated uint64 ui64          = 6;
     repeated int64  i64           = 7;
     repeated float  f             = 8;
+    optional uint64 name_hash     = 9;
 }
 
 message BufferDesc

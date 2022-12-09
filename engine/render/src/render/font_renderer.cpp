@@ -415,13 +415,13 @@ namespace dmRender
 
         dmGraphics::VertexElement ve[] =
         {
-                {"position", 0, 4, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-                {"face_color", 2, 4, dmGraphics::TYPE_FLOAT, true},
-                {"outline_color", 3, 4, dmGraphics::TYPE_FLOAT, true},
-                {"shadow_color", 4, 4, dmGraphics::TYPE_FLOAT, true},
-                {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
-                {"layer_mask", 6, 3, dmGraphics::TYPE_FLOAT, false},
+                DM_DECLARE_VERTEX_ELEMENT("position", 0, 4, dmGraphics::TYPE_FLOAT, false),
+                DM_DECLARE_VERTEX_ELEMENT("texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false),
+                DM_DECLARE_VERTEX_ELEMENT("face_color", 2, 4, dmGraphics::TYPE_FLOAT, true),
+                DM_DECLARE_VERTEX_ELEMENT("outline_color", 3, 4, dmGraphics::TYPE_FLOAT, true),
+                DM_DECLARE_VERTEX_ELEMENT("shadow_color", 4, 4, dmGraphics::TYPE_FLOAT, true),
+                DM_DECLARE_VERTEX_ELEMENT("sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false),
+                DM_DECLARE_VERTEX_ELEMENT("layer_mask", 6, 3, dmGraphics::TYPE_FLOAT, false),
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));

@@ -71,16 +71,8 @@ namespace dmBuffer
         uint8_t  m_NumStreams;
     };
 
-    struct HashToStrEntry
-    {
-        const char* m_Str;
-        dmhash_t    m_Hash;
-        uint32_t    m_RefCount;
-    };
-
     struct BufferContext
     {
-        dmArray<HashToStrEntry> m_StreamIdHashToStrArray;
         // Holds available slots (quite few, so simple linear search should be fine when creating new buffers)
         // Realloc when it grows
         Buffer** m_Buffers;
@@ -115,48 +107,6 @@ namespace dmBuffer
             free( (void*)g_BufferContext );
         }
         g_BufferContext = 0;
-    }
-
-    static void RemoveHashToStrEntry(BufferContext* ctx, dmhash_t hash)
-    {
-        for (int i=0; i < ctx->m_StreamIdHashToStrArray.Size(); ++i)
-        {
-            if (ctx->m_StreamIdHashToStrArray[i].m_Hash == hash)
-            {
-                assert(ctx->m_StreamIdHashToStrArray[i].m_Count > 0);
-                ctx->m_StreamIdHashToStrArray[i].m_Count--;
-                if (ctx->m_StreamIdHashToStrArray[i].m_Count == 0)
-                {
-                    ctx->m_StreamIdHashToStrArray.EraseSwap(i);
-                    break;
-                }
-            }
-        }
-    }
-
-    static void AddHashToStrEntry(BufferContext* ctx, dmhash_t hash, const char* str)
-    {
-        HashToStrEntry* entry = 0;
-        for (int i = 0; i < ctx->m_StreamIdHashToStrArray.Size(); ++i)
-        {
-            if (ctx->m_StreamIdHashToStrArray[i].m_Hash == hash)
-            {
-                entry = &ctx->m_StreamIdHashToStrArray[i];
-                break;
-            }
-        }
-        if (!entry)
-        {
-            if (ctx->m_StreamIdHashToStrArray.Full())
-            {
-                ctx->m_StreamIdHashToStrArray.OffsetCapacity(4);
-            }
-            ctx->m_StreamIdHashToStrArray.Push({str, hash, 0});
-            entry = ctx->m_StreamIdHashToStrArray.Back();
-        }
-        assert(entry->m_Hash == hash);
-        assert(entry->m_Str == str);
-        entry->m_Count++;
     }
 
     static uint32_t FindEmptySlot(BufferContext* ctx)

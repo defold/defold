@@ -182,8 +182,8 @@ namespace dmGameSystem
 
         dmGraphics::VertexElement ve[] =
         {
-                {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
+            DM_DECLARE_VERTEX_ELEMENT("position", 0, 3, dmGraphics::TYPE_FLOAT, false),
+            DM_DECLARE_VERTEX_ELEMENT("texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false),
         };
 
         sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));

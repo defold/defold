@@ -233,45 +233,22 @@ namespace dmGameSystem
 
     dmResource::Result ResBufferRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        BufferResource* buffer_resource = (BufferResource*) params.m_Resource->m_Resource;
-
-        if (params.m_Message != 0x0)
+        dmBufferDDF::BufferDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
+        if (e != dmDDF::RESULT_OK)
         {
-            ReleaseResources(params.m_Factory, buffer_resource);
-            ResBufferReCreateParams* recreate_params = (ResBufferReCreateParams*) params.m_Message;
-
-            dmBufferDDF::BufferDesc* ddf;
-            dmDDF::Result e = dmDDF::LoadMessage(recreate_params->m_DDFData, recreate_params->m_DDFDataSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
-
-            if (e != dmDDF::RESULT_OK)
-            {
-                return dmResource::RESULT_DDF_ERROR;
-            }
-
-            buffer_resource->m_Buffer    = recreate_params->m_Buffer;
-            buffer_resource->m_BufferDDF = ddf;
+            return dmResource::RESULT_DDF_ERROR;
         }
-        else
+        BufferResource* buffer_resource = (BufferResource*)params.m_Resource->m_Resource;
+        ReleaseResources(params.m_Factory, buffer_resource);
+        buffer_resource->m_BufferDDF = ddf;
+
+        if (!BuildBuffer(buffer_resource))
         {
-            ReleaseResources(params.m_Factory, buffer_resource);
-
-            dmBufferDDF::BufferDesc* ddf;
-            dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
-
-            if (e != dmDDF::RESULT_OK)
-            {
-                return dmResource::RESULT_DDF_ERROR;
-            }
-
-            buffer_resource->m_BufferDDF = ddf;
-
-            if (!BuildBuffer(buffer_resource))
-            {
-                return dmResource::RESULT_INVALID_DATA;
-            }
-
-            dmBuffer::UpdateContentVersion(buffer_resource->m_Buffer);
+            return dmResource::RESULT_INVALID_DATA;
         }
+
+        dmBuffer::UpdateContentVersion(buffer_resource->m_Buffer);
 
         return dmResource::RESULT_OK;
     }

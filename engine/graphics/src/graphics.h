@@ -23,9 +23,11 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
+#define DM_DECLARE_VERTEX_ELEMENT(name, ix, num_components, graphics_type, normalize) \
+    {name, ix, num_components, graphics_type, normalize, dmHashString64(name)}
+
 namespace dmGraphics
 {
-
     typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
 
     typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);

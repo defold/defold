@@ -139,12 +139,12 @@ namespace dmGameSystem
 
         dmGraphics::VertexElement ve[] =
         {
-                {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"normal", 1, 3, dmGraphics::TYPE_FLOAT, false},
-                {"tangent", 2, 3, dmGraphics::TYPE_FLOAT, false},
-                {"color", 3, 4, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 4, 2, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord1", 5, 2, dmGraphics::TYPE_FLOAT, false},
+            DM_DECLARE_VERTEX_ELEMENT("position",  0, 3, dmGraphics::TYPE_FLOAT, false),
+            DM_DECLARE_VERTEX_ELEMENT("normal",    1, 3, dmGraphics::TYPE_FLOAT, false),
+            DM_DECLARE_VERTEX_ELEMENT("tangent",   2, 3, dmGraphics::TYPE_FLOAT, false),
+            DM_DECLARE_VERTEX_ELEMENT("color",     3, 4, dmGraphics::TYPE_FLOAT, false),
+            DM_DECLARE_VERTEX_ELEMENT("texcoord0", 4, 2, dmGraphics::TYPE_FLOAT, false),
+            DM_DECLARE_VERTEX_ELEMENT("texcoord1", 5, 2, dmGraphics::TYPE_FLOAT, false),
         };
         DM_STATIC_ASSERT( sizeof(dmRig::RigModelVertex) == ((3+3+3+4+2+2)*4), Invalid_Struct_Size);
 

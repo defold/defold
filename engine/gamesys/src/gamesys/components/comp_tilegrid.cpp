@@ -140,8 +140,8 @@ namespace dmGameSystem
         // and hence shared among all the worlds
         dmGraphics::VertexElement ve[] =
         {
-                {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
+            DM_DECLARE_VERTEX_ELEMENT("position", 0, 3, dmGraphics::TYPE_FLOAT, false),
+            DM_DECLARE_VERTEX_ELEMENT("texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false),
         };
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(ve[0]));
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(world->m_RenderContext), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
