@@ -251,10 +251,10 @@ platforms:
     env:
         PROGUARD:               "{{env.ANDROID_PROGUARD}}"
         LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR}}"
-        NDK_PATH:               "{{env.ANDROID_NDK20_PATH}}"
-        SYSROOT:                "{{env.ANDROID_NDK20_SYSROOT}}"
-        NDK_VERSION:            "{{env.ANDROID_NDK20_API_VERSION}}"
-        STL_LIB:                "{{env.ANDROID_NDK20_STL_LIB}}"
+        NDK_PATH:               "{{env.ANDROID_NDK25b_PATH}}"
+        SYSROOT:                "{{env.ANDROID_NDK25b_SYSROOT}}"
+        NDK_VERSION:            "{{env.ANDROID_NDK25b_API_VERSION}}"
+        STL_LIB:                "{{env.ANDROID_NDK25b_STL_LIB}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
@@ -296,10 +296,10 @@ platforms:
     env:
         PROGUARD:               "{{env.ANDROID_PROGUARD}}"
         LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR}}"
-        NDK_PATH:               "{{env.ANDROID_NDK20_PATH}}"
-        SYSROOT:                "{{env.ANDROID_NDK20_SYSROOT}}"
-        NDK_VERSION:            "{{env.ANDROID_64_NDK20_API_VERSION}}"
-        STL_LIB:                "{{env.ANDROID_64_NDK20_STL_LIB}}"
+        NDK_PATH:               "{{env.ANDROID_NDK25b_PATH}}"
+        SYSROOT:                "{{env.ANDROID_NDK25b_SYSROOT}}"
+        NDK_VERSION:            "{{env.ANDROID_64_NDK25b_API_VERSION}}"
+        STL_LIB:                "{{env.ANDROID_64_NDK25b_STL_LIB}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
