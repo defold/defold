@@ -264,6 +264,25 @@ static dmhash_t GetCanonicalPathHash(const char* path)
     return dmHashBuffer64(canonical_path, path_len);
 }
 
+static void PreCreateResource(lua_State* L, const char* path_str, const char* path_ext_wanted, dmhash_t* canonical_path_hash_out)
+{
+    char buf_ext[64];
+    const char* path_ext = dmResource::GetExtFromPath(path_str, buf_ext, sizeof(buf_ext));
+
+    if (path_ext == 0x0 || dmStrCaseCmp(path_ext, path_ext_wanted) != 0)
+    {
+        luaL_error(L, "Unable to create resource, path '%s' must have the %s extension", path_str, path_ext_wanted);
+    }
+
+    dmhash_t canonical_path_hash = GetCanonicalPathHash(path_str);
+    if (dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash))
+    {
+        luaL_error(L, "Unable to create resource, a resource is already registered at path '%s'", path_str);
+    }
+
+    *canonical_path_hash_out = canonical_path_hash;
+}
+
 /*# Set a resource
  * Sets the resource data for a specific resource
  *
@@ -572,6 +591,16 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image)
     delete[] texture_image.m_Alternatives.m_Data;
 }
 
+static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
+{
+    lua_getfield(L, i, field_name);
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, -1);
+    void* texture_res  = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
+    *texture_out       = (dmGraphics::HTexture) texture_res;
+    *texture_path_out  = path_hash;
+    lua_pop(L, 1); // "texture"
+}
+
 /*# create a texture
  * Creates a new texture resource that can be used in the same way as any texture created during build time.
  * The path used for creating the texture must be unique, trying to create a resource at a path that is already
@@ -643,21 +672,8 @@ static int CreateTexture(lua_State* L)
     const char* path_str     = luaL_checkstring(L, 1);
     const char* texturec_ext = ".texturec";
 
-    char buf_ext[64];
-    const char* path_ext = dmResource::GetExtFromPath(path_str, buf_ext, sizeof(buf_ext));
-
-    if (path_ext == 0x0 || dmStrCaseCmp(path_ext, texturec_ext) != 0)
-    {
-        luaL_error(L, "Unable to create texture, path '%s' must have the %s extension", path_str, texturec_ext);
-        return 0;
-    }
-
-    dmhash_t canonical_path_hash = GetCanonicalPathHash(path_str);
-    if (dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash))
-    {
-        luaL_error(L, "Unable to create texture, a resource is already registered at path '%s'", path_str);
-        return 0;
-    }
+    dmhash_t canonical_path_hash;
+    PreCreateResource(L, path_str, texturec_ext, &canonical_path_hash);
 
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
@@ -712,7 +728,7 @@ static int CreateTexture(lua_State* L)
 /*# release a resource
  * Release a resource.
  *
- * @note This is a potentially dangerous operation, releasing resources currently being used can cause unexpected behaviour.
+ * [icon:attention] This is a potentially dangerous operation, releasing resources currently being used can cause unexpected behaviour.
  *
  * @name resource.release
  *
@@ -991,99 +1007,104 @@ static dmGameSystemDDF::Playback GameObjectPlaybackToDDFPlayback(dmGameObject::P
     return (dmGameSystemDDF::Playback) -1;
 }
 
-static void ValidateSetAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out)
+static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out)
 {
     int top = lua_gettop(L);
     uint32_t num_geometries = 0;
     uint32_t num_animations = 0;
 
     lua_getfield(L, -1, "geometries");
-    luaL_checktype(L, -1, LUA_TTABLE);
 
-    lua_pushnil(L);
-    while (lua_next(L, -2))
+    if (!lua_isnil(L, -1))
     {
         luaL_checktype(L, -1, LUA_TTABLE);
-        int geometry_index = luaL_checkinteger(L, -2);
+        lua_pushnil(L);
+        while (lua_next(L, -2))
+        {
+            luaL_checktype(L, -1, LUA_TTABLE);
+            int geometry_index = luaL_checkinteger(L, -2);
 
-        #define VALIDATE_GEOMETRY_STREAM(field_name, num_components) \
-            { \
-                lua_getfield(L, -1, field_name); \
-                luaL_checktype(L, -1, LUA_TTABLE); \
-                if (lua_objlen(L, -1) % num_components != 0) \
-                    luaL_error(L, "Uneven number of entries in %s table for geometry [%d]", field_name, geometry_index); \
-                lua_pushnil(L); \
-                while (lua_next(L, -2)) \
+            #define VALIDATE_GEOMETRY_STREAM(field_name, num_components) \
                 { \
-                    luaL_checkinteger(L, -1); \
-                    luaL_checktype(L, -2, LUA_TNUMBER); \
+                    lua_getfield(L, -1, field_name); \
+                    luaL_checktype(L, -1, LUA_TTABLE); \
+                    if (lua_objlen(L, -1) % num_components != 0) \
+                        luaL_error(L, "Uneven number of entries in %s table for geometry [%d]", field_name, geometry_index); \
+                    lua_pushnil(L); \
+                    while (lua_next(L, -2)) \
+                    { \
+                        luaL_checkinteger(L, -1); \
+                        luaL_checktype(L, -2, LUA_TNUMBER); \
+                        lua_pop(L, 1); \
+                    } \
                     lua_pop(L, 1); \
-                } \
-                lua_pop(L, 1); \
-            }
+                }
 
-        VALIDATE_GEOMETRY_STREAM("vertices", 2);
-        VALIDATE_GEOMETRY_STREAM("uvs",      2);
-        VALIDATE_GEOMETRY_STREAM("indices",  3);
-        #undef VALIDATE_GEOMETRY_STREAM
+            VALIDATE_GEOMETRY_STREAM("vertices", 2);
+            VALIDATE_GEOMETRY_STREAM("uvs",      2);
+            VALIDATE_GEOMETRY_STREAM("indices",  3);
+            #undef VALIDATE_GEOMETRY_STREAM
 
-        lua_pop(L, 1);
+            lua_pop(L, 1);
 
-        num_geometries++;
+            num_geometries++;
+        }
     }
     lua_pop(L, 1);
 
     lua_getfield(L, -1, "animations");
-    luaL_checktype(L, -1, LUA_TTABLE);
-
-    lua_pushnil(L);
-    while (lua_next(L, -2))
+    if (!lua_isnil(L, -1))
     {
         luaL_checktype(L, -1, LUA_TTABLE);
-        int animation_index = luaL_checkinteger(L, -2);
-
-        // Note: checkstring can change the lua stack, so we use isstring instead
-        lua_getfield(L, -1, "id");
-        if (!lua_isstring(L, -1))
+        lua_pushnil(L);
+        while (lua_next(L, -2))
         {
-            luaL_error(L, "Invalid 'id' in animations table at index [%d], either missing or wrong type", num_animations + 1);
+            luaL_checktype(L, -1, LUA_TTABLE);
+            int animation_index = luaL_checkinteger(L, -2);
+
+            // Note: checkstring can change the lua stack, so we use isstring instead
+            lua_getfield(L, -1, "id");
+            if (!lua_isstring(L, -1))
+            {
+                luaL_error(L, "Invalid 'id' in animations table at index [%d], either missing or wrong type", num_animations + 1);
+            }
+            lua_pop(L, 1);
+
+            // Required fields
+            CheckFieldValue<int>(L, -1, "width");
+            CheckFieldValue<int>(L, -1, "height");
+            int frame_start = CheckFieldValue<int>(L, -1, "frame_start");
+            int frame_end   = CheckFieldValue<int>(L, -1, "frame_end");
+
+            // Non-required fields
+            CheckFieldValue<int>(L,  -1, "playback", 0);
+            CheckFieldValue<int>(L,  -1, "fps", 0);
+            CheckFieldValue<bool>(L, -1, "flip_vertical", false );
+            CheckFieldValue<bool>(L, -1, "flip_horizontal", false );
+
+            // Validate frame indices
+            int frame_interval = frame_end - frame_start;
+            if (frame_start < 1 || frame_start > (num_geometries+1)) // +1 for lua indexing
+            {
+                luaL_error(L, "Invalid frame_start in animation [%d], index %d is outside of geometry bounds 0..%d",
+                        animation_index, frame_start, num_geometries);
+            }
+
+            if (frame_end < 1 || frame_end > (num_geometries+1)) // +1 for lua indexing
+            {
+                luaL_error(L, "Invalid frame_end in animation [%d], index %d is outside of geometry bounds 0..%d",
+                    animation_index, frame_end, num_geometries);
+            }
+
+            if (frame_interval <= 0)
+            {
+                luaL_error(L, "Invalid frame interval in animation [%d], start - end = %d", animation_index, frame_interval);
+            }
+
+            lua_pop(L, 1);
+
+            num_animations++;
         }
-        lua_pop(L, 1);
-
-        // Required fields
-        CheckFieldValue<int>(L, -1, "width");
-        CheckFieldValue<int>(L, -1, "height");
-        int frame_start = CheckFieldValue<int>(L, -1, "frame_start");
-        int frame_end   = CheckFieldValue<int>(L, -1, "frame_end");
-
-        // Non-required fields
-        CheckFieldValue<int>(L,  -1, "playback", 0);
-        CheckFieldValue<int>(L,  -1, "fps", 0);
-        CheckFieldValue<bool>(L, -1, "flip_vertical", false );
-        CheckFieldValue<bool>(L, -1, "flip_horizontal", false );
-
-        // Validate frame indices
-        int frame_interval = frame_end - frame_start;
-        if (frame_start < 1 || frame_start > (num_geometries+1)) // +1 for lua indexing
-        {
-            luaL_error(L, "Invalid frame_start in animation [%d], index %d is outside of geometry bounds 0..%d",
-                    animation_index, frame_start, num_geometries);
-        }
-
-        if (frame_end < 1 || frame_end > (num_geometries+1)) // +1 for lua indexing
-        {
-            luaL_error(L, "Invalid frame_end in animation [%d], index %d is outside of geometry bounds 0..%d",
-                animation_index, frame_end, num_geometries);
-        }
-
-        if (frame_interval <= 0)
-        {
-            luaL_error(L, "Invalid frame interval in animation [%d], start - end = %d", animation_index, frame_interval);
-        }
-
-        lua_pop(L, 1);
-
-        num_animations++;
     }
 
     lua_pop(L, 1);
@@ -1091,12 +1112,363 @@ static void ValidateSetAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometr
     *num_animations_out = num_animations;
     *num_geometries_out = num_geometries;
 
-    if (num_animations > 0 && num_geometries == 0)
+    if (num_geometries == 0)
     {
-        luaL_error(L, "Setting atlas with animations requires geometry");
+        luaL_error(L, "Atlas requires at least one entry in the 'geometries' table");
+    }
+    if (num_animations == 0)
+    {
+        luaL_error(L, "Atlas requires at least one entry in the 'animations' table");
     }
 
     assert(lua_gettop(L) == top);
+}
+
+// Creates a texture set from the lua stack, it is expected that the argument
+// table is on top of the stack and that all fields have valid data
+static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, dmGameSystemDDF::TextureSet* texture_set_ddf)
+{
+    int top = lua_gettop(L);
+    texture_set_ddf->m_Texture     = 0;
+    texture_set_ddf->m_TextureHash = texture_path_hash;
+
+    float tex_width            = dmGraphics::GetTextureWidth(texture);
+    float tex_height           = dmGraphics::GetTextureHeight(texture);
+    uint32_t frame_index_count = 0;
+
+    texture_set_ddf->m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
+    texture_set_ddf->m_Geometries.m_Count = num_geometries;
+    memset(texture_set_ddf->m_Geometries.m_Data, 0, sizeof(dmGameSystemDDF::SpriteGeometry) * num_geometries);
+
+    texture_set_ddf->m_Animations.m_Data  = new dmGameSystemDDF::TextureSetAnimation[num_animations];
+    texture_set_ddf->m_Animations.m_Count = num_animations;
+    memset(texture_set_ddf->m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
+
+    if (num_geometries > 0)
+    {
+        float inv_tex_width  = 1.0f / tex_width;
+        float inv_tex_height = 1.0f / tex_height;
+
+        lua_getfield(L, -1, "geometries");
+        for (int i = 0; i < num_geometries; ++i)
+        {
+            lua_pushnumber(L, i+1);
+            lua_gettable(L, -2);
+
+            dmGameSystemDDF::SpriteGeometry& geometry = texture_set_ddf->m_Geometries[i];
+            MakeNumberArrayFromLuaTable<float>(L, "vertices", (void**) &geometry.m_Vertices.m_Data, &geometry.m_Vertices.m_Count);
+            MakeNumberArrayFromLuaTable<float>(L, "uvs", (void**) &geometry.m_Uvs.m_Data, &geometry.m_Uvs.m_Count);
+            MakeNumberArrayFromLuaTable<int>(L, "indices", (void**) &geometry.m_Indices.m_Data, &geometry.m_Indices.m_Count);
+
+            lua_pop(L, 1);
+
+            // Calculate extents so that we can transform to -0.5 .. 0.5 based
+            // on the middle of the sprite
+            float geo_width = 0.0f;
+            float geo_height = 0.0f;
+            for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
+            {
+                geo_width  = dmMath::Max(geo_width, geometry.m_Vertices.m_Data[j]);
+                geo_height = dmMath::Max(geo_height, geometry.m_Vertices.m_Data[j+1]);
+            }
+
+            geometry.m_Width  = geo_width;
+            geometry.m_Height = geo_height;
+
+            // Transform from texel to local space for position and uvs
+            // Position and texcoords are flipped on y/t axis so that coordinates are
+            // 0,0 in the top left corner, which is the same as the pipeline
+            for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
+            {
+                geometry.m_Vertices[j]     = geometry.m_Vertices[j] / geo_width - 0.5;
+                geometry.m_Vertices[j + 1] = 1.0 - (geometry.m_Vertices[j + 1] / geo_height) - 0.5;
+            }
+
+            for (int j = 0; j < geometry.m_Uvs.m_Count; j += 2)
+            {
+                geometry.m_Uvs[j]     = geometry.m_Uvs[j] * inv_tex_width;
+                geometry.m_Uvs[j + 1] = 1.0 - geometry.m_Uvs[j + 1] * inv_tex_height;
+            }
+
+            frame_index_count++;
+        }
+        lua_pop(L, 1); // geometries
+    }
+
+    if (num_animations > 0)
+    {
+        lua_getfield(L, -1, "animations");
+        for (int i = 0; i < num_animations; ++i)
+        {
+            lua_pushnumber(L, i+1);
+            lua_gettable(L, -2);
+
+            dmGameSystemDDF::TextureSetAnimation& animation = texture_set_ddf->m_Animations[i];
+
+            // Default values taken from texture_set_ddf->proto
+            animation.m_Fps      = 30;
+            animation.m_Playback = dmGameSystemDDF::PLAYBACK_ONCE_FORWARD;
+
+            lua_getfield(L, -1, "id");
+            animation.m_Id = lua_tostring(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "width");
+            animation.m_Width = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "height");
+            animation.m_Height = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "frame_start");
+            int frame_start = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "frame_end");
+            int frame_end = lua_tointeger(L, -1);
+            lua_pop(L, 1);
+
+            // Get optional arguments
+            lua_getfield(L, -1, "playback");
+            if (lua_isnumber(L, -1))
+            {
+                animation.m_Playback = GameObjectPlaybackToDDFPlayback((dmGameObject::Playback) lua_tointeger(L,-1));
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "fps");
+            if (lua_isnumber(L, -1))
+            {
+                animation.m_Fps = lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "flip_vertical");
+            if (lua_isboolean(L, -1))
+            {
+                animation.m_FlipVertical = lua_toboolean(L, -1);
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "flip_horizontal");
+            if (lua_isboolean(L, -1))
+            {
+                animation.m_FlipHorizontal = lua_toboolean(L, -1);
+            }
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+
+            // Correct frame start/end
+            animation.m_Start  = frame_start + num_geometries - 1;
+            animation.m_End    = frame_end + num_geometries - 1;
+            frame_index_count += frame_end - frame_start;
+        }
+        lua_pop(L, 1); // animations
+    }
+
+    texture_set_ddf->m_UseGeometries        = 1;
+    texture_set_ddf->m_FrameIndices.m_Data  = new uint32_t[frame_index_count];
+    texture_set_ddf->m_FrameIndices.m_Count = frame_index_count;
+    memset(texture_set_ddf->m_FrameIndices.m_Data, 0, sizeof(uint32_t) * frame_index_count);
+
+    uint32_t frame_index = 0;
+    for (int i = 0; i < num_geometries; ++i)
+    {
+        texture_set_ddf->m_FrameIndices[frame_index++] = i;
+    }
+
+    for (int i = 0; i < texture_set_ddf->m_Animations.m_Count; ++i)
+    {
+        uint32_t frame_start = texture_set_ddf->m_Animations[i].m_Start;
+        uint32_t frame_count = texture_set_ddf->m_Animations[i].m_End - frame_start;
+
+        // Values stored in the frame indices table refer to entries in the
+        // m_Geometry table of the DDF, so we need to adjust the values so
+        // that the start and end values are based from zero because that is how
+        // the indirection works when getting animations in e.g comp_sprite
+        for (int j = 0; j < frame_count; ++j)
+        {
+            texture_set_ddf->m_FrameIndices[frame_index++] = frame_start + j - num_geometries;
+        }
+    }
+
+    assert(top == lua_gettop(L));
+}
+
+/*# create an atlas resource
+ * This function creates a new atlas resource that can be used in the same way as any atlas created during build time.
+ * The path used for creating the atlas must be unique, trying to create a resource at a path that is already
+ * registered will trigger an error. If the intention is to instead modify an existing atlas, use the [ref:resource.set_atlas]
+ * function. Also note that the path to the new atlas resource must have a '.texturesetc' extension,
+ * meaning "/path/my_atlas" is not a valid path but "/path/my_atlas.texturesetc" is.
+ *
+ * When creating the atlas, at least one geometry and one animation is required, and an error will be
+ * raised if these requirements are not met. A reference to the resource will be held by the collection
+ * that created the resource and will automatically be released when that collection is destroyed.
+ * Note that releasing a resource essentially means decreasing the reference count of that resource,
+ * and not necessarily that it will be deleted.
+ *
+ * @name resource.create_atlas
+ *
+ * @param path [type:string] The path to the resource.
+ * @param table [type:table] A table containing info about how to create the texture. Supported entries:
+ *
+ * * `texture`
+ * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
+ *
+ * * `animations`
+ * : [type:table] a list of the animations in the atlas. Supports the following fields:
+ *
+ * * `id`
+ * : [type:string] the id of the animation, used in e.g sprite.play_animation
+ *
+ * * `width`
+ * : [type:integer] the width of the animation
+ *
+ * * `height`
+ * : [type:integer] the height of the animation
+ *
+ * * `frame_start`
+ * : [type:integer] index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ *
+ * * `frame_end`
+ * : [type:integer] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
+ *
+ * * `playback`
+ * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
+ *
+ * * `fps`
+ * : [type:integer] optional fps of the animation, the default value is 30
+ *
+ * * `flip_vertical`
+ * : [type:boolean] optional flip the animation vertically, the default value is false
+ *
+ * * `flip_horizontal`
+ * : [type:boolean] optional flip the animation horizontally, the default value is false
+ *
+ * * `geometries`
+ * : [type:table] A list of the geometries that should map to the texture data. Supports the following fields:
+ *
+ * * `vertices`
+ * : [type:table] a list of the vertices in texture space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
+ *
+ * * `uvs`
+ * : [type:table] a list of the uv coordinates in texture space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}
+ *
+ * * `indices`
+ * : [type:table] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
+ *
+ * @note The index values are zero based where zero refers to the first entry of the vertex and uv lists
+ *
+ * @return path [type:hash] Returns the atlas resource path
+ *
+ * @examples
+ * Create a backing texture and an atlas
+ *
+ * ```lua
+ * function init(self)
+ *     -- create an empty texture
+ *     local my_texture_id = resource.create_texture("/my_texture.texturec", {
+ *         width          = 128,
+ *         height         = 128,
+ *         type           = resource.TEXTURE_TYPE_2D,
+ *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *     })
+ *
+ *     -- optionally use resource.set_texture to upload data to texture
+ *
+ *     -- create an atlas with one animation and one square geometry
+ *     -- note that the function doesn't support hashes for the texture,
+ *     -- you need to use a string for the texture path here aswell
+ *     local my_atlas_id = resource.create_atlas("/my_atlas.texturesetc", {
+ *         texture = "/my_texture.texturec",
+ *         animations = {
+ *             {
+ *                 id          = "my_animation",
+ *                 width       = 128,
+ *                 height      = 128,
+ *                 frame_start = 1,
+ *                 frame_end   = 2,
+ *             }
+ *         },
+ *         geometries = {
+ *             {
+ *                 vertices  = {
+ *                     0,   0,
+ *                     0,   128,
+ *                     128, 128,
+ *                     128, 0
+ *                 },
+ *                 uvs = {
+ *                     0,   0,
+ *                     0,   128,
+ *                     128, 128,
+ *                     128, 0
+ *                 },
+ *                 indices = {0,1,2,0,2,3}
+ *             }
+ *         }
+ *     })
+ *
+ *     -- assign the atlas to the 'sprite' component on the same go
+ *     go.set("#sprite", "image", my_atlas_id)
+ * end
+ * ```
+ */
+static int CreateAtlas(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const char* path_str           = luaL_checkstring(L, 1);
+    const char* texturec_ext       = ".texturesetc";
+    const char* texture_field_name = "texture";
+
+    dmhash_t canonical_path_hash = 0;
+    PreCreateResource(L, path_str, texturec_ext, &canonical_path_hash);
+
+    dmGameSystemDDF::TextureSet texture_set_ddf = {};
+
+    // Validate arguments and get atlas data
+    {
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_pushvalue(L, 2);
+        dmGraphics::HTexture texture;
+        dmhash_t texture_path;
+        CheckTextureResource(L, -1, texture_field_name, &texture_path, &texture);
+
+        uint32_t num_geometries = 0;
+        uint32_t num_animations = 0;
+        // Note: We do a separate pass over the lua state to validate the data in the args table,
+        //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
+        //       since they longjmp away so we can't release the memory..
+        ValidateAtlasArgumentsFromLua(L, &num_geometries, &num_animations);
+
+        MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, &texture_set_ddf);
+
+        lua_pop(L, 1); // args table
+    }
+
+    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
+    dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
+
+    dmArray<uint8_t> ddf_buffer;
+    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
+    assert(ddf_result == dmDDF::RESULT_OK);
+
+    void* resource = 0x0;
+    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+
+    if (res != dmResource::RESULT_OK)
+    {
+        return ReportPathError(L, res, canonical_path_hash);
+    }
+
+    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+    dmScript::PushHash(L, canonical_path_hash);
+
+    return 1;
 }
 
 /*# set atlas data
@@ -1109,7 +1481,7 @@ static void ValidateSetAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometr
  * Vertex and uv coordinates for the geometries are expected to be
  * in pixel coordinates where 0,0 is the top left corner of the texture.
  *
- * Note that there is no automatic padding or margin support when setting custom data,
+ * There is no automatic padding or margin support when setting custom data,
  * which could potentially cause filtering artifacts if used with a material sampler that has linear filtering.
  * If that is an issue, you need to calculate padding and margins manually before passing in the geometry data to
  * this function.
@@ -1122,7 +1494,7 @@ static void ValidateSetAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometr
  * @param table [type:table] A table containing info about the atlas. Supported entries:
  *
  * * `texture`
- * : [type:string] the path to the texture resource, e.g "/main/my_texture.texturec"
+ * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
  *
  * * `animations`
  * : [type:table] a list of the animations in the atlas. Supports the following fields:
@@ -1235,193 +1607,23 @@ static int SetAtlas(lua_State* L)
     CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturesetc");
 
     dmGameSystemDDF::TextureSet texture_set_ddf = {};
-    uint32_t frame_index_count                  = 0;
     uint32_t num_geometries                     = 0;
     uint32_t num_animations                     = 0;
-    float tex_width                             = 0;
-    float tex_height                            = 0;
 
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_pushvalue(L, 2);
 
-    // Set texture resource path
-    lua_getfield(L, -1, "texture");
-    {
-        const char* texture_path         = luaL_checkstring(L, -1);
-        dmhash_t tex_canonical_path_hash = GetCanonicalPathHash(texture_path);
-        void* texture_res                = CheckResource(L, g_ResourceModule.m_Factory, tex_canonical_path_hash, "texturec");
-        assert(texture_res);
-        texture_set_ddf.m_Texture        = texture_path;
-        dmGraphics::HTexture texture     = (dmGraphics::HTexture) texture_res;
-        tex_width                        = dmGraphics::GetTextureWidth(texture);
-        tex_height                       = dmGraphics::GetTextureHeight(texture);
-    }
-    lua_pop(L, 1); // "texture"
+    dmGraphics::HTexture texture;
+    dmhash_t texture_path;
+    CheckTextureResource(L, -1, "texture", &texture_path, &texture);
 
     // Note: We do a separate pass over the lua state to validate the data in the args table,
     //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
     //       since they longjmp away so we can't release the memory..
-    ValidateSetAtlasArgumentsFromLua(L, &num_geometries, &num_animations);
+    ValidateAtlasArgumentsFromLua(L, &num_geometries, &num_animations);
 
-    texture_set_ddf.m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
-    texture_set_ddf.m_Geometries.m_Count = num_geometries;
-    memset(texture_set_ddf.m_Geometries.m_Data, 0, sizeof(dmGameSystemDDF::SpriteGeometry) * num_geometries);
-
-    texture_set_ddf.m_Animations.m_Data  = new dmGameSystemDDF::TextureSetAnimation[num_animations];
-    texture_set_ddf.m_Animations.m_Count = num_animations;
-    memset(texture_set_ddf.m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
-
-    if (num_geometries > 0)
-    {
-        float inv_tex_width  = 1.0f / tex_width;
-        float inv_tex_height = 1.0f / tex_height;
-
-        lua_getfield(L, -1, "geometries");
-        for (int i = 0; i < num_geometries; ++i)
-        {
-            lua_pushnumber(L, i+1);
-            lua_gettable(L, -2);
-
-            dmGameSystemDDF::SpriteGeometry& geometry = texture_set_ddf.m_Geometries[i];
-            MakeNumberArrayFromLuaTable<float>(L, "vertices", (void**) &geometry.m_Vertices.m_Data, &geometry.m_Vertices.m_Count);
-            MakeNumberArrayFromLuaTable<float>(L, "uvs", (void**) &geometry.m_Uvs.m_Data, &geometry.m_Uvs.m_Count);
-            MakeNumberArrayFromLuaTable<int>(L, "indices", (void**) &geometry.m_Indices.m_Data, &geometry.m_Indices.m_Count);
-
-            lua_pop(L, 1);
-
-            // Calculate extents so that we can transform to -0.5 .. 0.5 based
-            // on the middle of the sprite
-            float geo_width = 0.0f;
-            float geo_height = 0.0f;
-            for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
-            {
-                geo_width  = dmMath::Max(geo_width, geometry.m_Vertices.m_Data[j]);
-                geo_height = dmMath::Max(geo_height, geometry.m_Vertices.m_Data[j+1]);
-            }
-
-            geometry.m_Width  = geo_width;
-            geometry.m_Height = geo_height;
-
-            // Transform from texel to local space for position and uvs
-            // Position and texcoords are flipped on y/t axis so that coordinates are
-            // 0,0 in the top left corner, which is the same as the pipeline
-            for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
-            {
-                geometry.m_Vertices[j]     = geometry.m_Vertices[j] / geo_width - 0.5;
-                geometry.m_Vertices[j + 1] = 1.0 - (geometry.m_Vertices[j + 1] / geo_height) - 0.5;
-            }
-
-            for (int j = 0; j < geometry.m_Uvs.m_Count; j += 2)
-            {
-                geometry.m_Uvs[j]     = geometry.m_Uvs[j] * inv_tex_width;
-                geometry.m_Uvs[j + 1] = 1.0 - geometry.m_Uvs[j + 1] * inv_tex_height;
-            }
-
-            frame_index_count++;
-        }
-        lua_pop(L, 1); // geometries
-    }
-
-    if (num_animations > 0)
-    {
-        lua_getfield(L, -1, "animations");
-        for (int i = 0; i < num_animations; ++i)
-        {
-            lua_pushnumber(L, i+1);
-            lua_gettable(L, -2);
-
-            dmGameSystemDDF::TextureSetAnimation& animation = texture_set_ddf.m_Animations[i];
-
-            // Default values taken from texture_set_ddf.proto
-            animation.m_Fps      = 30;
-            animation.m_Playback = dmGameSystemDDF::PLAYBACK_ONCE_FORWARD;
-
-            lua_getfield(L, -1, "id");
-            animation.m_Id = lua_tostring(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "width");
-            animation.m_Width = lua_tointeger(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "height");
-            animation.m_Height = lua_tointeger(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "frame_start");
-            int frame_start = lua_tointeger(L, -1);
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "frame_end");
-            int frame_end = lua_tointeger(L, -1);
-            lua_pop(L, 1);
-
-            // Get optional arguments
-            lua_getfield(L, -1, "playback");
-            if (lua_isnumber(L, -1))
-            {
-                animation.m_Playback = GameObjectPlaybackToDDFPlayback((dmGameObject::Playback) lua_tointeger(L,-1));
-            }
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "fps");
-            if (lua_isnumber(L, -1))
-            {
-                animation.m_Fps = lua_tointeger(L, -1);
-            }
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "flip_vertical");
-            if (lua_isboolean(L, -1))
-            {
-                animation.m_FlipVertical = lua_toboolean(L, -1);
-            }
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "flip_horizontal");
-            if (lua_isboolean(L, -1))
-            {
-                animation.m_FlipHorizontal = lua_toboolean(L, -1);
-            }
-            lua_pop(L, 1);
-
-            lua_pop(L, 1);
-
-            // Correct frame start/end
-            animation.m_Start  = frame_start + num_geometries - 1;
-            animation.m_End    = frame_end + num_geometries - 1;
-            frame_index_count += frame_end - frame_start;
-        }
-        lua_pop(L, 1); // animations
-    }
-
+    MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, &texture_set_ddf);
     lua_pop(L, 1); // args table
-
-    texture_set_ddf.m_UseGeometries        = 1;
-    texture_set_ddf.m_FrameIndices.m_Data  = new uint32_t[frame_index_count];
-    texture_set_ddf.m_FrameIndices.m_Count = frame_index_count;
-    memset(texture_set_ddf.m_FrameIndices.m_Data, 0, sizeof(uint32_t) * frame_index_count);
-
-    uint32_t frame_index = 0;
-    for (int i = 0; i < num_geometries; ++i)
-    {
-        texture_set_ddf.m_FrameIndices[frame_index++] = i;
-    }
-
-    for (int i = 0; i < texture_set_ddf.m_Animations.m_Count; ++i)
-    {
-        uint32_t frame_start = texture_set_ddf.m_Animations[i].m_Start;
-        uint32_t frame_count = texture_set_ddf.m_Animations[i].m_End - frame_start;
-
-        // Values stored in the frame indices table refer to entries in the
-        // m_Geometry table of the DDF, so we need to adjust the values so
-        // that the start and end values are based from zero because that is how
-        // the indirection works when getting animations in e.g comp_sprite
-        for (int j = 0; j < frame_count; ++j)
-        {
-            texture_set_ddf.m_FrameIndices[frame_index++] = frame_start + j - num_geometries;
-        }
-    }
 
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_set_ddf, dmGameSystemDDF::TextureSet::m_DDFDescriptor, ddf_buffer);
@@ -1474,7 +1676,14 @@ static int GetAtlas(lua_State* L)
 
     lua_newtable(L);
 
-    SET_LUA_TABLE_FIELD(lua_pushstring, "texture", texture_set->m_Texture);
+    if (texture_set->m_TextureHash)
+    {
+        SET_LUA_TABLE_FIELD(dmScript::PushHash, "texture", texture_set->m_TextureHash);
+    }
+    else
+    {
+        SET_LUA_TABLE_FIELD(lua_pushstring, "texture", texture_set->m_Texture);
+    }
 
     lua_pushliteral(L, "animations");
     lua_newtable(L);
@@ -1869,6 +2078,7 @@ static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
+    {"create_atlas", CreateAtlas},
     {"create_texture", CreateTexture},
     {"release", ReleaseResource},
     {"set_atlas", SetAtlas},

@@ -246,6 +246,8 @@ def _parse_comment(text):
         md.reset()
         if tag == 'name':
             element.name = value
+        elif tag == 'note':
+            element.notes.append(value)
         elif tag == 'return':
             """ Some of the possible variations:
             @return name
@@ -386,12 +388,16 @@ def _parse_comment_yaml(str):
     element["members"] = []
     element["tparams"] = []
     element["params"] = []
+    element["notes"] = []
 
     namespace_found = False
     for (tag, value) in lst:
         value = value.strip()
         if tag == 'name':
             element["name"] = value
+
+        elif tag == 'note':
+            element["notes"].append(value)
 
         elif tag == 'return':
             tmp = value.split(' ', 1)
@@ -569,10 +575,14 @@ def doc_to_ydict(info, elements):
         if len(elem_desc) == 0:
             elem_desc = element["brief"]
 
+        # notes
+        elem_notes = element["notes"]
+
         entry = {
             'name': elem_name,
             'type': elem_type,
-            'desc': elem_desc
+            'desc': elem_desc,
+            'notes': elem_notes
         }
 
         # type specific fields

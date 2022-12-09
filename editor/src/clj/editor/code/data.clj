@@ -336,6 +336,13 @@
 (defn lines-input-stream ^InputStream [lines]
   (ReaderInputStream. (lines-reader lines)))
 
+(defn lines->string
+  ^String [lines]
+  (util/join-lines "\n" lines))
+
+(defn string->lines [^String string]
+  (util/split-lines string))
+
 (defrecord Rect [^double x ^double y ^double w ^double h])
 
 (defn rect-contains? [^Rect r ^double x ^double y]

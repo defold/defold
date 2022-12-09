@@ -20,8 +20,7 @@ namespace dmIntersection
 // Keeping this private for now. Making sure that the W component is always 1
 static inline float DistanceToPlane(Plane plane, dmVMath::Vector4 pos)
 {
-    dmVMath::Vector4 r = Vectormath::Aos::mulPerElem(plane, pos); // nx * px + ny * py + nz * pz + d
-    return Vectormath::Aos::sum(r);
+    return Vectormath::Aos::dot(plane,pos); // nx * px + ny * py + nz * pz + d*pw , pw - should be 1
 }
 
 float DistanceToPlane(Plane plane, dmVMath::Point3 pos)
@@ -96,6 +95,54 @@ bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, floa
         }
     }
     return true;
+}
+
+// Returns 'false' if the bounding box is off the frustum. Returning 'true' does not guarantee that the object intersects the frustum or is inside it.
+bool TestFrustumOBB(const Frustum& frustum, const dmVMath::Matrix4& world, dmVMath::Vector3& aabb_min, dmVMath::Vector3& aabb_max, bool skip_near_far)
+{
+    // calculate coordinates of all 8 corners of the bounding cube. To find them we'll take all points P(Xi,Yj,Zk) i=aabb_min.x|aabb_max.x, j=aabb_min.y|aabb_max.y, k=aabb_min.z|aabb_max.z
+    dmVMath::Point3 point0 = dmVMath::Point3(aabb_min.getX(), aabb_min.getY(), aabb_min.getZ());
+    dmVMath::Point3 point1 = dmVMath::Point3(aabb_min.getX(), aabb_min.getY(), aabb_max.getZ());
+    dmVMath::Point3 point2 = dmVMath::Point3(aabb_min.getX(), aabb_max.getY(), aabb_min.getZ());
+    dmVMath::Point3 point3 = dmVMath::Point3(aabb_min.getX(), aabb_max.getY(), aabb_max.getZ());
+    dmVMath::Point3 point4 = dmVMath::Point3(aabb_max.getX(), aabb_min.getY(), aabb_min.getZ());
+    dmVMath::Point3 point5 = dmVMath::Point3(aabb_max.getX(), aabb_min.getY(), aabb_max.getZ());
+    dmVMath::Point3 point6 = dmVMath::Point3(aabb_max.getX(), aabb_max.getY(), aabb_min.getZ());
+    dmVMath::Point3 point7 = dmVMath::Point3(aabb_max.getX(), aabb_max.getY(), aabb_max.getZ());
+
+    dmVMath::Vector4 corner_points[8]; // corner points in world coords
+
+    corner_points[0] = world * point0;
+    corner_points[1] = world * point1;
+    corner_points[2] = world * point2;
+    corner_points[3] = world * point3;
+    corner_points[4] = world * point4;
+    corner_points[5] = world * point5;
+    corner_points[6] = world * point6;
+    corner_points[7] = world * point7;
+
+    // for any of the six frustum planes if the all corner points lie in the negative halfspace, do cull the object
+    int max_planes = skip_near_far ? 4 : 6;
+    for (int plane_i=0; plane_i<max_planes; plane_i++)
+    {
+        // get plane normal/equation
+        bool positive_found = false;
+        for (int corner_i=1; corner_i<8; corner_i++)
+        {
+            float distance = DistanceToPlane(frustum.m_Planes[plane_i], corner_points[corner_i]);
+            if (distance >= 0)
+            {
+                positive_found = true;
+                break; // no need to check for the rest of the points
+            }
+        }
+        if (! positive_found) // if all corners are in the negative halfspace for the plane, we're done
+        {
+            return false; // no intersection, do cull
+        }
+
+    }
+    return true; // inside the frustum but false positives may also happen. They are ok when used for frustum culling where the object will be hidden later in the rendering pipeline.
 }
 
 } // dmIntersection

@@ -18,6 +18,7 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [editor.git-credentials :as git-credentials]
+            [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.ui :as ui]
             [util.text-util :as text-util]
@@ -309,8 +310,9 @@
     (persistent! (deref locked-files))))
 
 (defn locked-files-error-message [locked-files]
-  (str/join "\n" (concat ["The following project files are locked or in use by another process:"]
-                         (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+  (str/join "\n" (concat ["The following project files are locked or in use by another process:"
+                          ""]
+                         (map dialogs/indent-with-bullet
                               (sort locked-files))
                          [""
                           "Please ensure they are writable and quit other applications that reference files in the project before trying again."])))
