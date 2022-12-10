@@ -124,17 +124,6 @@ public class MacOSBundler implements IBundler {
         }
 
         BundleHelper.throwIfCanceled(canceled);
-        // Create fat/universal binary
-        File tmpFile = File.createTempFile("dmengine", "");
-        tmpFile.deleteOnExit();
-        String exe = tmpFile.getPath();
-
-        BundleHelper.throwIfCanceled(canceled);
-
-        // Run lipo on supplied architecture binaries.
-        IOSBundler.lipoBinaries(tmpFile, binaries);
-
-        BundleHelper.throwIfCanceled(canceled);
 
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();
@@ -172,37 +161,36 @@ public class MacOSBundler implements IBundler {
         // Copy icon
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);
 
+        // Create fat/universal binary
+        File exe = File.createTempFile("dmengine", "");
+        exe.deleteOnExit();
+
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Run lipo on supplied architecture binaries.
+        IOSBundler.lipoBinaries(exe, binaries);
+
+        BundleHelper.throwIfCanceled(canceled);
+
+        if( strip_executable ) {
+            IOSBundler.stripExecutable(platform, exe);
+        }
+
         // Copy Executable
-        File exeOut = new File(macosDir, exeName);
-        FileUtils.copyFile(tmpFile, exeOut);
-        exeOut.setExecutable(true);
+        File destExecutable = new File(appDir, exeName);
+        FileUtils.copyFile(exe, destExecutable);
+        destExecutable.setExecutable(true);
+        logger.log(Level.INFO, "Bundle binary: " + IOSBundler.getFileDescription(destExecutable));
 
         // Copy debug symbols
-        String zipDir = FilenameUtils.concat(extenderExeDir, platform.getExtenderPair());
-        File buildSymbols = new File(zipDir, "dmengine.dSYM");
-        if (buildSymbols.exists()) {
-            String symbolsDir = String.format("%s.dSYM", title);
-
-            File bundleSymbols = new File(bundleDir, symbolsDir);
-            FileUtils.copyDirectory(buildSymbols, bundleSymbols);
-            // Also rename the executable
-            File bundleExeOld = new File(bundleSymbols, FilenameUtils.concat("Contents", FilenameUtils.concat("Resources", FilenameUtils.concat("DWARF", "dmengine"))));
-            File symbolExe = new File(bundleExeOld.getParent(), exeOut.getName());
-            bundleExeOld.renameTo(symbolExe);
+        // Create list of dSYM binaries
+        List<File> symbolDirectories = IOSBundler.getSymbolDirsFromArchitectures(buildDir, architectures);
+        if (symbolDirectories.size() > 0)
+        {
+            File bundleSymbolsDir = new File(bundleDir, String.format("%s.dSYM", title));
+            IOSBundler.generateSymbols(bundleSymbolsDir, exeName, symbolDirectories);
         }
 
         BundleHelper.throwIfCanceled(canceled);
-        // Strip executable
-        if( strip_executable )
-        {
-            // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS ||
-                Platform.getHostPlatform() == Platform.Arm64MacOS) {
-                Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exeOut.getPath()); // Using the same executable
-                if (stripResult.ret != 0) {
-                    logger.log(Level.SEVERE, "Error executing strip command:\n" + new String(stripResult.stdOutErr));
-                }
-            }
-        }
     }
 }
