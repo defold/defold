@@ -164,10 +164,8 @@ namespace dmBuffer
         return version << 16 | index;
     }
 
-    static void FreeMetadata(Buffer* buffer) {
-
-        uint32_t count = buffer->m_MetaDataArray.Size();
-
+    static void FreeMetadata(Buffer* buffer)
+    {
         for (uint32_t i=0; i<buffer->m_MetaDataArray.Size(); i++) {
             Buffer::MetaData* metadata = buffer->m_MetaDataArray[i];
             free(metadata->m_Data);
@@ -178,6 +176,12 @@ namespace dmBuffer
 
     static void FreeBuffer(BufferContext* ctx, HBuffer hbuffer)
     {
+        if (!IsBufferValid(hbuffer))
+        {
+            dmLogError("Invalid buffer when freeing buffer");
+            return;
+        }
+
         uint16_t version = hbuffer >> 16;
         Buffer* b = ctx->m_Buffers[hbuffer & 0xffff];
         if (version != b->m_Version)

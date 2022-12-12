@@ -1773,30 +1773,11 @@ static int SetSound(lua_State* L) {
     return 0;
 }
 
-static dmBufferDDF::ValueType GetBufferDDFTypeFromBufferValueType(dmBuffer::ValueType value_type)
-{
-    switch (value_type)
-    {
-        case dmBuffer::ValueType::VALUE_TYPE_UINT8:   return dmBufferDDF::ValueType::VALUE_TYPE_UINT8;
-        case dmBuffer::ValueType::VALUE_TYPE_UINT16:  return dmBufferDDF::ValueType::VALUE_TYPE_UINT16;
-        case dmBuffer::ValueType::VALUE_TYPE_UINT32:  return dmBufferDDF::ValueType::VALUE_TYPE_UINT32;
-        case dmBuffer::ValueType::VALUE_TYPE_UINT64:  return dmBufferDDF::ValueType::VALUE_TYPE_UINT64;
-        case dmBuffer::ValueType::VALUE_TYPE_INT8:    return dmBufferDDF::ValueType::VALUE_TYPE_INT8;
-        case dmBuffer::ValueType::VALUE_TYPE_INT16:   return dmBufferDDF::ValueType::VALUE_TYPE_INT16;
-        case dmBuffer::ValueType::VALUE_TYPE_INT32:   return dmBufferDDF::ValueType::VALUE_TYPE_INT32;
-        case dmBuffer::ValueType::VALUE_TYPE_INT64:   return dmBufferDDF::ValueType::VALUE_TYPE_INT64;
-        case dmBuffer::ValueType::VALUE_TYPE_FLOAT32: return dmBufferDDF::ValueType::VALUE_TYPE_FLOAT32;
-        default:break;
-    }
-    assert(0);
-    return (dmBufferDDF::ValueType) -1;
-}
-
 /*# create a buffer resource
  * This function creates a new buffer resource that can be used in the same way as any buffer created during build time.
  * The function requires a valid buffer created from either [ref:buffer.create] or another pre-existing buffer resource.
  * If the buffer has been created by a script, the new resource will take ownership of the buffer, meaning the buffer
- * will not be automatically removed when the lua reference to the buffer is garbage collected. This behaviour can
+ * will not automatically be removed when the lua reference to the buffer is garbage collected. This behaviour can
  * be overruled by specifying 'transfer_ownership = false' in the argument table.
  *
  * @name resource.create_buffer
@@ -1808,7 +1789,7 @@ static dmBufferDDF::ValueType GetBufferDDFTypeFromBufferValueType(dmBuffer::Valu
  * : [type:buffer] the buffer resource to bind to this resource
  *
  * * `transfer_ownership`
- * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object
+ * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object (default true)
  *
  * @return path [type:hash] Returns the buffer resource path
  *
@@ -1820,13 +1801,13 @@ static dmBufferDDF::ValueType GetBufferDDFTypeFromBufferValueType(dmBuffer::Valu
  *     local size = 1
  *     local positions = {
  *         -- triangle 1
- *          size,  size, 0, -- top right
- *         -size, -size, 0, -- bottom left
- *          size, -size, 0, -- bottom right
+ *          size,  size, 0,
+ *         -size, -size, 0,
+ *          size, -size, 0,
  *         -- triangle 2
- *          size, size,  0, -- top right
- *         -size,  size, 0, -- top left
- *         -size, -size, 0, -- bottom left
+ *          size, size,  0,
+ *         -size,  size, 0,
+ *         -size, -size, 0,
  *     }
  *
  *     local buffer_handle = buffer.create(#positions, {
@@ -1908,8 +1889,10 @@ static int CreateBuffer(lua_State* L)
 
     if (transfer_ownership)
     {
-        // If user wants to transfer ownership from lua, we need to make sure
-        // that the lua buffer doesn't destroy the buffer, so we remove the reference
+        // If user wants to transfer ownership from the lua buffer, we need to make sure
+        // that the lua buffer doesn't destroy the buffer handle, so we remove the pointer
+        // This means that after this call, the lua buffer object doesn't have a valid
+        // buffer anymore since it has handed it ower to the resource
         if (lua_buffer->m_Owner == dmScript::OWNER_LUA)
         {
             lua_buffer->m_Buffer = 0;
@@ -1955,6 +1938,12 @@ static int GetBuffer(lua_State* L)
     void* resource = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
 
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
+
+    if (!dmBuffer::IsBufferValid(buffer_resource->m_Buffer))
+    {
+        return luaL_error(L, "The buffer handle is invalid");
+    }
+
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
     dmScript::LuaHBuffer luabuf((void*)buffer_resource);
     PushBuffer(L, luabuf);
@@ -2046,7 +2035,7 @@ static int SetBuffer(lua_State* L)
         for (uint32_t i = 0; i < stream_count; ++i)
         {
             const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-            streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
+            streams_decl[i].m_Name = ddf_stream.m_NameHash;
             streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
             streams_decl[i].m_Count = ddf_stream.m_ValueCount;
         }

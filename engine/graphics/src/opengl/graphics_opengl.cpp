@@ -1644,6 +1644,8 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
             else
             {
                 CLEAR_GL_ERROR
+                // TODO: Disabled irritating warning? Should we care about not used streams?
+                //dmLogWarning("Vertex attribute %s is not active or defined", streams[i].m_Name);
                 streams[i].m_PhysicalIndex = -1;
             }
         }
@@ -1878,6 +1880,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         (void) context;
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
         glDeleteProgram(program_ptr->m_Program);
+        delete program_ptr;
     }
 
     // Tries to compile a shader (either a vertex or fragment) program.

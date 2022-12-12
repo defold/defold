@@ -385,11 +385,11 @@ namespace dmGraphics
      * @struct
      * @name VertexElement
      * @member m_Name [type: const char*] name of the element (e.g. "position")
-     * @member m_Name [type: uint64_t] hashed name of the element
      * @member m_Stream [type: uint32_t] stream index
      * @member m_Size [type: uint32_t] number of elements (e.g. 3 for "position")
      * @member m_Type [type: dmGraphics::Type] data type
      * @member m_Normalize [type: bool] if set, will normalize the output in the program
+     * @member m_NameHash [type: uint64_t] hashed name of the element
      */
     struct VertexElement
     {

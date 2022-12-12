@@ -135,6 +135,19 @@ namespace dmGameSystem
         }
     }
 
+    // Unless we check that a buffer resource actually exists, the engine will crash
+    // when unpacking. This can happen if a user destroys a resource but a LuaHBuffer
+    // still holds a reference to the resource
+    static bool CanUnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer)
+    {
+        if (lua_buffer->m_Owner == dmScript::OWNER_RES)
+        {
+            uint64_t hash;
+            return dmResource::RESULT_OK == dmResource::GetPath(g_Factory, lua_buffer->m_BufferRes, &hash);
+        }
+        return true;
+    }
+
     static bool IsStream(lua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == dmScript::SCRIPT_BUFFERSTREAM_TYPE_HASH;
@@ -1216,10 +1229,13 @@ namespace dmScript
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
             dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
-            dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
-            if( buffer && dmBuffer::IsBufferValid(hbuffer))
+            if (dmGameSystem::CanUnpackLuaBuffer(buffer))
             {
-                return buffer;
+                dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
+                if( buffer && dmBuffer::IsBufferValid(hbuffer))
+                {
+                    return buffer;
+                }
             }
         }
         return 0x0;

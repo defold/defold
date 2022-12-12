@@ -146,7 +146,7 @@ namespace dmGameSystem
             }
 
             dmGraphics::VertexElement& vert_decl = vert_decls[i];
-            // vert_decl.m_Name      = 0;
+            vert_decl.m_Name      = 0; // JG: Can we remove this from dmsdk?
             vert_decl.m_NameHash  = stream_name;
             vert_decl.m_Stream    = i;
             vert_decl.m_Size      = stream_value_count;
@@ -273,7 +273,7 @@ namespace dmGameSystem
         uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
         for (uint32_t i = 0; i < stream_count; ++i)
         {
-        	dmhash_t stream_id = dmHashString64(buffer_resource->m_BufferDDF->m_Streams[i].m_Name);
+        	dmhash_t stream_id = buffer_resource->m_BufferDDF->m_Streams[i].m_NameHash;
         	if (stream_id == resource->m_PositionStreamId) {
         		resource->m_PositionStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
         	} else if (stream_id == resource->m_NormalStreamId) {

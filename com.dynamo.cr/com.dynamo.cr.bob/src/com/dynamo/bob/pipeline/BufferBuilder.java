@@ -185,7 +185,6 @@ public class BufferBuilder extends Builder<Void> {
                 int streamValueCount = streamNode.get("count").asInt();
 
                 StreamDesc.Builder streamDescBuilder = StreamDesc.newBuilder();
-                streamDescBuilder.setName(streamName);
                 streamDescBuilder.setNameHash(MurmurHash.hash64(streamName));
                 streamDescBuilder.setValueType(streamType);
                 streamDescBuilder.setValueCount(streamValueCount);
