@@ -85,7 +85,7 @@
 (deftype VertexBuffer [vertex-description usage ^Buffer buf ^long buf-items-per-vertex ^{:unsynchronized-mutable true} version]
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
-  (flipped? [this] (and (= 0 (.position buf))))
+  (flipped? [this] (= 0 (.position buf)))
   (clear! [this] (.clear buf) this)
   (position! [this position] (.position buf (int (* position buf-items-per-vertex))) this)
   (version [this] version)
@@ -109,6 +109,10 @@
   (let [^long vertex-byte-size (:size vertex-description)
         buffer-item-byte-size (buffer-item-byte-size buffer)]
     (/ vertex-byte-size buffer-item-byte-size)))
+
+(defn- buffer-size-in-bytes
+  ^long [^Buffer buffer]
+  (* (buffer-item-byte-size buffer) (.limit buffer)))
 
 (defn wrap-vertex-buffer
   [vertex-description usage ^Buffer buffer]
@@ -308,7 +312,7 @@
         attributes (:attributes (.vertex-description vbuf))
         attrib-locs (vertex-locate-attribs gl shader attributes)]
     (assert (flipped? vbuf) "VertexBuffer must be flipped before use.")
-    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit buf) buf (usage-types (.usage vbuf)))
+    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (buffer-size-in-bytes buf) buf (usage-types (.usage vbuf)))
     [vbo attrib-locs]))
 
 (defn- make-vbo [^GL2 gl data]
