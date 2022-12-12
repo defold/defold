@@ -1616,7 +1616,7 @@ bail:
         for (uint32_t i = 0; i < count; ++i)
         {
             VertexElement& el           = element[i];
-            vd->m_Streams[i].m_NameHash = el.m_Name != 0 ? dmHashString64(el.m_Name) : el.m_NameHash;
+            vd->m_Streams[i].m_NameHash = el.m_NameHash;
             vd->m_Streams[i].m_Format   = GetVulkanFormatFromTypeAndSize(el.m_Type, el.m_Size);
             vd->m_Streams[i].m_Offset   = vd->m_Stride;
             vd->m_Streams[i].m_Location = 0;

@@ -579,7 +579,7 @@ namespace dmGraphics
         for (int i = 0; i < stream_count; ++i)
         {
             VertexElement& vert_elem = vertex_declaration->m_Elements[i];
-            dmHashUpdateBuffer32(state, vert_elem.m_Name, strlen(vert_elem.m_Name));
+            dmHashUpdateBuffer32(state, &vert_elem.m_NameHash, sizeof(vert_elem.m_NameHash));
             dmHashUpdateBuffer32(state, &vert_elem.m_Stream, sizeof(vert_elem.m_Stream));
             dmHashUpdateBuffer32(state, &vert_elem.m_Size, sizeof(vert_elem.m_Size));
             dmHashUpdateBuffer32(state, &vert_elem.m_Type, sizeof(vert_elem.m_Type));

@@ -146,7 +146,7 @@ namespace dmGameSystem
             }
 
             dmGraphics::VertexElement& vert_decl = vert_decls[i];
-            vert_decl.m_Name      = 0;
+            // vert_decl.m_Name      = 0;
             vert_decl.m_NameHash  = stream_name;
             vert_decl.m_Stream    = i;
             vert_decl.m_Size      = stream_value_count;
