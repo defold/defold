@@ -91,10 +91,8 @@ bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Vector4& pos, fl
         float d = DistanceToPlane(frustum.m_Planes[i], pos);
         if (d < 0 && (d*d) > radius_sq)
         {
-            //printf("Failed test for plane %d. distance to plane: %f for pos: %f, %f, %f\n", i, d, pos.getX(), pos.getY(), pos.getZ());
             return false;
         }
-        //printf("Plane %d. distance to plane: %f for pos: %f, %f, %f  radius_sq: %f\n", i, d, pos.getX(), pos.getY(), pos.getZ(), radius_sq);
     }
     return true;
 }
