@@ -394,7 +394,8 @@ Macros currently mean no foreseeable performance gain however."
                   (keep (fn [^Method m]
                           (let [m-name (.getName m)
                                 set-via-builder? (and (.startsWith m-name "set")
-                                                   (some-> m (.getParameterTypes) ^Class first (.getName) (.endsWith "$Builder")))]
+                                                      (when-some [^Class first-arg-class (first (.getParameterTypes m))]
+                                                        (.endsWith (.getName first-arg-class) "$Builder")))]
                             (when (not set-via-builder?)
                               [m-name m]))))
                   (.getDeclaredMethods builder-class))

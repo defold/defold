@@ -547,10 +547,12 @@
   {:type :choicebox
    :options (mapv (juxt identity identity) (sort util/natural-order vals))})
 
-(defn ->pb-choicebox [cls]
+(defn ->pb-choicebox-raw [cls]
   (let [values (protobuf/enum-values cls)]
     {:type :choicebox
-     :options (map (juxt first (comp :display-name second)) values)}))
+     :options (mapv (juxt first (comp :display-name second)) values)}))
+
+(def ->pb-choicebox (memoize ->pb-choicebox-raw))
 
 (defn vec3->vec2 [default-z]
   {:type t/Vec2
