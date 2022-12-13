@@ -40,9 +40,12 @@ namespace dmIntersection
 
     void CreateFrustumFromMatrix(const dmVMath::Matrix4& m, bool normalize, Frustum& frustum);
 
+    // Returns true if the objects intersect
     bool TestFrustumPoint(const Frustum& frustum, const dmVMath::Point3& pos, bool skip_near_far);
     bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Point3& pos, float radius, bool skip_near_far);
     bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, float radius, bool skip_near_far);
+    bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Point3& pos, float radius_sq, bool skip_near_far);
+    bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Vector4& pos, float radius_sq, bool skip_near_far);
     bool TestFrustumOBB(const Frustum& frustum, const dmVMath::Matrix4& world, dmVMath::Vector3& aabb_min, dmVMath::Vector3& aabb_max, bool skip_near_far);
 
 } // dmIntersection

@@ -143,7 +143,7 @@ namespace dmRender
         int32_t             m_Next;
         int32_t             m_Tail;
         dmVMath::Point3     m_FrustumCullingCenter;
-        float               m_FrustumCullingRadius;
+        float               m_FrustumCullingRadiusSq;
         uint32_t            m_Align : 2;
         uint32_t            m_VAlign : 2;
         uint32_t            m_StencilTestParamsSet : 1;

@@ -79,6 +79,7 @@ namespace dmGameSystem
         /// Timer in local space: [0,1]
         float                       m_AnimTimer;
         float                       m_PlaybackRate;
+        float                       m_RadiusSq;
         uint16_t                    m_ComponentIndex;
         uint16_t                    m_AnimPingPong : 1;
         uint16_t                    m_AnimBackwards : 1;
@@ -106,7 +107,6 @@ namespace dmGameSystem
     {
         dmObjectPool<SpriteComponent>   m_Components;
         dmArray<dmRender::RenderObject*> m_RenderObjects;
-        dmArray<float>                  m_BoundingVolumes;
         uint32_t                        m_RenderObjectsInUse;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
@@ -175,8 +175,6 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = new SpriteWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
         sprite_world->m_Components.SetCapacity(comp_count);
-        sprite_world->m_BoundingVolumes.SetCapacity(comp_count);
-        sprite_world->m_BoundingVolumes.SetSize(comp_count);
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
 
@@ -829,6 +827,7 @@ namespace dmGameSystem
                 Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
+                c->m_RadiusSq = Vectormath::Aos::lengthSqr(dmVMath::Vector3(size.getX()*0.5f, size.getY()*0.5f, 0.0f));
                 c->m_World = appendScale(world * local, size);
             }
         } else
@@ -840,6 +839,7 @@ namespace dmGameSystem
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Matrix4 w = dmTransform::MulNoScaleZ(world, local);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
+                c->m_RadiusSq = Vectormath::Aos::lengthSqr(dmVMath::Vector3(size.getX()*0.5f, size.getY()*0.5f, 0.0f));
                 c->m_World = appendScale(w, size);
             }
         }
@@ -975,27 +975,6 @@ namespace dmGameSystem
         }
     }
 
-    static void CalcBoundingVolumes(SpriteWorld* sprite_world)
-    {
-        DM_PROFILE("CalcBoundingVolumes");
-
-        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
-        uint32_t n = components.Size();
-
-        // NOTE: Here we assume that the object pool won't be altered between this call and the call to the frustum culling.
-        // Thus, we can use the same "physical" indices used between the culling and the render items.
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            SpriteComponent* component = &components[i];
-
-            float sx = Vectormath::Aos::length(component->m_World.getCol(0).getXYZ());
-            float sy = Vectormath::Aos::length(component->m_World.getCol(1).getXYZ());
-            float radius = dmMath::Max(sx, sy) * 0.5f;
-
-            sprite_world->m_BoundingVolumes[i] = radius;
-        }
-    }
-
     static void UpdateVertexAndIndexCount(SpriteWorld* sprite_world)
     {
         DM_PROFILE("UpdateVertexAndIndexCount");
@@ -1071,18 +1050,17 @@ namespace dmGameSystem
     {
         DM_PROFILE("Sprite");
 
-        const SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
-        const float* radiuses = sprite_world->m_BoundingVolumes.Begin();
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
 
+        const dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
         for (uint32_t i = 0; i < num_entries; ++i)
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
+            const SpriteComponent& component = components[entry->m_UserData];
 
-            float radius = radiuses[entry->m_UserData];
-
-            bool intersect = dmIntersection::TestFrustumSphere(frustum, entry->m_WorldPosition, radius, true);
+            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, entry->m_WorldPosition, component.m_RadiusSq, true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
@@ -1135,10 +1113,6 @@ namespace dmGameSystem
         UpdateTransforms(sprite_world, sprite_context->m_Subpixels); // TODO: Why is this not in the update function?
 
         UpdateVertexAndIndexCount(sprite_world);
-
-        // Uses the m_World to calculate the actual radius of the object
-        // Note: uses the physical indices of the object pool for storing the radiuses.
-        CalcBoundingVolumes(sprite_world);
 
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
 

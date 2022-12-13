@@ -77,24 +77,36 @@ bool TestFrustumPoint(const Frustum& frustum, const dmVMath::Point3& pos, bool s
     return true;
 }
 
-bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Point3& pos, float radius, bool skip_near_far)
+bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Point3& pos, float radius_sq, bool skip_near_far)
 {
     dmVMath::Vector4 vpos(pos);
-    return TestFrustumSphere(frustum, vpos, radius, skip_near_far);
+    return TestFrustumSphereSq(frustum, vpos, radius_sq, skip_near_far);
 }
 
-bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, float radius, bool skip_near_far)
+bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Vector4& pos, float radius_sq, bool skip_near_far)
 {
     uint32_t num_planes = skip_near_far ? 4 : 6;
     for (uint32_t i = 0; i < num_planes; ++i)
     {
         float d = DistanceToPlane(frustum.m_Planes[i], pos);
-        if (d < -radius)
+        if (d < 0 && (d*d) > radius_sq)
         {
+            //printf("Failed test for plane %d. distance to plane: %f for pos: %f, %f, %f\n", i, d, pos.getX(), pos.getY(), pos.getZ());
             return false;
         }
+        //printf("Plane %d. distance to plane: %f for pos: %f, %f, %f  radius_sq: %f\n", i, d, pos.getX(), pos.getY(), pos.getZ(), radius_sq);
     }
     return true;
+}
+
+bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Point3& pos, float radius, bool skip_near_far)
+{
+    return TestFrustumSphereSq(frustum, pos, radius*radius, skip_near_far);
+}
+
+bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, float radius, bool skip_near_far)
+{
+    return TestFrustumSphereSq(frustum, pos, radius*radius, skip_near_far);
 }
 
 // Returns 'false' if the bounding box is off the frustum. Returning 'true' does not guarantee that the object intersects the frustum or is inside it.
