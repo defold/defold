@@ -1890,9 +1890,9 @@ static int CreateBuffer(lua_State* L)
     if (transfer_ownership)
     {
         // If user wants to transfer ownership from the lua buffer, we need to make sure
-        // that the lua buffer doesn't destroy the buffer handle, so we remove the pointer
+        // that the lua buffer doesn't destroy the buffer handle
         // This means that after this call, the lua buffer object doesn't have a valid
-        // buffer anymore since it has handed it ower to the resource
+        // buffer pointer anymore since it has handed it ower to the resource.
         if (lua_buffer->m_Owner == dmScript::OWNER_LUA)
         {
             lua_buffer->m_Buffer = 0;

@@ -344,7 +344,7 @@ namespace dmBuffer
     }
 #endif
 
-    static void CreateStreamsInterleaved(BufferContext* ctx, Buffer* buffer, const StreamDeclaration* streams_decl, const uint32_t* offsets)
+    static void CreateStreamsInterleaved(Buffer* buffer, const StreamDeclaration* streams_decl, const uint32_t* offsets)
     {
         for (uint8_t i = 0; i < buffer->m_NumStreams; ++i) {
             const StreamDeclaration& decl = streams_decl[i];
@@ -433,7 +433,7 @@ namespace dmBuffer
         buffer->m_ContentVersion = 0;
         new (&buffer->m_MetaDataArray) dmArray<Buffer::MetaData*>();
 
-        CreateStreamsInterleaved(ctx, buffer, streams_decl, offsets);
+        CreateStreamsInterleaved(buffer, streams_decl, offsets);
 
         *out_buffer = SetBuffer(ctx, index, buffer);
         return RESULT_OK;
@@ -537,7 +537,8 @@ namespace dmBuffer
         return 0x0;
     }
 
-    // This isn't used anywhere?
+    // This isn't used anywhere? remove?
+    /*
     Result CheckStreamType(HBuffer hbuffer, dmhash_t stream_name, dmBuffer::ValueType type, uint32_t type_count)
     {
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
@@ -559,6 +560,7 @@ namespace dmBuffer
         }
         return RESULT_OK;
     }
+    */
 
     Result GetStream(HBuffer hbuffer, dmhash_t stream_name, void** out_stream, uint32_t* count, uint32_t* component_count, uint32_t* stride)
     {

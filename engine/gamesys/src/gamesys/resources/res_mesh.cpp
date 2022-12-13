@@ -113,7 +113,7 @@ namespace dmGameSystem
 
     bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl)
     {
-        #define CHECK_BUFFER_RESULT(res) \
+        #define CHECK_BUFFER_RESULT_OR_RETURN(res) \
             if (res != dmBuffer::RESULT_OK) \
                 return false;
 
@@ -123,7 +123,7 @@ namespace dmGameSystem
 
         uint32_t stream_count;
         dmBuffer::Result buffer_res = dmBuffer::GetNumStreams(buffer, &stream_count);
-        CHECK_BUFFER_RESULT(buffer_res);
+        CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
 
         uint32_t vert_size = 0;
         dmGraphics::VertexElement* vert_decls = (dmGraphics::VertexElement*) malloc(stream_count * sizeof(dmGraphics::VertexElement));
@@ -131,12 +131,12 @@ namespace dmGameSystem
         {
             dmhash_t stream_name;
             buffer_res = dmBuffer::GetStreamName(buffer, i, &stream_name);
-            CHECK_BUFFER_RESULT(buffer_res);
+            CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
 
             dmBuffer::ValueType stream_value_type;
             uint32_t stream_value_count;
             buffer_res = dmBuffer::GetStreamType(buffer, stream_name, &stream_value_type, &stream_value_count);
-            CHECK_BUFFER_RESULT(buffer_res);
+            CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
 
             if (!IsBufferTypeSupportedGraphicsType(stream_value_type))
             {
@@ -146,7 +146,7 @@ namespace dmGameSystem
             }
 
             dmGraphics::VertexElement& vert_decl = vert_decls[i];
-            vert_decl.m_Name      = 0; // JG: Can we remove this from dmsdk?
+            vert_decl.m_Name      = 0;
             vert_decl.m_NameHash  = stream_name;
             vert_decl.m_Stream    = i;
             vert_decl.m_Size      = stream_value_count;
@@ -168,13 +168,13 @@ namespace dmGameSystem
         {
             uint32_t offset = 0;
             buffer_res = dmBuffer::GetStreamOffset(buffer, i, &offset);
-            CHECK_BUFFER_RESULT(buffer_res)
+            CHECK_BUFFER_RESULT_OR_RETURN(buffer_res)
 
             bool b2 = dmGraphics::SetStreamOffset(*out_vert_decl, i, offset);
             assert(b2);
         }
 
-        #undef CHECK_BUFFER_RESULT
+        #undef CHECK_BUFFER_RESULT_OR_RETURN
 
         return true;
     }
