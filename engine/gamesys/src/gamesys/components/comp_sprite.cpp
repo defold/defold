@@ -829,7 +829,10 @@ namespace dmGameSystem
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
                 c->m_World = appendScale(world * local, size);
-                sprite_world->m_BoundingVolumes[i] = Vectormath::Aos::lengthSqr(dmVMath::Vector3(size.getX()*0.5f, size.getY()*0.5f, 0.0f));
+                // we need to consider the full scale here
+                // I.e. we want the length of the diagonal C, where C = X + Y
+                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         } else
         {
@@ -841,7 +844,10 @@ namespace dmGameSystem
                 Matrix4 w = dmTransform::MulNoScaleZ(world, local);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
                 c->m_World = appendScale(w, size);
-                sprite_world->m_BoundingVolumes[i] = Vectormath::Aos::lengthSqr(dmVMath::Vector3(size.getX()*0.5f, size.getY()*0.5f, 0.0f));
+                // we need to consider the full scale here
+                // I.e. we want the length of the diagonal C, where C = X + Y
+                float radius_sq = Vectormath::Aos::lengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
+                sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
         }
 
