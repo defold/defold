@@ -1054,7 +1054,6 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
         const float* radiuses = sprite_world->m_BoundingVolumes.Begin();
 
-        const dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
         for (uint32_t i = 0; i < num_entries; ++i)
