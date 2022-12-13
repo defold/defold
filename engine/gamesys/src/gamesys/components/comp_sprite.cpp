@@ -79,7 +79,6 @@ namespace dmGameSystem
         /// Timer in local space: [0,1]
         float                       m_AnimTimer;
         float                       m_PlaybackRate;
-        float                       m_RadiusSq;
         uint16_t                    m_ComponentIndex;
         uint16_t                    m_AnimPingPong : 1;
         uint16_t                    m_AnimBackwards : 1;
@@ -107,6 +106,7 @@ namespace dmGameSystem
     {
         dmObjectPool<SpriteComponent>   m_Components;
         dmArray<dmRender::RenderObject*> m_RenderObjects;
+        dmArray<float>                  m_BoundingVolumes;
         uint32_t                        m_RenderObjectsInUse;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
@@ -175,6 +175,8 @@ namespace dmGameSystem
         SpriteWorld* sprite_world = new SpriteWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
         sprite_world->m_Components.SetCapacity(comp_count);
+        sprite_world->m_BoundingVolumes.SetCapacity(comp_count);
+        sprite_world->m_BoundingVolumes.SetSize(comp_count);
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
         sprite_world->m_RenderObjectsInUse = 0;
 
@@ -817,7 +819,6 @@ namespace dmGameSystem
             SpriteComponent* c = &components[0];
             scale_along_z = dmGameObject::ScaleAlongZ(dmGameObject::GetCollection(c->m_Instance));
         }
-
         // Note: We update all sprites, even though they might be disabled, or not added to update
 
         if (scale_along_z) {
@@ -827,8 +828,8 @@ namespace dmGameSystem
                 Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_RadiusSq = Vectormath::Aos::lengthSqr(dmVMath::Vector3(size.getX()*0.5f, size.getY()*0.5f, 0.0f));
                 c->m_World = appendScale(world * local, size);
+                sprite_world->m_BoundingVolumes[i] = Vectormath::Aos::lengthSqr(dmVMath::Vector3(size.getX()*0.5f, size.getY()*0.5f, 0.0f));
             }
         } else
         {
@@ -839,8 +840,8 @@ namespace dmGameSystem
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Matrix4 w = dmTransform::MulNoScaleZ(world, local);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_RadiusSq = Vectormath::Aos::lengthSqr(dmVMath::Vector3(size.getX()*0.5f, size.getY()*0.5f, 0.0f));
                 c->m_World = appendScale(w, size);
+                sprite_world->m_BoundingVolumes[i] = Vectormath::Aos::lengthSqr(dmVMath::Vector3(size.getX()*0.5f, size.getY()*0.5f, 0.0f));
             }
         }
 
@@ -1051,6 +1052,7 @@ namespace dmGameSystem
         DM_PROFILE("Sprite");
 
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_UserData;
+        const float* radiuses = sprite_world->m_BoundingVolumes.Begin();
 
         const dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         const dmIntersection::Frustum frustum = *params.m_Frustum;
@@ -1058,9 +1060,10 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < num_entries; ++i)
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
-            const SpriteComponent& component = components[entry->m_UserData];
 
-            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, entry->m_WorldPosition, component.m_RadiusSq, true);
+            float radius_sq = radiuses[entry->m_UserData];
+
+            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, entry->m_WorldPosition, radius_sq, true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
