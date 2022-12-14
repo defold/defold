@@ -51,7 +51,7 @@
     (ui/point x y)))
 
 (defn- make-node [existing-nodes node-id basis]
-  (assert (g/node-id? node-id))
+  {:pre [(g/node-id? node-id)]}
   (let [node-props (props-for-node node-id basis)
         node-position (initial-position-for-node existing-nodes node-props)]
     (assoc node-props ::gv/position node-position)))
@@ -60,7 +60,7 @@
   (conj (or nodes []) (make-node nodes node-id basis)))
 
 (defn- ensure-node [nodes basis node-id]
-  (assert (g/node-id? node-id))
+  {:pre [(g/node-id? node-id)]}
   (if (some #(= node-id (::gv/id %))
             nodes)
     (or nodes [])
@@ -82,10 +82,10 @@
      ::gv/from-position from-position
      ::gv/to-position to-position}))
 
-(defn- expand-connection [graph basis node-id label]
-  (assert (g/node-id? node-id))
-  (assert (keyword? label))
-  (let [target-endpoints (mapv gt/pair->endpoint (g/targets-of basis node-id label))
+(defn- expand-output [graph basis node-id output-label]
+  {:pre [(g/node-id? node-id)
+         (keyword? output-label)]}
+  (let [target-endpoints (mapv gt/pair->endpoint (g/targets-of basis node-id output-label))
         [nodes node-id->index] (transduce (comp (map gt/endpoint-node-id)
                                                 (distinct))
                                           (fn ensure-target-nodes
@@ -102,7 +102,7 @@
                                             (pair nodes
                                                   (indices-by-id-map nodes)))
                                           target-endpoints)
-        source-endpoint (gt/endpoint node-id label)
+        source-endpoint (gt/endpoint node-id output-label)
         [connections] (reduce (fn ensure-connections [result target-endpoint]
                                 (let [arc->index (second result)
                                       arc (gt/arc-from-endpoints source-endpoint target-endpoint)]
@@ -120,20 +120,6 @@
     (assoc graph
       ::gv/nodes nodes
       ::gv/connections connections)))
-
-(defonce ^:private view-data-atom (gv/make-view-data-atom {}))
-
-(defn show-window! []
-  (gv/show-window! view-data-atom error-reporting/report-exception!))
-
-(defn- update-in-view-data! [ks f & args]
-  (ui/run-now
-    (let [basis (g/now)
-          old-view-data @view-data-atom
-          new-view-data (apply update-in old-view-data ks f basis args)]
-      (when-not (identical? old-view-data new-view-data)
-        (reset! view-data-atom new-view-data)
-        nil))))
 
 (defn- refresh-nodes [nodes basis]
   (let [refreshed-nodes (mapv (fn [node-props]
@@ -159,20 +145,43 @@
       ::gv/nodes refreshed-nodes
       ::gv/connections refreshed-connections)))
 
-(defn refresh! []
-  (update-in-view-data! [::gv/graph] refresh-graph))
+(defn- update-view-data! [view-data-atom f & args]
+  (ui/run-now
+    (let [basis (g/now)
+          old-view-data @view-data-atom
+          new-view-data (apply f old-view-data basis args)]
+      (when-not (identical? old-view-data new-view-data)
+        (reset! view-data-atom new-view-data)
+        nil))))
 
-(defn ensure-node! [node-id]
-  (update-in-view-data! [::gv/graph ::gv/nodes] ensure-node node-id))
+(defn- update-in-view-data! [view-data-atom ks f & args]
+  (update-view-data! view-data-atom #(apply update-in %1 ks f %2 args)))
 
-(defn expand-connection! [node-id label]
-  (update-in-view-data! [::gv/graph] expand-connection node-id label))
+(defn ensure-node! [view-data-atom node-id]
+  (update-in-view-data! view-data-atom [::gv/graph ::gv/nodes] ensure-node node-id))
+
+(defn expand-output! [view-data-atom node-id output-label]
+  (update-in-view-data! view-data-atom [::gv/graph] expand-output node-id output-label))
+
+(defn- graph-view-event-handler [view-data-atom {::gv/keys [event-type element-type] :as event}]
+  (prn event)
+  (when (and (= :node-pressed event-type)
+             (= :output element-type))
+    (let [{node-id ::gv/id output-label ::gv/element-id} event]
+      (expand-output! view-data-atom node-id output-label))))
 
 ;; -----------------------------------------------------------------------------
 
 (require '[dev :as dev])
+
+(defonce ^:private view-data-atom (gv/make-view-data-atom {}))
+
+(defn show-window! []
+  (gv/show-window! view-data-atom #(graph-view-event-handler %1 %2) error-reporting/report-exception!))
+
+(defn dev-refresh! []
+  (update-in-view-data! view-data-atom [::gv/graph] refresh-graph))
+
 (defn dev-test! []
   (reset! view-data-atom {})
-  (ensure-node! (dev/workspace))
-  (expand-connection! (dev/workspace) :resource-map)
-  (expand-connection! (dev/project) :texture-profiles))
+  (ensure-node! view-data-atom (dev/workspace)))

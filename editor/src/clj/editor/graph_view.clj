@@ -225,7 +225,6 @@
                                   ::id id}))))
 
 (defn- node-group [{:keys [nodes] :as props}]
-  (prn 'node-group)
   (-> props
       (dissoc :nodes)
       (assoc :fx/type fx.group/lifecycle
@@ -234,7 +233,6 @@
                              nodes))))
 
 (defn- connection-group [{:keys [connections] :as props}]
-  (prn 'connection-group)
   (-> props
       (dissoc :connections)
       (assoc :fx/type fx.group/lifecycle
@@ -291,20 +289,24 @@
            :stylesheets ["dialogs.css" inline-stylesheet-data-url]
            :root (view-map-desc view-data)}})
 
-(defn- handle-mouse-pressed-connection-event! [view-data-atom ^MouseEvent mouse-event connection-id]
-  (prn 'connection-pressed connection-id)
-  (.consume mouse-event))
+(defn- handle-mouse-pressed-connection-event! [view-data-atom event-handler ^MouseEvent mouse-event connection-id]
+  (.consume mouse-event)
+  (event-handler view-data-atom {::event-type :connection-pressed
+                                 ::id connection-id}))
 
-(defn- handle-mouse-pressed-node-event! [view-data-atom ^MouseEvent mouse-event node-id element-type element-id]
-  (prn 'node-pressed node-id element-type element-id)
-  (.consume mouse-event))
+(defn- handle-mouse-pressed-node-event! [view-data-atom event-handler ^MouseEvent mouse-event node-id element-type element-id]
+  (.consume mouse-event)
+  (event-handler view-data-atom {::event-type :node-pressed
+                                 ::id node-id
+                                 ::element-type element-type
+                                 ::element-id element-id}))
 
-(defn- handle-mouse-pressed-node-unresolved-event! [view-data-atom ^MouseEvent mouse-event node-id inputs outputs]
+(defn- handle-mouse-pressed-node-unresolved-event! [view-data-atom event-handler ^MouseEvent mouse-event node-id inputs outputs]
   (let [input-count (count inputs)
         element-index (long (/ (.getY mouse-event) node-unit-height))]
     (if (< element-index input-count)
-      (handle-mouse-pressed-node-event! view-data-atom mouse-event node-id :input (::id (inputs element-index)))
-      (handle-mouse-pressed-node-event! view-data-atom mouse-event node-id :output (::id (outputs (- element-index input-count)))))))
+      (handle-mouse-pressed-node-event! view-data-atom event-handler mouse-event node-id :input (::id (inputs element-index)))
+      (handle-mouse-pressed-node-event! view-data-atom event-handler mouse-event node-id :output (::id (outputs (- element-index input-count)))))))
 
 (defn- handle-scroll-event! [view-data-atom ^ScrollEvent scroll-event]
   (swap! view-data-atom update-in [::graph ::scroll-offset]
@@ -323,16 +325,15 @@
                 (.getZoomFactor zoom-event)))))
   (.consume zoom-event))
 
-(defn- view-event-handler [view-data-atom event]
+(defn- view-event-handler [view-data-atom event-handler event]
   (case (:event/type event)
-    ::mouse-pressed-connection (handle-mouse-pressed-connection-event! view-data-atom (:fx/event event) (::id event))
-    ::mouse-pressed-node (handle-mouse-pressed-node-event! view-data-atom (:fx/event event) (::id event) (::element-type event) (::element event))
-    ::mouse-pressed-node-unresolved (handle-mouse-pressed-node-unresolved-event! view-data-atom (:fx/event event) (::id event) (::inputs event) (::outputs event))
+    ::mouse-pressed-connection (handle-mouse-pressed-connection-event! view-data-atom event-handler (:fx/event event) (::id event))
+    ::mouse-pressed-node (handle-mouse-pressed-node-event! view-data-atom event-handler (:fx/event event) (::id event) (::element-type event) (::element event))
+    ::mouse-pressed-node-unresolved (handle-mouse-pressed-node-unresolved-event! view-data-atom event-handler (:fx/event event) (::id event) (::inputs event) (::outputs event))
     ::scroll (handle-scroll-event! view-data-atom (:fx/event event))
     ::zoom (handle-zoom-event! view-data-atom (:fx/event event))))
 
 (defn- handle-close-button-event! [^ActionEvent action-event]
-  (prn 'handle-close-button-event!)
   (let [^Node event-source (.getSource action-event)
         ^Scene scene (.getScene event-source)
         ^Stage stage (.getWindow scene)]
@@ -342,18 +343,18 @@
 (defn- handle-window-closed-event! [view-data-atom renderer]
   (fx/unmount-renderer view-data-atom renderer))
 
-(defn- window-event-handler [view-data-atom renderer-ref event]
+(defn- window-event-handler [view-data-atom renderer-ref event-handler event]
   (case (:event/type event)
     ::close-button (handle-close-button-event! (:fx/event event))
     ::window-closed (handle-window-closed-event! view-data-atom @renderer-ref)
-    (view-event-handler view-data-atom event)))
+    (view-event-handler view-data-atom event-handler event)))
 
-(defn- mount-window! [view-data-atom error-handler]
+(defn- mount-window! [view-data-atom event-handler error-handler]
   (let [renderer-ref (volatile! nil)
         renderer (fx/create-renderer
                    :error-handler error-handler
                    :middleware (fx/wrap-map-desc window-map-desc)
-                   :opts {:fx.opt/map-event-handler (partial window-event-handler view-data-atom renderer-ref)})]
+                   :opts {:fx.opt/map-event-handler (partial window-event-handler view-data-atom renderer-ref event-handler)})]
     (vreset! renderer-ref renderer)
     (fx/mount-renderer view-data-atom renderer)
     renderer))
@@ -365,8 +366,8 @@
                       (or (s/valid? ::view-data view-data)
                           (s/explain ::view-data view-data))))))
 
-(defn show-window! [view-data-atom error-handler]
-  (mount-window! view-data-atom error-handler))
+(defn show-window! [view-data-atom event-handler error-handler]
+  (mount-window! view-data-atom event-handler error-handler))
 
 (defn node-input-jack-position
   ^Point2D [node-props input-id]
