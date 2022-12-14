@@ -13,39 +13,39 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.engine.native-extensions
-  (:require
-   [clojure.java.io :as io]
-   [clojure.data.json :as json]
-   [dynamo.graph :as g]
-   [editor.connection-properties :refer [connection-properties]]
-   [editor.prefs :as prefs]
-   [editor.defold-project :as project]
-   [editor.engine.build-errors :as engine-build-errors]
-   [editor.fs :as fs]
-   [editor.resource :as resource]
-   [editor.system :as system]
-   [editor.workspace :as workspace]
-   [util.http-client :as http])
-  (:import
-   (java.io File)
-   (java.net URI)
-   (java.util Base64)
-   (java.security MessageDigest)
-   (javax.ws.rs.core MediaType)
-   (org.apache.commons.codec.binary Hex)
-   (org.apache.commons.codec.digest DigestUtils)
-   (org.apache.commons.io IOUtils)
-   (com.defold.editor Platform)
-   (com.sun.jersey.api.client.config DefaultClientConfig)
-   (com.sun.jersey.api.client Client ClientResponse WebResource$Builder)
-   (com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider)
-   (com.sun.jersey.multipart FormDataMultiPart)
-   (com.sun.jersey.multipart.impl MultiPartWriter)
-   (com.sun.jersey.multipart.file StreamDataBodyPart)))
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.connection-properties :refer [connection-properties]]
+            [editor.defold-project :as project]
+            [editor.engine.build-errors :as engine-build-errors]
+            [editor.fs :as fs]
+            [editor.prefs :as prefs]
+            [editor.resource :as resource]
+            [editor.system :as system]
+            [editor.workspace :as workspace]
+            [util.http-client :as http])
+  (:import [com.dynamo.bob Platform]
+           [com.sun.jersey.api.client Client ClientResponse WebResource$Builder]
+           [com.sun.jersey.api.client.config DefaultClientConfig]
+           [com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider]
+           [com.sun.jersey.multipart FormDataMultiPart]
+           [com.sun.jersey.multipart.file StreamDataBodyPart]
+           [com.sun.jersey.multipart.impl MultiPartWriter]
+           [java.io File]
+           [java.net URI]
+           [java.security MessageDigest]
+           [java.util Base64]
+           [javax.ws.rs.core MediaType]
+           [org.apache.commons.codec.binary Hex]
+           [org.apache.commons.codec.digest DigestUtils]
+           [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:const defold-build-server-url (get-in connection-properties [:native-extensions :build-server-url]))
+(def ^:const defold-build-server-headers "")
 (def ^:const connect-timeout-ms (* 30 1000))
 (def ^:const read-timeout-ms (* 10 60 1000))
 
@@ -102,9 +102,9 @@
 ;;; Extension discovery/processing
 
 (def ^:private extender-platforms
-  {(.getPair Platform/X86_64Darwin) {:platform      "x86_64-osx"
+  {(.getPair Platform/X86_64MacOS)  {:platform      "x86_64-osx"
                                      :library-paths #{"osx" "x86_64-osx"}}
-   (.getPair Platform/Arm64Darwin)  {:platform      "arm64-ios"
+   (.getPair Platform/Arm64Ios)     {:platform      "arm64-ios"
                                      :library-paths #{"ios" "arm64-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
                                      :library-paths #{"android" "armv7-android"}}
@@ -132,15 +132,34 @@
   [platform]
   (into common-extension-paths (map #(vector "lib" %) (get-in extender-platforms [platform :library-paths]))))
 
-(defn- extension-root?
-  [resource]
-  (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
+(defn- engine-extension-root?
+  "Tests if the resource is an extension root that should be built remotely
 
-(defn extension-roots
+  Engine extension root should be a folder with ext.manifest file and either src
+  or commonsrc folder"
+  [resource]
+  (= :both
+     (reduce
+       (fn [acc resource]
+         (case (resource/resource-name resource)
+           "ext.manifest"
+           (if (= acc :source)
+             (reduced :both)
+             :manifest)
+
+           ("src" "commonsrc")
+           (if (= acc :manifest)
+             (reduced :both)
+             :source)
+           acc))
+       :none
+       (resource/children resource))))
+
+(defn engine-extension-roots
   [project evaluation-context]
   (->> (g/node-value project :resources evaluation-context)
-       (filter extension-root?)
-       (seq)))
+       (filter engine-extension-root?)
+       seq))
 
 (defn- resource-child
   [resource name]
@@ -153,7 +172,7 @@
 
 (defn extension-resource-nodes
   [project evaluation-context platform]
-  (let [native-extension-roots (extension-roots project evaluation-context)
+  (let [native-extension-roots (engine-extension-roots project evaluation-context)
         paths (platform-extension-paths platform)]
     (->> (for [root native-extension-roots
                path paths
@@ -222,8 +241,8 @@
                 (get info "cached")]))
         ne-cache-info))
 
-(defn- build-engine-archive ^File
-  [server-url extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
+(defn- build-engine-archive
+  ^File [server-url server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
   ;; NOTE:
   ;; sdk-version is likely to be nil unless you're running a bundled editor.
   ;; In this case things will only work correctly if you're running a local
@@ -231,7 +250,7 @@
   ;; Otherwise, you will likely get an Internal Server Error response.
   (let [cc (DefaultClientConfig.)
         ;; TODO: Random errors without this... Don't understand why random!
-        ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
+        ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream'
         _ (.add (.getClasses cc) MultiPartWriter)
         _ (.add (.getClasses cc) InputStreamProvider)
         _ (.add (.getClasses cc) StringProvider)
@@ -247,10 +266,13 @@
         ne-cache-info (query-cached-files server-url resource-nodes-by-upload-path evaluation-context)
         ne-cache-info-map (make-cached-info-map ne-cache-info)]
     (.accept builder #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
-    (if (not-empty user-info)
-        (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info)))))
-    (if (and (not-empty extender-username) (not-empty extender-password))
-        (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes (str extender-username ":" extender-password))))))
+    (when (not-empty user-info)
+      (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info)))))
+    (when (and (not-empty extender-username) (not-empty extender-password))
+      (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes (str extender-username ":" extender-password))))))
+    (doseq [header (string/split-lines server-headers)]
+      (let [[key value] (string/split header #"\s*:\s*" 2)]
+        (.header builder key value)))
     (with-open [form (FormDataMultiPart.)]
       ; upload the file to the server, basically telling it what we are sending (and what we aren't)
       (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes ^String (json/write-str {:files ne-cache-info})))))
@@ -271,6 +293,10 @@
   ^String [prefs]
   (prefs/get-prefs prefs "extensions-server" defold-build-server-url))
 
+(defn get-build-server-headers
+  ^String [prefs]
+  (prefs/get-prefs prefs "extensions-server-headers" defold-build-server-headers))
+
 ;; Note: When we do bundling for Android via the editor, we need add
 ;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
@@ -288,8 +314,7 @@
 
 (defn- get-ne-platform [platform]
   (case platform
-    "arm64-darwin"  "arm64-ios"
-    "x86_64-darwin" "x86_64-osx"
+    "x86_64-macos" "x86_64-osx"
     platform))
 
 (defn- get-main-manifest-section-and-key [platform]
@@ -315,13 +340,13 @@
 
 (defn- get-main-manifest-file-upload-resource [project evaluation-context platform]
   (let [ne-platform (get-ne-platform platform)
-        target-path  (get-main-manifest-name ne-platform)]
-  (when target-path
-    (let [project-settings (g/node-value project :settings evaluation-context)
-          [section key] (get-main-manifest-section-and-key ne-platform)
-          resource (get project-settings [section key])
-          resource-node (project/get-resource-node project resource evaluation-context)]
-      {target-path resource-node}))))
+        target-path (get-main-manifest-name ne-platform)]
+    (when target-path
+      (let [project-settings (g/node-value project :settings evaluation-context)
+            [section key] (get-main-manifest-section-and-key ne-platform)
+            resource (get project-settings [section key])
+            resource-node (project/get-resource-node project resource evaluation-context)]
+        {target-path resource-node}))))
 
 (defn- resource-node-upload-path [resource-node evaluation-context]
   (fs/without-leading-slash (resource/proj-path (g/node-value resource-node :resource evaluation-context))))
@@ -331,11 +356,14 @@
         (map (juxt #(resource-node-upload-path % evaluation-context) identity))
         (extension-resource-nodes project evaluation-context platform)))
 
-(defn has-extensions? [project evaluation-context]
-  (not (empty? (merge (extension-roots project evaluation-context)
-                      (global-resource-nodes-by-upload-path project evaluation-context)))))
+(defn has-engine-extensions?
+  "Returns true if the project's engine should be built remotely"
+  [project evaluation-context]
+  (boolean
+    (or (seq (engine-extension-roots project evaluation-context))
+        (pos? (count (global-resource-nodes-by-upload-path project evaluation-context))))))
 
-(defn get-engine-archive [project evaluation-context platform build-server-url]
+(defn get-engine-archive [project evaluation-context platform build-server-url build-server-headers]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
     (let [extender-platform (get-in extender-platforms [platform :platform])
@@ -348,6 +376,6 @@
           key (cache-key extender-platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)) evaluation-context)]
       (if-let [cached-archive (cached-engine-archive cache-dir extender-platform key)]
         {:id {:type :custom :version key} :cached true :engine-archive cached-archive :extender-platform extender-platform}
-        (let [temp-archive (build-engine-archive build-server-url extender-platform sdk-version resource-nodes-by-upload-path evaluation-context)
+        (let [temp-archive (build-engine-archive build-server-url build-server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context)
               engine-archive (cache-engine-archive! cache-dir extender-platform key temp-archive)]
           {:id {:type :custom :version key} :engine-archive engine-archive :extender-platform extender-platform})))))

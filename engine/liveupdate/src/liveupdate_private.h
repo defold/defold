@@ -72,7 +72,10 @@ namespace dmLiveUpdate
 
     HResourceEntry FindResourceEntry(const HManifestFile manifest, const dmhash_t urlHash);
 
-    uint32_t MissingResources(dmResource::Manifest* manifest, const dmhash_t urlHash, uint8_t* entries[], uint32_t entries_size);
+    uint32_t GetNumDependants(dmResource::Manifest* manifest, const dmhash_t urlHash);
+
+    typedef void (*FGetResourceHash)(void* context, const uint8_t* hash, uint32_t length);
+    void GetResourceHashes(dmResource::Manifest* manifest, const dmhash_t urlHash, bool only_missing, FGetResourceHash callback, void* context);
 
     void CreateResourceHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const char* buf, size_t buflen, uint8_t* digest);
     void CreateManifestHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest);

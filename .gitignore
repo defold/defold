@@ -2,6 +2,7 @@
 /tmp
 .DS_Store
 .lock-wscript
+.lock-waf*
 /share/ext/build
 /share/ext/download
 /share/extender/build
@@ -30,7 +31,6 @@ scripts/android-v4/.settings/
 scripts/android-v4/build/
 
 # IntelliJ
-**/.idea
 editor/.gradle/
 
 # eastwood

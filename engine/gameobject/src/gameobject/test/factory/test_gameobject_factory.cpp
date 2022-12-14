@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dlib/hash.h>
+#include <dlib/align.h>
 #include <dlib/log.h>
 
 #include "../gameobject.h"
@@ -35,7 +36,7 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/factory");
+        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/factory");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
@@ -216,7 +217,7 @@ TEST_F(FactoryTest, FactoryProperties)
     lua_pushliteral(L, "bool");
     lua_pushboolean(L, 1);
     lua_rawset(L, -3);
-    char buffer[256];
+    char DM_ALIGNED(16) buffer[256];
     uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
     lua_pop(L, 1);
 
@@ -238,7 +239,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
     lua_pushliteral(L, "number");
     lua_pushliteral(L, "fail");
     lua_rawset(L, -3);
-    char buffer[256];
+    char DM_ALIGNED(16) buffer[256];
     uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
     lua_pop(L, 1);
 
@@ -255,7 +256,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
     lua_pushliteral(L, "number");
     dmScript::PushHash(L, (dmhash_t)0);
     lua_rawset(L, -3);
-    char buffer[256];
+    char DM_ALIGNED(16) buffer[256];
     uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
     lua_pop(L, 1);
 

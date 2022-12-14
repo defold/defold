@@ -87,13 +87,13 @@ WebSocketConnection = (function()
 	}
 
 
-	function CallMessageHandlers(self, message_name, data_view)
+	function CallMessageHandlers(self, message_name, data_view, length)
 	{
 		if (message_name in self.MessageHandlers)
 		{
 			var handlers = self.MessageHandlers[message_name];
 			for (var i in handlers)
-			    handlers[i](self, data_view);
+			    handlers[i](self, data_view, length);
 		}
 	}
 
@@ -134,8 +134,14 @@ WebSocketConnection = (function()
 
 	WebSocketConnection.prototype.CallMessageHandlers = function(data_view_reader)
 	{
-		let id = data_view_reader.GetStringOfLength(4);
-		CallMessageHandlers(this, id, data_view_reader);
+		// Decode standard message header
+		const id = data_view_reader.GetStringOfLength(4);
+		const length = data_view_reader.GetUInt32();
+
+		// Pass the length of the message left to parse
+		CallMessageHandlers(this, id, data_view_reader, length - 8);
+
+		return [ id, length ];
 	}
 
 

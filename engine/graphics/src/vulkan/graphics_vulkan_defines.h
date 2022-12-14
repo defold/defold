@@ -31,7 +31,7 @@
 #elif ANDROID
 	#define VK_USE_PLATFORM_ANDROID_KHR
 	#define VK_NO_PROTOTYPES
-#elif WIN32
+#elif _MSC_VER
 	#define VK_USE_PLATFORM_WIN32_KHR
 #elif __linux__
     #define VK_USE_PLATFORM_XCB_KHR
@@ -42,10 +42,5 @@
 #ifdef ANDROID
 	#include "graphics_vulkan_dynamic.h"
 #endif
-
-#define DMGRAPHICS_STATE_WRITE_R (0x1)
-#define DMGRAPHICS_STATE_WRITE_G (0x2)
-#define DMGRAPHICS_STATE_WRITE_B (0x4)
-#define DMGRAPHICS_STATE_WRITE_A (0x8)
 
 #endif /* DMGRAPHICS_VULKAN_DEFINES_H */

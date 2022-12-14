@@ -29,15 +29,17 @@ The following software has licenses which require inclusion of their respective 
     * Basis Universal
     * Remotery
   * MIT
-    * jsmn
-    * xxtea-c
+    * jctest
     * Lua
+    * LuaCJson
     * LuaJIT
     * LuaSocket
-    * jctest
-    * XHR2
-    * wslay
     * microsoft_craziness.h
+    * wslay
+    * XHR2
+    * xxtea-c
+    * yyjson
+    * cgltf
   * Simplified BSD license (2-clause license)
     * LZ4
   * BSD 2.0 license (3-clause license)
@@ -93,7 +95,7 @@ limitations under the License.
 #### Basis Universal
 
 [Apache 2.0 license text](https://www.apache.org/licenses/LICENSE-2.0.txt). Copyright notice:
- 
+
 ```
 Copyright 2019-2020 Binomial LLC
 
@@ -276,6 +278,32 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+#### LuaCJson
+
+Used for encoding lua tables to JSON. Used on all platforms. License:
+
+```
+Copyright (c) 2010-2012  Mark Pulford <mark@kyne.com.au>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
 
 #### JCtest
 

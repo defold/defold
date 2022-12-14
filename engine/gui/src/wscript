@@ -1,22 +1,23 @@
 #! /usr/bin/env python
-import os
+import waflib.Options
 from waf_dynamo import dmsdk_add_files, apidoc_extract_task
 
 def configure(conf):
     pass
 
 def build(bld):
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                                includes = '.',
-                                source = 'gui.cpp gui_script.cpp',
-                                target = 'gui')
+    resource = bld.stlib(features = 'cxx ddf',
+                         includes = '.',
+                         source = 'gui.cpp gui_script.cpp',
+                         target = 'gui')
 
-    resource = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                                includes = '.',
-                                source = 'gui_null.cpp',
-                                target = 'gui_null')
+    resource = bld.stlib(features = 'cxx ddf',
+                         includes = '.',
+                         source = 'gui_null.cpp',
+                         target = 'gui_null')
 
-    bld.add_subdirs('test')
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')
 
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

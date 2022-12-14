@@ -5,7 +5,7 @@
 	<key>CFBundleExecutable</key>
 	<string>Defold</string>
 	<key>CFBundleGetInfoString</key>
-	<string>Defold, Copyright Defold Foundation. 2009-2021. All rights reserved.</string>
+	<string>Defold, Copyright Defold Foundation. 2009-2022. All rights reserved.</string>
 	<key>CFBundleIconFile</key>
 	<string>logo.icns</string>
 	<key>CFBundleIdentifier</key>

@@ -152,7 +152,7 @@ namespace dmGraphics
     AttachmentToBufferType::AttachmentToBufferType()
     {
         memset(m_AttachmentToBufferType, 0x0, sizeof(m_AttachmentToBufferType));
-        m_AttachmentToBufferType[ATTACHMENT_COLOR] = BUFFER_TYPE_COLOR_BIT;
+        m_AttachmentToBufferType[ATTACHMENT_COLOR] = BUFFER_TYPE_COLOR0_BIT;
         m_AttachmentToBufferType[ATTACHMENT_DEPTH] = BUFFER_TYPE_DEPTH_BIT;
         m_AttachmentToBufferType[ATTACHMENT_STENCIL] = BUFFER_TYPE_STENCIL_BIT;
     }
@@ -306,6 +306,72 @@ namespace dmGraphics
         }
     }
 
+    uint16_t GetMipmapSize(uint16_t size_0, uint8_t mipmap)
+    {
+        for (uint32_t i = 0; i < mipmap; ++i)
+        {
+            size_0 /= 2;
+        }
+        return size_0;
+    }
+
+    uint8_t GetMipmapCount(uint16_t size)
+    {
+        return (uint8_t) floor(log2f(size)) + 1;
+    }
+
+    PipelineState GetDefaultPipelineState()
+    {
+        PipelineState ps;
+        ps.m_WriteColorMask           = DM_GRAPHICS_STATE_WRITE_R | DM_GRAPHICS_STATE_WRITE_G | DM_GRAPHICS_STATE_WRITE_B | DM_GRAPHICS_STATE_WRITE_A;
+        ps.m_WriteDepth               = 1;
+        ps.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
+        ps.m_DepthTestEnabled         = 1;
+        ps.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
+        ps.m_BlendEnabled             = 0;
+        ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
+        ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
+        ps.m_StencilEnabled           = 0;
+        ps.m_StencilFrontOpFail       = STENCIL_OP_KEEP;
+        ps.m_StencilFrontOpDepthFail  = STENCIL_OP_KEEP;
+        ps.m_StencilFrontOpPass       = STENCIL_OP_KEEP;
+        ps.m_StencilFrontTestFunc     = COMPARE_FUNC_ALWAYS;
+        ps.m_StencilBackOpFail        = STENCIL_OP_KEEP;
+        ps.m_StencilBackOpDepthFail   = STENCIL_OP_KEEP;
+        ps.m_StencilBackOpPass        = STENCIL_OP_KEEP;
+        ps.m_StencilBackTestFunc      = COMPARE_FUNC_ALWAYS;
+        ps.m_StencilWriteMask         = 0xff;
+        ps.m_StencilCompareMask       = 0xff;
+        ps.m_StencilReference         = 0x0;
+        ps.m_CullFaceEnabled          = 0;
+        ps.m_CullFaceType             = FACE_TYPE_BACK;
+        ps.m_PolygonOffsetFillEnabled = 0;
+        return ps;
+    }
+
+    void SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value)
+    {
+        switch (state)
+        {
+            case STATE_DEPTH_TEST:
+                pipeline_state.m_DepthTestEnabled = value;
+                break;
+            case STATE_STENCIL_TEST:
+                pipeline_state.m_StencilEnabled = value;
+                break;
+            case STATE_BLEND:
+                pipeline_state.m_BlendEnabled = value;
+                break;
+            case STATE_CULL_FACE:
+                pipeline_state.m_CullFaceEnabled = value;
+                break;
+            case STATE_POLYGON_OFFSET_FILL:
+                pipeline_state.m_PolygonOffsetFillEnabled = value;
+                break;
+            default: assert(0 && "EnableState: State not supported");
+        }
+    }
+
     // The goal is to find a supported compression format, since they're smaller than the uncompressed ones
     // The user can also choose RGB(a) 16BPP as the fallback if they wish to have smaller size than full RGB(a)
     dmGraphics::TextureFormat GetSupportedCompressionFormat(dmGraphics::HContext context, dmGraphics::TextureFormat format, uint32_t width, uint32_t height)
@@ -443,6 +509,10 @@ namespace dmGraphics
     uint32_t GetWindowHeight(HContext context)
     {
         return g_functions.m_GetWindowHeight(context);
+    }
+    float GetDisplayScaleFactor(HContext context)
+    {
+        return g_functions.m_GetDisplayScaleFactor(context);
     }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
@@ -636,9 +706,9 @@ namespace dmGraphics
     {
         g_functions.m_SetConstantV4(context, data, count, base_register);
     }
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int base_register)
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
     {
-        g_functions.m_SetConstantM4(context, data, base_register);
+        g_functions.m_SetConstantM4(context, data, count, base_register);
     }
     void SetSampler(HContext context, int32_t location, int32_t unit)
     {
@@ -752,9 +822,9 @@ namespace dmGraphics
     {
         g_functions.m_SetTextureAsync(texture, paramsa);
     }
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
-        g_functions.m_SetTextureParams(texture, minfilter, magfilter, uwrap, vwrap);
+        g_functions.m_SetTextureParams(texture, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
     uint32_t GetTextureResourceSize(HTexture texture)
     {
@@ -815,6 +885,14 @@ namespace dmGraphics
     const char* GetSupportedExtension(HContext context, uint32_t index)
     {
         return g_functions.m_GetSupportedExtension(context, index);
+    }
+    bool IsMultiTargetRenderingSupported(HContext context)
+    {
+        return g_functions.m_IsMultiTargetRenderingSupported(context);
+    }
+    PipelineState GetPipelineState(HContext context)
+    {
+        return g_functions.m_GetPipelineState(context);
     }
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))

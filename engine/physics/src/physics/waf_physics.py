@@ -14,12 +14,12 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import Logs, Options
+import waflib.Logs, waflib.Options
 from waf_dynamo import platform_supports_feature
 
 def configure(conf):
-    if 'physics' in Options.options.disable_features:
+    if 'physics' in waflib.Options.options.disable_features:
         Logs.info("physics disabled")
-        conf.env['STATICLIB_PHYSICS'] = ['physics_null']
+        conf.env['STLIB_PHYSICS'] = ['physics_null']
     else:
-        conf.env['STATICLIB_PHYSICS'] = ['physics', 'BulletDynamics', 'BulletCollision', 'LinearMath', 'Box2D']
+        conf.env['STLIB_PHYSICS'] = ['physics', 'BulletDynamics', 'BulletCollision', 'LinearMath', 'Box2D']

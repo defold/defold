@@ -24,11 +24,7 @@
 
 namespace dmGameSystem
 {
-    void ScriptCollectionProxyFinalize(const ScriptLibContext& context)
-    {
-    }
-
-    dmhash_t GetCollectionProxyUrlHash(lua_State* L, int index)
+    static dmhash_t GetCollectionProxyUrlHash(lua_State* L, int index)
     {
         dmMessage::URL sender;
         dmMessage::URL receiver;
@@ -53,36 +49,70 @@ namespace dmGameSystem
         return dmGameSystem::GetUrlHashFromComponent(world, dmGameObject::GetIdentifier(receiver_instance), component_index);
     }
 
-    int CollectionProxy_MissingResources(lua_State* L)
+    struct GetResourceHashContext
     {
-        int top = lua_gettop(L);
+        lua_State* m_L;
+        int        m_Index;
+    };
 
-        dmhash_t compUrlHash = GetCollectionProxyUrlHash(L, 1);
+    static void GetResourceHashCallback(void* context, const char* hex_digest, uint32_t length)
+    {
+        GetResourceHashContext* ctx = (GetResourceHashContext*)context;
+        lua_State* L = ctx->m_L;
 
-        if (compUrlHash == 0)
+        lua_pushnumber(L, ctx->m_Index++);
+        lua_pushlstring(L, hex_digest, length);
+        lua_settable(L, -3);
+    }
+
+    // See doc in comp_collection_proxy.cpp
+    static int CollectionProxy_MissingResources(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmhash_t url_hash = GetCollectionProxyUrlHash(L, 1);
+
+        if (url_hash == 0)
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "Unable to find collection proxy component.");
+            return DM_LUA_ERROR("Unable to find collection proxy component.");
         }
 
-        char** buffer = 0x0;
-        uint32_t resourceCount = dmLiveUpdate::GetMissingResources(compUrlHash, &buffer);
+        lua_newtable(L);
 
-        lua_createtable(L, resourceCount, 0);
-        for (uint32_t i = 0; i < resourceCount; ++i)
+        GetResourceHashContext ctx;
+        ctx.m_L = L;
+        ctx.m_Index = 1;
+        dmLiveUpdate::GetMissingResources(url_hash, GetResourceHashCallback, &ctx);
+
+        return 1;
+    }
+
+    // See doc in comp_collection_proxy.cpp
+    static int CollectionProxy_GetResources(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmhash_t url_hash = GetCollectionProxyUrlHash(L, 1);
+
+        if (url_hash == 0)
         {
-            lua_pushnumber(L, i + 1);
-            lua_pushstring(L, buffer[i]);
-            lua_settable(L, -3);
+            return DM_LUA_ERROR("Unable to find collection proxy component.");
         }
 
-        assert(lua_gettop(L) == top+1);
+        lua_newtable(L);
+
+        GetResourceHashContext ctx;
+        ctx.m_L = L;
+        ctx.m_Index = 1;
+        dmLiveUpdate::GetResources(url_hash, GetResourceHashCallback, &ctx);
+
         return 1;
     }
 
     static const luaL_reg Module_methods[] =
     {
         {"missing_resources", CollectionProxy_MissingResources},
+        {"get_resources", CollectionProxy_GetResources},
         {0, 0}
     };
 
@@ -93,6 +123,10 @@ namespace dmGameSystem
 
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
+    }
+
+    void ScriptCollectionProxyFinalize(const ScriptLibContext& context)
+    {
     }
 
     void ScriptCollectionProxyRegister(const ScriptLibContext& context)

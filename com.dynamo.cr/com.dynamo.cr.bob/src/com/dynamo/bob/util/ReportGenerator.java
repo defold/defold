@@ -187,24 +187,15 @@ public class ReportGenerator {
             // Create dictionary for build options
             generator.writeFieldName("build_options");
             generator.writeStartObject();
+            String key;
             for (Map.Entry<String, String> entry : project.getOptions().entrySet() ) {
-                generator.writeFieldName(entry.getKey());
-                generator.writeString(entry.getValue());
-            }
-            generator.writeEndObject();
-
-            // Create dictionary for project properties
-            generator.writeFieldName("project_properties");
-            generator.writeStartObject();
-            for (String categoryName : projectProperties.getCategoryNames()) {
-                generator.writeFieldName(categoryName);
-
-                generator.writeStartObject();
-                for (String keyName : projectProperties.getKeys(categoryName)) {
-                    generator.writeFieldName(keyName);
-                    generator.writeString(projectProperties.getStringValue(categoryName, keyName));
+                key = entry.getKey();
+                if (key.equals("auth") || key.equals("email"))
+                {
+                    continue;
                 }
-                generator.writeEndObject();
+                generator.writeFieldName(key);
+                generator.writeString(entry.getValue());
             }
             generator.writeEndObject();
 

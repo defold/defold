@@ -18,7 +18,9 @@
             [clojure.test :refer [is testing]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.atlas :as atlas]
             [editor.build :as build]
+            [editor.collection :as collection]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.fs :as fs]
@@ -26,16 +28,21 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.material :as material]
+            [editor.pipeline :as pipeline]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.system :as is]
+            [internal.util :as util]
             [service.log :as log]
             [support.test-support :as test-support]
             [util.http-server :as http-server]
@@ -108,9 +115,11 @@
   ([graph]
    (setup-workspace! graph project-path))
   ([graph project-path]
-   (let [workspace (workspace/make-workspace graph
+   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path)
+         workspace (workspace/make-workspace graph
                                              (.getAbsolutePath (io/file project-path))
-                                             {})]
+                                             {}
+                                             workspace-config)]
      (g/transact
        (concat
          (scene/register-view-types workspace)))
@@ -164,7 +173,7 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (get (g/node-value workspace :resource-types) (resource/ext this)))
+  (resource-type [this] (#'resource/get-resource-type workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
@@ -175,6 +184,7 @@
   (workspace [this] workspace)
   (resource-hash [this] (hash (resource/proj-path this)))
   (openable? [this] (= :file source-type))
+  (editable? [this] true)
 
   io/IOFactory
   (make-input-stream  [this opts] (io/make-input-stream content opts))
@@ -277,7 +287,8 @@
      [workspace project app-view])))
 
 (defn- load-system-and-project-raw [path]
-  (test-support/with-clean-system
+  (test-support/with-clean-system {:cache-size 1000
+                                   :cache-retain? project/cache-retain?}
     (let [workspace (setup-workspace! world path)]
       (fetch-libraries! workspace)
       (let [project (setup-project! workspace)]
@@ -579,7 +590,7 @@
   "Returns an AutoCloseable that deletes the directory at the specified
   path when closed. Suitable for use with the (with-open) macro. The
   directory path must be a temp directory."
-  [directory-path]
+  ^java.lang.AutoCloseable [directory-path]
   (let [directory (io/file directory-path)]
     (assert (string/starts-with? (.getAbsolutePath directory)
                                  (temp-directory-path))
@@ -592,7 +603,7 @@
   "Returns an AutoCloseable that reverts the specified graph to
   the state it was at construction time when its close method
   is invoked. Suitable for use with the (with-open) macro."
-  [graph-id]
+  ^java.lang.AutoCloseable [graph-id]
   (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
     (reify java.lang.AutoCloseable
       (close [_]
@@ -601,13 +612,180 @@
             (g/undo! graph-id)
             (recur (g/undo-stack-count graph-id))))))))
 
+(defn- throw-invalid-component-resource-node-id-exception [basis node-id]
+  (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
+                  {:node-id node-id
+                   :node-type (g/node-type* basis node-id)})))
+
+(defn- validate-component-resource-node-id
+  ([node-id]
+   (validate-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (if (and (g/node-instance? basis resource-node/ResourceNode node-id)
+            (when-some [resource-type (resource/resource-type (resource-node/resource basis node-id))]
+              (contains? (:tags resource-type) :component)))
+     node-id
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-component-resource-node-id
+  ([node-id]
+   (to-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [resource-node/ResourceNode
+                                                  game-object/EmbeddedComponent
+                                                  game-object/ReferencedComponent])
+     resource-node/ResourceNode
+     (validate-component-resource-node-id basis node-id)
+
+     game-object/EmbeddedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :embedded-resource-id))
+
+     game-object/ReferencedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
+
+     :else
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-game-object-node-id
+  ([node-id]
+   (to-game-object-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [game-object/GameObjectNode
+                                                  collection/GameObjectInstanceNode])
+     game-object/GameObjectNode
+     node-id
+
+     collection/GameObjectInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
+
+(defn to-collection-node-id
+  ([node-id]
+   (to-collection-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [collection/CollectionNode
+                                                  collection/CollectionInstanceNode])
+     collection/CollectionNode
+     node-id
+
+     collection/CollectionInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
+
+(defn- created-node [select-fn-call-logger]
+  (let [calls (call-logger-calls select-fn-call-logger)
+        args (last calls)
+        selection (first args)
+        node-id (first selection)]
+    node-id))
+
+(defn add-referenced-component!
+  "Adds a new instance of a referenced component to the specified game object
+  node. Returns the id of the added ReferencedComponent node."
+  [game-object-or-instance-id component-resource]
+  (let [game-object-id (to-game-object-node-id game-object-or-instance-id)
+        select-fn (make-call-logger)]
+    (game-object/add-referenced-component! game-object-id component-resource select-fn)
+    (created-node select-fn)))
+
 (defn add-embedded-component!
-  "Adds a new instance of an embedded component to the specified
-  game object node inside a transaction and makes it the current
-  selection. Returns the id of the added EmbeddedComponent node."
-  [app-view select-fn resource-type go-id]
-  (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
-  (first (selection app-view)))
+  "Adds a new instance of an embedded component to the specified game object
+  node. Returns the id of the added EmbeddedComponent node."
+  [game-object-or-instance-id resource-type]
+  (let [game-object-id (to-game-object-node-id game-object-or-instance-id)
+        select-fn (make-call-logger)]
+    (game-object/add-embedded-component! game-object-id resource-type select-fn)
+    (created-node select-fn)))
+
+(defn add-referenced-game-object!
+  "Adds a new instance of a referenced game object to the specified collection
+  node. Returns the id of the added ReferencedGOInstanceNode."
+  ([collection-or-instance-id game-object-resource]
+   (let [collection-id (to-collection-node-id collection-or-instance-id)]
+     (add-referenced-game-object! collection-id collection-id game-object-resource)))
+  ([collection-or-instance-id parent-id game-object-resource]
+   (let [collection-id (to-collection-node-id collection-or-instance-id)
+         select-fn (make-call-logger)]
+     (collection/add-referenced-game-object! collection-id parent-id game-object-resource select-fn)
+     (created-node select-fn))))
+
+(defn add-embedded-game-object!
+  "Adds a new instance of an embedded game object to the specified collection
+  node. Returns the id of the added EmbeddedGOInstanceNode."
+  ([collection-or-instance-id]
+   (let [collection-id (to-collection-node-id collection-or-instance-id)]
+     (add-embedded-game-object! collection-id collection-id)))
+  ([collection-or-instance-id parent-id]
+   (let [collection-id (to-collection-node-id collection-or-instance-id)
+         project (project/get-project collection-id)
+         workspace (project/workspace project)
+         select-fn (make-call-logger)]
+     (collection/add-embedded-game-object! workspace project collection-id parent-id select-fn)
+     (created-node select-fn))))
+
+(defn add-referenced-collection!
+  "Adds a new instance of a referenced collection to the specified collection
+  node. Returns the id of the added CollectionInstanceNode."
+  [collection-or-instance-id collection-resource]
+  (let [collection-id (to-collection-node-id collection-or-instance-id)
+        id (resource/base-name collection-resource)
+        position [0.0 0.0 0.0]
+        rotation [0.0 0.0 0.0 1.0]
+        scale [1.0 1.0 1.0]
+        overrides []
+        select-fn (make-call-logger)]
+    (collection/add-referenced-collection! collection-id collection-resource id position rotation scale overrides select-fn)
+    (created-node select-fn)))
+
+(defn- checked-source-node-ids
+  ([node-id->target-node-id target-input expected-source-node-type unresolved-target-node-id]
+   (checked-source-node-ids node-id->target-node-id target-input expected-source-node-type (g/now) unresolved-target-node-id))
+  ([node-id->target-node-id target-input expected-source-node-type basis unresolved-target-node-id]
+   (let [target-node-id (node-id->target-node-id basis unresolved-target-node-id)
+         target-node-type (g/node-type* basis target-node-id)]
+     (when-not (g/has-input? target-node-type target-input)
+       (throw (ex-info "Target node does not have the required input."
+                       {:target-node-id target-node-id
+                        :target-node-type target-node-type
+                        :required-target-input target-input})))
+     (mapv (fn [[source-node-id _source-label]]
+             (if (g/node-instance? basis expected-source-node-type source-node-id)
+               source-node-id
+               (throw (ex-info "Source node does not match the expected source node type."
+                               {:source-node-id source-node-id
+                                :source-node-type (g/node-type* basis source-node-id)
+                                :expected-source-node-type expected-source-node-type}))))
+           (g/sources-of basis target-node-id target-input)))))
+
+(def single util/only-or-throw)
+
+(def embedded-components (partial checked-source-node-ids to-game-object-node-id :embed-ddf game-object/EmbeddedComponent))
+
+(def embedded-component (comp single embedded-components))
+
+(def referenced-components (partial checked-source-node-ids to-game-object-node-id :ref-ddf game-object/ReferencedComponent))
+
+(def referenced-component (comp single referenced-components))
+
+(def embedded-game-objects (partial checked-source-node-ids to-collection-node-id :embed-inst-ddf collection/EmbeddedGOInstanceNode))
+
+(def embedded-game-object (comp single embedded-game-objects))
+
+(def referenced-game-objects (partial checked-source-node-ids to-collection-node-id :ref-inst-ddf collection/ReferencedGOInstanceNode))
+
+(def referenced-game-object (comp single referenced-game-objects))
+
+(def referenced-collections (partial checked-source-node-ids to-collection-node-id :ref-coll-ddf collection/CollectionInstanceNode))
+
+(def referenced-collection (comp single referenced-collections))
 
 (defonce ^:private png-image-bytes
   ;; Bytes representing a single-color 256 by 256 pixel PNG file.
@@ -626,20 +804,33 @@
   (assert (integer? workspace))
   (assert (.startsWith proj-path "/"))
   (let [resource (resource workspace proj-path)]
+    (fs/create-parent-directories! (io/as-file resource))
     (with-open [out (io/output-stream resource)]
       (.write out png-image-bytes))
     resource))
 
 (defn make-resource!
   "Adds a new file to the workspace. Returns the created FileResource."
-  [workspace proj-path]
-  (assert (integer? workspace))
-  (assert (.startsWith proj-path "/"))
-  (let [resource (resource workspace proj-path)
-        resource-type (resource/resource-type resource)
-        template (workspace/template workspace resource-type)]
-    (spit resource template)
-    resource))
+  ([workspace proj-path]
+   (assert (integer? workspace))
+   (assert (.startsWith proj-path "/"))
+   (let [resource (resource workspace proj-path)
+         resource-type (resource/resource-type resource)
+         template (workspace/template workspace resource-type)]
+     (fs/create-parent-directories! (io/as-file resource))
+     (spit resource template)
+     resource))
+  ([workspace proj-path pb-map]
+   (assert (integer? workspace))
+   (assert (.startsWith proj-path "/"))
+   (assert (map? pb-map))
+   (let [resource (resource workspace proj-path)
+         resource-type (resource/resource-type resource)
+         write-fn (:write-fn resource-type)
+         content (write-fn pb-map)]
+     (fs/create-parent-directories! (io/as-file resource))
+     (spit resource content)
+     resource)))
 
 (defn make-resource-node!
   "Adds a new file to the project. Returns the node-id of the created resource."
@@ -649,6 +840,15 @@
         resource (make-resource! workspace proj-path)]
     (workspace/resource-sync! workspace)
     (project/get-resource-node project resource)))
+
+(defn make-atlas-resource-node! [project proj-path]
+  {:pre [(string/ends-with? proj-path ".atlas")]}
+  (let [workspace (project/workspace project)
+        image-resource (make-png-resource! workspace (string/replace proj-path #".atlas$" ".png"))
+        atlas (make-resource-node! project proj-path)]
+    (g/transact
+      (atlas/add-images atlas [image-resource]))
+    atlas))
 
 (defn move-file!
   "Moves or renames a file in the workspace, then performs a resource sync."
@@ -693,7 +893,8 @@
                        (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))]
     [build-path build-result]))
 
-(defn build! [resource-node]
+(defn build!
+  ^java.lang.AutoCloseable [resource-node]
   (let [[build-path] (build-node! resource-node)]
     (make-directory-deleter build-path)))
 
@@ -703,21 +904,37 @@
     (fs/delete-directory! (io/file build-path) {:fail :silently})
     error))
 
+(defn node-build-resource [node-id]
+  (:resource (first (g/node-value node-id :build-targets))))
+
 (defn build-resource [project path]
   (when-some [resource-node (resource-node project path)]
-    (:resource (first (g/node-value resource-node :build-targets)))))
+    (node-build-resource resource-node)))
 
-(defn build-output [project path]
+(defn build-output
+  ^bytes [project path]
   (with-open [in (io/input-stream (build-resource project path))
               out (ByteArrayOutputStream.)]
     (io/copy in out)
     (.toByteArray out)))
 
-(defn node-build-resource [node-id]
-  (:resource (first (g/node-value node-id :build-targets))))
-
-(defn node-build-output [node-id]
+(defn node-build-output
+  ^bytes [node-id]
   (with-open [in (io/input-stream (node-build-resource node-id))
               out (ByteArrayOutputStream.)]
     (io/copy in out)
     (.toByteArray out)))
+
+(defn node-built-source-paths [node-id]
+  (into #{}
+        (keep (comp resource/proj-path :resource :resource))
+        (pipeline/flatten-build-targets
+          (g/node-value node-id :build-targets))))
+
+(defmacro saved-pb [node-id pb-class]
+  (with-meta `(protobuf/str->pb ~pb-class (:content (g/node-value ~node-id :undecorated-save-data)))
+             {:tag pb-class}))
+
+(defmacro built-pb [node-id pb-class]
+  (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
+             {:tag pb-class}))

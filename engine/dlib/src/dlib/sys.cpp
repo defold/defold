@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if !defined(__SCE__)
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -680,6 +682,10 @@ namespace dmSys
 #endif
     }
 
+    void GetSecureInfo(SystemInfo* info)
+    {
+    }
+
 #elif defined(__ANDROID__)
 
     void GetSystemInfo(SystemInfo* info)
@@ -742,7 +748,16 @@ namespace dmSys
             dmStrlCpy(info->m_SystemVersion, release, sizeof(info->m_SystemVersion));
             env->ReleaseStringUTFChars(releaseObj, release);
         }
+    }
 
+    void GetSecureInfo(SystemInfo* info)
+    {
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return;
+        }
         jclass activity_class = env->FindClass("android/app/NativeActivity");
         jmethodID get_content_resolver_method = env->GetMethodID(activity_class, "getContentResolver", "()Landroid/content/ContentResolver;");
         jobject content_resolver = env->CallObjectMethod(thread.GetActivity()->clazz, get_content_resolver_method);
@@ -788,6 +803,10 @@ namespace dmSys
         }
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
+    }
+
+    void GetSecureInfo(SystemInfo* info)
+    {
     }
 #endif
 
@@ -919,7 +938,9 @@ namespace dmSys
             *resource_size = file_stat.st_size;
             return RESULT_OK;
         } else {
-            return NativeToResult(errno);
+            return ErrnoToResult(errno);
         }
     }
 }
+
+#endif // unsupported platforms

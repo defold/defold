@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,6 @@
 (ns editor.properties-view
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.dialogs :as dialogs]
             [editor.ui :as ui]
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.jfx :as jfx]
@@ -25,6 +24,7 @@
             [editor.resource :as resource]
             [editor.math :as math]
             [editor.field-expression :as field-expression]
+            [editor.resource-dialog :as resource-dialog]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
   (:import [javafx.geometry Insets Point2D]
@@ -190,8 +190,10 @@
          :or {labels ["X" "Y" "Z"]}} edit-type]
     (create-multi-textfield! labels property-fn)))
 
-(defmethod create-property-control! types/Vec4 [_ _ property-fn]
-  (create-multi-textfield! ["X" "Y" "Z" "W"] property-fn))
+(defmethod create-property-control! types/Vec4 [edit-type _ property-fn]
+  (let [{:keys [labels]
+         :or {labels ["X" "Y" "Z" "W"]}} edit-type]
+    (create-multi-textfield! labels property-fn)))
 
 (defn- create-multi-keyed-textfield! [fields property-fn]
   (let [text-fields  (mapv (fn [_] (TextField.)) fields)
@@ -327,7 +329,7 @@
                               resource (workspace/resolve-workspace-resource workspace path)]
                           (properties/set-values! (property-fn) (repeat resource))))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! browse-button (fn [_] (when-let [resource (first (dialogs/make-resource-dialog workspace project dialog-opts))]
+    (ui/on-action! browse-button (fn [_] (when-let [resource (first (resource-dialog/make workspace project dialog-opts))]
                                            (properties/set-values! (property-fn) (repeat resource)))))
     (ui/on-action! open-button (fn [_]  (when-let [resource (-> (property-fn)
                                                               properties/values
@@ -473,11 +475,13 @@
       (update-message-tooltip ctrl)
       (hide-message-tooltip ctrl))))
 
-(defn- create-property-label [label key]
+(defn- create-property-label [label key tooltip]
   (doto (Label. label)
     (.setTooltip (doto (Tooltip.)
-                   (.setText (format "Available as `%s` in editor scripts"
-                                     (string/replace (name key) \- \_)))
+                   (.setText (cond->> (format "Available as `%s` in editor scripts"
+                                              (string/replace (name key) \- \_))
+                                      tooltip
+                                      (str tooltip "\n\n")))
                    (.setHideDelay Duration/ZERO)
                    (.setShowDuration (Duration/seconds 30))))
     (ui/add-style! "property-label")
@@ -485,7 +489,7 @@
     (.setMinHeight 28.0)))
 
 (defn- create-properties-row [context ^GridPane grid key property row property-fn]
-  (let [^Label label (create-property-label (properties/label property) key)
+  (let [^Label label (create-property-label (properties/label property) key (properties/tooltip property))
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) context
                                                                  (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))

@@ -1,7 +1,6 @@
 #! /usr/bin/env python
-import os, re
+import re
 from waf_dynamo import apidoc_extract_task
-
 
 def configure(conf):
     pass
@@ -9,15 +8,15 @@ def configure(conf):
 def build(bld):
     source = 'iap_null.cpp'
 
-    platforms = ['arm.*?darwin', 'arm.*?android', 'x86_64-ios', 'web']
+    platforms = ['arm.*?ios', 'arm.*?android', 'x86_64-ios', 'web']
     for p in platforms:
         if re.match(p, bld.env.PLATFORM):
             source = 'iap_stub.cpp'
             break
 
-    bld.new_task_gen(features = 'cxx cstaticlib',
-                    includes = '.',
-                    source = source,
-                    target = 'iapext')
+    bld.stlib(features = 'cxx',
+              includes = '.',
+              source = source,
+              target = 'iapext')
 
     apidoc_extract_task(bld, ['iap_doc.h'])

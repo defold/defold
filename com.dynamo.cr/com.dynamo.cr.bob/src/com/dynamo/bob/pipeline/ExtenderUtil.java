@@ -34,7 +34,9 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -416,6 +418,37 @@ public class ExtenderUtil {
         }
     }
 
+    /***
+     * @return true if a path is an ext.manifest that defines engine extensions (i.e. should be built remotely)
+     */
+    private static boolean isEngineExtensionManifest(Project project, String path) {
+        File f = new File(path);
+        if (f.getName().equals(ExtenderClient.extensionFilename)) {
+            String parent = f.getParent();
+            if (parent != null) {
+                ArrayList<String> siblings = new ArrayList<>();
+                project.findResourceDirs(parent, siblings);
+                return siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"));
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get a list of paths to engine extension directories in the project (i.e. extensions
+     * that need to be built remotely)
+     * @param project
+     * @return A list of paths to engine extension directories
+     */
+    public static List<String> getEngineExtensionFolders(Project project) {
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+        return paths.stream()
+                .filter(p -> isEngineExtensionManifest(project, p))
+                .map(p -> new File(p).getParent())
+                .collect(Collectors.toList());
+    }
+
     /**
      * Get a list of paths to extension directories in the project.
      * @param project
@@ -435,6 +468,14 @@ public class ExtenderUtil {
         return folders;
     }
 
+
+    public static List<File> getPipelinePlugins(Project project) {
+        String outputDir = project.getBinaryOutputDirectory();
+        Platform hostPlatform = Platform.getHostPlatform();
+        File buildDir = new File(FilenameUtils.concat(outputDir, hostPlatform.getExtenderPair()));
+        List<File> files = listFilesRecursive(buildDir, JAR_RE);
+        return files;
+    }
     private static boolean hasPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
@@ -461,13 +502,7 @@ public class ExtenderUtil {
 
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
-        for (String p : paths) {
-            File f = new File(p);
-            if (f.getName().equals(ExtenderClient.extensionFilename)) {
-                return true;
-            }
-        }
-        return false;
+        return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
     }
 
     private static IResource getPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) throws CompileExceptionError {
@@ -512,8 +547,8 @@ public class ExtenderUtil {
             }
         }
 
-        // Find extension folders
-        List<String> extensionFolders = getExtensionFolders(project);
+        // Find engine extension folders
+        List<String> extensionFolders = getEngineExtensionFolders(project);
         for (String extension : extensionFolders) {
             IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
             if (!resource.exists()) {
@@ -779,6 +814,9 @@ public class ExtenderUtil {
             try {
                 byte[] data = resource.getContent();
                 FileUtils.writeByteArrayToFile(outputFile, data);
+                if (relativePath.startsWith("plugins/bin/") || relativePath.contains("/plugins/bin/")) {
+                    outputFile.setExecutable(true);
+                }
             } catch (Exception e) {
                 throw new CompileExceptionError(resource, 0, e);
             }

@@ -243,7 +243,7 @@ function cmi() {
     export PLATFORM=$1
 
     case $1 in
-        arm64-darwin)
+        arm64-ios)
             [ ! -e "${IOS_SDK_ROOT}" ] && echo "No SDK found at ${IOS_SDK_ROOT}" && exit 1
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
@@ -260,7 +260,7 @@ function cmi() {
             export CXX=$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_cross $1 arm-darwin
+            cmi_cross $1 arm-ios
             ;;
 
         x86_64-ios)
@@ -297,6 +297,8 @@ function cmi() {
             export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
             export LDFLAGS="-isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
 
+            # TODO: for protobuf, we need to add -llog to LDFLAGS
+
             export CPP="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang -E"
             export CC="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang"
             export CXX="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang++"
@@ -323,22 +325,14 @@ function cmi() {
             export AS=${bin}/aarch64-linux-android-as
             export LD=${bin}/aarch64-linux-android-ld
             export RANLIB=${bin}/aarch64-linux-android-ranlib
+            # TODO: for protobuf, we need to add -llog to LDFLAGS
+            #export LDFLAGS="-llog"
+
             cmi_cross $1 arm-linux
             ;;
 
-        darwin)
+        x86_64-macos)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libc++ "
-            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32"
-            export LDFLAGS="-m32"
-            cmi_buildplatform $1
-            ;;
-
-        x86_64-darwin)
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}

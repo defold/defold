@@ -55,7 +55,8 @@ namespace dmGameObject
                       ComponentType* type,
                       uint32_t type_index,
                       const Point3& position,
-                      const Quat& rotation) :
+                      const Quat& rotation,
+                      const Vector3& scale) :
                 m_Id(id),
                 m_ResourceId(resource_id),
                 m_Type(type),
@@ -64,6 +65,7 @@ namespace dmGameObject
                 m_ResourceType(resource_type),
                 m_Position(position),
                 m_Rotation(rotation),
+                m_Scale(scale),
                 m_PropertySet()
             {
             }
@@ -76,6 +78,7 @@ namespace dmGameObject
             uint32_t        m_ResourceType;
             Point3          m_Position;
             Quat            m_Rotation;
+            Vector3         m_Scale;
             PropertySet     m_PropertySet;
         };
 
@@ -194,7 +197,6 @@ namespace dmGameObject
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
         uint16_t                    m_ComponentTypesOrder[MAX_COMPONENT_TYPES];
-        uint32_t                    m_ComponentProfileCounterIndex[MAX_COMPONENT_TYPES];
         dmMutex::HMutex             m_Mutex;
 
         // All collections. Protected by m_Mutex
@@ -225,8 +227,6 @@ namespace dmGameObject
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
-        // Component type specific instance counters
-        uint32_t                 m_ComponentInstanceCount[MAX_COMPONENT_TYPES];
 
         // Maximum number of instances
         uint32_t                 m_MaxInstances;
@@ -258,6 +258,9 @@ namespace dmGameObject
 
         // Stack keeping track of which instance has the input focus
         dmArray<Instance*>       m_InputFocusStack;
+
+        // Array of dynamically created resources (i.e runtime-only resources)
+        dmArray<dmhash_t>        m_DynamicResources;
 
         // Name-hash of the collection.
         dmhash_t                 m_NameHash;

@@ -28,7 +28,7 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-#define PATH_FORMAT "build/default/src/test/%s"
+#define PATH_FORMAT "build/src/test/%s"
 
 #if defined(__NX__)
     #define MOUNTFS "host:/"
@@ -179,39 +179,6 @@ TEST_F(ScriptModuleTest, TestReloadNotLoaded)
     ASSERT_EQ(dmScript::RESULT_MODULE_NOT_LOADED, ret);
     ASSERT_EQ(top, lua_gettop(L));
 }
-
-struct ChunknameParam
-{
-    const char* m_Input;
-    const char* m_Expected;
-};
-
-class ChunknameTests : public jc_test_params_class<ChunknameParam>
-{
-protected:
-    void SetUp() {};
-    void TearDown() {};
-};
-
-// Verify that Lua chunknames are prefixed with '=' and the last parts
-// of the paths are taken, not from the start.
-TEST_P(ChunknameTests, Chunkname)
-{
-    const ChunknameParam& param = GetParam();
-    char tmp[61];
-    dmScript::PrefixFilename(dmScript::FindSuitableChunkname(param.m_Input), '=', tmp, sizeof(tmp));
-    ASSERT_EQ('=', tmp[0]);
-    ASSERT_STREQ(param.m_Expected, tmp);
-}
-
-ChunknameParam chunkname_tests[] = {
-    {"", "="},
-    {"a.script", "=a.script"},
-    {"abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
-    {"abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
-    {"aabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script", "=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.script"},
-};
-INSTANTIATE_TEST_CASE_P(Test, ChunknameTests, jc_test_values_in(chunkname_tests));
 
 int main(int argc, char **argv)
 {

@@ -36,11 +36,11 @@ When working on a new feature or fixing a bug you start by first building the en
 The following platforms are supported:
 
 * `x86_64-linux`
-* `x86_64-darwin`
+* `x86_64-macos`
 * `win32`
 * `x86_64-win32`
 * `x86_64-ios`
-* `arm64-darwin`
+* `arm64-ios`
 * `armv7-android`
 * `arm64-android`
 * `js-web`
@@ -70,7 +70,16 @@ It is important that you provide the `--platform` option to let the `install_ext
 You need to rerun the `install_ext` command whenever you switch target platform, as different packages and SDKs are installed.
 
 #### Installing packages
-The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet and Protocol Buffers (a.k.a. protobuf). This step also installs some Python dependencies such as `requests`, `boto` and `Pygments`.
+The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet and Protocol Buffers (a.k.a. protobuf).
+
+This step also installs some Python dependencies:
+
+* `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
+* `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
+* `protobuf` - Installed from wheel package in `packages/`
+* `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
+* `requests` - Installed using pip
+* `pyaml` - Installed using pip
 
 #### Installing SDKs
 The second step of the `install_ext` command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
@@ -106,7 +115,7 @@ You can also use rebuild a specific part of the engine and create a new executab
 
 ```sh
 # Rebuild dlib and sound modules and create a new executable
-$ ./scripts/submodule.sh x86_64-darwin dlib sound
+$ ./scripts/submodule.sh x86_64-macos dlib sound
 ```
 
 ---

@@ -96,9 +96,9 @@
 
 (defn- gen-vertex
   [^Matrix4d world-transform x y u v]
-  (let [p (Point3d. x y 0)]
+  (let [p (Point3d. x y 0.0)]
     (.transform world-transform p)
-    (vector-of :double (.x p) (.y p) (.z p) 1 u v)))
+    (vector-of :double (.x p) (.y p) (.z p) 1.0 u v)))
 
 (defn vertex-data
   [{:keys [width height tex-coords] :as frame} world-transform]

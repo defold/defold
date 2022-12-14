@@ -233,7 +233,7 @@
                         {:graphic (doto (HBox.)
                                     (ui/fill-control)
                                     (ui/children! [(Label. display-name)
-                                                   (doto (Label. "=")
+                                                   (doto (Label. " = ")
                                                      (ui/add-style! "equals"))
                                                    (Label. display-value)]))}))))
 
@@ -398,28 +398,12 @@
 (defn- set-breakpoint!
   [debug-session {:keys [resource row] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
-    ;; NOTE: The filenames returned by debug.getinfo("S").source
-    ;; differs between lua/luajit:
-    ;;
-    ;; - luajit always returns a path for both .script components and
-    ;;   .lua modules, ie. /path/to/module.lua
-    ;;
-    ;; - lua returns a path for .script components, but the dotted
-    ;;   module name path.to.module for .lua modules
-    ;;
-    ;; So, when the breakpoint is being added to a .lua module, we set
-    ;; an additional breakpoint on the module name, ensuring we break
-    ;; correctly in both cases.
-    (mobdebug/set-breakpoint! debug-session path (inc row))
-    (when (= "lua" (FilenameUtils/getExtension path))
-      (mobdebug/set-breakpoint! debug-session (lua/path->lua-module path) (inc row)))))
+    (mobdebug/set-breakpoint! debug-session path (inc row))))
 
 (defn- remove-breakpoint!
   [debug-session {:keys [resource row] :as _breakpoint}]
   (when-some [path (resource/proj-path resource)]
-    (mobdebug/remove-breakpoint! debug-session path (inc row))
-    (when (= "lua" (FilenameUtils/getExtension path))
-      (mobdebug/remove-breakpoint! debug-session (lua/path->lua-module path) (inc row)))))
+    (mobdebug/remove-breakpoint! debug-session path (inc row))))
 
 (defn- update-breakpoints!
   ([debug-session breakpoints]

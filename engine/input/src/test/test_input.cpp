@@ -20,6 +20,8 @@
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/dstrings.h>
+#include <dlib/testutil.h>
 
 #include <ddf/ddf.h>
 
@@ -28,10 +30,11 @@
 
 #include <input/input_ddf.h>
 
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
+// TODO: Move to the build system and default to Have=1
+#if defined(__NX__) || defined(__SCE__)
+    #define DM_HAVE_KEYBOARD_SUPPORT 0
 #else
-    #define MOUNTFS
+    #define DM_HAVE_KEYBOARD_SUPPORT 1
 #endif
 
 class InputTest : public jc_test_base_class
@@ -47,15 +50,17 @@ protected:
         params.m_RepeatInterval = 0.2f;
         m_Context = dmInput::NewContext(params);
         dmInputDDF::GamepadMaps* gamepad_maps;
-        dmDDF::Result result = dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/test.gamepadsc", dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
+
+        dmDDF::Result result = dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/test.gamepadsc", dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
+
         (void)result;
         assert(dmDDF::RESULT_OK == result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
         dmDDF::FreeMessage(gamepad_maps);
-        dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/test.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
-        dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/test2.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
-        dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/combinations.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
-        dmDDF::LoadMessageFromFile(MOUNTFS "build/default/src/test/test_text.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TextDDF);
+        dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/test.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
+        dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/test2.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_Test2DDF);
+        dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/combinations.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_ComboDDF);
+        dmDDF::LoadMessageFromFile(DM_HOSTFS "build/src/test/test_text.input_bindingc", dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TextDDF);
         m_DT = 1.0f / 60.0f;
     }
 
@@ -78,6 +83,14 @@ protected:
     dmInputDDF::InputBinding* m_TextDDF;
     float m_DT;
 };
+
+TEST(dmMemory, Malloc)
+{
+    void* memory = malloc(1024*1024);
+    ASSERT_TRUE(memory != 0);
+    free(memory);//
+}
+
 
 TEST_F(InputTest, CreateContext)
 {
@@ -124,7 +137,7 @@ TEST_F(InputTest, Text) {
     dmInput::DeleteBinding(binding);
 }
 
-#if !defined(__NX__)
+#if DM_HAVE_KEYBOARD_SUPPORT
 TEST_F(InputTest, Keyboard)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
@@ -180,7 +193,7 @@ TEST_F(InputTest, Keyboard)
 
     dmInput::DeleteBinding(binding);
 }
-#endif
+#endif // DM_HAVE_KEYBOARD_SUPPORT
 
 void MouseCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
 {
@@ -692,7 +705,7 @@ void ActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data
     *value = action->m_Value;
 }
 
-#if !defined(__NX__)
+#if DM_HAVE_KEYBOARD_SUPPORT
 TEST_F(InputTest, ForEachActive)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
@@ -749,7 +762,7 @@ TEST_F(InputTest, Combinations)
 
     dmInput::DeleteBinding(binding);
 }
-#endif
+#endif // DM_HAVE_KEYBOARD_SUPPORT
 
 TEST_F(InputTest, DeadZone)
 {
@@ -788,7 +801,7 @@ TEST_F(InputTest, DeadZone)
     dmInput::DeleteBinding(binding);
 }
 
-#if !defined(__NX__)
+#if DM_HAVE_KEYBOARD_SUPPORT
 TEST_F(InputTest, TestRepeat)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
@@ -833,7 +846,7 @@ TEST_F(InputTest, TestRepeat)
 
     dmInput::DeleteBinding(binding);
 }
-#endif
+#endif // DM_HAVE_KEYBOARD_SUPPORT
 
 int main(int argc, char **argv)
 {

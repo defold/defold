@@ -413,6 +413,49 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    public static File getSharedLib(String name) throws IOException {
+        init();
+
+        Platform platform = Platform.getHostPlatform();
+        String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
+        File f = new File(rootFolder, libName);
+        if (!f.exists()) {
+            URL url = Bob.class.getResource("/lib/" + libName);
+            if (url == null) {
+                throw new RuntimeException(String.format("/lib/%s not found", libName));
+            }
+
+            atomicCopy(url, f, true);
+        }
+        return f;
+    }
+
+    static void addToPath(String variable, String path) {
+        String newPath = null;
+
+        // Check if jna.library.path is set externally.
+        if (System.getProperty(variable) != null) {
+            newPath = System.getProperty(variable);
+        }
+
+        if (newPath == null) {
+            // Set path where model_shared library is found.
+            newPath = path;
+        } else {
+            // Append path where model_shared library is found.
+            newPath += File.pathSeparator + path;
+        }
+
+        // Set the concatenated jna.library path
+        System.setProperty(variable, newPath);
+    }
+
+    static public void addToPaths(String dir) {
+        addToPath("jni.library.path", dir);
+        addToPath("jna.library.path", dir);
+        addToPath("java.library.path", dir);
+    }
+
     private static void addOption(Options options, String shortOpt, String longOpt, boolean hasArg, String description, boolean usedByResourceCacheKey) {
         options.addOption(shortOpt, longOpt, hasArg, description);
         if (usedByResourceCacheKey) {
@@ -428,30 +471,31 @@ public class Bob {
         addOption(options, "v", "verbose", false, "Verbose output", false);
         addOption(options, "h", "help", false, "This help message", false);
         addOption(options, "a", "archive", false, "Build archive", false);
+        addOption(options, "ea", "exclude-archive", false, "Exclude resource archives from application bundle. Use this to create an empty Defold application for use as a build target", false);
         addOption(options, "e", "email", true, "User email", false);
         addOption(options, "u", "auth", true, "User auth token", false);
 
-        addOption(options, "p", "platform", true, "Platform (when bundling)", true);
+        addOption(options, "p", "platform", true, "Platform (when building and bundling)", true);
         addOption(options, "bo", "bundle-output", true, "Bundle output directory", false);
         addOption(options, "bf", "bundle-format", true, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')", false);
 
         addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
         addOption(options, null, "identity", true, "Sign identity (iOS)", false);
 
-        addOption(options, "ce", "certificate", true, "DEPRECATED! Certificate (Android)", false);
-        addOption(options, "pk", "private-key", true, "DEPRECATED! Private key (Android)", false);
+        addOption(options, "ce", "certificate", true, "DEPRECATED! Use --keystore instead", false);
+        addOption(options, "pk", "private-key", true, "DEPRECATED! Use --keystore instead", false);
 
         addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", false);
         addOption(options, "ksp", "keystore-pass", true, "Password of the deployment keystore (Android)", false);
         addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", false);
         addOption(options, "kp", "key-pass", true, "Password of the deployment key if different from the keystore password (Android)", false);
 
-        addOption(options, "d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead", false);
+        addOption(options, "d", "debug", false, "DEPRECATED! Use --variant=debug instead", false);
         addOption(options, null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)", false);
         addOption(options, null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)", false);
         addOption(options, null, "with-symbols", false, "Generate the symbol file (if applicable)", false);
 
-        addOption(options, "tp", "texture-profiles", true, "Use texture profiles (deprecated)", true);
+        addOption(options, "tp", "texture-profiles", true, "DEPRECATED! Use --texture-compression instead", true);
         addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
         addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
 
@@ -461,15 +505,19 @@ public class Bob {
         addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", false);
 
         addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
+        addOption(options, null, "build-server-header", true, "Additional build server header to set", true);
+        addOption(options, null, "use-async-build-server", false, "Use an async build process for the build server (when using native extensions)", true);
         addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
         addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
 
-        addOption(options, null, "use-vanilla-lua", false, "Only ships vanilla source code (i.e. no byte code)", true);
+        addOption(options, null, "use-vanilla-lua", false, "DEPRECATED! Use --use-uncompressed-lua-source instead.", true);
+        addOption(options, null, "use-uncompressed-lua-source", false, "Use uncompressed and unencrypted Lua source code instead of byte code", true);
+        addOption(options, null, "use-lua-bytecode-delta", false, "Use byte code delta compression when building for multiple architectures", true);
         addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
 
         addOption(options, "l", "liveupdate", true, "Yes if liveupdate content should be published", true);
 
-        addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", false);
+        addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", true);
 
         addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.", false);
 
@@ -647,6 +695,13 @@ public class Bob {
                 project.addPropertyFile(filepath);
             }
         }
+
+        if (cmd.hasOption("build-server-header")) {
+            for (String header : cmd.getOptionValues("build-server-header")) {
+                project.addBuildServerHeader(header);
+            }
+        }
+
         project.loadProjectFile();
 
         // resolves libraries and finds all sources
@@ -654,6 +709,11 @@ public class Bob {
 
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);
+        }
+
+        if (cmd.hasOption("use-vanilla-lua")) {
+            System.out.println("--use-vanilla-lua option is deprecated. Use --use-uncompressed-lua-source instead.");
+            project.setOption("use-uncompressed-lua-source", "true");
         }
 
         Option[] options = cmd.getOptions();

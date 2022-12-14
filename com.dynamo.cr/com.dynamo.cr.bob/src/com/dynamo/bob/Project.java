@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+import java.util.stream.Collectors;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -59,6 +60,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.codec.binary.Base64;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
 
 import com.dynamo.bob.archive.EngineVersion;
@@ -69,15 +71,9 @@ import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 
-import com.dynamo.bob.bundle.AndroidBundler;
 import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.bundle.HTML5Bundler;
 import com.dynamo.bob.bundle.IBundler;
-import com.dynamo.bob.bundle.IOSBundler;
-import com.dynamo.bob.bundle.LinuxBundler;
-import com.dynamo.bob.bundle.OSXBundler;
-import com.dynamo.bob.bundle.Win32Bundler;
-import com.dynamo.bob.bundle.Win64Bundler;
+import com.dynamo.bob.bundle.BundlerParams;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
@@ -108,7 +104,8 @@ public class Project {
 
     public enum OutputFlags {
         NONE,
-        UNCOMPRESSED
+        UNCOMPRESSED,
+        ENCRYPTED
     }
 
     private ResourceCache resourceCache = new ResourceCache();
@@ -124,14 +121,15 @@ public class Project {
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
-    private final List<String> excludedCollectionProxies = new ArrayList<String>();
     private List<String> propertyFiles = new ArrayList<String>();
+    private List<String> buildServerHeaders = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
     private Map<String, Map<Long, IResource>> hashToResource = new HashMap<>();
 
     private TextureProfiles textureProfiles;
+    private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -296,6 +294,13 @@ public class Project {
                             }
                         }
                     }
+
+                    if (IBundler.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(IBundler.class)) {
+                            bundlerClasses.add( (Class<? extends IBundler>) klass);
+                        }
+                    }
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -309,7 +314,6 @@ public class Project {
         {".mesh", ".meshc"},
         {".collectionproxy", ".collectionproxyc"},
         {".collisionobject", ".collisionobjectc"},
-        {".emitter", ".emitterc"},
         {".particlefx", ".particlefxc"},
         {".gui", ".guic"},
         {".model", ".modelc"},
@@ -439,17 +443,19 @@ public class Project {
     }
 
     private List<String> loadDefoldIgnore() throws CompileExceptionError {
-        List<String> ignoredFolders = new ArrayList<String>();
         final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
         if (defIgnoreFile.isFile()) {
             try {
-                ignoredFolders = FileUtils.readLines(defIgnoreFile, "UTF-8");
+                return FileUtils.readLines(defIgnoreFile, "UTF-8")
+                        .stream()
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toList());
             }
             catch(IOException e) {
                 throw new CompileExceptionError("Unable to read .defignore", e);
             }
         }
-        return ignoredFolders;
+        return Collections.emptyList();
     }
 
     private void createTasks() throws CompileExceptionError {
@@ -597,6 +603,10 @@ public class Project {
         }
     }
 
+    public void addBuildServerHeader(String header) {
+        buildServerHeaders.add(header);
+    }
+
     public void addPropertyFile(String filepath) {
         propertyFiles.add(filepath);
     }
@@ -739,44 +749,40 @@ public class Project {
         }
     }
 
+    private Class<? extends IBundler> getBundlerClass(Platform platform) {
+        for (Class<? extends IBundler> klass : bundlerClasses) {
+            BundlerParams bundlerParams = klass.getAnnotation(BundlerParams.class);
+            if (bundlerParams == null) {
+                logWarning("Bundler class '%s' has no BundlerParams", klass.getName());
+                continue;
+            }
+            for (Platform supportedPlatform : bundlerParams.platforms()) {
+                if (supportedPlatform == platform)
+                    return klass;
+            }
+        }
+        return null;
+    }
 
-    static Map<Platform, Class<? extends IBundler>> bundlers;
-    static {
-        bundlers = new HashMap<>();
-        bundlers.put(Platform.X86_64Darwin, OSXBundler.class);
-        bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
-        bundlers.put(Platform.X86Win32, Win32Bundler.class);
-        bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
-        bundlers.put(Platform.Armv7Android, AndroidBundler.class);
-        bundlers.put(Platform.Arm64Darwin, IOSBundler.class);
-        bundlers.put(Platform.X86_64Ios, IOSBundler.class);
-        bundlers.put(Platform.JsWeb, HTML5Bundler.class);
+    public IBundler createBundler(Platform platform) throws CompileExceptionError {
+        Class<? extends IBundler> bundlerClass = getBundlerClass(platform);
+        if (bundlerClass == null) {
+            throw new CompileExceptionError(null, -1, String.format("No bundler registered for platform %s", platform.getPair()));
+        }
+
+        try {
+            return bundlerClass.newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void bundle(IProgress monitor) throws IOException, CompileExceptionError {
         IProgress m = monitor.subProgress(1);
         m.beginTask("Bundling...", 1);
-        String pair = option("platform", null);
-        if (pair == null) {
-            throw new CompileExceptionError(null, -1, "No platform specified");
-        }
 
-        Platform platform = Platform.get(pair);
-        if (platform == null) {
-            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
-        }
-
-        Class<? extends IBundler> bundlerClass = bundlers.get(platform);
-        if (bundlerClass == null) {
-            throw new CompileExceptionError(null, -1, String.format("Platform %s not supported", pair));
-        }
-
-        IBundler bundler;
-        try {
-            bundler = bundlerClass.newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        Platform platform = getPlatform();
+        IBundler bundler = createBundler(platform);
 
         String bundleOutput = option("bundle-output", null);
         File bundleDir = null;
@@ -787,7 +793,7 @@ public class Project {
         }
         BundleHelper.throwIfCanceled(monitor);
         bundleDir.mkdirs();
-        bundler.bundleApplication(this, bundleDir, monitor);
+        bundler.bundleApplication(this, platform, bundleDir, monitor);
         m.worked(1);
         m.done();
     }
@@ -802,10 +808,29 @@ public class Project {
         return false;
     }
 
+    public List<Platform> getArchitectures() throws CompileExceptionError {
+        Platform p = getPlatform();
+        return Platform.getArchitecturesFromString(option("architectures", ""), p);
+    }
+
     public Platform getPlatform() throws CompileExceptionError {
         String pair = option("platform", null);
         Platform p = Platform.getHostPlatform();
         if (pair != null) {
+            // backwards compatibility.
+            // TODO: remove in some future update
+            if (pair.equals("x86_64-darwin"))
+            {
+                String deprecatedPair = pair;
+                pair = Platform.X86_64MacOS.getPair();
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", deprecatedPair, pair);
+            }
+            else if (pair.equals("arm64-darwin"))
+            {
+                String deprecatedPair = pair;
+                pair = Platform.Arm64Ios.getPair();
+                System.out.printf("Platform name %s is deprecated. Please use '%s' instead\n", deprecatedPair, pair);
+            }
             p = Platform.get(pair);
         }
 
@@ -820,7 +845,7 @@ public class Project {
         Platform p = getPlatform();
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
-        if (p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
+        if (p == Platform.Arm64Ios || p == Platform.JsWeb || p == Platform.WasmWeb || p == Platform.Armv7Android || p == Platform.Arm64Android)
         {
             // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
             platformStrings = platformArchs.getArchitectures();
@@ -839,8 +864,6 @@ public class Project {
         String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
         File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
         cacheDir.mkdirs();
-
-        String serverURL = this.option("build-server", "https://build.defold.com");
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -906,17 +929,23 @@ public class Project {
 
             // Located in the same place as the log file in the unpacked successful build
             File logFile = new File(buildDir, "log.txt");
+            String serverURL = this.option("build-server", "https://build.defold.com");
+            boolean asyncBuild = this.hasOption("use-async-build-server");
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+                extender.setHeaders(buildServerHeaders);
+                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, asyncBuild);
 
                 cleanEngine(platform, buildDir);
 
                 BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
             } catch (ConnectException e) {
                 throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
+            } catch (ExtenderClientException e) {
+                throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
             }
+
             m.worked(1);
         }
 
@@ -982,8 +1011,8 @@ public class Project {
         for(String platform : platforms) {
             String symbolsFilename = null;
             switch(platform) {
-                case "arm64-darwin":
-                case "x86_64-darwin":
+                case "arm64-ios":
+                case "x86_64-macos":
                     symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);
                     break;
                 case "js-web":
@@ -1087,6 +1116,16 @@ public class Project {
 
         monitor.beginTask("Working...", 100);
 
+        {
+            IProgress mrep = monitor.subProgress(1);
+            mrep.beginTask("Reading classes...", 1);
+            createClassLoaderScanner();
+            registerPipelinePlugins();
+            scan(scanner, "com.dynamo.bob");
+            scan(scanner, "com.dynamo.bob.pipeline");
+            mrep.done();
+        }
+
         loop:
         for (String command : commands) {
             BundleHelper.throwIfCanceled(monitor);
@@ -1169,14 +1208,6 @@ public class Project {
                     IProgress m = monitor.subProgress(99);
 
                     IProgress mrep = m.subProgress(1);
-                    mrep.beginTask("Reading classes...", 1);
-                    createClassLoaderScanner();
-                    registerPipelinePlugins();
-                    scan(scanner, "com.dynamo.bob");
-                    scan(scanner, "com.dynamo.bob.pipeline");
-                    mrep.done();
-
-                    mrep = m.subProgress(1);
                     mrep.beginTask("Reading tasks...", 1);
                     TimeProfiler.start("Create tasks");
                     pruneSources();
@@ -1478,6 +1509,10 @@ run:
         return outputs;
     }
 
+    public EnumSet<OutputFlags> getOutputFlags(String resourcePath) {
+        return outputs.get(resourcePath);
+    }
+
     /**
      * Add output flag to resource
      * @param resourcePath output resource absolute path
@@ -1546,6 +1581,23 @@ run:
                     basicAuthData = uri.getUserInfo();
                 } catch (URISyntaxException e1) {
                     // Ignored, could not get URI and basic auth data from URL.
+                }
+
+                // Check if basic auth password is a token that should be replaced with
+                // an environment variable.
+                // The token should start and end with __ and exist as an environment
+                // variable.
+                if (basicAuthData != null) {
+                    String[] parts = basicAuthData.split(":");
+                    String username = parts[0];
+                    String password = parts.length > 1 ? parts[1] : "";
+                    if (password.startsWith("__") && password.endsWith("__")) {
+                        String envKey = password.substring(2, password.length() - 2);
+                        String envValue = System.getenv(envKey);
+                        if (envValue != null) {
+                            basicAuthData = username + ":" + envValue;
+                        }
+                    }
                 }
 
                 // Pass correct headers along to server depending on auth alternative.
@@ -1759,6 +1811,22 @@ run:
         return fileSystem.get(FilenameUtils.normalize(path, true));
     }
 
+    public IResource getResource(String category, String key, boolean mustExist) throws IOException {
+        IResource resource = null;
+        String val = this.projectProperties.getStringValue(category, key);
+        if (val != null && val.trim().length() > 0) {
+            resource = this.getResource(val);
+        }
+        if (mustExist && resource == null) {
+            throw new IOException(String.format("Resource does not exist: '%s'  (%s.%s)", resource.getAbsPath(), category, key));
+        }
+        return resource;
+    }
+
+    public IResource getResource(String category, String key) throws IOException {
+        return getResource(category, key, true);
+    }
+
     public IResource getGameProjectResource() {
         return getResource("/game.project");
     }
@@ -1829,11 +1897,11 @@ run:
     }
 
     public void excludeCollectionProxy(String path) {
-        this.excludedCollectionProxies.add(path);
+        state.addExcludedCollectionProxy(path);
     }
 
     public final List<String> getExcludedCollectionProxies() {
-        return this.excludedCollectionProxies;
+        return state.getExcludedCollectionProxies();
     }
 
 }

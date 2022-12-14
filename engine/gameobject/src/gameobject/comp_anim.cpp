@@ -259,7 +259,6 @@ namespace dmGameObject
             }
             // Adjust cursor
             bool completed = false;
-
             switch (anim.m_Playback)
             {
             case PLAYBACK_ONCE_FORWARD:

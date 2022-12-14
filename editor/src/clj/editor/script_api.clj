@@ -21,9 +21,7 @@
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.yamlparser :as yp]
-            [internal.graph.error-values :as error-values])
-  (:import [org.snakeyaml.engine.v1.exceptions Mark MarkedYamlEngineException]))
+            [editor.yaml :as yaml]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -99,7 +97,7 @@
   [lines]
   (into []
         (comp (map convert) (remove nil?))
-        (-> (data/lines-reader lines) (yp/load keyword))))
+        (-> (data/lines-reader lines) (yaml/load keyword))))
 
 (defn combine-conversions
   "This function combines the individual hierarchical conversions into a map where
@@ -143,18 +141,11 @@
   (g/precluding-errors parse-result parse-result))
 
 (g/defnk produce-parse-result
-  [_node-id lines]
-  (try
-    (lines->completion-info lines)
-    (catch MarkedYamlEngineException myee
-      (let [mark ^Mark (.get (.getProblemMark myee))
-            row (.getLine mark)
-            col (.getColumn mark)
-            cursor-range (data/Cursor->CursorRange (data/->Cursor row col))
-            message (string/trim (.getMessage myee))
-            ev (-> (error-values/error-fatal message)
-                   (assoc-in [:user-data :cursor-range] cursor-range))]
-        (g/package-errors _node-id ev)))))
+  [_node-id resource lines]
+  (g/package-if-error
+    _node-id
+    (yaml/with-error-translation _node-id :parse-result resource
+      (lines->completion-info lines))))
 
 (g/defnk produce-build-errors
   [parse-result]

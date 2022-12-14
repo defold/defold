@@ -13,9 +13,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-
-
-import os, subprocess, exceptions;
+import os, subprocess, builtins;
 
 class BuildUtilityException(Exception):
     def __init__(self, msg):
@@ -30,19 +28,19 @@ class BuildUtility:
     _binary_path = None
 
     _supported_platforms = [
-                            {'platform': 'linux', 'os': 'linux', 'arch': 'x86'},
                             {'platform': 'x86_64-linux', 'os': 'linux', 'arch': 'x86_64'},
-                            {'platform': 'darwin', 'os': 'osx', 'arch': 'x86'},
-                            {'platform': 'x86_64-darwin', 'os': 'osx', 'arch': 'x86_64'},
+                            {'platform': 'x86_64-macos', 'os': 'macos', 'arch': 'x86_64'},
+                            {'platform': 'arm64-macos', 'os': 'macos', 'arch': 'arm64'},
                             {'platform': 'win32', 'os': 'win', 'arch': 'x86'},
                             {'platform': 'x86_64-win32', 'os': 'win', 'arch': 'x86_64'},
                             {'platform': 'x86_64-ios', 'os': 'ios', 'arch': 'x86_64'},
-                            {'platform': 'arm64-darwin', 'os': 'ios', 'arch': 'arm64'},
+                            {'platform': 'arm64-ios', 'os': 'ios', 'arch': 'arm64'},
                             {'platform': 'armv7-android', 'os': 'android', 'arch': 'armv7'},
                             {'platform': 'arm64-android', 'os': 'android', 'arch': 'arm64'},
                             {'platform': 'js-web', 'os': 'web', 'arch': 'js'},
                             {'platform': 'wasm-web', 'os': 'web', 'arch': 'wasm'},
                             {'platform': 'arm64-nx64', 'os': 'nx64', 'arch': 'arm64'},
+                            {'platform': 'x86_64-ps4', 'os': 'ps4', 'arch': 'x86_64'},
                             ]
 
     def __init__(self, platform_id, build_platform_id, dynamo_home = None):
@@ -87,7 +85,7 @@ class BuildUtility:
         if process.returncode != 0:
             sys.exit(process.returncode)
 
-        line = out.split('\n')[0].strip()
+        line = out.decode().split('\n')[0].strip()
         sha1 = line.split()[0]
         return sha1
     # get_sha1
@@ -121,7 +119,7 @@ class BuildUtility:
             raise BuildUtilityException("DYNAMO_HOME not set")
         self._dynamo_home = dynamo_home
         self._dynamo_ext = os.path.join(self._dynamo_home, 'ext')
-        self._library_path = os.path.join(self._dynamo_home, "lib", self._platform['platform'])
+        self._library_path = os.path.join(self._dynamo_home, 'lib', self._platform['platform'])
         self._binary_path = os.path.join(self._dynamo_home, 'bin', self._platform['platform'])
     # _initialise_paths
 

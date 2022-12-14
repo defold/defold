@@ -124,9 +124,9 @@ TEST_F(dmGraphicsTest, CloseOpenWindow)
     params.m_Height = HEIGHT;
     params.m_Fullscreen = false;
     params.m_PrintDeviceInfo = true;
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_INFO);
+    dmLogSetLevel(LOG_SEVERITY_INFO);
     ASSERT_EQ(dmGraphics::WINDOW_RESULT_OK, dmGraphics::OpenWindow(m_Context, &params));
-    dmLog::Setlevel(dmLog::LOG_SEVERITY_WARNING);
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
 }
 
 TEST_F(dmGraphicsTest, TestWindowState)
@@ -168,14 +168,14 @@ TEST_F(dmGraphicsTest, Flip)
 
 TEST_F(dmGraphicsTest, Clear)
 {
-    const uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    const uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
     uint32_t width = WIDTH;
     uint32_t height = HEIGHT;
     uint32_t data_size = sizeof(uint32_t) * width * height;
     uint32_t* data = new uint32_t[width * height];
     memset(data, 1, data_size);
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
     width *= 2;
     height *= 2;
@@ -184,7 +184,7 @@ TEST_F(dmGraphicsTest, Clear)
     memset(data, 1, data_size);
     dmGraphics::SetWindowSize(m_Context, width, height);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
 }
 
@@ -404,7 +404,7 @@ TEST_F(dmGraphicsTest, TestProgram)
                             Vector4(5.0f, 6.0f, 7.0f, 8.0f),
                             Vector4(9.0f, 10.0f, 11.0f, 12.0f),
                             Vector4(13.0f, 14.0f, 15.0f, 16.0f) };
-    dmGraphics::SetConstantM4(m_Context, matrix, 4);
+    dmGraphics::SetConstantM4(m_Context, matrix, 1, 4);
     char* program_data = new char[1024];
     *program_data = 0;
     vs_shader = MakeDDFShader(program_data, 1024);
@@ -534,12 +534,14 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
         params[i].m_Width = WIDTH;
         params[i].m_Height = HEIGHT;
     }
-    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 3);
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+
+    // 4 color buffers + depth + stencil buffers == 6
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 6);
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)].m_Format  = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
 
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
@@ -549,7 +551,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     uint32_t data_size = sizeof(uint32_t) * width * height;
     char* data = new char[data_size];
     memset(data, 1, data_size);
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
     width *= 2;
     height *= 2;
@@ -559,7 +561,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::SetRenderTargetSize(target, width, height);
 
     uint32_t target_width, target_height;
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR_BIT, target_width, target_height);
+    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
     GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
@@ -570,8 +572,50 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     ASSERT_EQ(height, target_height);
 
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
-    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
+
+    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::DeleteRenderTarget(target);
+
+    // Test multiple color attachments
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR1_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR2_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_RGB;
+
+    flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT |
+            dmGraphics::BUFFER_TYPE_COLOR1_BIT |
+            dmGraphics::BUFFER_TYPE_COLOR2_BIT;
+
+    target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 1, 1, 1, 1, 1.0f, 1);
+    dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR1_BIT, 2, 2, 2, 2, 1.0f, 1);
+    dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR2_BIT, 3, 3, 3, 3, 1.0f, 1);
+
+    width = WIDTH;
+    height = HEIGHT;
+
+    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    ASSERT_EQ(width, target_width);
+    ASSERT_EQ(height, target_height);
+
+    data_size              = sizeof(uint32_t) * width * height;
+    uint32_t data_size_rgb = sizeof(uint32_t) * width * height * 3;
+
+    data = new char[data_size];
+    char* data_color1 = new char[data_size];
+    char* data_color2 = new char[data_size_rgb];
+    memset(data, 1, data_size);
+    memset(data_color1, 2, data_size);
+    memset(data_color2, 3, data_size_rgb);
+
+    ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
+    ASSERT_EQ(0, memcmp(data_color1, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[1], data_size));
+    ASSERT_EQ(0, memcmp(data_color2, m_Context->m_CurrentFrameBuffer->m_ColorBuffer[2], data_size_rgb));
+
+    delete [] data;
+    delete [] data_color1;
+    delete [] data_color2;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
     dmGraphics::DeleteRenderTarget(target);
@@ -588,12 +632,12 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
         params[i].m_Width = WIDTH;
         params[i].m_Height = HEIGHT;
     }
-    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 3);
-    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 6);
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
     params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
 
-    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
@@ -628,47 +672,49 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
 TEST_F(dmGraphicsTest, TestMasks)
 {
     dmGraphics::SetColorMask(m_Context, false, false, false, false);
-    ASSERT_FALSE(m_Context->m_RedMask);
-    ASSERT_FALSE(m_Context->m_GreenMask);
-    ASSERT_FALSE(m_Context->m_BlueMask);
-    ASSERT_FALSE(m_Context->m_AlphaMask);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_R);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_G);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_B);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_A);
     dmGraphics::SetColorMask(m_Context, true, true, true, true);
-    ASSERT_TRUE(m_Context->m_RedMask);
-    ASSERT_TRUE(m_Context->m_GreenMask);
-    ASSERT_TRUE(m_Context->m_BlueMask);
-    ASSERT_TRUE(m_Context->m_AlphaMask);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_R);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_G);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_B);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteColorMask & dmGraphics::DM_GRAPHICS_STATE_WRITE_A);
 
     dmGraphics::SetDepthMask(m_Context, false);
-    ASSERT_FALSE(m_Context->m_DepthMask);
+    ASSERT_FALSE(m_Context->m_PipelineState.m_WriteDepth);
     dmGraphics::SetDepthMask(m_Context, true);
-    ASSERT_TRUE(m_Context->m_DepthMask);
+    ASSERT_TRUE(m_Context->m_PipelineState.m_WriteDepth);
 
-    dmGraphics::SetStencilMask(m_Context, 0u);
-    ASSERT_EQ(0u, m_Context->m_StencilMask);
-    dmGraphics::SetStencilMask(m_Context, ~0u);
-    ASSERT_EQ(~0u, m_Context->m_StencilMask);
+    dmGraphics::SetStencilMask(m_Context, 0xff);
+    ASSERT_EQ(0xff, m_Context->m_PipelineState.m_StencilWriteMask);
+    dmGraphics::SetStencilMask(m_Context, ~0xff);
+    ASSERT_EQ(0, m_Context->m_PipelineState.m_StencilWriteMask);
     dmGraphics::SetDepthFunc(m_Context, dmGraphics::COMPARE_FUNC_ALWAYS);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, m_Context->m_DepthFunc);
+    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, (dmGraphics::CompareFunc) m_Context->m_PipelineState.m_DepthTestFunc);
     dmGraphics::SetDepthFunc(m_Context, dmGraphics::COMPARE_FUNC_NEVER);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, m_Context->m_DepthFunc);
+    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, (dmGraphics::CompareFunc) m_Context->m_PipelineState.m_DepthTestFunc);
 
     dmGraphics::SetStencilFunc(m_Context, dmGraphics::COMPARE_FUNC_ALWAYS, 0xffffffff, 0x0);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, m_Context->m_StencilFunc);
-    ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncRef);
-    ASSERT_EQ(0x0, m_Context->m_StencilFuncMask);
+    ASSERT_EQ(dmGraphics::COMPARE_FUNC_ALWAYS, (dmGraphics::CompareFunc) m_Context->m_PipelineState.m_StencilFrontTestFunc);
+    ASSERT_EQ(0xff, m_Context->m_PipelineState.m_StencilReference);
+    ASSERT_EQ(0x0, m_Context->m_PipelineState.m_StencilCompareMask);
+
     dmGraphics::SetStencilFunc(m_Context, dmGraphics::COMPARE_FUNC_NEVER, 0x0, 0xffffffff);
-    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, m_Context->m_StencilFunc);
-    ASSERT_EQ(0x0, m_Context->m_StencilFuncRef);
-    ASSERT_EQ(0xffffffff, m_Context->m_StencilFuncMask);
+    ASSERT_EQ(dmGraphics::COMPARE_FUNC_NEVER, (dmGraphics::CompareFunc) m_Context->m_PipelineState.m_StencilFrontTestFunc);
+    ASSERT_EQ(0x0, m_Context->m_PipelineState.m_StencilReference);
+    ASSERT_EQ(0xff, m_Context->m_PipelineState.m_StencilCompareMask);
 
     dmGraphics::SetStencilOp(m_Context, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_REPLACE, dmGraphics::STENCIL_OP_INVERT);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP, m_Context->m_StencilOpSFail);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, m_Context->m_StencilOpDPFail);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT, m_Context->m_StencilOpDPPass);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP,    (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpDepthFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT,  (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpPass);
+
     dmGraphics::SetStencilOp(m_Context, dmGraphics::STENCIL_OP_INVERT, dmGraphics::STENCIL_OP_KEEP, dmGraphics::STENCIL_OP_REPLACE);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT, m_Context->m_StencilOpSFail);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP, m_Context->m_StencilOpDPFail);
-    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, m_Context->m_StencilOpDPPass);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_INVERT,  (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_KEEP,    (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpDepthFail);
+    ASSERT_EQ(dmGraphics::STENCIL_OP_REPLACE, (dmGraphics::StencilOp) m_Context->m_PipelineState.m_StencilFrontOpPass);
 }
 
 TEST_F(dmGraphicsTest, TestCloseCallback)

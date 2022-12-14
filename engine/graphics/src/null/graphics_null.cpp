@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -127,14 +127,16 @@ namespace dmGraphics
         context->m_Dpi = 0;
         context->m_WindowOpened = 1;
         uint32_t buffer_size = 4 * context->m_WindowWidth * context->m_WindowHeight;
-        context->m_MainFrameBuffer.m_ColorBuffer = new char[buffer_size];
+        context->m_MainFrameBuffer.m_ColorBuffer[0] = new char[buffer_size];
+        context->m_MainFrameBuffer.m_ColorBufferSize[0] = buffer_size;
         context->m_MainFrameBuffer.m_DepthBuffer = new char[buffer_size];
         context->m_MainFrameBuffer.m_StencilBuffer = new char[buffer_size];
-        context->m_MainFrameBuffer.m_ColorBufferSize = buffer_size;
         context->m_MainFrameBuffer.m_DepthBufferSize = buffer_size;
         context->m_MainFrameBuffer.m_StencilBufferSize = buffer_size;
         context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
         context->m_Program = 0x0;
+        context->m_PipelineState = GetDefaultPipelineState();
+
         if (params->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: null");
@@ -154,7 +156,7 @@ namespace dmGraphics
         if (context->m_WindowOpened)
         {
             FrameBuffer& main = context->m_MainFrameBuffer;
-            delete [] (char*)main.m_ColorBuffer;
+            delete [] (char*)main.m_ColorBuffer[0];
             delete [] (char*)main.m_DepthBuffer;
             delete [] (char*)main.m_StencilBuffer;
             context->m_WindowOpened = 0;
@@ -210,6 +212,11 @@ namespace dmGraphics
         return context->m_WindowWidth;
     }
 
+    static float NullGetDisplayScaleFactor(HContext context)
+    {
+        return 1.0f;
+    }
+
     static uint32_t NullGetWindowHeight(HContext context)
     {
         return context->m_WindowHeight;
@@ -221,7 +228,7 @@ namespace dmGraphics
         if (context->m_WindowOpened)
         {
             FrameBuffer& main = context->m_MainFrameBuffer;
-            delete [] (char*)main.m_ColorBuffer;
+            delete [] (char*)main.m_ColorBuffer[0];
             delete [] (char*)main.m_DepthBuffer;
             delete [] (char*)main.m_StencilBuffer;
             context->m_Width = width;
@@ -229,12 +236,13 @@ namespace dmGraphics
             context->m_WindowWidth = width;
             context->m_WindowHeight = height;
             uint32_t buffer_size = 4 * width * height;
-            main.m_ColorBuffer = new char[buffer_size];
-            main.m_ColorBufferSize = buffer_size;
+            main.m_ColorBuffer[0] = new char[buffer_size];
+            main.m_ColorBufferSize[0] = buffer_size;
             main.m_DepthBuffer = new char[buffer_size];
             main.m_DepthBufferSize = buffer_size;
             main.m_StencilBuffer = new char[buffer_size];
             main.m_StencilBufferSize = buffer_size;
+
             if (context->m_WindowResizeCallback)
                 context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, width, height);
         }
@@ -262,14 +270,26 @@ namespace dmGraphics
     static void NullClear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         assert(context);
-        if (flags & dmGraphics::BUFFER_TYPE_COLOR_BIT)
+
+        BufferType color_buffer_flags[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+
+        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            uint32_t colour = (red << 24) | (green << 16) | (blue << 8) | alpha;
-            uint32_t* buffer = (uint32_t*)context->m_CurrentFrameBuffer->m_ColorBuffer;
-            uint32_t count = context->m_CurrentFrameBuffer->m_ColorBufferSize / sizeof(uint32_t);
-            for (uint32_t i = 0; i < count; ++i)
-                buffer[i] = colour;
+            if (flags & color_buffer_flags[i])
+            {
+                uint32_t colour = (red << 24) | (green << 16) | (blue << 8) | alpha;
+                uint32_t* buffer = (uint32_t*)context->m_CurrentFrameBuffer->m_ColorBuffer[i];
+                uint32_t count = context->m_CurrentFrameBuffer->m_ColorBufferSize[i] / sizeof(uint32_t);
+                for (uint32_t i = 0; i < count; ++i)
+                    buffer[i] = colour;
+            }
         }
+
         if (flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT)
         {
             float* buffer = (float*)context->m_CurrentFrameBuffer->m_DepthBuffer;
@@ -454,6 +474,11 @@ namespace dmGraphics
     static uint32_t NullGetMaxElementsIndices(HContext context)
     {
         return 65536;
+    }
+
+    static bool NullIsMultiTargetRenderingSupported(HContext context)
+    {
+        return true;
     }
 
     static HVertexDeclaration NullNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
@@ -856,14 +881,14 @@ namespace dmGraphics
     {
         assert(context);
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4));
+        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * count);
     }
 
-    static void NullSetConstantM4(HContext context, const Vector4* data, int base_register)
+    static void NullSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
     {
         assert(context);
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4);
+        memcpy(&context->m_ProgramRegisters[base_register], data, sizeof(Vector4) * 4 * count);
     }
 
     static void NullSetSampler(HContext context, int32_t location, int32_t unit)
@@ -875,26 +900,54 @@ namespace dmGraphics
         RenderTarget* rt = new RenderTarget();
         memset(rt, 0, sizeof(RenderTarget));
 
-        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
-        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
-        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {BUFFER_TYPE_COLOR_BIT, BUFFER_TYPE_DEPTH_BIT, BUFFER_TYPE_STENCIL_BIT};
+        void** buffers[MAX_BUFFER_TYPE_COUNT] = {
+            &rt->m_FrameBuffer.m_ColorBuffer[0],
+            &rt->m_FrameBuffer.m_ColorBuffer[1],
+            &rt->m_FrameBuffer.m_ColorBuffer[2],
+            &rt->m_FrameBuffer.m_ColorBuffer[3],
+            &rt->m_FrameBuffer.m_DepthBuffer,
+            &rt->m_FrameBuffer.m_StencilBuffer,
+        };
+        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {
+            &rt->m_FrameBuffer.m_ColorBufferSize[0],
+            &rt->m_FrameBuffer.m_ColorBufferSize[1],
+            &rt->m_FrameBuffer.m_ColorBufferSize[2],
+            &rt->m_FrameBuffer.m_ColorBufferSize[3],
+            &rt->m_FrameBuffer.m_DepthBufferSize,
+            &rt->m_FrameBuffer.m_StencilBufferSize,
+        };
+
+        BufferType buffer_types[MAX_BUFFER_TYPE_COUNT] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+            BUFFER_TYPE_DEPTH_BIT,
+            BUFFER_TYPE_STENCIL_BIT,
+        };
+
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             assert(GetBufferTypeIndex(buffer_types[i]) == i);
+
             if (buffer_type_flags & buffer_types[i])
             {
-                uint32_t buffer_size = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height;
-                *(buffer_sizes[i]) = buffer_size;
-                rt->m_BufferTextureParams[i] = params[i];
-                rt->m_BufferTextureParams[i].m_Data = 0x0;
+                uint32_t bytes_per_pixel                = dmGraphics::GetTextureFormatBitsPerPixel(params[i].m_Format) / 3;
+                uint32_t buffer_size                    = sizeof(uint32_t) * params[i].m_Width * params[i].m_Height * bytes_per_pixel;
+                *(buffer_sizes[i])                      = buffer_size;
+                rt->m_BufferTextureParams[i]            = params[i];
+                rt->m_BufferTextureParams[i].m_Data     = 0x0;
                 rt->m_BufferTextureParams[i].m_DataSize = 0;
 
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
+                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)  ||
+                   i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR1_BIT) ||
+                   i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR2_BIT) ||
+                   i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR3_BIT))
                 {
                     rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                    rt->m_ColorBufferTexture = NewTexture(context, creation_params[i]);
-                    SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
-                    *(buffers[i]) = rt->m_ColorBufferTexture->m_Data;
+                    rt->m_ColorBufferTexture[i]   = NewTexture(context, creation_params[i]);
+                    SetTexture(rt->m_ColorBufferTexture[i], rt->m_BufferTextureParams[i]);
+                    *(buffers[i]) = rt->m_ColorBufferTexture[i]->m_Data;
                 } else {
                     *(buffers[i]) = new char[buffer_size];
                 }
@@ -906,8 +959,13 @@ namespace dmGraphics
 
     static void NullDeleteRenderTarget(HRenderTarget rt)
     {
-        if (rt->m_ColorBufferTexture)
-            DeleteTexture(rt->m_ColorBufferTexture);
+        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (rt->m_ColorBufferTexture[i])
+            {
+                DeleteTexture(rt->m_ColorBufferTexture[i]);
+            }
+        }
         delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
         delete rt;
@@ -922,9 +980,14 @@ namespace dmGraphics
 
     static HTexture NullGetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
     {
-        if(buffer_type != BUFFER_TYPE_COLOR_BIT)
+        if(!(buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+             buffer_type == BUFFER_TYPE_COLOR1_BIT ||
+             buffer_type == BUFFER_TYPE_COLOR2_BIT ||
+             buffer_type == BUFFER_TYPE_COLOR3_BIT))
+        {
             return 0;
-        return rendertarget->m_ColorBufferTexture;
+        }
+        return rendertarget->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
     }
 
     static void NullGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
@@ -939,9 +1002,23 @@ namespace dmGraphics
     static void NullSetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
     {
         uint32_t buffer_size = sizeof(uint32_t) * width * height;
+        void** buffers[MAX_BUFFER_TYPE_COUNT] = {
+            &rt->m_FrameBuffer.m_ColorBuffer[0],
+            &rt->m_FrameBuffer.m_ColorBuffer[1],
+            &rt->m_FrameBuffer.m_ColorBuffer[2],
+            &rt->m_FrameBuffer.m_ColorBuffer[3],
+            &rt->m_FrameBuffer.m_DepthBuffer,
+            &rt->m_FrameBuffer.m_StencilBuffer,
+        };
+        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {
+            &rt->m_FrameBuffer.m_ColorBufferSize[0],
+            &rt->m_FrameBuffer.m_ColorBufferSize[1],
+            &rt->m_FrameBuffer.m_ColorBufferSize[2],
+            &rt->m_FrameBuffer.m_ColorBufferSize[3],
+            &rt->m_FrameBuffer.m_DepthBufferSize,
+            &rt->m_FrameBuffer.m_StencilBufferSize,
+        };
 
-        void** buffers[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBuffer, &rt->m_FrameBuffer.m_DepthBuffer, &rt->m_FrameBuffer.m_StencilBuffer};
-        uint32_t* buffer_sizes[MAX_BUFFER_TYPE_COUNT] = {&rt->m_FrameBuffer.m_ColorBufferSize, &rt->m_FrameBuffer.m_DepthBufferSize, &rt->m_FrameBuffer.m_StencilBufferSize};
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             if (buffers[i])
@@ -949,11 +1026,17 @@ namespace dmGraphics
                 *(buffer_sizes[i]) = buffer_size;
                 rt->m_BufferTextureParams[i].m_Width = width;
                 rt->m_BufferTextureParams[i].m_Height = height;
-                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT))
+                if(i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR0_BIT)  ||
+                   i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR1_BIT) ||
+                   i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR2_BIT) ||
+                   i == dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR3_BIT))
                 {
-                    rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
-                    SetTexture(rt->m_ColorBufferTexture, rt->m_BufferTextureParams[i]);
-                    *(buffers[i]) = rt->m_ColorBufferTexture->m_Data;
+                    if (rt->m_ColorBufferTexture[i])
+                    {
+                        rt->m_BufferTextureParams[i].m_DataSize = buffer_size;
+                        SetTexture(rt->m_ColorBufferTexture[i], rt->m_BufferTextureParams[i]);
+                        *(buffers[i]) = rt->m_ColorBufferTexture[i]->m_Data;
+                    }
                 } else {
                     delete [] (char*)*(buffers[i]);
                     *(buffers[i]) = new char[buffer_size];
@@ -1014,7 +1097,7 @@ namespace dmGraphics
         return HANDLE_RESULT_OK;
     }
 
-    static void NullSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static void NullSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         assert(texture);
     }
@@ -1033,6 +1116,13 @@ namespace dmGraphics
         if (params.m_Data != 0x0)
             memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+
+        // The width/height of the texture can change from this function as well
+        if (!params.m_SubUpdate && params.m_MipMap == 0)
+        {
+            texture->m_Width  = params.m_Width;
+            texture->m_Height = params.m_Height;
+        }
     }
 
     // Not used?
@@ -1104,37 +1194,42 @@ namespace dmGraphics
     static void NullEnableState(HContext context, State state)
     {
         assert(context);
+        SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void NullDisableState(HContext context, State state)
     {
         assert(context);
+        SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void NullSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(context);
+        context->m_PipelineState.m_BlendSrcFactor = source_factor;
+        context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
     static void NullSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
-        assert(context);
-        context->m_RedMask = red;
-        context->m_GreenMask = green;
-        context->m_BlueMask = blue;
-        context->m_AlphaMask = alpha;
+        // Replace above
+        uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
+        context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
     static void NullSetDepthMask(HContext context, bool mask)
     {
         assert(context);
-        context->m_DepthMask = mask;
+        context->m_PipelineState.m_WriteDepth = mask;
     }
 
     static void NullSetDepthFunc(HContext context, CompareFunc func)
     {
         assert(context);
-        context->m_DepthFunc = func;
+        context->m_PipelineState.m_DepthTestFunc = func;
     }
 
     static void NullSetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -1149,23 +1244,62 @@ namespace dmGraphics
     static void NullSetStencilMask(HContext context, uint32_t mask)
     {
         assert(context);
-        context->m_StencilMask = mask;
+        context->m_PipelineState.m_StencilWriteMask = mask;
     }
 
     static void NullSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
-        context->m_StencilFunc = func;
-        context->m_StencilFuncRef = ref;
-        context->m_StencilFuncMask = mask;
+        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void NullSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
-        context->m_StencilOpSFail = sfail;
-        context->m_StencilOpDPFail = dpfail;
-        context->m_StencilOpDPPass = dppass;
+        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineState.m_StencilBackOpPass       = dppass;
+    }
+
+    static void NullSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
+    {
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackTestFunc = (uint8_t) func;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        }
+        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+    }
+
+    static void NullSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
+    {
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        }
+    }
+
+    static void NullSetFaceWinding(HContext context, FaceWinding face_winding)
+    {
+        context->m_PipelineState.m_FaceWinding = face_winding;
     }
 
     static void NullSetCullFace(HContext context, FaceType face_type)
@@ -1176,6 +1310,11 @@ namespace dmGraphics
     static void NullSetPolygonOffset(HContext context, float factor, float units)
     {
         assert(context);
+    }
+
+    static PipelineState NullGetPipelineState(HContext context)
+    {
+        return context->m_PipelineState;
     }
 
     // Not used?
@@ -1230,6 +1369,7 @@ namespace dmGraphics
         fn_table.m_GetHeight = NullGetHeight;
         fn_table.m_GetWindowWidth = NullGetWindowWidth;
         fn_table.m_GetWindowHeight = NullGetWindowHeight;
+        fn_table.m_GetDisplayScaleFactor = NullGetDisplayScaleFactor;
         fn_table.m_SetWindowSize = NullSetWindowSize;
         fn_table.m_ResizeWindow = NullResizeWindow;
         fn_table.m_GetDefaultTextureFilters = NullGetDefaultTextureFilters;
@@ -1317,6 +1457,12 @@ namespace dmGraphics
         fn_table.m_RunApplicationLoop = NullRunApplicationLoop;
         fn_table.m_GetTextureHandle = NullGetTextureHandle;
         fn_table.m_GetMaxElementsIndices = NullGetMaxElementsIndices;
+        fn_table.m_IsMultiTargetRenderingSupported = NullIsMultiTargetRenderingSupported;
+        fn_table.m_GetPipelineState = NullGetPipelineState;
+        fn_table.m_SetStencilFuncSeparate = NullSetStencilFuncSeparate;
+        fn_table.m_SetStencilOpSeparate = NullSetStencilOpSeparate;
+        fn_table.m_SetFaceWinding = NullSetFaceWinding;
+
         return fn_table;
     }
 }

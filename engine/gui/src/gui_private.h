@@ -129,6 +129,7 @@ namespace dmGui
                 uint32_t    m_SizeMode : 1;
                 uint32_t    m_LineBreak : 1;
                 uint32_t    m_Enabled : 1; // Only enabled (1) nodes are animated and rendered
+                uint32_t    m_IsVisible : 1;
                 uint32_t    m_DirtyLocal : 1;
                 uint32_t    m_InheritAlpha : 1;
                 uint32_t    m_ClippingMode : 2;
@@ -136,7 +137,7 @@ namespace dmGui
                 uint32_t    m_ClippingInverted : 1;
                 uint32_t    m_IsBone : 1;
                 uint32_t    m_HasHeadlessPfx : 1;
-                uint32_t    m_Reserved : 3;
+                uint32_t    m_Reserved : 2;
             };
 
             uint32_t m_State;

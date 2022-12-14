@@ -19,6 +19,7 @@
             [editor.editor-extensions :as extensions]
             [editor.defold-project :as project]
             [editor.game-project :as game-project]
+            [editor.game-project-core :as game-project-core]
             [editor.gui :as gui]
             [editor.library :as library]
             [editor.progress :as progress]
@@ -41,21 +42,23 @@
          project (test-util/setup-project! workspace)]
      [workspace project])))
 
-(def ^:private uri-string "file:/scriptlib file:/imagelib1 file:/imagelib2 file:/bogus")
+(def ^:private uri-string "file:/scriptlib, file:/imagelib1, file:/imagelib2, file:/bogus")
 (def ^:private uris (library/parse-library-uris uri-string))
 
 (deftest uri-parsing
   (testing "sane uris"
     (is (= uris [(URI. "file:/scriptlib") (URI. "file:/imagelib1") (URI. "file:/imagelib2") (URI. "file:/bogus")]))
-    (is (= (library/parse-library-uris "file:/scriptlib,file:/imagelib1,file:/imagelib2,file:/bogus")
-           [(URI. "file:/scriptlib") (URI. "file:/imagelib1") (URI. "file:/imagelib2") (URI. "file:/bogus")])))
+    (is (= uris (library/parse-library-uris "file:/scriptlib,file:/imagelib1,file:/imagelib2,file:/bogus"))))
+  (testing "quoted values"
+    (is (= uris (library/parse-library-uris "\"file:/scriptlib\",\"file:/imagelib1\",\"file:/imagelib2\",\"file:/bogus\"")))
+    (is (= uris (library/parse-library-uris "\"file:/scriptlib\", \"file:/imagelib1\", \"file:/imagelib2\", \"file:/bogus\""))))
   (testing "various spacing and commas allowed"
-    (is (= uris (library/parse-library-uris "   file:/scriptlib   file:/imagelib1\tfile:/imagelib2  file:/bogus\t")))
-    (is (= uris (library/parse-library-uris " ,, file:/scriptlib ,  ,,  file:/imagelib1\tfile:/imagelib2 ,,,,  file:/bogus\t,")))
-    (is (= uris (library/parse-library-uris "\tfile:/scriptlib\tfile:/imagelib1\tfile:/imagelib2\tfile:/bogus   ")))
-    (is (= uris (library/parse-library-uris "\r\nfile:/scriptlib\nfile:/imagelib1\rfile:/imagelib2\tfile:/bogus "))))
+    (is (= uris (library/parse-library-uris "   file:/scriptlib,   file:/imagelib1\t,file:/imagelib2,  file:/bogus\t")))
+    (is (= uris (library/parse-library-uris " ,, file:/scriptlib ,  ,,  file:/imagelib1,\tfile:/imagelib2 ,,,,  file:/bogus\t,")))
+    (is (= uris (library/parse-library-uris "\tfile:/scriptlib,\tfile:/imagelib1,\tfile:/imagelib2,\tfile:/bogus   ")))
+    (is (= uris (library/parse-library-uris "\r\nfile:/scriptlib,\nfile:/imagelib1,\rfile:/imagelib2,\tfile:/bogus "))))
   (testing "ignore non-uris"
-    (is (= uris (library/parse-library-uris "this file:/scriptlib sure file:/imagelib1 aint file:/imagelib2 no file:/bogus uri")))))
+    (is (= uris (library/parse-library-uris "this, file:/scriptlib, sure, file:/imagelib1, aint, file:/imagelib2, no, file:/bogus, uri")))))
 
 (deftest initial-state
   (with-clean-system
@@ -119,10 +122,11 @@
 (defn- write-deps! [game-project deps]
   (let [settings (with-open [game-project-reader (io/reader game-project)]
                    (settings-core/parse-settings game-project-reader))]
-    (spit-until-new-mtime game-project (-> settings
-                                         (settings-core/set-setting ["project" "dependencies"] deps)
-                                         settings-core/settings-with-value
-                                         settings-core/settings->str))))
+    (spit-until-new-mtime game-project
+                          (-> settings
+                              (settings-core/set-setting ["project" "dependencies"] deps)
+                              (settings-core/settings-with-value)
+                              (settings-core/settings->str game-project-core/meta-settings :multi-line-list)))))
 
 (deftest open-project
   (with-clean-system

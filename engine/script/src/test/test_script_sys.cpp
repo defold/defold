@@ -30,7 +30,7 @@ extern "C"
 #include <lua/lualib.h>
 }
 
-#define PATH_FORMAT "build/default/src/test/%s"
+#define PATH_FORMAT "build/src/test/%s"
 
 #if defined(__NX__)
     #define MOUNTFS "host:/"
@@ -92,7 +92,6 @@ bool RunString(lua_State* L, const char* script)
 }
 
 
-#if defined(__NX__) && !defined(GITHUB_CI) // we cannot run this test unless we have a device connected
 TEST_F(ScriptSysTest, TestSys)
 {
     int top = lua_gettop(L);
@@ -116,7 +115,6 @@ TEST_F(ScriptSysTest, TestSys)
 
     ASSERT_EQ(top, lua_gettop(L));
 }
-#endif
 
 int main(int argc, char **argv)
 {

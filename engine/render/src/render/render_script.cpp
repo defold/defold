@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -52,6 +52,7 @@ namespace dmRender
     #define RENDER_SCRIPT "RenderScript"
 
     #define RENDER_SCRIPT_CONSTANTBUFFER "RenderScriptConstantBuffer"
+    #define RENDER_SCRIPT_CONSTANTBUFFER_ARRAY "RenderScriptConstantBufferArray"
 
     #define RENDER_SCRIPT_PREDICATE "RenderScriptPredicate"
 
@@ -68,6 +69,7 @@ namespace dmRender
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_PREDICATE_TYPE_HASH = 0;
+    static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_ARRAY_TYPE_HASH = 0;
 
     const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
     {
@@ -82,11 +84,25 @@ namespace dmRender
         return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH, "Expected a constant buffer (acquired from a render.* function)");
     }
 
+    struct ConstantBufferTableEntry
+    {
+        HNamedConstantBuffer m_ConstantBuffer;
+        dmhash_t             m_ConstantName;
+        int32_t              m_LuaRef;
+    };
+
+    struct NamedConstantBufferTable
+    {
+        HNamedConstantBuffer                    m_ConstantBuffer;
+        dmHashTable64<ConstantBufferTableEntry> m_ConstantArrayEntries;
+    };
+
     static int RenderScriptConstantBuffer_gc (lua_State *L)
     {
-        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
-        DeleteNamedConstantBuffer(*cb);
-        *cb = 0;
+        NamedConstantBufferTable* cb = (NamedConstantBufferTable*) lua_touserdata(L, 1);
+        DeleteNamedConstantBuffer(cb->m_ConstantBuffer);
+        cb->m_ConstantArrayEntries.~dmHashTable64<dmRender::ConstantBufferTableEntry>();
+        cb->m_ConstantBuffer = 0;
         return 0;
     }
 
@@ -96,19 +112,56 @@ namespace dmRender
         return 1;
     }
 
+    static bool RenderScriptPushValueFromConstantType(lua_State *L, dmVMath::Vector4* value_ptr, uint32_t value_count, uint32_t table_index, dmRenderDDF::MaterialDesc::ConstantType type)
+    {
+        uint32_t value_index = table_index;
+
+        if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            value_index *= 4;
+        }
+
+        if (value_index >= value_count)
+        {
+            return false;
+        }
+
+        switch(type)
+        {
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+                dmScript::PushVector4(L, value_ptr[value_index]);
+                break;
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4:
+                dmScript::PushMatrix4(L, ((dmVMath::Matrix4*) &value_ptr[value_index])[0]);
+                break;
+            default: return false;
+
+        }
+
+        return true;
+    }
+
     static int RenderScriptConstantBuffer_index(lua_State *L)
     {
-        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
+        NamedConstantBufferTable* cb_table = (NamedConstantBufferTable*)lua_touserdata(L, 1);
+        HNamedConstantBuffer cb            = cb_table->m_ConstantBuffer;
         assert(cb);
 
-        const char* name = luaL_checkstring(L, 2);
-        dmhash_t name_hash = dmHashString64(name);
-        dmVMath::Vector4* values;
-        uint32_t num_values = 0;
-        if (GetNamedConstant(*cb, name_hash, &values, &num_values))
+        const char* name         = luaL_checkstring(L, 2);
+        dmhash_t name_hash       = dmHashString64(name);
+        dmVMath::Vector4* values = 0;
+        uint32_t num_values      = 0;
+
+        dmRenderDDF::MaterialDesc::ConstantType constant_type;
+        ConstantBufferTableEntry* table_entry = cb_table->m_ConstantArrayEntries.Get(name_hash);
+        if (table_entry != 0)
         {
-            dmScript::PushVector4(L, values[0]);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, table_entry->m_LuaRef);
             return 1;
+        }
+        else if (GetNamedConstant(cb, name_hash, &values, &num_values, &constant_type))
+        {
+            return RenderScriptPushValueFromConstantType(L, values, num_values, 0, constant_type);
         }
         else
         {
@@ -117,17 +170,138 @@ namespace dmRender
         return 0;
     }
 
+    static dmRender::Result RenderScriptSetNamedValueFromLua(lua_State *L, int stack_index, HNamedConstantBuffer buffer, dmhash_t name_hash, int table_index)
+    {
+        uint32_t value_count                                  = 1;
+        uint32_t value_index                                  = table_index;
+        dmVMath::Vector4* value_ptr                           = 0;
+        dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+
+        if (dmScript::IsMatrix4(L, stack_index))
+        {
+            value_ptr     = (dmVMath::Vector4*) dmScript::CheckMatrix4(L, stack_index);
+            value_count  *= 4;
+            value_index  *= 4;
+            constant_type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+        }
+        else
+        {
+            value_ptr = dmScript::CheckVector4(L, stack_index);
+        }
+        return SetNamedConstantAtIndex(buffer, name_hash, value_ptr, value_count, value_index, constant_type);
+    }
+
     static int RenderScriptConstantBuffer_newindex(lua_State *L)
     {
         int top = lua_gettop(L);
-        HNamedConstantBuffer* cb = (HNamedConstantBuffer*)lua_touserdata(L, 1);
+        NamedConstantBufferTable* cb_table = (NamedConstantBufferTable*) lua_touserdata(L, 1);
+        HNamedConstantBuffer cb = cb_table->m_ConstantBuffer;
         assert(cb);
 
         const char* name = luaL_checkstring(L, 2);
         dmhash_t name_hash = dmHashString64(name);
-        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-        SetNamedConstant(*cb, name_hash, value, 1);
+
+        if (lua_istable(L, 3))
+        {
+            ConstantBufferTableEntry* p_table_entry = (ConstantBufferTableEntry*) lua_newuserdata(L, sizeof(ConstantBufferTableEntry));
+            luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY);
+            lua_setmetatable(L, -2);
+
+            lua_pushvalue(L, -1);
+            int p_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            lua_pop(L, 1);
+
+            p_table_entry->m_ConstantBuffer = cb;
+            p_table_entry->m_ConstantName   = name_hash;
+            p_table_entry->m_LuaRef         = p_ref;
+
+            if (cb_table->m_ConstantArrayEntries.Full())
+            {
+                cb_table->m_ConstantArrayEntries.SetCapacity(4, cb_table->m_ConstantArrayEntries.Size() + 1);
+            }
+
+            cb_table->m_ConstantArrayEntries.Put(name_hash, *p_table_entry);
+
+            // If the table contains elements, we add them directly
+            lua_pushvalue(L, 3);
+            lua_pushnil(L);
+            while (lua_next(L, -2) != 0)
+            {
+                if (!lua_isnumber(L, -2))
+                {
+                    return luaL_error(L, "Constant %s not set. Indices must be numbers", dmHashReverseSafe64(name_hash));
+                }
+
+                int32_t table_index_lua = lua_tonumber(L, -2);
+
+                if (table_index_lua < 1)
+                {
+                    return luaL_error(L, "Constant %s[%d] not set. Indices must start from 1", dmHashReverseSafe64(name_hash), table_index_lua);
+                }
+
+                if (RenderScriptSetNamedValueFromLua(L, -1, cb, name_hash, table_index_lua - 1) != RESULT_OK)
+                {
+                    return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+                }
+                lua_pop(L, 1);
+            }
+            lua_pop(L, 1);
+        }
+        else
+        {
+            RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, 0);
+        }
         assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    static int RenderScriptConstantBufferArray_index(lua_State *L)
+    {
+        ConstantBufferTableEntry* table_entry = (ConstantBufferTableEntry*) lua_touserdata(L, 1);
+        HNamedConstantBuffer  cb              = table_entry->m_ConstantBuffer;
+        dmhash_t name_hash                    = table_entry->m_ConstantName;
+        uint32_t table_index_lua              = (uint32_t) luaL_checknumber(L, 2);
+        uint32_t table_index                  = table_index_lua - 1;
+        dmVMath::Vector4* values              = 0;
+        uint32_t num_values                   = 0;
+        dmRenderDDF::MaterialDesc::ConstantType constant_type;
+
+        if (GetNamedConstant(cb, name_hash, &values, &num_values, &constant_type))
+        {
+            if (!RenderScriptPushValueFromConstantType(L, values, num_values, table_index, constant_type))
+            {
+                return luaL_error(L, "Constant %s[%d] not set.", dmHashReverseSafe64(name_hash), table_index_lua);
+            }
+            return 1;
+        }
+        return luaL_error(L, "Constant %s not set.", dmHashReverseSafe64(name_hash));
+    }
+
+    static int RenderScriptConstantBufferArray_newindex(lua_State *L)
+    {
+        int top                               = lua_gettop(L);
+        ConstantBufferTableEntry* table_entry = (ConstantBufferTableEntry*) lua_touserdata(L, 1);
+        HNamedConstantBuffer cb               = table_entry->m_ConstantBuffer;
+        dmhash_t name_hash                    = table_entry->m_ConstantName;
+
+        if (!lua_isnumber(L, 2))
+        {
+            return luaL_error(L, "Constant %s not set. Indices must be numbers", dmHashReverseSafe64(name_hash));
+        }
+
+        int32_t table_index_lua = lua_tonumber(L, 2);
+
+        if (table_index_lua < 1)
+        {
+            return luaL_error(L, "Constant %s[%d] not set. Indices must start from 1", dmHashReverseSafe64(name_hash), table_index_lua);
+        }
+
+        if (RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, table_index_lua - 1) != RESULT_OK)
+        {
+            return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+        }
+        assert(top == lua_gettop(L));
+
         return 0;
     }
 
@@ -142,6 +316,13 @@ namespace dmRender
         {"__tostring",  RenderScriptConstantBuffer_tostring},
         {"__index",     RenderScriptConstantBuffer_index},
         {"__newindex",  RenderScriptConstantBuffer_newindex},
+        {0, 0}
+    };
+
+    static const luaL_reg RenderScriptConstantBufferArray_meta[] =
+    {
+        {"__index",     RenderScriptConstantBufferArray_index},
+        {"__newindex",  RenderScriptConstantBufferArray_newindex},
         {0, 0}
     };
 
@@ -178,7 +359,8 @@ namespace dmRender
 
     /*# create a new constant buffer.
      *
-     * Constant buffers are used to set shader program variables and are optionally passed to the `render.draw()` function. The buffer's constant elements can be indexed like an ordinary Lua table, but you can't iterate over them with pairs() or ipairs().
+     * Constant buffers are used to set shader program variables and are optionally passed to the `render.draw()` function.
+     * The buffer's constant elements can be indexed like an ordinary Lua table, but you can't iterate over them with pairs() or ipairs().
      *
      * @name render.constant_buffer
      * @return buffer [type:constant_buffer] new constant buffer
@@ -196,14 +378,42 @@ namespace dmRender
      * ```lua
      * render.draw(self.my_pred, constants)
      * ```
+     *
+     * The constant buffer also supports array values by specifying constants in a table:
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.light_colors    = {}
+     * constants.light_colors[1] = vmath.vector4(1, 0, 0, 1)
+     * constants.light_colors[2] = vmath.vector4(0, 1, 0, 1)
+     * constants.light_colors[3] = vmath.vector4(0, 0, 1, 1)
+     * ```
+     *
+     * You can also create the table by passing the vectors directly when creating the table:
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.light_colors    = {
+     *      vmath.vector4(1, 0, 0, 1)
+     *      vmath.vector4(0, 1, 0, 1)
+     *      vmath.vector4(0, 0, 1, 1)
+     * }
+     * 
+     * -- Add more constant to the array
+     * constants.light_colors[4] = vmath.vector4(1, 1, 1, 1)
+     * ```
      */
     int RenderScript_ConstantBuffer(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
 
-        HNamedConstantBuffer* p_buffer = (HNamedConstantBuffer*) lua_newuserdata(L, sizeof(HNamedConstantBuffer*));
-        *p_buffer = NewNamedConstantBuffer();
+        HNamedConstantBuffer cb            = NewNamedConstantBuffer();
+        NamedConstantBufferTable* p_buffer = (NamedConstantBufferTable*) lua_newuserdata(L, sizeof(NamedConstantBufferTable));
+        memset(p_buffer, 0, sizeof(NamedConstantBufferTable));
+
+        p_buffer->m_ConstantBuffer         = cb;
+        p_buffer->m_ConstantArrayEntries.Clear();
 
         luaL_getmetatable(L, RENDER_SCRIPT_CONSTANTBUFFER);
         lua_setmetatable(L, -2);
@@ -640,6 +850,10 @@ namespace dmRender
      * `u_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
      * `v_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
      *
+     * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters,
+     * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
+     * Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by render.BUFFER_COLORX_BIT where 'X' is the attachment you want to create).
+     *
      * @name render.render_target
      * @param name [type:string] render target name
      * @param parameters [type:table] table of buffer parameters, see the description for available keys and values
@@ -664,6 +878,44 @@ namespace dmRender
      *                            u_wrap = render.WRAP_CLAMP_TO_EDGE,
      *                            v_wrap = render.WRAP_CLAMP_TO_EDGE }
      *     self.my_render_target = render.render_target({[render.BUFFER_COLOR_BIT] = color_params, [render.BUFFER_DEPTH_BIT] = depth_params })
+     * end
+     *
+     * function update(self, dt)
+     *     -- enable target so all drawing is done to it
+     *     render.set_render_target(self.my_render_target)
+     *
+     *     -- draw a predicate to the render target
+     *     render.draw(self.my_pred)
+     * end
+     * ```
+     *
+     * How to create a render target with multiple outputs:
+     *
+     * ```lua
+     * function init(self)
+     *     -- render target buffer parameters
+     *     local color_params_rgba = { format = render.FORMAT_RGBA,
+     *                                 width = render.get_window_width(),
+     *                                 height = render.get_window_height(),
+     *                                 min_filter = render.FILTER_LINEAR,
+     *                                 mag_filter = render.FILTER_LINEAR,
+     *                                 u_wrap = render.WRAP_CLAMP_TO_EDGE,
+     *                                 v_wrap = render.WRAP_CLAMP_TO_EDGE }
+     *     local color_params_float = { format = render.FORMAT_RG32F,
+     *                            width = render.get_window_width(),
+     *                            height = render.get_window_height(),
+     *                            min_filter = render.FILTER_LINEAR,
+     *                            mag_filter = render.FILTER_LINEAR,
+     *                            u_wrap = render.WRAP_CLAMP_TO_EDGE,
+     *                            v_wrap = render.WRAP_CLAMP_TO_EDGE }
+     *
+     *
+     *     -- Create a render target with three color attachments
+     *     -- Note: No depth buffer is attached here
+     *     self.my_render_target = render.render_target({
+     *            [render.BUFFER_COLOR0_BIT] = color_params_rgba,
+     *            [render.BUFFER_COLOR1_BIT] = color_params_rgba,
+     *            [render.BUFFER_COLOR2_BIT] = color_params_float, })
      * end
      *
      * function update(self, dt)
@@ -699,11 +951,12 @@ namespace dmRender
         lua_pushnil(L);
         while (lua_next(L, table_index))
         {
-            bool required_found[] = { false, false, false };
-            uint32_t buffer_type = (uint32_t)luaL_checknumber(L, -2);
-            buffer_type_flags |= buffer_type;
-            uint32_t index = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
-            dmGraphics::TextureParams* p = &params[index];
+            bool required_found[]  = { false, false, false };
+            uint32_t buffer_type   = (uint32_t)luaL_checknumber(L, -2);
+            buffer_type_flags     |= buffer_type;
+
+            uint32_t index                        = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
+            dmGraphics::TextureParams* p          = &params[index];
             dmGraphics::TextureCreationParams* cp = &creation_params[index];
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
@@ -1072,18 +1325,26 @@ namespace dmRender
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
+     * If the render target has been created with multiple color attachments, these buffer types can be used
+     * to enable those textures as well. Currently only 4 color attachments are supported.
+     *
+     * - `render.BUFFER_COLOR0_BIT`
+     * - `render.BUFFER_COLOR1_BIT`
+     * - `render.BUFFER_COLOR2_BIT`
+     * - `render.BUFFER_COLOR3_BIT`
+     *
      * @examples
      *
      * ```lua
      * function update(self, dt)
      *     -- enable target so all drawing is done to it
-     *     render.enable_render_target(self.my_render_target)
+     *     render.set_render_target(self.my_render_target)
      *
      *     -- draw a predicate to the render target
      *     render.draw(self.my_pred)
      *
      *     -- disable target
-     *     render.disable_render_target(self.my_render_target)
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
      *
      *     render.enable_texture(0, self.my_render_target, render.BUFFER_COLOR_BIT)
      *     -- draw a predicate with the render target available as texture 0 in the predicate
@@ -1101,8 +1362,11 @@ namespace dmRender
         if (lua_islightuserdata(L, 2))
         {
             render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
-            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)(int)luaL_checknumber(L, 3);
+            int buffer_type_value = (int)luaL_checknumber(L, 3);
+            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) buffer_type_value;
+
             dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
+
             if(texture != 0)
             {
                 if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, (uintptr_t)texture)))
@@ -1185,7 +1449,7 @@ namespace dmRender
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT &&
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
@@ -1236,7 +1500,7 @@ namespace dmRender
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
         uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR_BIT &&
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
@@ -1255,6 +1519,26 @@ namespace dmRender
      */
 
     /*#
+     * @name render.BUFFER_COLOR0_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_COLOR1_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_COLOR2_BIT
+     * @variable
+     */
+
+    /*#
+     * @name render.BUFFER_COLOR3_BIT
+     * @variable
+     */
+
+    /*#
      * @name render.BUFFER_DEPTH_BIT
      * @variable
      */
@@ -1265,7 +1549,8 @@ namespace dmRender
      */
 
     /*# clears the active render target
-     * Clear buffers in the currently enabled render target with specified value.
+     * Clear buffers in the currently enabled render target with specified value. If the render target has been created with multiple
+     * color attachments, all buffers will be cleared with the same value.
      *
      * @name render.clear
      * @param buffers [type:table] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
@@ -1302,7 +1587,7 @@ namespace dmRender
             uint32_t buffer_type = luaL_checknumber(L, -2);
             flags |= buffer_type;
 
-            if (buffer_type == dmGraphics::BUFFER_TYPE_COLOR_BIT)
+            if (buffer_type == dmGraphics::BUFFER_TYPE_COLOR0_BIT)
             {
                 color = *dmScript::CheckVector4(L, -1);
             }
@@ -1496,7 +1781,7 @@ namespace dmRender
     int RenderScript_DrawDebug2d(lua_State* L)
     {
         RenderScriptInstance_Check(L);
-        dmLogOnceWarning("render.draw_debug2d is deprecated and will be removed in future versions, please use render.draw_debug3d instead.");
+        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, "render", "draw_debug2d", "render", "draw_debug3d");
         return 0;
     }
 
@@ -2513,6 +2798,8 @@ namespace dmRender
 
         RENDER_SCRIPT_PREDICATE_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_PREDICATE, RenderScriptPredicate_methods, RenderScriptPredicate_meta);
 
+        RENDER_SCRIPT_CONSTANTBUFFER_ARRAY_TYPE_HASH = dmScript::RegisterUserType(L, RENDER_SCRIPT_CONSTANTBUFFER_ARRAY, RenderScriptConstantBuffer_methods, RenderScriptConstantBufferArray_meta);
+
         luaL_register(L, RENDER_SCRIPT_LIB_NAME, Render_methods);
 
 #define REGISTER_STATE_CONSTANT(name)\
@@ -2640,13 +2927,21 @@ namespace dmRender
 
 #undef REGISTER_FACE_CONSTANT
 
-#define REGISTER_BUFFER_CONSTANT(name)\
-        lua_pushnumber(L, (lua_Number) dmGraphics::BUFFER_TYPE_##name); \
+#define REGISTER_BUFFER_CONSTANT(enum_type, name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::BUFFER_TYPE_##enum_type); \
         lua_setfield(L, -2, "BUFFER_"#name);
 
-        REGISTER_BUFFER_CONSTANT(COLOR_BIT);
-        REGISTER_BUFFER_CONSTANT(DEPTH_BIT);
-        REGISTER_BUFFER_CONSTANT(STENCIL_BIT);
+        REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR_BIT); // For backwards compatability
+        REGISTER_BUFFER_CONSTANT(COLOR0_BIT,  COLOR0_BIT);
+        // These depend on driver and context support
+        if (dmGraphics::IsMultiTargetRenderingSupported(graphics_context))
+        {
+            REGISTER_BUFFER_CONSTANT(COLOR1_BIT,  COLOR1_BIT);
+            REGISTER_BUFFER_CONSTANT(COLOR2_BIT,  COLOR2_BIT);
+            REGISTER_BUFFER_CONSTANT(COLOR3_BIT,  COLOR3_BIT);
+        }
+        REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
+        REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
 
 #undef REGISTER_BUFFER_CONSTANT
 

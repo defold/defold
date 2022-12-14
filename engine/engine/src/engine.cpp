@@ -261,8 +261,6 @@ namespace dmEngine
         m_SpriteContext.m_MaxSpriteCount = 0;
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
-        m_MeshContext.m_RenderContext = 0x0;
-        m_MeshContext.m_MaxMeshCount = 0;
         m_AccumFrameTime = 0;
         m_PreviousFrameTime = dmTime::GetTime();
     }
@@ -426,11 +424,12 @@ namespace dmEngine
             const char* mountstr = "";
 #if defined(__NX__)
             mountstr = "data:/";
+#endif
             // there's no way to check for a named mount, and it will assert
             // So we'll only enter here if it's set on this platform
-            if (dmSys::GetEnv("DM_MOUNT_HOST") != 0)
-                mountstr = "host:/";
-#endif
+            if (dmSys::GetEnv("DM_HOSTFS") != 0)
+                mountstr = dmSys::GetEnv("DM_HOSTFS");
+
             dmSnPrintf(p1, sizeof(p1), "%sgame.projectc", mountstr);
             dmSnPrintf(p2, sizeof(p2), "%sbuild/default/game.projectc", mountstr);
             paths[count++] = p1;
@@ -631,8 +630,13 @@ namespace dmEngine
         char engine_ssl_keys_path[DMPATH_MAX_PATH];
         dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
         char editor_ssl_keys_path[DMPATH_MAX_PATH];
-        dmPath::Concat(project_file_folder, dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", ""), editor_ssl_keys_path, sizeof(editor_ssl_keys_path));
-        const char* paths[] = {engine_ssl_keys_path, editor_ssl_keys_path};
+        const char* custom_ssl_certificate = dmConfigFile::GetString(engine->m_Config, "network.ssl_certificates", 0);
+        if (custom_ssl_certificate != 0)
+        {
+            dmPath::Concat(project_file_folder, custom_ssl_certificate, editor_ssl_keys_path, sizeof(editor_ssl_keys_path));
+        }
+
+        const char* paths[] = {engine_ssl_keys_path, custom_ssl_certificate != 0 ? editor_ssl_keys_path : 0};
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
         {
             if (paths[i] && LoadAndSetSslKeys(paths[i]))
@@ -702,7 +706,7 @@ namespace dmEngine
             else if (strncmp(verbose_long, arg, sizeof(verbose_long)-1) == 0 ||
                      strncmp(verbose_short, arg, sizeof(verbose_short)-1) == 0)
             {
-                dmLog::Setlevel(dmLog::LOG_SEVERITY_DEBUG);
+                dmLogSetLevel(LOG_SEVERITY_DEBUG);
             }
         }
 
@@ -1008,10 +1012,10 @@ namespace dmEngine
         }
 
         // rig.max_instance_count is deprecated in favour of component specific max count values.
-        // For backwards combatibility we get the rig generic value and take the max of it and each
-        // specific component max value.
-        int32_t max_rig_instance = dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", 128);
-        int32_t max_model_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128), max_rig_instance);
+        if (dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", -1) != -1)
+        {
+            dmLogWarning("`rig.max_instance_count` deprecated. Use component specific counters.");
+        }
 
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
@@ -1069,6 +1073,7 @@ namespace dmEngine
             engine->m_PhysicsContext.m_3D = false;
             engine->m_PhysicsContext.m_Context2D = dmPhysics::NewContext2D(physics_params);
         }
+        engine->m_PhysicsContext.m_MaxCollisionObjectCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISION_OBJECTS_KEY, 128);
         engine->m_PhysicsContext.m_MaxCollisionCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         engine->m_PhysicsContext.m_MaxContactPointCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
         engine->m_PhysicsContext.m_UseFixedTimestep = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
@@ -1097,11 +1102,7 @@ namespace dmEngine
 
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ModelContext.m_Factory = engine->m_Factory;
-        engine->m_ModelContext.m_MaxModelCount = max_model_count;
-
-        engine->m_MeshContext.m_RenderContext = engine->m_RenderContext;
-        engine->m_MeshContext.m_Factory       = engine->m_Factory;
-        engine->m_MeshContext.m_MaxMeshCount = dmConfigFile::GetInt(engine->m_Config, "mesh.max_count", 128);
+        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
@@ -1112,6 +1113,7 @@ namespace dmEngine
         engine->m_TilemapContext.m_MaxTileCount     = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_tile_count", 2048);
 
         engine->m_SoundContext.m_MaxComponentCount  = dmConfigFile::GetInt(engine->m_Config, "sound.max_component_count", 32);
+        engine->m_SoundContext.m_MaxSoundInstances  = dmConfigFile::GetInt(engine->m_Config, "sound.max_sound_instances", 256);
 
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
@@ -1136,7 +1138,7 @@ namespace dmEngine
         dmGameSystem::ScriptLibContext script_lib_context;
 
         // Variables need to be declared up here due to the goto's
-        bool has_host_mount = dmSys::GetEnv("DM_MOUNT_HOST") != 0;
+        bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
 
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
@@ -1158,7 +1160,7 @@ namespace dmEngine
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
-                                                                                                &engine->m_ModelContext, &engine->m_MeshContext, &engine->m_LabelContext, &engine->m_TilemapContext,
+                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext,
                                                                                                 &engine->m_SoundContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
@@ -1231,7 +1233,7 @@ namespace dmEngine
         for (int i = 0; i < 3; ++i) {
             dmGraphics::BeginFrame(engine->m_GraphicsContext);
             dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT,
+            dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
                                         (float)((engine->m_ClearColor>> 0)&0xFF),
                                         (float)((engine->m_ClearColor>> 8)&0xFF),
                                         (float)((engine->m_ClearColor>>16)&0xFF),
@@ -1248,8 +1250,10 @@ namespace dmEngine
             }
         }
 
-        script_lib_context.m_Factory = engine->m_Factory;
-        script_lib_context.m_Register = engine->m_Register;
+        script_lib_context.m_Factory    = engine->m_Factory;
+        script_lib_context.m_Register   = engine->m_Register;
+        script_lib_context.m_HidContext = engine->m_HidContext;
+
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
@@ -1501,7 +1505,7 @@ bail:
                 }
                 {
                     DM_PROFILE("Script");
-                    
+
                     // Script context updates
                     if (engine->m_SharedScriptContext) {
                         dmScript::Update(engine->m_SharedScriptContext);
@@ -1599,7 +1603,7 @@ bail:
                     else
                     {
                         dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
                                             (float)((engine->m_ClearColor>> 0)&0xFF),
                                             (float)((engine->m_ClearColor>> 8)&0xFF),
                                             (float)((engine->m_ClearColor>>16)&0xFF),

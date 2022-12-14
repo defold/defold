@@ -36,14 +36,13 @@
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
-            [internal.cache :as c]
             [schema.core :as s]
             [service.log :as log]
             [util.coll :refer [pair]]
             [util.debug-util :as du]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import (java.util.concurrent.atomic AtomicLong)))
+  (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 
@@ -65,6 +64,7 @@
   (concat
     (load-fn project node-id resource)
     (when (and (resource/file-resource? resource)
+               (resource/editable? resource)
                (:auto-connect-save-data? (resource/resource-type resource)))
       (g/connect node-id :save-data project :save-data))))
 
@@ -200,7 +200,7 @@
     load-txs))
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies resource-metrics transaction-metrics]
-  (let [tx-result (g/transact transaction-metrics
+  (let [tx-result (g/transact (du/when-metrics {:metrics transaction-metrics})
                     (load-resource-nodes project node-ids render-progress! resource-node-dependencies resource-metrics))]
     (render-progress! progress/done)
     tx-result))
@@ -218,13 +218,13 @@
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
 (defn- make-nodes! [project resources]
-  (let [project-graph (graph project)]
+  (let [project-graph (graph project)
+        file-resources (filter #(= :file (resource/source-type %)) resources)]
     (g/tx-nodes-added
       (g/transact
-        (for [[resource-type resources] (group-by resource/resource-type resources)
+        (for [[resource-type resources] (group-by resource/resource-type file-resources)
               :let [node-type (resource-type->node-type resource-type)]
-              resource resources
-              :when (not= :folder (resource/source-type resource))]
+              resource resources]
           (g/make-nodes project-graph [node [node-type :resource resource]]
                         (g/connect node :_node-id project :nodes)
                         (g/connect node :node-id+resource project :node-id+resources)))))))
@@ -279,15 +279,9 @@
                   :transaction-metrics @transaction-metrics}))
        project))))
 
-(defn make-embedded-resource [project type data]
-  (let [resource-types (g/node-value project :resource-types)]
-    (if-some [resource-type (get resource-types type)]
-      (resource/make-memory-resource (g/node-value project :workspace) resource-type data)
-      (throw (ex-info (format "Unable to locate resource type info. Extension not loaded? (type=%s)"
-                              type)
-                      {:type type
-                       :registered-types (into (sorted-set)
-                                               (keys resource-types))})))))
+(defn make-embedded-resource [project editability ext data]
+  (let [workspace (g/node-value project :workspace)]
+    (workspace/make-embedded-resource workspace editability ext data)))
 
 (defn all-save-data [project]
   (g/node-value project :save-data))
@@ -325,7 +319,8 @@
     (do
       (progress/progress-mapv
         (fn [{:keys [resource content value node-id]} _]
-          (when-not (resource/read-only? resource)
+          (when (and (resource/editable? resource)
+                     (not (resource/read-only? resource)))
             ;; If the file is non-binary, convert line endings to the
             ;; type used by the existing file.
             (if (and (textual-resource-type? (resource/resource-type resource))
@@ -417,6 +412,9 @@
                 :command :fetch-libraries}
                {:label "Reload Editor Scripts"
                 :command :reload-extensions}
+               {:label :separator}
+               {:label "Shared Editor Settings"
+                :command :shared-editor-settings}
                {:label "Live Update Settings"
                 :command :live-update-settings}
                {:label :separator
@@ -481,6 +479,7 @@
     (let [process-metrics (du/make-metrics-collector)
           resource-metrics (du/make-metrics-collector)
           transaction-metrics (du/make-metrics-collector)
+          transact-opts (du/when-metrics {:metrics transaction-metrics})
 
           collected-properties-by-resource
           (du/measuring process-metrics :collect-overridden-properties
@@ -520,7 +519,7 @@
       ;; corresponding override-nodes for the incoming connections will be created in the
       ;; overrides.
       (du/measuring process-metrics :transfer-overrides
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (du/if-metrics
             ;; Doing metrics - Submit separate transaction steps for each resource.
             (for [[resource old-node-id] (:transfer-overrides plan)]
@@ -536,7 +535,7 @@
       ;; must delete old versions of resource nodes before loading to avoid
       ;; load functions finding these when doing lookups of dependencies...
       (du/measuring process-metrics :delete-old-nodes
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (for [node (:delete plan)]
             (g/delete-node node))))
 
@@ -547,7 +546,7 @@
         (g/update-cache-from-evaluation-context! rn-dependencies-evaluation-context))
 
       (du/measuring process-metrics :transfer-outgoing-arcs
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
             (let [source-node (resource->node source-resource)
                   existing-arcs (set (gu/explicit-outputs source-node))]
@@ -561,24 +560,23 @@
                   (g/connect source-node source-label target-node target-label)))))))
 
       (du/measuring process-metrics :redirect
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (for [[resource-node new-resource] (:redirect plan)]
             (g/set-property resource-node :resource new-resource))))
 
       (du/measuring process-metrics :mark-deleted
-        (g/transact transaction-metrics
-          (for [node (:mark-deleted plan)]
-            (let [flaw (resource-io/file-not-found-error node nil :fatal (g/node-value node :resource))]
-              (g/mark-defective node flaw)))))
+        (let [basis (g/now)]
+          (g/transact transact-opts
+            (for [node-id (:mark-deleted plan)]
+              (let [flaw (resource-io/file-not-found-error node-id nil :fatal (resource-node/resource basis node-id))]
+                (g/mark-defective node-id flaw))))))
 
       ;; invalidate outputs.
       (du/measuring process-metrics :invalidate-outputs
-        (let [basis (g/now)
-              uncached-evaluation-context (du/when-metrics
-                                            (g/make-evaluation-context {:basis basis :cache c/null-cache}))]
+        (let [basis (g/now)]
           (du/if-metrics
             (doseq [node-id (:invalidate-outputs plan)]
-              (du/measuring resource-metrics (resource/proj-path (g/node-value node-id :resource uncached-evaluation-context)) :invalidate-outputs
+              (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
                 (g/invalidate-outputs! (mapv (fn [[_ src-label]]
                                                (g/endpoint node-id src-label))
                                              (g/explicit-outputs basis node-id)))))
@@ -598,7 +596,7 @@
                 (du/measuring resource-metrics (resource/proj-path resource) :restore-overridden-properties
                   (let [restore-properties-tx-data (g/restore-overridden-properties new-node-id collected-properties evaluation-context)]
                     (when (seq restore-properties-tx-data)
-                      (g/transact transaction-metrics restore-properties-tx-data)))))))
+                      (g/transact transact-opts restore-properties-tx-data)))))))
           (let [restore-properties-tx-data
                 (g/with-auto-evaluation-context evaluation-context
                   (into []
@@ -607,7 +605,7 @@
                                     (g/restore-overridden-properties new-node-id collected-properties evaluation-context))))
                         collected-properties-by-resource))]
             (when (seq restore-properties-tx-data)
-              (g/transact transaction-metrics
+              (g/transact transact-opts
                 restore-properties-tx-data)))))
 
       (du/measuring process-metrics :update-selection
@@ -616,7 +614,7 @@
                                     [(old-nodes-by-path p) n]))
                              resource-path->new-node)
               dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))]
-          (g/transact transaction-metrics
+          (g/transact transact-opts
             (concat
               (let [all-selections (-> (g/node-value project :all-selections)
                                        (dissoc-deleted)
@@ -681,7 +679,6 @@
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
   (input resource-map g/Any)
-  (input resource-types g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-id+resources g/Any :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
@@ -711,9 +708,13 @@
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
-  (output dirty-save-data g/Any :cached (g/fnk [save-data] (filterv #(and (:dirty? %)
-                                                                       (when-let [r (:resource %)]
-                                                                         (not (resource/read-only? r)))) save-data)))
+  (output dirty-save-data g/Any :cached (g/fnk [save-data]
+                                          (filterv (fn [save-data]
+                                                     (and (:dirty? save-data)
+                                                          (when-some [resource (:resource save-data)]
+                                                            (and (resource/editable? resource)
+                                                                 (not (resource/read-only? resource))))))
+                                                   save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
@@ -828,7 +829,6 @@
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :resource-list project :resources)
                 (g/connect workspace-id :resource-map project :resource-map)
-                (g/connect workspace-id :resource-types project :resource-types)
                 (g/set-graph-value graph :project-id project)))))]
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
@@ -839,25 +839,63 @@
         (settings-core/get-setting ["project" "dependencies"])
         (library/parse-library-uris))))
 
-(def ^:private embedded-resource? (comp nil? resource/proj-path))
+(defn- project-resource-node? [basis node-id]
+  (if-some [resource (resource-node/as-resource-original basis node-id)]
+    (some? (resource/proj-path resource))
+    false))
 
-(defn project-resource-node? [node-id evaluation-context]
-  (let [basis (:basis evaluation-context)]
-    (and (g/node-instance? basis resource-node/ResourceNode node-id)
-         (not (embedded-resource? (g/node-value node-id :resource evaluation-context))))))
+(defn- project-file-resource-node? [basis node-id]
+  (if-some [resource (resource-node/as-resource-original basis node-id)]
+    (some? (resource/abs-path resource))
+    false))
+
+(defn cache-retain?
+  ([endpoint]
+   (case (g/endpoint-label endpoint)
+     (:build-targets) (project-resource-node? (g/now) (g/endpoint-node-id endpoint))
+     (:save-data :source-value) (project-file-resource-node? (g/now) (g/endpoint-node-id endpoint))
+     false))
+  ([basis endpoint]
+   (case (g/endpoint-label endpoint)
+     (:build-targets) (project-resource-node? basis (g/endpoint-node-id endpoint))
+     (:save-data :source-value) (project-file-resource-node? basis (g/endpoint-node-id endpoint))
+     false)))
+
+(defn- cached-build-target-output? [node-id label evaluation-context]
+  (case label
+    (:build-targets) (project-resource-node? (:basis evaluation-context) node-id)
+    false))
 
 (defn- cached-save-data-output? [node-id label evaluation-context]
   (case label
-    (:save-data :source-value) (project-resource-node? node-id evaluation-context)
+    (:save-data :source-value) (project-file-resource-node? (:basis evaluation-context) node-id)
     false))
 
-(defn update-system-cache-save-data! [evaluation-context]
+(defn- update-system-cache-from-pruned-evaluation-context! [cache-entry-pred evaluation-context]
   ;; To avoid cache churn, we only transfer the most important entries to the system cache.
-  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cached-save-data-output?)]
+  (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
     (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
 
+(defn- log-cache-info! [cache message]
+  ;; Disabled during tests to minimize log spam.
+  (when-not (Boolean/getBoolean "defold.tests")
+    (let [{:keys [total retained unretained limit]} (g/cache-info cache)]
+      (log/info :message message
+                :total total
+                :retained retained
+                :unretained unretained
+                :limit limit))))
+
+(defn update-system-cache-build-targets! [evaluation-context]
+  (update-system-cache-from-pruned-evaluation-context! cached-build-target-output? evaluation-context)
+  (log-cache-info! (g/cache) "Cached build targets in system cache."))
+
+(defn update-system-cache-save-data! [evaluation-context]
+  (update-system-cache-from-pruned-evaluation-context! cached-save-data-output? evaluation-context)
+  (log-cache-info! (g/cache) "Cached save data in system cache."))
+
 (defn- cache-save-data! [project]
-  ;; Save data is required for the Search in Files feature so we pull
+  ;; Save data is required for the Search in Files feature, so we pull
   ;; it in the background here to cache it.
   (let [evaluation-context (g/make-evaluation-context)]
     (future

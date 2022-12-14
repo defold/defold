@@ -22,6 +22,9 @@
 #define DM_PLATFORM_ANDROID "android"
 #define DM_PLATFORM_IOS 	"ios"
 #define DM_PLATFORM_SWITCH 	"switch"
+#define DM_PLATFORM_PLAYSTATION "playstation"
+
+// Note: DM_PLATFORM is used as a key in data files, e.g. ".gamepads"
 
 #if defined(ANDROID)
 #define DM_PLATFORM DM_PLATFORM_ANDROID
@@ -37,6 +40,8 @@
 #define DM_PLATFORM DM_PLATFORM_WEB
 #elif defined(__NX__)
 #define DM_PLATFORM DM_PLATFORM_SWITCH
+#elif defined(__SCE__)
+#define DM_PLATFORM DM_PLATFORM_PLAYSTATION
 #else
 #error "Unsupported platform"
 #endif

@@ -46,6 +46,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.contrib.java.lang.system.*;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ClassLoaderScanner;
@@ -63,6 +64,8 @@ public class ProjectTest {
     private final static String EMAIL = "unittest@defold.com";
     private final static String AUTH = "secret-auth";
     private final static String BASIC_AUTH = "user:secret";
+    private final static String BASIC_AUTH_ENV_TOKEN = "user:__TOKEN__";
+    private final static String BASIC_AUTH_ENV_TOKEN_RESOLVED = "user:resolved";
 
     private MockFileSystem fileSystem;
     private Project project;
@@ -73,6 +76,9 @@ public class ProjectTest {
 
     @Rule
     public TestLibrariesRule testLibs = new TestLibrariesRule();
+
+    @Rule
+    public final EnvironmentVariables environmentVariables = new EnvironmentVariables();
 
     private void initHttpServer(String serverLocation) throws IOException {
         System.out.printf("initHttpServer start");
@@ -103,6 +109,9 @@ public class ProjectTest {
         libraryUrls.add(new URL("http://localhost:8081/test_lib1.zip"));
         libraryUrls.add(new URL("http://localhost:8081/test_lib2.zip"));
         libraryUrls.add(new URL("http://" + BASIC_AUTH + "@localhost:8081/test_lib5.zip"));
+        libraryUrls.add(new URL("http://" + BASIC_AUTH_ENV_TOKEN + "@localhost:8081/test_lib6.zip"));
+
+        environmentVariables.set("TOKEN", "resolved");
 
         fileSystem = new MockFileSystem();
         project = new Project(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
@@ -234,7 +243,7 @@ public class ProjectTest {
         results = filterBuiltins(results);
 
         assertFalse(results.isEmpty());
-        assertEquals(5, results.size());
+        assertEquals(6, results.size());
         System.out.printf("end");
     }
 
@@ -271,8 +280,11 @@ public class ProjectTest {
             boolean authenticated = false;
             if (request.getHeader("Authorization") != null) {
                 // Basic auth should also not send X-Email or X-Auth
-                String decomposedAuthString = "Basic " + new String(new Base64().encode(BASIC_AUTH.getBytes()));
-                authenticated = decomposedAuthString.equals(request.getHeader("Authorization")) && request.getHeader("X-Email") == null && request.getHeader("X-Auth") == null;
+                String decomposedAuthString1 = "Basic " + new String(new Base64().encode(BASIC_AUTH.getBytes()));
+                String decomposedAuthString2 = "Basic " + new String(new Base64().encode(BASIC_AUTH_ENV_TOKEN_RESOLVED.getBytes()));
+                boolean equals1 = decomposedAuthString1.equals(request.getHeader("Authorization"));
+                boolean equals2 = decomposedAuthString2.equals(request.getHeader("Authorization"));
+                authenticated = ((equals1 || equals2) && request.getHeader("X-Email") == null && request.getHeader("X-Auth") == null);
             } else {
                 authenticated = EMAIL.equals(request.getHeader("X-Email")) && AUTH.equals(request.getHeader("X-Auth"));
             }

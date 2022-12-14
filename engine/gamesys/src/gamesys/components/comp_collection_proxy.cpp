@@ -22,6 +22,7 @@
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/index_pool.h>
+#include <dlib/profile.h>
 
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
@@ -32,6 +33,11 @@
 #include "../gamesys_private.h"
 
 #include <gamesys/gamesys_ddf.h>
+
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollectionProxy, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_CollectionProxyLoaded, 0, FrameReset, "# loaded collection proxies", &rmtp_CollectionProxy);
+DM_PROPERTY_U32(rmtp_CollectionProxyEnabled, 0, FrameReset, "# enabled collection proxies", &rmtp_CollectionProxy);
 
 namespace dmGameSystem
 {
@@ -48,6 +54,11 @@ namespace dmGameSystem
     using namespace dmVMath;
 
     const char* COLLECTION_PROXY_MAX_COUNT_KEY = "collection_proxy.max_count";
+
+    static const dmhash_t COLLECTION_PROXY_LOAD_HASH = dmHashString64("load");
+    static const dmhash_t COLLECTION_PROXY_ASYNC_LOAD_HASH = dmHashString64("async_load");
+    static const dmhash_t COLLECTION_PROXY_UNLOAD_HASH = dmHashString64("unload");
+    static const dmhash_t COLLECTION_PROXY_INIT_HASH = dmHashString64("init");
 
     struct CollectionProxyComponent
     {
@@ -229,6 +240,7 @@ namespace dmGameSystem
             if (!proxy->m_AddedToUpdate) {
                 continue;
             }
+            DM_PROPERTY_ADD_U32(rmtp_CollectionProxy, 1);
             if (proxy->m_Preloader != 0)
             {
                 CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
@@ -248,6 +260,7 @@ namespace dmGameSystem
             }
             if (proxy->m_Collection != 0)
             {
+                DM_PROPERTY_ADD_U32(rmtp_CollectionProxyLoaded, 1);
                 if (proxy->m_DelayedEnable != proxy->m_Enabled)
                 {
                     proxy->m_Enabled = proxy->m_DelayedEnable;
@@ -255,6 +268,7 @@ namespace dmGameSystem
 
                 if (proxy->m_Enabled)
                 {
+                    DM_PROPERTY_ADD_U32(rmtp_CollectionProxyEnabled, 1);
                     dmGameObject::UpdateContext uc = *params.m_UpdateContext;
                     // We might be inside a parent proxy, so the scale will propagate
                     uc.m_TimeScale = params.m_UpdateContext->m_TimeScale * proxy->m_TimeStepFactor;
@@ -390,7 +404,7 @@ namespace dmGameSystem
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
 
-        if (params.m_Message->m_Id == dmHashString64("load") || params.m_Message->m_Id == dmHashString64("async_load"))
+        if (params.m_Message->m_Id == COLLECTION_PROXY_LOAD_HASH || params.m_Message->m_Id == COLLECTION_PROXY_ASYNC_LOAD_HASH)
         {
             if (proxy->m_Collection == 0)
             {
@@ -404,7 +418,7 @@ namespace dmGameSystem
                 proxy->m_LoadSender = params.m_Message->m_Sender;
                 proxy->m_LoadReceiver = params.m_Message->m_Receiver;
 
-                if (params.m_Message->m_Id == dmHashString64("async_load"))
+                if (params.m_Message->m_Id == COLLECTION_PROXY_ASYNC_LOAD_HASH)
                 {
                     proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, proxy->m_Resource->m_DDF->m_Collection);
                 }
@@ -423,7 +437,7 @@ namespace dmGameSystem
                 LogMessageError(params.m_Message, "The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64("unload"))
+        else if (params.m_Message->m_Id == COLLECTION_PROXY_UNLOAD_HASH)
         {
             if (proxy->m_Preloader != 0)
             {
@@ -445,7 +459,7 @@ namespace dmGameSystem
                 LogMessageError(params.m_Message, "The collection %s could not be unloaded since it was never loaded.", proxy->m_Resource->m_DDF->m_Collection);
             }
         }
-        else if (params.m_Message->m_Id == dmHashString64("init"))
+        else if (params.m_Message->m_Id == COLLECTION_PROXY_INIT_HASH)
         {
             if (proxy->m_Collection != 0)
             {
@@ -781,5 +795,78 @@ namespace dmGameSystem
      *
      * @message
      * @name proxy_unloaded
+     */
+
+    /*# return an indexed table of all the resources of a collection proxy
+     *
+     * return an indexed table of resources for a collection proxy. Each
+     * entry is a hexadecimal string that represents the data of the specific
+     * resource. This representation corresponds with the filename for each
+     * individual resource that is exported when you bundle an application with
+     * LiveUpdate functionality.
+     *
+     * @namespace collectionproxy
+     * @name collectionproxy.get_resources
+     * @param collectionproxy [type:url] the collectionproxy to check for resources.
+     * @return resources [type:table] the resources
+     *
+     * @examples
+     *
+     * ```lua
+     * local function print_resources(self, cproxy)
+     *     local resources = collectionproxy.get_resources(cproxy)
+     *     for _, v in ipairs(resources) do
+     *         print("Resource: " .. v)
+     *     end
+     * end
+     * ```
+     */
+
+    /*# return an array of missing resources for a collection proxy
+     *
+     * return an array of missing resources for a collection proxy. Each
+     * entry is a hexadecimal string that represents the data of the specific
+     * resource. This representation corresponds with the filename for each
+     * individual resource that is exported when you bundle an application with
+     * LiveUpdate functionality. It should be considered good practise to always
+     * check whether or not there are any missing resources in a collection proxy
+     * before attempting to load the collection proxy.
+     *
+     * @namespace collectionproxy
+     * @name collectionproxy.missing_resources
+     * @param collectionproxy [type:url] the collectionproxy to check for missing
+     * resources.
+     * @return resources [type:table] the missing resources
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     self.manifest = resource.get_current_manifest()
+     * end
+     *
+     * local function callback(self, id, response)
+     *     local expected = self.resources[id]
+     *     if response ~= nil and response.status == 200 then
+     *         print("Successfully downloaded resource: " .. expected)
+     *         resource.store_resource(response.response)
+     *     else
+     *         print("Failed to download resource: " .. expected)
+     *         -- error handling
+     *     end
+     * end
+     *
+     * local function download_resources(self, cproxy)
+     *     self.resources = {}
+     *     local resources = collectionproxy.missing_resources(cproxy)
+     *     for _, v in ipairs(resources) do
+     *         print("Downloading resource: " .. v)
+     *
+     *         local uri = "http://example.defold.com/" .. v
+     *         local id = http.request(uri, "GET", callback)
+     *         self.resources[id] = v
+     *     end
+     * end
+     * ```
      */
 }

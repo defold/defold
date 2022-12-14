@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,10 +27,6 @@ extern "C"
 {
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/lua/lauxlib.h>
-}
-
-namespace dmJson {
-    struct Document;
 }
 
 namespace dmScript
@@ -452,20 +448,6 @@ namespace dmScript
     */
     const char* GetStringFromHashOrString(lua_State* L, int index, char* buffer, uint32_t bufferlength);
 
-    /*# convert a dmJson::Document to a Lua table
-     * Convert a dmJson::Document document to Lua table.
-     *
-     * @name dmJson::Type
-     * @param L [type:lua_State*] lua state
-     * @param doc [type:dmJson::Document] JSON document
-     * @param index [type:int] index of JSON node
-     * @param error_str_out [type:char*] if an error is encountered, the error string is written to this argument
-     * @param error_str_size [type:size_t] size of error_str_out
-     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
-     */
-    int JsonToLua(lua_State* L, dmJson::Document* doc, int index, char* error_str_out, size_t error_str_size);
-
-
     /*#
      * Push DDF message to Lua stack
      * @param L [type: lua_State*] the Lua state
@@ -474,6 +456,29 @@ namespace dmScript
      * @param data [type: const char*] the message data (i.e. the message struct)
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
+
+    /*# convert a Json string to a Lua table
+     * Convert a Json string to Lua table.
+     * @note Throws Lua error if it fails to parser the json
+     *
+     * @name dmScript::JsonToLua
+     * @param L [type:lua_State*] lua state
+     * @param json [type:const char*] json string
+     * @param json_len [type:size_t] length of json string
+     * @return int [type:int] 1 if it succeeds. Throws a Lua error if it fails
+     */
+    int JsonToLua(lua_State* L, const char* json, size_t json_len);
+
+    /*# convert a Lua table to a Json string
+     * Convert a Lua table to a Json string
+     *
+     * @name dmScript::LuaToJson
+     * @param L [type:lua_State*] lua state
+     * @param json [type:char**] [out] Pointer to char*, which will receive a newly allocated string. Use free().
+     * @param json_len [type:size_t*] length of json string
+     * @return int [type:int] <0 if it fails. >=0 if it succeeds.
+     */
+    int LuaToJson(lua_State* L, char** json, size_t* json_len);
 
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua

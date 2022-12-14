@@ -26,20 +26,17 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.material :as material]
-            [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene-tools :as scene-tools]
             [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
            [com.jogamp.opengl GL GL2]
-           [editor.gl.shader ShaderLifecycle]
-           [javax.vecmath Point3d Vector3d]))
+           [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
 
@@ -180,15 +177,17 @@
     (mapv * size [xs ys 1])))
 
 (defn- v3->v4 [v]
-  (conj v 0.0))
+  ;; DdfMath$Vector4 uses 0.0 as the default for the W component.
+  (conj v (float 0.0)))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
 
-(g/defnk produce-pb-msg [text size scale color outline shadow leading tracking pivot blend-mode line-break font material]
+(def ^:private default-scale-value-v3 [(float 1.0) (float 1.0) (float 1.0)])
+
+(g/defnk produce-pb-msg [text size color outline shadow leading tracking pivot blend-mode line-break font material]
   {:text text
    :size (v3->v4 size)
-   :scale (v3->v4 scale)
    :color color
    :outline outline
    :shadow shadow
@@ -201,10 +200,9 @@
    :material (resource/resource->proj-path material)})
 
 (g/defnk produce-scene
-  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data scale]
+  [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data]
   (let [scene {:node-id _node-id
-               :aabb aabb
-               :transform (math/->mat4-scale scale)}
+               :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
         texture-recip-uniform (font/get-texture-recip-uniform font-map)
         material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
@@ -257,10 +255,13 @@
 (g/defnode LabelNode
   (inherits resource-node/ResourceNode)
 
+  ;; Ignored, except data during migration. See details below.
+  (property legacy-scale types/Vec3
+            (dynamic visible (g/constantly false)))
+
   (property text g/Str
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
   (property size types/Vec3)
-  (property scale types/Vec3)
   (property color types/Color)
   (property outline types/Color)
   (property shadow types/Color)
@@ -340,22 +341,16 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
                                       (texture/set-params gpu-texture tex-params))))
 
-(defmethod scene-tools/manip-scalable? ::LabelNode [_node-id] true)
-
-(defmethod scene-tools/manip-scale ::LabelNode [evaluation-context node-id ^Vector3d delta]
-  (let [[sx sy sz] (g/node-value node-id :scale evaluation-context)
-        new-scale [(* sx (.x delta)) (* sy (.y delta)) (* sz (.z delta))]]
-    (g/set-property node-id :scale (properties/round-vec new-scale))))
-
 (defn load-label [project self resource label]
-  (let [label (reduce (fn [label k] (update label k v4->v3)) label [:size :scale])
+  (let [size-v3 (v4->v3 (:size label))
+        legacy-scale-v3 (some-> label :scale v4->v3) ; Stripped when saving.
         font (workspace/resolve-resource resource (:font label))
         material (workspace/resolve-resource resource (:material label))]
     (concat
       (g/set-property self
                       :text (:text label)
-                      :size (:size label)
-                      :scale (:scale label)
+                      :size size-v3
+                      :legacy-scale legacy-scale-v3
                       :color (:color label)
                       :outline (:outline label)
                       :shadow (:shadow label)
@@ -367,14 +362,81 @@
                       :font font
                       :material material))))
 
+(def ^:private sanitize-v4 (comp v3->v4 v4->v3))
+
+(defn- significant-scale-value-v3? [value]
+  (and (vector? value)
+       (not (protobuf/default-read-scale-value? value))
+       (not= default-scale-value-v3 value)))
+
+(defn- sanitize-label [label-desc]
+  (let [legacy-scale-v3 (some-> label-desc :scale v4->v3)
+        sanitized-label (update label-desc :size sanitize-v4)
+        sanitized-label (if (significant-scale-value-v3? legacy-scale-v3)
+                          (assoc sanitized-label :scale (v3->v4 legacy-scale-v3))
+                          (dissoc sanitized-label :scale))]
+    sanitized-label))
+
+(defn- sanitize-embedded-label-component [embedded-component-desc label-desc]
+  (let [sanitized-embedded-component-desc
+        (if (significant-scale-value-v3? (:scale embedded-component-desc))
+          embedded-component-desc
+          (let [label-legacy-scale-v3 (some-> label-desc :scale v4->v3)]
+            (if (significant-scale-value-v3? label-legacy-scale-v3)
+              (assoc embedded-component-desc :scale label-legacy-scale-v3)
+              (dissoc embedded-component-desc :scale))))
+        sanitized-label-desc (dissoc label-desc :scale)]
+    [sanitized-embedded-component-desc sanitized-label-desc]))
+
+(defn- replace-default-scale-with-label-legacy-scale [evaluation-context referenced-component-scale label-node-id]
+  ;; The scale used to be stored in the LabelDesc before we had scale on the
+  ;; ComponentDesc. Here we transfer the scale value from the LabelDesc to the
+  ;; ComponentDesc if the ComponentDesc does not already have a significant
+  ;; scale value, and the LabelDesc does.
+  (if (= default-scale-value-v3 referenced-component-scale)
+    (let [label-legacy-scale (g/node-value label-node-id :legacy-scale evaluation-context)]
+      (if (significant-scale-value-v3? label-legacy-scale)
+        label-legacy-scale
+        referenced-component-scale))
+    referenced-component-scale))
+
+(defn- alter-referenced-label-component [referenced-component-node-id label-node-id]
+  ;; The Label scale value has been moved to the GameObject$ComponentDesc or
+  ;; GameObject$EmbeddedComponentDesc to reside alongside the existing position
+  ;; and rotation values.
+  ;;
+  ;; We still retain the legacy scale value in the legacy-scale property of the
+  ;; LabelNode so that it can be transferred to the ReferencedComponent node as
+  ;; it references a `.label` resource at load time, but we don't include the
+  ;; legacy scale value in the LabelNode save-data. This means that both the
+  ;; `.label` file that contained a legacy scale value and any `.go` or
+  ;; `.collection` files that refers to the `.label` will have unsaved changes
+  ;; immediately after the project has been loaded. This ensures both files will
+  ;; be saved.
+  ;;
+  ;; You might think we should use the established sanitation-mechanism to
+  ;; perform the migration - and we do for embedded components where all the
+  ;; migrated data is confined to a single file - but we can't do that for
+  ;; migrations that span multiple files.
+  ;;
+  ;; If we do not force all the files involved to be saved, we could end up in a
+  ;; "partial migration" scenario where we strip the legacy scale value from the
+  ;; `.label` resource but do not save it to the `.go` or `.collection` file
+  ;; that hosts the ComponentDesc. This can happen if the user edits the
+  ;; `.label` but not the `.go` or `.collection` file and saves the project.
+  (g/update-property-ec referenced-component-node-id :scale replace-default-scale-with-label-legacy-scale label-node-id))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
+    :label "Label"
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
     :load-fn load-label
+    :sanitize-fn sanitize-label
     :icon label-icon
     :view-types [:scene :text]
     :tags #{:component}
-    :tag-opts {:component {:transform-properties #{:position :rotation}}}
-    :label "Label"))
+    :tag-opts {:component {:transform-properties #{:position :rotation :scale}
+                           :alter-referenced-component-fn alter-referenced-label-component
+                           :sanitize-embedded-component-fn sanitize-embedded-label-component}}))

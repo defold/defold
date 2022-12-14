@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,8 +36,9 @@
 #include "resources/res_textureset.h"
 
 DM_PROPERTY_EXTERN(rmtp_Components);
-DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, FrameReset, "# vertices", &rmtp_Components);
-DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleFx, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, FrameReset, "# vertices", &rmtp_ParticleFx);
+DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_ParticleFx);
 
 namespace dmGameSystem
 {
@@ -356,6 +357,8 @@ namespace dmGameSystem
             ParticleFXComponent& c = pfx_world->m_Components[i];
             if (c.m_AddedToUpdate)
             {
+                DM_PROPERTY_ADD_U32(rmtp_ParticleFx, 1);
+
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
                 for (uint32_t j = 0; j < emitter_count; ++j)
                 {
@@ -439,6 +442,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
+            dmGameSystemDDF::StopParticleFX* ddf = (dmGameSystemDDF::StopParticleFX*)params.m_Message->m_Data;
             uint32_t count = world->m_Components.Size();
             for (uint32_t i = 0; i < count; ++i)
             {
@@ -446,7 +450,7 @@ namespace dmGameSystem
                 dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
                 if (component->m_Instance == params.m_Instance && component->m_ComponentId == component_id)
                 {
-                    dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance);
+                    dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_ClearParticles);
                 }
             }
         }
@@ -460,7 +464,14 @@ namespace dmGameSystem
                 ParticleFXComponent* component = &world->m_Components[i];
                 if (component->m_Instance == params.m_Instance)
                 {
-                    dmParticle::SetRenderConstant(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value);
+                    if (ddf->m_IsMatrix4)
+                    {
+                        dmParticle::SetRenderConstantM4(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value);
+                    }
+                    else
+                    {
+                        dmParticle::SetRenderConstant(world->m_ParticleContext, component->m_ParticleInstance, ddf->m_EmitterId, ddf->m_NameHash, ddf->m_Value.getCol0());
+                    }
                     ++found_count;
                 }
             }
@@ -545,7 +556,13 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < constant_count; ++i)
         {
             dmParticle::RenderConstant* c = &constants[i];
-            dmRender::SetNamedConstant(constant_buffer, c->m_NameHash, &c->m_Value, 1);
+
+            dmRenderDDF::MaterialDesc::ConstantType type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER;
+            if (c->m_IsMatrix4)
+            {
+                type = dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4;
+            }
+            dmRender::SetNamedConstant(constant_buffer, c->m_NameHash, (dmVMath::Vector4*) &c->m_Value, c->m_IsMatrix4 ? 4 : 1, type);
         }
     }
 

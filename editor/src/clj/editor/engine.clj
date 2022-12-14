@@ -23,7 +23,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.system :as system])
-  (:import [com.defold.editor Platform]
+  (:import [com.dynamo.bob Platform]
            [com.dynamo.resource.proto Resource$Reload]
            [com.dynamo.render.proto Render$Resize]
            [java.io BufferedReader File InputStream IOException]
@@ -152,20 +152,13 @@
              {:log-port log-port
               :address loopback-address}))))
 
-(def ^:private exe-suffixes (into {}
-                                  (map (fn [^Platform platform]
-                                         [(.getPair platform) (.getExeSuffix platform)]))
-                                  [Platform/Arm64Darwin
-                                   Platform/Arm64Android
-                                   Platform/Armv7Android
-                                   Platform/JsWeb
-                                   Platform/X86Win32
-                                   Platform/X86_64Darwin
-                                   Platform/X86_64Linux
-                                   Platform/X86_64Win32]))
-
-(defn- dmengine-filename [platform]
-  (format "dmengine%s" (get exe-suffixes platform "")))
+(defn- dmengine-filename
+  ^String [^String platform]
+  ;; Only the WasmWeb platform use two binary names, '.js' and '.wasm'.
+  ;; We use Bob for building HTML5, so we only need to care about a single exe.
+  (let [binary-filenames (.formatBinaryName (Platform/get platform) "dmengine")]
+    (assert (= 1 (count binary-filenames)))
+    (first binary-filenames)))
 
 (defn- bundled-engine [platform]
   (let [path   (format "%s/%s/bin/%s" (system/defold-unpack-path) platform (dmengine-filename platform))
@@ -195,9 +188,10 @@
    :extender-platform <String platform the engine was compiled for>}"
   [project evaluation-context prefs platform]
   (or (dev-custom-engine prefs platform)
-      (if (native-extensions/has-extensions? project evaluation-context)
-        (let [build-server (native-extensions/get-build-server-url prefs)]
-          (native-extensions/get-engine-archive project evaluation-context platform build-server))
+      (if (native-extensions/has-engine-extensions? project evaluation-context)
+        (let [build-server-url (native-extensions/get-build-server-url prefs)
+              build-server-headers (native-extensions/get-build-server-headers prefs)]
+          (native-extensions/get-engine-archive project evaluation-context platform build-server-url build-server-headers))
         (bundled-engine platform))))
 
 (defn- unpack-dmengine!

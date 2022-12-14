@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import os, re
+
 from waf_dynamo import apidoc_extract_task
 
 def configure(conf):
@@ -8,12 +8,12 @@ def configure(conf):
 def build(bld):
     source = ['webview_null.cpp']
 
-    if bld.env.PLATFORM in ('arm64-darwin', 'x86_64-ios', 'armv7-android'):
+    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios', 'armv7-android'):
         source = ['webview_mobile.cpp']
 
-    webview = bld.new_task_gen(features = 'cxx cstaticlib',
-                               includes = '.',
-                               source = source,
-                               target = 'webviewext')
+    webview = bld.stlib(features = 'cxx',
+                        includes = '.',
+                        source = source,
+                        target = 'webviewext')
 
     apidoc_extract_task(bld, ['webview_doc.h'])

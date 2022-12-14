@@ -23,10 +23,12 @@
    :help "compress archive (not for Android)",
    :default true,
    :path ["project" "compress_archive"]}
-  {:type :library-list,
+  {:type :list,
    :help
    "a comma separated list of URL:s to projects required by this project",
-   :path ["project" "dependencies"]}
+   :path ["project" "dependencies"]
+   :element {:type :url
+             :default "https://url.to/library"}}
   {:type :string,
    :help
    "a comma separated list of resources that will be included in the project. If directories are specified, all files and directories in that directory are recursively included",
@@ -153,6 +155,10 @@
    :label "Clear Color Alpha"
    :default 0,
    :path ["render" "clear_color_alpha"]}
+  {:type :integer,
+   :help "max number of collision objects, 128 by default",
+   :default 128,
+   :path ["physics" "max_collision_object_count"]}
   {:type :string,
    :help "which type of physics to use, 2D (default) or 3D",
    :default "2D",
@@ -395,6 +401,10 @@
    :help "max number of models, 128 by default",
    :default 128,
    :path ["model" "max_count"]}
+  {:type :boolean,
+   :help "Split meshes with more than 65536 vertices into new meshes. 0 by default",
+   :default false,
+   :path ["model" "split_meshes"]}
   {:type :integer,
    :help "max number of mesh components, 128 by default",
    :default 128,
@@ -771,7 +781,7 @@
    :path ["html5" "archive_location_suffix"]}
   {:type :string,
    :help "comma separated list of engine arguments",
-   :default "",
+   :default "--verify-graphics-calls=false",
    :path ["html5" "engine_arguments"]}
   {:type :boolean,
    :help "set to true to enable streaming of the wasm file (faster and uses less memory, but requires MIME type 'application/wasm')",
@@ -811,6 +821,10 @@
    :help "enable CPU usage sampling in release"
    :default false
    :path ["profiler" "track_cpu"]}
+  {:type :integer
+   :help "Number of milliseconds to sleep between server updates"
+   :default 0
+   :path ["profiler" "sleep_between_server_updates"]}
   {:type :resource
    :filter "settings"
    :default "/liveupdate.settings"

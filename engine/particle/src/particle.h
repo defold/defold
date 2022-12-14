@@ -70,8 +70,9 @@ namespace dmParticle
      */
     struct RenderConstant
     {
-        dmhash_t m_NameHash;
-        dmVMath::Vector4 m_Value;
+        dmhash_t         m_NameHash;
+        dmVMath::Matrix4 m_Value;
+        bool             m_IsMatrix4;
     };
 
     /**
@@ -298,11 +299,12 @@ namespace dmParticle
     DM_PARTICLE_PROTO(void, StartInstance, HParticleContext context, HInstance instance);
     /**
      * Stop the specified instance, which means it will stop spawning particles.
-     * Any spawned particles will still be simulated until they die.
+     * Any spawned particles will still be simulated until they die, unless clear_particles is true.
      * @param context Context in which the instance exists.
      * @param instance Instance to start, can be invalid.
+     * @param clear_particles true if particles should be immediately removed
      */
-    DM_PARTICLE_PROTO(void, StopInstance, HParticleContext context, HInstance instance);
+    DM_PARTICLE_PROTO(void, StopInstance, HParticleContext context, HInstance instance, bool clear_particles);
     /**
      * Retire the specified instance, which means it will stop spawning particles at the closest convenient time.
      * In practice this means that looping emitters will continue for the current life cycle and then stop, like a once emitter.
@@ -502,6 +504,17 @@ namespace dmParticle
      * @param value Value to set the constant to
      */
     DM_PARTICLE_PROTO(void, SetRenderConstant, HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, dmVMath::Vector4 value);
+
+    /**
+     * Set a matrix4 render constant for the emitter with the specified id
+     * @param context Particle context
+     * @param instance Instance containing the emitter
+     * @param emitter_id Id of the emitter
+     * @param name_hash Hashed name of the constant to set
+     * @param value Value to set the constant to
+     */
+    DM_PARTICLE_PROTO(void, SetRenderConstantM4, HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, dmVMath::Matrix4 value);
+
     /**
      * Reset a render constant for the emitter with the specified id
      * @param context Particle context

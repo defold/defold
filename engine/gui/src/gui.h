@@ -228,14 +228,6 @@ namespace dmGui
         uint8_t     m_Padding : 4;
     };
 
-    struct Scope {
-        Scope(int layer, int index) : m_Index(1), m_RootLayer(layer), m_RootIndex(index) {}
-
-        uint16_t m_Index;
-        uint16_t m_RootLayer;
-        uint16_t m_RootIndex;
-    };
-
     struct NewContextParams;
     void SetDefaultNewContextParams(NewContextParams* params);
 
@@ -368,20 +360,26 @@ namespace dmGui
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
-        uint16_t m_IsGamepad : 1;
-        uint16_t m_GamepadDisconnected : 1;
-        uint16_t m_GamepadConnected : 1;
-        uint16_t m_HasText : 1;
+        dmHID::GamepadPacket m_GamepadPacket;
+
+        uint8_t  m_IsGamepad : 1;
+        uint8_t  m_GamepadDisconnected : 1;
+        uint8_t  m_GamepadConnected : 1;
+        uint8_t  m_HasGamepadPacket : 1;
+        /// If input has a text payload (can be true even if text count is 0)
+        uint8_t  m_HasText : 1;
         /// If the input was 0 last update
-        uint16_t m_Pressed : 1;
+        uint8_t  m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
-        uint16_t m_Released : 1;
+        uint8_t  m_Released : 1;
         /// If the input was held enough for the value to be repeated this update
-        uint16_t m_Repeated : 1;
-        /// If the position fields (m_X, m_Y, m_DX, m_DY) are set and valid to read
-        uint16_t m_PositionSet : 1;
-        /// If the acceleration fields (m_AccX, m_AccY, m_AccZ) are set and valid to read
-        uint16_t m_AccelerationSet : 1;
+        uint8_t  m_Repeated : 1;
+        /// If the position fields (m_X, m_Y, m_DX, m_DY) were set and valid to read
+        uint8_t  m_PositionSet : 1;
+        /// If the accelerometer fields (m_AccX, m_AccY, m_AccZ) were set and valid to read
+        uint8_t  m_AccelerationSet : 1;
+        /// If the input action was consumed in an event dispatch
+        uint8_t  m_Consumed : 1;
     };
 
     struct RenderEntry {
@@ -912,7 +910,7 @@ namespace dmGui
     void SetNodeAlpha(HScene scene, HNode node, float alpha);
 
     Result PlayNodeParticlefx(HScene scene, HNode node, dmParticle::EmitterStateChangedData* data);
-    Result StopNodeParticlefx(HScene scene, HNode node);
+    Result StopNodeParticlefx(HScene scene, HNode node, bool clear_particles);
     Result SetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id, dmVMath::Vector4& value);
     Result ResetNodeParticlefxConstant(HScene scene, HNode node, dmhash_t emitter_id, dmhash_t constant_id);
 
@@ -1050,6 +1048,7 @@ namespace dmGui
      * @return whether the node is enabled or not
      */
     bool IsNodeEnabled(HScene scene, HNode node, bool recursive);
+
     /** enables/disables a node
      * Set if a node should be enabled or not. Only enabled nodes are animated and rendered.
      *
@@ -1059,6 +1058,24 @@ namespace dmGui
      * @param enabled whether the node should be enabled
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
+
+    /** retrieves if a node is visible or not
+     * Only visible nodes are rendered.
+     *
+     * @param scene the scene the node exists in
+     * @param node the node to be visible or not
+     * @return whether the node is visible or not
+     */
+    bool GetNodeVisible(HScene scene, HNode node);
+
+    /** turn-on/turn-off rendering for a node
+     * Set if a node should be visible or not. Only visible nodes are rendered.
+     *
+     * @param scene the scene the node exists in
+     * @param node the node to be visible/hidden
+     * @param visible whether the node should be rendered
+     */
+    void SetNodeVisible(HScene scene, HNode node, bool visible);
     
     void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
 
@@ -1076,6 +1093,7 @@ namespace dmGui
      * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
      */
     void MoveNodeAbove(HScene scene, HNode node, HNode reference);
+
     /** reorders the given node relative the reference
      * Move the given node to be positioned below the reference node.
      * If the reference node is INVALID_HANDLE, the node is moved to the bottom.

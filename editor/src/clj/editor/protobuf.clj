@@ -31,15 +31,15 @@ Macros currently mean no foreseeable performance gain however."
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
            [java.lang.reflect Method]
-           [java.io Reader ByteArrayOutputStream]
+           [java.io ByteArrayOutputStream StringReader]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
 (defprotocol GenericDescriptor
   (proto ^Message [this])
-  (desc-name ^java.lang.String [this])
-  (full-name ^java.lang.String [this])
+  (desc-name ^String [this])
+  (full-name ^String [this])
   (file ^Descriptors$FileDescriptor [this])
   (containing-type ^Descriptors$Descriptor [this]))
 
@@ -100,10 +100,10 @@ Macros currently mean no foreseeable performance gain however."
 
 ;; In order to get same behaviour as protobuf compiler, translated from:
 ;; https://github.com/google/protobuf/blob/2f4489a3e504e0a4aaffee69b551c6acc9e08374/src/google/protobuf/compiler/java/java_helpers.cc#L119
-(defn underscores-to-camel-case
+(defn underscores-to-camel-case-raw
   [^String s]
   (loop [i 0
-         sb (StringBuilder.)
+         sb (StringBuilder. (.length s))
          cap-next? true]
     (if (< i (.length s))
       (let [c (.codePointAt s i)]
@@ -121,12 +121,14 @@ Macros currently mean no foreseeable performance gain however."
 
           :else
           (recur (inc i) sb true)))
-      (cond-> sb
-        (and (pos? (.length s)) (= (int \#) (.codePointAt s (dec (.length s)))))
-        (.appendCodePoint (int \_))
+      (-> (if (and (pos? (.length s))
+                   (= (int \#) (.codePointAt s (dec (.length s)))))
+            (.appendCodePoint sb (int \_))
+            sb)
+          (.toString)
+          (.intern)))))
 
-        true
-        (.toString)))))
+(def underscores-to-camel-case (memoize underscores-to-camel-case-raw))
 
 (defn- options [^DescriptorProtos$FieldOptions field-options]
   (let [resource-desc (.getDescriptor DdfExtensions/resource)]
@@ -253,7 +255,7 @@ Macros currently mean no foreseeable performance gain however."
   (resource-field-paths-raw SimpleRepeatedlyNested) -> [ [[:simples] :image] ]
   (resource-field-paths-raw RepeatedRepeatedlyNested) -> [ [[:repeateds] [:images]] ]"
   [^Class class]
-  (let [resource-field? (fn [field] (and (= (:type field) java.lang.String) (:resource (:options field))))
+  (let [resource-field? (fn [field] (and (= (:type field) String) (:resource (:options field))))
         message? (fn [field] (= (:field-type-key field) :message))]
     (into []
           (comp
@@ -306,7 +308,7 @@ Macros currently mean no foreseeable performance gain however."
 (def get-fields-fn (memoize get-fields-fn-raw))
 
 (defn- pb-accessor-raw [^Class class]
-  (let [fields (mapv (fn [[key {:keys [java-name repeated? type] :as field-info}]]
+  (let [fields (mapv (fn [[key {:keys [repeated?] :as field-info}]]
                        (let [get-method (field-get-method field-info class)
                              field-accessor (field-accessor-fn field-info)
                              field-accessor (if repeated? (partial mapv field-accessor) field-accessor)]
@@ -367,7 +369,7 @@ Macros currently mean no foreseeable performance gain however."
   (let [type (.getJavaType desc)]
     (cond
       (= type (Descriptors$FieldDescriptor$JavaType/INT)) (fn [v]
-                                                            (int (if (instance? java.lang.Boolean v)
+                                                            (int (if (instance? Boolean v)
                                                                    (if v 1 0)
                                                                    v)))
       (= type (Descriptors$FieldDescriptor$JavaType/LONG)) long
@@ -375,10 +377,10 @@ Macros currently mean no foreseeable performance gain however."
       (= type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) double
       (= type (Descriptors$FieldDescriptor$JavaType/STRING)) str
       ;; The reason we convert to Boolean object is for symmetry - the protobuf system do this when loading from protobuf files
-      (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (fn [v] (java.lang.Boolean. (boolean v)))
+      (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (fn [v] (Boolean/valueOf (boolean v)))
       (= type (Descriptors$FieldDescriptor$JavaType/BYTE_STRING)) identity
       (= type (Descriptors$FieldDescriptor$JavaType/ENUM)) (let [enum-cls (desc->proto-cls (.getEnumType desc))]
-                                                             (fn [v] (java.lang.Enum/valueOf enum-cls (s/replace (util/upper-case* (name v)) "-" "_"))))
+                                                             (fn [v] (Enum/valueOf enum-cls (s/replace (util/upper-case* (name v)) "-" "_"))))
       :else nil)))
 
 (def ^:private pb-builder)
@@ -432,12 +434,16 @@ Macros currently mean no foreseeable performance gain however."
   (when-let [builder (pb-builder cls)]
     (builder m)))
 
+(defmacro str->pb [^Class cls str]
+  (with-meta `(TextFormat/parse ~str ~cls)
+             {:tag cls}))
+
 (defn- break-embedded-newlines
   [^String pb-str]
   (.replace pb-str "\\n" "\\n\"\n  \""))
 
-(defn- pb->str [^Message pb format-newlines?]
-  (cond-> (TextFormat/printToString pb)
+(defn pb->str [^Message pb format-newlines?]
+  (cond-> (.printToString (TextFormat/printer) pb)
     format-newlines?
     (break-embedded-newlines)))
 
@@ -452,36 +458,36 @@ Macros currently mean no foreseeable performance gain however."
 
 (extend-protocol PbConverter
   DdfMath$Point3
-  (msg->vecmath [pb v] (Point3d. (:x v) (:y v) (:z v)))
-  (msg->clj [pb v] [(:x v) (:y v) (:z v)])
+  (msg->vecmath [_pb v] (Point3d. (:x v) (:y v) (:z v)))
+  (msg->clj [_pb v] [(:x v) (:y v) (:z v)])
 
   DdfMath$Vector3
-  (msg->vecmath [pb v] (Vector3d. (:x v) (:y v) (:z v)))
-  (msg->clj [pb v] [(:x v) (:y v) (:z v)])
+  (msg->vecmath [_pb v] (Vector3d. (:x v) (:y v) (:z v)))
+  (msg->clj [_pb v] [(:x v) (:y v) (:z v)])
 
   DdfMath$Vector4
-  (msg->vecmath [pb v] (Vector4d. (:x v) (:y v) (:z v) (:w v)))
-  (msg->clj [pb v] [(:x v) (:y v) (:z v) (:w v)])
+  (msg->vecmath [_pb v] (Vector4d. (:x v) (:y v) (:z v) (:w v)))
+  (msg->clj [_pb v] [(:x v) (:y v) (:z v) (:w v)])
 
   DdfMath$Quat
-  (msg->vecmath [pb v] (Quat4d. (:x v) (:y v) (:z v) (:w v)))
-  (msg->clj [pb v] [(:x v) (:y v) (:z v) (:w v)])
+  (msg->vecmath [_pb v] (Quat4d. (:x v) (:y v) (:z v) (:w v)))
+  (msg->clj [_pb v] [(:x v) (:y v) (:z v) (:w v)])
 
   DdfMath$Matrix4
-  (msg->vecmath [pb v]
+  (msg->vecmath [_pb v]
     (Matrix4d. (:m00 v) (:m01 v) (:m02 v) (:m03 v)
                (:m10 v) (:m11 v) (:m12 v) (:m13 v)
                (:m20 v) (:m21 v) (:m22 v) (:m23 v)
                (:m30 v) (:m31 v) (:m32 v) (:m33 v)))
-  (msg->clj [pb v]
+  (msg->clj [_pb v]
     [(:m00 v) (:m01 v) (:m02 v) (:m03 v)
      (:m10 v) (:m11 v) (:m12 v) (:m13 v)
      (:m20 v) (:m21 v) (:m22 v) (:m23 v)
      (:m30 v) (:m31 v) (:m32 v) (:m33 v)])
 
   Message
-  (msg->vecmath [pb v] v)
-  (msg->clj [pb v] v))
+  (msg->vecmath [_pb v] v)
+  (msg->clj [_pb v] v))
 
 (defprotocol VecmathConverter
   (vecmath->pb [v] "Return the Protocol Buffer equivalent for the given javax.vecmath value"))
@@ -542,16 +548,13 @@ Macros currently mean no foreseeable performance gain however."
   (full-name [this] (.getFullName this))
   (file [this] (.getFile this))
   (containing-type [this] (.getContainingType this))
+
   Descriptors$EnumDescriptor
   (proto [this] (.toProto this))
   (desc-name [this] (.getName this))
   (full-name [this] (.getFullName this))
   (file [this] (.getFile this))
   (containing-type [this] (.getContainingType this)))
-
-(defn- desc->builder ^GeneratedMessage$Builder [^Descriptors$Descriptor desc]
-  (let [cls (desc->proto-cls desc)]
-    (new-builder cls)))
 
 (defn map->str
   ([^Class cls m] (map->str cls m true))
@@ -565,18 +568,29 @@ Macros currently mean no foreseeable performance gain however."
     (map->pb cls m)
     (pb->bytes)))
 
-(defn read-text [^Class cls input]
+(defn read-text-into!
+  ^GeneratedMessage$Builder [^GeneratedMessage$Builder builder input]
   (with-open [reader (io/reader input)]
-    (let [builder (new-builder cls)]
-      (TextFormat/merge ^Reader reader builder)
-      (pb->map (.build builder)))))
+    (TextFormat/merge reader builder)
+    builder))
+
+(defn read-text [^Class cls input]
+  (pb->map (.build (read-text-into! (new-builder cls) input))))
+
+(defn str->map [^Class cls ^String str]
+  (with-open [reader (StringReader. str)]
+    (read-text cls reader)))
 
 (defn- parser-fn-raw [^Class cls]
   (let [parse-method (.getMethod cls "parseFrom" (into-array Class [(.getClass (byte-array 0))]))]
     (fn [^bytes bytes]
       (.invoke parse-method nil (into-array Object [bytes])))))
 
-(def ^:private parser-fn (memoize parser-fn-raw))
+(def parser-fn (memoize parser-fn-raw))
+
+(defmacro bytes->pb [^Class cls bytes]
+  (with-meta `((parser-fn ~cls) ~bytes)
+             {:tag cls}))
 
 (defn bytes->map [^Class cls bytes]
   (let [parser (parser-fn cls)]
@@ -609,3 +623,15 @@ Macros currently mean no foreseeable performance gain however."
 (defn map->sha1-hex
   ^String [^Class cls m]
   (digest/bytes->hex (pb->hash "SHA-1" (map->pb cls m))))
+
+(defn default-read-scale-value? [value]
+  ;; The default value of the Vector3 type is zero, and protobuf does not
+  ;; support custom default values for message-type fields. That means
+  ;; everything read from protobuf will be scaled down to zero. However, we
+  ;; might change the behavior of the protobuf reader in the future to have it
+  ;; return [1.0 1.0 1.0] or even nil for default scale fields. In some way, nil
+  ;; would make sense as a default for message-type fields as that is what
+  ;; protobuf does without our wrapper. We could then decide on sensible default
+  ;; values on a case-by-case basis. Related to all this, there has been some
+  ;; discussion around perhaps omitting default values from the project data.
+  (= [0.0 0.0 0.0] value))

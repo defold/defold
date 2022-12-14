@@ -23,6 +23,7 @@
   (:import [com.dynamo.bob CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult]
            [com.dynamo.bob.bundle BundleHelper$ResourceInfo]
            [com.dynamo.bob.fs IResource]
+           [java.net UnknownHostException]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -510,31 +511,37 @@
       :message (.getMessage exception)
       :severity :fatal})])
 
+(defn- invalid-build-server-url-causes [ex]
+  [(g/map->error {:message (str "Invalid build server URL: " (ex-message ex))
+                  :severity :fatal})])
+
+(defn- generic-error-causes [ex]
+  [(g/map->error {:message (str "Failed: " (ex-message ex))
+                  :severity :fatal})])
+
 (defn handle-build-error! [render-error! project evaluation-context exception]
-  (cond
-    (unsupported-platform-error? exception)
-    (do (render-error! {:causes (unsupported-platform-error-causes project evaluation-context)})
-        true)
+  (render-error!
+    {:causes (cond
+               (unsupported-platform-error? exception)
+               (unsupported-platform-error-causes project evaluation-context)
 
-    (missing-resource-error? exception)
-    (do (render-error! {:causes (missing-resource-error-causes exception)})
-        true)
+               (missing-resource-error? exception)
+               (missing-resource-error-causes exception)
 
-    (build-error? exception)
-    (do (render-error! {:causes (build-error-causes project evaluation-context exception)})
-        true)
+               (build-error? exception)
+               (build-error-causes project evaluation-context exception)
 
-    (instance? CompileExceptionError exception)
-    (do (render-error! {:causes (compile-exception-error-causes project evaluation-context exception)})
-        true)
+               (instance? CompileExceptionError exception)
+               (compile-exception-error-causes project evaluation-context exception)
 
-    (instance? MultipleCompileException exception)
-    (do (render-error! {:causes (multiple-compile-exception-error-causes project evaluation-context exception)})
-        true)
+               (instance? MultipleCompileException exception)
+               (multiple-compile-exception-error-causes project evaluation-context exception)
 
-    (instance? LibraryException exception)
-    (do (render-error! {:causes (library-exception-error-causes project evaluation-context exception)})
-        true)
+               (instance? LibraryException exception)
+               (library-exception-error-causes project evaluation-context exception)
 
-    :else
-    false))
+               (instance? UnknownHostException exception)
+               (invalid-build-server-url-causes exception)
+
+               :else
+               (generic-error-causes exception))}))

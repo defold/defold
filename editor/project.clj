@@ -33,7 +33,7 @@
                       :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
                      [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
-                     [com.google.protobuf/protobuf-java           "2.3.0"]
+                     [com.google.protobuf/protobuf-java           "3.20.1"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
                      [org.slf4j/jul-to-slf4j                      "1.7.22"]
                      [joda-time/joda-time                         "2.9.2"]
@@ -78,7 +78,7 @@
 
                      [org.luaj/luaj-jse "3.0.1"]
 
-                     [cljfx "1.7.20"]
+                     [cljfx "1.7.21"]
 
                      [org.openjfx/javafx-base "18"]
                      [org.openjfx/javafx-base "18" :classifier "linux"]
@@ -188,7 +188,8 @@
                                                  (javafx.application.Platform/startup
                                                    (fn []
                                                      (com.jogamp.opengl.GLProfile/initSingleton)))))]
-                                :resource-paths ["test/resources"]}
+                                :resource-paths ["test/resources"]
+                                :jvm-opts ["-Ddefold.tests=true"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
                                                  [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
                       :uberjar {:prep-tasks  ^:replace ["clean" "protobuf" ["sass" "once"] "javac" ["run" "-m" "aot"]]
@@ -201,7 +202,7 @@
                       :cider {:plugins [[cider/cider-nrepl "0.24.0"]
                                         ;;[refactor-nrepl "2.4.0"] ;; -- this does not seem to work well together with cider-nrepl 0.24.0 so it might be better to just skip.
                                         [com.billpiel/sayid "0.0.18"]]}
-                      :release {:jvm-opts          ["-Ddefold.build=release"]}
+                      :release {:jvm-opts ["-Ddefold.build=release"]}
                       :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
                                  :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
@@ -209,6 +210,7 @@
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.273"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
+                      :no-asserts {:global-vars {*assert* false}}
                       :dev     {:dependencies      [[com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]

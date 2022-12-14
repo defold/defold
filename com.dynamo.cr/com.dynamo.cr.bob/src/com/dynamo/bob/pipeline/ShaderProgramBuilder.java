@@ -494,7 +494,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         Platform platformKey = Platform.get(platform);
         if(platformKey != null) {
             switch(platformKey) {
-                case X86_64Darwin:
+                case X86_64MacOS:
                 {
                     shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));
                     is.reset();
@@ -543,7 +543,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 }
                 break;
 
-                case Arm64Darwin:
+                case Arm64Ios:
                 case X86_64Ios:
                 {
                     shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300, resource, resourceOutput, isDebug));

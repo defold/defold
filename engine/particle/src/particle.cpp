@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -445,7 +445,7 @@ namespace dmParticle
         }
     }
 
-    void StopInstance(HParticleContext context, HInstance instance)
+    void StopInstance(HParticleContext context, HInstance instance, bool clear_particles)
     {
         if (instance == INVALID_INSTANCE) return;
         Instance* i = GetInstance(context, instance);
@@ -456,7 +456,14 @@ namespace dmParticle
         {
             Emitter* emitter = &emitters[emitter_i];
             StopEmitter(i, emitter);
+
+            if (clear_particles)
+            {
+                emitter->m_Particles.SetSize(0);
+            }
         }
+
+
     }
 
     void RetireInstance(HParticleContext context, HInstance instance)
@@ -1031,6 +1038,8 @@ namespace dmParticle
         emitter->m_VertexIndex = vertex_index;
         emitter->m_VertexCount = 0;
 
+        Vector3 pivot_vector(ddf->m_Pivot);
+
         const AnimationData& anim_data = emitter->m_AnimationData;
         // texture animation
         uint32_t start_tile = anim_data.m_StartTile;
@@ -1047,6 +1056,7 @@ namespace dmParticle
         bool anim_once = playback == ANIM_PLAYBACK_ONCE_FORWARD || playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_ONCE_PINGPONG;
         bool anim_bwd = playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_LOOP_BACKWARD;
         bool anim_ping_pong = playback == ANIM_PLAYBACK_ONCE_PINGPONG || playback == ANIM_PLAYBACK_LOOP_PINGPONG;
+        bool use_pivot = length(pivot_vector) > 0.0f;
         if (anim_ping_pong) {
             tile_count = dmMath::Max(1u, tile_count * 2 - 2);
         }
@@ -1077,19 +1087,43 @@ namespace dmParticle
 
         float width_factor = 1.0f;
         float height_factor = 1.0f;
+
+        float tile_width_factor = width_factor;
+        float tile_height_factor = height_factor;
+
+        if (anim_data.m_TileWidth > anim_data.m_TileHeight)
+        {
+            tile_height_factor = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
+        }
+        else if (anim_data.m_TileHeight > 0)
+        {
+            tile_width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
+        }
+
         if(!anim_auto_size)
         {
             if (anim_data.m_TileWidth > anim_data.m_TileHeight)
             {
-                height_factor = anim_data.m_TileHeight / (float)anim_data.m_TileWidth;
+                height_factor = tile_height_factor;
             }
             else if (anim_data.m_TileHeight > 0)
             {
-                width_factor = anim_data.m_TileWidth / (float)anim_data.m_TileHeight;
+                width_factor = tile_width_factor;
             }
             // Extent for each vertex, scale by half
             width_factor *= 0.5f;
             height_factor *= 0.5f;
+        }
+
+        // Create a pivot transform
+        dmTransform::Transform pivot_transform;
+        pivot_transform.SetIdentity();
+        if (use_pivot)
+        {
+            pivot_transform.SetTranslation(Vector3(
+                ddf->m_Pivot.getX() * tile_width_factor,
+                ddf->m_Pivot.getY() * tile_height_factor,
+                ddf->m_Pivot.getZ()));
         }
 
         for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
@@ -1143,6 +1177,11 @@ namespace dmParticle
             particle_transform.SetRotation(emission_transform.GetRotation() * particle_transform.GetRotation());
             particle_transform.SetTranslation(Vector3(Apply(emission_transform, Point3(particle_transform.GetTranslation()))));
             particle_transform.SetScale(emission_transform.GetScale() * particle_transform.GetScale());
+
+            if (use_pivot)
+            {
+                particle_transform = dmTransform::Mul(particle_transform, pivot_transform);
+            }
 
             Vector3 x = dmTransform::Apply(particle_transform, Vector3(width_factor, 0.0f, 0.0f));
             Vector3 y = dmTransform::Apply(particle_transform, Vector3(0.0f, height_factor, 0.0f));
@@ -1940,7 +1979,7 @@ namespace dmParticle
         prototype->m_Emitters[emitter_index].m_TileSource = tile_source;
     }
 
-    void SetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value)
+    static void SetRenderConstantInternal(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Matrix4 value, bool is_matrix4)
     {
         Instance* inst = GetInstance(context, instance);
         uint32_t count = inst->m_Emitters.Size();
@@ -1971,10 +2010,23 @@ namespace dmParticle
                     c = &constants[constant_count];
                     c->m_NameHash = name_hash;
                 }
-                c->m_Value = value;
-                e->m_ReHash = 1;
+                c->m_Value     = value;
+                c->m_IsMatrix4 = is_matrix4;
+                e->m_ReHash    = 1;
             }
         }
+    }
+
+    void SetRenderConstantM4(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Matrix4 value)
+    {
+        SetRenderConstantInternal(context, instance, emitter_id, name_hash, value, true);
+    }
+
+    void SetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash, Vector4 value)
+    {
+        Matrix4 m;
+        m.setCol0(value);
+        SetRenderConstantInternal(context, instance, emitter_id, name_hash, m, false);
     }
 
     void ResetRenderConstant(HParticleContext context, HInstance instance, dmhash_t emitter_id, dmhash_t name_hash)
@@ -2146,7 +2198,7 @@ namespace dmParticle
     DM_PARTICLE_TRAMPOLINE3(void, ReloadInstance, HParticleContext, HInstance, bool);
 
     DM_PARTICLE_TRAMPOLINE2(void, StartInstance, HParticleContext, HInstance);
-    DM_PARTICLE_TRAMPOLINE2(void, StopInstance, HParticleContext, HInstance);
+    DM_PARTICLE_TRAMPOLINE3(void, StopInstance, HParticleContext, HInstance, bool);
     DM_PARTICLE_TRAMPOLINE2(void, ResetInstance, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, SetPosition, HParticleContext, HInstance, const Point3&);
     DM_PARTICLE_TRAMPOLINE3(void, SetRotation, HParticleContext, HInstance, const Quat&);

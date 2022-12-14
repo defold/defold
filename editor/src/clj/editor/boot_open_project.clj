@@ -28,7 +28,6 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
-            [editor.disk-availability :as disk-availability]
             [editor.editor-extensions :as extensions]
             [editor.fxui :as fxui]
             [editor.git :as git]
@@ -44,6 +43,7 @@
             [editor.scene :as scene]
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
+            [editor.shared-editor-settings :as shared-editor-settings]
             [editor.sync :as sync]
             [editor.system :as system]
             [editor.targets :as targets]
@@ -76,15 +76,18 @@
 (defn load-namespaces []
   (println "loaded namespaces"))
 
-(defn initialize-project []
+(defn initialize-systems! [prefs]
+  (code-view/initialize! prefs))
+
+(defn initialize-project! [system-config]
   (when (nil? @the-root)
-    (g/initialize! {})
+    (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))
     (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
     (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
     (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
 
-(defn setup-workspace [project-path build-settings]
-  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings)]
+(defn- setup-workspace! [project-path build-settings workspace-config]
+  (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config)]
     (g/transact
       (concat
         (text/register-view-types workspace)
@@ -98,20 +101,6 @@
     (workspace/resource-sync! workspace)
     (workspace/load-build-cache! workspace)
     workspace))
-
-(defn- async-reload!
-  ([workspace changes-view]
-   (async-reload! workspace changes-view []))
-  ([workspace changes-view moved-files]
-   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)]
-     (disk/async-reload! render-reload-progress! workspace moved-files changes-view))))
-
-(defn- handle-application-focused! [workspace changes-view]
-  (app-view/clear-build-launch-progress!)
-  (when (and (not (app-view/build-in-progress?))
-             (not (sync/sync-dialog-open?))
-             (disk-availability/available?))
-    (async-reload! workspace changes-view)))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
@@ -159,7 +148,7 @@
     MouseEvent/MOUSE_PRESSED
     MouseEvent/MOUSE_RELEASED})
 
-(defn- load-stage [workspace project prefs updater newly-created?]
+(defn- load-stage! [workspace project prefs updater newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
@@ -184,7 +173,7 @@
           workbench            (.lookup root "#workbench")
           scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs prefs)
-          outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
+          outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           web-server           (-> (http-server/->server 0 {engine-profiler/url-prefix engine-profiler/handler
@@ -202,8 +191,9 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs async-reload!
-                                                               (.lookup root "#changes-container"))
+          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs (.lookup root "#changes-container")
+                                                               (fn [changes-view moved-files]
+                                                                 (app-view/async-reload! app-view changes-view workspace moved-files)))
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
@@ -214,7 +204,7 @@
                                                       root
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs))]
-      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
+      (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (extensions/reload! project :all (app-view/make-extensions-ui workspace changes-view prefs))
 
       (when updater
@@ -348,12 +338,12 @@
 
               ;; User chose to cancel sync.
               (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                  (async-reload! workspace changes-view))
+                  (app-view/async-reload! app-view changes-view workspace []))
 
               ;; User chose to resume sync.
               (let [flow (sync/resume-flow git)]
                 (sync/open-sync-dialog flow prefs)
-                (async-reload! workspace changes-view))))
+                (app-view/async-reload! app-view changes-view workspace []))))
 
           ;; A sync was not in progress.
           (do
@@ -400,17 +390,18 @@
                                          "The project might not work without them. "
                                          "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
 
-(defn open-project
+(defn open-project!
   [^File game-project-file prefs render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
         build-settings (workspace/make-build-settings prefs)
-        workspace (setup-workspace project-path build-settings)
+        workspace-config (shared-editor-settings/load-project-workspace-config project-path)
+        workspace (setup-workspace! project-path build-settings workspace-config)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         extensions (extensions/make *project-graph*)
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (icons/initialize! workspace)
-      (load-stage workspace project prefs updater newly-created?)
+      (load-stage! workspace project prefs updater newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (g/reset-undo! *project-graph*)

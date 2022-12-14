@@ -250,41 +250,46 @@
      (ui/add-style! "toggles")
      (ui/children! [(doto (CheckBox. "Generate debug symbols") (.setId "generate-debug-symbols-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
                     (doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
-                    (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))]))])
+                    (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
+                    (doto (CheckBox. "Contentless bundle") (.setId "bundle-contentless-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))]))])
 
 (defn- load-generic-prefs! [prefs view]
-  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box bundle-contentless-check-box]
     (ui/value! variant-choice-box (prefs/get-prefs prefs "bundle-variant" "debug"))
     (ui/value! compression-choice-box (prefs/get-prefs prefs "bundle-texture-compression" "enabled"))
     (ui/value! generate-debug-symbols-check-box (prefs/get-prefs prefs "bundle-generate-debug-symbols?" true))
     (ui/value! generate-build-report-check-box (prefs/get-prefs prefs "bundle-generate-build-report?" false))
-    (ui/value! publish-live-update-content-check-box (prefs/get-prefs prefs "bundle-publish-live-update-content?" false))))
+    (ui/value! publish-live-update-content-check-box (prefs/get-prefs prefs "bundle-publish-live-update-content?" false))
+    (ui/value! bundle-contentless-check-box (prefs/get-prefs prefs "bundle-contentless?" false))))
 
 (defn- save-generic-prefs! [prefs view]
-  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box bundle-contentless-check-box]
     (prefs/set-prefs prefs "bundle-variant" (ui/value variant-choice-box))
     (prefs/set-prefs prefs "bundle-texture-compression" (ui/value compression-choice-box))
     (prefs/set-prefs prefs "bundle-generate-debug-symbols?" (ui/value generate-debug-symbols-check-box))
     (prefs/set-prefs prefs "bundle-generate-build-report?" (ui/value generate-build-report-check-box))
-    (prefs/set-prefs prefs "bundle-publish-live-update-content?" (ui/value publish-live-update-content-check-box))))
+    (prefs/set-prefs prefs "bundle-publish-live-update-content?" (ui/value publish-live-update-content-check-box))
+    (prefs/set-prefs prefs "bundle-contentless?" (ui/value bundle-contentless-check-box))))
 
 (defn- get-generic-options [view]
-  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box bundle-contentless-check-box]
     {:variant (ui/value variant-choice-box)
      :texture-compression (ui/value compression-choice-box)
      :generate-debug-symbols? (ui/value generate-debug-symbols-check-box)
      :generate-build-report? (ui/value generate-build-report-check-box)
      :publish-live-update-content? (and (ui/value publish-live-update-content-check-box)
-                                        (ui/editable publish-live-update-content-check-box))}))
+                                        (ui/editable publish-live-update-content-check-box))
+     :bundle-contentless? (ui/value bundle-contentless-check-box)}))
 
 (defn- set-generic-options! [view options workspace]
-  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box]
+  (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box bundle-contentless-check-box]
     (ui/value! variant-choice-box (:variant options))
     (ui/value! compression-choice-box (:texture-compression options))
     (ui/value! generate-debug-symbols-check-box (:generate-debug-symbols? options))
     (ui/value! generate-build-report-check-box (:generate-build-report? options))
     (doto publish-live-update-content-check-box
-      (ui/value! (:publish-live-update-content? options)))))
+      (ui/value! (:publish-live-update-content? options)))
+    (ui/value! bundle-contentless-check-box (:bundle-contentless? options))))
 
 (deftype GenericBundleOptionsPresenter [workspace view title platform variant-choices compression-choices]
   BundleOptionsPresenter
@@ -627,7 +632,7 @@
     (save-generic-prefs! prefs view)
     (save-ios-prefs! prefs view))
   (get-options [_this]
-    (merge {:platform "arm64-darwin"}
+    (merge {:platform "arm64-ios"}
            (get-generic-options view)
            (get-ios-options view)))
   (set-options! [_this options]
@@ -654,7 +659,7 @@
 (defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web" common-variants common-compressions))
 (defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view common-variants common-compressions))
 (defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux" desktop-variants common-compressions))
-(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86_64-darwin" desktop-variants common-compressions))
+(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86_64-macos" desktop-variants common-compressions))
 (defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32") desktop-variants common-compressions))
 
 (handler/defhandler ::close :bundle-dialog

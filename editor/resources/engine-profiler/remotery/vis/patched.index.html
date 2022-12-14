@@ -9,6 +9,10 @@
 		<link rel="stylesheet" type="text/css" href="engine-profiler/remotery/vis/extern/BrowserLib/WindowManager/Styles/WindowManager.css" />
 		<link rel="stylesheet" type="text/css" href="engine-profiler/remotery/vis/Styles/Remotery.css" />
 
+	</head>
+
+	<body>
+
 		<!-- Utilities -->
 		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/Core.js"></script>
 		<script type="text/javascript" src="engine-profiler/remotery/vis/extern/BrowserLib/Core/Code/DOM.js"></script>
@@ -31,12 +35,14 @@
 		<!-- Main Application -->
         <script type="text/javascript" src="engine-profiler/remotery/vis/Code/WebGL.js"></script>
         <script type="text/javascript" src="engine-profiler/remotery/vis/Code/WebGLFont.js"></script>
-        <script type="text/javascript" src="engine-profiler/remotery/vis/Code/Shaders.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/NameMap.js"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/vis/Code/GLCanvas.js"></script>
         <script type="text/javascript" src="engine-profiler/remotery/vis/Code/DataViewReader.js"></script>
 		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/Console.js"></script>
-		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/NameMap.js"></script>
 		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/WebSocketConnection.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/MouseInteraction.js"></script>
 		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/TitleWindow.js"></script>
+		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/SampleGlobals.js"></script>
 		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/GridWindow.js"></script>
 		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/PixelTimeRange.js"></script>
 		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/TimelineRow.js"></script>
@@ -46,13 +52,15 @@
 		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/TraceDrop.js"></script>
 		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/Remotery.js"></script>
 
-	</head>
-
-	<body>
+        <!-- Shaders -->
+		<script type="text/javascript" src="engine-profiler/remotery/vis/Code/Shaders/Shared.glsl"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/vis/Code/Shaders/Grid.glsl"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/vis/Code/Shaders/Timeline.glsl"></script>
+        <script type="text/javascript" src="engine-profiler/remotery/vis/Code/Shaders/Window.glsl"></script>
 
 		<script type="text/javascript">
 
-			var remotery = new Remotery();
+			const remotery = new Remotery();
 
 		</script>
 

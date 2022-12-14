@@ -18,6 +18,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dlib/dstrings.h>
+#include <dlib/align.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <dlib/message.h>
@@ -2127,7 +2128,7 @@ TEST_F(dmGuiTest, PostMessageToGuiLuaTable)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(16) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2397,7 +2398,7 @@ TEST_F(dmGuiTest, Bug352)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr((const char*)BUG352_LUA, BUG352_LUA_SIZE));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char buffer[256 + sizeof(dmMessage::Message)];
+    char DM_ALIGNED(16) buffer[256 + sizeof(dmMessage::Message)];
     dmMessage::Message* message = (dmMessage::Message*)buffer;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -4301,6 +4302,31 @@ TEST_F(dmGuiTest, NoRenderOfDisabledTree)
     ASSERT_EQ(1u, count);
 }
 
+TEST_F(dmGuiTest, TurnOffNodeVisibility)
+{
+    // Setup
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+
+    dmGui::RenderSceneParams render_params;
+    render_params.m_RenderNodes = RenderNodesCount;
+
+    uint32_t count;
+
+    // Edge case: single node
+    dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeParent(m_Scene, child, parent, false);
+    dmGui::RenderScene(m_Scene, render_params, &count);
+    ASSERT_EQ(3u, count);
+
+    dmGui::SetNodeVisible(m_Scene, parent, false);
+    dmGui::RenderScene(m_Scene, render_params, &count);
+
+    ASSERT_EQ(2u, count);
+}
+
 TEST_F(dmGuiTest, DeleteTree)
 {
     // Setup
@@ -4801,7 +4827,7 @@ TEST_F(dmGuiTest, AdjustReferenceScaled)
 bool LoadParticlefxPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
     char path[64];
-    dmSnPrintf(path, 64, MOUNTFS "build/default/src/test/%s", filename);
+    dmSnPrintf(path, 64, MOUNTFS "build/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
@@ -5136,10 +5162,10 @@ TEST_F(dmGuiTest, StopNodeParticlefx)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx));
-    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_box));
-    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_pie));
-    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_text));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx, false));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_box, false));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_pie, false));
+    ASSERT_EQ(dmGui::RESULT_WRONG_TYPE, dmGui::StopNodeParticlefx(m_Scene, node_text, false));
 
     dmGui::FinalScene(m_Scene);
     UnloadParticlefxPrototype(prototype);
@@ -5171,7 +5197,7 @@ TEST_F(dmGuiTest, StopNodeParticlefxMultiplePlaying)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx_1, 0));
     ASSERT_EQ(3U, dmGui::GetParticlefxCount(m_Scene));
 
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_1));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_1, false));
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     dmGui::UpdateScene(m_Scene, dt); // Prunes sleeping particlefx
@@ -5187,13 +5213,13 @@ TEST_F(dmGuiTest, StopNodeParticlefxMultiplePlaying)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx_2, 0));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx_2, 0));
     ASSERT_EQ(4U, dmGui::GetParticlefxCount(m_Scene));
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_1));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_1, false));
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0);
     dmGui::UpdateScene(m_Scene, dt);
 
     ASSERT_EQ(dmGui::GetParticlefxCount(m_Scene), 2);
-    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_2));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::StopNodeParticlefx(m_Scene, node_pfx_2, false));
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0);
     dmGui::UpdateScene(m_Scene, dt);

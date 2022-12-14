@@ -21,6 +21,9 @@
 (defn file-not-found-error [node-id label severity resource]
   (g/->error node-id label severity nil (format "The file '%s' could not be found." (resource/proj-path resource)) {:type :file-not-found :resource resource}))
 
+(defn file-not-found-error? [error]
+  (= :file-not-found (-> error :user-data :type)))
+
 (defn invalid-content-error [node-id label severity resource]
   (g/->error node-id label severity nil (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content :resource resource}))
 

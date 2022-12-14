@@ -48,11 +48,32 @@ public class PluginScanner {
 	 */
 	public static <T> T getOrCreatePlugin(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
 
-		IClassScanner scanner = Project.getClassLoaderScanner();
-		if (scanner == null) {
-			Bob.verbose("PluginScanner has no class loader scanner");
-			return null;
+		List<T> plugins = getOrCreatePlugins(packageName, pluginBaseClass);
+		T plugin = null;
+		if (plugins != null) {
+			if (plugins.size() > 1) {
+				throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass + " in package " + packageName);
+			}
+			// get the plugin (or null if none was found) and cache it
+			plugin = (T)plugins.get(0);
 		}
+		return plugin;
+	}
+	
+	/**
+	 * Get a previously cached instances or find and create instances of classes
+	 * extending a specific base class and located within a specific package. The
+	 * class must:
+	 * 
+	 * - Not be private
+	 * - Not be abstract
+	 * - Extend the base class
+	 * 
+	 * @param packageName 
+	 * @param pluginBaseClass
+	 * @return List with class instances or null if no class was found
+	 */
+	public static <T> List<T> getOrCreatePlugins(String packageName, Class<T> pluginBaseClass) throws CompileExceptionError {
 
 		// check if we've already searched for and cached a plugin for this package path and base class
 		// and if that is the case return the cached instance
@@ -60,8 +81,18 @@ public class PluginScanner {
 		// return null if we have searched for and not found a plugin
 		String pluginKey = packageName + pluginBaseClass;
 		if (pluginsCache.containsKey(pluginKey)) {
-			Bob.verbose("PluginScanner has cached plugin for key %s: %s", pluginKey, pluginsCache.get(pluginKey));
-			return (T)pluginsCache.get(pluginKey);
+			List<T> plugins = (List<T>)pluginsCache.get(pluginKey);
+			if (plugins != null)
+			{
+				Bob.verbose("PluginScanner has %d cached plugins for key %s", plugins.size(), pluginKey);
+			}
+			return plugins;
+		}
+
+		IClassScanner scanner = Project.getClassLoaderScanner();
+		if (scanner == null) {
+			Bob.verbose("PluginScanner has no class loader scanner");
+			return null;
 		}
 
 		Bob.verbose("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
@@ -76,9 +107,6 @@ public class PluginScanner {
 				boolean isPrivate = Modifier.isPrivate(klass.getModifiers());
 				if (pluginBaseClass.isAssignableFrom(klass) && !isAbstract && !isPrivate) {
 					Bob.verbose("Found plugin " + className);
-					if (plugins.size() == 1) {
-						throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass + " in package " + packageName);
-					}
 					plugins.add((T)klass.newInstance());
 				}
 			}
@@ -91,8 +119,8 @@ public class PluginScanner {
 		}
 
 		// get the plugin (or null if none was found) and cache it
-		T plugin = plugins.isEmpty() ? null : (T)plugins.get(0);
-		pluginsCache.put(pluginKey, plugin);
-		return plugin;
+		plugins = plugins.isEmpty() ? null : plugins;
+		pluginsCache.put(pluginKey, plugins);
+		return plugins;
 	}
 }

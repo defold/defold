@@ -57,6 +57,7 @@ protected:
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
+        world_params.m_MaxCollisionObjectsCount = 1024;
         m_World = (*m_Test.m_NewWorldFunc)(m_Context, world_params);
         m_CollisionCount = 0;
         m_ContactPointCount = 0;

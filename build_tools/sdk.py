@@ -36,10 +36,12 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 ## **********************************************************************************************
 # Darwin
 
-VERSION_XCODE="13.2.1"
+VERSION_XCODE="13.2.1" # we also use this to match version on Github Actions
 VERSION_MACOSX="12.1"
 VERSION_IPHONEOS="15.2"
+VERSION_XCODE_CLANG="13.0.0"
 VERSION_IPHONESIMULATOR="15.2"
+MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
@@ -83,12 +85,14 @@ defold_info = defaultdict(defaultdict)
 defold_info['xcode']['version'] = VERSION_XCODE
 defold_info['xcode']['pattern'] = PACKAGES_XCODE_TOOLCHAIN
 defold_info['xcode-clang']['version'] = VERSION_XCODE_CLANG
-defold_info['arm64-darwin']['version'] = VERSION_IPHONEOS
-defold_info['arm64-darwin']['pattern'] = PACKAGES_IOS_SDK
+defold_info['arm64-ios']['version'] = VERSION_IPHONEOS
+defold_info['arm64-ios']['pattern'] = PACKAGES_IOS_SDK
 defold_info['x86_64-ios']['version'] = VERSION_IPHONESIMULATOR
 defold_info['x86_64-ios']['pattern'] = PACKAGES_IOS_SIMULATOR_SDK
-defold_info['x86_64-darwin']['version'] = VERSION_MACOSX
-defold_info['x86_64-darwin']['pattern'] = PACKAGES_MACOS_SDK
+defold_info['x86_64-macos']['version'] = VERSION_MACOSX
+defold_info['x86_64-macos']['pattern'] = PACKAGES_MACOS_SDK
+defold_info['arm64-macos']['version'] = VERSION_MACOSX
+defold_info['arm64-macos']['pattern'] = PACKAGES_MACOS_SDK
 
 defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK_10
 defold_info['x86_64-win32']['pattern'] = "Win32/%s" % PACKAGES_WIN32_TOOLCHAIN
@@ -106,37 +110,40 @@ defold_info['x86_64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
 
 
 def _convert_darwin_platform(platform):
-    if platform in ('x86_64-darwin',):
+    if platform in ('x86_64-macos','arm64-macos'):
         return 'macosx'
-    if platform in ('arm64-darwin',):
+    if platform in ('arm64-ios',):
         return 'iphoneos'
     if platform in ('x86_64-ios',):
         return 'iphonesimulator'
     return 'unknown'
 
+def _get_xcode_local_path():
+    return run.shell_command('xcode-select -print-path')
+
+# "xcode-select -print-path" will give you "/Applications/Xcode.app/Contents/Developer"
 def get_local_darwin_toolchain_path():
-    default_path = '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
+    default_path = '%s/Toolchains/XcodeDefault.xctoolchain' % _get_xcode_local_path()
     if os.path.exists(default_path):
         return default_path
-
-    path = run.shell_command('xcrun -f --show-sdk-path') # /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
-    substr = 'Contents/Developer'
-    if substr in path:
-        i = path.find(substr)
-        path = path[:i + len(substr)] + 'XcodeDefault.xctoolchain'
-        return path
-
-    return None
+    return '/Library/Developer/CommandLineTools'
 
 def get_local_darwin_toolchain_version():
     if not os.path.exists('/usr/bin/xcodebuild'):
-        return None
+        return VERSION_XCODE
     # Xcode 12.5.1
     # Build version 12E507
     xcode_version_full = run.shell_command('/usr/bin/xcodebuild -version')
     xcode_version_lines = xcode_version_full.split("\n")
     xcode_version = xcode_version_lines[0].split()[1].strip()
     return xcode_version
+
+def get_local_darwin_clang_version():
+    # Apple clang version 13.1.6 (clang-1316.0.21.2.5)
+    version_full = run.shell_command('clang --version')
+    version_lines = version_full.split("\n")
+    version = version_lines[0].split()[3].strip()
+    return version
 
 def get_local_darwin_sdk_path(platform):
     return run.shell_command('xcrun -f --sdk %s --show-sdk-path' % _convert_darwin_platform(platform)).strip()
@@ -215,7 +222,7 @@ def get_windows_local_sdk_info(platform):
         vswhere_path = './scripts/windows/vswhere2/vswhere2.exe'
         vswhere_path = path.normpath(vswhere_path)
         if not os.path.exists(vswhere_path):
-            print "Couldn't find executable '%s'" % vswhere_path
+            print ("Couldn't find executable '%s'" % vswhere_path)
             return None
 
     sdk_root = run.shell_command('%s --sdk_root' % vswhere_path).strip()
@@ -330,9 +337,9 @@ def _get_defold_path(sdkfolder, platform):
 
 def check_defold_sdk(sdkfolder, platform):
     folders = []
-    print "check_defold_sdk", sdkfolder, platform
+    print ("check_defold_sdk", sdkfolder, platform)
 
-    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
@@ -360,7 +367,7 @@ def check_defold_sdk(sdkfolder, platform):
     return count == len(folders)
 
 def check_local_sdk(platform):
-    if platform in ('x86_64-darwin', 'arm64-darwin', 'x86_64-ios'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         xcode_version = get_local_darwin_toolchain_version()
         if not xcode_version:
             return False
@@ -373,21 +380,21 @@ def check_local_sdk(platform):
 
 def _get_defold_sdk_info(sdkfolder, platform):
     info = {}
-    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
+    if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
         info['xcode-clang'] = defold_info['xcode-clang']
+        info['asan'] = {}
+        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
-        info[platform]['path'] = _get_defold_path(sdkfolder, 'xcode')
+        info[platform]['path'] = _get_defold_path(sdkfolder, platform) # what we use for sysroot
     
     elif platform in ('x86_64-linux',):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, platform)
-
-        print "MAWE", info
 
     if platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
@@ -397,14 +404,20 @@ def _get_defold_sdk_info(sdkfolder, platform):
 
 def _get_local_sdk_info(platform):
     info = {}
-    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
+    if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
+        info['xcode-clang'] = get_local_darwin_clang_version()
+        info['asan'] = {}
+        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
         info[platform]['version'] = get_local_darwin_sdk_version(platform)
-        info[platform]['path'] = get_local_darwin_sdk_path(platform)
-    
+        info[platform]['path'] = get_local_darwin_sdk_path(platform) # what we use for sysroot
+
+        if not os.path.exists(info['asan']['path']):
+            print("sdk.py: Couldn't find '%s'" % info['asan']['path'], file=sys.stderr)
+
     elif platform in ('x86_64-linux',):
         info[platform] = {}
         info[platform]['version'] = get_local_compiler_version()
@@ -436,23 +449,26 @@ def get_sdk_info(sdkfolder, platform):
     return None
 
 def get_toolchain_root(sdkinfo, platform):
-    if platform in ('x86_64-darwin','x86_64-ios','arm64-darwin'):
+    if platform in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
         return sdkinfo['xcode']['path']
     if platform in ('x86_64-linux',):
         return sdkinfo['x86_64-linux']['path']
     return None
 
-
-def _is_64bit_machine():
-    return platform.machine().endswith('64')
-
 def get_host_platform():
-    if _is_64bit_machine():
-        if sys.platform == 'linux2':
-            return 'x86_64-linux'
-        elif sys.platform == 'win32':
-            return 'x86_64-win32'
-        elif sys.platform == 'darwin':
-            return 'x86_64-darwin'
-    raise Exception("Unsupported host platform: %s %s" % (sys.platform,  platform.machine()))
+    machine = platform.machine().lower()
+    if machine == 'amd64':
+        machine = 'x86_64'
+    is64bit = machine.endswith('64')
 
+    if sys.platform == 'linux':
+        return '%s-linux' % machine
+    elif sys.platform == 'win32':
+        return '%s-win32' % machine
+    elif sys.platform == 'darwin':
+        # Force x86_64 on M1 Macs for now.
+        if machine == 'arm64':
+            machine = 'x86_64'
+        return '%s-macos' % machine
+
+    raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))

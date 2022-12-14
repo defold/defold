@@ -36,6 +36,16 @@
 
 using namespace dmVMath;
 
+#if !defined(__SCE__)
+    bool GameSystemTest_PlatformInit()
+    {
+        return true;
+    }
+    void GameSystemTest_PlatformExit()
+    {
+    }
+#endif
+
 namespace dmGameSystem
 {
     void DumpResourceRefs(dmGameObject::HCollection collection);
@@ -44,13 +54,29 @@ namespace dmGameSystem
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS ""
-#endif
+const char* ROOT = DM_HOSTFS "build/src/gamesys/test";
 
-const char* ROOT = MOUNTFS "build/default/src/gamesys/test";
+static bool RunString(lua_State* L, const char* script)
+{
+    if (luaL_dostring(L, script) != 0)
+    {
+        dmLogError("%s", lua_tolstring(L, -1, 0));
+        return false;
+    }
+    return true;
+}
+
+static void WrapIoFunctions(lua_State* L)
+{
+    RunString(L,
+        "local function new_open(path, attrs)\n" \
+        "    return io._old_open('" DM_HOSTFS "' .. path, attrs)\n" \
+        "end\n" \
+        "if io._old_open == nil then\n" \
+        "    io._old_open = io.open;\n" \
+        "    io.open = new_open;\n" \
+        "end\n");
+}
 
 bool CopyResource(const char* src, const char* dst)
 {
@@ -102,6 +128,13 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
 static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
 {
     return Spawn(factory, collection, prototype_name, id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+}
+
+static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
+    dmGameObject::UpdateContext ctx;
+    dmGameObject::Update(collection, &ctx);
+    dmGameObject::Delete(collection, instance, false);
+    dmGameObject::PostUpdate(collection);
 }
 
 TEST_P(ResourceTest, Test)
@@ -165,6 +198,131 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(resource->m_Texture));
 
     dmResource::Release(m_Factory, (void**) resource);
+}
+
+TEST_F(ResourceTest, TestCreateTextureFromScript)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 1: create a 128x128 empty texture at "/test.texturec"
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    void* resource = 0x0;
+    dmhash_t res_hash = dmHashString64("/test_simple.texturec");
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(m_Factory, res_hash);
+    ASSERT_EQ(2, rd->m_ReferenceCount);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_simple.texturec", &resource));
+    ASSERT_TRUE(resource != 0x0);
+
+    // 1 for create 1 for get
+    ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, res_hash));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 2: remove resource twice (#model has 1 ref still)
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, res_hash));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 3: fail by using use wrong extension
+    //         note that we use a pcall with an inverse assert in create_texture.script
+    //         so that we don't need to care about recovering after this point.
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 4: fail by trying to create a resource that already exists
+    //         (same as (3) - hence the assert_true)
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 5: fail by trying to release a resource that doesn't exist
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // cleanup
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    DeleteInstance(m_Collection, go);
+
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ResourceTest, TestSetTextureFromScript)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/set_texture.goc", dmHashString64("/set_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    dmGameSystem::TextureSetResource* texture_set_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &texture_set_res));
+
+    dmGraphics::HTexture backing_texture = texture_set_res->m_Texture;
+    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 64);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 64);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 1: Update a sub-region of the texture
+    //      -> set_texture.script::test_success_simple
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 2: Update the entire texture, should be 256x256 after the call
+    //      -> set_texture.script::test_success_resize
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 256);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 256);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 3: Try doing a region update, but outside the texture boundaries, which should fail 
+    //      -> set_texture.script::test_fail_out_of_bounds
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 4: Try updating the texture with a mipmap that's outside of the allowed range
+    //      -> set_texture.script::test_fail_wrong_mipmap
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // cleanup
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_P(ResourceFailTest, Test)
@@ -310,9 +468,6 @@ TEST_P(InvalidVertexSpaceTest, InvalidVertexSpace)
     ASSERT_NE(dmResource::RESULT_OK, dmResource::Get(m_Factory, resource_name, &resource));
 }
 
-
-
-
 // Test for input consuming in collection proxy
 TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
 {
@@ -417,13 +572,6 @@ TEST_P(ComponentFailTest, Test)
     ASSERT_EQ((void*)0, go);
 }
 
-static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
-    dmGameObject::UpdateContext ctx;
-    dmGameObject::Update(collection, &ctx);
-    dmGameObject::Delete(collection, instance, false);
-    dmGameObject::PostUpdate(collection);
-}
-
 static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t* out_val) {
     dmGameObject::PropertyDesc desc;
     dmGameObject::PropertyOptions opt;
@@ -449,6 +597,9 @@ TEST_F(SoundTest, UpdateSoundResource)
     scriptlibcontext.m_Register = m_Register;
     scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    // Since the script uses "io.open()" we want to override the path
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
 
     const char* go_path = "/sound/updated_sound.goc";
     dmhash_t comp_name = dmHashString64("dynamic-sound"); // id of soundc component
@@ -867,7 +1018,41 @@ TEST_P(CursorTest, Cursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(WindowEventTest, Test)
+TEST_F(WindowTest, MouseLock)
+{
+    dmHID::NewContextParams hid_params = {};
+    dmHID::HContext hid_context = dmHID::NewContext(hid_params);
+    dmHID::Init(hid_context);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_HidContext = hid_context;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/mouse_lock.goc", dmHashString64("/mouse_lock"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // cleanup
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+
+    dmHID::DeleteContext(hid_context);
+}
+
+TEST_F(WindowTest, Events)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory = m_Factory;
@@ -1538,7 +1723,7 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
 TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
 {
     const GroupAndMaskParams& params = GetParam();
-    
+
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -1549,8 +1734,8 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
-    An example actions set: 
-    
+    An example actions set:
+
     "group body1-go#co user\n"
     "addmask body1-go#co enemy\n"
     "removemask body1-go#co default\n"
@@ -1558,7 +1743,7 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     "addmask body2-go#co user\n"
     "removemask body2-go#co default"
     ;
-*/    
+*/
 
     lua_pushstring(L, params.m_Actions); //actions);
     lua_setglobal(L, "actions");
@@ -1571,14 +1756,14 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     // place this body standing on the base with its center at (20,5)
     dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body2_go);
-    
+
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body1_go = "/collision_object/groupmask_body1.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body1_go);
-  
+
     // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
     while (!tests_done)
@@ -1597,7 +1782,7 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
 TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
 {
     const GroupAndMaskParams& params = GetParam();
-    
+
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
@@ -1608,8 +1793,8 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
-    An example actions set: 
-    
+    An example actions set:
+
     "group body1-go#co user\n"
     "addmask body1-go#co enemy\n"
     "removemask body1-go#co default\n"
@@ -1617,7 +1802,7 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     "addmask body2-go#co user\n"
     "removemask body2-go#co default"
     ;
-*/    
+*/
 
     lua_pushstring(L, params.m_Actions); //actions);
     lua_setglobal(L, "actions");
@@ -1630,14 +1815,14 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     // place this body standing on the base with its center at (20,5)
     dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body2_go);
-    
+
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body1_go = "/collision_object/groupmask_body1.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body1_go);
-  
+
     // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
     while (!tests_done)
@@ -1709,7 +1894,6 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
-
 
 /* Physics joints */
 TEST_F(ComponentTest, JointTest)
@@ -1828,14 +2012,6 @@ ResourceFailParams invalid_cs_resources[] =
     {"/convex_shape/sphere.convexshapec", "/convex_shape/invalid_sphere.convexshapec"},
 };
 INSTANTIATE_TEST_CASE_P(ConvexShape, ResourceFailTest, jc_test_values_in(invalid_cs_resources));
-
-/* Emitter */
-
-const char* valid_emitter_resources[] = {"/emitter/valid.emitterc"};
-INSTANTIATE_TEST_CASE_P(Emitter, ResourceTest, jc_test_values_in(valid_emitter_resources));
-
-const char* valid_emitter_gos[] = {"/emitter/valid_emitter.goc"};
-INSTANTIATE_TEST_CASE_P(Emitter, ComponentTest, jc_test_values_in(valid_emitter_gos));
 
 /* Font map */
 
@@ -2514,17 +2690,6 @@ INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, jc_test_values_in(cursor_properties)
 #undef F1T3
 #undef F2T3
 
-
-static bool RunString(lua_State* L, const char* script)
-{
-    if (luaL_dostring(L, script) != 0)
-    {
-        dmLogError("%s", lua_tolstring(L, -1, 0));
-        return false;
-    }
-    return true;
-}
-
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
     int top = lua_gettop(L);
@@ -3095,7 +3260,7 @@ TEST_F(ScriptBufferTest, RefCount)
     // is just when Buffer_tostring issues a lua_error that we end up with a ASAN error
     // in ScriptBufferCopyTest.CopyBuffer
     // Disabling this test to make the dev nightly builds pass.
-#if !defined(__SANITIZE_ADDRESS__)
+#if defined(GITHUB_CI) && !defined(DM_SANITIZE_ADDRESS)
     dmLogWarning("Expected error outputs ->");
 
     ASSERT_FALSE(RunString(L, "print(test_buffer)"));

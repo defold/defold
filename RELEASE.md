@@ -77,9 +77,9 @@ and add the "BETA" tag to the headline
 
  1. Fetch editor via:
 
-    http://d.defold.com/archive/editor-alpha/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-darwin.dmg
+    http://d.defold.com/archive/editor-alpha/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-macos.dmg
 
-    http://d.defold.com/editor-alpha/editor2/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-win32.zip
+    http://d.defold.com/archive/editor-alpha/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-win32.zip
 
     http://d.defold.com/archive/editor-alpha/`STABLE-SHA1`/editor-alpha/editor2/Defold-x86_64-linux.zip
 
@@ -159,4 +159,4 @@ This will trigger a build of the engines and editors for editor-alpha.
 
         $ cd defold
         $ git checkout master
-        $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github
+        $ ./scripts/build.py --github-token=YOUR_GITHUB_TOKEN release_to_github --channel=stable

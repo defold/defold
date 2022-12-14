@@ -16,7 +16,6 @@
 #include <graphics/glfw/glfw_native.h>
 
 #include <dlib/log.h>
-#include "../graphics.h"
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
 
@@ -302,6 +301,11 @@ namespace dmGraphics
     uint32_t VulkanGetWindowHeight(HContext context)
     {
         return context->m_WindowHeight;
+    }
+
+    float VulkanGetDisplayScaleFactor(HContext context)
+    {
+        return glfwGetDisplayScaleFactor();
     }
 
     void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height)

@@ -34,6 +34,7 @@ namespace dmProfile
     struct Options
     {
         uint32_t m_Port;
+        uint32_t m_SleepBetweenServerUpdates;
     };
 
     /**

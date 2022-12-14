@@ -3,50 +3,51 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gui
-  (:require [schema.core :as s]
+  (:require [clojure.set :as set]
             [clojure.string :as str]
-            [clojure.set :as set]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
-            [editor.graph-util :as gu]
+            [editor.colors :as colors]
             [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.font :as font]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.gl.vertex2 :as vtx2]
-            [editor.gl.texture :as texture]
+            [editor.graph-util :as gu]
             [editor.gui-clipping :as clipping]
-            [editor.defold-project :as project]
+            [editor.handler :as handler]
+            [editor.material :as material]
+            [editor.math :as math]
+            [editor.outline :as outline]
+            [editor.particlefx :as particlefx]
+            [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
+            [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
-            [editor.workspace :as workspace]
-            [editor.math :as math]
-            [editor.colors :as colors]
-            [editor.gl.pass :as pass]
+            [editor.slice9 :as slice9]
             [editor.types :as types]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.properties :as properties]
-            [editor.handler :as handler]
-            [editor.font :as font]
-            [editor.dialogs :as dialogs]
-            [editor.outline :as outline]
-            [editor.material :as material]
-            [editor.particlefx :as particlefx]
             [editor.validation :as validation]
+            [editor.workspace :as workspace]
+            [schema.core :as s]
             [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
@@ -601,6 +602,7 @@
                                               :max 1.0
                                               :precision 0.01})))
   (property inherit-alpha g/Bool (default true))
+  (property enabled g/Bool (default true))
 
   (property layer g/Str
             (default "")
@@ -753,6 +755,8 @@
 (g/defnode VisualNode
   (inherits GuiNode)
 
+  (property visible g/Bool (default true))
+
   (property blend-mode g/Keyword (default :blend-mode-alpha)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
   (property adjust-mode g/Keyword (default :adjust-mode-fit)
@@ -780,7 +784,7 @@
 
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data]
+          (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data visible enabled]
                  (let [clipping-state (:clipping-state scene-renderable-user-data)
                        gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
                        material-shader (get scene-renderable-user-data :override-material-shader material-shader)]
@@ -800,10 +804,12 @@
                     :child-index child-index
                     :layer-index layer-index
                     :topmost? true
+                    :visible-self? (and visible enabled)
+                    :visible-children? enabled
                     :pass-overrides {pass/outline {:batch-key ::outline}}})))
 
   (output scene-outline-renderable g/Any :cached
-          (g/fnk [_node-id child-index layer-index scene-renderable-user-data]
+          (g/fnk [_node-id child-index layer-index scene-renderable-user-data visible enabled]
                  {:render-fn render-lines
                   :tags (set/union #{:gui :outline} (:renderable-tags scene-renderable-user-data))
                   :passes [pass/outline]
@@ -812,7 +818,9 @@
                   :select-batch-key _node-id
                   :child-index child-index
                   :layer-index layer-index
-                  :topmost? true}))
+                  :topmost? true
+                  :visible-self? (and visible enabled)
+                  :visible-children? enabled}))
 
   (output build-errors-visual-node g/Any (gu/passthrough build-errors-gui-node))
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
@@ -871,214 +879,33 @@
 
 ;; Box nodes
 
-(def ^:private box-triangles-vertex-order [0 1 3 3 1 2])
-
-(defn box->triangle-vertices [box]
-  ;; box vertices are in order BL TL TR BR
-  ;;
-  ;; turns:
-  ;; 1---2
-  ;; |   |
-  ;; 0---3
-  ;;
-  ;; into:
-  ;; 1     1-2
-  ;; |\  +  \|
-  ;; 0-3     3
-  ;;
-  ;; normal uv box vertices are in order BL TL TR BR
-  ;;
-  ;; turns:
-  ;; 1---2
-  ;; |   |
-  ;; 0---3
-  ;;
-  ;; into:
-  ;; 1     1-2
-  ;; |\  +  \|
-  ;; 0-3     3
-  ;;
-  ;; _rotated_ uv box vertices are in order TL TR BR BL
-  ;;
-  ;; turns:
-  ;;
-  ;; 0---1
-  ;; |   |
-  ;; 3---2
-  ;;
-  ;; into:
-  ;; 0-1     1
-  ;; |/  +  /|
-  ;; 3     3-2
-  (map box box-triangles-vertex-order))
-
-(defn- box-corner-coords->vertices2 [[x0 y0 x1 y1]]
-  [[x0 y0] [x0 y1] [x1 y1] [x1 y0]])
-
-(defn- rotated-box-corner-coords->vertices2 [[x0 y0 x1 y1]]
-  [[x0 y0] [x1 y0] [x1 y1] [x0 y1]])
-
-(defn- box-corner-coords->vertices3 [[x0 y0 x1 y1]]
-  [[x0 y0 0.0] [x0 y1 0.0] [x1 y1 0.0] [x1 y0 0.0]])
-
-(defn- ranges->box-corner-coords [x-ranges y-ranges]
-  (for [[x0 x1] x-ranges
-        [y0 y1] y-ranges]
-    [x0 y0 x1 y1]))
-
-(defn- ranges->rotated-box-corner-coords [x-ranges y-ranges]
-  (for [[y0 y1] y-ranges
-        [x0 x1] x-ranges]
-    [x0 y0 x1 y1]))
-
 (defn- steps->ranges [v]
   (partition 2 1 v))
 
 (g/defnode BoxNode
   (inherits ShapeNode)
 
-  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
+  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
+            (dynamic read-only? (g/fnk [size-mode] (not= :size-mode-manual size-mode)))
+            (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
   (display-order (into base-display-order
-                       [:size-mode :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:size-mode :enabled :visible :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [id pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
-            (let [texture-width (:width anim-data 1)
-                  texture-height (:height anim-data 1)
-                  ;; Sample tex-coords if anim from tile source:
-                  ;;
-                  ;;  no flip:  [[0.0 0.140625] [0.0 1.0] [0.5566406 1.0] [0.5566406 0.140625]]   TL BL BR TR     T-B-B-T L-L-R-R
-                  ;;   flip-h:  [[0.5566406 0.140625] [0.5566406 1.0] [0.0 1.0] [0.0 0.140625]]   "TR BR BL TL"   T-B-B-T R-R-L-L
-                  ;;   flip-v:  [[0.0 1.0] [0.0 0.140625] [0.5566406 0.140625] [0.5566406 1.0]]   "BL TL TR BR"   B-T-T-B L-L-R-R
-                  ;; flip-h+v:  [[0.5566406 1.0] [0.5566406 0.140625] [0.0 0.140625] [0.0 1.0]]   "BR TR TL BL"   B-T-T-B R-R-L-L
-                  ;;
-                  ;; Sample tex-coords from rotated (90 CW) image in atlas:
-                  ;;           [[0.0 1.0] [0.8691406 1.0] [0.8691406 0.375] [0.0 0.375]]          TL TR BR BL
-                  ;;
-                  ;; See texture_set_ddf.proto for further info on tex-coords format. Looks like minV/maxV have been swapped?
-                  tex-coords (get-in anim-data [:frames 0 :tex-coords])
-                  ;; In comp_gui.cpp RenderBoxNodes we determine whether the texture is rotated like this:
-                  uv-rotated? (and tex-coords
-                                   (not= (get-in tex-coords [0 0])
-                                         (get-in tex-coords [1 0]))
-                                   (not= (get-in tex-coords [1 1])
-                                         (get-in tex-coords [2 1])))
-                  [u0 v0] (get tex-coords 0 [0.0 0.0])
-                  [u1 v1] (get tex-coords 2 [1.0 1.0])
-                  u-delta (- u1 u0)
-                  v-delta (- v1 v0)
-                  uv-boxes (if-not uv-rotated?
-                             ;;    ^
-                             ;;    |
-                             ;;
-                             ;;   v1   ___________
-                             ;;       |           |
-                             ;;       |           |
-                             ;;   v1- |   -   X   |
-                             ;;       |           |
-                             ;;       | *       * |
-                             ;;       |  *     *  |
-                             ;;   v0+ |    ***    |
-                             ;;       |           |
-                             ;;   v0   -----------
-                             ;;       u0 u0+ u1- u1 -->
-                             ;;
-                             ;; uv-box vertex order is:
-                             ;;
-                             ;; 1---2
-                             ;; |   |
-                             ;; |   |
-                             ;; 0---3
-                             ;;
-                             ;; Slice 9 uv-box order:
-                             ;;
-                             ;;  ___________
-                             ;; |   |   |   |
-                             ;; | 3 | 6 | 9 |
-                             ;; |---|---|---|
-                             ;; | 2 | 5 | 8 |
-                             ;; |---|---|---|
-                             ;; | 1 | 4 | 7 |
-                             ;; |   |   |   |
-                             ;;  -----------
-                             (let [u-steps [u0
-                                            (+ u0 (* u-delta (/ (get slice9 0) texture-width)))
-                                            (- u1 (* u-delta (/ (get slice9 2) texture-width)))
-                                            u1]
-                                   v-steps [v0
-                                            (+ v0 (* v-delta (/ (get slice9 3) texture-height)))
-                                            (- v1 (* v-delta (/ (get slice9 1) texture-height)))
-                                            v1]
-                                   uv-box-coords (ranges->box-corner-coords (steps->ranges u-steps) (steps->ranges v-steps))]
-                               (map box-corner-coords->vertices2 uv-box-coords))
-                             ;;   ^
-                             ;;   |
-                             ;;
-                             ;;  v0   __________________
-                             ;;      |                  |
-                             ;;  v0+ |     *            |
-                             ;;      |    *       -     |
-                             ;;      |   *              |
-                             ;;      |    *       X     |
-                             ;;  v1- |     *            |
-                             ;;      |                  |
-                             ;;  v1   ------------------
-                             ;;      u0  u0+      u1-  u1 -->
-                             ;;
-                             ;;  uv-box vertex order (handled by rotated-box-corner-coords->vertices2) is:
-                             ;;
-                             ;;  0---1
-                             ;;  |   |
-                             ;;  |   |
-                             ;;  3---2
-                             ;;
-                             ;; Slice 9 uv-box order (ranges->rotated-box-corner-coords):
-                             ;;
-                             ;;  ___________
-                             ;; |   |   |   |
-                             ;; | 1 | 2 | 3 |
-                             ;; |---|---|---|
-                             ;; | 4 | 5 | 6 |
-                             ;; |---|---|---|
-                             ;; | 7 | 8 | 9 |
-                             ;; |   |   |   |
-                             ;;  -----------
-                             (let [u-steps [u0
-                                            (+ u0 (* u-delta (/ (get slice9 3) texture-height)))
-                                            (- u1 (* u-delta (/ (get slice9 1) texture-height)))
-                                            u1]
-                                   v-steps [v0
-                                            (+ v0 (* v-delta (/ (get slice9 0) texture-width)))
-                                            (- v1 (* v-delta (/ (get slice9 2) texture-width)))
-                                            v1]
-                                   uv-box-coords (ranges->rotated-box-corner-coords (steps->ranges u-steps) (steps->ranges v-steps))]
-                               (map rotated-box-corner-coords->vertices2 uv-box-coords)))
-                  [box-width box-height _] size
-                  x-steps [0.0 (get slice9 0) (- box-width (get slice9 2)) box-width]
-                  y-steps [0.0 (get slice9 3) (- box-height (get slice9 1)) box-height]
-                  xy-box-coords (ranges->box-corner-coords (steps->ranges x-steps) (steps->ranges y-steps))
-                  non-empty-xy-box-coords+uv-boxes (into []
-                                                         (filter (fn [[[x0 y0 x1 y1] uv-box]]
-                                                                   (and (not= x0 x1) (not= y0 y1))))
-                                                         (map vector xy-box-coords uv-boxes))
-                  non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset pivot size))
-                                                 box-corner-coords->vertices3
-                                                 first)
-                                           non-empty-xy-box-coords+uv-boxes)
-                  user-data {:geom-data (into [] (mapcat box->triangle-vertices) non-empty-xy-boxes)
-                             :line-data (into [] (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices))))) non-empty-xy-boxes)
-                             :uv-data (into [] (comp
-                                                 (map second)
-                                                 (mapcat box->triangle-vertices))
-                                            non-empty-xy-box-coords+uv-boxes)
+          (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
+            (let [frame (get-in anim-data [:frames 0])
+                  slice9-data (slice9/vertex-data frame size slice9 pivot)
+                  user-data {:geom-data (:position-data slice9-data)
+                             :line-data (:line-data slice9-data)
+                             :uv-data (:uv-data slice9-data)
                              :color color+alpha
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
-                (not= :clipping-mode-none clipping-mode)
-                (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
+                      (not= :clipping-mode-none clipping-mode)
+                      (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
 
 ;; Pie nodes
 
@@ -1100,7 +927,7 @@
   (property pie-fill-angle g/Num (default 360.0))
 
   (display-order (into base-display-order
-                       [:size-mode :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
+                       [:size-mode :enabled :visible :texture :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
@@ -1201,7 +1028,7 @@
                                       :max 1.0
                                       :precision 0.01})))
 
-  (display-order (into base-display-order [:text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:enabled :visible :text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [font-datas font]
                                     (or (font-datas font)
@@ -1293,6 +1120,9 @@
                      #(contains? % :renderable)
                      #(update-in % [:renderable :tags] (fn [tags] (set (map (fn [tag] (get replacements tag tag)) tags))))))
 
+(defn- andf [a b]
+  (and a b))
+
 (g/defnode TemplateNode
   (inherits GuiNode)
 
@@ -1331,12 +1161,12 @@
                                                                       (fn [basis ^Arc arc]
                                                                         (let [source-node-id (.source-id arc)]
                                                                           (and (not= source-node-id current-scene)
-                                                                               (g/node-instance-of-any? basis source-node-id
-                                                                                                        [GuiNode
-                                                                                                         NodeTree
-                                                                                                         GuiSceneNode
-                                                                                                         LayoutsNode
-                                                                                                         LayoutNode])))))
+                                                                               (g/node-instance-match basis source-node-id
+                                                                                                      [GuiNode
+                                                                                                       NodeTree
+                                                                                                       GuiSceneNode
+                                                                                                       LayoutsNode
+                                                                                                       LayoutNode])))))
                                                        :properties-by-node-id properties-by-node-id}
                                            (fn [evaluation-context id-mapping]
                                              (let [or-scene (get id-mapping scene-node)]
@@ -1371,7 +1201,7 @@
                                                    (g/connect self from or-scene to)))))))))
                          []))))))
 
-  (display-order (into base-display-order [:template]))
+  (display-order (into base-display-order [:enabled :template]))
 
   (input scene-pb-msg g/Any :substitute (fn [_] {:nodes []}))
   (input scene-rt-pb-msg g/Any)
@@ -1402,6 +1232,7 @@
                                                                                (assoc :inherit-alpha (:inherit-alpha node-msg)))
                                                           (empty? (:parent %)) (->
                                                                                  (assoc :parent (:parent node-msg))
+                                                                                 (update :enabled andf (:enabled node-msg))
                                                                                  ;; In fact incorrect, but only possibility to retain rotation/scale separation
                                                                                  (update :scale (partial mapv * (:scale node-msg)))
                                                                                  (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
@@ -1414,14 +1245,18 @@
                        (if (some? template-scene)
                          (:aabb template-scene)
                          geom/empty-bounding-box)))
-  (output scene-children g/Any (g/fnk [_node-id id template-scene]
-                                 (if-let [child-scenes (:children (add-renderable-tags template-scene #{:gui}))]
-                                   (mapv (partial scene/claim-child-scene (:node-id template-scene) _node-id id) child-scenes)
-                                   [])))
-  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha]
+  (output scene-children g/Any :cached (g/fnk [_node-id id template-scene]
+                                         (when (seq (:children template-scene))
+                                           (-> template-scene
+                                               (scene/claim-scene _node-id id)
+                                               (add-renderable-tags #{:gui})
+                                               :children))))
+  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha enabled]
                                                 {:passes [pass/selection]
                                                  :child-index child-index
                                                  :layer-index layer-index
+                                                 :visible-self? enabled
+                                                 :visible-children? enabled
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-gui-node template-resource]
                                    (g/package-errors _node-id
@@ -1458,12 +1293,13 @@
     (dynamic visible (g/constantly false)))
 
   (display-order (into base-display-order
-                       [:particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:enabled :visible :particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (output source-scene g/Any :cached (g/fnk [particlefx-infos particlefx child-index layer-index material-shader color+alpha]
+  (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index material-shader color+alpha]
                                             (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
                                               (-> source-scene
+                                                  (scene/claim-scene _node-id id)
                                                   (move-topmost)
                                                   (add-renderable-tags #{:gui})
                                                   (replace-renderable-tags {:particlefx :gui-particlefx})
@@ -1479,24 +1315,25 @@
                                                                 (cond->
                                                                     layer-index (assoc :layer-index layer-index)))))))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output aabb g/Any :cached (g/fnk [source-scene]
-                               (if (some? source-scene)
-                                 (:aabb source-scene)
-                                 geom/empty-bounding-box)))
-  (output scene g/Any :cached (g/fnk [_node-id id aabb transform source-scene scene-children color+alpha inherit-alpha]
-                                     (let [scene (if source-scene
-                                                   (let [updatable (assoc (:updatable source-scene) :node-id _node-id)]
-                                                     (cond-> (scene/claim-scene source-scene _node-id id)
-                                                       updatable
-                                                       ((partial scene/map-scene #(assoc % :updatable updatable)))))
-                                                   {:renderable {:passes [pass/selection]
-                                                                 :user-data {:color color+alpha :inherit-alpha inherit-alpha}}})]
-                                       (-> scene
-                                           (assoc
-                                             :node-id _node-id
-                                             :aabb aabb
-                                             :transform transform)
-                                           (update :children (fnil into []) scene-children)))))
+  (output aabb g/Any (g/fnk [source-scene]
+                       (if (some? source-scene)
+                         (:aabb source-scene)
+                         geom/empty-bounding-box)))
+  (output scene g/Any :cached (g/fnk [_node-id aabb transform source-scene scene-children color+alpha inherit-alpha visible enabled]
+                                (let [scene (if source-scene
+                                              (if-some [updatable (some-> source-scene :updatable (assoc :node-id _node-id))]
+                                                (scene/map-scene #(assoc % :updatable updatable) source-scene)
+                                                source-scene)
+                                              {:renderable {:passes [pass/selection]
+                                                            :user-data {:color color+alpha :inherit-alpha inherit-alpha}}})]
+                                  (-> scene
+                                      (assoc
+                                        :node-id _node-id
+                                        :aabb aabb
+                                        :transform transform
+                                        :visible-self? (and visible enabled)
+                                        :visible-children? enabled)
+                                      (update :children (fnil into []) scene-children)))))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-visual-node particlefx particlefx-resource-names]
                                    (g/package-errors _node-id
                                                      build-errors-visual-node
@@ -1776,10 +1613,10 @@
 (def ^:private layout-node-traverse-fn
   (g/make-override-traverse-fn
     (fn layout-node-traverse-fn [basis ^Arc arc]
-      (g/node-instance-of-any? basis (.source-id arc)
-                               [GuiNode
-                                NodeTree
-                                GuiSceneNode]))))
+      (g/node-instance-match basis (.source-id arc)
+                             [GuiNode
+                              NodeTree
+                              GuiSceneNode]))))
 
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
@@ -1926,7 +1763,7 @@
 
 
 (defn- browse [title project exts]
-  (seq (dialogs/make-resource-dialog (project/workspace project) project {:ext exts :title title :selection :multiple})))
+  (seq (resource-dialog/make (project/workspace project) project {:ext exts :title title :selection :multiple})))
 
 (defn- resource->id [resource]
   (resource/base-name resource))
@@ -2850,10 +2687,13 @@
                 sanitize-node-colors
                 sanitize-node-rotation)
 
-            ;; Size mode is not applicable for text nodes, but might still be
-            ;; stored in the files from editor 1.
-            (= :type-text (:type node-desc))
-            (dissoc :size-mode))))
+      (= :type-text node-type)
+      ;; These properties are not applicable to text nodes, but might still be stored in files from editor1.
+      (dissoc :clipping-inverted :clipping-mode :clipping-visible :size-mode)
+
+      (= :type-template node-type)
+      ;; These properties are not applicable to template nodes, but might still be stored in files from editor1.
+      (dissoc :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))))
 
 (def ^:private sanitize-nodes #(mapv sanitize-node %))
 

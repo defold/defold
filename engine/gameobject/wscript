@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 
 VERSION='0.1'
 APPNAME='gameobject'
@@ -8,38 +8,47 @@ blddir = 'build'
 
 import sys, os
 import waf_dynamo, waf_ddf
-import Options
+import waflib.Options
+import TestContext
 
-def init():
-    pass
+test_context = None
 
-def set_options(opt):
-    opt.sub_options('src')
-    opt.tool_options('waf_dynamo')
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.recurse('src')
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.check_tool('waf_dynamo')
-    conf.check_tool('java')
+    conf.load('waf_dynamo')
+    conf.load('java')
     waf_ddf.configure(conf)
 
-    conf.sub_config('src')
+    conf.recurse('src')
 
-    conf.env.append_value('CPPPATH', "default/src")
-    conf.env['STATICLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
-    conf.env['STATICLIB_DDF'] = 'ddf'
-    conf.env['STATICLIB_RIG'] = 'rig'
-    conf.env['STATICLIB_RESOURCE'] = 'resource'
-    conf.env['STATICLIB_SCRIPT'] = 'script'
-    conf.env['STATICLIB_EXTENSION'] = 'extension'
-    conf.env['STATICLIB_HID'] = 'hid_null'
+    conf.env.append_value('INCLUDES', 'src')
+    conf.env.append_value('INCLUDES', 'src/proto')
+    conf.env['STLIB_DLIB']      = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DDF']       = 'ddf'
+    conf.env['STLIB_RIG']       = 'rig'
+    conf.env['STLIB_RESOURCE']  = 'resource'
+    conf.env['STLIB_SCRIPT']    = 'script'
+    conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_HID']       = 'hid_null'
 
-    conf.env.append_unique('CCDEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')
-    conf.env.append_unique('CXXDEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')
+    conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="GAMEOBJECT"')
 
 def build(bld):
-    sys.path.insert(0, os.path.abspath('build/default/proto'))
-    sys.path.insert(0, os.path.abspath('build/default/proto/gameobject'))
-    bld.add_subdirs('src')
+    global test_context
 
-def shutdown():
-    waf_dynamo.run_tests(valgrind = True)
+    sys.path.insert(0, os.path.abspath('build/proto'))
+    sys.path.insert(0, os.path.abspath('build/proto/gameobject'))
+
+    bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
+
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)

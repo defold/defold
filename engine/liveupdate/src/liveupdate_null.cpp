@@ -38,9 +38,12 @@ void RegisterArchiveLoaders()
 {
 }
 
-uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
+void GetResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context)
 {
-    return 0;
+}
+
+void GetMissingResources(const dmhash_t url_hash, FGetResourceHashHex callback, void* context)
+{
 }
 
 Result VerifyManifest(const dmResource::Manifest* manifest)

@@ -311,6 +311,7 @@
           passes))
 
 (defn- flatten-scene-renderables! [pass-renderables
+                                   parent-shows-children
                                    scene
                                    selection-set
                                    hidden-renderable-tags
@@ -332,6 +333,11 @@
         world-scale (math/multiply-vector parent-world-scale (math/scale local-transform))
         appear-selected? (some? (some selection-set node-id-path)) ; Child nodes appear selected if parent is.
         picking-node-id (or (:picking-node-id scene) (peek node-id-path))
+        visible? (and parent-shows-children
+                      (:visible-self? renderable true)
+                      (not (contains? hidden-node-outline-key-paths node-outline-key-path))
+                      (not-any? (partial contains? hidden-renderable-tags) (:tags renderable)))
+        aabb ^AABB (if visible? (:aabb scene geom/null-aabb) geom/null-aabb)
         flat-renderable (-> scene
                             (dissoc :children :renderable)
                             (assoc :node-id-path node-id-path
@@ -348,11 +354,12 @@
                                    :selected appear-selected?
                                    :user-data (:user-data renderable)
                                    :batch-key (:batch-key renderable)
-                                   :aabb (geom/aabb-transform ^AABB (:aabb scene geom/null-aabb) world-transform)
+                                   :aabb (geom/aabb-transform aabb world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
-        visible? (and (not (contains? hidden-node-outline-key-paths node-outline-key-path))
-                      (not-any? (partial contains? hidden-renderable-tags) (:tags flat-renderable)))
+        flat-renderable (if visible?
+                          flat-renderable
+                          (dissoc flat-renderable :updatable))
         drawn-passes (cond
                        ;; Draw to all passes unless hidden.
                        visible?
@@ -381,6 +388,7 @@
                                                   node-outline-key-path
                                                   (conj node-outline-key-path (:node-outline-key child-scene)))]
                 (flatten-scene-renderables! pass-renderables
+                                            (and parent-shows-children (:visible-children? renderable true))
                                             child-scene
                                             selection-set
                                             hidden-renderable-tags
@@ -428,7 +436,8 @@
         parent-world-transform geom/Identity4d
         parent-world-scale (Vector3d. 1 1 1)]
     (-> (make-pass-renderables)
-        (flatten-scene-renderables! scene
+        (flatten-scene-renderables! true
+                                    scene
                                     selection-set
                                     hidden-renderable-tags
                                     hidden-node-outline-key-paths
@@ -618,8 +627,7 @@
 (defn map-scene [f scene]
   (letfn [(scene-fn [scene]
             (let [children (:children scene)]
-              (cond-> scene
-                true (f)
+              (cond-> (f scene)
                 children (update :children (partial mapv scene-fn)))))]
     (scene-fn scene)))
 
@@ -635,10 +643,10 @@
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
   (let [old-node-id (:node-id scene)
-        child-f (partial claim-child-scene old-node-id new-node-id new-node-outline-key)
         children (:children scene)]
     (cond-> (assoc scene :node-id new-node-id :node-outline-key new-node-outline-key)
-      children (update :children (partial mapv (partial map-scene child-f))))))
+            children (assoc :children (mapv (partial map-scene (partial claim-child-scene old-node-id new-node-id new-node-outline-key))
+                                            children)))))
 
 (defn- box-selection? [^Rect picking-rect]
   (or (> (.width picking-rect) selection/min-pick-size)
@@ -1500,10 +1508,7 @@
                                 :focus-fn focus-view))
 
 (g/defnk produce-transform [position rotation scale]
-  (let [position-v3 (doto (Vector3d.) (math/clj->vecmath position))
-        rotation-q4 (doto (Quat4d.) (math/clj->vecmath rotation))
-        scale-v3 (Vector3d. (double-array scale))]
-    (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3)))
+  (math/clj->mat4 position rotation scale))
 
 (def produce-no-transform-properties (g/constantly #{}))
 (def produce-scalable-transform-properties (g/constantly #{:position :rotation :scale}))

@@ -24,13 +24,6 @@
 
 #include "dmsdk/external/remotery/Remotery.h"
 
-rmtU32 _rmt_HashString32(const char* s, int len, rmtU32 seed)
-{
-    static uint32_t empty_hash = dmHashString32("<empty>");
-    rmtU32 hash = dmHashBuffer32(s, len);
-    return hash != 0 ? hash : empty_hash;
-}
-
 namespace dmProfile
 {
     static Remotery* g_Remotery = 0;
@@ -88,16 +81,22 @@ namespace dmProfile
             {
                 settings->port = (rmtU16)options->m_Port;
             }
+            if (options->m_SleepBetweenServerUpdates > 0)
+            {
+                settings->msSleepBetweenServerUpdates = options->m_SleepBetweenServerUpdates;
+            }
         }
         settings->sampletree_handler = SampleTreeCallback;
         settings->sampletree_context = 0;
         settings->snapshot_callback = PropertyTreeCallback;
         settings->snapshot_context = 0;
+        settings->reuse_open_port = true;
+        settings->enableThreadSampler = false;
 
         rmtError result = rmt_CreateGlobalInstance(&g_Remotery);
         if (result != RMT_ERROR_NONE)
         {
-            dmLogError("Failed to initialize profile library");
+            dmLogError("Failed to initialize profile library %d", result);
             return;
         }
 
@@ -191,6 +190,8 @@ namespace dmProfile
         if (name != 0)
         {
             valid = 1;
+            if (name[0] == 0)
+                name = "<empty>";
             _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)name_hash);
         }
     }

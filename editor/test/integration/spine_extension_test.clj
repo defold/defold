@@ -18,7 +18,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
-            [editor.collection-data :as collection-data]
+            [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
             [editor.diff-view :as diff-view]
             [editor.game-project :as game-project]
@@ -88,8 +88,7 @@
                         (let [error-tree (build-errors-view/build-resource-tree error-value)
                               error-item-of-parent-resource (first (:children error-tree))
                               error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                          (is (= :unknown-parent
-                                 (:type error-item-of-parent-resource)))
+                          (is (= :resource (:type error-item-of-parent-resource)))
                           (is (= (str "The file '" error-resource-path "' could not be loaded.")
                                  (:message error-item-of-faulty-node)))))]
                 (is (invalid-content-error? "/main/main.collection" (test-util/build-error! main-collection)))
@@ -104,7 +103,7 @@
             (let [migrated-game-project-save-data (g/node-value game-project :save-data)]
               (is (not (g/error? migrated-game-project-save-data)))
               (:content migrated-game-project-save-data))))]
-    (testing "Manual migration steps"
+    (testing "Manual migration steps."
       (test-support/with-clean-system
         (let [workspace (test-util/setup-scratch-workspace! world "test/resources/spine_migration_project")]
           ;; Add a dependency to extension-spine to game.project
@@ -177,8 +176,8 @@
                 (testing "Collection properties are retained post-update."
                   (let [ext->resource-type (workspace/get-resource-type-map workspace)
                         main-collection-save-value (g/node-value main-collection :save-value)
-                        main-collection-data (collection-data/string-decode-collection-data ext->resource-type main-collection-save-value)
-                        embedded-spine-model-data (get-in main-collection-data [:embedded-instances 0 :data :embedded-components 0 :data])]
+                        main-collection-desc (collection-string-data/string-decode-collection-desc ext->resource-type main-collection-save-value)
+                        embedded-spine-model-data (get-in main-collection-desc [:embedded-instances 0 :data :embedded-components 0 :data])]
                     (is (= "/assets/spineboy.spinescene" (:spine-scene embedded-spine-model-data)))
                     (is (= "idle" (:default-animation embedded-spine-model-data)))
                     (is (= "" (:skin embedded-spine-model-data)))

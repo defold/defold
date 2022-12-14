@@ -5,7 +5,7 @@ platform = bld.env.PLATFORM
 local_libs = 'dmglfw'
 if 'win32' in platform:
     local_libs = 'dmglfw dmglfw_getopt'
-    bld.new_task_gen(features = 'cc cstaticlib',
+    bld.stlib(features = 'c',
                      includes = '.',
                      target = 'dmglfw_getopt',
                      source = 'getopt.c',
@@ -13,14 +13,14 @@ if 'win32' in platform:
 
 
 samples = 'boing gears heightmap listmodes mipmaps mtbench mthello particles pong3d splitview triangle wave'
-if platform in ('arm64-darwin', 'x86_64-ios', 'armv7-android'):
+if platform in ('arm64-ios', 'x86_64-ios', 'armv7-android'):
     # Other examples are not compatible with OpenGLES
     samples = 'simple_gles2'
 elif 'web' in platform:
     samples = ''
 
 for e in samples.split():
-    bld.new_task_gen(features = 'cc cprogram apk',
+    bld.program(features = 'c apk',
                      includes = '. ../include',
                      target = e,
                      source = '%s.c' % e,

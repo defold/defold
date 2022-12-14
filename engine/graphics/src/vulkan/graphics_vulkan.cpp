@@ -20,7 +20,6 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#include "../graphics.h"
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
@@ -49,7 +48,9 @@ namespace dmGraphics
 
     Context* g_VulkanContext = 0;
 
-    static void CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
+    static HTexture VulkanNewTexture(HContext context, const TextureCreationParams& params);
+    static void     VulkanSetTexture(HTexture texture, const TextureParams& params);
+    static void     CopyToTexture(HContext context, const TextureParams& params, bool useStageBuffer, uint32_t texDataSize, void* texDataPtr, Texture* textureOut);
     static VkFormat GetVulkanFormatFromTextureFormat(TextureFormat format);
 
     #define DM_VK_RESULT_TO_STR_CASE(x) case x: return #x
@@ -223,7 +224,8 @@ namespace dmGraphics
         return address_mode_lut[wrap];
     }
 
-    static uint8_t CreateTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
+    static int16_t CreateVulkanTextureSampler(VkDevice vk_device, dmArray<TextureSampler>& texture_samplers,
+        TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         VkFilter             vk_mag_filter;
         VkFilter             vk_min_filter;
@@ -283,12 +285,13 @@ namespace dmGraphics
             assert(0 && "Unsupported type for min filter");
         }
 
-        TextureSampler new_sampler;
-        new_sampler.m_MinFilter    = minfilter;
-        new_sampler.m_MagFilter    = magfilter;
-        new_sampler.m_AddressModeU = uwrap;
-        new_sampler.m_AddressModeV = vwrap;
-        new_sampler.m_MaxLod       = maxLod;
+        TextureSampler new_sampler  = {};
+        new_sampler.m_MinFilter     = minfilter;
+        new_sampler.m_MagFilter     = magfilter;
+        new_sampler.m_AddressModeU  = uwrap;
+        new_sampler.m_AddressModeV  = vwrap;
+        new_sampler.m_MaxLod        = maxLod;
+        new_sampler.m_MaxAnisotropy = max_anisotropy;
 
         uint32_t sampler_index = texture_samplers.Size();
 
@@ -299,14 +302,15 @@ namespace dmGraphics
 
         VkResult res = CreateTextureSampler(vk_device,
             vk_min_filter, vk_mag_filter, vk_mipmap_mode, vk_wrap_u, vk_wrap_v,
-            0.0, max_lod, &new_sampler.m_Sampler);
+            0.0, max_lod, max_anisotropy, &new_sampler.m_Sampler);
         CHECK_VK_ERROR(res);
 
         texture_samplers.Push(new_sampler);
-        return (uint8_t) sampler_index;
+        return (int16_t) sampler_index;
     }
 
-    static int8_t GetTextureSamplerIndex(dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod)
+    static int16_t GetTextureSamplerIndex(dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter,
+        TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         for (uint32_t i=0; i < texture_samplers.Size(); i++)
         {
@@ -315,7 +319,8 @@ namespace dmGraphics
                 sampler.m_MinFilter     == minfilter &&
                 sampler.m_AddressModeU  == uwrap     &&
                 sampler.m_AddressModeV  == vwrap     &&
-                sampler.m_MaxLod        == maxLod)
+                sampler.m_MaxLod        == maxLod    &&
+                sampler.m_MaxAnisotropy == max_anisotropy)
             {
                 return (uint8_t) i;
             }
@@ -353,11 +358,16 @@ namespace dmGraphics
             EndRenderPass(context);
         }
 
-        VkClearValue vk_clear_values[2];
+        VkClearValue vk_clear_values[MAX_BUFFER_COLOR_ATTACHMENTS + 1];
         memset(vk_clear_values, 0, sizeof(vk_clear_values));
 
-        // Clear color and depth/stencil separately
-        vk_clear_values[0].color.float32[3]     = 1.0f;
+        // Clear color
+        for (int i = 0; i < rt->m_ColorAttachmentCount; ++i)
+        {
+            vk_clear_values[i].color.float32[3]     = 1.0f;
+        }
+
+        // Clear depth
         vk_clear_values[1].depthStencil.depth   = 1.0f;
         vk_clear_values[1].depthStencil.stencil = 0;
 
@@ -369,10 +379,7 @@ namespace dmGraphics
         vk_render_pass_begin_info.renderArea.offset.x = 0;
         vk_render_pass_begin_info.renderArea.offset.y = 0;
         vk_render_pass_begin_info.renderArea.extent   = rt->m_Extent;
-        vk_render_pass_begin_info.clearValueCount     = 2;
-        vk_render_pass_begin_info.pClearValues        = 0;
-
-        vk_render_pass_begin_info.clearValueCount = 2;
+        vk_render_pass_begin_info.clearValueCount = rt->m_ColorAttachmentCount + 1;
         vk_render_pass_begin_info.pClearValues    = vk_clear_values;
 
         vkCmdBeginRenderPass(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex], &vk_render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -507,10 +514,11 @@ namespace dmGraphics
         // Initialize the dummy rendertarget for the main framebuffer
         // The m_Framebuffer construct will be rotated sequentially
         // with the framebuffer objects created per swap chain.
-        RenderTarget& rt = context->m_MainRenderTarget;
-        rt.m_RenderPass  = context->m_MainRenderPass;
-        rt.m_Framebuffer = context->m_MainFrameBuffers[0];
-        rt.m_Extent      = context->m_SwapChain->m_ImageExtent;
+        RenderTarget& rt          = context->m_MainRenderTarget;
+        rt.m_RenderPass           = context->m_MainRenderPass;
+        rt.m_Framebuffer          = context->m_MainFrameBuffers[0];
+        rt.m_Extent               = context->m_SwapChain->m_ImageExtent;
+        rt.m_ColorAttachmentCount = 1;
 
         return VK_SUCCESS;
     }
@@ -601,31 +609,10 @@ namespace dmGraphics
             context->m_MainDescriptorAllocators.Begin(), context->m_MainScratchBuffers.Begin());
         CHECK_VK_ERROR(res);
 
-        // Create default pipeline state
-        PipelineState vk_default_pipeline;
-        vk_default_pipeline.m_WriteColorMask           = DMGRAPHICS_STATE_WRITE_R | DMGRAPHICS_STATE_WRITE_G | DMGRAPHICS_STATE_WRITE_B | DMGRAPHICS_STATE_WRITE_A;
-        vk_default_pipeline.m_WriteDepth               = 1;
-        vk_default_pipeline.m_PrimtiveType             = PRIMITIVE_TRIANGLES;
-        vk_default_pipeline.m_DepthTestEnabled         = 1;
-        vk_default_pipeline.m_DepthTestFunc            = COMPARE_FUNC_LEQUAL;
-        vk_default_pipeline.m_BlendEnabled             = 0;
-        vk_default_pipeline.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
-        vk_default_pipeline.m_StencilEnabled           = 0;
-        vk_default_pipeline.m_StencilOpFail            = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpDepthFail       = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilOpPass            = STENCIL_OP_KEEP;
-        vk_default_pipeline.m_StencilTestFunc          = COMPARE_FUNC_ALWAYS;
-        vk_default_pipeline.m_StencilWriteMask         = 0xff;
-        vk_default_pipeline.m_StencilCompareMask       = 0xff;
-        vk_default_pipeline.m_StencilReference         = 0x0;
-        vk_default_pipeline.m_CullFaceEnabled          = 0;
-        vk_default_pipeline.m_CullFaceType             = FACE_TYPE_BACK;
-        vk_default_pipeline.m_PolygonOffsetFillEnabled = 0;
-        context->m_PipelineState = vk_default_pipeline;
+        context->m_PipelineState = GetDefaultPipelineState();
 
         // Create default texture sampler
-        CreateTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1);
+        CreateVulkanTextureSampler(vk_device, context->m_TextureSamplers, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
         // Create default dummy texture
         TextureCreationParams default_texture_creation_params;
@@ -642,8 +629,8 @@ namespace dmGraphics
         default_texture_params.m_Data   = default_texture_data;
         default_texture_params.m_Format = TEXTURE_FORMAT_RGBA;
 
-        context->m_DefaultTexture = NewTexture(context, default_texture_creation_params);
-        SetTexture(context->m_DefaultTexture, default_texture_params);
+        context->m_DefaultTexture = VulkanNewTexture(context, default_texture_creation_params);
+        VulkanSetTexture(context->m_DefaultTexture, default_texture_params);
 
         for (int i = 0; i < DM_MAX_TEXTURE_UNITS; ++i)
         {
@@ -782,6 +769,16 @@ namespace dmGraphics
         return context->m_PhysicalDevice.m_DeviceExtensions[index].extensionName;
     }
 
+    static bool VulkanIsMultiTargetRenderingSupported(HContext context)
+    {
+        return true;
+    }
+
+    static PipelineState VulkanGetPipelineState(HContext context)
+    {
+        return context->m_PipelineState;
+    }
+
     static void SetupSupportedTextureFormats(HContext context)
     {
     #if defined(__MACH__)
@@ -817,7 +814,6 @@ namespace dmGraphics
 
         TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
                                             TEXTURE_FORMAT_LUMINANCE_ALPHA,
-                                            TEXTURE_FORMAT_RGB,
                                             TEXTURE_FORMAT_RGBA,
 
                                             TEXTURE_FORMAT_RGB16F,
@@ -833,6 +829,10 @@ namespace dmGraphics
                                             TEXTURE_FORMAT_RGB_16BPP,
                                             TEXTURE_FORMAT_RGBA_16BPP,
                                         };
+
+        // RGB isn't supported in Vulkan as a texture format, but we still need to supply it to the engine
+        // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
+        context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
 
         // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
@@ -974,7 +974,7 @@ namespace dmGraphics
         }
 
         context->m_LogicalDevice    = logical_device;
-        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, params->m_Samples);
 
         // Create swap chain
         InitializeVulkanTexture(resolveTexture);
@@ -1230,7 +1230,7 @@ bail:
         assert(context->m_CurrentRenderTarget);
 
         uint32_t attachment_count = 0;
-        VkClearAttachment vk_clear_attachments[2];
+        VkClearAttachment vk_clear_attachments[MAX_BUFFER_COLOR_ATTACHMENTS + 1];
         memset(vk_clear_attachments, 0, sizeof(vk_clear_attachments));
 
         VkClearRect vk_clear_rect;
@@ -1241,19 +1241,18 @@ bail:
         vk_clear_rect.baseArrayLayer     = 0;
         vk_clear_rect.layerCount         = 1;
 
-        bool has_color_texture         = context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || context->m_CurrentRenderTarget->m_TextureColor;
         bool has_depth_stencil_texture = context->m_CurrentRenderTarget->m_Id == DM_RENDERTARGET_BACKBUFFER_ID || context->m_CurrentRenderTarget->m_TextureDepthStencil;
 
-        // Clear color
-        if (has_color_texture && (flags & BUFFER_TYPE_COLOR_BIT))
-        {
-            float r = ((float)red)/255.0f;
-            float g = ((float)green)/255.0f;
-            float b = ((float)blue)/255.0f;
-            float a = ((float)alpha)/255.0f;
+        float r = ((float)red)/255.0f;
+        float g = ((float)green)/255.0f;
+        float b = ((float)blue)/255.0f;
+        float a = ((float)alpha)/255.0f;
 
+        for (int i = 0; i < context->m_CurrentRenderTarget->m_ColorAttachmentCount; ++i)
+        {
             VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
             vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_color_attachment.colorAttachment             = i;
             vk_color_attachment.clearValue.color.float32[0] = r;
             vk_color_attachment.clearValue.color.float32[1] = g;
             vk_color_attachment.clearValue.color.float32[2] = b;
@@ -1266,12 +1265,12 @@ bail:
             VkImageAspectFlags vk_aspect = 0;
             if (flags & BUFFER_TYPE_DEPTH_BIT)
             {
-                vk_aspect |= BUFFER_TYPE_DEPTH_BIT;
+                vk_aspect |= VK_IMAGE_ASPECT_DEPTH_BIT;
             }
 
             if (flags & BUFFER_TYPE_STENCIL_BIT)
             {
-                vk_aspect |= BUFFER_TYPE_STENCIL_BIT;
+                vk_aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
             }
 
             VkClearAttachment& vk_depth_attachment              = vk_clear_attachments[attachment_count++];
@@ -1282,6 +1281,7 @@ bail:
 
         vkCmdClearAttachments(context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
             attachment_count, vk_clear_attachments, 1, &vk_clear_rect);
+
     }
 
     static void DeviceBufferUploadHelper(HContext context, const void* data, uint32_t size, uint32_t offset, DeviceBuffer* bufferOut)
@@ -1387,7 +1387,7 @@ bail:
             vk_scissor.offset.x = 0;
             vk_scissor.offset.y = 0;
 
-            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexBuffer, vertexDeclaration, rt->m_RenderPass, &new_pipeline);
+            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexBuffer, vertexDeclaration, rt, &new_pipeline);
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -1398,8 +1398,7 @@ bail:
             pipelineCache.Put(pipeline_hash, new_pipeline);
             cached_pipeline = pipelineCache.Get(pipeline_hash);
 
-            // TODO: Remove this at some point!
-            dmLogInfo("Created new VK Pipeline with hash %llu", (unsigned long long) pipeline_hash);
+            dmLogDebug("Created new VK Pipeline with hash %llu", (unsigned long long) pipeline_hash);
         }
 
         return cached_pipeline;
@@ -2520,7 +2519,7 @@ bail:
         }
     }
 
-    static void VulkanSetConstantM4(HContext context, const dmVMath::Vector4* data, int base_register)
+    static void VulkanSetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
     {
         Program* program_ptr = (Program*) context->m_CurrentProgram;
 
@@ -2535,7 +2534,7 @@ bail:
             assert(!IsUniformTextureSampler(res));
             uint32_t offset_index      = res.m_UniformDataIndex;
             uint32_t offset            = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4 * count);
         }
 
         if (index_fs != UNIFORM_LOCATION_MAX)
@@ -2546,7 +2545,7 @@ bail:
             // Fragment uniforms are packed behind vertex uniforms hence the extra offset here
             uint32_t offset_index = program_ptr->m_VertexModule->m_UniformBufferCount + res.m_UniformDataIndex;
             uint32_t offset       = program_ptr->m_UniformDataOffsets[offset_index];
-            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4);
+            memcpy(&program_ptr->m_UniformData[offset], data, sizeof(dmVMath::Vector4) * 4 * count);
         }
     }
 
@@ -2595,44 +2594,16 @@ bail:
         context->m_ViewportChanged = 1;
     }
 
-    static inline void SetStateValue(PipelineState& pipeline_state, State state, uint8_t value)
-    {
-        if (state == STATE_DEPTH_TEST)
-        {
-            pipeline_state.m_DepthTestEnabled = value;
-        }
-        else if (state == STATE_STENCIL_TEST)
-        {
-            pipeline_state.m_StencilEnabled = value;
-        }
-        else if (state == STATE_BLEND)
-        {
-            pipeline_state.m_BlendEnabled = value;
-        }
-        else if (state == STATE_CULL_FACE)
-        {
-            pipeline_state.m_CullFaceEnabled = value;
-        }
-        else if (state == STATE_POLYGON_OFFSET_FILL)
-        {
-            pipeline_state.m_PolygonOffsetFillEnabled = value;
-        }
-        else
-        {
-            assert(0 && "EnableState: State not supported");
-        }
-    }
-
     static void VulkanEnableState(HContext context, State state)
     {
         assert(context);
-        SetStateValue(context->m_PipelineState, state, 1);
+        SetPipelineStateValue(context->m_PipelineState, state, 1);
     }
 
     static void VulkanDisableState(HContext context, State state)
     {
         assert(context);
-        SetStateValue(context->m_PipelineState, state, 0);
+        SetPipelineStateValue(context->m_PipelineState, state, 0);
     }
 
     static void VulkanSetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor)
@@ -2645,10 +2616,10 @@ bail:
     static void VulkanSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);
-        uint8_t write_mask = red   ? DMGRAPHICS_STATE_WRITE_R : 0;
-        write_mask        |= green ? DMGRAPHICS_STATE_WRITE_G : 0;
-        write_mask        |= blue  ? DMGRAPHICS_STATE_WRITE_B : 0;
-        write_mask        |= alpha ? DMGRAPHICS_STATE_WRITE_A : 0;
+        uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
 
         context->m_PipelineState.m_WriteColorMask = write_mask;
     }
@@ -2679,29 +2650,52 @@ bail:
     static void VulkanSetStencilFunc(HContext context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
         assert(context);
-        context->m_PipelineState.m_StencilTestFunc    = (uint8_t) func;
-        context->m_PipelineState.m_StencilReference   = (uint8_t) ref;
-        context->m_PipelineState.m_StencilCompareMask = (uint8_t) mask;
+        context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void VulkanSetStencilFuncSeparate(HContext context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
     {
-        // TODO: Make room in pipeline handle for separate stencil states
-        VulkanSetStencilFunc(context, func, ref, mask);
+        assert(context);
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        }
+        context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void VulkanSetStencilOp(HContext context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
         assert(context);
-        context->m_PipelineState.m_StencilOpFail      = sfail;
-        context->m_PipelineState.m_StencilOpDepthFail = dpfail;
-        context->m_PipelineState.m_StencilOpPass      = dppass;
+        context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
     static void VulkanSetStencilOpSeparate(HContext context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
-        // TODO: Make room in pipeline handle for separate stencil states
-        VulkanSetStencilOp(context, sfail, dpfail, dppass);
+        if (face_type == FACE_TYPE_BACK)
+        {
+            context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        }
+        else
+        {
+            context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        }
     }
 
     static void VulkanSetCullFace(HContext context, FaceType face_type)
@@ -2761,30 +2755,33 @@ bail:
         };
     }
 
-    static VkResult CreateRenderTarget(VkDevice vk_device, Texture* colorTexture, Texture* depthStencilTexture, RenderTarget* rtOut)
+    static VkResult CreateRenderTarget(VkDevice vk_device, Texture** color_textures, BufferType* buffer_types, uint8_t num_color_textures,  Texture* depthStencilTexture, RenderTarget* rtOut)
     {
         assert(rtOut->m_Framebuffer == VK_NULL_HANDLE && rtOut->m_RenderPass == VK_NULL_HANDLE);
-        RenderPassAttachment  rp_attachments[2];
-        RenderPassAttachment* rp_attachment_color         = 0;
+        const uint8_t num_attachments = MAX_BUFFER_COLOR_ATTACHMENTS + 1;
+
+        RenderPassAttachment  rp_attachments[num_attachments];
         RenderPassAttachment* rp_attachment_depth_stencil = 0;
 
-        VkImageView fb_attachments[2];
+        VkImageView fb_attachments[num_attachments];
         uint16_t    fb_attachment_count = 0;
         uint16_t    fb_width            = 0;
         uint16_t    fb_height           = 0;
 
-        if (colorTexture)
+
+        for (int i = 0; i < num_color_textures; ++i)
         {
-            assert(!colorTexture->m_Destroyed && colorTexture->m_Handle.m_ImageView != VK_NULL_HANDLE && colorTexture->m_Handle.m_Image != VK_NULL_HANDLE);
-            uint8_t color_buffer_index = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
+            Texture* color_texture = color_textures[i];
+
+            assert(!color_texture->m_Destroyed && color_texture->m_Handle.m_ImageView != VK_NULL_HANDLE && color_texture->m_Handle.m_Image != VK_NULL_HANDLE);
+            uint8_t color_buffer_index = GetBufferTypeIndex(buffer_types[i]);
             fb_width                   = rtOut->m_BufferTextureParams[color_buffer_index].m_Width;
             fb_height                  = rtOut->m_BufferTextureParams[color_buffer_index].m_Height;
 
-            rp_attachment_color = &rp_attachments[0];
-            rp_attachment_color->m_ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            rp_attachment_color->m_Format      = colorTexture->m_Format;
-
-            fb_attachments[fb_attachment_count++] = colorTexture->m_Handle.m_ImageView;
+            RenderPassAttachment* rp_attachment_color = &rp_attachments[i];
+            rp_attachment_color->m_ImageLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            rp_attachment_color->m_Format             = color_texture->m_Format;
+            fb_attachments[fb_attachment_count++]     = color_texture->m_Handle.m_ImageView;
         }
 
         if (depthStencilTexture)
@@ -2793,20 +2790,20 @@ bail:
             uint16_t depth_width       = rtOut->m_BufferTextureParams[depth_buffer_index].m_Width;
             uint16_t depth_height      = rtOut->m_BufferTextureParams[depth_buffer_index].m_Height;
 
-            if (!colorTexture)
+            if (num_color_textures == 0)
             {
                 fb_width  = depth_width;
                 fb_height = depth_height;
             }
 
-            rp_attachment_depth_stencil                = &rp_attachments[1];
+            rp_attachment_depth_stencil                = &rp_attachments[fb_attachment_count];
             rp_attachment_depth_stencil->m_ImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             rp_attachment_depth_stencil->m_Format      = depthStencilTexture->m_Format;
 
             fb_attachments[fb_attachment_count++] = depthStencilTexture->m_Handle.m_ImageView;
         }
 
-        VkResult res = CreateRenderPass(vk_device, VK_SAMPLE_COUNT_1_BIT, rp_attachment_color, rp_attachment_color ? 1 : 0, rp_attachment_depth_stencil, 0, &rtOut->m_RenderPass);
+        VkResult res = CreateRenderPass(vk_device, VK_SAMPLE_COUNT_1_BIT, rp_attachments, num_color_textures, rp_attachment_depth_stencil, 0, &rtOut->m_RenderPass);
         if (res != VK_SUCCESS)
         {
             return res;
@@ -2819,10 +2816,16 @@ bail:
             return res;
         }
 
-        rtOut->m_TextureColor        = colorTexture;
-        rtOut->m_TextureDepthStencil = depthStencilTexture;
-        rtOut->m_Extent.width        = fb_width;
-        rtOut->m_Extent.height       = fb_height;
+        for (int i = 0; i < num_color_textures; ++i)
+        {
+            rtOut->m_TextureColor[i] = color_textures[i];
+            rtOut->m_ColorAttachmentBufferTypes[i] = buffer_types[i];
+        }
+
+        rtOut->m_ColorAttachmentCount = num_color_textures;
+        rtOut->m_TextureDepthStencil  = depthStencilTexture;
+        rtOut->m_Extent.width         = fb_width;
+        rtOut->m_Extent.height        = fb_height;
 
         return VK_SUCCESS;
     }
@@ -2842,12 +2845,13 @@ bail:
         RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
         memcpy(rt->m_BufferTextureParams, params, sizeof(rt->m_BufferTextureParams));
 
-        Texture* texture_color         = 0;
-        Texture* texture_depth_stencil = 0;
+        BufferType buffer_types[MAX_BUFFER_COLOR_ATTACHMENTS];
+        Texture* texture_color[MAX_BUFFER_COLOR_ATTACHMENTS];
+        Texture* texture_depth_stencil = 0; 
 
-        uint8_t has_color   = buffer_type_flags & dmGraphics::BUFFER_TYPE_COLOR_BIT;
         uint8_t has_depth   = buffer_type_flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT;
         uint8_t has_stencil = buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+        uint8_t color_index = 0;
 
         // don't save the data
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
@@ -2856,38 +2860,54 @@ bail:
             rt->m_BufferTextureParams[i].m_DataSize = 0;
         }
 
-        uint16_t    fb_width  = 0;
-        uint16_t    fb_height = 0;
+        uint16_t fb_width  = 0;
+        uint16_t fb_height = 0;
 
-        if(has_color)
+        BufferType color_buffer_flags[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+
+        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            uint8_t color_buffer_index         = GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT);
-            TextureParams& color_buffer_params = rt->m_BufferTextureParams[color_buffer_index];
-            fb_width                           = color_buffer_params.m_Width;
-            fb_height                          = color_buffer_params.m_Height;
+            BufferType buffer_type = color_buffer_flags[i];
 
-            VkFormat vk_color_format;
-
-            // Promote format to RGBA if RGB, since it's not supported
-            if (color_buffer_params.m_Format == TEXTURE_FORMAT_RGB)
+            if (buffer_type_flags & buffer_type)
             {
-                vk_color_format              = VK_FORMAT_R8G8B8A8_UNORM;
-                color_buffer_params.m_Format = TEXTURE_FORMAT_RGBA;
-            }
-            else
-            {
-                vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
-            }
+                uint8_t color_buffer_index         = GetBufferTypeIndex(buffer_type);
+                TextureParams& color_buffer_params = rt->m_BufferTextureParams[color_buffer_index];
+                fb_width                           = color_buffer_params.m_Width;
+                fb_height                          = color_buffer_params.m_Height;
 
-            texture_color = NewTexture(context, creation_params[color_buffer_index]);
-            VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                texture_color->m_Width, texture_color->m_Height, texture_color->m_MipMapCount,
-                VK_SAMPLE_COUNT_1_BIT, vk_color_format,
-                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, texture_color);
-            CHECK_VK_ERROR(res);
+                VkFormat vk_color_format;
 
-            SetTextureParams(texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap);
+                // Promote format to RGBA if RGB, since it's not supported
+                if (color_buffer_params.m_Format == TEXTURE_FORMAT_RGB)
+                {
+                    vk_color_format              = VK_FORMAT_R8G8B8A8_UNORM;
+                    color_buffer_params.m_Format = TEXTURE_FORMAT_RGBA;
+                }
+                else
+                {
+                    vk_color_format = GetVulkanFormatFromTextureFormat(color_buffer_params.m_Format);
+                }
+
+                Texture* new_texture_color = NewTexture(context, creation_params[color_buffer_index]);
+                VkResult res = CreateTexture2D(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                    new_texture_color->m_Width, new_texture_color->m_Height, new_texture_color->m_MipMapCount,
+                    VK_SAMPLE_COUNT_1_BIT, vk_color_format,
+                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, new_texture_color);
+                CHECK_VK_ERROR(res);
+
+                SetTextureParams(new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
+
+                texture_color[color_index] = new_texture_color;
+                buffer_types[color_index] = buffer_type;
+                color_index++;
+            }
         }
 
         if(has_depth || has_stencil)
@@ -2923,7 +2943,7 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
-        VkResult res = CreateRenderTarget(context->m_LogicalDevice.m_Device, texture_color, texture_depth_stencil, rt);
+        VkResult res = CreateRenderTarget(context->m_LogicalDevice.m_Device, texture_color, buffer_types, color_index, texture_depth_stencil, rt);
         CHECK_VK_ERROR(res);
 
         return rt;
@@ -2931,9 +2951,12 @@ bail:
 
     static void VulkanDeleteRenderTarget(HRenderTarget render_target)
     {
-        if (render_target->m_TextureColor)
+        for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            DeleteTexture(render_target->m_TextureColor);
+            if (render_target->m_TextureColor[i])
+            {
+                DeleteTexture(render_target->m_TextureColor[i]);
+            }
         }
 
         if (render_target->m_TextureDepthStencil)
@@ -2955,10 +2978,15 @@ bail:
 
     static HTexture VulkanGetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type)
     {
-        if(buffer_type != BUFFER_TYPE_COLOR_BIT)
+         if(!(buffer_type == BUFFER_TYPE_COLOR0_BIT ||
+           buffer_type == BUFFER_TYPE_COLOR1_BIT ||
+           buffer_type == BUFFER_TYPE_COLOR2_BIT ||
+           buffer_type == BUFFER_TYPE_COLOR3_BIT))
+        {
             return 0;
+        }
 
-        return (HTexture) render_target->m_TextureColor;
+        return (HTexture) render_target->m_TextureColor[GetBufferTypeIndex(buffer_type)];
     }
 
     static void VulkanGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
@@ -2971,14 +2999,15 @@ bail:
 
     static void VulkanSetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height)
     {
-        Texture* texture_color = render_target->m_TextureColor;
-
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             render_target->m_BufferTextureParams[i].m_Width = width;
             render_target->m_BufferTextureParams[i].m_Height = height;
-            if(i == GetBufferTypeIndex(BUFFER_TYPE_COLOR_BIT) && texture_color)
+
+            if (i < MAX_BUFFER_COLOR_ATTACHMENTS && render_target->m_TextureColor[i])
             {
+                Texture* texture_color = render_target->m_TextureColor[i];
+
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
                 VkResult res = CreateTexture2D(g_VulkanContext->m_PhysicalDevice.m_Device, g_VulkanContext->m_LogicalDevice.m_Device,
                     width, height, texture_color->m_MipMapCount, VK_SAMPLE_COUNT_1_BIT, texture_color->m_Format,
@@ -3011,7 +3040,11 @@ bail:
         }
 
         DestroyRenderTarget(&g_VulkanContext->m_LogicalDevice, render_target);
-        VkResult res = CreateRenderTarget(g_VulkanContext->m_LogicalDevice.m_Device, render_target->m_TextureColor, render_target->m_TextureDepthStencil, render_target);
+        VkResult res = CreateRenderTarget(g_VulkanContext->m_LogicalDevice.m_Device,
+            render_target->m_TextureColor,
+            render_target->m_ColorAttachmentBufferTypes,
+            render_target->m_ColorAttachmentCount,
+            render_target->m_TextureDepthStencil, render_target);
         CHECK_VK_ERROR(res);
     }
 
@@ -3240,7 +3273,7 @@ bail:
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
-        SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap);
+        SetTextureParams(texture, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
         if (params.m_SubUpdate)
         {
@@ -3252,7 +3285,21 @@ bail:
             if (texture->m_Format != vk_format || texture->m_Width != params.m_Width || texture->m_Height != params.m_Height)
             {
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture);
-                texture->m_Format = vk_format;
+                texture->m_Format      = vk_format;
+                texture->m_Width       = params.m_Width;
+                texture->m_Height      = params.m_Height;
+
+                // Note:
+                // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
+                // For vulkan this means that we can't cap a texture to a specific mipmap count since the engine expects
+                // that setting texture data works like the OpenGL backend where we set the mipmap count to zero and then
+                // update the mipmap count based on the params. If we recreate the texture when that is detected (i.e we have too few mipmaps in the texture)
+                // we will lose all the data that was previously uploaded. We could copy that data, but for now this is the easiest way of dealing with this..
+
+                if (texture->m_MipMapCount > 1)
+                {
+                    texture->m_MipMapCount = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Width, texture->m_Height));
+                }
             }
         }
 
@@ -3312,23 +3359,30 @@ bail:
     static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params)
     {
         // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
-        SetTexture(texture, params);
+        VulkanSetTexture(texture, params);
     }
 
-    static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap)
+    static float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
     {
-        TextureSampler sampler = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex];
+        return dmMath::Min(max_anisotropy_requested, g_VulkanContext->m_PhysicalDevice.m_Properties.limits.maxSamplerAnisotropy);
+    }
 
-        if (sampler.m_MinFilter    != minfilter ||
-            sampler.m_MagFilter    != magfilter ||
-            sampler.m_AddressModeU != uwrap     ||
-            sampler.m_AddressModeV != vwrap     ||
-            sampler.m_MaxLod       != texture->m_MipMapCount)
+    static void VulkanSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    {
+        TextureSampler sampler   = g_VulkanContext->m_TextureSamplers[texture->m_TextureSamplerIndex];
+        float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
+
+        if (sampler.m_MinFilter     != minfilter              ||
+            sampler.m_MagFilter     != magfilter              ||
+            sampler.m_AddressModeU  != uwrap                  ||
+            sampler.m_AddressModeV  != vwrap                  ||
+            sampler.m_MaxLod        != texture->m_MipMapCount ||
+            sampler.m_MaxAnisotropy != anisotropy_clamped)
         {
-            int8_t sampler_index = GetTextureSamplerIndex(g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+            int16_t sampler_index = GetTextureSamplerIndex(g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
             if (sampler_index < 0)
             {
-                sampler_index = CreateTextureSampler(g_VulkanContext->m_LogicalDevice.m_Device, g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount);
+                sampler_index = CreateVulkanTextureSampler(g_VulkanContext->m_LogicalDevice.m_Device, g_VulkanContext->m_TextureSamplers, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
             }
 
             texture->m_TextureSamplerIndex = sampler_index;
@@ -3428,6 +3482,7 @@ bail:
         fn_table.m_GetHeight = VulkanGetHeight;
         fn_table.m_GetWindowWidth = VulkanGetWindowWidth;
         fn_table.m_GetWindowHeight = VulkanGetWindowHeight;
+        fn_table.m_GetDisplayScaleFactor = VulkanGetDisplayScaleFactor;
         fn_table.m_SetWindowSize = VulkanSetWindowSize;
         fn_table.m_ResizeWindow = VulkanResizeWindow;
         fn_table.m_GetDefaultTextureFilters = VulkanGetDefaultTextureFilters;
@@ -3515,6 +3570,8 @@ bail:
         fn_table.m_IsExtensionSupported = VulkanIsExtensionSupported;
         fn_table.m_GetNumSupportedExtensions = VulkanGetNumSupportedExtensions;
         fn_table.m_GetSupportedExtension = VulkanGetSupportedExtension;
+        fn_table.m_IsMultiTargetRenderingSupported = VulkanIsMultiTargetRenderingSupported;
+        fn_table.m_GetPipelineState = VulkanGetPipelineState;
         return fn_table;
     }
 }

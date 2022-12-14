@@ -21,14 +21,19 @@
 #include <dlib/log.h>
 #include <dlib/hash.h>
 #include <dlib/object_pool.h>
+#include <dlib/profile.h>
 #include <sound/sound.h>
 
 #include <gamesys/gamesys_ddf.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_sound.h"
+#include "../resources/res_sound_data.h"
 #include "comp_private.h"
 
+DM_PROPERTY_EXTERN(rmtp_Components);
+DM_PROPERTY_U32(rmtp_Sound, 0, FrameReset, "# components", &rmtp_Components);
+DM_PROPERTY_U32(rmtp_SoundPlaying, 0, FrameReset, "# sounds playing", &rmtp_Sound);
 
 namespace dmGameSystem
 {
@@ -74,11 +79,11 @@ namespace dmGameSystem
 
         SoundWorld* world = new SoundWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sound_context->m_MaxComponentCount);
-        const uint32_t MAX_INSTANCE_COUNT = 32;
-        world->m_Entries.SetCapacity(MAX_INSTANCE_COUNT);
-        world->m_Entries.SetSize(MAX_INSTANCE_COUNT);
-        world->m_EntryIndices.SetCapacity(MAX_INSTANCE_COUNT);
-        memset(&world->m_Entries.Front(), 0, MAX_INSTANCE_COUNT * sizeof(PlayEntry));
+        const uint32_t max_instances = sound_context->m_MaxSoundInstances;
+        world->m_Entries.SetCapacity(max_instances);
+        world->m_Entries.SetSize(max_instances);
+        world->m_EntryIndices.SetCapacity(max_instances);
+        memset(world->m_Entries.Begin(), 0, max_instances * sizeof(PlayEntry));
 
         world->m_Components.SetCapacity(comp_count);
 
@@ -98,7 +103,6 @@ namespace dmGameSystem
             {
                 dmSound::Stop(entry.m_SoundInstance);
                 dmSound::DeleteSoundInstance(entry.m_SoundInstance);
-                dmResource::Release(entry.m_Factory, entry.m_Sound);
             }
         }
 
@@ -144,11 +148,13 @@ namespace dmGameSystem
     {
         dmGameObject::UpdateResult update_result = dmGameObject::UPDATE_RESULT_OK;
         SoundWorld* world = (SoundWorld*)params.m_World;
+        DM_PROPERTY_ADD_U32(rmtp_Sound, world->m_Components.Size());
         for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
         {
             PlayEntry& entry = world->m_Entries[i];
             if (entry.m_SoundInstance != 0)
             {
+                DM_PROPERTY_ADD_U32(rmtp_SoundPlaying, 1);
                 float prev_delay = entry.m_Delay;
                 entry.m_Delay -= params.m_UpdateContext->m_DT;
                 if (entry.m_Delay < 0.0f)
@@ -166,7 +172,6 @@ namespace dmGameSystem
                     }
                     else if (!dmSound::IsPlaying(entry.m_SoundInstance) && !(entry.m_PauseRequested || entry.m_Paused))
                     {
-                        dmResource::Release(entry.m_Factory, entry.m_Sound);
                         dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_SoundInstance);
                         entry.m_SoundInstance = 0;
                         world->m_EntryIndices.Push(i);
@@ -363,12 +368,10 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)params.m_Message->m_Data;
                 Sound* sound = component->m_Resource;
-                dmSound::HSoundData sound_data = sound->m_SoundData;
+                dmSound::HSoundData sound_data = sound->m_SoundDataRes->m_SoundData;
                 uint32_t index = world->m_EntryIndices.Pop();
                 PlayEntry& entry = world->m_Entries[index];
                 dmResource::HFactory factory = dmGameObject::GetFactory(dmGameObject::GetCollection(params.m_Instance));
-                // NOTE: We must increase ref-count as a sound might be active after the component is destroyed
-                dmResource::IncRef(factory, sound);
                 entry.m_Factory = factory;
                 entry.m_Sound = sound;
                 entry.m_StopRequested = 0;
@@ -408,7 +411,7 @@ namespace dmGameSystem
             }
             else
             {
-                LogMessageError(params.m_Message, "A sound could not be played since the sound buffer is full (%d).", world->m_EntryIndices.Capacity());
+                LogMessageError(params.m_Message, "A sound could not be played since all sounds instances are used (%d). Increase the project setting 'sound.max_sound_instances'", world->m_EntryIndices.Capacity());
             }
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor)
@@ -476,7 +479,7 @@ namespace dmGameSystem
         SoundComponent* component = &world->m_Components.Get(index);
 
         if (params.m_PropertyId == SOUND_PROP_SOUND) {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), component->m_Resource->m_SoundData, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), component->m_Resource->m_SoundDataRes, out_value);
         } else {
             dmSound::Parameter parameter = GetSoundParameterType(params.m_PropertyId);
             if (parameter == dmSound::PARAMETER_MAX) {

@@ -57,6 +57,7 @@ namespace dmSys
         RESULT_ROFS   = -29,//!< RESULT_ROFS
         RESULT_MLINK  = -30,//!< RESULT_MLINK
         RESULT_PIPE   = -31,//!< RESULT_PIPE
+        RESULT_NOTEMPTY = -32,//!< RESULT_NOTEMPTY
 
         RESULT_UNKNOWN = -1000,//!< RESULT_UNKNOWN
     };
@@ -158,6 +159,13 @@ namespace dmSys
     };
 
     /**
+     * checks if a path exists
+     * @param path path to directory to create
+     * @return true on success
+     */
+    bool Exists(const char* path);
+
+    /**
      * Create directory.
      * @param path path to directory to create
      * @param mode initial unix file permissions. ignored on some platforms
@@ -171,6 +179,23 @@ namespace dmSys
      * @return RESULT_OK on success
      */
     Result Rmdir(const char* path);
+
+    /**
+     * Remove directory tree structure and files within
+     * @param path path to directory to remove
+     * @return RESULT_OK on success
+     */
+    Result RmTree(const char* path);
+
+    /**
+     * Iterate a file tree and callback for each file entry
+     * @param path path to directory to iterate
+     * @param recursive if true, the function traverses the child directories as well
+     * @param call_before if true, the callback is called before entering the children
+     * @param callback callback that gets called for each entry. The "isdir" is true for directories, and false for file entries.
+     * @return RESULT_OK on success
+     */
+    Result IterateTree(const char* path, bool recursive, bool call_before, void* ctx, void (*callback)(void* ctx, const char* path, bool isdir));
 
     /**
      * Remove file
@@ -269,6 +294,12 @@ namespace dmSys
     void GetSystemInfo(SystemInfo* info);
 
     /**
+     * Get information which may be secure on some platforms
+     * @param info input data
+     */
+    void GetSecureInfo(SystemInfo* info);
+
+    /**
      * Get engine information
      * @param info input data
      */
@@ -345,7 +376,7 @@ namespace dmSys
 
     // private functions
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
-    Result NativeToResult(int r);
+    Result ErrnoToResult(int r);
 
     /**
      * Gets an environment variable from the system

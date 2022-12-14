@@ -39,13 +39,17 @@
   (:import [clojure.lang Fn IFn IHashEq MultiFn]
            [com.defold.control ListCell]
            [java.lang.reflect Field]
+           [java.util Collection]
            [javafx.application Platform]
-           [javafx.geometry BoundingBox Point2D]
+           [javafx.collections ObservableList]
+           [javafx.event Event]
+           [javafx.geometry BoundingBox Bounds Point2D]
            [javafx.scene Node]
            [javafx.scene.paint Color]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.scene.control TextInputControl ListView ScrollPane]
+           [javafx.stage Window]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -135,6 +139,10 @@
 ;; Helpers
 ;; --------------------------------------------------
 
+(defn event->window
+  ^Window [^Event event]
+  (.getWindow (.getScene ^Node (.getSource event))))
+
 (def ext-value
   "Extension lifecycle that returns value on `:value` key"
   (reify fx.lifecycle/Lifecycle
@@ -143,6 +151,17 @@
     (advance [_ _ desc _]
       (:value desc))
     (delete [_ _ _])))
+
+(defn identity-aware-observable-list-mutator [get-list-fn]
+  (let [set-all! #(.setAll ^ObservableList (get-list-fn %1) ^Collection %2)]
+    (reify fx.mutator/Mutator
+      (assign! [_ instance coerce value]
+        (set-all! instance (coerce value)))
+      (replace! [_ instance coerce old-value new-value]
+        (when-not (identical? old-value new-value)
+          (set-all! instance (coerce new-value))))
+      (retract! [_ instance _ _]
+        (set-all! instance [])))))
 
 (extend-protocol fx.lifecycle/Lifecycle
   MultiFn

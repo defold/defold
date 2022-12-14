@@ -167,4 +167,4 @@ for root, dirs, files in os.walk(".", topdown=True):
     for file in files:
         process_file(os.path.join(root, file))
 
-print("NOTE! Manually update ddfc.py!")
+print("NOTE! Manually update ddfc.py, editor/bundle-resources/Info.plist, editor/resources/splash.fxml and editor/resources/about.fxml!")
