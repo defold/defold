@@ -31,12 +31,15 @@ def configure(conf):
     conf.env['STLIB_BASIS_ENCODER'] = 'basis_encoder'
     conf.env['STLIB_BASIS_TRANSCODER'] = 'basis_transcoder'
 
-    platform = conf.env['PLATFORM']
-
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="TEXC"')
 
 def build(bld):
     global test_context
+
+    is_desktop = bld.env['PLATFORM'] in ('x86_64-macos', 'x86_64-linux', 'x86_64-win32')
+    if not is_desktop:
+        return
+
     bld.recurse('src')
     TestContext.initialize_test_context(test_context, bld)
 

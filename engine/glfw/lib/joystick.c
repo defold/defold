@@ -121,7 +121,9 @@ GLFWAPI int GLFWAPIENTRY glfwGetJoystickHats( int joy,
     return _glfwPlatformGetJoystickHats( joy, hats, numhats );
 }
 
-
+//========================================================================
+// Get joystick device id
+//========================================================================
 
 GLFWAPI int GLFWAPIENTRY glfwGetJoystickDeviceId( int joy, char** device_id )
 {

@@ -32,3 +32,7 @@ echo "Creating patch..."
 diff -ruw --exclude=".git" ${DIR_A} ${DIR_B} > ${PATCH_FILE}
 
 echo "Wrote ${PATCH_FILE}"
+
+rm -rf ${DIR_A}
+rm -rf ${DIR_B}
+
