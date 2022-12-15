@@ -213,6 +213,8 @@ namespace dmGameSystem
 
     static const dmhash_t PROP_VERTICES = dmHashString64("vertices");
 
+    static const uint64_t AABB_HASH = dmHashString64("AABB");
+
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
 
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -767,10 +769,10 @@ namespace dmGameSystem
             void* data;
             uint32_t count;
             dmBuffer::ValueType valueType;
-            dmBuffer::Result r = dmBuffer::GetMetaData(br->m_Buffer, dmHashString64("AABB"), &data, &count, &valueType );
+            dmBuffer::Result r = dmBuffer::GetMetaData(br->m_Buffer, AABB_HASH, &data, &count, &valueType );
             if (r == dmBuffer::RESULT_METADATA_MISSING) {
                 // no bounding box available - no culling
-                entry->m_Visibility = dmRender::VISIBILITY_FULL; // TODO - or shall we just "continue"
+                entry->m_Visibility = dmRender::VISIBILITY_FULL;
                 continue;
             } else
             if (r != dmBuffer::RESULT_OK) {
