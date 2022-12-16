@@ -69,8 +69,6 @@ namespace dmGraphics
     static bool SelectAdapterByType(AdapterType adapter_type)
     {
         GraphicsAdapter* next     = g_adapter_list;
-        GraphicsAdapter* selected = next;
-
         while(next)
         {
             if (next->m_AdapterType == adapter_type && next->m_IsSupportedCb())
@@ -419,6 +417,159 @@ namespace dmGraphics
 
         #undef TEST_AND_RETURN
         return format;
+    }
+
+    struct OpaqueHandleWrapper
+    {
+        void*            m_Object;
+        OpaqueHandleType m_Type;
+        uint16_t         m_Version;
+    };
+
+    static dmArray<OpaqueHandleWrapper> g_opaqueHandles;
+
+    #define OPAQUE_HANDLE_VERSION_BIT_START 18
+    #define OPAQUE_HANDLE_INDEX_BIT_MASK    0x3ffff
+
+    static inline HOpaqueHandle ToOpaqueHandle(uint32_t index)
+    {
+        return g_opaqueHandles[index].m_Version << OPAQUE_HANDLE_VERSION_BIT_START | index;
+    }
+
+    static inline uint32_t ToOpaqueIndex(HOpaqueHandle handle)
+    {
+        return handle & OPAQUE_HANDLE_INDEX_BIT_MASK;
+    }
+
+    static inline uint32_t ToOpaqueVersion(HOpaqueHandle handle)
+    {
+        return handle >> OPAQUE_HANDLE_VERSION_BIT_START;
+    }
+
+    #undef OPAQUE_HANDLE_VERSION_BIT_START
+    #undef OPAQUE_HANDLE_INDEX_BIT_MASK
+
+    static OpaqueHandleResult GetOpaqueHandleWrapper(HOpaqueHandle handle, OpaqueHandleWrapper* wrapper)
+    {
+        if (handle == 0)
+        {
+            return RESULT_INVALID_HANDLE;
+        }
+
+        uint32_t h_index = ToOpaqueIndex(handle);
+
+        if (h_index >= g_opaqueHandles.Size())
+        {
+            return RESULT_NOT_FOUND;
+        }
+
+        *wrapper = g_opaqueHandles[h_index];
+
+        uint32_t h_version = ToOpaqueVersion(handle);
+
+        if (wrapper->m_Version != h_version)
+        {
+            return RESULT_INVALID_HANDLE;
+        }
+
+        return RESULT_OK;
+    }
+
+    static void ResetOpaqueHandleWrapper(void* obj)
+    {
+        HOpaqueHandle handle;
+        OpaqueHandleResult res = GetOpaqueHandle(obj, &handle);
+        assert(res == RESULT_OK);
+        uint32_t h_index = ToOpaqueIndex(handle);
+        g_opaqueHandles[h_index].m_Object = 0;
+    }
+
+    static void SetOpaqueHandleWrapper(OpaqueHandleType type, void* object)
+    {
+        HOpaqueHandle handle;
+        assert(GetOpaqueHandle(object, &handle) != RESULT_OK);
+
+        OpaqueHandleWrapper* ptr = 0;
+        for (int i = 0; i < g_opaqueHandles.Size(); ++i)
+        {
+            if (g_opaqueHandles[i].m_Object == 0)
+            {
+                ptr = &g_opaqueHandles[i];
+                break;
+            }
+        }
+
+        uint16_t new_version = 1;
+
+        if (ptr == 0)
+        {
+            if (g_opaqueHandles.Full())
+            {
+                g_opaqueHandles.OffsetCapacity(4);
+            }
+
+            OpaqueHandleWrapper wrapper;
+            g_opaqueHandles.Push(wrapper);
+
+            ptr = &g_opaqueHandles.Back();
+            ptr->m_Version = 1;
+        }
+        else
+        {
+            new_version = ptr->m_Version + 1;
+        }
+
+        ptr->m_Version = new_version;
+        ptr->m_Type    = type;
+        ptr->m_Object  = object;
+    }
+
+    OpaqueHandleResult GetOpaqueHandle(void* obj, HOpaqueHandle* handle)
+    {
+        for (int i = 0; i < g_opaqueHandles.Size(); ++i)
+        {
+            if (g_opaqueHandles[i].m_Object == obj)
+            {
+                *handle = ToOpaqueHandle(i);
+                return RESULT_OK;
+            }
+        }
+        return RESULT_NOT_FOUND;
+    }
+
+    OpaqueHandleResult GetObjectFromHandle(HOpaqueHandle handle, void** obj)
+    {
+        OpaqueHandleWrapper wrapper;
+        OpaqueHandleResult res = GetOpaqueHandleWrapper(handle, &wrapper);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+        *obj = wrapper.m_Object;
+        return RESULT_OK;
+    }
+
+    OpaqueHandleResult GetOpaqueHandleType(HOpaqueHandle handle, OpaqueHandleType* type)
+    {
+        OpaqueHandleWrapper wrapper;
+        OpaqueHandleResult res = GetOpaqueHandleWrapper(handle, &wrapper);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+
+        *type = wrapper.m_Type;
+        return RESULT_OK;
+    }
+
+    bool IsOpaqueHandleValid(HOpaqueHandle handle)
+    {
+        OpaqueHandleWrapper wrapper;
+        if (GetOpaqueHandleWrapper(handle, &wrapper) != RESULT_OK)
+        {
+            return false;
+        }
+        return ToOpaqueVersion(handle) == wrapper.m_Version;
     }
 
     void DeleteContext(HContext context)
@@ -780,10 +931,13 @@ namespace dmGraphics
     }
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, creation_params, params);
+        HRenderTarget rt = g_functions.m_NewRenderTarget(context, buffer_type_flags, creation_params, params);
+        SetOpaqueHandleWrapper(HANDLE_TYPE_RENDER_TARGET, rt);
+        return rt;
     }
     void DeleteRenderTarget(HRenderTarget render_target)
     {
+        ResetOpaqueHandleWrapper(render_target);
         g_functions.m_DeleteRenderTarget(render_target);
     }
     void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
@@ -808,10 +962,13 @@ namespace dmGraphics
     }
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
-        return g_functions.m_NewTexture(context, params);
+        HTexture tex = g_functions.m_NewTexture(context, params);;
+        SetOpaqueHandleWrapper(HANDLE_TYPE_TEXTURE, tex);
+        return tex;
     }
     void DeleteTexture(HTexture t)
     {
+        ResetOpaqueHandleWrapper(t);
         g_functions.m_DeleteTexture(t);
     }
     void SetTexture(HTexture texture, const TextureParams& params)

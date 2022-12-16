@@ -337,6 +337,26 @@ namespace dmGraphics
         uint64_t m_PolygonOffsetFillEnabled : 1;
     };
 
+    enum OpaqueHandleType
+    {
+        HANDLE_TYPE_TEXTURE       = 0,
+        HANDLE_TYPE_RENDER_TARGET = 1,
+    };
+
+    enum OpaqueHandleResult
+    {
+        RESULT_OK,
+        RESULT_INVALID_HANDLE,
+        RESULT_NOT_FOUND,
+    };
+
+    typedef uint32_t HOpaqueHandle;
+
+    OpaqueHandleResult GetObjectFromHandle(HOpaqueHandle handle, void** obj);
+    OpaqueHandleResult GetOpaqueHandle(void* obj, HOpaqueHandle* handle);
+    OpaqueHandleResult GetOpaqueHandleType(HOpaqueHandle handle, OpaqueHandleType* type);
+    bool               IsOpaqueHandleValid(HOpaqueHandle handle);
+
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context

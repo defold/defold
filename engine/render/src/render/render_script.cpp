@@ -84,6 +84,27 @@ namespace dmRender
         return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH, "Expected a constant buffer (acquired from a render.* function)");
     }
 
+    static dmGraphics::HTexture GetTextureFromHandle(dmGraphics::HOpaqueHandle graphics_handle, dmGraphics::BufferType buffer_type)
+    {
+        dmGraphics::OpaqueHandleType type;
+        dmGraphics::OpaqueHandleResult res = dmGraphics::GetOpaqueHandleType(graphics_handle, &type);
+        assert(res == dmGraphics::RESULT_OK);
+
+        void* obj;
+        res = dmGraphics::GetObjectFromHandle(graphics_handle, &obj);
+        assert(res == dmGraphics::RESULT_OK);
+
+        switch(type)
+        {
+            case dmGraphics::HANDLE_TYPE_RENDER_TARGET: return dmGraphics::GetRenderTargetTexture((dmGraphics::HRenderTarget) obj, buffer_type);
+            case dmGraphics::HANDLE_TYPE_TEXTURE:       return (dmGraphics::HTexture) obj;
+            default:break;
+        }
+
+        assert(0 && "Invalid type for graphics handle");
+        return 0;
+    }
+
     struct ConstantBufferTableEntry
     {
         HNamedConstantBuffer m_ConstantBuffer;
@@ -1062,9 +1083,12 @@ namespace dmRender
             }
         }
 
-        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
+        dmGraphics::HOpaqueHandle rt_handle;
+        dmGraphics::HRenderTarget rt       = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
+        dmGraphics::OpaqueHandleResult res = dmGraphics::GetOpaqueHandle((void*) rt, &rt_handle);
+        assert(res == dmGraphics::RESULT_OK);
 
-        lua_pushlightuserdata(L, (void*)render_target);
+        dmScript::PushGraphicsHandle(L, rt_handle);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1088,16 +1112,22 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 1))
+        dmGraphics::HOpaqueHandle graphics_handle = dmScript::CheckGraphicsHandle(L, 2);
+
+        dmGraphics::OpaqueHandleType graphics_handle_type;
+        dmGraphics::OpaqueHandleResult res = dmGraphics::GetOpaqueHandleType(graphics_handle, &graphics_handle_type);
+
+        if (res != dmGraphics::RESULT_OK || graphics_handle_type != dmGraphics::HANDLE_TYPE_RENDER_TARGET)
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            return luaL_error(L, "Invalid render target supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
         }
-        if (render_target == 0x0)
-            return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
 
-        dmGraphics::DeleteRenderTarget(render_target);
+        dmGraphics::HRenderTarget* rt;
+        res = dmGraphics::GetObjectFromHandle(graphics_handle, (void**) &rt);
+        assert(res == dmGraphics::RESULT_OK);
+
+        dmGraphics::DeleteRenderTarget(*rt);
         return 0;
     }
 
@@ -1217,17 +1247,26 @@ namespace dmRender
     int RenderScript_EnableRenderTarget(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
         DM_LUA_STACK_CHECK(L, 0);
 
-        if (lua_islightuserdata(L, 1))
-        {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
-        }
-        if (render_target == 0x0)
-            return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
+        dmGraphics::HOpaqueHandle graphics_handle = dmScript::CheckGraphicsHandle(L, 2);
+        dmGraphics::OpaqueHandleType graphics_handle_type;
+        dmGraphics::OpaqueHandleResult res = dmGraphics::GetOpaqueHandleType(graphics_handle, &graphics_handle_type);
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t)render_target, 0)))
+        if (res != dmGraphics::RESULT_OK || graphics_handle_type != dmGraphics::HANDLE_TYPE_RENDER_TARGET)
+        {
+            return luaL_error(L, "Invalid render target supplied to %s.enable_render_target, has wrong type or handle is invalid", RENDER_SCRIPT_LIB_NAME);
+        }
+        
+        dmGraphics::HRenderTarget* rt;
+        dmGraphics::GetObjectFromHandle(graphics_handle, (void**) &rt);
+
+        if (rt == 0 || *rt == 0)
+        {
+            return luaL_error(L, "Invalid render target supplied to %s.enable_render_target, render target is nil.", RENDER_SCRIPT_LIB_NAME);
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, (uintptr_t) *rt, 0)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1294,20 +1333,25 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 1))
-        {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
-            uint32_t width = luaL_checknumber(L, 2);
-            uint32_t height = luaL_checknumber(L, 3);
-            dmGraphics::SetRenderTargetSize(render_target, width, height);
-            return 0;
-        }
-        else
+        dmGraphics::HOpaqueHandle graphics_handle = dmScript::CheckGraphicsHandle(L, 2);
+        dmGraphics::OpaqueHandleType graphics_handle_type;
+        dmGraphics::OpaqueHandleResult res = dmGraphics::GetOpaqueHandleType(graphics_handle, &graphics_handle_type);
+        
+        if (graphics_handle_type != dmGraphics::HANDLE_TYPE_RENDER_TARGET)
         {
             return luaL_error(L, "Expected render target as the second argument to %s.set_render_target_size.", RENDER_SCRIPT_LIB_NAME);
         }
+
+        dmGraphics::HRenderTarget* rt;
+        res = dmGraphics::GetObjectFromHandle(graphics_handle, (void**) &rt);
+        assert(res == dmGraphics::RESULT_OK);
+
+        uint32_t width  = luaL_checknumber(L, 2);
+        uint32_t height = luaL_checknumber(L, 3);
+        dmGraphics::SetRenderTargetSize(*rt, width, height);
+
+        return 0;
     }
 
     /*# enables a texture for a render target
@@ -1356,16 +1400,17 @@ namespace dmRender
     int RenderScript_EnableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
-
         uint32_t unit = luaL_checknumber(L, 1);
-        if (lua_islightuserdata(L, 2))
+        if (lua_isnumber(L, 2))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
-            int buffer_type_value = (int)luaL_checknumber(L, 3);
-            dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) buffer_type_value;
+            dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            if (lua_isnumber(L, 3))
+            {
+                buffer_type = (dmGraphics::BufferType) lua_tonumber(L, 3);
+            }
 
-            dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(render_target, buffer_type);
+            dmGraphics::HOpaqueHandle graphics_handle = dmScript::CheckGraphicsHandle(L, 2);
+            dmGraphics::HTexture texture              = GetTextureFromHandle(graphics_handle, buffer_type);
 
             if(texture != 0)
             {
@@ -1433,31 +1478,93 @@ namespace dmRender
      */
     int RenderScript_GetRenderTargetWidth(lua_State* L)
     {
+        dmLogOnceWarning("This interface for render.draw() is deprecated. Please see documentation at <documentation-url-here>");
+
         int top = lua_gettop(L);
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 1))
-        {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
-        }
-        else
+        dmGraphics::HOpaqueHandle graphics_handle = dmScript::CheckGraphicsHandle(L, 1);
+
+        dmGraphics::OpaqueHandleType graphics_handle_type;
+        dmGraphics::OpaqueHandleResult res = dmGraphics::GetOpaqueHandleType(graphics_handle, &graphics_handle_type);
+        assert(res == dmGraphics::RESULT_OK);
+
+        if (graphics_handle_type != dmGraphics::HANDLE_TYPE_RENDER_TARGET)
         {
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
-        uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
+
+        dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) luaL_checknumber(L, 2);
         if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
             return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
         }
-        uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
-        lua_pushnumber(L, width);
+
+        dmGraphics::HTexture texture = GetTextureFromHandle(graphics_handle, buffer_type);
+
+        lua_pushnumber(L, dmGraphics::GetTextureWidth(texture));
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    static dmGraphics::BufferType CheckBufferTypeDefault(lua_State* L, int index, dmGraphics::BufferType default_type)
+    {
+        if (!lua_isnoneornil(L,index))
+        {
+            return (dmGraphics::BufferType) luaL_checknumber(L, index);
+        }
+        return default_type;
+    }
+
+    int RenderScript_GetTextureWidth(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void)i;
+
+        dmGraphics::HOpaqueHandle graphics_handle = dmScript::CheckGraphicsHandle(L, 1);
+        dmGraphics::BufferType buffer_type        = CheckBufferTypeDefault(L, 2, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
+            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
+            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+        {
+            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
+        }
+
+        dmGraphics::HTexture texture = GetTextureFromHandle(graphics_handle, buffer_type);
+        lua_pushnumber(L, dmGraphics::GetTextureWidth(texture));
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    int RenderScript_GetTextureHeight(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        (void)i;
+
+        dmGraphics::HOpaqueHandle graphics_handle = dmScript::CheckGraphicsHandle(L, 1);
+        dmGraphics::BufferType buffer_type        = CheckBufferTypeDefault(L, 2, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+
+        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
+            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
+            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+        {
+            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
+        }
+
+        dmGraphics::HTexture texture = GetTextureFromHandle(graphics_handle, buffer_type);
+        lua_pushnumber(L, dmGraphics::GetTextureHeight(texture));
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -1489,26 +1596,28 @@ namespace dmRender
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
-        dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 1))
-        {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
-        }
-        else
+        dmGraphics::HOpaqueHandle graphics_handle = dmScript::CheckGraphicsHandle(L, 1);
+
+        dmGraphics::OpaqueHandleType graphics_handle_type;
+        dmGraphics::OpaqueHandleResult res = dmGraphics::GetOpaqueHandleType(graphics_handle, &graphics_handle_type);
+        assert(res == dmGraphics::RESULT_OK);
+
+        if (graphics_handle_type != dmGraphics::HANDLE_TYPE_RENDER_TARGET)
         {
             return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
-        uint32_t buffer_type = (uint32_t)luaL_checknumber(L, 2);
+
+        dmGraphics::BufferType buffer_type = (dmGraphics::BufferType)luaL_checknumber(L, 2);
         if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
             buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
             return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
         }
-        uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
-        lua_pushnumber(L, height);
+
+        dmGraphics::HTexture texture = GetTextureFromHandle(graphics_handle, buffer_type);
+        lua_pushnumber(L, dmGraphics::GetTextureHeight(texture));
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -2751,6 +2860,8 @@ namespace dmRender
         {"set_render_target_size",          RenderScript_SetRenderTargetSize},
         {"enable_texture",                  RenderScript_EnableTexture},
         {"disable_texture",                 RenderScript_DisableTexture},
+        {"get_texture_width",               RenderScript_GetTextureWidth},
+        {"get_texture_height",              RenderScript_GetTextureHeight},
         {"get_render_target_width",         RenderScript_GetRenderTargetWidth},
         {"get_render_target_height",        RenderScript_GetRenderTargetHeight},
         {"clear",                           RenderScript_Clear},

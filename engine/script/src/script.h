@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <dmsdk/script/script.h>
+#include <dmsdk/graphics/graphics.h>
 
 #include <dlib/vmath.h>
 #include <dlib/hash.h>
@@ -24,6 +25,7 @@
 #include <dlib/configfile.h>
 #include <dlib/log.h>
 #include <resource/resource.h>
+#include <graphics/graphics.h>
 #include <ddf/ddf.h>
 
 extern "C"
@@ -382,6 +384,10 @@ namespace dmScript
      * @return unique identifier for the instance
      */
     uintptr_t GetInstanceId(lua_State* L);
+
+    void PushGraphicsHandle(lua_State* L, const dmGraphics::HOpaqueHandle& handle);
+
+    dmGraphics::HOpaqueHandle CheckGraphicsHandle(lua_State* L, int index);
 
     /**
      * Create a "world" for this script, normally this matches a GO collection,

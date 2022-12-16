@@ -54,6 +54,8 @@ namespace dmScript
      * @namespace builtins
      */
 
+    #define SCRIPT_GRAPHICS_HANDLE "graphicshandle"
+
     static const char INSTANCE_NAME[] = "__dm_script_instance__";
     static const uint32_t INSTANCE_NAME_HASH = dmHashBuffer32(INSTANCE_NAME, sizeof(INSTANCE_NAME) - 1);
 
@@ -68,6 +70,8 @@ namespace dmScript
 
     const char SCRIPT_METATABLE_TYPE_HASH_KEY_NAME[] = "__dmengine_type";
     static const uint32_t SCRIPT_METATABLE_TYPE_HASH_KEY = dmHashBufferNoReverse32(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME, sizeof(SCRIPT_METATABLE_TYPE_HASH_KEY_NAME) - 1);
+
+    static uint32_t SCRIPT_GRAPHICS_HANDLE_TYPE_HASH = 0;
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
@@ -149,6 +153,20 @@ namespace dmScript
         return 0;
     }
 
+    static const luaL_reg ScriptGraphicsHandle_methods[] =
+    {
+        {0,0}
+    };
+
+    static const luaL_reg ScriptGraphicsHandle_meta[] =
+    {
+        //{"__gc",        RenderScriptConstantBuffer_gc},
+        //{"__tostring",  RenderScriptConstantBuffer_tostring},
+        //{"__index",     RenderScriptConstantBuffer_index},
+        //{"__newindex",  RenderScriptConstantBuffer_newindex},
+        {0, 0}
+    };
+
     void Initialize(HContext context)
     {
         lua_State* L = context->m_LuaState;
@@ -220,6 +238,8 @@ namespace dmScript
                 (*l)->Initialize(context);
             }
         }
+
+        SCRIPT_GRAPHICS_HANDLE_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPT_GRAPHICS_HANDLE, ScriptGraphicsHandle_methods, ScriptGraphicsHandle_meta);
     }
 
     void RegisterScriptExtension(HContext context, HScriptExtension script_extension)
@@ -1025,6 +1045,30 @@ namespace dmScript
         uintptr_t id = (instance_type == LUA_TLIGHTUSERDATA || instance_type == LUA_TUSERDATA) ? (uintptr_t)lua_touserdata(L, -1) : 0;
         lua_pop(L, 1);
         return id;
+    }
+
+    dmGraphics::HOpaqueHandle CheckGraphicsHandle(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TNUMBER)
+        {
+            dmGraphics::HOpaqueHandle handle = (dmGraphics::HOpaqueHandle) luaL_checkinteger(L, index);
+
+            if (!dmGraphics::IsOpaqueHandleValid(handle))
+            {
+                luaL_error(L, "Argument %d is not a valid graphics handle", index);
+            }
+
+            return handle;
+        }
+        luaL_typerror(L, index, SCRIPT_GRAPHICS_HANDLE);
+        return 0x0;
+    }
+
+    void PushGraphicsHandle(lua_State* L, const dmGraphics::HOpaqueHandle& handle)
+    {
+        lua_pushinteger(L, (uint32_t) handle);
+        luaL_getmetatable(L, SCRIPT_GRAPHICS_HANDLE);
+        lua_setmetatable(L, -2);
     }
 
     struct ScriptWorld
