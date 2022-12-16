@@ -14,7 +14,8 @@
 
 (ns util.coll
   (:refer-clojure :exclude [bounded-count])
-  (:import [clojure.lang MapEntry]))
+  (:import [clojure.lang MapEntry]
+           [java.util List]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -43,3 +44,21 @@
       (if (and s (< i n))
         (recur (inc i) (next s))
         i))))
+
+(definline index-of
+  "Return the index of the first occurrence of the specified item in the
+  supplied vector, or -1 if not found."
+  [^List coll item]
+  `(.indexOf ~coll ~item))
+
+(defn remove-at
+  "Return a vector without the item at the specified index."
+  [coll ^long removed-index]
+  {:pre [(vector? coll)]}
+  (persistent!
+    (reduce-kv (fn [result ^long index value]
+                 (if (= removed-index index)
+                   result
+                   (conj! result value)))
+               (transient [])
+               coll)))

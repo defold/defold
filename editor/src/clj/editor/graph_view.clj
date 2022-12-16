@@ -87,13 +87,49 @@
   -fx-fill: #464c55;
 }
 
+.graph-view-node-jack.connected.red Circle {
+  -fx-fill: -df-defold-red-lighter;
+}
+
+.graph-view-node-jack.connected.green Circle {
+  -fx-fill: -df-defold-green;
+}
+
+.graph-view-node-jack.connected.blue Circle {
+  -fx-fill: -df-defold-blue;
+}
+
 .graph-view-node-jack Text {
   -fx-font-size: 13px;
+}
+
+.graph-view-node-jack.red Text {
+  -fx-fill: -df-defold-red-lighter;
+}
+
+.graph-view-node-jack.green Text {
+  -fx-fill: -df-defold-green;
+}
+
+.graph-view-node-jack.blue Text {
+  -fx-fill: -df-defold-blue;
 }
 
 .graph-view-connection {
   -fx-stroke: #464c55;
   -fx-stroke-width: 3px;
+}
+
+.graph-view-connection.red {
+  -fx-stroke: -df-defold-red-lighter;
+}
+
+.graph-view-connection.green {
+  -fx-stroke: -df-defold-green;
+}
+
+.graph-view-connection.blue {
+  -fx-stroke: -df-defold-blue;
 }
 ")
 

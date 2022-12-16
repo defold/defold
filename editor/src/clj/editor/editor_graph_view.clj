@@ -1,5 +1,6 @@
 (ns editor.editor-graph-view
-  (:require [clojure.spec.alpha :as s]
+  (:require [cljfx.coerce :as fx.coerce]
+            [clojure.spec.alpha :as s]
             [dynamo.graph :as g]
             [editor.error-reporting :as error-reporting]
             [editor.graph-view :as gv]
@@ -9,7 +10,8 @@
             [internal.node :as in]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [util.coll :refer [pair]]))
+            [util.coll :refer [pair] :as coll])
+  (:import [java.util List]))
 
 (defn- node-title [node-type node-id basis]
   (or (when (g/node-type-match? resource/ResourceNode node-type)
@@ -157,18 +159,86 @@
 (defn- update-in-view-data! [view-data-atom ks f & args]
   (update-view-data! view-data-atom #(apply update-in %1 ks f %2 args)))
 
-(defn ensure-node! [view-data-atom node-id]
+(defn- ensure-node! [view-data-atom node-id]
   (update-in-view-data! view-data-atom [::gv/graph ::gv/nodes] ensure-node node-id))
 
-(defn expand-output! [view-data-atom node-id output-label]
+(defn- expand-output! [view-data-atom node-id output-label]
   (update-in-view-data! view-data-atom [::gv/graph] expand-output node-id output-label))
+
+(defn- update-existing-vector
+  ([m k f]
+   (if-some [v (get m k)]
+     (assoc m k (mapv f v))
+     m))
+  ([m k f a]
+   (if-some [v (get m k)]
+     (assoc m k (mapv #(f % a) v))
+     m))
+  ([m k f a b]
+   (if-some [v (get m k)]
+     (assoc m k (mapv #(f % a b) v))
+     m))
+  ([m k f a b c]
+   (if-some [v (get m k)]
+     (assoc m k (mapv #(f % a b c) v))
+     m))
+  ([m k f a b c & args]
+   (if-some [v (get m k)]
+     (assoc m k (mapv #(apply f % a b c args) v))
+     m)))
+
+(defn- set-style-class [element ^String style-class enabled]
+  {:pre [(string? style-class)]}
+  (let [^List old-style-classes (fx.coerce/style-class (::gv/style-class element))]
+    (if enabled
+      (if old-style-classes
+        (if (neg? (coll/index-of old-style-classes style-class))
+          (assoc element ::gv/style-class (conj old-style-classes style-class))
+          element)
+        (assoc element ::gv/style-class [style-class]))
+      (if old-style-classes
+        (let [index (coll/index-of old-style-classes style-class)]
+          (if (neg? index)
+            element
+            (assoc element ::gv/style-class (coll/remove-at old-style-classes index))))
+        element))))
+
+(defn- on-output-clicked [view-data basis node-id output-label]
+  (let [clicked-output (gt/endpoint node-id output-label)
+        read-inputs #{}
+        read-outputs #{}
+        written-inputs #{}
+        written-outputs (gt/dependencies basis [(gt/endpoint node-id output-label)])]
+    (letfn [(apply-jack-highlight [{label ::gv/id :as jack} node-id read-endpoints written-endpoints]
+              (let [endpoint (gt/endpoint node-id label)]
+                (let [clicked (= clicked-output endpoint)
+                      read (and (not clicked) (contains? read-endpoints (gt/endpoint node-id label)))
+                      written (and (not clicked) (contains? written-endpoints (gt/endpoint node-id label)))]
+                  (-> jack
+                      (set-style-class "red" written)
+                      (set-style-class "green" read)
+                      (set-style-class "blue" clicked)))))
+            (apply-node-highlight [{node-id ::gv/id :as node}]
+              (-> node
+                  (update-existing-vector ::gv/outputs apply-jack-highlight node-id read-outputs written-outputs)
+                  (update-existing-vector ::gv/inputs apply-jack-highlight node-id read-inputs written-inputs)))
+            (apply-connection-highlight [{arc ::gv/id :as connection}]
+              (let [written (contains? written-outputs (gt/source-endpoint arc))]
+                (set-style-class connection "red" written)))]
+      (update
+        view-data ::gv/graph
+        (fn [graph]
+          (-> graph
+              (expand-output basis node-id output-label)
+              (update-existing-vector ::gv/nodes apply-node-highlight)
+              (update-existing-vector ::gv/connections apply-connection-highlight)))))))
 
 (defn- graph-view-event-handler [view-data-atom {::gv/keys [event-type element-type] :as event}]
   (prn event)
   (when (and (= :node-pressed event-type)
              (= :output element-type))
     (let [{node-id ::gv/id output-label ::gv/element-id} event]
-      (expand-output! view-data-atom node-id output-label))))
+      (update-view-data! view-data-atom on-output-clicked node-id output-label))))
 
 ;; -----------------------------------------------------------------------------
 

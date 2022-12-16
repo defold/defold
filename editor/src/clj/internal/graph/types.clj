@@ -81,6 +81,12 @@
 (defn endpoint? [x]
   (instance? Endpoint x))
 
+(definline source-endpoint [^Arc arc]
+  `(->Endpoint (.source-id ~arc) (.source-label ~arc)))
+
+(definline target-endpoint [^Arc arc]
+  `(->Endpoint (.target-id ~arc) (.target-label ~arc)))
+
 (defn arc-from-endpoints
   ^Arc [source-endpoint target-endpoint]
   (->Arc (endpoint-node-id source-endpoint)
