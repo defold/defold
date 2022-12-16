@@ -742,13 +742,6 @@ namespace dmGameSystem
         }
     }
 
-
-    template <typename T>
-    static void MetadataAabbToPoints(const T* data, dmBuffer::ValueType valueType, dmVMath::Vector3& minPoint, dmVMath::Vector3& maxPoint) {
-        minPoint = Vector3(data[0], data[1], data[2]);
-        maxPoint = Vector3(data[3], data[4], data[5]);
-    }
-
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
         DM_PROFILE("Mesh");
@@ -764,7 +757,6 @@ namespace dmGameSystem
             MeshComponent* component_p = (MeshComponent*)entry->m_UserData;
 
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component_p, component_p->m_Resource);
-            dmVMath::Vector3 boundsMin, boundsMax;
 
             void* data;
             uint32_t count;
@@ -780,39 +772,8 @@ namespace dmGameSystem
                 continue;
             }
 
-            switch (valueType) {
-                case dmBuffer::VALUE_TYPE_FLOAT32:
-                    MetadataAabbToPoints((float*)data, valueType, boundsMin, boundsMax);
-                break;
-                case dmBuffer::VALUE_TYPE_UINT8:
-                    MetadataAabbToPoints((uint8_t*)data, valueType, boundsMin, boundsMax);
-                break;
-                case dmBuffer::VALUE_TYPE_UINT16:
-                    MetadataAabbToPoints((uint16_t*)data, valueType, boundsMin, boundsMax);
-                break;
-                case dmBuffer::VALUE_TYPE_UINT32:
-                    MetadataAabbToPoints((uint32_t*)data, valueType, boundsMin, boundsMax);
-                break;
-                case dmBuffer::VALUE_TYPE_UINT64:
-                    MetadataAabbToPoints((uint64_t*)data, valueType, boundsMin, boundsMax);
-                break;
-                case dmBuffer::VALUE_TYPE_INT8:
-                    MetadataAabbToPoints((int8_t*)data, valueType, boundsMin, boundsMax);
-                break;
-                case dmBuffer::VALUE_TYPE_INT16:
-                    MetadataAabbToPoints((int16_t*)data, valueType, boundsMin, boundsMax);
-                break;
-                case dmBuffer::VALUE_TYPE_INT32:
-                    MetadataAabbToPoints((int32_t*)data, valueType, boundsMin, boundsMax);
-                break;
-                case dmBuffer::VALUE_TYPE_INT64:
-                    MetadataAabbToPoints((int64_t*)data, valueType, boundsMin, boundsMax);
-                break;
-                default:
-                    dmLogError("Invalid typeValue in buffer metadata");
-                    continue;
-
-            }
+            dmVMath::Vector3 boundsMin(((float*)data)[0], ((float*)data)[1], ((float*)data)[2] );
+            dmVMath::Vector3 boundsMax(((float*)data)[3], ((float*)data)[4], ((float*)data)[5] );
 
             bool intersect = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax, false);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
