@@ -47,6 +47,7 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [schema.core :as s]
             [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
@@ -307,8 +308,8 @@
       corners? (cornify max-angle)
       cut-off? (into (geom/rotate [0 0 max-angle] ps)))))
 
-(defn- v3->v4 [v3 default]
-  (conj (or v3 default) 1.0))
+(defn- v3->v4 [v3]
+  (conj v3 1.0))
 
 (def ^:private prop-index->prop-key
   (let [index->pb-field (protobuf/fields-by-indices Gui$NodeDesc)
@@ -330,47 +331,6 @@
 (declare get-registered-node-type-info get-registered-node-type-infos)
 
 ;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-(g/defnk produce-node-msg [type custom-type parent child-index _declared-properties]
-  (let [pb-renames {:x-anchor :xanchor
-                    :y-anchor :yanchor
-                    :generated-id :id}
-        v3-fields {:position [0.0 0.0 0.0] :scale [1.0 1.0 1.0] :size [200.0 100.0 0.0]}
-        props (:properties _declared-properties)
-        overridden-fields (->> props
-                               (keep (fn [[prop val]] (when (contains? val :original-value) (prop-key->prop-index prop))))
-                               (sort)
-                               (vec))
-        msg (-> {:type type
-                 :custom-type custom-type
-                 :child-index child-index
-                 :template-node-child false
-                 :overridden-fields overridden-fields}
-                (into (map (fn [[k v]] [k (:value v)])
-                           (filter (fn [[k v]] (and (get v :visible true)
-                                                    (not (contains? (set (keys pb-renames)) k))))
-                                   props)))
-                (cond->
-                 (and parent (not-empty parent)) (assoc :parent parent)
-                 (= type :type-template) (->
-                                          (update :template (fn [t] (resource/resource->proj-path (:resource t))))
-                                          (assoc :color [1.0 1.0 1.0 1.0]))
-                 (= type :type-particlefx) (->
-                                            (assoc
-                                             :size [1.0 1.0 0.0 1.0]
-                                             :size-mode :size-mode-auto)))
-                (into (map (fn [[k v]] [v (get-in props [k :value])]) pb-renames)))
-        msg (-> (reduce (fn [msg [k default]]
-                          (update msg k v3->v4 default))
-                        msg
-                        v3-fields)
-                (update :rotation (fn [rotation]
-                                    (clj-quat->euler-v4 (or rotation [0.0 0.0 0.0 1.0])))))
-        node-type-info (get-registered-node-type-info type custom-type)
-        msg (if-some [convert-fn (:convert-fn node-type-info)]
-              (convert-fn node-type-info msg)
-              msg)]
-    msg))
 
 (def gui-node-parent-attachments
   [[:id :parent]
@@ -567,6 +527,39 @@
       (when emit-warnings?
         (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-names layer)))))
 
+(defn- overridden-fields [gui-node]
+  (->> gui-node
+       (gt/overridden-properties)
+       (keys)
+       (keep prop-key->prop-index)
+       (sort)
+       (vec)))
+
+(g/defnk produce-gui-base-node-msg [_this type custom-type child-index position rotation scale id generated-id size color alpha inherit-alpha enabled layer parent]
+  ;; Warning: This base output or any of the base outputs that derive from it
+  ;; must not be cached due to overridden-fields reliance on _this. Only the
+  ;; node-msg outputs of concrete nodes may be cached. In that case caching is
+  ;; fine since such an output will have explicit dependencies on all the
+  ;; property values it requires.
+  (cond-> {:type type
+           :custom-type custom-type
+           :child-index child-index
+           :template-node-child false
+           :overridden-fields (overridden-fields _this)
+           :position (v3->v4 position)
+           :rotation (clj-quat->euler-v4 rotation)
+           :scale (v3->v4 scale)
+           :id (if (g/node-override? _this) generated-id id)
+           :size (v3->v4 size) ; TODO: Not used by template, particlefx, or spine. Move to ShapeNode+TextNode?
+           :color color ; TODO: Not used by template, or spine, Move to ParticleFXNode+ShapeNode+TextNode?
+           :alpha alpha
+           :inherit-alpha inherit-alpha
+           :enabled enabled
+           :layer layer}
+
+          (not-empty parent)
+          (assoc :parent parent)))
+
 (g/defnode GuiNode
   (inherits core/Scope)
   (inherits scene/SceneNode)
@@ -674,7 +667,8 @@
                     (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
-  (output node-msg g/Any produce-node-msg)
+  (output gui-base-node-msg g/Any produce-gui-base-node-msg)
+  (output node-msg g/Any :abstract)
   (input node-msgs g/Any :array)
   (output node-msgs g/Any (g/fnk [node-msgs node-msg]
                             (into [node-msg]
@@ -752,6 +746,15 @@
                              "Adjust mode \"Stretch\" not supported for particlefx nodes."))
                          adjust-mode))
 
+(g/defnk produce-visual-base-node-msg [gui-base-node-msg visible blend-mode adjust-mode pivot x-anchor y-anchor]
+  (assoc gui-base-node-msg
+    :visible visible
+    :blend-mode blend-mode ; TODO: Not used by particlefx (forced to :blend-mode-alpha). Move?
+    :adjust-mode adjust-mode
+    :pivot pivot ; TODO: Not used by particlefx (forced to :pivot-center). Move?
+    :xanchor x-anchor
+    :yanchor y-anchor))
+
 (g/defnode VisualNode
   (inherits GuiNode)
 
@@ -771,6 +774,7 @@
   (property y-anchor g/Keyword (default :yanchor-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
 
+  (output visual-base-node-msg g/Any produce-visual-base-node-msg)
   (output gui-scene g/Any (g/fnk [_node-id]
                                  (node->gui-scene _node-id)))
 
@@ -827,6 +831,14 @@
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
+(g/defnk produce-shape-base-node-msg [visual-base-node-msg size-mode texture clipping-mode clipping-visible clipping-inverted]
+  (assoc visual-base-node-msg
+    :size-mode size-mode
+    :texture texture
+    :clipping-mode clipping-mode
+    :clipping-visible clipping-visible
+    :clipping-inverted clipping-inverted))
+
 (g/defnode ShapeNode
   (inherits VisualNode)
 
@@ -850,7 +862,7 @@
   (property clipping-visible g/Bool (default true))
   (property clipping-inverted g/Bool (default false))
 
-
+  (output shape-base-node-msg g/Any produce-shape-base-node-msg)
   (output anim-data g/Any (g/fnk [texture-anim-datas texture]
                             (or (texture-anim-datas texture)
                                 (texture-anim-datas ""))))
@@ -882,6 +894,10 @@
 (defn- steps->ranges [v]
   (partition 2 1 v))
 
+(g/defnk produce-box-node-msg [shape-base-node-msg slice9]
+  (assoc shape-base-node-msg
+    :slice9 slice9))
+
 (g/defnode BoxNode
   (inherits ShapeNode)
 
@@ -894,6 +910,7 @@
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
+  (output node-msg g/Any :cached produce-box-node-msg)
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
             (let [frame (get-in anim-data [:frames 0])
@@ -914,6 +931,13 @@
 
 (defn- validate-perimeter-vertices [node-id perimeter-vertices]
   (validation/prop-error :fatal node-id :perimeter-vertices validation/prop-outside-range? [perimeter-vertices-min perimeter-vertices-max] perimeter-vertices "Perimeter Vertices"))
+
+(g/defnk produce-pie-node-msg [shape-base-node-msg outer-bounds inner-radius perimeter-vertices pie-fill-angle]
+  (assoc shape-base-node-msg
+    :outer-bounds outer-bounds
+    :inner-radius inner-radius
+    :perimeter-vertices perimeter-vertices
+    :pie-fill-angle pie-fill-angle))
 
 (g/defnode PieNode
   (inherits ShapeNode)
@@ -937,6 +961,7 @@
                                      :perimeter-vertices perimeter-vertices :pie-fill-angle pie-fill-angle})))
 
   ;; Overloaded outputs
+  (output node-msg g/Any :cached produce-pie-node-msg)
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha pie-data anim-data clipping-mode clipping-visible clipping-inverted]
                  (let [[w h _] size
@@ -996,6 +1021,18 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
 
+(g/defnk produce-text-node-msg [visual-base-node-msg text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
+  (assoc visual-base-node-msg
+    :text text
+    :line-break line-break
+    :font font
+    :text-leading text-leading
+    :text-tracking text-tracking
+    :outline outline
+    :outline-alpha outline-alpha
+    :shadow shadow
+    :shadow-alpha shadow-alpha))
+
 (g/defnode TextNode
   (inherits VisualNode)
 
@@ -1035,6 +1072,7 @@
                                         (font-datas ""))))
 
   ;; Overloaded outputs
+  (output node-msg g/Any :cached produce-text-node-msg)
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [size font font-shaders pivot text-data]
@@ -1122,6 +1160,13 @@
 
 (defn- andf [a b]
   (and a b))
+
+(g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
+  (assoc gui-base-node-msg
+    :template (resource/resource->proj-path template-resource)
+
+    ;; TODO: We should not have to overwrite the base properties here. Refactor?
+    :color [1.0 1.0 1.0 1.0]))
 
 (g/defnode TemplateNode
   (inherits GuiNode)
@@ -1219,6 +1264,7 @@
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [template-outline current-layout]
                                                                      (get-in template-outline [:children 0 :children])))
   (output node-outline-reqs g/Any :cached (g/constantly []))
+  (output node-msg g/Any :cached produce-template-node-msg)
   (output node-msgs g/Any :cached (g/fnk [id node-msg scene-pb-msg]
                                     (into [node-msg] (map #(cond-> (assoc % :template-node-child true)
                                                              (empty? (:parent %)) (assoc :parent id))
@@ -1276,6 +1322,16 @@
     (contains? scene :renderable)
     (assoc-in [:renderable :topmost?] true)))
 
+(g/defnk produce-particlefx-node-msg [visual-base-node-msg particlefx]
+  (assoc visual-base-node-msg
+    :particlefx particlefx
+    :size-mode :size-mode-auto
+
+    ;; TODO: We should not have to overwrite the base properties here. Refactor?
+    :size [1.0 1.0 0.0 1.0]
+    :blend-mode :blend-mode-alpha
+    :pivot :pivot-center))
+
 (g/defnode ParticleFXNode
   (inherits VisualNode)
 
@@ -1296,6 +1352,7 @@
                        [:enabled :visible :particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
+  (output node-msg g/Any :cached produce-particlefx-node-msg)
   (output source-scene g/Any :cached (g/fnk [_node-id id particlefx-infos particlefx child-index layer-index material-shader color+alpha]
                                             (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
                                               (-> source-scene
@@ -2867,5 +2924,14 @@
   (:node-cls (get-registered-node-type-info node-type custom-type)))
 
 ;; SDK api
-(defn register-node-type-info! [type-info]
+(defn register-node-type-info! [{:keys [node-cls] :as type-info}]
+  (when-some [abstract-output-labels (not-empty (g/abstract-output-labels node-cls))]
+    (throw (ex-info (format "Plugin GUI node type %s does not implement required outputs: %s"
+                            (:name @node-cls)
+                            (->> abstract-output-labels
+                                 (sort)
+                                 (map name)
+                                 (str/join ", ")))
+                    {:node-cls node-cls
+                     :abstract-output-labels abstract-output-labels})))
   (swap! custom-node-type-infos conj type-info))

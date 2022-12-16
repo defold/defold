@@ -53,11 +53,15 @@ Macros currently mean no foreseeable performance gain however."
   [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
+(defn- field-name->key-raw [^String field-name]
+  (keyword (if (re-find upper-pattern field-name)
+             (->kebab-case field-name)
+             (s/replace field-name "_" "-"))))
+
+(def field-name->key (memoize field-name->key-raw))
+
 (defn- field->key [^Descriptors$FieldDescriptor field-desc]
-  (let [field-name (.getName field-desc)]
-    (keyword (if (re-find upper-pattern field-name)
-               (->kebab-case field-name)
-               (s/replace field-name "_" "-")))))
+  (field-name->key (.getName field-desc)))
 
 (defn pb-enum->val
   [val-or-desc]
@@ -611,7 +615,10 @@ Macros currently mean no foreseeable performance gain however."
 
 (defn- fields-by-indices-raw [^Class cls]
   (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
-    (into {} (map (fn [^Descriptors$FieldDescriptor field] [(.getNumber field) (field->key field)]) (.getFields desc)))))
+    (into {}
+          (map (fn [^Descriptors$FieldDescriptor field]
+                 [(.getNumber field) (field->key field)]))
+          (.getFields desc))))
 
 (def fields-by-indices (memoize fields-by-indices-raw))
 
