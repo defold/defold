@@ -368,7 +368,7 @@ def build(bld):
                                     includes = '../../../src . .. ../../../proto',
                                     source = bld.path.ant_glob('%s/*' % (dir), incl=exts),
                                     exported_symbols = exported_symbols,
-                                    use = 'TESTMAIN RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB PROFILE_NULL RIG HID gameobject',
+                                    use = 'TESTMAIN RESOURCE DDF PLATFORM_SOCKET PLATFORM_THREAD SCRIPT LUA EXTENSION DLIB PROFILE_NULL RIG HID GRAPHICS_NULL gameobject',
                                     web_libs = ['library_sys.js', 'library_script.js'],
                                     proto_gen_py = True,
                                     target = 'test_gameobject_%s' % dir)

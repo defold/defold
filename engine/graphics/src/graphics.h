@@ -143,11 +143,6 @@ namespace dmGraphics
         FACE_TYPE_FRONT_AND_BACK = 2,
     };
 
-    enum MemoryType
-    {
-        MEMORY_TYPE_MAIN = 0,
-    };
-
     enum WindowState
     {
         WINDOW_STATE_OPENED             = 0x00020001,

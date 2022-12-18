@@ -44,6 +44,7 @@ def configure(conf):
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'
+    conf.env['STLIB_GRAPHICS_NULL'] = 'graphics_null'
 
     if operating_sys != "osx":
         conf.env['STLIB_UNWIND'] = 'unwind'
