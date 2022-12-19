@@ -516,9 +516,9 @@ static int GraphicsTextureTypeToImageType(int texturetype)
 {
     switch(texturetype)
     {
-        case dmGraphics::TextureImage::TYPE_2D:       return dmGraphics::TEXTURE_TYPE_2D;
-        case dmGraphics::TextureImage::TYPE_2D_ARRAY: return dmGraphics::TEXTURE_TYPE_2D_ARRAY;
-        case dmGraphics::TextureImage::TYPE_CUBEMAP:  return dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+        case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
+        case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
+        case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
         default: assert(0);
     }
     return -1;
