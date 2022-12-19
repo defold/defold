@@ -828,7 +828,7 @@
     (update-in [:basis :graphs] map-vals-bargs #(assoc % :tx-label label))))
 
 (def tx-report-keys
-  (cond-> [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]
+  (cond-> [:basis :graphs-modified :nodes-affected :nodes-added :nodes-modified :nodes-deleted :cached-outputs-modified :label :sequence-label]
           (du/metrics-enabled?) (conj :metrics)))
 
 (defn- finalize-update
@@ -845,7 +845,7 @@
    :nodes-added []
    :nodes-modified #{}
    :nodes-deleted {}
-   :outputs-modified #{}
+   :cached-outputs-modified #{}
    :graphs-modified #{}
    :override-nodes-affected-seen #{}
    :override-nodes-affected-ordered []
@@ -872,12 +872,13 @@
 
 (defn- trace-dependencies
   [ctx]
-  ;; at this point, :outputs-modified contains [node-id output] pairs.
-  ;; afterwards, it will have the transitive closure of all [node-id output] pairs
-  ;; reachable from the original collection.
+  ;; at this point, :cached-outputs-modified contains #g/endpoint [node-id output] values.
+  ;; afterwards, it will have the transitive closure of all cached
+  ;; #g/endpoint [node-id output] values reachable from the original
+  ;; collection.
   (du/measuring (:metrics ctx) :trace-dependencies
-    (let [outputs-modified (gt/dependencies (:basis ctx) (:nodes-affected ctx))]
-      (assoc ctx :outputs-modified outputs-modified))))
+    (let [cached-outputs-modified (gt/cached-dependencies (:basis ctx) (:nodes-affected ctx))]
+      (assoc ctx :cached-outputs-modified cached-outputs-modified))))
 
 (defn transact*
   [ctx actions]

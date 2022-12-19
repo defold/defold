@@ -19,8 +19,11 @@
             [internal.util :as util]
             [util.coll :refer [pair]])
   (:import [clojure.lang IPersistentSet]
+           [com.github.benmanes.caffeine.cache Cache Caffeine]
            [internal.graph.types Arc]
-           [java.util ArrayDeque HashSet]))
+           [java.util Set]
+           [java.util.concurrent ConcurrentHashMap ForkJoinPool TimeUnit]
+           [java.util.function Function]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -813,41 +816,71 @@
                result')
         (persistent! result')))))
 
-(defn- basis-dependencies [basis endpoints]
+(def ^:private compute-cached-outputs-function
+  (reify Function
+    (apply [_ node-type]
+      (in/cached-outputs node-type))))
+
+(def ^:private ^Cache basis-dependencies-cache
+  (-> (Caffeine/newBuilder)
+      (.expireAfterAccess 10 TimeUnit/SECONDS)
+      (.maximumSize 32)
+      (.build)))
+
+(defn- cached-basis-dependencies [basis endpoints]
   (assert (every? gt/endpoint? endpoints))
-  (let [graph-id->node-successor-map
+  (let [pool (ForkJoinPool/commonPool)
+        graph-id->node-successor-map
         (persistent!
           (reduce-kv
             (fn [acc graph-id graph]
               (assoc! acc graph-id (:successors graph)))
             (transient {})
             (:graphs basis)))
-        endpoint->successors (fn [endpoint]
-                               (let [node-id (gt/endpoint-node-id endpoint)
-                                     output (gt/endpoint-label endpoint)]
-                                 (-> node-id
-                                     gt/node-id->graph-id
-                                     graph-id->node-successor-map
-                                     (get node-id)
-                                     (get output))))
-        deque (ArrayDeque.)
-        result (HashSet.)]
-    (reduce (fn [_ endpoint]
-              (.push deque endpoint))
-            nil
-            endpoints)
-    (loop []
-      (when-some [endpoint (.pollLast deque)]
-        (when-not (.contains result endpoint)
-          (when-some [successors (endpoint->successors endpoint)]
-            (reduce
-              (fn [_ successor-endpoint]
-                (.push deque successor-endpoint))
-              nil
-              successors)
-            (.add result endpoint)))
-        (recur)))
-    result))
+        node-type->cached-outputs (ConcurrentHashMap.)
+        all-endpoints (ConcurrentHashMap.)
+        cached-endpoints (ConcurrentHashMap.)
+        make-task! (fn [endpoints]
+                     (fn []
+                       (into []
+                             (mapcat
+                               (fn [endpoint]
+                                 (when (nil? (.putIfAbsent all-endpoints endpoint true))
+                                   (let [node-id (gt/endpoint-node-id endpoint)
+                                         output (gt/endpoint-label endpoint)]
+                                     (if-let [node (gt/node-by-id-at basis node-id)]
+                                       (let [node-type (gt/node-type node)
+                                             ^Set cached-outputs (.computeIfAbsent
+                                                                   node-type->cached-outputs
+                                                                   node-type
+                                                                   compute-cached-outputs-function)]
+                                         (when (.contains cached-outputs output)
+                                           (.putIfAbsent cached-endpoints endpoint true)))
+                                       (.putIfAbsent cached-endpoints endpoint true))
+                                     (-> node-id
+                                         gt/node-id->graph-id
+                                         graph-id->node-successor-map
+                                         (get node-id)
+                                         (get output))))))
+                             endpoints)))
+        endpoints->tasks-xf (comp (partition-all 512) (map make-task!))
+        cache-key (into [endpoints]
+                        (map #(System/identityHashCode (val %)))
+                        graph-id->node-successor-map)]
+    (.get basis-dependencies-cache
+          cache-key
+          (reify Function
+            (apply [_ _]
+              (loop [tasks (into [] endpoints->tasks-xf endpoints)]
+                (let [next-tasks
+                      (if (= 1 (count tasks))
+                        (into [] endpoints->tasks-xf ((nth tasks 0)))
+                        (into []
+                              (comp (mapcat deref) endpoints->tasks-xf)
+                              (.invokeAll pool tasks)))]
+                  (when (pos? (count next-tasks))
+                    (recur next-tasks))))
+              (.keySet cached-endpoints))))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
@@ -1016,9 +1049,9 @@
           targets (gt/targets this source-id source-label)]
       (some #{[target-id target-label]} targets)))
 
-  (dependencies
+  (cached-dependencies
     [this endpoints]
-    (basis-dependencies this endpoints))
+    (cached-basis-dependencies this endpoints))
 
   (original-node [this node-id]
     (when-let [node (gt/node-by-id-at this node-id)]
