@@ -543,7 +543,7 @@
        (sort)
        (vec)))
 
-(g/defnk produce-gui-base-node-msg [_this type custom-type child-index position rotation scale id generated-id manual-size color alpha inherit-alpha enabled layer parent]
+(g/defnk produce-gui-base-node-msg [_this type custom-type child-index position rotation scale id generated-id color alpha inherit-alpha enabled layer parent]
   ;; Warning: This base output or any of the base outputs that derive from it
   ;; must not be cached due to overridden-fields reliance on _this. Only the
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
@@ -558,8 +558,7 @@
            :rotation (clj-quat->euler-v4 rotation)
            :scale (v3->v4 scale)
            :id (if (g/node-override? _this) generated-id id)
-           :size (v3->v4 manual-size) ; TODO: Not used by template, particlefx, or spine. Move to ShapeNode+TextNode?
-           :color color ; TODO: Not used by template, or spine, Move to ParticleFXNode+ShapeNode+TextNode?
+           :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
            :alpha alpha
            :inherit-alpha inherit-alpha
            :enabled enabled
@@ -591,9 +590,6 @@
             (value (gu/passthrough id)) ; see (output id ...) below
             (dynamic read-only? (g/constantly true))
             (dynamic visible override-node?))
-  (property manual-size types/Vec3 (default [0.0 0.0 0.0])
-            (dynamic label (g/constantly "Size"))
-            (dynamic visible (g/fnk [type] (not= type :type-template))))
   (property color types/Color (default [1.0 1.0 1.0 1.0])
             (dynamic visible (g/fnk [type] (not= type :type-template)))
             (dynamic edit-type (g/constantly {:type types/Color
@@ -788,7 +784,6 @@
                                  (node->gui-scene _node-id)))
 
   (output gpu-texture TextureLifecycle (g/constantly nil))
-  (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
           (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data visible enabled]
@@ -1028,8 +1023,9 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
 
-(g/defnk produce-text-node-msg [visual-base-node-msg text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
+(g/defnk produce-text-node-msg [visual-base-node-msg manual-size text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
   (assoc visual-base-node-msg
+    :size (v3->v4 manual-size)
     :text text
     :line-break line-break
     :font font
@@ -1044,6 +1040,8 @@
   (inherits VisualNode)
 
   ; Text
+  (property manual-size types/Vec3 (default [200.0 100.0 0.0])
+            (dynamic label (g/constantly "Size")))
   (property text g/Str
             (default "<text>")
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
@@ -1072,7 +1070,7 @@
                                       :max 1.0
                                       :precision 0.01})))
 
-  (display-order (into base-display-order [:enabled :visible :text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [font-datas font]
                                     (or (font-datas font)
@@ -1100,6 +1098,7 @@
                     :renderable-tags #{:gui-text}})))
   (output text-layout g/Any :cached (g/fnk [manual-size font-data text line-break text-leading text-tracking]
                                            (font/layout-text (:font-map font-data) text line-break (first manual-size) text-tracking text-leading)))
+  (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot text-leading text-tracking]
@@ -1332,10 +1331,8 @@
 (g/defnk produce-particlefx-node-msg [visual-base-node-msg particlefx]
   (assoc visual-base-node-msg
     :particlefx particlefx
-    :size-mode :size-mode-auto
-
-    ;; TODO: We should not have to overwrite the base properties here. Refactor?
     :size [1.0 1.0 0.0 1.0]
+    :size-mode :size-mode-auto
     :blend-mode :blend-mode-alpha
     :pivot :pivot-center))
 
@@ -1348,8 +1345,6 @@
     (dynamic error (g/fnk [_node-id particlefx particlefx-resource-names]
                      (validate-particlefx-resource _node-id particlefx-resource-names particlefx))))
 
-  (property manual-size types/Vec3 (default [0.0 0.0 0.0])
-    (dynamic visible (g/constantly false)))
   (property blend-mode g/Keyword (default :blend-mode-alpha)
     (dynamic visible (g/constantly false)))
   (property pivot g/Keyword (default :pivot-center)
@@ -2426,7 +2421,7 @@
         next-index (next-child-index child-indices)]
     (-> (concat
           (g/operation-label "Add Gui Node")
-          (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :child-index next-index :type node-type :custom-type custom-type :manual-size [200.0 100.0 0.0]]]
+          (g/make-nodes (g/node-id->graph-id scene) [gui-node [def-node-type :id id :child-index next-index :type node-type :custom-type custom-type]]
                         (attach-gui-node node-tree parent gui-node node-type)
                         (when select-fn
                           (select-fn [gui-node]))))
