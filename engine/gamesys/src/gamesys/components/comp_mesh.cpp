@@ -762,12 +762,20 @@ namespace dmGameSystem
             uint32_t count;
             dmBuffer::ValueType valueType;
             dmBuffer::Result r = dmBuffer::GetMetaData(br->m_Buffer, AABB_HASH, &data, &count, &valueType );
-            if (r == dmBuffer::RESULT_METADATA_MISSING) {
+            if (r == dmBuffer::RESULT_METADATA_MISSING)
+            {
                 // no bounding box available - no culling
                 entry->m_Visibility = dmRender::VISIBILITY_FULL;
                 continue;
             } else
-            if (r != dmBuffer::RESULT_OK) {
+            if (valueType != dmBuffer::VALUE_TYPE_FLOAT32 || count != 6)
+            {
+                dmLogError("Invalid AABB metadata. Expected array of 6 floats.");
+                entry->m_Visibility = dmRender::VISIBILITY_FULL;
+                continue;
+            } else
+            if (r != dmBuffer::RESULT_OK)
+            {
                 dmLogError("Error getting AABB for mesh buffer");
                 continue;
             }
