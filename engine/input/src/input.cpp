@@ -376,13 +376,24 @@ namespace dmInput
         delete binding;
     }
 
+    static inline bool SupportsPlatform(const char* platform)
+    {
+        if (strcmp(DM_PLATFORM, platform) == 0)
+            return true;
+#if defined(__APPLE__)
+        if (strcmp("osx", platform) == 0)
+            return true;
+#endif
+        return false;
+    }
+
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf)
     {
         int count = 0;
         for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
         {
             const dmInputDDF::GamepadMap& gamepad_map = ddf->m_Driver[i];
-            if (strcmp(DM_PLATFORM, gamepad_map.m_Platform) == 0)
+            if (SupportsPlatform(gamepad_map.m_Platform))
             {
                 count++;
             }
@@ -411,7 +422,7 @@ namespace dmInput
         for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
         {
             const dmInputDDF::GamepadMap& gamepad_map = ddf->m_Driver[i];
-            if (strcmp(DM_PLATFORM, gamepad_map.m_Platform) == 0)
+            if (SupportsPlatform(gamepad_map.m_Platform))
             {
                 uint32_t device_id = dmHashString32(gamepad_map.m_Device);
                 if (context->m_GamepadMaps.Get(device_id) == 0x0)

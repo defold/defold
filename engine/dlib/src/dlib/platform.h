@@ -16,7 +16,6 @@
 #define DM_PLATFORM_H
 
 #define DM_PLATFORM_NAME_LINUX   "linux"
-#define DM_PLATFORM_NAME_OSX     "osx"
 #define DM_PLATFORM_NAME_MACOS   "macos"
 #define DM_PLATFORM_NAME_WINDOWS "windows"
 #define DM_PLATFORM_NAME_WEB     "web"
