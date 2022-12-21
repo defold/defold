@@ -35,7 +35,7 @@
 
 (defn- make-test-server-launcher [request-handlers]
   (reify lsp.server/Launcher
-    (launch [_]
+    (launch [_ _]
       (let [private-out (PipedOutputStream.)
             public-in (PipedInputStream. private-out)
             private-in (PipedInputStream.)

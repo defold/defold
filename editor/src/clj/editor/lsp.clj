@@ -438,7 +438,9 @@
   [lsp resource-node lines evaluation-context]
   (a/put! lsp (fn notify-lines-modified [state]
                 (let [resource (g/node-value resource-node :resource evaluation-context)]
-                  (sync-modified-lines-of-existing-node! state resource resource-node lines evaluation-context)))))
+                  (cond-> state
+                          (resource/file-resource? resource)
+                          (sync-modified-lines-of-existing-node! resource resource-node lines evaluation-context))))))
 
 (defn check-if-polled-resources-are-modified!
   "Notify the LSP manager that some previously modified resources might change
@@ -530,13 +532,22 @@
    (get-graph-lsp basis (g/node-id->graph-id node))))
 
 (comment
+  ;; Restart all servers:
+  (a/put! (g/graph-value 1 :lsp) (fn [state]
+                                   (let [servers (set (keys (:server->server-state state)))]
+                                     (-> state
+                                         ((set-servers #{}))
+                                         ((set-servers servers))))))
   ;; Stop all LSP servers
   (set-servers! (g/graph-value 1 :lsp) #{})
   ;; Start json LSP server (install: npm install -g vscode-json-languageserver)
   (set-servers!
     (g/graph-value 1 :lsp)
-    #{{:languages #{"json" "jsonc"}
-       :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}
+    #{#_{:languages #{"json" "jsonc"}
+         :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}
       {:languages #{"lua"}
-       :watched-files [{:pattern "**/.luacheckrc"}]
-       :launcher {:command ["/opt/homebrew/bin/node" "/Users/vlaaad/Projects/vscode-luacheck/out/src/lua_language_server.js"]}}}))
+       :launcher {:command ["/Users/vlaaad/Downloads/lua-language-server-3.6.3-darwin-x64/bin/lua-language-server"
+                            "--configpath=build/plugins/lsp-lua-language-server/plugins/share/config.json"]}}
+      #_{:languages #{"lua"}
+         :watched-files [{:pattern "**/.luacheckrc"}]
+         :launcher {:command ["/Users/vlaaad/Projects/vscode-luacheck/lua_language_server" "--"]}}}))

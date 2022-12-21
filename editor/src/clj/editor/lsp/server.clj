@@ -26,7 +26,7 @@
             [service.log :as log])
   (:import [editor.code.data Cursor CursorRange]
            [java.io InputStream]
-           [java.lang ProcessHandle]
+           [java.lang ProcessHandle ProcessBuilder$Redirect]
            [java.net URI]
            [java.util Map]
            [java.util.concurrent TimeUnit]
@@ -61,12 +61,15 @@
                                      :exit-code (.exitValue process)))))))))))
 
 (defprotocol Launcher
-  (launch [launcher]))
+  (launch [launcher directory]))
 
 (extend-protocol Launcher
   Map
-  (launch [{:keys [command]}]
-    (.start (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String command)))))
+  (launch [{:keys [command]} directory]
+    (.start
+      (doto (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String command))
+        (.redirectError ProcessBuilder$Redirect/INHERIT)
+        (.directory directory)))))
 
 (defn- make-uri-string [abs-path]
   (str (URI. "file" "" abs-path nil)))
@@ -149,6 +152,9 @@
                          :else
                          (throw (ex-info "Invalid text document sync kind" {:value textDocumentSync})))})
 
+(defn- configuration-handler [{:keys [items]}]
+  (vec (repeat (count items) nil)))
+
 (defn- initialize [jsonrpc project]
   (lsp.jsonrpc/request!
     jsonrpc
@@ -198,7 +204,10 @@
                                      on-initialized]}]
   (a/go
     (try
-      (let [connection (<! (a/thread (try (launch launcher) (catch Throwable e e))))]
+      (let [directory (lsp.async/with-auto-evaluation-context evaluation-context
+                        (let [workspace (g/node-value project :workspace evaluation-context)]
+                          (workspace/project-path workspace evaluation-context)))
+            connection (<! (a/thread (try (launch launcher directory) (catch Throwable e e))))]
         (if (instance? Throwable connection)
           (log/error :message "Language server process failed to start"
                      :launcher launcher
@@ -206,7 +215,11 @@
           (try
             (let [[base-source base-sink base-err] (lsp.base/make (input-stream connection) (output-stream connection))
                   jsonrpc (lsp.jsonrpc/make
-                            {"textDocument/publishDiagnostics" (diagnostics-handler project out on-publish-diagnostics)}
+                            {"textDocument/publishDiagnostics" (diagnostics-handler project out on-publish-diagnostics)
+                             "workspace/diagnostic/refresh" (constantly nil)
+                             "workspace/configuration" configuration-handler
+                             "window/showMessageRequest" (constantly nil)
+                             "window/workDoneProgress/create" (constantly nil)}
                             base-source
                             base-sink)]
               (a/alt!
@@ -222,8 +235,8 @@
                       (lsp.jsonrpc/unwrap-response (<! (lsp.jsonrpc/request! jsonrpc "shutdown" (* 10 1000))))
                       (>! jsonrpc (lsp.jsonrpc/notification "exit"))
                       (a/close! jsonrpc)
-                      ;; give server a bit of time to exit
-                      (<! (a/timeout 100)))
+                      ;; give server some time to exit
+                      (<! (a/timeout 5000)))
                     nil
                     (catch Throwable e e)))
                 ([maybe-e]
