@@ -31,7 +31,7 @@ namespace dmGraphics
         uint16_t m_MipMapCount;
     };
 
-    struct VertexStream
+    struct VertexStreamBuffer
     {
         const void* m_Source;
         void* m_Buffer;
@@ -39,7 +39,6 @@ namespace dmGraphics
         uint16_t m_Stride;
     };
 
-    const static uint32_t MAX_VERTEX_STREAM_COUNT = 8;
     const static uint32_t MAX_REGISTER_COUNT = 16;
     const static uint32_t MAX_TEXTURE_COUNT = 32;
 
@@ -55,8 +54,7 @@ namespace dmGraphics
 
     struct VertexDeclaration
     {
-        uint32_t        m_Count;
-        VertexElement   m_Elements[MAX_VERTEX_STREAM_COUNT];
+        VertexStreamDeclaration m_StreamDeclaration;
     };
 
     struct VertexBuffer
@@ -84,7 +82,7 @@ namespace dmGraphics
     {
         Context(const ContextParams& params);
 
-        VertexStream                m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
+        VertexStreamBuffer          m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         dmVMath::Vector4            m_ProgramRegisters[MAX_REGISTER_COUNT];
         HTexture                    m_Textures[MAX_TEXTURE_COUNT];
         FrameBuffer                 m_MainFrameBuffer;

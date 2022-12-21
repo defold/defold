@@ -71,7 +71,6 @@ namespace dmGraphics
         ADAPTER_TYPE_VULKAN,
     };
 
-
     // buffer clear types, each value is guaranteed to be separate bits
     enum BufferType
     {

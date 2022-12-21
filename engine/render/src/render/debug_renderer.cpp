@@ -45,12 +45,15 @@ namespace dmRender
         const uint32_t buffer_size = max_vertex_count * sizeof(DebugVertex);
         const uint32_t total_buffer_size = MAX_DEBUG_RENDER_TYPE_COUNT * buffer_size;
         debug_renderer.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, total_buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        dmGraphics::VertexElement ve[] =
-        {
-            {"position", 0, 4, dmGraphics::TYPE_FLOAT, false },
-            {"color", 1, 4, dmGraphics::TYPE_FLOAT, false }
-        };
-        debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, 2);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(render_context->m_GraphicsContext);
+
+        dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_FLOAT, false);
+
+        debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, stream_declaration);
+
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
         dmGraphics::HVertexProgram vertex_program = dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE;
         dmGraphics::ShaderDesc* shader_desc;
