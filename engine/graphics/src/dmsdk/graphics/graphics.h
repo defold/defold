@@ -87,6 +87,8 @@ namespace dmGraphics
      */
     typedef struct VertexDeclaration* HVertexDeclaration;
 
+    typedef uintptr_t HIndexBuffer;
+
     /*#
      * @enum
      * @name HandleResult
@@ -390,6 +392,8 @@ namespace dmGraphics
      * @member m_Type [type: dmGraphics::Type] data type
      * @member m_Normalize [type: bool] if set, will normalize the output in the program
      */
+
+    /*
     struct VertexElement
     {
         const char*     m_Name;
@@ -398,6 +402,40 @@ namespace dmGraphics
         Type            m_Type;
         bool            m_Normalize;
     };
+    */
+
+    /*
+    struct VertexStream
+    {
+        const char*     m_Name;
+        uint32_t        m_Stream;
+        uint32_t        m_Size;
+        Type            m_Type;
+        bool            m_Normalize;
+    };
+    */
+
+    typedef uintptr_t HVertexStreamDeclaration;
+
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context);
+
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize);
+
+    void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration);
+
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration vertex_streams);
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration vertex_streams, uint32_t stride);
+
+    /*
+
+    // Example
+    HVertexStreamDeclaration stream_decl = NewVertexStreamDeclaration(gfx);
+    AddVertexStream(stream_decl, "position", 3, dmGraphics::TYPE_FLOAT, false);
+    AddVertexStream(stream_decl, "texcoord", 2, dmGraphics::TYPE_FLOAT, false);
+    AddVertexStream(stream_decl, "normal", 3, dmGraphics::TYPE_FLOAT, true);
+    HVertexDeclaration vx_decl = NewVertexDeclaration(gfx, stream_decl);
+    DeleteVertexStreamDeclaration(stream_decl);
+    */
 
     /*#
      * Create new vertex declaration
@@ -407,7 +445,7 @@ namespace dmGraphics
      * @param count [type: uint32_t] the number of items in the element array
      * @return declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
      */
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
+    //HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration vertex_streams);
 
     /*#
      * Create new vertex declaration
@@ -418,7 +456,7 @@ namespace dmGraphics
      * @param stride [type: uint32_t] the stride between the start of each vertex (in bytes)
      * @return declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
      */
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
+    //HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
 
     /*#
      * Delete vertex declaration

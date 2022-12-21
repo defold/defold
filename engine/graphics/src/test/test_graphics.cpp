@@ -273,13 +273,10 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f };
     dmGraphics::HVertexBuffer vertex_buffer = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), (void*)v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
-    dmGraphics::VertexElement ve[2] =
-    {
-        {"position", 0, 3, dmGraphics::TYPE_FLOAT, false },
-        {"uv", 1, 2, dmGraphics::TYPE_FLOAT, false }
-    };
-    dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, ve, 2);
-
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(m_Context);
+    dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "uv",       2, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);
     dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, vertex_buffer);
 
     float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f };
@@ -296,6 +293,7 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
 
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
+    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
 TEST_F(dmGraphicsTest, Drawing)
@@ -303,12 +301,11 @@ TEST_F(dmGraphicsTest, Drawing)
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f };
     uint32_t i[] = { 0, 1, 2, 2, 1, 0 };
 
-    dmGraphics::VertexElement ve[] =
-    {
-        {"position", 0, 3, dmGraphics::TYPE_FLOAT, false },
-        {"uv", 1, 2, dmGraphics::TYPE_FLOAT, false }
-    };
-    dmGraphics::HVertexDeclaration vd = dmGraphics::NewVertexDeclaration(m_Context, ve, 2);
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(m_Context);
+    dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "uv",       2, dmGraphics::TYPE_FLOAT, false);
+
+    dmGraphics::HVertexDeclaration vd = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);
     dmGraphics::HVertexBuffer vb = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     dmGraphics::HIndexBuffer ib = dmGraphics::NewIndexBuffer(m_Context, sizeof(i), i, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
@@ -327,6 +324,7 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DeleteIndexBuffer(ib);
     dmGraphics::DeleteVertexBuffer(vb);
     dmGraphics::DeleteVertexDeclaration(vd);
+    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
 static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
