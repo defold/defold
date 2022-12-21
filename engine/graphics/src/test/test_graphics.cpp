@@ -17,6 +17,7 @@
 #include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
+#include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
 #include "graphics.h"
 #include "graphics_private.h"
@@ -266,6 +267,38 @@ TEST_F(dmGraphicsTest, IndexBuffer)
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, 4));
 
     dmGraphics::DeleteIndexBuffer(index_buffer);
+}
+
+TEST_F(dmGraphicsTest, VertexStreamDeclaration)
+{
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(m_Context);
+    dmGraphics::AddVertexStream(stream_declaration, "stream0", 2, dmGraphics::TYPE_BYTE, true);
+    dmGraphics::AddVertexStream(stream_declaration, "stream1", 4, dmGraphics::TYPE_FLOAT, false);
+
+    dmGraphics::VertexStreamDeclaration* sd = (dmGraphics::VertexStreamDeclaration*) stream_declaration;
+
+    #define TEST_STREAM(streams, name, ix, size, type, normalize) \
+        ASSERT_EQ(dmStrCaseCmp(streams[ix].m_Name, name), 0); \
+        ASSERT_EQ(streams[ix].m_Stream, ix); \
+        ASSERT_EQ(streams[ix].m_Size, size); \
+        ASSERT_EQ(streams[ix].m_Type, type); \
+        ASSERT_EQ(streams[ix].m_Normalize, normalize);
+
+    ASSERT_EQ(sd->m_StreamCount, 2);
+    TEST_STREAM(sd->m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
+    TEST_STREAM(sd->m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
+
+    // Test that the stream declaration has been passed to the vertex declaration
+    dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);
+    dmGraphics::VertexDeclaration* vx = (dmGraphics::VertexDeclaration*) vertex_declaration;
+    ASSERT_EQ(vx->m_StreamDeclaration.m_StreamCount, 2);
+    TEST_STREAM(vx->m_StreamDeclaration.m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
+    TEST_STREAM(vx->m_StreamDeclaration.m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
+
+    #undef TEST_STREAM
+
+    dmGraphics::DeleteVertexDeclaration(vertex_declaration);
+    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
 TEST_F(dmGraphicsTest, VertexDeclaration)
