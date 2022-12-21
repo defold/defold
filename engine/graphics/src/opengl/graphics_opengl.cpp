@@ -1559,21 +1559,19 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
         vd->m_Stride = 0;
 
-        VertexStreamDeclaration* sd = (VertexStreamDeclaration*) stream_declaration;
-
-        for (uint32_t i=0; i<sd->m_StreamCount; i++)
+        for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
         {
-            vd->m_Streams[i].m_Name          = sd->m_Streams[i].m_Name;
+            vd->m_Streams[i].m_Name          = stream_declaration->m_Streams[i].m_Name;
             vd->m_Streams[i].m_LogicalIndex  = i;
             vd->m_Streams[i].m_PhysicalIndex = -1;
-            vd->m_Streams[i].m_Size          = sd->m_Streams[i].m_Size;
-            vd->m_Streams[i].m_Type          = sd->m_Streams[i].m_Type;
-            vd->m_Streams[i].m_Normalize     = sd->m_Streams[i].m_Normalize;
+            vd->m_Streams[i].m_Size          = stream_declaration->m_Streams[i].m_Size;
+            vd->m_Streams[i].m_Type          = stream_declaration->m_Streams[i].m_Type;
+            vd->m_Streams[i].m_Normalize     = stream_declaration->m_Streams[i].m_Normalize;
             vd->m_Streams[i].m_Offset        = vd->m_Stride;
 
-            vd->m_Stride += sd->m_Streams[i].m_Size * GetTypeSize(sd->m_Streams[i].m_Type);
+            vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
-        vd->m_StreamCount = sd->m_StreamCount;
+        vd->m_StreamCount = stream_declaration->m_StreamCount;
 
         return vd;
     }

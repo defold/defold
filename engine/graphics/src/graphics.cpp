@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "graphics.h"
+#include "graphics_private.h"
 #include "graphics_adapter.h"
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
@@ -192,31 +192,29 @@ namespace dmGraphics
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
         memset(sd, 0, sizeof(*sd));
-        return (HVertexStreamDeclaration) sd;
+        return sd;
     }
 
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize)
     {
-        VertexStreamDeclaration* sd = (VertexStreamDeclaration*) stream_declaration;
-
-        if (sd->m_StreamCount >= MAX_VERTEX_STREAM_COUNT)
+        if (stream_declaration->m_StreamCount >= MAX_VERTEX_STREAM_COUNT)
         {
             dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)", name, MAX_VERTEX_STREAM_COUNT);
             return;
         }
 
-        uint8_t stream_index = sd->m_StreamCount;
-        sd->m_Streams[stream_index].m_Name      = name;
-        sd->m_Streams[stream_index].m_Size      = size;
-        sd->m_Streams[stream_index].m_Type      = type;
-        sd->m_Streams[stream_index].m_Normalize = normalize;
-        sd->m_Streams[stream_index].m_Stream    = stream_index;
-        sd->m_StreamCount++;
+        uint8_t stream_index = stream_declaration->m_StreamCount;
+        stream_declaration->m_Streams[stream_index].m_Name      = name;
+        stream_declaration->m_Streams[stream_index].m_Size      = size;
+        stream_declaration->m_Streams[stream_index].m_Type      = type;
+        stream_declaration->m_Streams[stream_index].m_Normalize = normalize;
+        stream_declaration->m_Streams[stream_index].m_Stream    = stream_index;
+        stream_declaration->m_StreamCount++;
     }
 
     void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration)
     {
-        delete (VertexStreamDeclaration*) stream_declaration;
+        delete stream_declaration;
     }
 
     // For estimating resource size

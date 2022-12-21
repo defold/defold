@@ -275,8 +275,6 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
     dmGraphics::AddVertexStream(stream_declaration, "stream0", 2, dmGraphics::TYPE_BYTE, true);
     dmGraphics::AddVertexStream(stream_declaration, "stream1", 4, dmGraphics::TYPE_FLOAT, false);
 
-    dmGraphics::VertexStreamDeclaration* sd = (dmGraphics::VertexStreamDeclaration*) stream_declaration;
-
     #define TEST_STREAM(streams, name, ix, size, type, normalize) \
         ASSERT_EQ(dmStrCaseCmp(streams[ix].m_Name, name), 0); \
         ASSERT_EQ(streams[ix].m_Stream, ix); \
@@ -284,9 +282,9 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
         ASSERT_EQ(streams[ix].m_Type, type); \
         ASSERT_EQ(streams[ix].m_Normalize, normalize);
 
-    ASSERT_EQ(sd->m_StreamCount, 2);
-    TEST_STREAM(sd->m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
-    TEST_STREAM(sd->m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
+    ASSERT_EQ(stream_declaration->m_StreamCount, 2);
+    TEST_STREAM(stream_declaration->m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
+    TEST_STREAM(stream_declaration->m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
 
     // Test that the stream declaration has been passed to the vertex declaration
     dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);

@@ -92,7 +92,7 @@ namespace dmGraphics
      * @typedef
      * @name HVertexStreamDeclaration
      */
-    typedef uintptr_t HVertexStreamDeclaration;
+    typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
 
     /*#
      * @enum

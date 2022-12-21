@@ -1608,13 +1608,11 @@ bail:
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(VertexDeclaration));
 
-        VertexStreamDeclaration* sd = (VertexStreamDeclaration*) stream_declaration;
+        vd->m_StreamCount = stream_declaration->m_StreamCount;
 
-        vd->m_StreamCount = sd->m_StreamCount;
-
-        for (uint32_t i = 0; i < sd->m_StreamCount; ++i)
+        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
         {
-            VertexStream& stream        = sd->m_Streams[i];
+            VertexStream& stream        = stream_declaration->m_Streams[i];
             vd->m_Streams[i].m_NameHash = dmHashString64(stream.m_Name);
             vd->m_Streams[i].m_Format   = GetVulkanFormatFromTypeAndSize(stream.m_Type, stream.m_Size);
             vd->m_Streams[i].m_Offset   = vd->m_Stride;

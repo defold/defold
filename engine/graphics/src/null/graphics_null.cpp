@@ -494,9 +494,7 @@ namespace dmGraphics
             memset(vd, 0, sizeof(*vd));
             return vd;
         }
-
-        VertexStreamDeclaration* sd = (VertexStreamDeclaration*) stream_declaration;
-        memcpy(&vd->m_StreamDeclaration, sd, sizeof(VertexStreamDeclaration));
+        memcpy(&vd->m_StreamDeclaration, stream_declaration, sizeof(VertexStreamDeclaration));
         return vd;
     }
 
