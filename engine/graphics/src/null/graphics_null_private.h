@@ -31,7 +31,7 @@ namespace dmGraphics
         uint16_t m_MipMapCount;
     };
 
-    struct NullVertexStream
+    struct VertexStreamBuffer
     {
         const void* m_Source;
         void* m_Buffer;
@@ -82,7 +82,7 @@ namespace dmGraphics
     {
         Context(const ContextParams& params);
 
-        NullVertexStream            m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
+        VertexStreamBuffer          m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         dmVMath::Vector4            m_ProgramRegisters[MAX_REGISTER_COUNT];
         HTexture                    m_Textures[MAX_TEXTURE_COUNT];
         FrameBuffer                 m_MainFrameBuffer;

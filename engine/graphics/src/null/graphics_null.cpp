@@ -489,6 +489,12 @@ namespace dmGraphics
     static HVertexDeclaration NullNewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
         VertexDeclaration* vd = new VertexDeclaration();
+        if (stream_declaration == 0)
+        {
+            memset(vd, 0, sizeof(*vd));
+            return vd;
+        }
+
         VertexStreamDeclaration* sd = (VertexStreamDeclaration*) stream_declaration;
         memcpy(&vd->m_StreamDeclaration, sd, sizeof(VertexStreamDeclaration));
         return vd;
@@ -512,7 +518,7 @@ namespace dmGraphics
     {
         assert(context);
         assert(vertex_buffer);
-        NullVertexStream& s = context->m_VertexStreams[stream];
+        VertexStreamBuffer& s = context->m_VertexStreams[stream];
         assert(s.m_Source == 0x0);
         assert(s.m_Buffer == 0x0);
         s.m_Source = vertex_buffer;
@@ -523,7 +529,7 @@ namespace dmGraphics
     static void DisableVertexStream(HContext context, uint16_t stream)
     {
         assert(context);
-        NullVertexStream& s = context->m_VertexStreams[stream];
+        VertexStreamBuffer& s = context->m_VertexStreams[stream];
         s.m_Size = 0;
         if (s.m_Buffer != 0x0)
         {
@@ -628,7 +634,7 @@ namespace dmGraphics
         assert(index_buffer);
         for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
         {
-            NullVertexStream& vs = context->m_VertexStreams[i];
+            VertexStreamBuffer& vs = context->m_VertexStreams[i];
             if (vs.m_Size > 0)
             {
                 vs.m_Buffer = new char[vs.m_Size * count];
@@ -639,7 +645,7 @@ namespace dmGraphics
             uint32_t index = GetIndex(type, index_buffer, i + first);
             for (uint32_t j = 0; j < MAX_VERTEX_STREAM_COUNT; ++j)
             {
-                NullVertexStream& vs = context->m_VertexStreams[j];
+                VertexStreamBuffer& vs = context->m_VertexStreams[j];
                 if (vs.m_Size > 0)
                     memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);
             }
