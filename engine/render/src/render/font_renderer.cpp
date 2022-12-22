@@ -413,19 +413,19 @@ namespace dmRender
             return;
         }
 
-        dmGraphics::VertexElement ve[] =
-        {
-                DM_DECLARE_VERTEX_ELEMENT("position", 0, 4, dmGraphics::TYPE_FLOAT, false),
-                DM_DECLARE_VERTEX_ELEMENT("texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false),
-                DM_DECLARE_VERTEX_ELEMENT("face_color", 2, 4, dmGraphics::TYPE_FLOAT, true),
-                DM_DECLARE_VERTEX_ELEMENT("outline_color", 3, 4, dmGraphics::TYPE_FLOAT, true),
-                DM_DECLARE_VERTEX_ELEMENT("shadow_color", 4, 4, dmGraphics::TYPE_FLOAT, true),
-                DM_DECLARE_VERTEX_ELEMENT("sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false),
-                DM_DECLARE_VERTEX_ELEMENT("layer_mask", 6, 3, dmGraphics::TYPE_FLOAT, false),
-        };
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(render_context->m_GraphicsContext);
+        dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "face_color", 4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, "outline_color", 4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, "shadow_color", 4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, "sdf_params", 4, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "layer_mask", 3, dmGraphics::TYPE_FLOAT, false);
 
-        text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));
+        text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, stream_declaration, sizeof(GlyphVertex));
         text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
         // Arbitrary number
         const uint32_t max_batches = 128;

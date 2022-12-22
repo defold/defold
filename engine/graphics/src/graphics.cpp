@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "graphics.h"
+#include "graphics_private.h"
 #include "graphics_adapter.h"
 
 #if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) || defined(IOS_SIMULATOR))
@@ -69,7 +69,6 @@ namespace dmGraphics
     static bool SelectAdapterByType(AdapterType adapter_type)
     {
         GraphicsAdapter* next     = g_adapter_list;
-        GraphicsAdapter* selected = next;
 
         while(next)
         {
@@ -187,6 +186,46 @@ namespace dmGraphics
             }
         }
         return 0x0;
+    }
+
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
+    {
+        VertexStreamDeclaration* sd = new VertexStreamDeclaration();
+        memset(sd, 0, sizeof(*sd));
+        return sd;
+    }
+
+    static void AddVertexStreamInternal(HVertexStreamDeclaration stream_declaration, const char* name, dmhash_t name_hash, uint32_t size, Type type, bool normalize)
+    {
+        if (stream_declaration->m_StreamCount >= MAX_VERTEX_STREAM_COUNT)
+        {
+            dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)", name, MAX_VERTEX_STREAM_COUNT);
+            return;
+        }
+
+        uint8_t stream_index = stream_declaration->m_StreamCount;
+        stream_declaration->m_Streams[stream_index].m_Name      = name;
+        stream_declaration->m_Streams[stream_index].m_NameHash  = name_hash;
+        stream_declaration->m_Streams[stream_index].m_Size      = size;
+        stream_declaration->m_Streams[stream_index].m_Type      = type;
+        stream_declaration->m_Streams[stream_index].m_Normalize = normalize;
+        stream_declaration->m_Streams[stream_index].m_Stream    = stream_index;
+        stream_declaration->m_StreamCount++;
+    }
+
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize)
+    {
+        AddVertexStreamInternal(stream_declaration, name, dmHashString64(name), size, type, normalize);
+    }
+
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize)
+    {
+        AddVertexStreamInternal(stream_declaration, 0, name_hash, size, type, normalize);
+    }
+
+    void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration)
+    {
+        delete stream_declaration;
     }
 
     // For estimating resource size
@@ -602,13 +641,13 @@ namespace dmGraphics
     {
         return g_functions.m_GetMaxElementsIndices(context);
     }
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
-        return g_functions.m_NewVertexDeclaration(context, element, count);
+        return g_functions.m_NewVertexDeclaration(context, stream_declaration);
     }
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
-        return g_functions.m_NewVertexDeclarationStride(context, element, count, stride);
+        return g_functions.m_NewVertexDeclarationStride(context, stream_declaration, stride);
     }
     bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
     {

@@ -67,38 +67,6 @@ namespace dmGameSystem
         }
     }
 
-    static size_t StreamTypeToSize(dmBuffer::ValueType value_type)
-    {
-        switch (value_type)
-        {
-            case dmBuffer::VALUE_TYPE_UINT8:
-                return sizeof(uint8_t);
-            break;
-            case dmBuffer::VALUE_TYPE_UINT16:
-                return sizeof(uint16_t);
-            break;
-            case dmBuffer::VALUE_TYPE_UINT32:
-                return sizeof(uint32_t);
-            break;
-            case dmBuffer::VALUE_TYPE_INT8:
-                return sizeof(int8_t);
-            break;
-            case dmBuffer::VALUE_TYPE_INT16:
-                return sizeof(int16_t);
-            break;
-            case dmBuffer::VALUE_TYPE_INT32:
-                return sizeof(int32_t);
-            break;
-            case dmBuffer::VALUE_TYPE_FLOAT32:
-                return sizeof(float);
-            break;
-            // case dmBuffer::VALUE_TYPE_UINT64:
-            // case dmBuffer::VALUE_TYPE_INT64:
-            default:
-                return 0;
-        }
-    }
-
     static dmGraphics::PrimitiveType ToGraphicsPrimitiveType(dmMeshDDF::MeshDesc::PrimitiveType primitive_type)
     {
         switch (primitive_type)
@@ -124,10 +92,9 @@ namespace dmGameSystem
         uint32_t stream_count;
         dmBuffer::Result buffer_res = dmBuffer::GetNumStreams(buffer, &stream_count);
         CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(g_GraphicsContext);
 
-        uint32_t vert_size = 0;
-        dmGraphics::VertexElement* vert_decls = (dmGraphics::VertexElement*) malloc(stream_count * sizeof(dmGraphics::VertexElement));
-        for (int i = 0; i < stream_count; ++i)
+        for (uint32_t i = 0; i < stream_count; ++i)
         {
             dmhash_t stream_name;
             buffer_res = dmBuffer::GetStreamName(buffer, i, &stream_name);
@@ -138,30 +105,21 @@ namespace dmGameSystem
             buffer_res = dmBuffer::GetStreamType(buffer, stream_name, &stream_value_type, &stream_value_count);
             CHECK_BUFFER_RESULT_OR_RETURN(buffer_res);
 
-            if (!IsBufferTypeSupportedGraphicsType(stream_value_type))
-            {
+            if (!IsBufferTypeSupportedGraphicsType(stream_value_type)) {
                 dmLogError("Value type for stream %s is not supported.", dmHashReverseSafe64(stream_name));
-                free(vert_decls);
+                dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
                 return false;
             }
 
-            dmGraphics::VertexElement& vert_decl = vert_decls[i];
-            vert_decl.m_Name      = 0;
-            vert_decl.m_NameHash  = stream_name;
-            vert_decl.m_Stream    = i;
-            vert_decl.m_Size      = stream_value_count;
-            vert_decl.m_Type      = BufferValueTypeToGraphicsType(stream_value_type);
-            vert_decl.m_Normalize = false;
-
-            vert_size += StreamTypeToSize(stream_value_type) * stream_value_count;
+            dmGraphics::AddVertexStream(stream_declaration, stream_name, stream_value_count, BufferValueTypeToGraphicsType(stream_value_type), false);
         }
 
         // Get correct "struct stride/size", since dmBuffer might align the structs etc.
         uint32_t stride = dmBuffer::GetStructSize(buffer);
 
         // Init vertex declaration
-        *out_vert_decl = dmGraphics::NewVertexDeclaration(g_GraphicsContext, vert_decls, stream_count, stride);
-        free(vert_decls);
+        *out_vert_decl = dmGraphics::NewVertexDeclaration(g_GraphicsContext, stream_declaration, stride);
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
         // Update vertex declaration with exact offsets (since streams in buffers can be aligned).
         for (uint32_t i = 0; i < stream_count; ++i)

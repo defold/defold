@@ -1547,34 +1547,34 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         return 0;
     }
 
-    static HVertexDeclaration OpenGLNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    static HVertexDeclaration OpenGLNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
-        HVertexDeclaration vd = NewVertexDeclaration(context, element, count);
+        HVertexDeclaration vd = NewVertexDeclaration(context, stream_declaration);
         vd->m_Stride = stride;
         return vd;
     }
 
-    static HVertexDeclaration OpenGLNewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
+    static HVertexDeclaration OpenGLNewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
         VertexDeclaration* vd = new VertexDeclaration;
         memset(vd, 0, sizeof(VertexDeclaration));
 
         vd->m_Stride = 0;
-        assert(count <= (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
 
-        for (uint32_t i=0; i<count; i++)
+        for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
         {
-            vd->m_Streams[i].m_NameHash = element[i].m_NameHash;
-            vd->m_Streams[i].m_LogicalIndex = i;
+            vd->m_Streams[i].m_NameHash      = stream_declaration->m_Streams[i].m_NameHash;
+            vd->m_Streams[i].m_LogicalIndex  = i;
             vd->m_Streams[i].m_PhysicalIndex = -1;
-            vd->m_Streams[i].m_Size = element[i].m_Size;
-            vd->m_Streams[i].m_Type = element[i].m_Type;
-            vd->m_Streams[i].m_Normalize = element[i].m_Normalize;
-            vd->m_Streams[i].m_Offset = vd->m_Stride;
+            vd->m_Streams[i].m_Size          = stream_declaration->m_Streams[i].m_Size;
+            vd->m_Streams[i].m_Type          = stream_declaration->m_Streams[i].m_Type;
+            vd->m_Streams[i].m_Normalize     = stream_declaration->m_Streams[i].m_Normalize;
+            vd->m_Streams[i].m_Offset        = vd->m_Stride;
 
-            vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type);
+            vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
-        vd->m_StreamCount = count;
+        vd->m_StreamCount = stream_declaration->m_StreamCount;
+
         return vd;
     }
 

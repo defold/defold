@@ -903,7 +903,7 @@ bail:
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
-        VkVertexInputAttributeDescription vk_vertex_input_descs[DM_MAX_VERTEX_STREAM_COUNT];
+        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_STREAM_COUNT];
         uint16_t active_attributes = FillVertexInputAttributeDesc(vertexDeclaration, vk_vertex_input_descs);
         assert(active_attributes != 0);
 

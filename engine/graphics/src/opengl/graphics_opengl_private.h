@@ -103,12 +103,11 @@ namespace dmGraphics
             bool     m_Normalize;
         };
 
-        Stream      m_Streams[8];
+        Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
         uint16_t    m_StreamCount;
         uint16_t    m_Stride;
         HProgram    m_BoundForProgram;
         uint32_t    m_ModificationVersion;
-
     };
 
     struct OpenglVertexAttribute

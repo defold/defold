@@ -109,13 +109,17 @@ namespace dmGameSystem
         world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6);
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
-        dmGraphics::VertexElement ve[] =
-        {
-            DM_DECLARE_VERTEX_ELEMENT("position",  0, 3, dmGraphics::TYPE_FLOAT, false),
-            DM_DECLARE_VERTEX_ELEMENT("color",     1, 4, dmGraphics::TYPE_FLOAT, true),
-            DM_DECLARE_VERTEX_ELEMENT("texcoord0", 2, 2, dmGraphics::TYPE_FLOAT, true),
-        };
-        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext));
+
+        dmGraphics::AddVertexStream(stream_declaration, "position",  3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "color",     4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, true);
+
+        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), stream_declaration);
+
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
