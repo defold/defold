@@ -54,6 +54,14 @@ namespace dmGameSystem
             CASE_TF(R_BC4);
             CASE_TF(RG_BC5);
             CASE_TF(RGBA_BC7);
+            CASE_TF(RGB16F);
+            CASE_TF(RGB32F);
+            CASE_TF(RGBA16F);
+            CASE_TF(RGBA32F);
+            CASE_TF(R16F);
+            CASE_TF(RG16F);
+            CASE_TF(R32F);
+            CASE_TF(RG32F);
             default:
                 assert(0);
                 return (dmGraphics::TextureFormat)-1;

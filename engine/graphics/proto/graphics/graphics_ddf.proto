@@ -71,8 +71,14 @@ message TextureImage
         TEXTURE_FORMAT_RG_BC5            = 16;
         TEXTURE_FORMAT_RGBA_BC7          = 17;
 
-        TEXTURE_FORMAT_RGB32F            = 18;
-        TEXTURE_FORMAT_RGBA32F           = 19;
+        TEXTURE_FORMAT_RGB16F            = 18;
+        TEXTURE_FORMAT_RGB32F            = 19;
+        TEXTURE_FORMAT_RGBA16F           = 20;
+        TEXTURE_FORMAT_RGBA32F           = 21;
+        TEXTURE_FORMAT_R16F              = 22;
+        TEXTURE_FORMAT_RG16F             = 23;
+        TEXTURE_FORMAT_R32F              = 24;
+        TEXTURE_FORMAT_RG32F             = 25;
     }
 
     message Image
