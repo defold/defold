@@ -70,6 +70,9 @@ message TextureImage
         TEXTURE_FORMAT_R_BC4             = 15;
         TEXTURE_FORMAT_RG_BC5            = 16;
         TEXTURE_FORMAT_RGBA_BC7          = 17;
+
+        TEXTURE_FORMAT_RGB32F            = 18;
+        TEXTURE_FORMAT_RGBA32F           = 19;
     }
 
     message Image
