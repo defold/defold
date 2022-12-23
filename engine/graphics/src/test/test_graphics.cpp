@@ -276,7 +276,7 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
     dmGraphics::AddVertexStream(stream_declaration, "stream1", 4, dmGraphics::TYPE_FLOAT, false);
 
     #define TEST_STREAM(streams, name, ix, size, type, normalize) \
-        ASSERT_EQ(dmStrCaseCmp(streams[ix].m_Name, name), 0); \
+        ASSERT_TRUE(streams[ix].m_NameHash == dmHashString64(name)); \
         ASSERT_EQ(streams[ix].m_Stream, ix); \
         ASSERT_EQ(streams[ix].m_Size, size); \
         ASSERT_EQ(streams[ix].m_Type, type); \

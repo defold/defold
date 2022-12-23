@@ -231,7 +231,7 @@ namespace dmGameSystem
         uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
         for (uint32_t i = 0; i < stream_count; ++i)
         {
-        	dmhash_t stream_id = buffer_resource->m_BufferDDF->m_Streams[i].m_NameHash;
+        	dmhash_t stream_id = dmHashString64(buffer_resource->m_BufferDDF->m_Streams[i].m_Name);
         	if (stream_id == resource->m_PositionStreamId) {
         		resource->m_PositionStreamType = buffer_resource->m_BufferDDF->m_Streams[i].m_ValueType;
         	} else if (stream_id == resource->m_NormalStreamId) {

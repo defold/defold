@@ -999,6 +999,7 @@ namespace dmGameSystem
                 case dmBuffer::VALUE_TYPE_INT32:
                     DM_LUA_TABLE_TO_ARRAY(int32_t);
                 break;
+                default:break;
             }
             #undef DM_LUA_TABLE_TO_ARRAY
 
