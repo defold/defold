@@ -31,7 +31,6 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.BufferProto.StreamDesc;
@@ -185,7 +184,7 @@ public class BufferBuilder extends Builder<Void> {
                 int streamValueCount = streamNode.get("count").asInt();
 
                 StreamDesc.Builder streamDescBuilder = StreamDesc.newBuilder();
-                streamDescBuilder.setNameHash(MurmurHash.hash64(streamName));
+                streamDescBuilder.setName(streamName);
                 streamDescBuilder.setValueType(streamType);
                 streamDescBuilder.setValueCount(streamValueCount);
 
