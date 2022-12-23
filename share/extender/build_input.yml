@@ -251,14 +251,14 @@ platforms:
     env:
         PROGUARD:               "{{env.ANDROID_PROGUARD}}"
         LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR}}"
-        NDK_PATH:               "{{env.ANDROID_NDK25b_PATH}}"
-        PATH:                   "{{env.ANDROID_NDK25b_BIN_PATH}}:{{env.PATH}}"
-        SYSROOT:                "{{env.ANDROID_NDK25b_SYSROOT}}"
-        NDK_VERSION:            "{{env.ANDROID_NDK25b_API_VERSION}}"
+        NDK_PATH:               "{{env.ANDROID_NDK25_PATH}}"
+        PATH:                   "{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
+        SYSROOT:                "{{env.ANDROID_NDK25_SYSROOT}}"
+        NDK_VERSION:            "{{env.ANDROID_NDK25_API_VERSION}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        PATH:                   "{{env.ANDROID_NDK25b_BIN_PATH}}:{{env.PATH}}"
-        NDK_LD:                 "{{env.ANDROID_NDK25b_BIN_PATH}}/ld.lld"
-        NDK_CXX:                "{{env.ANDROID_NDK25b_BIN_PATH}}/armv7a-linux-androideabi{{env.ANDROID_NDK25b_API_VERSION}}-clang++"
+        PATH:                   "{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
+        NDK_LD:                 "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
+        NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/armv7a-linux-androideabi{{env.ANDROID_NDK25_API_VERSION}}-clang++"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profile", "remotery", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
@@ -299,14 +299,14 @@ platforms:
     env:
         PROGUARD:               "{{env.ANDROID_PROGUARD}}"
         LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR}}"
-        NDK_PATH:               "{{env.ANDROID_NDK25b_PATH}}"
-        PATH:                   "{{env.ANDROID_NDK25b_BIN_PATH}}:{{env.PATH}}"
-        SYSROOT:                "{{env.ANDROID_NDK25b_SYSROOT}}"
-        NDK_VERSION:            "{{env.ANDROID_64_NDK25b_API_VERSION}}"
+        NDK_PATH:               "{{env.ANDROID_NDK25_PATH}}"
+        PATH:                   "{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
+        SYSROOT:                "{{env.ANDROID_NDK25_SYSROOT}}"
+        NDK_VERSION:            "{{env.ANDROID_64_NDK25_API_VERSION}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        PATH:                   "{{env.ANDROID_NDK25b_BIN_PATH}}:{{env.PATH}}"
-        NDK_LD:                 "{{env.ANDROID_NDK25b_BIN_PATH}}/ld.lld"
-        NDK_CXX:                "{{env.ANDROID_NDK25b_BIN_PATH}}/aarch64-linux-android{{env.ANDROID_64_NDK25b_API_VERSION}}-clang++"
+        PATH:                   "{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
+        NDK_LD:                 "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
+        NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/aarch64-linux-android{{env.ANDROID_64_NDK25_API_VERSION}}-clang++"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profile", "remotery", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
