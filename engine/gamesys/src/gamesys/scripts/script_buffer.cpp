@@ -136,8 +136,7 @@ namespace dmGameSystem
     }
 
     // Unless we check that a buffer resource actually exists, the engine will crash
-    // when unpacking. This can happen if a user destroys a resource but a LuaHBuffer
-    // still holds a reference to the resource
+    // when unpacking. This can happen if a user destroys a resource but a LuaHBuffer still holds a reference to the resource
     static bool CanUnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer)
     {
         if (lua_buffer->m_Owner == dmScript::OWNER_RES)

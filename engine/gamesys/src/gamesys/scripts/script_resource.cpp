@@ -1856,7 +1856,7 @@ static int CreateBuffer(lua_State* L)
 
     // JG: We have to do this awkwardness because the create functions for the resource
     //     dmDDF::LoadMessage won't accept an empty dmBufferDDF::BufferDesc structure
-    //     and the buffer res won't accept a bufferdesc a stream that doesn't have data
+    //     and the buffer res won't accept a bufferdesc with a stream that doesn't have data
     int dummy_value_ptr = 0;
     dmBufferDDF::StreamDesc buffer_stream_dummy_ddf = {};
     buffer_stream_dummy_ddf.m_ValueType  = dmBufferDDF::VALUE_TYPE_INT8;

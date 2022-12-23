@@ -1715,12 +1715,12 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         for (int i = 0; i < stream_count; ++i)
         {
             VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
-            dmHashUpdateBuffer32(state, &stream.m_NameHash, sizeof(dmhash_t));
+            dmHashUpdateBuffer32(state, &stream.m_NameHash,     sizeof(dmhash_t));
             dmHashUpdateBuffer32(state, &stream.m_LogicalIndex, sizeof(stream.m_LogicalIndex));
-            dmHashUpdateBuffer32(state, &stream.m_Size, sizeof(stream.m_Size));
-            dmHashUpdateBuffer32(state, &stream.m_Offset, sizeof(stream.m_Offset));
-            dmHashUpdateBuffer32(state, &stream.m_Type, sizeof(stream.m_Type));
-            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
+            dmHashUpdateBuffer32(state, &stream.m_Size,         sizeof(stream.m_Size));
+            dmHashUpdateBuffer32(state, &stream.m_Offset,       sizeof(stream.m_Offset));
+            dmHashUpdateBuffer32(state, &stream.m_Type,         sizeof(stream.m_Type));
+            dmHashUpdateBuffer32(state, &stream.m_Normalize,    sizeof(stream.m_Normalize));
         }
     }
 

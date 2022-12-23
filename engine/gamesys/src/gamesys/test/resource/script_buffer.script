@@ -29,12 +29,12 @@ local data_stream_desc = {{
 }}
 
 function test_create_get(self)
-    local buffer_id     = buffer.create(3, data_stream_desc)
-    local res_buffer    = resource.create_buffer("/my_buffer.bufferc", { buffer = buffer_id }) -- ref = 1
-    local res_buffer_id = resource.get_buffer(res_buffer) -- ref = 2
+    local buf             = buffer.create(3, data_stream_desc)
+    local res_buffer      = resource.create_buffer("/my_buffer.bufferc", { buffer = buf }) -- ref = 1
+    local res_buffer_path = resource.get_buffer(res_buffer) -- ref = 2
 
-    -- at this point the buffer_id has been transferred to the resource so it's not usable any more
-    assert_error(function() buffer.get_bytes(buffer_id, hash("data")) end)
+    -- at this point the buf has been transferred to the resource so it's not usable any more
+    assert_error(function() buffer.get_bytes(buf, hash("data")) end)
 
     resource.release(res_buffer)
     resource.release(res_buffer)
@@ -44,32 +44,32 @@ function test_create_get(self)
 end
 
 function test_create_ownership(self)
-    local buffer_id  = buffer.create(3, data_stream_desc)
-    local res_buffer = resource.create_buffer("/my_buffer.bufferc", { buffer = buffer_id, transfer_ownership=false })
+    local buf             = buffer.create(3, data_stream_desc)
+    local res_buffer_path = resource.create_buffer("/my_buffer.bufferc", { buffer = buf, transfer_ownership=false })
 
     -- gc buffer, which should release the pointer that the resource has a ref to as well
-    buffer_id = nil
+    buf = nil
     collectgarbage("collect")
 
     -- the resource buffer is no longer valid!
-    assert_error(function() resource.get_buffer(res_buffer) end)
+    assert_error(function() resource.get_buffer(res_buffer_path) end)
 
-    resource.release(res_buffer)
+    resource.release(res_buffer_path)
 end
 
 function test_create_ownership_data(self)
-    local buffer_id = buffer.create(3, data_stream_desc)
+    local buf = buffer.create(3, data_stream_desc)
 
     -- create buffer resource and fill with data
-    local res_buffer = resource.create_buffer("/my_buffer.bufferc", { buffer = buffer_id, transfer_ownership=false })
-    local res_buffer_id = resource.get_buffer(res_buffer)
-    local res_buffer_stream = buffer.get_stream(res_buffer_id, hash("data"))
+    local res_buffer        = resource.create_buffer("/my_buffer.bufferc", { buffer = buf, transfer_ownership=false })
+    local res_buffer_path   = resource.get_buffer(res_buffer)
+    local res_buffer_stream = buffer.get_stream(res_buffer_path, hash("data"))
 
     res_buffer_stream[1] = 3
     res_buffer_stream[2] = 2
     res_buffer_stream[3] = 1
 
-    local buffer_stream = buffer.get_stream(buffer_id, hash("data"))
+    local buffer_stream = buffer.get_stream(buf, hash("data"))
     for i=1,3 do
         assert(buffer_stream[i] == res_buffer_stream[i])
     end
