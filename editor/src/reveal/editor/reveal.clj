@@ -25,13 +25,15 @@
 
 (defn- node-id-sf [{:keys [basis] :as ec} node-id]
   (let [type-sym (symbol (:k (g/node-type* basis node-id)))]
-    (r/raw-string
-      (str type-sym
-           (when (g/node-instance? basis resource-node/ResourceNode node-id)
-             (str "@" (or (resource/proj-path (g/node-value node-id :resource ec))
-                          "[in-memory]")))
-           "#" node-id)
-      {:fill :scalar})))
+    (r/horizontal
+      (r/raw-string
+        (if (g/node-instance? basis resource-node/ResourceNode node-id)
+          (or (resource/proj-path (g/node-value node-id :resource ec))
+              "[in-memory]")
+          "")
+        {:fill :string})
+      (r/raw-string (str "#" node-id) {:fill :scalar})
+      (r/raw-string (str "@" type-sym) {:fill :object}))))
 
 (declare label-tree-node)
 
@@ -91,6 +93,32 @@
            :annotate :annotation
            :children #((:children %))
            :root (root-tree-node ec x)})))))
+
+(defn- endpoint-successors [basis endpoint]
+  (let [node-id (g/endpoint-node-id endpoint)
+        graph-id (g/node-id->graph-id node-id)]
+    (get-in basis [:graphs graph-id :successors node-id (g/endpoint-label endpoint)])))
+
+(defn- render-endpoint-successor [ec endpoint]
+  (let [node-id (g/endpoint-node-id endpoint)
+        label (g/endpoint-label endpoint)
+        cached (contains? (g/cached-outputs (g/node-type* (:basis ec) node-id)) label)]
+    (r/horizontal
+      (r/raw-string (str label) {:fill (if cached :object :keyword)})
+      (r/raw-string " of " {:fill :util})
+      (node-id-sf ec node-id))))
+
+(r/defaction ::defold:successors [x]
+  (when (instance? Endpoint x)
+    (let [ec (g/make-evaluation-context)
+          basis (:basis ec)]
+      (when (endpoint-successors basis x)
+        (fn []
+          {:fx/type r/tree-view
+           :render #(render-endpoint-successor ec %)
+           :branch? (comp seq #(endpoint-successors basis %))
+           :children (comp sort #(endpoint-successors basis %))
+           :root x})))))
 
 (defn- de-duplicating-observable [ref f]
   (reify IRef

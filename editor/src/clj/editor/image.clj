@@ -114,9 +114,9 @@
                                                                           {:min-filter gl/nearest
                                                                            :mag-filter gl/nearest})))
 
-  (output gpu-texture-generator g/Any :cached (g/fnk [texture-image :as args]
-                                                     {:f    generate-gpu-texture
-                                                      :args args}))
+  (output gpu-texture-generator g/Any (g/fnk [texture-image :as args]
+                                             {:f    generate-gpu-texture
+                                              :args args}))
 
   (output build-targets g/Any :cached produce-build-targets))
 

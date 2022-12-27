@@ -236,7 +236,7 @@
                                                                (assoc :link maybe-image-resource :outline-show-link? true)))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode]
                               {:image (resource/resource->proj-path maybe-image-resource) :order order :sprite-trim-mode sprite-trim-mode}))
-  (output scene g/Any :cached produce-image-scene)
+  (output scene g/Any produce-image-scene)
   (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource]
                                (g/package-errors _node-id
                                                  (validate-image-resource _node-id maybe-image-resource)
