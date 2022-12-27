@@ -488,6 +488,109 @@
         ;; check cache invalidation works (via successors) - this used to fail
         (is (= (g/node-value v-sink :loud) "AFTER UNDO"))))))
 
+(deftest undo-preserves-actual-successors-in-the-same-graph
+  ;; We want to ensure that even though we only use cached dependencies in
+  ;; history, we still correctly update successors on undo/redo. This happens
+  ;; because successors are stored in the graph which is inside the undo step,
+  ;; so we don't have to additionally update successors for uncached outputs -
+  ;; revert to previous step will also revert successors in the graph.
+  ;; To test this behavior, we connect 2 nodes in the graph with uncached
+  ;; outputs (pipe1 and pipe2) and change connections between them in
+  ;; 2 separate undo steps. On undo/redo, we validate that successors change to
+  ;; reflect connections even though cached dependencies never report pipes in
+  ;; their outputs
+  (ts/with-clean-system
+    (let [project-graph (g/make-graph! :history true)
+          view-graph (g/make-graph! :history false)
+          [p-source p-pipe1 p-pipe2 v-sink] (ts/tx-nodes
+                                              (g/make-node project-graph Source :source-label "Initial")
+                                              (g/make-node project-graph Pipe)
+                                              (g/make-node project-graph Pipe)
+                                              (g/make-node view-graph Sink))]
+
+      (is (= 1 (count (ts/undo-stack project-graph))))
+
+      ;; connect source -> pipe1 -> pipe2 -> sink
+
+      (g/transact
+        [(g/connect p-source :source-label p-pipe1 :target-label)
+         (g/connect p-pipe1 :soft p-pipe2 :target-label)
+         (g/connect p-pipe2 :soft v-sink :target-label)])
+
+      (is (= 2 (count (ts/undo-stack project-graph))))
+      ;; all dependencies show we go from source to pipe1 to pipe2 to sink
+      (is (= #{(gt/endpoint p-source :source-label)
+               (gt/endpoint p-source :_declared-properties)
+               (gt/endpoint p-source :_properties)
+               (gt/endpoint p-pipe1 :soft)
+               (gt/endpoint p-pipe2 :soft)
+               (gt/endpoint v-sink :loud)}
+             (ts/graph-dependencies #{(gt/endpoint p-source :source-label)})))
+      ;; cached dependencies skip pipes
+      (is (= #{(gt/endpoint p-source :_declared-properties)
+               (gt/endpoint v-sink :loud)}
+             (g/cached-dependencies (g/now) [(gt/endpoint p-source :source-label)])))
+
+      ;; reconnect: source -> pipe1 -> sink, i.e. remove pipe2 from the chain
+
+      (g/transact
+        [(g/disconnect p-pipe1 :soft p-pipe2 :target-label)
+         (g/disconnect p-pipe2 :soft v-sink :target-label)
+         (g/connect p-pipe1 :soft v-sink :target-label)])
+
+      (is (= 3 (count (ts/undo-stack project-graph))))
+      ;; all dependencies show we now don't affect pipe2
+      (is (= #{(gt/endpoint p-source :source-label)
+               (gt/endpoint p-source :_declared-properties)
+               (gt/endpoint p-source :_properties)
+               (gt/endpoint p-pipe1 :soft)
+               ;; (gt/endpoint p-pipe2 :soft) <- no pipe2 on this line
+               (gt/endpoint v-sink :loud)}
+             (ts/graph-dependencies #{(gt/endpoint p-source :source-label)})))
+      ;; cached dependencies still skip all pipes
+      (is (= #{(gt/endpoint p-source :_declared-properties)
+               (gt/endpoint v-sink :loud)}
+             (g/cached-dependencies (g/now) [(gt/endpoint p-source :source-label)])))
+
+      (g/undo! project-graph)
+
+      (is (= 2 (count (ts/undo-stack project-graph))))
+      ;; after undo, we get valid successors both in the graph (pipe1->pipe2) and between graphs (pipe2->sink)
+      (is (= #{(gt/endpoint p-source :source-label)
+               (gt/endpoint p-source :_declared-properties)
+               (gt/endpoint p-source :_properties)
+               (gt/endpoint p-pipe1 :soft)
+               (gt/endpoint p-pipe2 :soft)
+               (gt/endpoint v-sink :loud)}
+             (ts/graph-dependencies #{(gt/endpoint p-source :source-label)})))
+      ;; more specifically, the pipe2->sink connection remains intact
+      (is (= #{(gt/endpoint p-pipe2 :soft)
+               (gt/endpoint v-sink :loud)}
+             (ts/graph-dependencies #{(gt/endpoint p-pipe2 :soft)})))
+      ;; cached dependencies still skip all pipes
+      (is (= #{(gt/endpoint p-source :_declared-properties)
+               (gt/endpoint v-sink :loud)}
+             (g/cached-dependencies (g/now) [(gt/endpoint p-source :source-label)])))
+
+      (g/redo! project-graph)
+
+      (is (= 3 (count (ts/undo-stack project-graph))))
+      ;; redo also reverts to successors avoiding pipe2
+      (is (= #{(gt/endpoint p-source :source-label)
+               (gt/endpoint p-source :_declared-properties)
+               (gt/endpoint p-source :_properties)
+               (gt/endpoint p-pipe1 :soft)
+               ;; (gt/endpoint p-pipe2 :soft) <- no pipe2 on this line
+               (gt/endpoint v-sink :loud)}
+             (ts/graph-dependencies #{(gt/endpoint p-source :source-label)})))
+      ;; pipe2 isn't connected to anything
+      (is (= #{(gt/endpoint p-pipe2 :soft)}
+             (ts/graph-dependencies #{(gt/endpoint p-pipe2 :soft)})))
+      ;; cached dependencies still skip all pipes
+      (is (= #{(gt/endpoint p-source :_declared-properties)
+               (gt/endpoint v-sink :loud)}
+             (g/cached-dependencies (g/now) [(gt/endpoint p-source :source-label)]))))))
+
 (g/defnode CountOnDelete)
 
 (deftest graph-deletion

@@ -829,41 +829,13 @@
 
 (defn- cached-basis-dependencies [basis endpoints]
   (assert (every? gt/endpoint? endpoints))
-  (let [pool (ForkJoinPool/commonPool)
-        graph-id->node-successor-map
+  (let [graph-id->node-successor-map
         (persistent!
           (reduce-kv
             (fn [acc graph-id graph]
               (assoc! acc graph-id (:successors graph)))
             (transient {})
             (:graphs basis)))
-        node-type->cached-outputs (ConcurrentHashMap.)
-        all-endpoints (ConcurrentHashMap.)
-        cached-endpoints (ConcurrentHashMap.)
-        make-task! (fn [endpoints]
-                     (fn []
-                       (into []
-                             (mapcat
-                               (fn [endpoint]
-                                 (when (nil? (.putIfAbsent all-endpoints endpoint true))
-                                   (let [node-id (gt/endpoint-node-id endpoint)
-                                         output (gt/endpoint-label endpoint)]
-                                     (if-let [node (gt/node-by-id-at basis node-id)]
-                                       (let [node-type (gt/node-type node)
-                                             ^Set cached-outputs (.computeIfAbsent
-                                                                   node-type->cached-outputs
-                                                                   node-type
-                                                                   compute-cached-outputs-function)]
-                                         (when (.contains cached-outputs output)
-                                           (.putIfAbsent cached-endpoints endpoint true)))
-                                       (.putIfAbsent cached-endpoints endpoint true))
-                                     (-> node-id
-                                         gt/node-id->graph-id
-                                         graph-id->node-successor-map
-                                         (get node-id)
-                                         (get output))))))
-                             endpoints)))
-        endpoints->tasks-xf (comp (partition-all 512) (map make-task!))
         cache-key (into [endpoints]
                         (map #(System/identityHashCode (val %)))
                         graph-id->node-successor-map)]
@@ -871,16 +843,43 @@
           cache-key
           (reify Function
             (apply [_ _]
-              (loop [tasks (into [] endpoints->tasks-xf endpoints)]
-                (let [next-tasks
-                      (if (= 1 (count tasks))
-                        (into [] endpoints->tasks-xf ((nth tasks 0)))
-                        (into []
-                              (comp (mapcat deref) endpoints->tasks-xf)
-                              (.invokeAll pool tasks)))]
-                  (when (pos? (count next-tasks))
-                    (recur next-tasks))))
-              (.keySet cached-endpoints))))))
+              (let [pool (ForkJoinPool/commonPool)
+                    node-type->cached-outputs (ConcurrentHashMap.)
+                    all-endpoints (ConcurrentHashMap.)
+                    cached-endpoints (ConcurrentHashMap.)
+                    make-task! (fn [endpoints]
+                                 (fn []
+                                   (into []
+                                         (mapcat
+                                           (fn [endpoint]
+                                             (when (nil? (.putIfAbsent all-endpoints endpoint true))
+                                               (let [node-id (gt/endpoint-node-id endpoint)
+                                                     output (gt/endpoint-label endpoint)]
+                                                 (if-let [node (gt/node-by-id-at basis node-id)]
+                                                   (let [node-type (gt/node-type node)
+                                                         ^Set cached-outputs (.computeIfAbsent
+                                                                               node-type->cached-outputs
+                                                                               node-type
+                                                                               compute-cached-outputs-function)]
+                                                     (when (.contains cached-outputs output)
+                                                       (.putIfAbsent cached-endpoints endpoint true)))
+                                                   (.putIfAbsent cached-endpoints endpoint true))
+                                                 (-> node-id
+                                                     gt/node-id->graph-id
+                                                     graph-id->node-successor-map
+                                                     (get node-id)
+                                                     (get output))))))
+                                         endpoints)))
+                    endpoints->tasks-xf (comp (partition-all 512) (map make-task!))
+                    future->tasks-xf (comp (mapcat deref) endpoints->tasks-xf)]
+                (loop [tasks (into [] endpoints->tasks-xf endpoints)]
+                  (let [next-tasks
+                        (if (= 1 (count tasks))
+                          (into [] endpoints->tasks-xf ((nth tasks 0)))
+                          (into [] future->tasks-xf (.invokeAll pool tasks)))]
+                    (when (pos? (count next-tasks))
+                      (recur next-tasks))))
+                (.keySet cached-endpoints)))))))
 
 (defrecord MultigraphBasis [graphs]
   gt/IBasis
