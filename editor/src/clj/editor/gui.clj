@@ -1089,7 +1089,7 @@
                        font-shader (or (font-shaders font) (font-shaders ""))
                        font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
                    ;; The material-shader output is used to propagate the shader
-                   ;; from the GuiSceneNode to our child nodes. Thus we cannot
+                   ;; from the GuiSceneNode to our child nodes. Thus, we cannot
                    ;; simply overload the material-shader output on this node.
                    ;; Instead, the base VisualNode will pick it up from here.
                    {:line-data lines
@@ -1169,6 +1169,7 @@
 
 (g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
   (assoc gui-base-node-msg
+    :size [200.0 100.0 0.0 1.0] ; Just here to avoid file format changes. We could remove this.
     :template (resource/resource->proj-path template-resource)
 
     ;; TODO: We should not have to overwrite the base properties here. Refactor?
@@ -1329,12 +1330,11 @@
     (assoc-in [:renderable :topmost?] true)))
 
 (g/defnk produce-particlefx-node-msg [visual-base-node-msg particlefx]
-  (assoc visual-base-node-msg
-    :particlefx particlefx
-    :size [1.0 1.0 0.0 1.0]
-    :size-mode :size-mode-auto
-    :blend-mode :blend-mode-alpha
-    :pivot :pivot-center))
+  (-> visual-base-node-msg
+      (dissoc :blend-mode :pivot)
+      (assoc :particlefx particlefx
+             :size [1.0 1.0 0.0 1.0]
+             :size-mode :size-mode-auto)))
 
 (g/defnode ParticleFXNode
   (inherits VisualNode)
@@ -1416,7 +1416,7 @@
   ;; This will cause every usage to fall back on the no-texture entry for "".
   (when (some? anim-data)
     ;; Input anim-data is a map of anim-ids to anim-data.
-    ;; The produced anim-data prefixes the anim-id with he texture name like so: "texture/anim".
+    ;; The produced anim-data prefixes the anim-id with the texture name like so: "texture/anim".
     ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
     (if (empty? anim-data)
       {name nil}
