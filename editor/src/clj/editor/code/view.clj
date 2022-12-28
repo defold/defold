@@ -2491,7 +2491,7 @@
                    messages)})
 
 (defn- hover-view [^Canvas canvas {:keys [hovered-element layout lines]}]
-  (let [r ^Rect (->> hovered-element
+  (let [^Rect r (->> hovered-element
                      :region
                      (data/adjust-cursor-range lines)
                      (data/cursor-range-rects layout lines)

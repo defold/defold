@@ -39,7 +39,7 @@
     {:jsonrpc "2.0"
      :id (:id message)
      :result (let [handler (or (request-handlers (:method message))
-                               (throw (ex-info "Method not found" {:jsonrpc/code -32601})))]
+                               (throw (ex-info "Method not found" {:jsonrpc/code -32601 :method (:method message)})))]
                (handler (:params message)))}
     (catch Throwable e
       (error-reporting/report-exception! e)
