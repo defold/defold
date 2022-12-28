@@ -43,8 +43,8 @@
 
 (defrecord HistoryState [label graph sequence-label cache-keys])
 
-(defn history-state [graph cached-outputs-modified]
-  (->HistoryState (:tx-label graph) graph (:tx-sequence-label graph) cached-outputs-modified))
+(defn history-state [graph outputs-modified]
+  (->HistoryState (:tx-label graph) graph (:tx-sequence-label graph) outputs-modified))
 
 (defn- history-state-merge-cache-keys
   [new old]
@@ -64,9 +64,9 @@
   ([x y & more] (reduce =* (=* x y) more)))
 
 (defn merge-or-push-history
-  [history old-graph new-graph cached-outputs-modified]
-  (assert (set? cached-outputs-modified))
-  (let [new-state (history-state new-graph cached-outputs-modified)
+  [history old-graph new-graph outputs-modified]
+  (assert (set? outputs-modified))
+  (let [new-state (history-state new-graph outputs-modified)
         tape-op (if (=* (:tx-sequence-label new-graph) (:tx-sequence-label old-graph))
                   merge-into-top
                   conj)]
@@ -119,7 +119,7 @@
   (assert (every? gt/endpoint? outputs))
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
   (let [basis (basis system)
-        cache-entries (gt/cached-dependencies basis outputs)]
+        cache-entries (gt/dependencies basis outputs)]
     (-> system
         (update :cache c/cache-invalidate cache-entries)
         (update :invalidate-counters bump-invalidate-counters cache-entries))))
@@ -237,16 +237,16 @@
 (def ^:private meaningful-change? contains?)
 
 (defn- remember-change
-  [system graph-id before after cached-outputs-modified]
-  (update-in system [:history graph-id] merge-or-push-history before after cached-outputs-modified))
+  [system graph-id before after outputs-modified]
+  (update-in system [:history graph-id] merge-or-push-history before after outputs-modified))
 
 (defn merge-graphs
-  [system post-tx-graphs significantly-modified-graphs cached-outputs-modified nodes-deleted]
-  (let [graph-id->cached-outputs-modified (util/group-into
-                                            {}
-                                            #{}
-                                            #(gt/node-id->graph-id (gt/endpoint-node-id %))
-                                            cached-outputs-modified)
+  [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
+  (let [graph-id->outputs-modified (util/group-into
+                                     {}
+                                     #{}
+                                     #(gt/node-id->graph-id (gt/endpoint-node-id %))
+                                     outputs-modified)
         post-system (reduce (fn [system [graph-id graph]]
                               (let [start-tx (:tx-id graph -1)
                                     sidereal-tx (graph-time system graph-id)]
@@ -261,19 +261,19 @@
                                                       graph-after)
                                         system-after (if (and (has-history? system graph-id)
                                                               (meaningful-change? significantly-modified-graphs graph-id))
-                                                       (remember-change system graph-id graph-before graph-after (graph-id->cached-outputs-modified graph-id #{}))
+                                                       (remember-change system graph-id graph-before graph-after (graph-id->outputs-modified graph-id #{}))
                                                        system)]
                                     (assoc-in system-after [:graphs graph-id] graph-after)))))
                             system
                             post-tx-graphs)]
     (-> post-system
-        (update :cache c/cache-invalidate cached-outputs-modified)
+        (update :cache c/cache-invalidate outputs-modified)
         (update :user-data (fn [user-data]
                              (reduce (fn [user-data [graph-id deleted-node-ids]]
                                        (update user-data graph-id (partial apply dissoc) deleted-node-ids))
                                      user-data
                                      (group-by gt/node-id->graph-id (keys nodes-deleted)))))
-        (update :invalidate-counters bump-invalidate-counters cached-outputs-modified))))
+        (update :invalidate-counters bump-invalidate-counters outputs-modified))))
 
 (defn basis-graphs-identical? [basis1 basis2]
   (let [graph-ids (keys (:graphs basis1))]

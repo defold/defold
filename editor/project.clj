@@ -78,8 +78,6 @@
 
                      [org.luaj/luaj-jse "3.0.1"]
 
-                     [com.github.ben-manes.caffeine/caffeine "3.1.2"]
-
                      [cljfx "1.7.21"]
 
                      [org.openjfx/javafx-base "18"]

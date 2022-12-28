@@ -151,7 +151,7 @@
 
 (defmacro affected-by [& forms]
   `(let [tx-result# (g/transact ~@forms)]
-     (set (ts/all-tx-modified-outputs tx-result#))))
+     (set (:outputs-modified tx-result#))))
 
 (defn pairwise [m]
   (for [[k vs] m
@@ -176,7 +176,7 @@
   (ts/with-clean-system
     (let [{:keys [calculator person first-name-cell greeter formal-greeter multi-node-target]} (build-network world)
           tx-result        (g/transact (g/invalidate person))
-          outputs-modified (ts/all-tx-modified-outputs tx-result)]
+          outputs-modified (:outputs-modified tx-result)]
       (doseq [output [:_node-id :_properties :friendly-name :full-name :date-of-birth :age]]
         (is (some #{(g/endpoint person output)} outputs-modified))))))
 
@@ -191,13 +191,13 @@
   (ts/with-clean-system
     (let [tx-result        (g/transact (g/make-node world CachedOutputInvalidation))
           real-id          (first (g/tx-nodes-added tx-result))
-          outputs-modified (ts/all-tx-modified-outputs tx-result)]
+          outputs-modified (:outputs-modified tx-result)]
       (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
       (is (= #{:_declared-properties :_properties :_overridden-properties :_node-id :_output-jammers :self-dependent :a-property :ordinary}
              (into #{} (map gt/endpoint-label) outputs-modified)))
       (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [])]
             tx-result        (g/transact tx-data)
-            outputs-modified (ts/all-tx-modified-outputs tx-result)]
+            outputs-modified (:outputs-modified tx-result)]
         (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
         (is (= #{:_declared-properties :_properties :a-property :ordinary :self-dependent}
                (into #{} (map gt/endpoint-label) outputs-modified)))))))

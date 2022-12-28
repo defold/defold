@@ -33,7 +33,7 @@
 
 (set! *warn-on-reflection* true)
 
-(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? cached-dependencies Node node-id node-id? produce-value node-by-id-at endpoint-node-id endpoint-label])
+(namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id node-id? produce-value node-by-id-at endpoint-node-id endpoint-label])
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
@@ -149,7 +149,7 @@
 
   It returns the transaction result, (tx-result),  which is a map containing keys about the transaction.
   Transaction result-keys:
-  `[:status :basis :graphs-modified :nodes-affected :nodes-added :nodes-modified :nodes-deleted :cached-outputs-modified :label :sequence-label]`
+  `[:status :basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label]`
   "
   ([txs]
    (transact nil txs))
@@ -165,7 +165,7 @@
          tx-result (it/transact* transaction-context txs)]
      (when (and (not (:dry-run opts))
                 (= :ok (:status tx-result)))
-       (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:cached-outputs-modified tx-result) (:nodes-deleted tx-result)))
+       (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
      tx-result)))
 
 ;; ---------------------------------------------------------------------------

@@ -20,7 +20,7 @@
             [internal.system :as is]
             [internal.util :as util]
             [schema.core :as s]
-            [support.test-support :as ts :refer [tx-nodes with-clean-system]]
+            [support.test-support :refer [tx-nodes with-clean-system]]
             [internal.graph.types :as gt])
   (:import clojure.lang.ExceptionInfo))
 
@@ -166,7 +166,7 @@
   (with-clean-system
     (let [[node-id] (tx-nodes (g/make-node world node-type :foo "one"))
           tx-result (g/transact (f node-id))]
-      (let [modified (into #{} (map gt/endpoint-label) (ts/all-tx-modified-outputs tx-result))]
+      (let [modified (into #{} (map gt/endpoint-label) (:outputs-modified tx-result))]
         (is (= properties modified))))))
 
 (deftest invalidating-properties-output
@@ -189,7 +189,7 @@
           tx-result                     (g/set-property! source :foo "hi")
           properties-modified-on-target (set (keep #(when (= (gt/endpoint-node-id %) target)
                                                       (gt/endpoint-label %))
-                                                   (ts/all-tx-modified-outputs tx-result)))]
+                                                   (:outputs-modified tx-result)))]
       (is (= #{:_declared-properties :baz :_properties} properties-modified-on-target)))))
 
 (deftest visibility-properties
@@ -207,7 +207,7 @@
                                   (g/make-node world EnablementTestNode))]
       (g/transact (g/connect snode :foo enode :bar))
       (let [tx-result     (g/transact (g/set-property snode :foo 1))
-            enode-results (filter #(= (gt/endpoint-node-id %) enode) (ts/all-tx-modified-outputs tx-result))
+            enode-results (filter #(= (gt/endpoint-node-id %) enode) (:outputs-modified tx-result))
             modified      (into #{} (map gt/endpoint-label) enode-results)]
         (is (= #{:_declared-properties :baz :_properties} modified))))))
 

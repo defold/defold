@@ -16,8 +16,7 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.fs :as fs]
-            [internal.system :as is])
-  (:import [java.util ArrayDeque HashSet]))
+            [internal.system :as is]))
 
 (def enable-performance-tests
   (nil? (get (System/getenv)
@@ -79,40 +78,5 @@
 (defn graph-dependencies
   ([tgts]
    (graph-dependencies (g/now) tgts))
-  ([basis endpoints]
-   (let [graph-id->node-successor-map
-         (persistent!
-           (reduce-kv
-             (fn [acc graph-id graph]
-               (assoc! acc graph-id (:successors graph)))
-             (transient {})
-             (:graphs basis)))
-         endpoint->successors (fn [endpoint]
-                                (let [node-id (g/endpoint-node-id endpoint)
-                                      output (g/endpoint-label endpoint)]
-                                  (-> node-id
-                                      g/node-id->graph-id
-                                      graph-id->node-successor-map
-                                      (get node-id)
-                                      (get output))))
-         deque (ArrayDeque.)
-         result (HashSet.)]
-     (reduce (fn [_ endpoint]
-               (.push deque endpoint))
-             nil
-             endpoints)
-     (loop []
-       (when-some [endpoint (.pollLast deque)]
-         (when-not (.contains result endpoint)
-           (when-some [successors (endpoint->successors endpoint)]
-             (reduce
-               (fn [_ successor-endpoint]
-                 (.push deque successor-endpoint))
-               nil
-               successors)
-             (.add result endpoint)))
-         (recur)))
-     result)))
-
-(defn all-tx-modified-outputs [tx-result]
-  (graph-dependencies (:basis tx-result) (:nodes-affected tx-result)))
+  ([basis tgts]
+   (g/dependencies basis tgts)))

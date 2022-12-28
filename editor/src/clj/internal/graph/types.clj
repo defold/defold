@@ -31,9 +31,9 @@
   Comparable
   (compareTo [_ that]
     (let [^Endpoint that that
-          node-id-comparison (.compareTo node-id (.-node-id that))]
+          node-id-comparison (Long/compare node-id (.-node-id that))]
       (if (zero? node-id-comparison)
-        (.compareTo label (.-label that))
+        (compare label (.-label that))
         node-id-comparison)))
   IHashEq
   (hasheq [_]
@@ -115,12 +115,11 @@
   (connect          [this source-id source-label target-id target-label])
   (disconnect       [this source-id source-label target-id target-label])
   (connected?       [this source-id source-label target-id target-label])
-  (cached-dependencies     [this endpoints]
+  (dependencies     [this endpoints]
     "Follow arcs through the graphs, from outputs to the inputs
      connected to them, and from those inputs to the downstream
      outputs that use them, and so on. Continue following links until
-     all reachable outputs are found. Returns all reachable cached
-     endpoints.
+     all reachable outputs are found.
 
      Takes a coll of endpoints and returns a set of endpoints")
   (original-node    [this node-id]))
