@@ -80,7 +80,8 @@
                    "/extension1/lib/common/file"
                    "/extension1/lib/x86_64-osx/file"
                    "/extension1/lib/osx/file"
-                   "/subdir/extension2/ext.manifest"}
+                   "/subdir/extension2/ext.manifest"
+                   "/subdir/extension2/src/.gitkeep"}
                  (platform-resources project "x86_64-macos"))))))
     (testing "arm64-ios"
       (with-clean-system
@@ -94,7 +95,8 @@
                    "/extension1/lib/common/file"
                    "/extension1/lib/arm64-ios/file"
                    "/extension1/lib/ios/file"
-                   "/subdir/extension2/ext.manifest"}
+                   "/subdir/extension2/ext.manifest"
+                   "/subdir/extension2/src/.gitkeep"}
                  (platform-resources project "arm64-ios"))))))))
 
 (defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
