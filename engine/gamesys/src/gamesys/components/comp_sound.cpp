@@ -115,7 +115,7 @@ namespace dmGameSystem
         SoundWorld* world = (SoundWorld*)params.m_World;
         if (world->m_Components.Full())
         {
-            dmLogError("Sound component could not be created since the sound buffer is full (%d). Setting 'sound.max_component_count' in game.project.", world->m_Components.Capacity());
+            ShowFullBufferError("Sound", "sound.max_component_count", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 

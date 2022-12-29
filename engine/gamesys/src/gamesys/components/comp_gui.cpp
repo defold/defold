@@ -139,7 +139,8 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogWarning("The gui world could not be stored since the buffer is full (%d). Increase number in gui.max_instance_count", gui_context->m_Worlds.Size());
+            // JG: This seems deprecated?
+            dmLogWarning("The gui world could not be created since the buffer is full (%d). Increase the 'gui.max_instance_count' value in game.project", gui_context->m_Worlds.Size());
         }
 
         gui_world->m_CompGuiContext = gui_context;
@@ -683,6 +684,12 @@ namespace dmGameSystem
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
+        if (gui_world->m_Components.Full())
+        {
+            ShowFullBufferError("Gui", "gui.max_count", gui_world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
@@ -726,7 +733,9 @@ namespace dmGameSystem
         }
 
         *params.m_UserData = (uintptr_t)gui_component;
+
         gui_world->m_Components.Push(gui_component);
+
         return dmGameObject::CREATE_RESULT_OK;
     }
 

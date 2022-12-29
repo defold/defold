@@ -322,7 +322,7 @@ namespace dmGameSystem
 
         if (world->m_Components.Full())
         {
-            dmLogError("Mesh could not be created since the buffer is full (%d).", world->m_Components.Capacity());
+            ShowFullBufferError("Mesh", "mesh.max_count", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = world->m_Components.Alloc();
@@ -745,9 +745,6 @@ namespace dmGameSystem
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
         DM_PROFILE("Mesh");
-
-        MeshWorld* mesh_world = (MeshWorld*)params.m_UserData;
-
 
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;

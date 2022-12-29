@@ -188,7 +188,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogError("Collection proxy could not be created since the buffer is full (%d), tweak \"%s\" in the config file.", proxy_world->m_Components.Size(), COLLECTION_PROXY_MAX_COUNT_KEY);
+            ShowFullBufferError("Collection proxy", COLLECTION_PROXY_MAX_COUNT_KEY, proxy_world->m_Components.Size());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
     }

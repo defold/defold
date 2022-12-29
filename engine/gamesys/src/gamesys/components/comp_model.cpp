@@ -448,7 +448,7 @@ namespace dmGameSystem
 
         if (world->m_Components.Full())
         {
-            dmLogError("Model could not be created since the buffer is full (%d).", world->m_Components.Capacity());
+            ShowFullBufferError("Model", "model.max_count", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = world->m_Components.Alloc();

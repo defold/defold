@@ -345,7 +345,7 @@ namespace dmGameSystem
 
         if (sprite_world->m_Components.Full())
         {
-            dmLogError("Sprite could not be created since the sprite buffer is full (%d). See 'sprite.max_count' in game.project", sprite_world->m_Components.Capacity());
+            ShowFullBufferError("Sprite", "sprite.max_count", sprite_world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = sprite_world->m_Components.Alloc();
