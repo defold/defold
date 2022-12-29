@@ -20,15 +20,28 @@
 
 namespace dmGraphics
 {
+    const static uint8_t MAX_VERTEX_STREAM_COUNT = 8;
+
+    struct VertexStream
+    {
+        const char* m_Name;
+        uint32_t    m_Stream;
+        uint32_t    m_Size;
+        Type        m_Type;
+        bool        m_Normalize;
+    };
+
+    struct VertexStreamDeclaration
+    {
+        VertexStream m_Streams[MAX_VERTEX_STREAM_COUNT];
+        uint8_t      m_StreamCount;
+    };
+
     PipelineState GetDefaultPipelineState();
     void SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     uint64_t GetDrawCount();
     void SetForceFragmentReloadFail(bool should_fail);
     void SetForceVertexReloadFail(bool should_fail);
-
-    // Gets the bits per pixel from uncompressed formats
-    uint32_t GetTextureFormatBitsPerPixel(TextureFormat format);
-
     bool IsTextureFormatCompressed(TextureFormat format);
 }
 

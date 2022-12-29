@@ -33,3 +33,20 @@
     (let [pred (test-util/make-call-logger (constantly true))]
       (is (= 9 (util/last-index-where pred (range 10))))
       (is (= 1 (count (test-util/call-logger-calls pred)))))))
+
+(deftest join-lines-test
+  (is (= "" (util/join-lines nil)))
+  (is (= "" (util/join-lines [])))
+  (is (= "first\nsecond" (util/join-lines ["first" "second"])))
+  (is (= "first\r\nsecond" (util/join-lines "\r\n" ["first" "second"])))
+  (is (= "\nfirst\n\nsecond\n" (util/join-lines ["" "first" "" "second" ""])))
+  (is (= "\n\nfirst\n\n\nsecond\n\n" (util/join-lines ["" "" "first" "" "" "second" "" ""])))
+
+  (are [expected]
+    (= expected (util/join-lines (util/split-lines expected)))
+
+    ""
+    "\n"
+    "first\nsecond"
+    "\nfirst\n\nsecond\n"
+    "\n\nfirst\n\n\nsecond\n\n"))

@@ -72,7 +72,7 @@
     control))
 
 (defn- create-prefs-row! [prefs ^GridPane grid row desc]
-  (let [label (Label. (str (:label desc) ":"))
+  (let [label (Label. (:label desc))
         ^Parent control (create-control! prefs grid desc)]
     (GridPane/setConstraints label 0 row)
     (GridPane/setConstraints control 1 row)
@@ -101,15 +101,16 @@
 (defn- pref-pages
   []
   (cond-> [{:name  "General"
-            :prefs [{:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
+            :prefs [{:label "Load External Changes on App Focus" :type :boolean :key "external-changes-load-on-app-focus" :default true}
+                    {:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
                     {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}
-                    {:label "Path to custom keymap" :type :string :key "custom-keymap-path" :default ""}
-                    {:label "Code editor font (requires restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
+                    {:label "Path to Custom Keymap" :type :string :key "custom-keymap-path" :default ""}]}
            {:name  "Code"
             :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}
                     {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
-                    {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}]}
+                    {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}
+                    {:label "Code Editor Font (Requires Restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
            {:name  "Extensions"
             :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}
                     {:label "Build Server Headers" :type :string :key "extensions-server-headers" :default native-extensions/defold-build-server-headers :multi-line true}]}]

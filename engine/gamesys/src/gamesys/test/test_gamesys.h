@@ -215,6 +215,12 @@ public:
     virtual ~ComponentFailTest() {}
 };
 
+class BufferMetadataTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~BufferMetadataTest() {}
+};
+
 struct FactoryTestParams
 {
     const char* m_GOPath;
@@ -537,6 +543,7 @@ void GamesysTest<T>::TearDown()
 
     GameSystemTest_PlatformExit();
 }
+
 
 // Specific test class for testing dmBuffers in scripts
 class ScriptBufferTest : public jc_test_base_class

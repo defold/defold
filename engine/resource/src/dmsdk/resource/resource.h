@@ -465,6 +465,16 @@ namespace dmResource
      */
     Result Get(HFactory factory, const char* name, void** resource);
 
+    /*#
+     * Get a resource from factory
+     * @name Get
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param name [type: dmhash_t] Resource name
+     * @param resource [type: void**] Created resource
+     * @return result [type: dmResource::Result]  RESULT_OK on success
+     */
+    Result Get(HFactory factory, dmhash_t name, void** resource);
+
 
     /*#
      * Release resource

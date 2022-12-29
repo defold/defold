@@ -259,6 +259,9 @@ namespace dmGameObject
         // Stack keeping track of which instance has the input focus
         dmArray<Instance*>       m_InputFocusStack;
 
+        // Array of dynamically created resources (i.e runtime-only resources)
+        dmArray<dmhash_t>        m_DynamicResources;
+
         // Name-hash of the collection.
         dmhash_t                 m_NameHash;
 

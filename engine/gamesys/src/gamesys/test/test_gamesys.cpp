@@ -130,6 +130,13 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
     return Spawn(factory, collection, prototype_name, id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
 }
 
+static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
+    dmGameObject::UpdateContext ctx;
+    dmGameObject::Update(collection, &ctx);
+    dmGameObject::Delete(collection, instance, false);
+    dmGameObject::PostUpdate(collection);
+}
+
 TEST_P(ResourceTest, Test)
 {
     const char* resource_name = GetParam();
@@ -191,6 +198,92 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     ASSERT_NE(original_height,dmGraphics::GetOriginalTextureHeight(resource->m_Texture));
 
     dmResource::Release(m_Factory, (void**) resource);
+}
+
+TEST_F(ResourceTest, TestCreateTextureFromScript)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 1: create a 128x128 empty texture at "/test.texturec"
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    void* resource = 0x0;
+    dmhash_t res_hash = dmHashString64("/test_simple.texturec");
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(m_Factory, res_hash);
+    ASSERT_EQ(2, rd->m_ReferenceCount);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_simple.texturec", &resource));
+    ASSERT_TRUE(resource != 0x0);
+
+    // 1 for create 1 for get
+    ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, res_hash));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 2: remove resource twice (#model has 1 ref still)
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, res_hash));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 3: fail by using use wrong extension
+    //         note that we use a pcall with an inverse assert in create_texture.script
+    //         so that we don't need to care about recovering after this point.
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 4: fail by trying to create a resource that already exists
+    //         (same as (3) - hence the assert_true)
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 5: fail by trying to release a resource that doesn't exist
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // cleanup
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    DeleteInstance(m_Collection, go);
+
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ResourceTest, TestResourceScriptAtlas)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_atlas.goc", dmHashString64("/script_atlas"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(ResourceTest, TestSetTextureFromScript)
@@ -497,13 +590,6 @@ TEST_P(ComponentFailTest, Test)
     ASSERT_EQ((void*)0, go);
 }
 
-static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
-    dmGameObject::UpdateContext ctx;
-    dmGameObject::Update(collection, &ctx);
-    dmGameObject::Delete(collection, instance, false);
-    dmGameObject::PostUpdate(collection);
-}
-
 static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t* out_val) {
     dmGameObject::PropertyDesc desc;
     dmGameObject::PropertyOptions opt;
@@ -519,6 +605,26 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
     dmGameObject::PropertyOptions opt;
     opt.m_Index = 0;
     return dmGameObject::SetProperty(instance, comp_name, prop_name, opt, prop_var);
+}
+
+TEST_F(BufferMetadataTest, MetadataLuaApi)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* go_path = "/buffer/metadata.goc";
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(SoundTest, UpdateSoundResource)
@@ -3347,6 +3453,9 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
 
 int main(int argc, char **argv)
 {
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
     dmHashEnableReverseHash(true);
     // Enable message descriptor translation when sending messages
     dmDDF::RegisterAllTypes();

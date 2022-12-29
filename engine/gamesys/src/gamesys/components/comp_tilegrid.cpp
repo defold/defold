@@ -138,12 +138,13 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(world->m_RenderContext);
         // TODO: Everything below here should be move to the "universe" when available
         // and hence shared among all the worlds
-        dmGraphics::VertexElement ve[] =
-        {
-                {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-        };
-        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(ve[0]));
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+        dmGraphics::AddVertexStream(stream_declaration, "position",  3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(world->m_RenderContext), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         uint32_t vcount = 6 * world->m_MaxTileCount;
         world->m_VertexBufferData = (TileGridVertex*) malloc(sizeof(TileGridVertex) * vcount);
