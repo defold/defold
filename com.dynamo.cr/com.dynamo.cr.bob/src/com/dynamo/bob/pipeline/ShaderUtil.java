@@ -39,10 +39,11 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderUtil {
     public static class Common {
-        public static final String regexCommentRemovePattern = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
-        public static String includeDirectiveBaseStr         = "#include\\s+\"%s\"";
-        public static final String includeDirectiveStr       = String.format(includeDirectiveBaseStr, "(?<path>.+)");
-        public static final Pattern includeDirectivePattern  = Pattern.compile(includeDirectiveStr);
+        public static final String  regexCommentRemovePattern      = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
+        public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*#include\\s*\"%s\"";
+        public static String        includeDirectiveBaseStr        = "^\\s*#include\\s*\"%s\"\\s*$";
+        public static final String  includeDirectiveStr            = String.format(includeDirectiveBaseStr, "(?<path>[^\"]+?)");
+        public static final Pattern includeDirectivePattern        = Pattern.compile(includeDirectiveStr);
 
         public static String stripComments(String source)
         {
@@ -76,47 +77,6 @@ public class ShaderUtil {
             return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
-        }
-
-        public static class DataMapping {
-            public String path;
-            public String data;
-        }
-
-        private static DataMapping makeDataMapping(String path, String data) {
-            // Strip all include directives
-            data = data.replaceAll(Common.includeDirectiveStr, "");
-            DataMapping includeDataMapEntry = new DataMapping();
-            includeDataMapEntry.path        = path;
-            includeDataMapEntry.data        = data;
-            return includeDataMapEntry;
-        }
-
-        public static DataMapping[] getDataMappingFromPaths(String[] includePaths) throws IOException {
-            DataMapping[] includes = new DataMapping[includePaths.length];
-            for (int i=0; i < includePaths.length; i++) {
-                try(FileInputStream inputStream = new FileInputStream(includePaths[i])) {
-                    includes[i] = makeDataMapping(includePaths[i], IOUtils.toString(inputStream));
-                }
-            }
-            return includes;
-        }
-
-        public static DataMapping[] getDataMappingFromResources(List<IResource> includeResources) throws IOException {
-            DataMapping[] includes = new DataMapping[includeResources.size()];
-
-            for (int i=0; i < includeResources.size(); i++) {
-                IResource includeResource = includeResources.get(i);
-                try (ByteArrayInputStream is = new ByteArrayInputStream(includeResource.getContent())) {
-
-                    int n = is.available();
-                    byte[] bytes = new byte[n];
-                    is.read(bytes, 0, n);
-                    String includeSource = new String(bytes, StandardCharsets.UTF_8);
-                    includes[i] = makeDataMapping(includeResource.getPath(), includeSource);
-                }   
-            }
-            return includes;
         }
     }
 

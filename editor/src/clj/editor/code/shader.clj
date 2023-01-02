@@ -23,7 +23,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderIncludeCompiler ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
+  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
            (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language)
            (com.google.protobuf ByteString)))
 
@@ -144,12 +144,7 @@
   (let [shader-stage (shader-stage-from-ext resource-ext)
         shader-language (shader-language-from-str language)
         is-debug true
-
-        ;; TODO: Don't do include processing in ShaderProgramBuilder/compileGLSL, since we already have the includes in our full-lines output.
-        include-compiler (ShaderIncludeCompiler. "" resource-path glsl-source)
-        include-paths nil
-
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source include-compiler include-paths shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
     {:language shader-language
      :source (ByteString/copyFrom (.getBytes glsl-compile-result "UTF-8"))}))
 
@@ -220,13 +215,8 @@
         resource-ext (resource/type-ext resource)
         shader-stage (shader-stage-from-ext resource-ext)
         is-debug true
-
-        ;; TODO: Don't do include processing in ShaderProgramBuilder/compileGLSL, since we already have the includes in our full-lines output.
-        include-compiler (ShaderIncludeCompiler. "" proj-path source)
-        include-paths nil
-
         shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL source include-compiler include-paths shader-stage (shader-language-to-java shader-language) proj-path is-debug)]
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL source shader-stage (shader-language-to-java shader-language) proj-path is-debug)]
     glsl-compile-result))
 
 (g/deftype ^:private ProjPath+Lines [(s/one s/Str "proj-path") (s/one [String] "lines")])

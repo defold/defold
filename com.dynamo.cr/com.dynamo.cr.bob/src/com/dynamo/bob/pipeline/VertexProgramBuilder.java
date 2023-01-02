@@ -37,20 +37,16 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
 
     @Override
     public void build(Task<ShaderIncludeCompiler> task) throws IOException, CompileExceptionError {
-        List<IResource> inputs                    = task.getInputs();
-        List<IResource> includeResources          = inputs.subList(1, inputs.size());
-        IResource in                              = inputs.get(0);
+        List<IResource> inputs                = task.getInputs();
+        IResource in                          = inputs.get(0);
         ShaderIncludeCompiler includeCompiler = task.getData();
 
-        try (ByteArrayInputStream is = new ByteArrayInputStream(in.getContent())) {
-            boolean isDebug = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
-            boolean outputSpirv = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
-            ShaderDesc shaderDesc = compile(is,
-                includeCompiler, Common.getDataMappingFromResources(includeResources),
-                SHADER_TYPE, in, task.getOutputs().get(0).getPath(),
-                project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
-            task.output(0).setContent(shaderDesc.toByteArray());
-        }
+        boolean isDebug       = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
+        boolean outputSpirv   = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
+        ShaderDesc shaderDesc = compile(includeCompiler,
+            SHADER_TYPE, in, task.getOutputs().get(0).getPath(),
+            project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
+        task.output(0).setContent(shaderDesc.toByteArray());
     }
 
     public static void main(String[] args) throws IOException, CompileExceptionError {
