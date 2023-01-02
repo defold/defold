@@ -87,7 +87,7 @@ namespace dmGameSystem
         CameraWorld* w = (CameraWorld*)params.m_World;
         if (w->m_Cameras.Full())
         {
-            ShowFullBufferError("Camera", NULL, MAX_COUNT);
+            ShowFullBufferError("Camera", MAX_COUNT);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         dmGameSystem::CameraResource* cam_resource = (CameraResource*)params.m_Resource;

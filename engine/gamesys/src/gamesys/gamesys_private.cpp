@@ -61,18 +61,15 @@ namespace dmGameSystem
         va_end(lst);
     }
 
+    void ShowFullBufferError(const char* object_name, int max_count)
+    {
+        dmLogError("%s could not be created since the buffer is full (%d). This value cannot be changed", object_name, max_count);
+    }
+
     void ShowFullBufferError(const char* object_name, const char* config_key, int max_count)
     {
-        if (config_key)
-        {
-            dmLogError("%s could not be created since the buffer is full (%d). Increase the '%s' value in game.project",
-                object_name, max_count, config_key);
-        }
-        else
-        {
-            dmLogError("%s could not be created since the buffer is full (%d). This value cannot be changed",
-                object_name, max_count);
-        }
+        dmLogError("%s could not be created since the buffer is full (%d). Increase the '%s' value in [game.project](defold://open?path=/game.project)",
+            object_name, max_count, config_key);
     }
 
     dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc,
