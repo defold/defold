@@ -162,7 +162,8 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler
 
         String source = source = os.toString().replace("\r", "");
 
-        source = includeCompiler.insertIncludes(source, includes);
+        // HACK: We already insert the include lines in the editor. Move this outside of compileGLSL?
+        // source = includeCompiler.insertIncludes(source, includes);
 
         if (gles3Standard) {
             int version = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 300 : 140;

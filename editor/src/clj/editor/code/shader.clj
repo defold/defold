@@ -17,9 +17,12 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.resource :as r]
+            [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.workspace :as workspace])
+            [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace]
+            [schema.core :as s])
   (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderIncludeCompiler ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
            (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language)
            (com.google.protobuf ByteString)))
@@ -81,6 +84,11 @@
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
                    :view-types [:code :default]
+                   :view-opts glsl-opts}
+                  {:ext "glsl"
+                   :label "Shader Include"
+                   :icon "icons/64/Icons_29-AT-Unknown.png"
+                   :view-types [:code :default]
                    :view-opts glsl-opts}])
 
 (defn- shader-type-from-str [^String shader-type-in]
@@ -136,8 +144,11 @@
   (let [shader-stage (shader-stage-from-ext resource-ext)
         shader-language (shader-language-from-str language)
         is-debug true
-        ^ShaderIncludeCompiler include-compiler (ShaderIncludeCompiler. "" resource-path glsl-source)
+
+        ;; TODO: Don't do include processing in ShaderProgramBuilder/compileGLSL, since we already have the includes in our full-lines output.
+        include-compiler (ShaderIncludeCompiler. "" resource-path glsl-source)
         include-paths nil
+
         glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source include-compiler include-paths shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
     {:language shader-language
      :source (ByteString/copyFrom (.getBytes glsl-compile-result "UTF-8"))}))
@@ -169,37 +180,93 @@
         {:resource resource
          :content content}))))
 
-(g/defnk produce-build-targets [_node-id compile-spirv lines resource]
+(g/defnk produce-build-targets [_node-id compile-spirv proj-path+full-lines resource]
   [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-shader
       :user-data {:compile-spirv compile-spirv
-                  :lines lines
+                  :lines (second proj-path+full-lines)
                   :resource-ext (resource/type-ext resource)}})])
 
+(def ^:private include-pattern #"^\s*#include \"([^\"]+?)\"\s*$")
+
+(defn- try-parse-include [^String line]
+  ;; #include "../shaders/light.glsl" -> "../shaders/light.glsl"
+  (->> line
+       (re-seq include-pattern)
+       (first)
+       (second)))
+
+(defn- try-parse-included-proj-path [base-resource ^String line]
+  (some->> (try-parse-include line)
+           (workspace/resolve-resource base-resource)
+           (resource/proj-path)))
+
+(g/defnk produce-proj-path+full-lines [resource lines proj-path->full-lines]
+  (let [proj-path (resource/proj-path resource)
+        full-lines (into []
+                         (mapcat (fn [line]
+                                   (if-some [included-proj-path (try-parse-included-proj-path resource line)]
+                                     (proj-path->full-lines included-proj-path)
+                                     [line])))
+                         lines)]
+    [proj-path full-lines]))
+
 ;; Used for rendering in the editor
-(g/defnk produce-full-source [resource lines]
-  (let [source (string/join "\n" lines)
+(g/defnk produce-full-source [resource proj-path+full-lines]
+  (let [[proj-path full-lines] proj-path+full-lines
+        source (string/join "\n" full-lines)
         resource-ext (resource/type-ext resource)
-        resource-path (resource/path resource)
         shader-stage (shader-stage-from-ext resource-ext)
         is-debug true
-        ^ShaderIncludeCompiler include-compiler (ShaderIncludeCompiler. "" resource-path source)
-        include-paths (.getIncludes include-compiler)
+
+        ;; TODO: Don't do include processing in ShaderProgramBuilder/compileGLSL, since we already have the includes in our full-lines output.
+        include-compiler (ShaderIncludeCompiler. "" proj-path source)
+        include-paths nil
+
         shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL source include-compiler include-paths shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
+        glsl-compile-result (ShaderProgramBuilder/compileGLSL source include-compiler include-paths shader-stage (shader-language-to-java shader-language) proj-path is-debug)]
     glsl-compile-result))
+
+(g/deftype ^:private ProjPath+Lines [(s/one s/Str "proj-path") (s/one [String] "lines")])
 
 (g/defnode ShaderNode
   (inherits r/CodeEditorResourceNode)
 
+  ;; Overrides modified-lines property in CodeEditorResourceNode.
+  (property modified-lines r/Lines
+            (dynamic visible (g/constantly false))
+            (set (fn [_evaluation-context self _old-value new-value]
+                   (let [includes (into #{}
+                                        (keep try-parse-include)
+                                        new-value)]
+                     (g/set-property self :includes includes)))))
+
+  (property includes g/Any
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         resource (resource-node/resource basis self)
+                         project (project/get-project basis self)
+                         connections [[:proj-path+full-lines :included-proj-paths+full-lines]]]
+                     (concat
+                       (g/disconnect-sources basis self :included-proj-paths+full-lines)
+                       (map (fn [include]
+                              (let [included-resource (workspace/resolve-resource resource include)]
+                                (:tx-data (project/connect-resource-node evaluation-context project included-resource self connections))))
+                            new-value))))))
+
   (input project-settings g/Any)
+  (input included-proj-paths+full-lines ProjPath+Lines :array)
 
   (output compile-spirv g/Bool (g/fnk [project-settings]
                                  (get project-settings ["shader" "output_spirv"] false)))
 
   (output build-targets g/Any :cached produce-build-targets)
+  (output proj-path->full-lines g/Any :cached (g/fnk [included-proj-paths+full-lines]
+                                                (into {} included-proj-paths+full-lines)))
+  (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
   (output full-source g/Str :cached produce-full-source))
 
 (defn- additional-load-fn [project self _resource]
