@@ -260,9 +260,6 @@ public class ShaderUtil {
         public static Result transform(String input, ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
             Result result = new Result();
 
-            // System.out.println("\nSHADER INPUT\n");
-            // System.out.println(input);
-
             if(input.isEmpty()) {
                 return result;
             }

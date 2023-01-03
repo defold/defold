@@ -40,7 +40,7 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
         IResource in                          = inputs.get(0);
         ShaderIncludeCompiler includeCompiler = task.getData();
 
-        boolean isDebug       = true; // (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
+        boolean isDebug       = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
         boolean outputSpirv   = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
         ShaderDesc shaderDesc = compile(includeCompiler,
             SHADER_TYPE, in, task.getOutputs().get(0).getPath(),

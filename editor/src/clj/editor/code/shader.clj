@@ -194,13 +194,11 @@
        (second)))
 
 (defn- try-parse-included-proj-path [base-resource ^String line]
-  (println (workspace/resolve-resource base-resource (try-parse-include line)) line)
   (some->> (try-parse-include line)
            (workspace/resolve-resource base-resource)
            (resource/proj-path)))
 
 (g/defnk produce-proj-path+full-lines [resource lines proj-path->full-lines]
-  (println "produce-proj-path+full-lines")
   (let [proj-path (resource/proj-path resource)
         full-lines (into []
                          (mapcat (fn [line]
@@ -246,7 +244,6 @@
                        (g/disconnect-sources basis self :included-proj-paths+full-lines)
                        (map (fn [include]
                               (let [included-resource (workspace/resolve-resource resource include)]
-                                (println "INCLUDES" included-resource resource include)
                                 (:tx-data (project/connect-resource-node evaluation-context project included-resource self connections))))
                             new-value))))))
 
