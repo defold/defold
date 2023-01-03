@@ -214,7 +214,7 @@ namespace dmGameSystem
 
         if (world->m_Components.Full())
         {
-            dmLogError("Label could not be created since the label buffer is full (%d).", world->m_Components.Capacity());
+            ShowFullBufferError("Label", "label.max_count", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 

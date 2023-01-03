@@ -403,7 +403,7 @@ namespace dmGameSystem
         TileGridWorld* world = (TileGridWorld*) params.m_World;
         if (world->m_Components.Full())
         {
-            dmLogError("Tilemap could not be created since the tilemap buffer is full (%d). You can change this with the config setting tilemap.max_count", world->m_Components.Capacity());
+            ShowFullBufferError("Tilemap", "tilemap.max_count", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 

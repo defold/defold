@@ -76,6 +76,12 @@ namespace dmGameSystem
     // A wrapper for dmScript::CheckGoInstance
     dmGameObject::HInstance CheckGoInstance(lua_State* L);
 
+    // Logs an error for when a component buffer is full
+    void ShowFullBufferError(const char* object_name, const char* config_key, int max_count);
+
+    // Logs an error for when a component buffer is full, but the buffer in question cannot be changed by the user
+    void ShowFullBufferError(const char* object_name, int max_count);
+
     /**
      * Log message error. The function will send a formatted printf-style string to dmLogError
      * and append message sender/receiver information on the following format:

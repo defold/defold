@@ -70,7 +70,6 @@ namespace dmGameSystem
     {
         CameraWorld* cam_world = new CameraWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, MAX_COUNT);
-        
         cam_world->m_Cameras.SetCapacity(comp_count);
         cam_world->m_FocusStack.SetCapacity(MAX_STACK_COUNT);
         *params.m_World = cam_world;
@@ -86,30 +85,27 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCameraCreate(const dmGameObject::ComponentCreateParams& params)
     {
         CameraWorld* w = (CameraWorld*)params.m_World;
-        if (!w->m_Cameras.Full())
+        if (w->m_Cameras.Full())
         {
-            dmGameSystem::CameraResource* cam_resource = (CameraResource*)params.m_Resource;
-            CameraComponent camera;
-            camera.m_Instance = params.m_Instance;
-            camera.m_World = w;
-            camera.m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
-            camera.m_Fov = cam_resource->m_DDF->m_Fov;
-            camera.m_NearZ = cam_resource->m_DDF->m_NearZ;
-            camera.m_FarZ = cam_resource->m_DDF->m_FarZ;
-            camera.m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
-            camera.m_OrthographicProjection = cam_resource->m_DDF->m_OrthographicProjection != 0;
-            camera.m_OrthographicZoom = cam_resource->m_DDF->m_OrthographicZoom;
-            camera.m_AddedToUpdate = 0;
-            camera.m_ComponentIndex = params.m_ComponentIndex;
-            w->m_Cameras.Push(camera);
-            *params.m_UserData = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
-            return dmGameObject::CREATE_RESULT_OK;
-        }
-        else
-        {
-            dmLogError("Camera buffer is full (%d), component disregarded.", MAX_COUNT);
+            ShowFullBufferError("Camera", MAX_COUNT);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+        dmGameSystem::CameraResource* cam_resource = (CameraResource*)params.m_Resource;
+        CameraComponent camera;
+        camera.m_Instance = params.m_Instance;
+        camera.m_World = w;
+        camera.m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
+        camera.m_Fov = cam_resource->m_DDF->m_Fov;
+        camera.m_NearZ = cam_resource->m_DDF->m_NearZ;
+        camera.m_FarZ = cam_resource->m_DDF->m_FarZ;
+        camera.m_AutoAspectRatio = cam_resource->m_DDF->m_AutoAspectRatio != 0;
+        camera.m_OrthographicProjection = cam_resource->m_DDF->m_OrthographicProjection != 0;
+        camera.m_OrthographicZoom = cam_resource->m_DDF->m_OrthographicZoom;
+        camera.m_AddedToUpdate = 0;
+        camera.m_ComponentIndex = params.m_ComponentIndex;
+        w->m_Cameras.Push(camera);
+        *params.m_UserData = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
+        return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCameraDestroy(const dmGameObject::ComponentDestroyParams& params)
@@ -140,7 +136,7 @@ namespace dmGameSystem
                 return dmGameObject::CREATE_RESULT_OK;
             }
         }
-        dmLogError("Destroyed camera could not be found, something is fishy.");
+        dmLogError("Destroyed camera could not be found.");
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
@@ -222,6 +218,7 @@ namespace dmGameSystem
 
             dmMessage::Post(0x0, &receiver, message_id, 0, (uintptr_t)dmGameSystemDDF::SetViewProjection::m_DDFDescriptor, &set_view_projection, sizeof(dmGameSystemDDF::SetViewProjection), 0);
 
+            // JG: What does this TODO mean here?
             // Set matrices immediately
             // TODO: Remove this once render scripts are implemented everywhere
             dmRender::SetProjectionMatrix(render_context, projection);
@@ -338,7 +335,7 @@ namespace dmGameSystem
     {
         CameraComponent* component = (CameraComponent*)*params.m_UserData;
         dmhash_t set_property = params.m_PropertyId;
-        
+
         if (CAMERA_PROP_FOV == set_property)
         {
             component->m_Fov = params.m_Value.m_Number;
