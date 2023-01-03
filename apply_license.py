@@ -63,7 +63,7 @@ excluded_files = [
     "engine/engine/contents/builtins/edn.lua",
     "engine/engine/contents/builtins/mobdebug.lua",
     "editor/bundle_resources/_defold/debugger/start.lua",
-    "engine/gameobject/src/test/factory/test_props.lua",
+    "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_url.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_number.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_hash.lua",
