@@ -1,5 +1,6 @@
 package com.dynamo.bob.pipeline;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
@@ -37,12 +38,9 @@ import com.dynamo.bob.pipeline.ShaderUtil.Common;
  */
 public class ShaderIncludeCompiler {
     // Compiler state
-    private String      projectPath;
-    private String      shaderSource;
-    private String      shaderPath;
+    private Project     project;
+    private String      sourcePath;
     private IncludeNode root;
-
-    private HashMap<String, String> nodeSourceCache;
 
     private class IncludeNode {
         public String                       path;
@@ -87,10 +85,10 @@ public class ShaderIncludeCompiler {
         }
     }
 
-    public ShaderIncludeCompiler(String projectRoot, String fromPath, String fromSource) throws IOException, CompileExceptionError {
-        this.projectPath     = projectRoot;
-        this.nodeSourceCache = new HashMap<String, String>();
-        this.root            = buildShaderIncludeGraph(null, fromPath, fromSource);
+    public ShaderIncludeCompiler(Project project, String fromPath, String fromSource) throws IOException, CompileExceptionError {
+        this.project         = project;
+        this.sourcePath      = fromPath;
+        this.root            = buildShaderIncludeGraph(null, fromPath, Common.stripComments(fromSource));
     }
 
     public String[] getIncludes() {
@@ -129,45 +127,43 @@ public class ShaderIncludeCompiler {
     }
 
     private String toProjectRelativePath(String fromFilePath, String includePath) throws CompileExceptionError {
-
         if (includePath.startsWith("/"))
         {
             return includePath.substring(1);
         }
 
-        if (fromFilePath.startsWith("/"))
+        String includePathRelative = includePath;
+        String[] fromFileParts     = fromFilePath.split("/");
+        int numSteps               = 1;
+
+        if (includePathRelative.startsWith("../"))
         {
-            fromFilePath = fromFilePath.substring(1);
+            String[] includeParts = includePathRelative.split("\\.\\.\\/");
+            numSteps              = includeParts.length;
+            includePathRelative   = includeParts[numSteps-1];
         }
 
-        File fromFile            = new File(fromFilePath);
-        File file                = new File(fromFile.getParent(), includePath);
-        Path filePath            = Paths.get(file.getAbsolutePath());
-        Path projectRootPath     = Paths.get(this.projectPath);
-        Path projectRelativePath = projectRootPath.relativize(filePath);
-
-        if (projectRelativePath.toString().startsWith(".."))
+        if (fromFileParts.length - numSteps < 0)
         {
-            throw new CompileExceptionError(fromFilePath + " includes file from outside of project root " + includePath);
+            throw new CompileExceptionError(fromFilePath + " includes file from outside of project root '" + includePath + "'");
         }
 
-        return projectRelativePath.toString();
+        String[] baseDirParts = Arrays.copyOfRange(fromFileParts, 0, fromFileParts.length - numSteps);
+        String baseDir        = String.join("/", baseDirParts);
+        return baseDir + "/" + includePathRelative;
     }
 
-    private String getOrPutCachedIncludeData(String fromPath) throws FileNotFoundException, IOException
+    private String getIncludeData(String fromPath) throws CompileExceptionError, IOException
     {
-        String childData = null;
-        if (this.nodeSourceCache.containsKey(fromPath))
+        IResource res = this.project.getResource(fromPath);
+        if (res.getContent() == null)
         {
-            childData = this.nodeSourceCache.get(fromPath);
-        } else {
-            File projectFile = new File(this.projectPath, fromPath);
-            try(FileInputStream inputStream = new FileInputStream(projectFile)) {
-                childData = IOUtils.toString(inputStream);
-            }
-            this.nodeSourceCache.put(fromPath, childData);
+            throw new CompileExceptionError(this.sourcePath + " includes '" + fromPath + "', but the file is invalid. " +
+                "Make sure that the path is relative to the project root and that the file is valid!");
         }
-        return childData;
+
+        String resData = new String(res.getContent(), StandardCharsets.UTF_8);
+        return Common.stripComments(resData);
     }
 
     private IncludeNode buildShaderIncludeGraph(IncludeNode parent, String fromPath, String fromSource) throws IOException, CompileExceptionError {
@@ -183,7 +179,7 @@ public class ShaderIncludeCompiler {
             if(includeMatcher.find()) {
                 String path                = includeMatcher.group("path");
                 String projectRelativePath = toProjectRelativePath(fromPath, path);
-                String childData           = getOrPutCachedIncludeData(projectRelativePath);
+                String childData           = getIncludeData(projectRelativePath);
                 newIncludeNode.children.put(path, buildShaderIncludeGraph(newIncludeNode, projectRelativePath, childData));
             }
         }

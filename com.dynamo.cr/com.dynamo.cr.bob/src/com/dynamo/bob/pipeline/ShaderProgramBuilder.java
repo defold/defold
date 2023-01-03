@@ -74,7 +74,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler
         String source     = new String(input.getContent(), StandardCharsets.UTF_8);
         String projectDir = this.project.getRootDirectory();
 
-        ShaderIncludeCompiler includeCompiler = new ShaderIncludeCompiler(projectDir, input.getPath(), source);
+        ShaderIncludeCompiler includeCompiler = new ShaderIncludeCompiler(this.project, input.getPath(), source);
         String[] includes = includeCompiler.getIncludes();
 
         for (String path : includes) {
@@ -98,7 +98,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler
         String firstNonDirectiveLine = null;
         int directiveLineCount = 0;
 
-        Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
+        Pattern directiveLinePattern = Pattern.compile("^\\s*(#).*");
         Scanner scanner = new Scanner(shaderSource);
 
         // Iterate the source lines to find the first occurance of a 'valid' line
@@ -418,6 +418,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler
     }
 
     static private ShaderDesc.Shader.Builder buildSpirvFromGLSL(String source, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
+        source = Common.stripComments(source);
         SPIRVCompileResult compile_res = compileGLSLToSPIRV(source, shaderType, resourceOutput, targetProfile, isDebug, soft_fail);
 
         if (compile_res.compile_warnings.size() > 0)
@@ -605,7 +606,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler
 
            String source = new String(inBytes, StandardCharsets.UTF_8);
            Project project = new Project(new DefaultFileSystem());
-           ShaderIncludeCompiler includeCompiler = new ShaderIncludeCompiler(project.getRootDirectory(), args[0], source);
+           ShaderIncludeCompiler includeCompiler = new ShaderIncludeCompiler(project, args[0], source);
 
            ShaderDesc shaderDesc = compile(includeCompiler,
                 shaderType, null, args[1], cmd.getOptionValue("platform", ""),

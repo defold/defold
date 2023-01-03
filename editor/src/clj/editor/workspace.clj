@@ -33,7 +33,8 @@ ordinary paths."
             [editor.util :as util]
             [internal.cache :as c]
             [service.log :as log]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [clojure.string :as str])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
            [java.io File PushbackReader]
@@ -291,18 +292,31 @@ ordinary paths."
 (defn- absolute-path [^String path]
   (.startsWith path "/"))
 
+(defn- get-parent-dir [^String path]
+  (str (.getParent (File. path))))
+
+(defn- relative-path [^String base ^String path]
+  (let [path-parts (str/split path #"\.\.\/")
+        parent-path (if (= "/" base)
+                      base
+                      (str base "/"))]
+    (prn parent-path)
+    (if (> (count path-parts) 1)
+      (recur (get-parent-dir parent-path) (string/join "/" (drop 1 path-parts)))
+      (str parent-path path))))
+
 (defn to-absolute-path
   ([rel-path] (to-absolute-path "" rel-path))
   ([base rel-path]
    (if (absolute-path rel-path)
      rel-path
-     (str base "/" rel-path))))
+     (relative-path base rel-path))))
 
 (defn resolve-resource [base-resource path]
   (when-not (empty? path)
     (let [path (if (absolute-path path)
                  path
-                 (to-absolute-path (str (.getParent (File. (resource/proj-path base-resource)))) path))]
+                 (to-absolute-path (get-parent-dir (resource/proj-path base-resource)) path))]
       (when-let [workspace (:workspace base-resource)]
         (resolve-workspace-resource workspace path)))))
 

@@ -260,9 +260,8 @@ public class ShaderUtil {
         public static Result transform(String input, ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
             Result result = new Result();
 
-            // Remove comments, early bail if zero code
-            // input = input.replaceAll(regexCommentRemovePattern,"");
-            input = Common.stripComments(input);
+            // System.out.println("\nSHADER INPUT\n");
+            // System.out.println(input);
 
             if(input.isEmpty()) {
                 return result;
@@ -307,7 +306,7 @@ public class ShaderUtil {
                 maxColorOutputs = Math.max(maxColorOutputs, Integer.parseInt(fragDataArrayIndex) + 1);
             }
 
-            // Replace fragment output variables 
+            // Replace fragment output variables
             boolean output_glFragColor = input.contains(glFragColorKeyword);
             boolean output_glFragData = input.contains(glFragDataKeyword);
 
