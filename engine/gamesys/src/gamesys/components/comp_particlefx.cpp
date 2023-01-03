@@ -154,7 +154,7 @@ namespace dmGameSystem
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
         if (world->m_PrototypeIndices.Remaining() == 0)
         {
-            dmLogError("ParticleFX could not be created since the buffer is full (%d).", world->m_PrototypeIndices.Capacity());
+            ShowFullBufferError("ParticleFx", dmParticle::MAX_INSTANCE_COUNT_KEY, world->m_PrototypeIndices.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = world->m_PrototypeIndices.Pop();
