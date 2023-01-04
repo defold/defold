@@ -27,7 +27,7 @@ void dmProfilerExt::SampleCpuUsage()
 {
     // Should be implemented using JNI for Android 8+
     // see https://github.com/defold/defold/issues/3385
-    dmProfilerExt::SampleProcCpuUsage();
+    dmProfilerExt::SampleProcCpuUsage(true); // TODO - use virtual_metric only for android 8+
 }
 
 uint64_t dmProfilerExt::GetMemoryUsage()

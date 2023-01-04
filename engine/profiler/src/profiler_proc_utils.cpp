@@ -24,6 +24,7 @@ static long int _sample_cpu_last_tot = 0;
 static long int _sample_cpu_last_proc = 0;
 static double _sample_cpu_usage = 0.0;
 static bool _sample_cpu_enabled = true;
+static int _cpu_count = -1;
 
 static long int ParseTotalCPUUsage()
 {
@@ -76,7 +77,59 @@ static long int ParseProcStat()
     return utime + stime;
 }
 
-void dmProfilerExt::SampleProcCpuUsage()
+static int ParseCpuCount()
+{
+    FILE* fp = NULL;
+    if ((fp = fopen("/proc/cpuinfo", "r")) == NULL) {
+            dmLogError("Could not open /proc/cpuinfo");
+            return 0;
+    }
+
+    char buffer[4096];
+    int result = 1; // a valid value to start with
+    int cpuid = -1;
+    int max_cpuid = -1;
+
+    // go for "processor : *" lines and keep the processor id.
+    while ( result != EOF)
+    {
+            result = fscanf(fp, "processor : %d \n", &cpuid);
+            if (result == EOF)
+            {
+                    break;
+            } else
+            if (result != 1) // discard the line
+            {
+                    result = fscanf(fp, "%4095[^\n]\n", buffer);
+            } else
+            {
+                if (cpuid > max_cpuid)
+                    max_cpuid = cpuid;
+            }
+    }
+    fclose(fp);
+    // processor ids start from 0
+    max_cpuid ++;
+
+    return max_cpuid; // in case no processor is detected, 0 is returned
+}
+
+int VirtualTotalCPUUsage(uint64_t interval_us)
+{
+    // lazily initialize processor count
+    if (_cpu_count == -1)
+    {
+        _cpu_count = ParseCpuCount();
+    }
+
+    // convert to microsecs to USER_HZ units
+    int interval = interval_us / 10000; // TODO - use proper value for USER_HZ
+
+    // multiply by number of cpus for virtual number of total ticks
+    return interval * _cpu_count;
+}
+
+void dmProfilerExt::SampleProcCpuUsage(bool virtual_metric)
 {
     if (!_sample_cpu_enabled) {
         return;
@@ -87,10 +140,18 @@ void dmProfilerExt::SampleProcCpuUsage()
         _sample_cpu_last_t = time;
         return;
     }
-    if ((time - _sample_cpu_last_t) * 0.000001 > SAMPLE_CPU_INTERVAL) {
-        long int cur_tot = ParseTotalCPUUsage();
-        long int cur_proc = ParseProcStat();
 
+    uint64_t time_interval_us = time - _sample_cpu_last_t; // in micro seconds
+    if (time_interval_us * 0.000001 > SAMPLE_CPU_INTERVAL) {
+        long int cur_tot;
+        if (virtual_metric)
+        {
+            cur_tot = VirtualTotalCPUUsage(time_interval_us);
+        } else
+        {
+            cur_tot = ParseTotalCPUUsage();
+        }
+        long int cur_proc = ParseProcStat();
         double tot_delta = (double)cur_tot - (double)_sample_cpu_last_tot;
         if (tot_delta > 0) {
             _sample_cpu_usage = ((double)cur_proc - (double)_sample_cpu_last_proc) / tot_delta;
