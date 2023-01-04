@@ -3207,10 +3207,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         Matrix4 trans;
         CalculateNodeTransform(scene, n, (CalculateNodeTransformFlags)(CALCULATE_NODE_INCLUDE_SIZE), trans);
         dmTransform::Transform transform = dmTransform::ToTransform(trans);
-        float scale = transform.GetScalePtr()[0];
         dmParticle::SetPosition(scene->m_ParticlefxContext, inst, Point3(transform.GetTranslation()));
         dmParticle::SetRotation(scene->m_ParticlefxContext, inst, transform.GetRotation());
-        dmParticle::SetScale(scene->m_ParticlefxContext, inst, scale);
+        dmParticle::SetScale(scene->m_ParticlefxContext, inst, transform.GetUniformScale());
 
         uint32_t count = scene->m_AliveParticlefxs.Size();
         scene->m_AliveParticlefxs.SetSize(count + 1);
