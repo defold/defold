@@ -178,7 +178,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             List<Message> outputs = build("/test_glsl_same_folder.fp", String.format(shader_base, "glsl_same_folder.glsl"));
             ShaderDesc shader     = (ShaderDesc)outputs.get(0);
             testOutput(String.format(expected_base,
-                "#line 1\n" +
                 "const float same_folder = 0.0;\n"),
                 shader.getShaders(0).getSource().toStringUtf8());
         }
@@ -188,7 +187,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             List<Message> outputs = build("/test_glsl_sub_folder_includes.fp", String.format(shader_base, "shader_includes/glsl_sub_include.glsl"));
             ShaderDesc shader     = (ShaderDesc)outputs.get(0);
             testOutput(String.format(expected_base,
-                "#line 1\n" +
                 "const float sub_include = 0.0;\n"),
                 shader.getShaders(0).getSource().toStringUtf8());
         }
@@ -198,7 +196,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             List<Message> outputs = build("/test_glsl_sub_folder_multiple_includes.fp", String.format(shader_base, "shader_includes/glsl_sub_include_multi.glsl"));
             ShaderDesc shader     = (ShaderDesc)outputs.get(0);
             testOutput(String.format(expected_base,
-                "#line 1\n" +
                 "const float sub_include = 0.0;\n" +
                 "\n" +
                 "const float sub_include_from_multi = 0.0;\n"),
