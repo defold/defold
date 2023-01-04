@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.List;
 
@@ -25,7 +24,6 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderIncludeCompiler;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
-import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 @BuilderParams(name = "FragmentProgram", inExts = ".fp", outExt = ".fpc")

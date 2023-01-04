@@ -16,16 +16,13 @@ package com.dynamo.bob.pipeline;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -44,7 +41,6 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;

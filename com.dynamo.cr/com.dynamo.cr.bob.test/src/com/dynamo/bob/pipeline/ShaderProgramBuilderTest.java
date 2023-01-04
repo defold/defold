@@ -24,7 +24,6 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.Message;
 
@@ -173,7 +172,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                                "   _DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);\n" +
                                "}\n";
 
-        // Test 1: include a valid shader from the same folder
+        // Test include a valid shader from the same folder
         {
             List<Message> outputs = build("/test_glsl_same_folder.fp", String.format(shader_base, "glsl_same_folder.glsl"));
             ShaderDesc shader     = (ShaderDesc)outputs.get(0);
@@ -182,7 +181,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 shader.getShaders(0).getSource().toStringUtf8());
         }
 
-        // Test 2: include a valid shader from a subfolder
+        // Test include a valid shader from a subfolder
         {
             List<Message> outputs = build("/test_glsl_sub_folder_includes.fp", String.format(shader_base, "shader_includes/glsl_sub_include.glsl"));
             ShaderDesc shader     = (ShaderDesc)outputs.get(0);
@@ -191,7 +190,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 shader.getShaders(0).getSource().toStringUtf8());
         }
 
-        // Test 3: include a valid shader from a subfolder that includes other files
+        // Test include a valid shader from a subfolder that includes other files
         {
             List<Message> outputs = build("/test_glsl_sub_folder_multiple_includes.fp", String.format(shader_base, "shader_includes/glsl_sub_include_multi.glsl"));
             ShaderDesc shader     = (ShaderDesc)outputs.get(0);
@@ -202,7 +201,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 shader.getShaders(0).getSource().toStringUtf8());
         }
 
-        // Test 4: wrong path
+        // Test wrong path
         {
             boolean didFail = false;
             try {
@@ -213,7 +212,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertTrue(didFail);
         }
 
-        // Test 5: path outside of project
+        // Test path outside of project
         {
             boolean didFail = false;
             try {
@@ -221,6 +220,28 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             } catch (CompileExceptionError e) {
                 didFail = true;
                 assertTrue(e.getMessage().contains("includes file from outside of project root"));
+            }
+            assertTrue(didFail);
+        }
+
+        // Test self include
+        {
+            boolean didFail = false;
+            try {
+                List<Message> outputs = build("/test_glsl_self_include.fp", String.format(shader_base, "shader_includes/glsl_self_include.glsl"));
+            } catch (CompileExceptionError e) {
+                didFail = true;
+            }
+            assertTrue(didFail);
+        }
+
+        // Test cyclic include
+        {
+            boolean didFail = false;
+            try {
+                List<Message> outputs = build("/test_glsl_cyclic_include.fp", String.format(shader_base, "shader_includes/glsl_cyclic_include.glsl"));
+            } catch (CompileExceptionError e) {
+                didFail = true;
             }
             assertTrue(didFail);
         }

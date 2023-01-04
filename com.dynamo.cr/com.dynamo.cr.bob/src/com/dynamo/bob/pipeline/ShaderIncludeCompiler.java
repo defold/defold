@@ -5,18 +5,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.io.IOException;
-import java.io.FileNotFoundException;
 import java.io.File;
-import java.io.FileInputStream;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
-
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
@@ -26,15 +18,18 @@ import com.dynamo.bob.pipeline.ShaderUtil.Common;
 /* ShaderIncludeCompiler
  * ========================
  * This class contains functionality to support #include "path-to-file" directives from shader files.
- * During graph creation, the graph will be checked for cycles since we will end up in an endless loop otherwise
- * when building the graph.
+ * Includes must be in double quotes, <> and '' are currently not supported, and the included file
+ * must have the .glsl extension since the snippets must be picked up by bob during the build process.
+ * During tree creation, the tree will be checked for cycles since we will end up in an endless loop otherwise
+ * when building the tree.
  *
- * The process currently:
- *   * A shader program builder creates a graph from a shader file by calling buildGraph(source)
- *   * The builder gets a list of all include paths from the graph and marks these as inputs to the shader resource
- *   * When the task is getting built, the graph is passed to the generator together with a list of path <-> data mapping
- *     so the insertIncludeDirective function can replace all occurances of various #include statements with the include
- *     files corresponding data.
+ * Relative and absolute paths are supported and must be project relative, examples:
+ *
+ * #include "/path/to/absolute-file.glsl"
+ * #include "file-in-same-dir.glsl"
+ * #include "path/to/sub-folder-file.glsl"
+ * #include "../file-in-parent-dir.glsl"
+ *
  */
 public class ShaderIncludeCompiler {
     // Compiler state
@@ -49,7 +44,7 @@ public class ShaderIncludeCompiler {
         public HashMap<String, IncludeNode> children = new HashMap<String, IncludeNode>();
     };
 
-    private class IncludeDirectiveGraphIterator implements Iterator<IncludeNode> {
+    private class IncludeDirectiveTreeIterator implements Iterator<IncludeNode> {
         private IncludeNode            root;
         private ArrayList<IncludeNode> nodeList = new ArrayList<IncludeNode>();
         private int                    nodeIndex;
@@ -63,7 +58,7 @@ public class ShaderIncludeCompiler {
         }
 
         public void remove() {
-            throw new UnsupportedOperationException("Cannot remove a node from include graph");
+            throw new UnsupportedOperationException("Cannot remove a node from include tree");
         }
 
         private void fillNodeList(IncludeNode node, ArrayList<IncludeNode> nodeList) {
@@ -79,7 +74,7 @@ public class ShaderIncludeCompiler {
             fillNodeList(this.root, this.nodeList);
         }
 
-        public IncludeDirectiveGraphIterator(IncludeNode node) {
+        public IncludeDirectiveTreeIterator(IncludeNode node) {
             this.root = node;
             reset();
         }
@@ -88,14 +83,14 @@ public class ShaderIncludeCompiler {
     public ShaderIncludeCompiler(Project project, String fromPath, String fromSource) throws IOException, CompileExceptionError {
         this.project         = project;
         this.sourcePath      = fromPath;
-        this.root            = buildShaderIncludeGraph(null, fromPath, Common.stripComments(fromSource));
+        this.root            = buildShaderIncludeTree(null, fromPath, Common.stripComments(fromSource));
     }
 
     public String[] getIncludes() {
         ArrayList<String> res = new ArrayList<String>();
         for (Map.Entry<String, IncludeNode> child : this.root.children.entrySet()) {
             IncludeNode val = child.getValue();
-            IncludeDirectiveGraphIterator childIterator = new IncludeDirectiveGraphIterator(child.getValue());
+            IncludeDirectiveTreeIterator childIterator = new IncludeDirectiveTreeIterator(child.getValue());
             while(childIterator.hasNext()) {
                 res.add(childIterator.next().path);
             }
@@ -103,13 +98,14 @@ public class ShaderIncludeCompiler {
         return res.toArray(new String[0]);
     }
 
+    // walks all the children of the tree root
     public String getCompiledSource() throws CompileExceptionError {
         String source = this.root.source;
         for (Map.Entry<String, IncludeNode> child : this.root.children.entrySet()) {
 
             ArrayList<String> stringBuffer = new ArrayList<String>();
 
-            IncludeDirectiveGraphIterator iterator = new IncludeDirectiveGraphIterator(child.getValue());
+            IncludeDirectiveTreeIterator iterator = new IncludeDirectiveTreeIterator(child.getValue());
             while(iterator.hasNext()) {
                 IncludeNode n = iterator.next();
                 stringBuffer.add(n.source);
@@ -138,7 +134,7 @@ public class ShaderIncludeCompiler {
 
         if (includePathRelative.startsWith("../"))
         {
-            String[] includeParts = includePathRelative.split("\\.\\.\\/");
+            String[] includeParts = includePathRelative.split("\\.\\.\\/"); // regex, hence escape madness
             numSteps              = includeParts.length;
             includePathRelative   = includeParts[numSteps-1];
         }
@@ -166,7 +162,7 @@ public class ShaderIncludeCompiler {
         return Common.stripComments(resData);
     }
 
-    private IncludeNode buildShaderIncludeGraph(IncludeNode parent, String fromPath, String fromSource) throws IOException, CompileExceptionError {
+    private IncludeNode buildShaderIncludeTree(IncludeNode parent, String fromPath, String fromSource) throws IOException, CompileExceptionError {
 
         IncludeNode newIncludeNode = new IncludeNode();
         newIncludeNode.path        = fromPath;
@@ -179,8 +175,25 @@ public class ShaderIncludeCompiler {
             if(includeMatcher.find()) {
                 String path                = includeMatcher.group("path");
                 String projectRelativePath = toProjectRelativePath(fromPath, path);
-                String childData           = getIncludeData(projectRelativePath);
-                newIncludeNode.children.put(path, buildShaderIncludeGraph(newIncludeNode, projectRelativePath, childData));
+
+                if (projectRelativePath.equals(fromPath))
+                {
+                    throw new CompileExceptionError(fromPath + " is trying to include itself from " + path);
+                }
+
+                // Scan tree backwards to see if the path we want to add already is a parent to this node
+                IncludeNode tmp = parent;
+                while (tmp != null)
+                {
+                    if (tmp.path.equals(projectRelativePath))
+                    {
+                        throw new CompileExceptionError(tmp.path + " has a cyclic dependency with " + fromPath);
+                    }
+                    tmp = parent.parent;
+                }
+
+                newIncludeNode.children.put(path,
+                    buildShaderIncludeTree(newIncludeNode, projectRelativePath, getIncludeData(projectRelativePath)));
             }
         }
 

@@ -14,27 +14,17 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.Scanner;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.FileInputStream;
-import java.nio.charset.StandardCharsets;
 
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.ArrayUtils;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderUtil {
