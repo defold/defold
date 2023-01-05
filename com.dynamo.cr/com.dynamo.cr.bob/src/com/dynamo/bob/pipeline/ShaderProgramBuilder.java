@@ -268,12 +268,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         file_out_spv.deleteOnExit();
 
         String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
+        String glslcBindingBaseStr = String.valueOf(glslcBindingBase);
 
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
                 "-w",
                 "-fauto-bind-uniforms",
                 "-fauto-map-locations",
-                "-fubo-binding-base", String.valueOf(glslcBindingBase),
+                "-fubo-binding-base", glslcBindingBaseStr,
+                "-ftexture-binding-base", glslcBindingBaseStr,
                 "-std=" + es3Result.shaderVersion + es3Result.shaderProfile,
                 "-fshader-stage=" + spirvShaderStage,
                 "-o", file_out_spv.getAbsolutePath(),
