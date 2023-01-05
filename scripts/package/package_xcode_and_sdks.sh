@@ -65,7 +65,7 @@ function make_archive() {
 function package_platform() {
 	local platform=$1
 	pushd $PLATFORMS/${platform}.platform/Developer/SDKs/
-	PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l)
+	PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l | head -1)
 	PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
 
 	EXTRA_ARGS=""
