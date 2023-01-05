@@ -44,9 +44,9 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.particle.proto Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
-            Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
-            Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode]
+  (:import [com.dynamo.particle.proto Particle$Emitter$ParticleProperty Particle$Emitter$Property Particle$Modifier Particle$Modifier$Property Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
+                                      Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
+                                      Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode Particle$SplinePoint]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [editor.gl.shader ShaderLifecycle]
@@ -148,7 +148,12 @@
   (->> property-value
        props/curve-vals
        (sort-by first)
-       (mapv (fn [[x y t-x t-y]] {:x x :y y :t-x t-x :t-y t-y}))
+       (mapv (fn [[x y t-x t-y]]
+               (protobuf/make-map Particle$SplinePoint
+                 :x x
+                 :y y
+                 :t-x t-x
+                 :t-y t-y)))
        not-empty))
 
 (g/defnk produce-modifier-pb
@@ -156,18 +161,20 @@
   (let [values {:modifier-key-magnitude magnitude
                 :modifier-key-max-distance max-distance}
         properties (into []
-                     (keep (fn [kw]
-                             (let [v (get values kw)]
-                               (when-let [points (get-curve-points v)]
-                                 {:key kw
-                                  :points points
-                                  :spread (or (:spread v) 0.0)}))))
-                     (mod-type->properties type))]
-    {:position position
-     :rotation rotation
-     :type type
-     :properties properties
-     :use-direction (if use-direction 1 0)}))
+                         (keep (fn [kw]
+                                 (let [v (get values kw)]
+                                   (when-let [points (get-curve-points v)]
+                                     (protobuf/make-map Particle$Modifier$Property
+                                       :key kw
+                                       :points points
+                                       :spread (or (:spread v) 0.0))))))
+                         (mod-type->properties type))]
+    (protobuf/make-map Particle$Modifier
+      :position position
+      :rotation rotation
+      :type type
+      :properties properties
+      :use-direction (if use-direction 1 0))))
 
 (def ^:private type->vcount
   {:emitter-type-2dcone 6
@@ -578,28 +585,31 @@
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs]
   (let [properties (:properties _declared-properties)]
-    (into {:position position
-           :rotation rotation
-           :modifiers modifier-msgs}
+    (into (protobuf/make-map Particle$Emitter
+            :position position
+            :rotation rotation
+            :modifiers modifier-msgs)
           (concat
             (mapcat (fn [kw] (get-property properties kw))
-                 [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
-                  :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset :pivot])
+                    [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
+                     :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset :pivot])
             [[:properties (into []
                                 (comp (map first)
                                       (keep (fn [kw]
                                               (let [v (get-in properties [kw :value])]
                                                 (when-let [points (get-curve-points v)]
-                                                  {:key kw
-                                                   :points points
-                                                   :spread (:spread v)})))))
+                                                  (protobuf/make-map Particle$Emitter$Property
+                                                    :key kw
+                                                    :points points
+                                                    :spread (:spread v)))))))
                                 (butlast (protobuf/enum-values Particle$EmitterKey)))]
              [:particle-properties (into []
                                          (comp (map first)
                                                (keep (fn [kw]
                                                        (when-let [points (get-curve-points (get-in properties [kw :value]))]
-                                                         {:key kw
-                                                          :points points}))))
+                                                         (protobuf/make-map Particle$Emitter$ParticleProperty
+                                                           :key kw
+                                                           :points points)))))
                                          (butlast (protobuf/enum-values Particle$ParticleKey)))]]))))
 
 (defn- attach-modifier [self-id parent-id modifier-id resolve-node-outline-key?]
@@ -836,7 +846,9 @@
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (output save-value g/Any (gu/passthrough pb-data))
   (output pb-data g/Any (g/fnk [emitter-msgs modifier-msgs]
-                               {:emitters emitter-msgs :modifiers modifier-msgs}))
+                          (protobuf/make-map Particle$ParticleFX
+                            :emitters emitter-msgs
+                            :modifiers modifier-msgs)))
   (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
   (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
   (output emitter-indices g/Any :cached (g/fnk [nodes]

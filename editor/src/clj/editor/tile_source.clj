@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.tile-source
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
             [editor.camera :as camera]
@@ -42,12 +41,10 @@
             [editor.scene :as scene]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
-            [editor.util :as util]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
-  (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
-           [com.dynamo.gamesys.proto Tile$TileSet Tile$Playback Tile$SpriteTrimmingMode]
+  (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode Tile$TileSet]
            [com.jogamp.opengl GL2]
            [editor.types AABB]
            [java.awt.image BufferedImage]
@@ -139,23 +136,28 @@
 (g/defnk produce-pb
   [image tile-width tile-height tile-margin tile-spacing collision material-tag
    cleaned-convex-hulls collision-groups animation-ddfs extrude-borders inner-padding sprite-trim-mode]
-  {:image (resource/resource->proj-path image)
-   :tile-width tile-width
-   :tile-height tile-height
-   :tile-margin tile-margin
-   :tile-spacing tile-spacing
-   :collision (resource/resource->proj-path collision)
-   :material-tag material-tag
-   :convex-hulls (mapv (fn [{:keys [index count collision-group]}]
-                         {:index index
-                          :count count
-                          :collision-group (or collision-group "")}) cleaned-convex-hulls)
-   :convex-hull-points (vec (mapcat :points cleaned-convex-hulls))
-   :collision-groups (sort collision-groups)
-   :animations (sort-by :id animation-ddfs)
-   :extrude-borders extrude-borders
-   :inner-padding inner-padding
-   :sprite-trim-mode sprite-trim-mode})
+  (protobuf/make-map Tile$TileSet
+    :image (resource/resource->proj-path image)
+    :tile-width tile-width
+    :tile-height tile-height
+    :tile-margin tile-margin
+    :tile-spacing tile-spacing
+    :collision (resource/resource->proj-path collision)
+    :material-tag material-tag
+    :convex-hulls (mapv (fn [{:keys [index count collision-group]}]
+                          (protobuf/make-map Tile$ConvexHull
+                            :index index
+                            :count count
+                            :collision-group (or collision-group "")))
+                        cleaned-convex-hulls)
+    :convex-hull-points (into []
+                              (mapcat :points)
+                              cleaned-convex-hulls)
+    :collision-groups (sort collision-groups)
+    :animations (sort-by :id animation-ddfs)
+    :extrude-borders extrude-borders
+    :inner-padding inner-padding
+    :sprite-trim-mode sprite-trim-mode))
 
 (defn- build-texture-set [resource dep-resources user-data]
   (let [tex-set (assoc (:texture-set user-data) :texture (resource/proj-path (second (first dep-resources))))]
@@ -200,15 +202,16 @@
              :icon collision-icon
              :color (collision-groups/color collision-groups-data id)})))
 
-
-(defn- boolean->int [b]
-  (if b 1 0))
-
-(g/defnk produce-animation-ddf [id start-tile end-tile playback fps flip-horizontal flip-vertical cues :as all]
-  (-> all
-      (dissoc :_node-id :basis)
-      (update :flip-horizontal boolean->int)
-      (update :flip-vertical boolean->int)))
+(g/defnk produce-animation-ddf [id start-tile end-tile playback fps flip-horizontal flip-vertical cues]
+  (protobuf/make-map Tile$Animation
+    :id id
+    :start-tile start-tile
+    :end-tile end-tile
+    :playback playback
+    :fps fps
+    :flip-horizontal (if flip-horizontal 1 0)
+    :flip-vertical (if flip-vertical 1 0)
+    :cues cues))
 
 (defn- prop-tile-range? [max v name]
   (when (or (< v 1) (< max v))
@@ -945,14 +948,15 @@
       (g/connect project :collision-groups-data self :collision-groups-data))))
 
 (def ^:private default-animation
-  {:id "New Animation"
-   :start-tile 1
-   :end-tile 1
-   :playback :playback-once-forward
-   :fps 30
-   :flip-horizontal 0
-   :flip-vertical 0 ; yes, wierd integer booleans
-   :cues '()})
+  (protobuf/make-map Tile$Animation
+    :id "New Animation"
+    :start-tile 1
+    :end-tile 1
+    :playback :playback-once-forward
+    :fps 30
+    :flip-horizontal 0
+    :flip-vertical 0
+    :cues []))
 
 (defn add-animation-node! [self select-fn]
   (g/transact (make-animation-node self (project/get-project self) select-fn default-animation)))

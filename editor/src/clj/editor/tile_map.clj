@@ -302,17 +302,18 @@
 
 (g/defnk produce-layer-pb-msg
   [id z visible cell-map]
-  {:id id
-   :z z
-   :is-visible (if visible 1 0)
-   :cell (mapv (fn [{:keys [x y tile v-flip h-flip rotate90]}]
-                 {:x x
-                  :y y
-                  :tile tile
-                  :v-flip (if v-flip 1 0)
-                  :h-flip (if h-flip 1 0)
-                  :rotate90 (if rotate90 1 0)})
-               (vals cell-map))})
+  (protobuf/make-map Tile$TileLayer
+    :id id
+    :z z
+    :is-visible (if visible 1 0)
+    :cell (mapv (fn [{:keys [x y tile v-flip h-flip rotate90]}]
+                  {:x x
+                   :y y
+                   :tile tile
+                   :v-flip (if v-flip 1 0)
+                   :h-flip (if h-flip 1 0)
+                   :rotate90 (if rotate90 1 0)})
+                (vals cell-map))))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
@@ -396,10 +397,11 @@
 
 (g/defnk produce-pb-msg
   [tile-source material blend-mode layer-msgs]
-  {:tile-set   (resource/resource->proj-path tile-source)
-   :material   (resource/resource->proj-path material)
-   :blend-mode blend-mode
-   :layers     (sort-by :z layer-msgs)})
+  (protobuf/make-map Tile$TileGrid
+    :tile-set (resource/resource->proj-path tile-source)
+    :material (resource/resource->proj-path material)
+    :blend-mode blend-mode
+    :layers (sort-by :z layer-msgs)))
 
 (defn build-tile-map
   [resource dep-resources user-data]

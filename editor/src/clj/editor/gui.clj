@@ -50,8 +50,7 @@
             [internal.graph.types :as gt]
             [schema.core :as s]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
-            Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$ResourceDesc Gui$SceneDesc$TextureDesc]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
@@ -549,23 +548,22 @@
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
   ;; fine since such an output will have explicit dependencies on all the
   ;; property values it requires.
-  (cond-> {:type type
-           :custom-type custom-type
-           :child-index child-index
-           :template-node-child false
-           :overridden-fields (overridden-fields _this)
-           :position (v3->v4 position)
-           :rotation (clj-quat->euler-v4 rotation)
-           :scale (v3->v4 scale)
-           :id (if (g/node-override? _this) generated-id id)
-           :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
-           :alpha alpha
-           :inherit-alpha inherit-alpha
-           :enabled enabled
-           :layer layer}
-
-          (not-empty parent)
-          (assoc :parent parent)))
+  (protobuf/make-map Gui$NodeDesc
+    :type type
+    :custom-type custom-type
+    :child-index child-index
+    :template-node-child false
+    :overridden-fields (overridden-fields _this)
+    :position (v3->v4 position)
+    :rotation (clj-quat->euler-v4 rotation)
+    :scale (v3->v4 scale)
+    :id (if (g/node-override? _this) generated-id id)
+    :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
+    :alpha alpha
+    :inherit-alpha inherit-alpha
+    :enabled enabled
+    :layer layer
+    :parent parent))
 
 (g/defnode GuiNode
   (inherits core/Scope)
@@ -1023,18 +1021,23 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
 
+(defn- strip-unwanted-text-node-fields [node-desc]
+  (dissoc node-desc :clipping-inverted :clipping-mode :clipping-visible :size-mode))
+
 (g/defnk produce-text-node-msg [visual-base-node-msg manual-size text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
-  (assoc visual-base-node-msg
-    :size (v3->v4 manual-size)
-    :text text
-    :line-break line-break
-    :font font
-    :text-leading text-leading
-    :text-tracking text-tracking
-    :outline outline
-    :outline-alpha outline-alpha
-    :shadow shadow
-    :shadow-alpha shadow-alpha))
+  (-> visual-base-node-msg
+      (strip-unwanted-text-node-fields)
+      (assoc
+        :size (v3->v4 manual-size)
+        :text text
+        :line-break line-break
+        :font font
+        :text-leading text-leading
+        :text-tracking text-tracking
+        :outline outline
+        :outline-alpha outline-alpha
+        :shadow shadow
+        :shadow-alpha shadow-alpha)))
 
 (g/defnode TextNode
   (inherits VisualNode)
@@ -1101,7 +1104,7 @@
   (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot text-leading text-tracking]
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot]
                                         (cond-> {:text-layout text-layout
                                                  :font-data font-data
                                                  :color (assoc color 3 alpha)
@@ -1167,13 +1170,18 @@
 (defn- andf [a b]
   (and a b))
 
-(g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
-  (assoc gui-base-node-msg
-    :size [200.0 100.0 0.0 1.0] ; Just here to avoid file format changes. We could remove this.
-    :template (resource/resource->proj-path template-resource)
+(defn- strip-unwanted-template-node-fields [node-desc]
+  (dissoc node-desc :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))
 
-    ;; TODO: We should not have to overwrite the base properties here. Refactor?
-    :color [1.0 1.0 1.0 1.0]))
+(g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
+  (-> gui-base-node-msg
+      (strip-unwanted-template-node-fields)
+      (assoc
+        :size [200.0 100.0 0.0 1.0] ; Just here to avoid file format changes. We could remove this.
+        :template (resource/resource->proj-path template-resource)
+
+        ;; TODO: We should not have to overwrite the base properties here. Refactor?
+        :color [1.0 1.0 1.0 1.0])))
 
 (g/defnode TemplateNode
   (inherits GuiNode)
@@ -1329,9 +1337,12 @@
     (contains? scene :renderable)
     (assoc-in [:renderable :topmost?] true)))
 
+(defn- strip-unwanted-particlefx-node-fields [node-desc]
+  (dissoc node-desc :blend-mode :pivot))
+
 (g/defnk produce-particlefx-node-msg [visual-base-node-msg particlefx]
   (-> visual-base-node-msg
-      (dissoc :blend-mode :pivot)
+      (strip-unwanted-particlefx-node-fields)
       (assoc :particlefx particlefx
              :size [1.0 1.0 0.0 1.0]
              :size-mode :size-mode-auto)))
@@ -1486,8 +1497,9 @@
                                                               :outline-error? (g/error-fatal? build-errors)}
                                                              (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
-                         {:name name
-                          :texture (resource/resource->proj-path texture-resource)}))
+                         (protobuf/make-map Gui$SceneDesc$TextureDesc
+                           :name name
+                           :texture (resource/resource->proj-path texture-resource))))
   (output texture-anim-datas TextureAnimDatas :cached produce-texture-anim-datas)
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-names GuiResourceNames :cached produce-texture-names)
@@ -1532,8 +1544,9 @@
                                                               :outline-error? (g/error-fatal? build-errors)}
                                                              (resource/openable-resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name font-resource]
-                              {:name name
-                               :font (resource/resource->proj-path font-resource)}))
+                         (protobuf/make-map Gui$SceneDesc$FontDesc
+                           :name name
+                           :font (resource/resource->proj-path font-resource))))
   (output font-shaders GuiResourceShaders :cached (g/fnk [font-shader name]
                                                     ;; If the referenced font-resource is missing, we don't return an entry.
                                                     ;; This will cause every usage to fall back on the no-font entry for "".
@@ -1567,8 +1580,9 @@
                                                            :child-index child-index
                                                            :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any (g/fnk [name child-index]
-                              {:name name
-                               :child-index child-index}))
+                         (protobuf/make-map Gui$SceneDesc$LayerDesc
+                           :name name
+                           :child-index child-index))) ; Added metadata field. Used to sort layers in the SceneDesc.
   (output build-errors g/Any (g/fnk [_node-id name name-counts]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")))))
@@ -1608,8 +1622,9 @@
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
   (output pb-msg g/Any (g/fnk [name resource-path]
-                              {:name name
-                               :path resource-path}))
+                         (protobuf/make-map Gui$SceneDesc$ResourceDesc
+                           :name name
+                           :path resource-path)))
   (output build-errors g/Any (g/fnk [_node-id name name-counts path]
                                     (g/package-errors _node-id
                                                       (prop-unique-id-error _node-id :name name name-counts "Name")
@@ -1648,8 +1663,9 @@
                                                               :outline-error? (g/error-fatal? build-errors)}
                                                              (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name particlefx]
-                              {:name name
-                               :particlefx (resource/resource->proj-path particlefx)}))
+                         (protobuf/make-map Gui$SceneDesc$ParticleFXDesc
+                           :name name
+                           :particlefx (resource/resource->proj-path particlefx))))
   (output particlefx-resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output particlefx-infos g/Any (g/fnk [name particlefx-scene]
                                    {name {:particlefx-scene particlefx-scene}}))
@@ -1664,10 +1680,10 @@
   (select-keys node-desc (remove non-overridable-fields (map prop-index->prop-key (:overridden-fields node-desc)))))
 
 (defn- layout-pb-msg [name node-msgs]
-  (let [node-msgs (filter (comp not-empty :overridden-fields) node-msgs)]
-    (cond-> {:name name}
-      (not-empty node-msgs)
-      (assoc :nodes node-msgs))))
+  (let [node-msgs (filterv (comp not-empty :overridden-fields) node-msgs)]
+    (protobuf/make-map Gui$SceneDesc$LayoutDesc
+      :name name
+      :nodes node-msgs)))
 
 (def ^:private layout-node-traverse-fn
   (g/make-override-traverse-fn
@@ -2117,18 +2133,19 @@
       sort-scene)))
 
 (defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs]
-  {:script (resource/resource->proj-path script-resource)
-   :material (resource/resource->proj-path material-resource)
-   :adjust-reference adjust-reference
-   :background-color background-color
-   :max-nodes max-nodes
-   :nodes node-msgs
-   :layers layer-msgs
-   :fonts font-msgs
-   :textures texture-msgs
-   :layouts layout-msgs
-   :particlefxs particlefx-resource-msgs
-   :resources resource-msgs})
+  (protobuf/make-map Gui$SceneDesc
+    :script (resource/resource->proj-path script-resource)
+    :material (resource/resource->proj-path material-resource)
+    :adjust-reference adjust-reference
+    :background-color background-color
+    :max-nodes max-nodes
+    :nodes node-msgs
+    :layers layer-msgs
+    :fonts font-msgs
+    :textures texture-msgs
+    :layouts layout-msgs
+    :particlefxs particlefx-resource-msgs
+    :resources resource-msgs))
 
 (g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs]
   (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs))
@@ -2712,19 +2729,39 @@
                                       (g/set-property layout :nodes (:nodes layout-desc))))))
       custom-data)))
 
-(defn- color-alpha [node-desc color-field alpha-field]
-  ;; The alpha field replaced the fourth component of color,
-  ;; to support overriding of the alpha separately from color.
-  ;; Check which one to use by comparing with the default value.
-  (let [color (get node-desc color-field)
-        alpha (get node-desc alpha-field)]
-    (if (not= alpha (protobuf/default Gui$NodeDesc alpha-field))
-      alpha
-      (get color 3 1.0))))
+(def default-pb-read-node-color (protobuf/default Gui$NodeDesc :color))
+(def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))
+(assert (= (float 1.0) default-pb-read-node-alpha))
+
+(defn- sanitize-node-color-field [node-desc color-field alpha-field]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  ;; In previous versions of the file format, alpha was stored in the fourth
+  ;; color component. This was later moved to a separate alpha field to support
+  ;; overriding of the alpha separately from the color.
+  (let [color (get node-desc color-field)]
+    (if (= default-pb-read-node-color color)
+      ;; The node does not specify color. Return unaltered.
+      node-desc
+
+      ;; The node does specify color.
+      (let [color-alpha (get color 3)]
+        (if (= default-pb-read-node-alpha color-alpha)
+          ;; The color does not have significant alpha. Return unaltered.
+          node-desc
+
+          ;; The color has significant alpha.
+          ;; Make it opaque in the color, and transfer the color alpha to the
+          ;; node alpha if the node alpha has the protobuf default value.
+          (-> node-desc
+              (assoc color-field (assoc color 3 default-pb-read-node-alpha))
+              (update alpha-field (fn [node-alpha]
+                                    (if (= default-pb-read-node-alpha node-alpha)
+                                      (or color-alpha default-pb-read-node-alpha)
+                                      node-alpha)))))))))
 
 (defn- sanitize-node-colors [node]
   (reduce (fn [node [color-field alpha-field]]
-            (assoc node alpha-field (color-alpha node color-field alpha-field)))
+            (sanitize-node-color-field node color-field alpha-field))
           node
           [[:color :alpha]
            [:shadow :shadow-alpha]
@@ -2733,6 +2770,13 @@
 (defn- sanitize-node-rotation [node]
   (update node :rotation (comp clj-quat->euler-v4 euler-v4->clj-quat)))
 
+(defn- strip-unwanted-fields [node-desc]
+  (case (:type node-desc)
+    :type-particlefx (strip-unwanted-particlefx-node-fields node-desc)
+    :type-text (strip-unwanted-text-node-fields node-desc)
+    :type-template (strip-unwanted-template-node-fields node-desc)
+    node-desc))
+
 (defn- sanitize-node [node-desc]
   (let [node-type (:type node-desc)
         custom-type (:custom-type node-desc 0)
@@ -2740,17 +2784,10 @@
         node-desc (if-some [convert-fn (:convert-fn node-type-info)]
                     (convert-fn node-type-info node-desc)
                     node-desc)]
-    (cond-> (-> node-desc
-                sanitize-node-colors
-                sanitize-node-rotation)
-
-      (= :type-text node-type)
-      ;; These properties are not applicable to text nodes, but might still be stored in files from editor1.
-      (dissoc :clipping-inverted :clipping-mode :clipping-visible :size-mode)
-
-      (= :type-template node-type)
-      ;; These properties are not applicable to template nodes, but might still be stored in files from editor1.
-      (dissoc :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))))
+    (-> node-desc
+        sanitize-node-colors
+        sanitize-node-rotation
+        strip-unwanted-fields)))
 
 (def ^:private sanitize-nodes #(mapv sanitize-node %))
 
@@ -2902,7 +2939,7 @@
                                       :custom-type 0
                                       :icon particlefx/particle-fx-icon}])
 
-(def ^:private custom-node-type-infos (atom []))
+(defonce ^:private custom-node-type-infos (atom []))
 
 (defn- get-registered-node-type-infos []
   (concat base-node-type-infos @custom-node-type-infos))

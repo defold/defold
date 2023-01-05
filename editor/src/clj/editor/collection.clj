@@ -35,33 +35,29 @@
             [editor.workspace :as workspace]
             [internal.cache :as c]
             [internal.util :as util])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$EmbeddedInstanceDesc GameObject$InstanceDesc GameObject$PrototypeDesc]
            [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
 (defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
-  (cond-> {:id id
-           :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
-           :position position
-           :rotation rotation
-           :scale3 scale}
-
-          (seq child-ids)
-          (assoc :children (vec (sort child-ids)))))
+  (protobuf/make-map GameObject$EmbeddedInstanceDesc
+    :id id
+    :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
+    :position position
+    :rotation rotation
+    :scale3 scale
+    :children (vec (sort child-ids))))
 
 (defn- gen-ref-ddf [id child-ids position rotation scale path ddf-component-properties]
-  (cond-> {:id id
-           :prototype (resource/resource->proj-path path)
-           :position position
-           :rotation rotation
-           :scale3 scale}
-
-          (seq child-ids)
-          (assoc :children (vec (sort child-ids)))
-
-          (seq ddf-component-properties)
-          (assoc :component-properties ddf-component-properties)))
+  (protobuf/make-map GameObject$InstanceDesc
+    :id id
+    :prototype (resource/resource->proj-path path)
+    :position position
+    :rotation rotation
+    :scale3 scale
+    :children (vec (sort child-ids))
+    :component-properties ddf-component-properties))
 
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)
@@ -370,11 +366,12 @@
                                              (:resource (first source-build-targets)))))
 
 (g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
-  {:name name
-   :scale-along-z (if scale-along-z 1 0)
-   :instances ref-inst-ddf
-   :embedded-instances embed-inst-ddf
-   :collection-instances ref-coll-ddf})
+  (protobuf/make-map GameObject$CollectionDesc
+    :name name
+    :scale-along-z (if scale-along-z 1 0)
+    :instances ref-inst-ddf
+    :embedded-instances embed-inst-ddf
+    :collection-instances ref-coll-ddf))
 
 (g/defnk produce-save-value [proto-msg]
   (update proto-msg :embedded-instances
@@ -383,7 +380,7 @@
                     (update embedded-instance-desc :data
                             (fn [string-encoded-prototype-desc]
                               (-> (protobuf/str->map GameObject$PrototypeDesc string-encoded-prototype-desc)
-                                  (game-object/strip-default-scale-from-components-in-prototype-desc)
+                                  (game-object/prototype-desc-save-value)
                                   (as-> prototype-desc
                                         (protobuf/map->str GameObject$PrototypeDesc prototype-desc false))))))
                   embedded-instance-descs))))
@@ -573,12 +570,13 @@
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
   (output ddf-message g/Any (g/fnk [id source-resource position rotation scale ddf-properties]
-                                   {:id id
-                                    :collection (resource/resource->proj-path source-resource)
-                                    :position position
-                                    :rotation rotation
-                                    :scale3 scale
-                                    :instance-properties ddf-properties}))
+                              (protobuf/make-map GameObject$CollectionInstanceDesc
+                                :id id
+                                :collection (resource/resource->proj-path source-resource)
+                                :position position
+                                :rotation rotation
+                                :scale3 scale
+                                :instance-properties ddf-properties)))
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
                                 (collection-common/any-instance-scene _node-id id transform scene)))
   (output build-targets g/Any produce-coll-inst-build-targets)

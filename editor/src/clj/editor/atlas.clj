@@ -48,7 +48,7 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.digestable :as digestable])
-  (:import [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
+  (:import [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
            [com.dynamo.gamesys.proto Tile$Playback Tile$SpriteTrimmingMode]
            [com.jogamp.opengl GL GL2]
@@ -245,15 +245,16 @@
 (defn- sort-by-and-strip-order [images]
   (->> images
        (sort-by :order)
-       (map #(dissoc % :order))))
+       (mapv #(dissoc % :order))))
 
 (g/defnk produce-anim-ddf [id fps flip-horizontal flip-vertical playback img-ddf]
-  {:id id
-   :fps fps
-   :flip-horizontal flip-horizontal
-   :flip-vertical flip-vertical
-   :playback playback
-   :images (sort-by-and-strip-order img-ddf)})
+  (protobuf/make-map AtlasProto$AtlasAnimation
+    :id id
+    :fps fps
+    :flip-horizontal (if flip-horizontal 1 0)
+    :flip-vertical (if flip-vertical 1 0)
+    :playback playback
+    :images (sort-by-and-strip-order img-ddf)))
 
 (defn- attach-image-to-atlas [atlas-node image-node]
   (concat
@@ -387,11 +388,12 @@
                                                  own-build-errors))))
 
 (g/defnk produce-save-value [margin inner-padding extrude-borders img-ddf anim-ddf]
-  {:margin margin
-   :inner-padding inner-padding
-   :extrude-borders extrude-borders
-   :images (sort-by-and-strip-order img-ddf)
-   :animations anim-ddf})
+  (protobuf/make-map AtlasProto$Atlas
+    :margin margin
+    :inner-padding inner-padding
+    :extrude-borders extrude-borders
+    :images (sort-by-and-strip-order img-ddf)
+    :animations anim-ddf))
 
 (defn- validate-margin [node-id margin]
   (validation/prop-error :fatal node-id :margin validation/prop-negative? margin "Margin"))

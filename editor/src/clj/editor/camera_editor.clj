@@ -77,13 +77,14 @@
 
 (g/defnk produce-pb-msg
   [aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom]
-  {:aspect-ratio aspect-ratio
-   :fov fov
-   :near-z near-z
-   :far-z far-z
-   :auto-aspect-ratio (if (true? auto-aspect-ratio) 1 0)
-   :orthographic-projection (if (true? orthographic-projection) 1 0)
-   :orthographic-zoom orthographic-zoom})
+  (protobuf/make-map Camera$CameraDesc
+    :aspect-ratio aspect-ratio
+    :fov fov
+    :near-z near-z
+    :far-z far-z
+    :auto-aspect-ratio (if (true? auto-aspect-ratio) 1 0)
+    :orthographic-projection (if (true? orthographic-projection) 1 0)
+    :orthographic-zoom orthographic-zoom))
 
 (defn build-camera
   [resource dep-resources user-data]

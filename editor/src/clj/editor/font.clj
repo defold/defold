@@ -424,30 +424,27 @@
                                               :text preview-text}
                                   :passes [pass/transparent]}))))
 
-(g/defnk produce-pb-msg [pb font material size antialias alpha outline-alpha outline-width
+(g/defnk produce-pb-msg [font material size antialias alpha outline-alpha outline-width
                          shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
                          all-chars cache-width cache-height render-mode]
-  ;; The reason we use the originally loaded pb is to retain any default values
-  ;; This is important for the saved file to not contain more data than it would
-  ;; have when saved with Editor1
-  (merge pb
-         {:font (resource/resource->proj-path font)
-          :material (resource/resource->proj-path material)
-          :size size
-          :antialias antialias
-          :alpha alpha
-          :outline-alpha outline-alpha
-          :outline-width outline-width
-          :shadow-alpha shadow-alpha
-          :shadow-blur shadow-blur
-          :shadow-x shadow-x
-          :shadow-y shadow-y
-          :extra-characters extra-characters
-          :output-format output-format
-          :all-chars all-chars
-          :cache-width cache-width
-          :cache-height cache-height
-          :render-mode render-mode}))
+  (protobuf/make-map Font$FontDesc
+    :font (resource/resource->proj-path font)
+    :material (resource/resource->proj-path material)
+    :size size
+    :antialias antialias
+    :alpha alpha
+    :outline-alpha outline-alpha
+    :outline-width outline-width
+    :shadow-alpha shadow-alpha
+    :shadow-blur shadow-blur
+    :shadow-x shadow-x
+    :shadow-y shadow-y
+    :extra-characters extra-characters
+    :output-format output-format
+    :all-chars all-chars
+    :cache-width cache-width
+    :cache-height cache-height
+    :render-mode render-mode))
 
 (defn- make-font-map [_node-id font type pb-msg font-resource-resolver]
   (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font "Font")
@@ -659,8 +656,6 @@
   (property cache-height g/Int
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-height)))
 
-  (property pb g/Any (dynamic visible (g/constantly false)))
-
   (input dep-build-targets g/Any :array)
   (input font-resource resource/Resource)
   (input material-resource resource/Resource)
@@ -698,14 +693,12 @@
                                              :font-map font-map}))
   (output preview-text g/Str :cached produce-preview-text))
 
-(defn load-font [project self resource font]
+(defn load-font [_project self resource font]
   (let [props (keys font)]
-    (concat
-      (g/set-property self :pb font)
-      (for [prop props
-            :let [value (cond->> (get font prop)
-                          (resource-fields prop) (workspace/resolve-resource resource))]]
-        (g/set-property self prop value)))))
+    (for [prop props
+          :let [value (cond->> (get font prop)
+                               (resource-fields prop) (workspace/resolve-resource resource))]]
+      (g/set-property self prop value))))
 
 (defn register-resource-types [workspace]
   (concat

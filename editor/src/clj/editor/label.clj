@@ -186,18 +186,19 @@
 (def ^:private default-scale-value-v3 [(float 1.0) (float 1.0) (float 1.0)])
 
 (g/defnk produce-pb-msg [text size color outline shadow leading tracking pivot blend-mode line-break font material]
-  {:text text
-   :size (v3->v4 size)
-   :color color
-   :outline outline
-   :shadow shadow
-   :leading leading
-   :tracking tracking
-   :pivot pivot
-   :blend-mode blend-mode
-   :line-break line-break
-   :font (resource/resource->proj-path font)
-   :material (resource/resource->proj-path material)})
+  (protobuf/make-map Label$LabelDesc
+    :text text
+    :size (v3->v4 size)
+    :color color
+    :outline outline
+    :shadow shadow
+    :leading leading
+    :tracking tracking
+    :pivot pivot
+    :blend-mode blend-mode
+    :line-break line-break
+    :font (resource/resource->proj-path font)
+    :material (resource/resource->proj-path material)))
 
 (g/defnk produce-scene
   [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data]

@@ -69,9 +69,11 @@
             [:load-dynamically] load-dynamically}})
 
 (g/defnk produce-pb-msg
-  [prototype-resource load-dynamically]
-  {:prototype (resource/resource->proj-path prototype-resource)
-   :load-dynamically load-dynamically})
+  [prototype-resource load-dynamically factory-type]
+  (let [pb-class (-> factory-types factory-type :pb-type)]
+    (protobuf/make-map pb-class
+      :prototype (resource/resource->proj-path prototype-resource)
+      :load-dynamically load-dynamically)))
 
 (defn build-factory
   [resource dep-resources user-data]

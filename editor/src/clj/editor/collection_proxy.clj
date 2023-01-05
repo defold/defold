@@ -56,8 +56,9 @@
 
 (g/defnk produce-pb-msg
   [collection-resource exclude]
-  (cond-> {:collection (resource/resource->proj-path collection-resource)}
-    (some? exclude) (assoc :exclude exclude)))
+  (protobuf/make-map GameSystem$CollectionProxyDesc
+    :collection (resource/resource->proj-path collection-resource)
+    :exclude exclude))
 
 (defn build-collection-proxy
   [resource dep-resources user-data]

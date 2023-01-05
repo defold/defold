@@ -27,6 +27,7 @@
             [editor.material :as material]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
@@ -222,20 +223,14 @@
 ; Node defs
 
 (g/defnk produce-save-value [image default-animation material blend-mode size-mode manual-size slice9]
-  (cond-> {:tile-set (resource/resource->proj-path image)
-           :default-animation default-animation
-           :material (resource/resource->proj-path material)
-           :blend-mode blend-mode}
-
-          (not= [0.0 0.0 0.0 0.0] slice9)
-          (assoc :slice9 slice9)
-
-          (not= :size-mode-auto size-mode)
-          (cond-> :always
-                  (assoc :size-mode size-mode)
-
-                  (not= [0.0 0.0 0.0] manual-size)
-                  (assoc :size (v3->v4 manual-size)))))
+  (protobuf/make-map Sprite$SpriteDesc
+    :tile-set (resource/resource->proj-path image)
+    :default-animation default-animation
+    :material (resource/resource->proj-path material)
+    :blend-mode blend-mode
+    :slice9 slice9
+    :size-mode size-mode
+    :size (v3->v4 manual-size)))
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode size-mode size slice9]

@@ -41,9 +41,9 @@
   {:animation (resource/resource->proj-path resource)})
 
 (g/defnk produce-desc-pb-msg [skeleton animation-resources]
-  (let [pb {:skeleton (resource/resource->proj-path skeleton)
-            :animations (mapv animation-instance-desc-pb-msg animation-resources)}]
-    pb))
+  (protobuf/make-map Rig$AnimationSetDesc
+    :skeleton (resource/resource->proj-path skeleton)
+    :animations (mapv animation-instance-desc-pb-msg animation-resources)))
 
 (defn- update-animation-info [resource animations-resource info]
   (let [parent-resource (:parent-resource info)

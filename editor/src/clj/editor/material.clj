@@ -31,10 +31,7 @@
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [internal.util :as util])
-  (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$WrapMode Material$MaterialDesc$FilterModeMin Material$MaterialDesc$FilterModeMag Material$MaterialDesc$VertexSpace]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
+  (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
            [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
            [com.jogamp.opengl.glu GLU]
            [javax.vecmath Vector4d Matrix4d Point3d Quat4d]
@@ -72,13 +69,16 @@
 
 (def ^:private hack-upgrade-constants (partial mapv hack-upgrade-constant))
 
-(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space :as pb-msg]
-  (-> pb-msg
-      (dissoc :_node-id :basis)
-      (update :vertex-program resource/resource->proj-path)
-      (update :fragment-program resource/resource->proj-path)
-      (update :vertex-constants hack-upgrade-constants)
-      (update :fragment-constants hack-upgrade-constants)))
+(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space]
+  (protobuf/make-map Material$MaterialDesc
+    :name name
+    :vertex-program (resource/resource->proj-path vertex-program)
+    :fragment-program (resource/resource->proj-path fragment-program)
+    :vertex-constants (hack-upgrade-constants vertex-constants)
+    :fragment-constants (hack-upgrade-constants fragment-constants)
+    :samplers samplers
+    :tags tags
+    :vertex-space vertex-space))
 
 (defn- build-material [resource dep-resources user-data]
   (let [pb (reduce (fn [pb [label resource]] (assoc pb label resource))
@@ -229,11 +229,13 @@
 (def ^:private filter-mode-mag->gl {:filter-mode-mag-nearest GL2/GL_NEAREST
                                     :filter-mode-mag-linear GL2/GL_LINEAR})
 
-(def ^:private default-sampler {:wrap-u :wrap-mode-clamp-to-edge
-                                :wrap-v :wrap-mode-clamp-to-edge
-                                :filter-min :filter-mode-min-linear
-                                :filter-mag :filter-mode-mag-linear
-                                :max-anisotropy 1.0})
+(def ^:private default-sampler
+  (protobuf/make-map Material$MaterialDesc$Sampler
+    :wrap-u :wrap-mode-clamp-to-edge
+    :wrap-v :wrap-mode-clamp-to-edge
+    :filter-min :filter-mode-min-linear
+    :filter-mag :filter-mode-mag-linear
+    :max-anisotropy 1.0))
 
 (defn sampler->tex-params
   ([sampler]

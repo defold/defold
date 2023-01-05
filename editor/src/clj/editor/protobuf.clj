@@ -18,7 +18,7 @@ It does this at runtime, which is why it relies on java reflection to
 call the appropriate methods. Since this is very expensive (specifically
 fetching the Method from the Class), it uses memoization wherever possible.
 It should be possible to use macros instead and retain the same API.
-Macros currently mean no foreseeable performance gain however."
+Macros currently mean no foreseeable performance gain, however."
   (:require [camel-snake-kebab :refer [->kebab-case ->CamelCase]]
             [clojure.java.io :as io]
             [clojure.string :as s]
@@ -643,3 +643,18 @@ Macros currently mean no foreseeable performance gain however."
   ;; values on a case-by-case basis. Related to all this, there has been some
   ;; discussion around perhaps omitting default values from the project data.
   (= [0.0 0.0 0.0] value))
+
+(defn default-map-raw [^Class cls]
+  (into (default-vals cls)
+        (keep (fn [[field-kw info]]
+                (when (:repeated? info)
+                  [field-kw []])))
+        (field-info cls)))
+
+(def ^:private default-map (memoize default-map-raw))
+
+(defn make-map
+  [^Class cls & kvs]
+  (into (default-map cls)
+        (partition-all 2)
+        kvs))

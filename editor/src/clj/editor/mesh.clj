@@ -72,14 +72,13 @@
 (def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id "world_view_proj" :world-view-proj}))
 
 (g/defnk produce-pb-msg [primitive-type position-stream normal-stream material vertices textures]
-  (cond-> {:material (resource/resource->proj-path material)
-           :vertices (resource/resource->proj-path vertices)
-           :textures (mapv resource/resource->proj-path textures)
-           :primitive-type primitive-type}
-    (not (str/blank? position-stream))
-    (assoc :position-stream position-stream)
-    (not (str/blank? normal-stream))
-    (assoc :normal-stream normal-stream)))
+  (protobuf/make-map MeshProto$MeshDesc
+    :material (resource/resource->proj-path material)
+    :vertices (resource/resource->proj-path vertices)
+    :textures (mapv resource/resource->proj-path textures)
+    :primitive-type primitive-type
+    :position-stream position-stream
+    :normal-stream normal-stream))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)

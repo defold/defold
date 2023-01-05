@@ -25,7 +25,7 @@
    [editor.protobuf :as protobuf]
    [editor.defold-project :as project])
   (:import
-   [com.dynamo.render.proto Render$RenderPrototypeDesc]))
+    [com.dynamo.render.proto Render$RenderPrototypeDesc Render$RenderPrototypeDesc$MaterialDesc]))
 
 (g/defnode NamedMaterial
   (property name g/Str
@@ -102,11 +102,13 @@
                       [:named-materials] named-materials})))
 
 (g/defnk produce-pb-msg [script-resource named-materials]
-  {:script (resource/resource->proj-path script-resource)
-   :materials (mapv (fn [{:keys [name material]}]
-                      {:name name
-                       :material (resource/resource->proj-path material)})
-                    named-materials)})
+  (protobuf/make-map Render$RenderPrototypeDesc
+    :script (resource/resource->proj-path script-resource)
+    :materials (mapv (fn [{:keys [name material]}]
+                       (protobuf/make-map Render$RenderPrototypeDesc$MaterialDesc
+                         :name name
+                         :material (resource/resource->proj-path material)))
+                     named-materials)))
 
 (defn- build-render [resource dep-resources user-data]
   (let [{:keys [pb-msg built-resources]} user-data

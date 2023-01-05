@@ -56,14 +56,14 @@
       (:animation-ids animation-set-info))))
 
 (g/defnk produce-pb-msg [name mesh material textures skeleton animations default-animation]
-  (cond-> {:mesh (resource/resource->proj-path mesh)
-           :material (resource/resource->proj-path material)
-           :textures (mapv resource/resource->proj-path textures)
-           :skeleton (resource/resource->proj-path skeleton)
-           :animations (resource/resource->proj-path animations)
-           :default-animation default-animation}
-    (not (str/blank? name))
-    (assoc :name name)))
+  (protobuf/make-map ModelProto$ModelDesc
+    :mesh (resource/resource->proj-path mesh)
+    :material (resource/resource->proj-path material)
+    :textures (mapv resource/resource->proj-path textures)
+    :skeleton (resource/resource->proj-path skeleton)
+    :animations (resource/resource->proj-path animations)
+    :default-animation default-animation
+    :name name))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)

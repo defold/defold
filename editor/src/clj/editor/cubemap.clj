@@ -97,12 +97,13 @@
   ((:f gpu-texture-generator) (:args gpu-texture-generator) _node-id texture/default-cubemap-texture-params 0))
 
 (g/defnk produce-save-value [right left top bottom front back]
-  {:right (resource/resource->proj-path right)
-   :left (resource/resource->proj-path left)
-   :top (resource/resource->proj-path top)
-   :bottom (resource/resource->proj-path bottom)
-   :front (resource/resource->proj-path front)
-   :back (resource/resource->proj-path back)})
+  (protobuf/make-map Graphics$Cubemap
+    :right (resource/resource->proj-path right)
+    :left (resource/resource->proj-path left)
+    :top (resource/resource->proj-path top)
+    :bottom (resource/resource->proj-path bottom)
+    :front (resource/resource->proj-path front)
+    :back (resource/resource->proj-path back)))
 
 (def ^:private cubemap-aabb (geom/coords->aabb [1 1 1] [-1 -1 -1]))
 

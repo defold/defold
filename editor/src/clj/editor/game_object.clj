@@ -33,7 +33,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util])
-  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [javax.vecmath Vector3d]))
 
@@ -42,21 +42,22 @@
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (defn- gen-ref-ddf [id position rotation scale source-resource ddf-properties]
-  {:id id
-   :position position
-   :rotation rotation
-   :scale scale
-   :component (resource/resource->proj-path source-resource)
-   :properties ddf-properties})
+  (protobuf/make-map GameObject$ComponentDesc
+    :id id
+    :position position
+    :rotation rotation
+    :scale scale
+    :component (resource/resource->proj-path source-resource)
+    :properties ddf-properties))
 
 (defn- gen-embed-ddf [id position rotation scale save-data]
-  {:id id
-   :type (or (and (:resource save-data) (:ext (resource/resource-type (:resource save-data))))
-             "unknown")
-   :position position
-   :rotation rotation
-   :scale scale
-   :data (or (:content save-data) "")})
+  (protobuf/make-map GameObject$EmbeddedComponentDesc
+    :id id
+    :type (or (some-> save-data :resource resource/resource-type :ext) "unknown")
+    :position position
+    :rotation rotation
+    :scale scale
+    :data (or (:content save-data) "")))
 
 (defn- build-raw-sound [resource dep-resources user-data]
   (let [pb (:pb user-data)
@@ -333,20 +334,27 @@
                               (gen-ref-ddf id position rotation scale source-resource ddf-properties))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
-  {:components ref-ddf
-   :embedded-components embed-ddf})
+  (protobuf/make-map GameObject$PrototypeDesc
+    :components ref-ddf
+    :embedded-components embed-ddf))
 
-(defn- strip-default-scale-from-component-descs [component-descs]
-  (mapv game-object-common/strip-default-scale-from-component-desc component-descs))
+(defn- component-desc-save-value [component-desc]
+  ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
+  (-> component-desc
+      (dissoc :property-decls) ; Only used in built data by the runtime.
+      (game-object-common/strip-default-scale-from-component-desc)))
 
-(defn strip-default-scale-from-components-in-prototype-desc [prototype-desc]
+(defn- component-desc-save-values [component-descs]
+  (mapv component-desc-save-value component-descs))
+
+(defn prototype-desc-save-value [prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
   (-> prototype-desc
-      (update :components strip-default-scale-from-component-descs)
-      (update :embedded-components strip-default-scale-from-component-descs)))
+      (update :components component-desc-save-values)
+      (update :embedded-components component-desc-save-values)))
 
 (g/defnk produce-save-value [proto-msg]
-  (strip-default-scale-from-components-in-prototype-desc proto-msg))
+  (prototype-desc-save-value proto-msg))
 
 (g/defnk produce-build-targets [_node-id resource dep-build-targets id-counts]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]

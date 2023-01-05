@@ -408,22 +408,37 @@
                      (update :shapes conj shape-msg)
                      (update :data into data))))))))
 
+(defn- strip-empty-embedded-collision-shape [collision-object-desc]
+  ;; Physics$CollisionObjectDesc in map format.
+  (cond-> collision-object-desc
+
+          (empty? (:shapes (:embedded-collision-shape collision-object-desc)))
+          (dissoc :embedded-collision-shape)))
+
 (g/defnk produce-pb-msg
   [collision-shape-resource type mass friction restitution
    group mask angular-damping linear-damping locked-rotation bullet
    shapes]
-  {:collision-shape (resource/resource->proj-path collision-shape-resource)
-   :type type
-   :mass mass
-   :friction friction
-   :restitution restitution
-   :group group
-   :mask (when mask (->> (string/split mask #",") (map string/trim) (remove string/blank?)))
-   :linear-damping linear-damping
-   :angular-damping angular-damping
-   :locked-rotation locked-rotation
-   :bullet bullet
-   :embedded-collision-shape (produce-embedded-collision-shape shapes)})
+  (let [embedded-collision-shape (produce-embedded-collision-shape shapes)
+        mask (cond-> []
+                     (some? mask)
+                     (into (comp (map string/trim)
+                                 (remove string/blank?))
+                           (string/split mask #",")))]
+    (-> (protobuf/make-map Physics$CollisionObjectDesc
+              :collision-shape (resource/resource->proj-path collision-shape-resource)
+              :type type
+              :mass mass
+              :friction friction
+              :restitution restitution
+              :group group
+              :mask mask
+              :linear-damping linear-damping
+              :angular-damping angular-damping
+              :locked-rotation locked-rotation
+              :bullet bullet
+              :embedded-collision-shape embedded-collision-shape)
+        (strip-empty-embedded-collision-shape))))
 
 (defn build-collision-object
   [resource dep-resources user-data]
@@ -551,10 +566,8 @@
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
   (output collision-group-color g/Any :cached produce-collision-group-color))
 
-(defn- sanitize-collision-object [co]
-  (let [embedded-shape (:embedded-collision-shape co)]
-    (cond-> co
-      (empty? (:shapes embedded-shape)) (dissoc co :embedded-collision-shape))))
+(defn- sanitize-collision-object [collision-object-desc]
+  (strip-empty-embedded-collision-shape collision-object-desc))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
