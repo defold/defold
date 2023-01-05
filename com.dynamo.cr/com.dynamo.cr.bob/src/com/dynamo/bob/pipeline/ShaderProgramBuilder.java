@@ -241,6 +241,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     static public SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
+        // Start all bindings on 1, this means that we can catch unused uniforms
+        int glslcBindingBase = 1;
+
         int version = 140;
         if(targetProfile.equals("es"))
             version = 310;
@@ -270,6 +273,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 "-w",
                 "-fauto-bind-uniforms",
                 "-fauto-map-locations",
+                "-fubo-binding-base", String.valueOf(glslcBindingBase),
                 "-std=" + es3Result.shaderVersion + es3Result.shaderProfile,
                 "-fshader-stage=" + spirvShaderStage,
                 "-o", file_out_spv.getAbsolutePath(),
@@ -395,7 +399,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             for (Map.Entry<Integer, BindingEntry> bindings : setEntry.entrySet()) {
                 Integer bindingIndex = bindings.getKey();
                 BindingEntry bindingEntry = bindings.getValue();
-                if (bindingEntry.size() > 1) {
+                if (bindingIndex >= glslcBindingBase && bindingEntry.size() > 1) {
                     String duplicateList = "";
                     for (int i = 0; i < bindingEntry.size(); i++) {
                         duplicateList += bindingEntry.get(i).name;
