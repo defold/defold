@@ -54,6 +54,7 @@ namespace dmCrypt
     };
 
     /*# Encrypt data in place
+     * @name dmCrypt::Encrypt
      * @param algo      [type:dmCrypt::Algorithm] algorithm
      * @param data      [type:const uint8_t*] data
      * @param datalen   [type:uint32_t] data length in bytes
@@ -64,6 +65,7 @@ namespace dmCrypt
     Result Encrypt(Algorithm algo, uint8_t* data, uint32_t datalen, const uint8_t* key, uint32_t keylen);
 
     /*# Decrypt data in place
+     * @name dmCrypt::Decrypt
      * @param algo      [type:dmCrypt::Algorithm] algorithm
      * @param data      [type:const uint8_t*] data
      * @param datalen   [type:uint32_t] data length in bytes
