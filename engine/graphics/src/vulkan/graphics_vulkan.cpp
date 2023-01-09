@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1248,15 +1248,25 @@ bail:
         float b = ((float)blue)/255.0f;
         float a = ((float)alpha)/255.0f;
 
+        const BufferType color_buffers[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+
         for (int i = 0; i < context->m_CurrentRenderTarget->m_ColorAttachmentCount; ++i)
         {
-            VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
-            vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
-            vk_color_attachment.colorAttachment             = i;
-            vk_color_attachment.clearValue.color.float32[0] = r;
-            vk_color_attachment.clearValue.color.float32[1] = g;
-            vk_color_attachment.clearValue.color.float32[2] = b;
-            vk_color_attachment.clearValue.color.float32[3] = a;
+            if (flags & color_buffers[i])
+            {
+                VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
+                vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
+                vk_color_attachment.colorAttachment             = i;
+                vk_color_attachment.clearValue.color.float32[0] = r;
+                vk_color_attachment.clearValue.color.float32[1] = g;
+                vk_color_attachment.clearValue.color.float32[2] = b;
+                vk_color_attachment.clearValue.color.float32[3] = a;
+            }
         }
 
         // Clear depth / stencil

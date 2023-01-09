@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -690,7 +690,7 @@
                                        (sort-by #(get-in % [0 :child-index])
                                                 node-rt-msgs)))))
   (output aabb g/Any :abstract)
-  (output scene-children g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
+  (output scene-children g/Any (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output scene-updatable g/Any (g/constantly nil))
   (output scene-renderable g/Any (g/constantly nil))
   (output scene-outline-renderable g/Any (g/constantly nil))
@@ -1245,12 +1245,12 @@
                        (if (some? template-scene)
                          (:aabb template-scene)
                          geom/empty-bounding-box)))
-  (output scene-children g/Any :cached (g/fnk [_node-id id template-scene]
-                                         (when (seq (:children template-scene))
-                                           (-> template-scene
-                                               (scene/claim-scene _node-id id)
-                                               (add-renderable-tags #{:gui})
-                                               :children))))
+  (output scene-children g/Any (g/fnk [_node-id id template-scene]
+                                 (when (seq (:children template-scene))
+                                   (-> template-scene
+                                       (scene/claim-scene _node-id id)
+                                       (add-renderable-tags #{:gui})
+                                       :children))))
   (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha enabled]
                                                 {:passes [pass/selection]
                                                  :child-index child-index
@@ -1694,16 +1694,16 @@
 
   (input child-scenes g/Any :array)
   (input child-indices NodeIndex :array)
-  (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
+  (output child-scenes g/Any (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [type-info] {:node-type (:node-cls type-info)
                                                                      :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
                                                     (get-registered-node-type-infos))))
 
-  (output scene g/Any :cached (g/fnk [_node-id child-scenes]
-                                {:node-id _node-id
-                                 :aabb geom/null-aabb
-                                 :children child-scenes}))
+  (output scene g/Any (g/fnk [_node-id child-scenes]
+                        {:node-id _node-id
+                         :aabb geom/null-aabb
+                         :children child-scenes}))
   (input ids g/Str :array)
   (output id-counts NameCounts :cached (g/fnk [ids] (frequencies ids)))
   (input node-msgs g/Any :array)
@@ -2308,9 +2308,9 @@
   (input default-scene g/Any)
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))
-  (output child-scenes g/Any :cached (g/fnk [default-scene layout-scenes current-layout]
-                                       (let [node-tree-scene (get layout-scenes current-layout default-scene)]
-                                         (:children node-tree-scene))))
+  (output child-scenes g/Any (g/fnk [default-scene layout-scenes current-layout]
+                               (let [node-tree-scene (get layout-scenes current-layout default-scene)]
+                                 (:children node-tree-scene))))
   (output scene g/Any :cached produce-scene)
   (output scene-dims g/Any :cached (g/fnk [project-settings current-layout display-profiles]
                                           (or (some #(and (= current-layout (:name %)) (first (:qualifiers %))) display-profiles)

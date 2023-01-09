@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,6 +28,7 @@
 #include <gameobject/gameobject_ddf.h>
 
 #include "gamesys.h"
+#include "gamesys_private.h" // ShowFullBufferError
 #include "../resources/res_collision_object.h"
 #include "../resources/res_tilegrid.h"
 
@@ -866,7 +867,7 @@ namespace dmGameSystem
         }
         if (world->m_Components.Full())
         {
-            dmLogError("Collision Object could not be created since the buffer is full (%d). See 'physics.max_collision_object_count' in game.project", world->m_Components.Capacity());
+            ShowFullBufferError("Collision object", PHYSICS_MAX_COLLISION_OBJECTS_KEY, world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
