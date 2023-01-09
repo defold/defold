@@ -29,6 +29,7 @@
             [editor.changes-view :as changes-view]
             [editor.code.data :refer [CursorRange->line-number]]
             [editor.console :as console]
+            [editor.core :as core]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
@@ -790,6 +791,22 @@
                                 :text "If the engine is already running, shut down the process manually and retry"}]}
            :content (.getMessage e)})))))
 
+(defn- owning-resource [basis node-id]
+  (when-some [owning-resource-node-id (core/scope-of-type basis node-id resource-node/ResourceNode)]
+             [owning-resource (resource-node/resource basis owning-resource-node-id)]
+    owning-resource))
+
+(defn- get-cycle-detected-help-message
+  [node-type-name node-id]
+  (let [basis (g/now)
+        proj-path (some-> (owning-resource basis node-id) resource/proj-path)
+        resource-path (some? proj-path) proj-path "'unknown'"]
+    (case node-type-name
+      "editor.collection/CollectionNode" (format "This is caused by a two or more collections referenced in a loop from either collection proxies or collection factories. One of the involved resources is: %s." resource-path)
+      "editor.game-object/GameObjectNode" (format "This is caused by two or more game objects referenced in a loop from game object factories. One of the involved resources is: %s." resource-path)
+      "editor.code.script/ScriptNode" (format "This is caused by two or more Lua modules required in a loop. One of the involved resources is: %s." resource-path)
+      (format "This is caused by two or more resources referenced in a loop. One of the involved resources is: %s." resource-path))))
+
 (defn- build-project!
   [project evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
@@ -797,6 +814,17 @@
     (try
       (ui/with-progress [render-progress! render-progress!]
         (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+      (catch clojure.lang.ExceptionInfo e
+        (if (= "cycle-detected" (-> e ex-data :cause))
+          (ui/run-later
+            (dialogs/make-info-dialog
+              {:title "Build Error"
+               :icon :icon/triangle-error
+               :header "Cyclic resource dependency detected"
+               :content {:fx/type fxui/label
+                         :style-class "dialog-content-padding"
+                         :text (get-cycle-detected-help-message (-> e ex-data :node-type-name) (-> e ex-data :node-id))}}))
+          (error-reporting/report-exception! e)))
       (catch Throwable error
         (error-reporting/report-exception! error)
         nil))))

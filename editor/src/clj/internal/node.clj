@@ -1334,11 +1334,14 @@
     (type-name (gt/node-type node))))
 
 (defn mark-in-production [node-id label evaluation-context]
-  (assert (not (contains? (:in-production evaluation-context) (gt/endpoint node-id label)))
-          (format "Cycle detected on node type %s and output %s"
-                  (node-type-name node-id evaluation-context)
-                  label))
-  (update evaluation-context :in-production conj (gt/endpoint node-id label)))
+  (if (contains? (:in-production evaluation-context) (gt/endpoint node-id label))
+    (throw (ex-info (format "Cycle detected on node type %s and output %s"
+                      (node-type-name node-id evaluation-context)
+                      label)
+                    {:cause "cycle-detected"
+                     :node-type-name (node-type-name node-id evaluation-context)
+                     :node-id node-id}))
+    (update evaluation-context :in-production conj (gt/endpoint node-id label))))
 
 (defn- mark-in-production-form [node-id-sym label-sym evaluation-context-sym forms]
   `(let [~evaluation-context-sym (mark-in-production ~node-id-sym ~label-sym ~evaluation-context-sym)]
