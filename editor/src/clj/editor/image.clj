@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -114,9 +114,9 @@
                                                                           {:min-filter gl/nearest
                                                                            :mag-filter gl/nearest})))
 
-  (output gpu-texture-generator g/Any :cached (g/fnk [texture-image :as args]
-                                                     {:f    generate-gpu-texture
-                                                      :args args}))
+  (output gpu-texture-generator g/Any (g/fnk [texture-image :as args]
+                                        {:f    generate-gpu-texture
+                                         :args args}))
 
   (output build-targets g/Any :cached produce-build-targets))
 
