@@ -31,9 +31,9 @@
   Comparable
   (compareTo [_ that]
     (let [^Endpoint that that
-          node-id-comparison (Long/compare node-id (.-node-id that))]
+          node-id-comparison (.compareTo node-id (.-node-id that))]
       (if (zero? node-id-comparison)
-        (compare label (.-label that))
+        (.compareTo label (.-label that))
         node-id-comparison)))
   IHashEq
   (hasheq [_]
