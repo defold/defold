@@ -31,6 +31,7 @@ message StreamDesc
     repeated uint64 ui64          = 6;
     repeated int64  i64           = 7;
     repeated float  f             = 8;
+    required uint64 name_hash     = 9;
 }
 
 message BufferDesc

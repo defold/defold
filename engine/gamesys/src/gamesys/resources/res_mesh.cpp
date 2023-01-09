@@ -74,8 +74,8 @@ namespace dmGameSystem
             case dmMeshDDF::MeshDesc::PRIMITIVE_LINES:          return dmGraphics::PRIMITIVE_LINES;
             case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLES:      return dmGraphics::PRIMITIVE_TRIANGLES;
             case dmMeshDDF::MeshDesc::PRIMITIVE_TRIANGLE_STRIP: return dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
+            default:                                            assert(0 && "Unsupported primitive_type");
         }
-        assert(0 && "Unsupported primitive_type");
         return (dmGraphics::PrimitiveType) -1;
     }
 
