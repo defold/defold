@@ -221,7 +221,7 @@
 
 ; Node defs
 
-(g/defnk produce-save-value [image default-animation material blend-mode size-mode size slice9]
+(g/defnk produce-save-value [image default-animation material blend-mode size-mode manual-size slice9]
   (cond-> {:tile-set (resource/resource->proj-path image)
            :default-animation default-animation
            :material (resource/resource->proj-path material)
@@ -234,8 +234,8 @@
           (cond-> :always
                   (assoc :size-mode size-mode)
 
-                  (not= [0.0 0.0 0.0] size)
-                  (assoc :size (v3->v4 size)))))
+                  (not= [0.0 0.0 0.0] manual-size)
+                  (assoc :size (v3->v4 manual-size)))))
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode size-mode size slice9]
@@ -274,7 +274,7 @@
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode size-mode size slice9 dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode size-mode manual-size slice9 dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
                               (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
@@ -289,7 +289,7 @@
                                              :material          material
                                              :blend-mode        blend-mode
                                              :size-mode         size-mode
-                                             :size              (v3->v4 size)
+                                             :size              (v3->v4 manual-size)
                                              :slice9            slice9}
                                             [:tile-set :material])]))
 
@@ -343,13 +343,17 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default :size-mode-auto)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
-  (property size types/Vec3 (default [0.0 0.0 0.0])
-            (value (g/fnk [size size-mode animation]
+  (property manual-size types/Vec3 (default [0.0 0.0 0.0])
+            (dynamic visible (g/constantly false)))
+  (property size types/Vec3
+            (value (g/fnk [manual-size size-mode animation]
                      (if (and (some? animation)
                               (or (= :size-mode-auto size-mode)
-                                  (= [0.0 0.0 0.0] size)))
+                                  (= [0.0 0.0 0.0] manual-size)))
                        [(double (:width animation)) (double (:height animation)) 0.0]
-                       size)))
+                       manual-size)))
+            (set (fn [_evaluation-context self _old-value new-value]
+                   (g/set-property self :manual-size new-value)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
@@ -370,9 +374,6 @@
                              (or (some-> material-samplers first material/sampler->tex-params)
                                  default-tex-params)))
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
-  (output texture-size g/Any (g/fnk [animation]
-                                    (when (some? animation)
-                                      [(double (:width animation)) (double (:height animation)) 0.0])))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
                                          (let [animation-width (* 0.5 (:width animation))
@@ -393,16 +394,8 @@
       (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite))
       (g/set-property self :size-mode (:size-mode sprite))
-      (g/set-property self :size (v4->v3 (:size sprite)))
+      (g/set-property self :manual-size (v4->v3 (:size sprite)))
       (g/set-property self :slice9 (:slice9 sprite))
-
-      ;; The size property value clause is dependent on size metadata from the
-      ;; image, and the old value is evaluated whenever the property is set (for
-      ;; use in the property setter function). Assigning the image property
-      ;; after the size property ensures the dependent property value clause
-      ;; does not perform the expensive image size metadata computation for the
-      ;; ignored old-value of the size property. This saves immensely on load
-      ;; times for projects with a lot of sprites.
       (g/set-property self :image image))))
 
 (defn register-resource-types [workspace]
