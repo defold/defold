@@ -118,7 +118,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < stream_count; ++i)
         {
             const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-            streams_decl[i].m_Name                    = ddf_stream->m_NameHash;
+            streams_decl[i].m_Name                    = ddf_stream.m_NameHash;
             streams_decl[i].m_Type                    = (dmBuffer::ValueType)ddf_stream.m_ValueType;
             streams_decl[i].m_Count                   = ddf_stream.m_ValueCount;
 

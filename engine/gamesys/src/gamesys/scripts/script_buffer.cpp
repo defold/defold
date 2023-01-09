@@ -1229,7 +1229,7 @@ namespace dmScript
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
             dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
-            if (dmGameSystem::CanUnpackLuaBuffer(buffer))
+            //if (dmGameSystem::CanUnpackLuaBuffer(buffer))
             {
                 dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
                 if( buffer && dmBuffer::IsBufferValid(hbuffer))

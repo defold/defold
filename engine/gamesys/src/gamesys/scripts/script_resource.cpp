@@ -1889,14 +1889,15 @@ static int CreateBuffer(lua_State* L)
 
     if (transfer_ownership)
     {
-        // If user wants to transfer ownership from the lua buffer, we need to make sure
-        // that the lua buffer doesn't destroy the buffer handle
-        // This means that after this call, the lua buffer object doesn't have a valid
-        // buffer pointer anymore since it has handed it ower to the resource.
+        // IncRef if this is a lua buffer, otherwise the GC
+        // will potentially destroy the resource prematurely
         if (lua_buffer->m_Owner == dmScript::OWNER_LUA)
         {
-            lua_buffer->m_Buffer = 0;
+            dmResource::IncRef(g_ResourceModule.m_Factory, resource);
         }
+
+        lua_buffer->m_Owner     = dmScript::OWNER_RES;
+        lua_buffer->m_BufferRes = resource;
     }
 
     dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
