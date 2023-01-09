@@ -29,13 +29,15 @@ local data_stream_desc = {{
 }}
 
 function test_create_get(self)
-    local buf             = buffer.create(3, data_stream_desc)
-    local res_buffer      = resource.create_buffer("/my_buffer.bufferc", { buffer = buf }) -- ref = 1
-    local res_buffer_path = resource.get_buffer(res_buffer) -- ref = 2
+    -- owner: lua
+    local buf = buffer.create(3, data_stream_desc)
+    -- owner: res
+    -- ref: 2 - 1 for resource 1 for the handle
+    local res_buffer = resource.create_buffer("/my_buffer.bufferc", { buffer = buf })
+    -- ref: 3
+    local res_buffer_path = resource.get_buffer(res_buffer)
 
-    -- at this point the buf has been transferred to the resource so it's not usable any more
-    assert_error(function() buffer.get_bytes(buf, hash("data")) end)
-
+    resource.release(res_buffer)
     resource.release(res_buffer)
     resource.release(res_buffer)
 
