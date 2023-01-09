@@ -41,6 +41,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
@@ -481,9 +482,13 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     @Override
     protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
+        TimeProfiler.start("CountAllComponentTypes");
         countAllComponentTypes(project, messageBuilder);
+        TimeProfiler.stop();
 
+        TimeProfiler.start("MergeSubCollections");
         mergeSubCollections(resource, messageBuilder);
+        TimeProfiler.stop();
 
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
