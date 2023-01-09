@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -241,6 +241,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     static public SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
+        // Start all bindings on 1, this means that we can catch unused uniforms
+        int glslcBindingBase = 1;
+
         int version = 140;
         if(targetProfile.equals("es"))
             version = 310;
@@ -265,11 +268,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         file_out_spv.deleteOnExit();
 
         String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
+        String glslcBindingBaseStr = String.valueOf(glslcBindingBase);
 
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
                 "-w",
                 "-fauto-bind-uniforms",
                 "-fauto-map-locations",
+                "-fubo-binding-base", glslcBindingBaseStr,
+                "-ftexture-binding-base", glslcBindingBaseStr,
                 "-std=" + es3Result.shaderVersion + es3Result.shaderProfile,
                 "-fshader-stage=" + spirvShaderStage,
                 "-o", file_out_spv.getAbsolutePath(),
@@ -395,7 +401,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             for (Map.Entry<Integer, BindingEntry> bindings : setEntry.entrySet()) {
                 Integer bindingIndex = bindings.getKey();
                 BindingEntry bindingEntry = bindings.getValue();
-                if (bindingEntry.size() > 1) {
+                if (bindingIndex >= glslcBindingBase && bindingEntry.size() > 1) {
                     String duplicateList = "";
                     for (int i = 0; i < bindingEntry.size(); i++) {
                         duplicateList += bindingEntry.get(i).name;
