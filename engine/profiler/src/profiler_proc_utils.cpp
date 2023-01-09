@@ -114,7 +114,7 @@ static int ParseCpuCount()
     return max_cpuid; // in case no processor is detected, 0 is returned
 }
 
-int VirtualTotalCPUUsage(uint64_t interval_us)
+long int VirtualTotalCpuUsageDelta(uint64_t interval_us)
 {
     // lazily initialize processor count
     if (_cpu_count == -1)
@@ -122,14 +122,14 @@ int VirtualTotalCPUUsage(uint64_t interval_us)
         _cpu_count = ParseCpuCount();
     }
 
-    // convert to microsecs to USER_HZ units
-    int interval = interval_us / 10000; // TODO - use proper value for USER_HZ
+    // convert from microsecs to tick count (tick in userland lasts 1/USER_HZ sec). USER_HZ should be 100 in linux/android
+    long int ticks = interval_us / 10000;
 
     // multiply by number of cpus for virtual number of total ticks
-    return interval * _cpu_count;
+    return ticks * _cpu_count;
 }
 
-void dmProfilerExt::SampleProcCpuUsage(bool virtual_metric)
+void dmProfilerExt::SampleProcCpuUsage(bool use_virtual_metric)
 {
     if (!_sample_cpu_enabled) {
         return;
@@ -143,21 +143,24 @@ void dmProfilerExt::SampleProcCpuUsage(bool virtual_metric)
 
     uint64_t time_interval_us = time - _sample_cpu_last_t; // in micro seconds
     if (time_interval_us * 0.000001 > SAMPLE_CPU_INTERVAL) {
-        long int cur_tot;
-        if (virtual_metric)
+
+        long int cur_proc = ParseProcStat();
+
+        double tot_delta;
+        if (use_virtual_metric)
         {
-            cur_tot = VirtualTotalCPUUsage(time_interval_us);
+            tot_delta = VirtualTotalCpuUsageDelta(time_interval_us);
         } else
         {
-            cur_tot = ParseTotalCPUUsage();
+            long int cur_tot = ParseTotalCPUUsage();
+            tot_delta = (double)cur_tot - (double)_sample_cpu_last_tot;
+            _sample_cpu_last_tot = cur_tot;
         }
-        long int cur_proc = ParseProcStat();
-        double tot_delta = (double)cur_tot - (double)_sample_cpu_last_tot;
+
         if (tot_delta > 0) {
             _sample_cpu_usage = ((double)cur_proc - (double)_sample_cpu_last_proc) / tot_delta;
         }
 
-        _sample_cpu_last_tot = cur_tot;
         _sample_cpu_last_proc = cur_proc;
         _sample_cpu_last_t = time;
     }

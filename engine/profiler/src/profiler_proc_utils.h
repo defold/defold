@@ -21,7 +21,7 @@ namespace dmProfilerExt {
     /**
      * Call to sample CPU usage from proc in intevals.
      */
-    void SampleProcCpuUsage(bool virtual_metric);
+    void SampleProcCpuUsage(bool use_virtual_metric);
 
     /**
      * Get current memory usage in bytes from proc (resident/working set) for the process, as reported by OS.
