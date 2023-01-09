@@ -593,7 +593,7 @@ namespace dmRender
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
         dmVMath::Vector4 cornerpoint_world = te.m_Transform * cornerpoint_local;
 
-        te.m_FrustumCullingRadius = Vectormath::Aos::length(cornerpoint_world - centerpoint_world);
+        te.m_FrustumCullingRadiusSq = Vectormath::Aos::lengthSqr(cornerpoint_world - centerpoint_world);
         te.m_FrustumCullingCenter = dmVMath::Point3(centerpoint_world.getXYZ());
 
 
@@ -1127,7 +1127,7 @@ namespace dmRender
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
             TextEntry* te = ((TextEntry*) entry->m_UserData);
 
-            bool intersect = dmIntersection::TestFrustumSphere(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadius, true);
+            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadiusSq, true);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
