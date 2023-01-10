@@ -25,6 +25,8 @@
 #include <gameobject/gameobject.h>
 
 #include "script_resource.h"
+#include "script_buffer.h"
+
 #include "../gamesys.h"
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
@@ -1776,9 +1778,11 @@ static int SetSound(lua_State* L) {
 /*# create a buffer resource
  * This function creates a new buffer resource that can be used in the same way as any buffer created during build time.
  * The function requires a valid buffer created from either [ref:buffer.create] or another pre-existing buffer resource.
- * If the buffer has been created by a script, the new resource will take ownership of the buffer, meaning the buffer
- * will not automatically be removed when the lua reference to the buffer is garbage collected. This behaviour can
- * be overruled by specifying 'transfer_ownership = false' in the argument table.
+ * By default, the new resource will take ownership of the buffer, meaning the buffer will not automatically be removed
+ * when the lua reference to the buffer is garbage collected. This behaviour can be overruled by specifying 'transfer_ownership = false'
+ * in the argument table. Note that the path to the new resource must have the '.bufferc' extension,
+ * meaning "/path/my_buffer" is not a valid path but "/path/my_buffer.bufferc" is. The path must also be unique, attempting to create
+ * a buffer with the same name as an existing resource will raise an error.
  *
  * @name resource.create_buffer
  *
@@ -1880,20 +1884,34 @@ static int CreateBuffer(lua_State* L)
         return ReportPathError(L, resource_res, canonical_path_hash);
     }
 
-    resource->m_BufferDDF = 0;
-    resource->m_Buffer    = lua_buffer->m_Buffer;
-    resource->m_Stride    = dmBuffer::GetStructSize(lua_buffer->m_Buffer);
+    dmBuffer::HBuffer buffer = dmGameSystem::UnpackLuaBuffer(lua_buffer);
 
-    dmBuffer::GetCount(lua_buffer->m_Buffer, &resource->m_ElementCount);
-    dmBuffer::GetContentVersion(lua_buffer->m_Buffer, &resource->m_Version);
+    resource->m_BufferDDF = 0;
+    resource->m_Buffer    = buffer;
+    resource->m_Stride    = dmBuffer::GetStructSize(buffer);
+
+    dmBuffer::GetCount(buffer, &resource->m_ElementCount);
+    dmBuffer::GetContentVersion(buffer, &resource->m_Version);
 
     if (transfer_ownership)
     {
-        // IncRef if this is a lua buffer, otherwise the GC
-        // will potentially destroy the resource prematurely
+        // IncRef if this is a lua buffer or a buffer from another resource,
+        // otherwise the GC will potentially destroy the resource prematurely
         if (lua_buffer->m_Owner == dmScript::OWNER_LUA)
         {
             dmResource::IncRef(g_ResourceModule.m_Factory, resource);
+        }
+        else if (lua_buffer->m_Owner == dmScript::OWNER_RES)
+        {
+            // Ensure that resource is unlinked from collection (if created as a dynamic resource)
+            // dmhash_t res_path_hash;
+            // dmResource::GetPath(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes, &res_path_hash);
+            // dmGameObject::RemoveDynamicResourceHash(collection, res_path_hash);
+
+            dmResource::Release(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes);
+
+            dmResource::IncRef(g_ResourceModule.m_Factory, resource);
+            // dmResource::Release(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes);
         }
 
         lua_buffer->m_Owner     = dmScript::OWNER_RES;

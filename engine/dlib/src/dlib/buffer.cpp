@@ -537,31 +537,6 @@ namespace dmBuffer
         return 0x0;
     }
 
-    // This isn't used anywhere? remove?
-    /*
-    Result CheckStreamType(HBuffer hbuffer, dmhash_t stream_name, dmBuffer::ValueType type, uint32_t type_count)
-    {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
-        if (!buffer) {
-            return RESULT_BUFFER_INVALID;
-        }
-
-        // Get stream
-        Buffer::Stream* stream = GetStream(buffer, stream_name);
-        if (stream == 0x0) {
-            return RESULT_STREAM_MISSING;
-        }
-
-        // Validate expected type and value count
-        if (stream->m_ValueType != type) {
-            return dmBuffer::RESULT_STREAM_TYPE_MISMATCH;
-        } else if (stream->m_ValueCount != type_count) {
-            return dmBuffer::RESULT_STREAM_COUNT_MISMATCH;
-        }
-        return RESULT_OK;
-    }
-    */
-
     Result GetStream(HBuffer hbuffer, dmhash_t stream_name, void** out_stream, uint32_t* count, uint32_t* component_count, uint32_t* stride)
     {
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);

@@ -15,9 +15,12 @@
 #ifndef DM_GAMESYS_SCRIPT_BUFFER_H
 #define DM_GAMESYS_SCRIPT_BUFFER_H
 
+#include <dmsdk/gamesys/script.h>
+
 namespace dmGameSystem
 {
     void ScriptBufferRegister(const struct ScriptLibContext& context);
+    dmBuffer::HBuffer UnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer);
 }
 
 #endif // DM_GAMESYS_SCRIPT_BUFFER_H
