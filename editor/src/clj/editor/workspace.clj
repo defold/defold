@@ -291,9 +291,6 @@ ordinary paths."
 (defn- absolute-path [^String path]
   (.startsWith path "/"))
 
-(defn- get-parent-dir [^String path]
-  (str (.getParent (File. path))))
-
 (defn to-absolute-path
   ([rel-path] (to-absolute-path "" rel-path))
   ([base rel-path]
