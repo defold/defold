@@ -9,6 +9,8 @@ import java.util.regex.Matcher;
 import java.io.IOException;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
@@ -122,31 +124,34 @@ public class ShaderIncludeCompiler {
         return source;
     }
 
-    private String toProjectRelativePath(String fromFilePath, String includePath) throws CompileExceptionError {
+    private String toProjectRelativePath(String fromFilePath, String includePath) throws CompileExceptionError, IOException {
+        // This covers the #include "/absolute-path.glsl" case
         if (includePath.startsWith("/"))
         {
             return includePath.substring(1);
         }
 
-        String includePathRelative = includePath;
-        String[] fromFileParts     = fromFilePath.split("/");
-        int numSteps               = 1;
+        String rootDir = this.project.getRootDirectory();
 
-        if (includePathRelative.startsWith("../"))
-        {
-            String[] includeParts = includePathRelative.split("\\.\\.\\/"); // regex, hence escape madness
-            numSteps              = includeParts.length;
-            includePathRelative   = includeParts[numSteps-1];
+        File rootDirFile    = new File(rootDir);
+        File fromFileParent = new File(fromFilePath).getParentFile();
+        File includeFile    = new File(includePath);
+
+        // Tests have "." as project dir, which gives a null ptr if we don't check it
+        if (fromFileParent != null) {
+            includeFile = new File(fromFileParent.getCanonicalPath(), includePath);
         }
 
-        if (fromFileParts.length - numSteps < 0)
+        Path includeFilePath   = Paths.get(includeFile.getCanonicalPath());
+        Path rootDirPath       = Paths.get(rootDirFile.getCanonicalPath());
+        String relativePathRes = rootDirPath.relativize(includeFilePath).toString();
+
+        if (relativePathRes.startsWith(".."))
         {
             throw new CompileExceptionError(fromFilePath + " includes file from outside of project root '" + includePath + "'");
         }
 
-        String[] baseDirParts = Arrays.copyOfRange(fromFileParts, 0, fromFileParts.length - numSteps);
-        String baseDir        = String.join("/", baseDirParts);
-        return baseDir + "/" + includePathRelative;
+        return relativePathRes;
     }
 
     private String getIncludeData(String fromPath) throws CompileExceptionError, IOException
