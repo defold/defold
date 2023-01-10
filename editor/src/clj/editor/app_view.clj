@@ -793,8 +793,7 @@
 
 (defn- owning-resource [basis node-id]
   (when-some [owning-resource-node-id (core/scope-of-type basis node-id resource-node/ResourceNode)]
-             [owning-resource (resource-node/resource basis owning-resource-node-id)]
-    owning-resource))
+    (resource-node/resource basis owning-resource-node-id)))
 
 (defn- get-cycle-detected-help-message
   [node-type-name node-id]
