@@ -266,8 +266,7 @@ static dmhash_t GetCanonicalPathHash(const char* path)
 
 static void PreCreateResource(lua_State* L, const char* path_str, const char* path_ext_wanted, dmhash_t* canonical_path_hash_out)
 {
-    char buf_ext[64];
-    const char* path_ext = dmResource::GetExtFromPath(path_str, buf_ext, sizeof(buf_ext));
+    const char* path_ext = dmResource::GetExtFromPath(path_str);
 
     if (path_ext == 0x0 || dmStrCaseCmp(path_ext, path_ext_wanted) != 0)
     {

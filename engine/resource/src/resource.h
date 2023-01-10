@@ -186,11 +186,9 @@ namespace dmResource
     /**
      * Get a resource extension from a path, i.e resource.ext will return .ext. Note the included dot in the output.
      * @param path The path to the resource
-     * @param buffer Pointer to buffer to use when getting the extension
-     * @param buffersize Size of buffer
      * @return Pointer to extension string if success (same as buffer), 0 otherwise
      */
-    const char* GetExtFromPath(const char* path, char* buffer, uint32_t buffersize);
+    const char* GetExtFromPath(const char* path);
 
     /**
      * Get raw resource data. Unregistered resources can be loaded with this function.
