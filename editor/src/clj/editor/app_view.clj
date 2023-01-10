@@ -827,7 +827,7 @@
                :header "Cyclic resource dependency detected"
                :content {:fx/type fxui/label
                          :style-class "dialog-content-padding"
-                         :text (get-cycle-detected-help-message (-> e ex-data :node-type-name) (-> e ex-data :node-id))}}))
+                         :text (get-cycle-detected-help-message (-> e ex-data :node-id))}}))
           (error-reporting/report-exception! e)))
       (catch Throwable error
         (error-reporting/report-exception! error)
