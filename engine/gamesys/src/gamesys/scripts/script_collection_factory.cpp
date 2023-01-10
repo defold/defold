@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/gameobject/script.h>
 #include <gameobject/script.h>
 
 #include "gamesys.h"
@@ -102,16 +103,12 @@ namespace dmGameSystem
      * @name collectionfactory.STATUS_LOADED
      * @variable
      */
-    int CollectionFactoryComp_GetStatus(lua_State* L)
+    static int CollectionFactoryComp_GetStatus(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, COLLECTION_FACTORY_EXT, &user_data, &receiver, 0);
-        CollectionFactoryComponent* component = (CollectionFactoryComponent*) user_data;
+        CollectionFactoryComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, 0, (void**)&component, 0);
 
         dmGameSystem::CompCollectionFactoryStatus status = dmGameSystem::CompCollectionFactoryGetStatus(component);
         lua_pushinteger(L, (int)status);
@@ -135,18 +132,15 @@ namespace dmGameSystem
      * collectionfactory.unload("#factory")
      * ```
      */
-    int CollectionFactoryComp_Unload(lua_State* L)
+    static int CollectionFactoryComp_Unload(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, COLLECTION_FACTORY_EXT, &user_data, &receiver, 0);
-        CollectionFactoryComponent* component = (CollectionFactoryComponent*) user_data;
+        CollectionFactoryWorld* world;
+        CollectionFactoryComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, 0);
 
-        bool success = dmGameSystem::CompCollectionFactoryUnload(collection, component);
+        bool success = dmGameSystem::CompCollectionFactoryUnload(world, component);
         if (!success)
         {
             return DM_LUA_ERROR("Error unloading collection factory resources");
@@ -181,45 +175,37 @@ namespace dmGameSystem
      * collectionfactory.load("#factory", function(self, url, result) end)
      * ```
      */
-    int CollectionFactoryComp_Load(lua_State* L)
+    static int CollectionFactoryComp_Load(lua_State* L)
     {
         int top = lua_gettop(L);
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-
         if (top < 2 || !lua_isfunction(L, 2))
         {
             return luaL_error(L, "Argument #2 is expected to be completion function.");
         }
 
-        uintptr_t user_data;
+        CollectionFactoryWorld* world;
+        CollectionFactoryComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, COLLECTION_FACTORY_EXT, &user_data, &receiver, 0);
-        CollectionFactoryComponent* component = (CollectionFactoryComponent*) user_data;
+        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, &receiver);
 
-        if (component->m_Loading) {
+        if (dmGameSystem::CompCollectionFactoryIsLoading(component)) {
             dmLogError("Trying to load collection factory resource when already loading.");
             return luaL_error(L, "Error loading collection factory resources");
         }
 
         lua_pushvalue(L, 2);
-        component->m_PreloaderCallbackRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        int callback_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
         dmScript::GetInstance(L);
-        component->m_PreloaderSelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        int self_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
         dmScript::PushURL(L, receiver);
-        component->m_PreloaderURLRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        int url_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-        bool success = dmGameSystem::CompCollectionFactoryLoad(collection, component);
+        bool success = dmGameSystem::CompCollectionFactoryLoad(world, component, callback_ref, self_ref, url_ref);
         if (!success)
         {
-            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
-
-            component->m_PreloaderCallbackRef = LUA_NOREF;
-            component->m_PreloaderSelfRef = LUA_NOREF;
-            component->m_PreloaderURLRef = LUA_NOREF;
-
+            dmScript::Unref(L, LUA_REGISTRYINDEX, callback_ref);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, self_ref);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, url_ref);
             return luaL_error(L, "Error loading collection factory resources");
         }
 
@@ -296,16 +282,15 @@ namespace dmGameSystem
      * ```
      */
 
-    int CollectionFactoryComp_Create(lua_State* L)
+    static int CollectionFactoryComp_Create(lua_State* L)
     {
         int top = lua_gettop(L);
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, COLLECTION_FACTORY_EXT, &user_data, &receiver, 0);
-        CollectionFactoryComponent* component = (CollectionFactoryComponent*) user_data;
+        CollectionFactoryWorld* world;
+        CollectionFactoryComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, 0);
 
         dmVMath::Point3 position;
         if (top >= 2 && !lua_isnil(L, 2))
@@ -392,7 +377,7 @@ namespace dmGameSystem
         int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         dmGameObject::InstanceIdMap instances;
-        bool success = dmGameObject::SpawnFromCollection(collection, component->m_Resource->m_CollectionDesc, &prop_bufs,
+        bool success = dmGameObject::SpawnFromCollection(collection, CompCollectionFactoryGetResource(component)->m_CollectionDesc, &prop_bufs,
                                                          position, rotation, scale, &instances);
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
@@ -419,12 +404,121 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# changes the prototype for the collection factory
+     *
+     * Changes the prototype for the collection factory.
+     * Setting the prototype to "nil" will revert back to the original prototype.
+     *
+     * @name collectionfactory.set_prototype
+     * @param [url] [type:string|hash|url] the collection factory component
+     * @param [prototype] [type:string|nil] the path to the new prototype, or nil
+     *
+     * @examples
+     *
+     * How to unload the previous prototypes resources, and then spawn a new collection
+     *
+     * ```lua
+     * collectionfactory.unload("#factory") -- unload the previous resources
+     * collectionfactory.set_prototype("#factory", "/main/levels/level1.collectionc")
+     * local ids = collectionfactory.create("#factory", go.get_world_position(), vmath.quat())
+     * ```
+     */
+    static int CollectionFactoryComp_SetPrototype(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        CollectionFactoryWorld* world;
+        CollectionFactoryComponent* component;
+        dmMessage::URL url; // for reporting errors only
+        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, &url);
+
+        if (dmGameSystem::CompCollectionFactoryIsLoading(component))
+        {
+            return luaL_error(L, "Cannot set prototype while factory is loading");
+        }
+
+        const char* path = 0;
+        dmhash_t path_hash = 0;
+        bool clear_custom_resource = false;
+        if (lua_isnil(L, 2))
+        {
+            clear_custom_resource = true;
+        }
+        else
+        {
+            path = luaL_checkstring(L, 2);
+
+            // check that the path is a .collectionc
+            const char* ext = dmResource::GetExtFromPath(path);
+            if (strcmp(ext, ".collectionc") != 0)
+            {
+                return luaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .collectionc resources are allowed",
+                                        path,
+                                        dmMessage::GetSocketName(url.m_Socket),
+                                        dmHashReverseSafe64(url.m_Path),
+                                        dmHashReverseSafe64(url.m_Fragment));
+            }
+
+            // double check if the path is the default path
+            path_hash = dmHashString64(path);
+
+            CollectionFactoryResource* default_resource = CompCollectionFactoryGetDefaultResource(component);
+            if (path_hash == default_resource->m_PrototypePathHash)
+                clear_custom_resource = true;
+        }
+
+        if (clear_custom_resource)
+        {
+            CompCollectionFactorySetPrototype(component, 0); // reset it to the default factory
+            assert(top == lua_gettop(L));
+            return 1;
+        }
+
+        CollectionFactoryResource* old_custom_resource = CompCollectionFactoryGetCustomResource(component);
+        if (old_custom_resource && path_hash == old_custom_resource->m_PrototypePathHash)
+        {
+            // already have the prototype set!
+            assert(top == lua_gettop(L));
+            return 1;
+        }
+
+        CollectionFactoryResource* new_resource = 0;
+        dmResource::HFactory factory = CompCollectionFactoryGetResourceFactory(world);
+        {
+            dmResource::Result r = dmGameSystem::ResCollectionFactoryLoadResourceDesc(factory, path, &new_resource);
+            if (dmResource::RESULT_OK != r)
+            {
+                return luaL_error(L, "Failed to load collection factory prototype %s", path);
+            }
+        }
+
+
+        if (!CompCollectionFactorySetPrototype(component, new_resource))
+        {
+            return luaL_error(L, "Failed to set collection factory prototype to '%s:%s#%s': %s\n",
+                                    dmMessage::GetSocketName(url.m_Socket),
+                                    dmHashReverseSafe64(url.m_Path),
+                                    dmHashReverseSafe64(url.m_Fragment),
+                                    path);
+
+        }
+
+        if (old_custom_resource)
+        {
+            dmGameSystem::ResCollectionFactoryDestroyResource(factory, old_custom_resource);
+        }
+
+        assert(top == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg COLLECTION_FACTORY_COMP_FUNCTIONS[] =
     {
         {"create",            CollectionFactoryComp_Create},
         {"load",              CollectionFactoryComp_Load},
         {"unload",            CollectionFactoryComp_Unload},
         {"get_status",        CollectionFactoryComp_GetStatus},
+        {"set_prototype",     CollectionFactoryComp_SetPrototype},
         {0, 0}
     };
 

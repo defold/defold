@@ -14,6 +14,7 @@
 
 #include "comp_collection_factory.h"
 #include "resources/res_collection_factory.h"
+//#include <dmsdk/gamesys/resources/res_collection_factory.h>
 
 #include <string.h>
 
@@ -35,21 +36,38 @@ DM_PROPERTY_U32(rmtp_CollectionFactory, 0, FrameReset, "# components", &rmtp_Com
 
 namespace dmGameSystem
 {
-    using namespace dmVMath;
+    struct CollectionFactoryResource;
 
     const char* COLLECTION_FACTORY_MAX_COUNT_KEY = "collectionfactory.max_count";
+
+    static const dmhash_t COLLECTION_FACTORY_PROP_PROTOTYPE = dmHashString64("prototype");
 
     static void CleanupAsyncLoading(lua_State*, CollectionFactoryComponent*);
     static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams*);
     static void LoadComplete(const dmGameObject::ComponentsUpdateParams&, CollectionFactoryComponent*, const dmResource::Result);
     static dmResource::Result LoadCollectionResources(dmResource::HFactory, CollectionFactoryComponent*);
     static void UnloadCollectionResources(dmResource::HFactory, CollectionFactoryComponent*);
+    static CollectionFactoryResource* GetResource(CollectionFactoryComponent* component);
 
-    struct FactoryWorld
+    struct CollectionFactoryComponent
     {
-        dmArray<CollectionFactoryComponent>   m_Components;
-        dmIndexPool32               m_IndexPool;
-        uint32_t                    m_TotalFactoryCount;
+        void Init();
+
+        CollectionFactoryResource*  m_Resource;         // set from the Editor
+        CollectionFactoryResource*  m_CustomResource;   // set from script as an override
+        dmResource::HPreloader      m_Preloader;
+        int                         m_PreloaderCallbackRef;
+        int                         m_PreloaderSelfRef;
+        int                         m_PreloaderURLRef;
+        uint8_t                     m_Loading : 1;
+        uint8_t                     m_AddedToUpdate : 1;
+    };
+
+    struct CollectionFactoryWorld
+    {
+        dmArray<CollectionFactoryComponent> m_Components;
+        dmIndexPool32                       m_IndexPool;
+        dmResource::HFactory                m_Factory;
     };
 
     void CollectionFactoryComponent::Init()
@@ -63,34 +81,36 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompCollectionFactoryNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         CollectionFactoryContext* context = (CollectionFactoryContext*)params.m_Context;
-        FactoryWorld* fw = new FactoryWorld();
+        CollectionFactoryWorld* world = new CollectionFactoryWorld();
         uint32_t max_component_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxCollectionFactoryCount);
-        fw->m_Components.SetCapacity(max_component_count);
-        fw->m_Components.SetSize(max_component_count);
-        fw->m_IndexPool.SetCapacity(max_component_count);
+        world->m_Components.SetCapacity(max_component_count);
+        world->m_Components.SetSize(max_component_count);
+        world->m_IndexPool.SetCapacity(max_component_count);
+        world->m_Factory = context->m_Factory;
         for(uint32_t i = 0; i < max_component_count; ++i)
         {
-            fw->m_Components[i].Init();
+            world->m_Components[i].Init();
         }
-        *params.m_World = fw;
+        *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollectionFactoryDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
-        delete (FactoryWorld*)params.m_World;
+        delete (CollectionFactoryWorld*)params.m_World;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCollectionFactoryCreate(const dmGameObject::ComponentCreateParams& params)
     {
-        FactoryWorld* fw = (FactoryWorld*)params.m_World;
+        CollectionFactoryWorld* fw = (CollectionFactoryWorld*)params.m_World;
         CollectionFactoryComponent* component;
         if (fw->m_IndexPool.Remaining() > 0)
         {
             uint32_t index = fw->m_IndexPool.Pop();
             component = &fw->m_Components[index];
             component->m_Resource = (CollectionFactoryResource*) params.m_Resource;
+            component->m_CustomResource = 0;
             *params.m_UserData = (uintptr_t) component;
         }
         else
@@ -103,11 +123,14 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollectionFactoryDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
-        FactoryWorld* fw = (FactoryWorld*)params.m_World;
+        CollectionFactoryWorld* fw = (CollectionFactoryWorld*)params.m_World;
         CollectionFactoryComponent* fc = (CollectionFactoryComponent*)*params.m_UserData;
         CleanupAsyncLoading(dmScript::GetLuaState(((CollectionFactoryContext*)params.m_Context)->m_ScriptContext), fc);
         uint32_t index = fc - &fw->m_Components[0];
         fc->m_Resource = 0x0;
+        if (fc->m_CustomResource)
+            dmGameSystem::ResCollectionFactoryDestroyResource(fw->m_Factory, fc->m_CustomResource);
+        fc->m_CustomResource = 0;
         fc->m_AddedToUpdate = 0;
         fw->m_IndexPool.Push(index);
         return dmGameObject::CREATE_RESULT_OK;
@@ -122,7 +145,7 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCollectionFactoryUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
-        FactoryWorld* world = (FactoryWorld*)params.m_World;
+        CollectionFactoryWorld* world = (CollectionFactoryWorld*)params.m_World;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
         for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
         {
@@ -131,12 +154,11 @@ namespace dmGameSystem
                 continue;
             if (component->m_Loading)
             {
-                dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
                 dmResource::Result r = dmResource::RESULT_OK;
                 if(component->m_Preloader)
                 {
                     dmResource::PreloaderCompleteCallbackParams preloader_params;
-                    preloader_params.m_Factory = factory;
+                    preloader_params.m_Factory = world->m_Factory;
                     preloader_params.m_UserData = component;
                     r = dmResource::UpdatePreloader(component->m_Preloader, PreloadCompleteCallback, &preloader_params, 10*1000);
                 }
@@ -150,9 +172,17 @@ namespace dmGameSystem
         return result;
     }
 
-    bool CompCollectionFactoryLoad(dmGameObject::HCollection collection, CollectionFactoryComponent* component)
+    bool CompCollectionFactoryLoad(CollectionFactoryWorld* world, CollectionFactoryComponent* component,
+                                    int callback_ref, int self_ref, int url_ref)
     {
-        if(!component->m_Resource->m_LoadDynamically)
+        component->m_PreloaderCallbackRef = callback_ref;
+        component->m_PreloaderSelfRef = self_ref;
+        component->m_PreloaderURLRef = url_ref;
+
+        // Here we assume that we've successfully chosen a resource to load
+        CollectionFactoryResource* resource = GetResource(component);
+
+        if(!resource->m_LoadDynamically)
         {
             // set as loading without preloader so complete callback is invoked as should be by design.
             component->m_Loading = 1;
@@ -163,14 +193,16 @@ namespace dmGameSystem
             dmLogError("Trying to load factory prototype resources when already loading.");
             return false;
         }
-        if(!component->m_Resource->m_CollectionResources.Empty())
+        if(!resource->m_CollectionResources.Empty())
         {
             // If loaded, complete callback is invoked.
             component->m_Loading = 1;
             return true;
         }
 
-        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) component->m_Resource->m_CollectionDesc;
+        // We assume that the resource has loaded it's collection description up front
+
+        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) resource->m_CollectionDesc;
 
         // No need to process this collection further if there's nothing to load
         if (collection_desc->m_Instances.m_Count == 0)
@@ -188,7 +220,7 @@ namespace dmGameSystem
                 continue;
             names.Push(instance_desc.m_Prototype);
         }
-        component->m_Preloader = dmResource::NewPreloader(dmGameObject::GetFactory(collection), names);
+        component->m_Preloader = dmResource::NewPreloader(world->m_Factory, names);
         if(!component->m_Preloader)
         {
             return false;
@@ -197,7 +229,7 @@ namespace dmGameSystem
         return true;
     }
 
-    bool CompCollectionFactoryUnload(dmGameObject::HCollection collection, CollectionFactoryComponent* component)
+    bool CompCollectionFactoryUnload(CollectionFactoryWorld* world, CollectionFactoryComponent* component)
     {
         if(!component->m_Resource->m_LoadDynamically)
         {
@@ -208,7 +240,7 @@ namespace dmGameSystem
             dmLogError("Trying to unload factory prototype resources while loading.");
             return false;
         }
-        UnloadCollectionResources(dmGameObject::GetFactory(collection), component);
+        UnloadCollectionResources(world->m_Factory, component);
         return true;
     }
 
@@ -218,7 +250,8 @@ namespace dmGameSystem
         {
             return COMP_COLLECTION_FACTORY_STATUS_LOADING;
         }
-        if(component->m_Resource->m_CollectionResources.Empty())
+        CollectionFactoryResource* resource = GetResource(component);
+        if(resource->m_CollectionResources.Empty())
         {
             return COMP_COLLECTION_FACTORY_STATUS_UNLOADED;
         }
@@ -258,6 +291,36 @@ namespace dmGameSystem
             collection_resources.Push(resource);
         }
         return result;
+    }
+
+    static inline CollectionFactoryResource* GetResource(CollectionFactoryComponent* component)
+    {
+        return component->m_CustomResource ? component->m_CustomResource : component->m_Resource;
+    }
+
+    CollectionFactoryResource* CompCollectionFactoryGetResource(CollectionFactoryComponent* component)
+    {
+        return GetResource(component);
+    }
+
+    CollectionFactoryResource* CompCollectionFactoryGetDefaultResource(CollectionFactoryComponent* component)
+    {
+        return component->m_Resource;
+    }
+
+    CollectionFactoryResource* CompCollectionFactoryGetCustomResource(CollectionFactoryComponent* component)
+    {
+        return component->m_CustomResource;
+    }
+
+    bool CompCollectionFactoryIsLoading(CollectionFactoryComponent* component)
+    {
+        return component->m_Loading;
+    }
+
+    dmResource::HFactory CompCollectionFactoryGetResourceFactory(CollectionFactoryWorld* world)
+    {
+        return world->m_Factory;
     }
 
     static void CleanupAsyncLoading(lua_State* L, CollectionFactoryComponent* component)
@@ -321,6 +384,26 @@ namespace dmGameSystem
         dmScript::PCall(L, 3, 0);
         CleanupAsyncLoading(L, component);
         assert(top == lua_gettop(L));
+    }
+
+    dmGameObject::PropertyResult CompCollectionFactoryGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        CollectionFactoryComponent* component = (CollectionFactoryComponent*)*params.m_UserData;
+
+        dmhash_t get_property = params.m_PropertyId;
+
+        if (get_property == COLLECTION_FACTORY_PROP_PROTOTYPE)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(GetResource(component)->m_PrototypePathHash);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    bool CompCollectionFactorySetPrototype(CollectionFactoryComponent* component, CollectionFactoryResource* resource)
+    {
+        component->m_CustomResource = resource;
+        return true;
     }
 
 }

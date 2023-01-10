@@ -24,10 +24,15 @@ namespace dmGameSystem
     {
         CollectionFactoryResource& operator=(CollectionFactoryResource& other);
 
-        dmGameObject::HCollectionDesc m_CollectionDesc;
-        dmArray<void*> m_CollectionResources;
-        bool m_LoadDynamically;
+        dmhash_t                        m_PrototypePathHash;
+        dmGameObject::HCollectionDesc   m_CollectionDesc;
+        dmArray<void*>                  m_CollectionResources;
+        bool                            m_LoadDynamically;
     };
+
+    // for scripting
+    dmResource::Result  ResCollectionFactoryLoadResourceDesc(dmResource::HFactory factory, const char* collectionc, CollectionFactoryResource** out_res);
+    void                ResCollectionFactoryDestroyResource(dmResource::HFactory factory, CollectionFactoryResource* resource);
 }
 
 #endif // DMSDK_GAMESYS_RES_FACTORY_H
