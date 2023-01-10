@@ -184,7 +184,7 @@
                   :lines (second proj-path+full-lines)
                   :resource-ext (resource/type-ext resource)}})])
 
-(def ^:private include-pattern #"^\s*#include \"([^\"]+?)\"\s*$")
+(def ^:private include-pattern #"^\s*#include \s*\"([^\"]+?)\"\s*$")
 
 (defn- try-parse-include [^String line]
   ;; #include "../shaders/light.glsl" -> "../shaders/light.glsl"
