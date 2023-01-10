@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -77,6 +77,8 @@
                      [com.sun.xml.bind/jaxb-impl "2.3.0"]
 
                      [org.luaj/luaj-jse "3.0.1"]
+
+                     [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
                      [cljfx "1.7.21"]
 
