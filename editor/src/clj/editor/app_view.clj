@@ -814,7 +814,7 @@
       (ui/with-progress [render-progress! render-progress!]
         (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
       (catch clojure.lang.ExceptionInfo e
-        (if (= "cycle-detected" (-> e ex-data :cause))
+        (if (= :cycle-detected (-> e ex-data :cause))
           (ui/run-later
             (dialogs/make-info-dialog
               {:title "Build Error"
