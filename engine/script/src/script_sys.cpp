@@ -409,7 +409,7 @@ union SaveLoadBuffer
      * @name sys.get_config_int
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
      * @param [default_value] [type:integer] (optional) default value to return if the value does not exist
-     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. nil if no default value was supplied.
+     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *
      * Get user config value
@@ -431,7 +431,7 @@ union SaveLoadBuffer
 
         const char* key = luaL_checkstring(L, 1);
         int default_value = 0;
-        if (!lua_isnil(L, 2))
+        if (!lua_isnone(L, 2))
         {
             default_value = luaL_checkinteger(L, 2);
         }
@@ -455,7 +455,7 @@ union SaveLoadBuffer
      * @name sys.get_config_number
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
      * @param [default_value] [type:number] (optional) default value to return if the value does not exist
-     * @return value [type:number] config value as an number. default_value if the config key does not exist. nil if no default value was supplied.
+     * @return value [type:number] config value as an number. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *
      * Get user config value
@@ -470,7 +470,7 @@ union SaveLoadBuffer
 
         const char* key = luaL_checkstring(L, 1);
         float default_value = 0;
-        if (!lua_isnil(L, 2))
+        if (!lua_isnone(L, 2))
         {
             default_value = luaL_checknumber(L, 2);
         }
