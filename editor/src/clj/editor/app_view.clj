@@ -800,12 +800,17 @@
   (let [basis (g/now)
         proj-path (some-> (owning-resource basis node-id) resource/proj-path)
         resource-path (or proj-path "'unknown'")]
-    (case node-type-name
-      "editor.collection/CollectionNode" (format "This is caused by a two or more collections referenced in a loop from either collection proxies or collection factories. One of the involved resources is: %s." resource-path)
-      "editor.game-object/GameObjectNode" (format "This is caused by two or more game objects referenced in a loop from game object factories. One of the involved resources is: %s." resource-path)
-      "editor.code.script/ScriptNode" (format "This is caused by two or more Lua modules required in a loop. One of the involved resources is: %s." resource-path)
-      (format "This is caused by two or more resources referenced in a loop. One of the involved resources is: %s." resource-path))))
+    (case (g/node-type-kw basis node-id)
+      :editor.collection/CollectionNode
+      (format "This is caused by a two or more collections referenced in a loop from either collection proxies or collection factories. One of the involved resources is: %s." resource-path)
 
+      :editor.game-object/GameObjectNode
+      (format "This is caused by two or more game objects referenced in a loop from game object factories. One of the involved resources is: %s." resource-path)
+
+      :editor.code.script/ScriptNode
+      (format "This is caused by two or more Lua modules required in a loop. One of the involved resources is: %s." resource-path)
+
+      (format "This is caused by two or more resources referenced in a loop. One of the involved resources is: %s." resource-path))))
 (defn- build-project!
   [project evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
