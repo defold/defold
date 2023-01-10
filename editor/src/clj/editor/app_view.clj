@@ -800,7 +800,7 @@
   [node-type-name node-id]
   (let [basis (g/now)
         proj-path (some-> (owning-resource basis node-id) resource/proj-path)
-        resource-path (some? proj-path) proj-path "'unknown'"]
+        resource-path (or proj-path "'unknown'")]
     (case node-type-name
       "editor.collection/CollectionNode" (format "This is caused by a two or more collections referenced in a loop from either collection proxies or collection factories. One of the involved resources is: %s." resource-path)
       "editor.game-object/GameObjectNode" (format "This is caused by two or more game objects referenced in a loop from game object factories. One of the involved resources is: %s." resource-path)
