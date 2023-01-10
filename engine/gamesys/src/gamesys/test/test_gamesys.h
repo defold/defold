@@ -465,6 +465,7 @@ void GamesysTest<T>::SetUp()
     m_FactoryContext.m_ScriptContext = m_ScriptContext;
     m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
     m_CollectionFactoryContext.m_ScriptContext = m_ScriptContext;
+    m_CollectionFactoryContext.m_Factory = m_Factory;
 
     m_LabelContext.m_RenderContext = m_RenderContext;
     m_LabelContext.m_MaxLabelCount = 32;

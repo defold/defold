@@ -142,8 +142,6 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        factory_res->m_PrototypePathHash = dmHashString64(params.m_Filename);
-
         if((!factory_res->m_LoadDynamically) && (params.m_HintInfo))
         {
             dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) factory_res->m_CollectionDesc;
@@ -166,6 +164,7 @@ namespace dmGameSystem
         dmResource::Result res = AcquireResources(params.m_Factory, factory_res);
         if(res == dmResource::RESULT_OK)
         {
+            factory_res->m_PrototypePathHash = dmHashString64(params.m_Filename);
             params.m_Resource->m_Resource = (void*) factory_res;
             params.m_Resource->m_ResourceSize = sizeof(CollectionFactoryResource) + (factory_res->m_CollectionResources.Size()*sizeof(void*)) + params.m_BufferSize;
         }

@@ -231,7 +231,7 @@ namespace dmGameSystem
 
     bool CompCollectionFactoryUnload(CollectionFactoryWorld* world, CollectionFactoryComponent* component)
     {
-        if(!component->m_Resource->m_LoadDynamically)
+        if(!GetResource(component)->m_LoadDynamically)
         {
             return true;
         }
@@ -260,7 +260,7 @@ namespace dmGameSystem
 
     static void UnloadCollectionResources(dmResource::HFactory factory, CollectionFactoryComponent* component)
     {
-        dmArray<void*>& r = component->m_Resource->m_CollectionResources;
+        dmArray<void*>& r = GetResource(component)->m_CollectionResources;
         for(uint32_t i = 0; i < r.Size(); ++i)
         {
             dmResource::Release( factory, r[i]);
@@ -271,8 +271,8 @@ namespace dmGameSystem
     static dmResource::Result LoadCollectionResources(dmResource::HFactory factory, CollectionFactoryComponent* component)
     {
         UnloadCollectionResources(factory, component);
-        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) component->m_Resource->m_CollectionDesc;
-        dmArray<void*>& collection_resources = component->m_Resource->m_CollectionResources;
+        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) GetResource(component)->m_CollectionDesc;
+        dmArray<void*>& collection_resources = GetResource(component)->m_CollectionResources;
 
         collection_resources.SetCapacity(collection_desc->m_Instances.m_Count);
         dmResource::Result result = dmResource::RESULT_OK;
@@ -345,7 +345,7 @@ namespace dmGameSystem
     static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams* params)
     {
         CollectionFactoryComponent* component = (CollectionFactoryComponent *) params->m_UserData;
-        if(component->m_Resource->m_LoadDynamically)
+        if(GetResource(component)->m_LoadDynamically)
         {
             if(LoadCollectionResources(params->m_Factory, component) != dmResource::RESULT_OK)
                 return false;
