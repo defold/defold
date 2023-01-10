@@ -324,24 +324,24 @@
   (testing "output dependent on itself"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DependencyNode))]
-        (is (thrown? AssertionError (g/node-value node :out-from-self))))))
+        (is (thrown? ExceptionInfo (g/node-value node :out-from-self))))))
   (testing "output dependent on itself connected to downstream input"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
         (g/transact
          (g/connect node0 :out-from-self node1 :in))
-        (is (thrown? AssertionError (g/node-value node1 :out-from-in))))))
+        (is (thrown? ExceptionInfo (g/node-value node1 :out-from-in))))))
   (testing "cycle of period 1"
     (with-clean-system
       (let [[node] (tx-nodes (g/make-node world DependencyNode))]
         (g/transact (g/connect node :out-from-in node :in))
-        (is (thrown? AssertionError (g/node-value node :out-from-in))))))
+        (is (thrown? ExceptionInfo (g/node-value node :out-from-in))))))
   (testing "cycle of period 2 (single transaction)"
     (with-clean-system
       (let [[node0 node1] (tx-nodes (g/make-node world DependencyNode) (g/make-node world DependencyNode))]
         (g/transact [(g/connect node0 :out-from-in node1 :in)
                      (g/connect node1 :out-from-in node0 :in)])
-        (is (thrown? AssertionError (g/node-value node1 :out-from-in)))))))
+        (is (thrown? ExceptionInfo (g/node-value node1 :out-from-in)))))))
 
 (g/defnode BasicNode
   (input basic-input g/Int)

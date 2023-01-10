@@ -29,7 +29,6 @@
             [editor.changes-view :as changes-view]
             [editor.code.data :refer [CursorRange->line-number]]
             [editor.console :as console]
-            [editor.core :as core]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
@@ -75,13 +74,15 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :refer [first-where]]
             [service.log :as log]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util]
             [service.smoke-log :as slog])
-  (:import [com.defold.editor Editor]
+  (:import [clojure.lang ExceptionInfo]
+           [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
@@ -791,14 +792,9 @@
                                 :text "If the engine is already running, shut down the process manually and retry"}]}
            :content (.getMessage e)})))))
 
-(defn- owning-resource [basis node-id]
-  (when-some [owning-resource-node-id (core/scope-of-type basis node-id resource-node/ResourceNode)]
-    (resource-node/resource basis owning-resource-node-id)))
-
-(defn- get-cycle-detected-help-message
-  [node-id]
+(defn- get-cycle-detected-help-message [node-id]
   (let [basis (g/now)
-        proj-path (some-> (owning-resource basis node-id) resource/proj-path)
+        proj-path (some-> (resource-node/owner-resource basis node-id) resource/proj-path)
         resource-path (or proj-path "'unknown'")]
     (case (g/node-type-kw basis node-id)
       :editor.collection/CollectionNode
@@ -819,7 +815,7 @@
     (try
       (ui/with-progress [render-progress! render-progress!]
         (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
-      (catch clojure.lang.ExceptionInfo e
+      (catch ExceptionInfo e
         (if (= :cycle-detected (-> e ex-data :cause))
           (ui/run-later
             (dialogs/make-info-dialog
@@ -828,7 +824,7 @@
                :header "Cyclic resource dependency detected"
                :content {:fx/type fxui/label
                          :style-class "dialog-content-padding"
-                         :text (get-cycle-detected-help-message (-> e ex-data :node-id))}}))
+                         :text (get-cycle-detected-help-message (-> e ex-data :endpoint gt/endpoint-node-id))}}))
           (error-reporting/report-exception! e)))
       (catch Throwable error
         (error-reporting/report-exception! error)
