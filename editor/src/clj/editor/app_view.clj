@@ -811,6 +811,7 @@
       (format "This is caused by two or more Lua modules required in a loop. One of the involved resources is: %s." resource-path)
 
       (format "This is caused by two or more resources referenced in a loop. One of the involved resources is: %s." resource-path))))
+
 (defn- build-project!
   [project evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
