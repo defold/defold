@@ -796,7 +796,7 @@
     (resource-node/resource basis owning-resource-node-id)))
 
 (defn- get-cycle-detected-help-message
-  [node-type-name node-id]
+  [node-id]
   (let [basis (g/now)
         proj-path (some-> (owning-resource basis node-id) resource/proj-path)
         resource-path (or proj-path "'unknown'")]
