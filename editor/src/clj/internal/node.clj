@@ -1338,7 +1338,7 @@
     (throw (ex-info (format "Cycle detected on node type %s and output %s"
                       (node-type-name node-id evaluation-context)
                       label)
-                    {:cause "cycle-detected"
+                    {:cause :cycle-detected
                      :node-type-name (node-type-name node-id evaluation-context)
                      :node-id node-id}))
     (update evaluation-context :in-production conj (gt/endpoint node-id label))))
