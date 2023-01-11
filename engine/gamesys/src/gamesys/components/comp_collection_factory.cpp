@@ -400,10 +400,9 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
-    bool CompCollectionFactorySetPrototype(CollectionFactoryComponent* component, CollectionFactoryResource* resource)
+    void CompCollectionFactorySetResource(CollectionFactoryComponent* component, CollectionFactoryResource* resource)
     {
         component->m_CustomResource = resource;
-        return true;
     }
 
 }

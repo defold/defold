@@ -469,7 +469,7 @@ namespace dmGameSystem
 
         if (clear_custom_resource)
         {
-            CompCollectionFactorySetPrototype(component, 0); // reset it to the default factory
+            CompCollectionFactorySetResource(component, 0); // reset it to the default factory
             assert(top == lua_gettop(L));
             return 1;
         }
@@ -492,16 +492,7 @@ namespace dmGameSystem
             }
         }
 
-
-        if (!CompCollectionFactorySetPrototype(component, new_resource))
-        {
-            return luaL_error(L, "Failed to set collection factory prototype to '%s:%s#%s': %s\n",
-                                    dmMessage::GetSocketName(url.m_Socket),
-                                    dmHashReverseSafe64(url.m_Path),
-                                    dmHashReverseSafe64(url.m_Fragment),
-                                    path);
-
-        }
+        CompCollectionFactorySetResource(component, new_resource);
 
         if (old_custom_resource)
         {

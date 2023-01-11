@@ -59,7 +59,7 @@ namespace dmGameSystem
     CollectionFactoryResource*  CompCollectionFactoryGetResource(CollectionFactoryComponent* component);
     CollectionFactoryResource*  CompCollectionFactoryGetDefaultResource(CollectionFactoryComponent* component);
     CollectionFactoryResource*  CompCollectionFactoryGetCustomResource(CollectionFactoryComponent* component);
-    bool                        CompCollectionFactorySetPrototype(CollectionFactoryComponent* component, CollectionFactoryResource* resource);
+    void                        CompCollectionFactorySetResource(CollectionFactoryComponent* component, CollectionFactoryResource* resource);
 }
 
 #endif
