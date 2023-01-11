@@ -204,7 +204,7 @@
   [gl user-data renderables]
   (let [font-data (get-in user-data [:text-data :font-data])
         text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
-                                         alpha (* (get-in user-data [:color 3]) (get-in text-data [:color 3]))]
+                                         alpha (get-in (:user-data r) [:color 3])]
                                      (-> text-data
                                          (assoc :world-transform (:world-transform r))
                                          (update-in [:color 3] * alpha)
