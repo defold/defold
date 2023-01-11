@@ -184,14 +184,16 @@
                   :lines (second proj-path+full-lines)
                   :resource-ext (resource/type-ext resource)}})])
 
-(def ^:private include-pattern #"^\s*#include \s*\"([^\"]+?)\"\s*$")
+(def ^:private include-pattern #"^\s*\#include\s+(?:<([^\"<>]+)>|\"([^\"<>]+)\")\s*(?:\/\/.*)?$")
 
 (defn- try-parse-include [^String line]
   ;; #include "../shaders/light.glsl" -> "../shaders/light.glsl"
   (->> line
        (re-seq include-pattern)
        (first)
-       (second)))
+       (drop 1)
+       (filter (complement nil?))
+       (first)))
 
 (defn- try-parse-included-proj-path [base-resource ^String line]
   (some->> (try-parse-include line)
@@ -254,7 +256,7 @@
                                  (get project-settings ["shader" "output_spirv"] false)))
 
   (output build-targets g/Any :cached produce-build-targets)
-  (output proj-path->full-lines g/Any :cached (g/fnk [included-proj-paths+full-lines]
+  (output proj-path->full-lines g/Any (g/fnk [included-proj-paths+full-lines]
                                                 (into {} included-proj-paths+full-lines)))
   (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
   (output full-source g/Str :cached produce-full-source))

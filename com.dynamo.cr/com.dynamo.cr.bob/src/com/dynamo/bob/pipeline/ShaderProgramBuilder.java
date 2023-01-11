@@ -58,11 +58,11 @@ import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
-public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler> {
+public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     @Override
-    public Task<ShaderIncludeCompiler> create(IResource input) throws IOException, CompileExceptionError {
+    public Task<ShaderPreprocessor> create(IResource input) throws IOException, CompileExceptionError {
 
-        Task.TaskBuilder<ShaderIncludeCompiler> taskBuilder = Task.<ShaderIncludeCompiler>newBuilder(this)
+        Task.TaskBuilder<ShaderPreprocessor> taskBuilder = Task.<ShaderPreprocessor>newBuilder(this)
             .setName(params.name())
             .addInput(input);
 
@@ -70,15 +70,15 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler
         String source     = new String(input.getContent(), StandardCharsets.UTF_8);
         String projectDir = this.project.getRootDirectory();
 
-        ShaderIncludeCompiler includeCompiler = new ShaderIncludeCompiler(this.project, input.getPath(), source);
-        String[] includes = includeCompiler.getIncludes();
+        ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
+        String[] includes = shaderPreprocessor.getIncludes();
 
         for (String path : includes) {
             taskBuilder.addInput(this.project.getResource(path));
         }
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
-        taskBuilder.setData(includeCompiler);
+        taskBuilder.setData(shaderPreprocessor);
 
         return taskBuilder.build();
     }
@@ -469,14 +469,14 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler
         return builder;
     }
 
-    public ShaderDesc compile(ShaderIncludeCompiler includeCompiler, ES2ToES3Converter.ShaderType shaderType, IResource resource,
+    public ShaderDesc compile(ShaderPreprocessor shaderPreprocessor, ES2ToES3Converter.ShaderType shaderType, IResource resource,
         String resourceOutput, String platform, boolean isDebug, boolean outputSpirv, boolean soft_fail) throws IOException, CompileExceptionError {
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 
         // Build platform specific shader targets (e.g SPIRV, MSL, ..)
         Platform platformKey = Platform.get(platform);
         if(platformKey != null) {
-            String shaderSource = includeCompiler.getCompiledSource();
+            String shaderSource = shaderPreprocessor.getCompiledSource();
 
             switch(platformKey) {
                 case X86_64MacOS:
@@ -608,9 +608,9 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderIncludeCompiler
 
            String source = new String(inBytes, StandardCharsets.UTF_8);
            Project project = new Project(new DefaultFileSystem());
-           ShaderIncludeCompiler includeCompiler = new ShaderIncludeCompiler(project, args[0], source);
+           ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, args[0], source);
 
-           ShaderDesc shaderDesc = compile(includeCompiler,
+           ShaderDesc shaderDesc = compile(shaderPreprocessor,
                 shaderType, null, args[1], cmd.getOptionValue("platform", ""),
                 cmd.getOptionValue("variant", "").equals("debug") ? true : false, true, false);
            shaderDesc.writeTo(os);

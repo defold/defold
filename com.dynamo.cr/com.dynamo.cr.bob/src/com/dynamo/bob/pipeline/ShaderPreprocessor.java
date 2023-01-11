@@ -1,7 +1,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -17,10 +17,10 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 
-/* ShaderIncludeCompiler
+/* ShaderPreprocessor
  * ========================
  * This class contains functionality to support #include "path-to-file" directives from shader files.
- * Includes must be in double quotes, <> and '' are currently not supported, and the included file
+ * Includes must be in double quotes or <> brackets, and the included file
  * must have the .glsl extension since the snippets must be picked up by bob during the build process.
  * During tree creation, the tree will be checked for cycles since we will end up in an endless loop otherwise
  * when building the tree.
@@ -28,22 +28,22 @@ import com.dynamo.bob.pipeline.ShaderUtil.Common;
  * Relative and absolute paths are supported and must be project relative, examples:
  *
  * #include "/path/to/absolute-file.glsl"
- * #include "file-in-same-dir.glsl"
+ * #include <file-in-same-dir.glsl>
  * #include "path/to/sub-folder-file.glsl"
  * #include "../file-in-parent-dir.glsl"
  *
  */
-public class ShaderIncludeCompiler {
+public class ShaderPreprocessor {
     // Compiler state
     private Project     project;
     private String      sourcePath;
     private IncludeNode root;
 
     private class IncludeNode {
-        public String                       path;
-        public String                       source;
-        public IncludeNode                  parent;
-        public HashMap<String, IncludeNode> children = new HashMap<String, IncludeNode>();
+        public String                             path;
+        public String                             source;
+        public IncludeNode                        parent;
+        public LinkedHashMap<String, IncludeNode> children = new LinkedHashMap<String, IncludeNode>();
     };
 
     private class IncludeDirectiveTreeIterator implements Iterator<IncludeNode> {
@@ -82,10 +82,10 @@ public class ShaderIncludeCompiler {
         }
     }
 
-    public ShaderIncludeCompiler(Project project, String fromPath, String fromSource) throws IOException, CompileExceptionError {
-        this.project         = project;
-        this.sourcePath      = fromPath;
-        this.root            = buildShaderIncludeTree(null, fromPath, Common.stripComments(fromSource));
+    public ShaderPreprocessor(Project project, String fromPath, String fromSource) throws IOException, CompileExceptionError {
+        this.project    = project;
+        this.sourcePath = fromPath;
+        this.root       = buildShaderIncludeTree(null, fromPath, Common.stripComments(fromSource));
     }
 
     public String[] getIncludes() {
@@ -114,8 +114,8 @@ public class ShaderIncludeCompiler {
             }
 
             String compiledNode                       = "\n" + String.join("\n", stringBuffer);
-            String includeReplaceIncludeDirectivesStr = String.format(Common.includeDirectiveReplaceBaseStr, ".*");
-            String nodePatternReplaceDataStr          = String.format(Common.includeDirectiveReplaceBaseStr, child.getKey());
+            String includeReplaceIncludeDirectivesStr = String.format(Common.includeDirectiveReplaceBaseStr, ".*", ".*");
+            String nodePatternReplaceDataStr          = String.format(Common.includeDirectiveReplaceBaseStr, child.getKey(), child.getKey());
 
             compiledNode = compiledNode.replaceAll(includeReplaceIncludeDirectivesStr, "");
             source       = source.replaceAll(nodePatternReplaceDataStr, compiledNode);
@@ -167,6 +167,13 @@ public class ShaderIncludeCompiler {
         return Common.stripComments(resData);
     }
 
+    private String getPathFromMatcher(Matcher includeMatcher)
+    {
+        String fromBrackets  = includeMatcher.group("pathbrackets");
+        String fromQuotes    = includeMatcher.group("pathquotes");
+        return fromBrackets == null ? fromQuotes : fromBrackets;
+    }
+
     private IncludeNode buildShaderIncludeTree(IncludeNode parent, String fromPath, String fromSource) throws IOException, CompileExceptionError {
 
         IncludeNode newIncludeNode = new IncludeNode();
@@ -178,7 +185,15 @@ public class ShaderIncludeCompiler {
         for (String line : lines) {
             Matcher includeMatcher = Common.includeDirectivePattern.matcher(line);
             if(includeMatcher.find()) {
-                String path                = includeMatcher.group("path");
+                String path                = getPathFromMatcher(includeMatcher); // includeMatcher.group("path");
+
+                System.out.println("PATH: " + path);
+
+                if (path == null)
+                {
+                    System.out.println(line);
+                }
+
                 String projectRelativePath = toProjectRelativePath(fromPath, path);
 
                 if (projectRelativePath.equals(fromPath))
@@ -194,8 +209,10 @@ public class ShaderIncludeCompiler {
                     {
                         throw new CompileExceptionError(tmp.path + " has a cyclic dependency with " + fromPath);
                     }
-                    tmp = parent.parent;
+                    tmp = tmp.parent;
                 }
+
+                System.out.println("Found include in " + fromPath + " to " + projectRelativePath);
 
                 newIncludeNode.children.put(path,
                     buildShaderIncludeTree(newIncludeNode, projectRelativePath, getIncludeData(projectRelativePath)));

@@ -22,7 +22,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.ShaderIncludeCompiler;
+import com.dynamo.bob.pipeline.ShaderPreprocessor;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -33,14 +33,14 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
     private boolean soft_fail = true;
 
     @Override
-    public void build(Task<ShaderIncludeCompiler> task) throws IOException, CompileExceptionError {
+    public void build(Task<ShaderPreprocessor> task) throws IOException, CompileExceptionError {
         List<IResource> inputs                = task.getInputs();
         IResource in                          = inputs.get(0);
-        ShaderIncludeCompiler includeCompiler = task.getData();
+        ShaderPreprocessor shaderPreprocessor = task.getData();
 
         boolean isDebug       = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
         boolean outputSpirv   = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
-        ShaderDesc shaderDesc = compile(includeCompiler,
+        ShaderDesc shaderDesc = compile(shaderPreprocessor,
             SHADER_TYPE, in, task.getOutputs().get(0).getPath(),
             project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
         task.output(0).setContent(shaderDesc.toByteArray());
