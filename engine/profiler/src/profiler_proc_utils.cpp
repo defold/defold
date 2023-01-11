@@ -97,7 +97,7 @@ static int ParseCpuCount()
             if (result == EOF)
             {
                     break;
-            } else
+            }
             if (result != 1) // discard the line
             {
                     result = fscanf(fp, "%4095[^\n]\n", buffer);
@@ -114,7 +114,7 @@ static int ParseCpuCount()
     return max_cpuid; // in case no processor is detected, 0 is returned
 }
 
-long int VirtualTotalCpuUsageDelta(uint64_t interval_us)
+static long int VirtualTotalCpuUsageDelta(uint64_t interval_us)
 {
     // lazily initialize processor count
     if (_cpu_count == -1)

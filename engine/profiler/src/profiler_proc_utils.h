@@ -19,11 +19,8 @@
 
 namespace dmProfilerExt {
     /**
-     * Call to sample CPU usage from proc in intevals.
-     *
-     * Parameters
-     *
-     * boolean use_virtual_metric - If true it will guess the usage denominator from interval duration and cpu count. Otherwise, sum jiffies from /proc/stat.
+     * Call to sample CPU usage from proc in intervals.
+     * @param use_virtual_metric If true it will guess the usage denominator from interval duration and cpu count. Otherwise, sum jiffies from /proc/stat.
      */
     void SampleProcCpuUsage(bool use_virtual_metric);
 
