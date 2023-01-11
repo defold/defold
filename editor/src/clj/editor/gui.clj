@@ -1770,13 +1770,13 @@
                                          (->> node-msgs
                                               (sort-by #(get-in % [0 :child-index]))
                                               flatten
-                                              (map #(dissoc % :child-index)))))
+                                              (mapv #(dissoc % :child-index)))))
   (input node-rt-msgs g/Any :array)
   (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs]
                                             (->> node-rt-msgs
                                                  (sort-by #(get-in % [0 :child-index]))
                                                  flatten
-                                                 (map #(dissoc % :child-index)))))
+                                                 (mapv #(dissoc % :child-index)))))
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids IDMap :array)
@@ -2282,7 +2282,7 @@
   (input font-msgs g/Any :array)
   (input texture-msgs g/Any :array)
   (input layer-msgs g/Any)
-  (output layer-msgs g/Any (g/fnk [layer-msgs] (map #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
+  (output layer-msgs g/Any (g/fnk [layer-msgs] (mapv #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
   (input layout-msgs g/Any :array)
   (input layout-rt-msgs g/Any :array)
   (input particlefx-resource-msgs g/Any :array)
@@ -2704,9 +2704,14 @@
                       (for [layout-desc (:layouts scene)
                             :let [layout-desc (-> layout-desc
                                                   (select-keys prop-keys)
-                                                  (update :nodes (fn [nodes] (->> nodes
-                                                                                  (map (fn [v] [(:id v) (-> v extract-overrides convert-node-desc)]))
-                                                                                  (into {})))))]]
+                                                  (update :nodes (fn [nodes]
+                                                                   (into {}
+                                                                         (map (fn [node-desc]
+                                                                                (pair (:id node-desc)
+                                                                                      (-> node-desc
+                                                                                          convert-node-desc
+                                                                                          extract-overrides))))
+                                                                         nodes))))]]
                         (g/make-nodes graph-id [layout [LayoutNode (dissoc layout-desc :nodes)]]
                                       (attach-layout self layouts-node layout)
                                       (g/set-property layout :nodes (:nodes layout-desc))))))
