@@ -15,6 +15,8 @@
 package com.dynamo.bob.pipeline;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
+
+import com.dynamo.bob.bundle.BundleHelper;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 
@@ -37,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -797,6 +800,13 @@ public class ExtenderUtil {
         }
     }
 
+    private static boolean isBinZip(String resourcePath) {
+        return resourcePath.endsWith("plugins/bin/common.zip") || Stream
+                .of(Platform.X86_64MacOS, Platform.X86_64Linux, Platform.X86_64Win32)
+                .flatMap(platform -> Stream.of(platform.getPair(), platform.getOs()))
+                .anyMatch(platformOption -> resourcePath.endsWith("plugins/bin/" + platformOption + ".zip"));
+    }
+
     public static void storeResources(File targetDirectory, List<IResource> resources) throws CompileExceptionError {
         for (IResource resource : resources) {
             String relativePath = resource.getPath();
@@ -814,7 +824,12 @@ public class ExtenderUtil {
             try {
                 byte[] data = resource.getContent();
                 FileUtils.writeByteArrayToFile(outputFile, data);
-                if (relativePath.startsWith("plugins/bin/") || relativePath.contains("/plugins/bin/")) {
+                // if file ends with plugins/bin/{platform}.zip, extract it too
+                if (isBinZip(relativePath)) {
+                    String fileName = outputFile.getName();
+                    File binDir = new File(outputFile.getParent(), fileName.substring(0, fileName.length() - 4));
+                    BundleHelper.unzip(new FileInputStream(outputFile), binDir.toPath());
+                } else if (relativePath.startsWith("plugins/bin/") || relativePath.contains("/plugins/bin/")) {
                     outputFile.setExecutable(true);
                 }
             } catch (Exception e) {
