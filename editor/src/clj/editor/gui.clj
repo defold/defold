@@ -204,9 +204,10 @@
   [gl user-data renderables]
   (let [font-data (get-in user-data [:text-data :font-data])
         text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
-                                         alpha (get-in text-data [:color 3])]
+                                         alpha (* (get-in user-data [:color 3]) (get-in text-data [:color 3]))]
                                      (-> text-data
                                          (assoc :world-transform (:world-transform r))
+                                         (update-in [:color 3] * alpha)
                                          (update-in [:outline 3] * alpha)
                                          (update-in [:shadow 3] * alpha))))
                            renderables)
@@ -1037,7 +1038,7 @@
   ;; Overloaded outputs
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [size font font-shaders pivot text-data]
+          (g/fnk [size font font-shaders pivot text-data color+alpha]
                  (let [[w h] size
                        offset (pivot-offset pivot size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
@@ -1051,22 +1052,23 @@
                    ;; Instead, the base VisualNode will pick it up from here.
                    {:line-data lines
                     :text-data text-data
+                    :color color+alpha
                     :override-material-shader font-shader
                     :renderable-tags #{:gui-text}})))
   (output text-layout g/Any :cached (g/fnk [size font-data text line-break text-leading text-tracking]
                                            (font/layout-text (:font-map font-data) text line-break (first size) text-tracking text-leading)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot text-leading text-tracking]
-                                        (cond-> {:text-layout text-layout
-                                                 :font-data font-data
-                                                 :color (assoc color 3 alpha)
-                                                 :outline (assoc outline 3 outline-alpha)
-                                                 :shadow (assoc shadow 3 shadow-alpha)
-                                                 :align (pivot->h-align pivot)}
-                                          font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
-                                                                         h (second aabb-size)]
-                                                                     [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot]
+                                   (cond-> {:text-layout text-layout
+                                            :font-data font-data
+                                            :color (assoc color 3 alpha)
+                                            :outline (assoc outline 3 outline-alpha)
+                                            :shadow (assoc shadow 3 shadow-alpha)
+                                            :align (pivot->h-align pivot)}
+                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
+                                                                          h (second aabb-size)]
+                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-visual-node font font-names]
                                    (g/package-errors _node-id
                                                      build-errors-visual-node
