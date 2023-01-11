@@ -74,13 +74,15 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :refer [first-where]]
             [service.log :as log]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util]
             [service.smoke-log :as slog])
-  (:import [com.defold.editor Editor]
+  (:import [clojure.lang ExceptionInfo]
+           [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
@@ -790,6 +792,22 @@
                                 :text "If the engine is already running, shut down the process manually and retry"}]}
            :content (.getMessage e)})))))
 
+(defn- get-cycle-detected-help-message [node-id]
+  (let [basis (g/now)
+        proj-path (some-> (resource-node/owner-resource basis node-id) resource/proj-path)
+        resource-path (or proj-path "'unknown'")]
+    (case (g/node-type-kw basis node-id)
+      :editor.collection/CollectionNode
+      (format "This is caused by a two or more collections referenced in a loop from either collection proxies or collection factories. One of the resources is: %s." resource-path)
+
+      :editor.game-object/GameObjectNode
+      (format "This is caused by two or more game objects referenced in a loop from game object factories. One of the resources is: %s." resource-path)
+
+      :editor.code.script/ScriptNode
+      (format "This is caused by two or more Lua modules required in a loop. One of the resources is: %s." resource-path)
+
+      (format "This is caused by two or more resources referenced in a loop. One of the resources is: %s." resource-path))))
+
 (defn- build-project!
   [project evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
@@ -797,6 +815,17 @@
     (try
       (ui/with-progress [render-progress! render-progress!]
         (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+      (catch ExceptionInfo e
+        (if (= :cycle-detected (-> e ex-data :cause))
+          (ui/run-later
+            (dialogs/make-info-dialog
+              {:title "Build Error"
+               :icon :icon/triangle-error
+               :header "Cyclic resource dependency detected"
+               :content {:fx/type fxui/label
+                         :style-class "dialog-content-padding"
+                         :text (get-cycle-detected-help-message (-> e ex-data :endpoint gt/endpoint-node-id))}}))
+          (error-reporting/report-exception! e)))
       (catch Throwable error
         (error-reporting/report-exception! error)
         nil))))
