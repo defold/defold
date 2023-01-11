@@ -20,6 +20,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/gameobject/script.h>
 #include <gameobject/script.h>
 
 #include "gamesys.h"
@@ -79,16 +80,11 @@ namespace dmGameSystem
      * @name factory.STATUS_LOADED
      * @variable
      */
-    int FactoryComp_GetStatus(lua_State* L)
+    static int FactoryComp_GetStatus(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-
-        uintptr_t user_data;
-        dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
-        FactoryComponent* component = (FactoryComponent*) user_data;
+        FactoryComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, 0);
 
         dmGameSystem::CompFactoryStatus status = dmGameSystem::CompFactoryGetStatus(component);
         lua_pushinteger(L, (int)status);
@@ -112,21 +108,19 @@ namespace dmGameSystem
      * factory.unload("#factory")
      * ```
      */
-    int FactoryComp_Unload(lua_State* L)
+    static int FactoryComp_Unload(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
-        FactoryComponent* component = (FactoryComponent*) user_data;
+        FactoryComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, 0);
 
         bool success = dmGameSystem::CompFactoryUnload(collection, component);
         if (!success)
         {
-            return luaL_error(L, "Error unloading factory resources");
+            return DM_LUA_ERROR("Error unloading factory resources");
         }
         return 0;
     }
@@ -159,45 +153,40 @@ namespace dmGameSystem
      * factory.load("#factory", function(self, url, result) end)
      * ```
      */
-    int FactoryComp_Load(lua_State* L)
+    static int FactoryComp_Load(lua_State* L)
     {
         int top = lua_gettop(L);
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         if (top < 2 || !lua_isfunction(L, 2))
         {
             return luaL_error(L, "Argument #2 is expected to be completion function.");
         }
 
-        uintptr_t user_data;
-        dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
-        FactoryComponent* component = (FactoryComponent*) user_data;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        if (component->m_Loading) {
+        FactoryComponent* component;
+        dmMessage::URL receiver;
+        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, &receiver);
+
+        if (dmGameSystem::CompFactoryIsLoading(component)) {
             dmLogError("Trying to load factory prototype resource when already loading.");
             return luaL_error(L, "Error loading factory resources");
         }
 
         lua_pushvalue(L, 2);
-        component->m_PreloaderCallbackRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        int callback_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
         dmScript::GetInstance(L);
-        component->m_PreloaderSelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        int self_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
         dmScript::PushURL(L, receiver);
-        component->m_PreloaderURLRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        int url_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-        bool success = dmGameSystem::CompFactoryLoad(collection, component);
+        bool success = dmGameSystem::CompFactoryLoad(collection, component, callback_ref, self_ref, url_ref);
         if (!success)
         {
-            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderCallbackRef);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderSelfRef);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, component->m_PreloaderURLRef);
-
-            component->m_PreloaderCallbackRef = LUA_NOREF;
-            component->m_PreloaderSelfRef = LUA_NOREF;
-            component->m_PreloaderURLRef = LUA_NOREF;
-
+            dmScript::Unref(L, LUA_REGISTRYINDEX, callback_ref);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, self_ref);
+            dmScript::Unref(L, LUA_REGISTRYINDEX, url_ref);
             return luaL_error(L, "Error loading factory resources");
         }
 
@@ -247,17 +236,16 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int FactoryComp_Create(lua_State* L)
+    static int FactoryComp_Create(lua_State* L)
     {
         int top = lua_gettop(L);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
+        FactoryComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, FACTORY_EXT, &user_data, &receiver, 0);
-        FactoryComponent* component = (FactoryComponent*) user_data;
+        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, &receiver);
 
         dmVMath::Point3 position;
         if (top >= 2 && !lua_isnil(L, 2))
@@ -339,8 +327,9 @@ namespace dmGameSystem
                 dmScript::GetInstance(L);
                 int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
                 dmGameObject::HPrototype prototype = CompFactoryGetPrototype(collection, component);
-                dmGameObject::HInstance instance = dmGameObject::Spawn(collection, prototype, component->m_Resource->m_FactoryDesc->m_Prototype,
-                    id, buffer, actual_prop_buffer_size, position, rotation, scale);
+                const char* path = CompFactoryGetPrototypePath(component);
+                dmGameObject::HInstance instance = dmGameObject::Spawn(collection, prototype, path,
+                                                                        id, buffer, actual_prop_buffer_size, position, rotation, scale);
                 if (instance != 0x0)
                 {
                     dmGameObject::AssignInstanceIndex(index, instance);

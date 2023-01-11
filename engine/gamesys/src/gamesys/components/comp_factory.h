@@ -19,33 +19,7 @@
 
 namespace dmGameSystem
 {
-    struct FactoryResource;
-
-    /**
-     * CompFactoryStatus
-     */
-    enum CompFactoryStatus
-    {
-        COMP_FACTORY_STATUS_UNLOADED = 0,//!< COMP_FACTORY_STATUS_UNLOADED
-        COMP_FACTORY_STATUS_LOADING = 1, //!< COMP_FACTORY_STATUS_LOADING
-        COMP_FACTORY_STATUS_LOADED = 2,  //!< COMP_FACTORY_STATUS_LOADED
-    };
-
-    // Visible due to scripting
-    struct FactoryComponent
-    {
-        void Init();
-
-        FactoryResource*    m_Resource;
-
-        dmResource::HPreloader      m_Preloader;
-        int m_PreloaderCallbackRef;
-        int m_PreloaderSelfRef;
-        int m_PreloaderURLRef;
-        uint32_t m_Loading : 1;
-
-        uint32_t m_AddedToUpdate : 1;
-    };
+    struct FactoryComponent;
 
     dmGameObject::CreateResult CompFactoryNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
@@ -61,14 +35,29 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompFactoryOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
-    dmGameObject::HPrototype CompFactoryGetPrototype(dmGameObject::HCollection collection, FactoryComponent* component);
-
     // For scripting
-    bool CompFactoryLoad(dmGameObject::HCollection collection, FactoryComponent* component);
+    struct FactoryResource;
 
-    bool CompFactoryUnload(dmGameObject::HCollection collection, FactoryComponent* component);
+    /**
+     * CompFactoryStatus
+     */
+    enum CompFactoryStatus
+    {
+        COMP_FACTORY_STATUS_UNLOADED = 0,//!< COMP_FACTORY_STATUS_UNLOADED
+        COMP_FACTORY_STATUS_LOADING = 1, //!< COMP_FACTORY_STATUS_LOADING
+        COMP_FACTORY_STATUS_LOADED = 2,  //!< COMP_FACTORY_STATUS_LOADED
+    };
 
-    CompFactoryStatus CompFactoryGetStatus(FactoryComponent* component);
+    dmGameObject::HPrototype CompFactoryGetPrototype(dmGameObject::HCollection collection, FactoryComponent* component);
+    const char*         CompFactoryGetPrototypePath(FactoryComponent* component);
+    bool                CompFactoryLoad(dmGameObject::HCollection collection, FactoryComponent* component, int callback_ref, int self_ref, int url_ref);
+    bool                CompFactoryUnload(dmGameObject::HCollection collection, FactoryComponent* component);
+    CompFactoryStatus   CompFactoryGetStatus(FactoryComponent* component);
+    bool                CompFactoryIsLoading(FactoryComponent* component);
+    bool                CompFactorySetResource(FactoryComponent* component, FactoryResource* resource);
+    FactoryResource*    CompFactoryGetResource(FactoryComponent* component);
+    FactoryResource*    CompFactoryGetDefaultResource(FactoryComponent* component);
+    FactoryResource*    CompFactoryGetCustomResource(FactoryComponent* component);
 }
 
 #endif
