@@ -48,6 +48,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
+            [internal.util :as util]
             [schema.core :as s]
             [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
@@ -829,14 +830,57 @@
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
+(def ^:private size-prop-index (prop-key->prop-index :manual-size))
+
+(def ^:private is-size-prop-index? (partial = size-prop-index))
+
+(def ^:private is-size-mode-prop-index? (partial = (prop-key->prop-index :size-mode)))
+
+(defn- strip-size-from-overridden-fields [overridden-fields]
+  (util/removev is-size-prop-index? overridden-fields))
+
+(defn- add-size-to-overridden-fields [overridden-fields]
+  (vec (sort (conj overridden-fields size-prop-index))))
+
+(defn- strip-size-from-node-desc [node-desc]
+  (-> node-desc
+      (assoc :size [0.0 0.0 0.0 0.0])
+      (update :overridden-fields strip-size-from-overridden-fields)))
+
+(defn- add-size-to-overridden-fields-in-node-desc [node-desc]
+  (update node-desc :overridden-fields add-size-to-overridden-fields))
+
+(defn- strip-unwanted-shape-base-node-fields [node-desc]
+  (let [size-mode (:size-mode node-desc)
+        overridden-fields (:overridden-fields node-desc)]
+    (cond-> node-desc
+
+            ;; We don't want to write image sizes to the files, as it results in
+            ;; a lot of changed files whenever an image changes dimensions.
+            (= :size-mode-auto size-mode)
+            (strip-size-from-node-desc)
+
+            ;; Previously, image sizes were written to the files, but if a node
+            ;; overrode the size-mode of its original, its size field would not
+            ;; be flagged as overridden unless it had diverged from the image
+            ;; size. This was clearly a bug, but now unless we also flag the
+            ;; size field as overridden, the manual size stored in the file will
+            ;; be overwritten by the size of its auto-sized original (which will
+            ;; be zero now that we strip away auto-sized node sizes).
+            (and (= :size-mode-manual size-mode)
+                 (some is-size-mode-prop-index? overridden-fields)
+                 (not-any? is-size-prop-index? overridden-fields))
+            (add-size-to-overridden-fields-in-node-desc))))
+
 (g/defnk produce-shape-base-node-msg [visual-base-node-msg manual-size size-mode texture clipping-mode clipping-visible clipping-inverted]
-  (assoc visual-base-node-msg
-    :size (v3->v4 manual-size)
-    :size-mode size-mode
-    :texture texture
-    :clipping-mode clipping-mode
-    :clipping-visible clipping-visible
-    :clipping-inverted clipping-inverted))
+  (-> visual-base-node-msg
+      (assoc :size (v3->v4 manual-size)
+             :size-mode size-mode
+             :texture texture
+             :clipping-mode clipping-mode
+             :clipping-visible clipping-visible
+             :clipping-inverted clipping-inverted)
+      (strip-unwanted-shape-base-node-fields)))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -2749,13 +2793,17 @@
                 sanitize-node-colors
                 sanitize-node-rotation)
 
-      (= :type-text node-type)
-      ;; These properties are not applicable to text nodes, but might still be stored in files from editor1.
-      (dissoc :clipping-inverted :clipping-mode :clipping-visible :size-mode)
+            (or (= :type-box node-type)
+                (= :type-pie node-type))
+            (strip-unwanted-shape-base-node-fields)
 
-      (= :type-template node-type)
-      ;; These properties are not applicable to template nodes, but might still be stored in files from editor1.
-      (dissoc :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))))
+            (= :type-text node-type)
+            ;; These properties are not applicable to text nodes, but might still be stored in files from editor1.
+            (dissoc :clipping-inverted :clipping-mode :clipping-visible :size-mode)
+
+            (= :type-template node-type)
+            ;; These properties are not applicable to template nodes, but might still be stored in files from editor1.
+            (dissoc :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))))
 
 (def ^:private sanitize-nodes #(mapv sanitize-node %))
 
