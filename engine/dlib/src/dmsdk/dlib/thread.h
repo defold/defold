@@ -35,6 +35,7 @@
  * @document
  * @name Thread
  * @namespace dmThread
+ * @path engine/dlib/src/dmsdk/dlib/thread.h
  */
 
 namespace dmThread
@@ -55,7 +56,8 @@ namespace dmThread
      * Create a thread
      *
      * ```cpp
-     * #include <dmsdk/sdk.h>
+     * #include <stdio.h>
+     * #include <dmsdk/dlib/thread.h>
      *
      * struct Context
      * {

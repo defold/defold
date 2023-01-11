@@ -30,6 +30,7 @@
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/mutex.h>
+#include <dmsdk/dlib/thread.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/graphics/graphics_native.h>
