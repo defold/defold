@@ -19,9 +19,10 @@
 
 namespace dmProfilerExt {
     /**
-     * Call to sample CPU usage from proc in intevals.
+     * Call to sample CPU usage from proc in intervals.
+     * @param use_virtual_metric If true it will guess the usage denominator from interval duration and cpu count. Otherwise, sum jiffies from /proc/stat.
      */
-    void SampleProcCpuUsage();
+    void SampleProcCpuUsage(bool use_virtual_metric);
 
     /**
      * Get current memory usage in bytes from proc (resident/working set) for the process, as reported by OS.
