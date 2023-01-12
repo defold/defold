@@ -115,6 +115,7 @@ public class ArchiveReader {
 	            	if (matchHash(e.hash, resource.getHash().getData().toByteArray(), this.hashLength)) {
 	            		e.fileName = resource.getUrl();
 	            		e.relName = resource.getUrl();
+                        break;
 	            	}
 	            }
             }
