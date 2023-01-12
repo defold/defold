@@ -19,7 +19,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
       { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
+      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'ASAN',
@@ -42,7 +42,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
       { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
+      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install' },
       {
         name: 'ASAN',
@@ -72,7 +72,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v2, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v2, with: { python-version: 3.x, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '11.0.15', distribution: 'microsoft'} },
+      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'microsoft'} },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',

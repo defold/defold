@@ -41,7 +41,7 @@ export JAVA_HOME=<JAVA_INSTALL_PATH>
 export PATH=$JAVA_HOME/bin:$PATH
 ```
 
-*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-11.0.13_8*
+*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-17.0.5_8*
 
 Verify that Java is installed and working:
 
