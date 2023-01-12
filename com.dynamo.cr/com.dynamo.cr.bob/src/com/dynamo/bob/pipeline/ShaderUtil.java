@@ -30,7 +30,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 public class ShaderUtil {
     public static class Common {
         public static final String  regexCommentRemovePattern      = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
-        public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";  //"[^\\S\r\n]?\\s*#include\\s*\"%s\"";
+        public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
         public static String        includeDirectiveBaseStr        = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
         public static final Pattern includeDirectivePattern        = Pattern.compile(includeDirectiveBaseStr);
 

@@ -185,15 +185,7 @@ public class ShaderPreprocessor {
         for (String line : lines) {
             Matcher includeMatcher = Common.includeDirectivePattern.matcher(line);
             if(includeMatcher.find()) {
-                String path                = getPathFromMatcher(includeMatcher); // includeMatcher.group("path");
-
-                System.out.println("PATH: " + path);
-
-                if (path == null)
-                {
-                    System.out.println(line);
-                }
-
+                String path                = getPathFromMatcher(includeMatcher);
                 String projectRelativePath = toProjectRelativePath(fromPath, path);
 
                 if (projectRelativePath.equals(fromPath))
@@ -211,8 +203,6 @@ public class ShaderPreprocessor {
                     }
                     tmp = tmp.parent;
                 }
-
-                System.out.println("Found include in " + fromPath + " to " + projectRelativePath);
 
                 newIncludeNode.children.put(path,
                     buildShaderIncludeTree(newIncludeNode, projectRelativePath, getIncludeData(projectRelativePath)));
