@@ -23,7 +23,7 @@ if [ "${OS}" == "Windows_NT" ]; then
 	if [ "${TERM}" == "cygwin" ]; then
 		PATHSEP=":"
 	else
-		PATHSEP="\\;"
+		PATHSEP=";"
 	fi
 fi
 
