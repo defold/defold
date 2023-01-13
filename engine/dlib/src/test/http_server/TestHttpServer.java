@@ -26,7 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
-import org.eclipse.jetty.http.HttpHeaders;
+import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Request;
@@ -35,22 +35,29 @@ import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.server.handler.HandlerList;
 import org.eclipse.jetty.server.handler.ResourceHandler;
-import org.eclipse.jetty.server.bio.SocketConnector;
-import org.eclipse.jetty.server.ssl.SslSocketConnector;
+
+import org.eclipse.jetty.server.Connector;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.jetty.server.HttpConnection;
 
 
-class TestSslSocketConnector extends SslSocketConnector
+class TestSslSocketConnector extends ServerConnector
 {
-	@Override
-	public void accept(int acceptorID) throws IOException, InterruptedException
-	{
+    public TestSslSocketConnector(Server server, SslContextFactory.Server sslContextFactory) {
+        super(server, sslContextFactory);
+    }
+
+    @Override
+    public void accept(int acceptorID) throws IOException
+    {
         try {
             Thread.sleep(10000); // milliseconds
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
         super.accept(acceptorID);
-	}
+    }
 }
 
 public class TestHttpServer extends AbstractHandler
@@ -120,15 +127,15 @@ public class TestHttpServer extends AbstractHandler
         }
     }
 
-    private void debugHeaders(HttpServletRequest request) {
-        System.out.printf("HEADERS:\n");
-        Enumeration headerNames = request.getHeaderNames();
-        while (headerNames.hasMoreElements()) {
-            String key = (String) headerNames.nextElement();
-            String value = request.getHeader(key);
-            System.out.printf("HEADER:  %s: %s\n", key, value);
-        }
-    }
+    // private void debugHeaders(HttpServletRequest request) {
+    //     System.out.printf("HEADERS:\n");
+    //     Enumeration headerNames = request.getHeaderNames();
+    //     while (headerNames.hasMoreElements()) {
+    //         String key = (String) headerNames.nextElement();
+    //         String value = request.getHeader(key);
+    //         System.out.printf("HEADER:  %s: %s\n", key, value);
+    //     }
+    // }
 
     public void handle(String target,
                        Request baseRequest,
@@ -190,10 +197,10 @@ public class TestHttpServer extends AbstractHandler
         {
             String id = cachedm.group(1);
             String tag = String.format("W/\"A TAG " + id + "\"");
-            response.setHeader(HttpHeaders.ETAG, tag);
+            response.setHeader(HttpHeader.ETAG.asString(), tag);
             int status = HttpServletResponse.SC_OK;
 
-            String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
+            String ifNoneMatch = request.getHeader(HttpHeader.IF_NONE_MATCH.asString());
             if (ifNoneMatch != null) {
                 if (ifNoneMatch.equals(tag)) {
                     baseRequest.setHandled(true);
@@ -215,10 +222,10 @@ public class TestHttpServer extends AbstractHandler
         else if (target.startsWith("/tmp/http_files"))
         {
             String tag = String.format("W/\"" + calculateSHA1(new File(target.substring(1))) + "\"");
-            response.setHeader(HttpHeaders.ETAG, tag);
+            response.setHeader(HttpHeader.ETAG.asString(), tag);
             int status = HttpServletResponse.SC_OK;
 
-            String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
+            String ifNoneMatch = request.getHeader(HttpHeader.IF_NONE_MATCH.asString());
             if (ifNoneMatch != null) {
                 if (ifNoneMatch.equals(tag)) {
                     baseRequest.setHandled(true);
@@ -300,7 +307,7 @@ public class TestHttpServer extends AbstractHandler
             response.getWriter().print("will close connection now.");
             response.setStatus(HttpServletResponse.SC_OK);
         } else if (closem.matches()) {
-            java.net.Socket socket = (java.net.Socket) baseRequest.getConnection().getEndPoint().getTransport();
+            java.net.Socket socket = (java.net.Socket) HttpConnection.getCurrentConnection().getHttpChannel().getEndPoint().getTransport();
             socket.setSoTimeout(1);
             socket.close();
         } else if (sleepm.matches()) {
@@ -321,22 +328,22 @@ public class TestHttpServer extends AbstractHandler
         try
         {
             Server server = new Server();
-            SocketConnector connector = new SocketConnector();
-            connector.setMaxIdleTime(1000);
+            
+            ServerConnector connector = new ServerConnector(server);
+            connector.setIdleTimeout(1000); // millis
             server.addConnector(connector);
 
-            SslSocketConnector sslConnector = new SslSocketConnector();
-            sslConnector.setHandshakeTimeout(1000);
-            sslConnector.setMaxIdleTime(1000);
-            sslConnector.setKeystore("src/test/data/keystore");
-            sslConnector.setKeyPassword("defold");
+            SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
+            sslContextFactory.setSslSessionTimeout(1); // seconds§  
+            sslContextFactory.setKeyStorePath("src/test/data/keystore");
+            sslContextFactory.setKeyStorePassword("defold");
+
+            ServerConnector sslConnector = new ServerConnector(server, sslContextFactory);
+            sslConnector.setIdleTimeout(1000); // millis
             server.addConnector(sslConnector);
 
-            TestSslSocketConnector testsslConnector = new TestSslSocketConnector();
-            testsslConnector.setHandshakeTimeout(1000);
-            testsslConnector.setMaxIdleTime(1000);
-            testsslConnector.setKeystore("src/test/data/keystore");
-            testsslConnector.setKeyPassword("defold");
+            TestSslSocketConnector testsslConnector = new TestSslSocketConnector(server, sslContextFactory);
+            testsslConnector.setIdleTimeout(1000); // millis
             server.addConnector(testsslConnector);
 
             HandlerList handlerList = new HandlerList();
@@ -348,16 +355,16 @@ public class TestHttpServer extends AbstractHandler
                     if (baseRequest.isHandled())
                         return;
 
-                    String ifNoneMatch = request.getHeader(HttpHeaders.IF_NONE_MATCH);
+                    String ifNoneMatch = request.getHeader(HttpHeader.IF_NONE_MATCH.asString());
                     if (ifNoneMatch != null) {
-                        Resource resource = getResource(request);
+                        Resource resource = getResource(request.getServletPath());
                         if (resource != null && resource.exists()) {
                             File file = resource.getFile();
                             if (file != null) {
                                 String thisEtag = String.format("%d", file.lastModified());
                                 if (ifNoneMatch.equals(thisEtag)) {
                                     baseRequest.setHandled(true);
-                                    response.setHeader(HttpHeaders.ETAG, thisEtag);
+                                    response.setHeader(HttpHeader.ETAG.asString(), thisEtag);
                                     response.setStatus(HttpStatus.NOT_MODIFIED_304);
                                     return;
                                 }
@@ -368,21 +375,21 @@ public class TestHttpServer extends AbstractHandler
                     super.handle(target, baseRequest, request, response);
                 }
 
-                @Override
-                protected void doResponseHeaders(HttpServletResponse response,
-                        Resource resource,
-                        String mimeType) {
-                    super.doResponseHeaders(response, resource, mimeType);
-                    try {
-                        File file = resource.getFile();
-                        if (file != null) {
-                            response.setHeader(HttpHeaders.ETAG, String.format("%d", file.lastModified()));
-                        }
-                    }
-                    catch(IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
+            //     @Override
+            //     protected void doResponseHeaders(HttpServletResponse response,
+            //             Resource resource,
+            //             String mimeType) {
+            //         super.doResponseHeaders(response, resource, mimeType);
+            //         try {
+            //             File file = resource.getFile();
+            //             if (file != null) {
+            //                 response.setHeader(HttpHeader.ETAG.asString(), String.format("%d", file.lastModified()));
+            //             }
+            //         }
+            //         catch(IOException e) {
+            //             throw new RuntimeException(e);
+            //         }
+            //     }
             };
             resourceHandler.setResourceBase(".");
             handlerList.addHandler(resourceHandler);
@@ -390,16 +397,23 @@ public class TestHttpServer extends AbstractHandler
 
             server.start();
 
-            for (int i = 0; i < server.getConnectors().length; ++i) {
-                int port = server.getConnectors()[i].getLocalPort();
-                // Early exit if any of the connectors is not opened or closed.
-                if (port == -1)  {
-                    System.out.println("ERROR: Connector " + i + " is not opened!");
-                    return;
-                } else if (port == -2)  {
-                    System.out.println("ERROR: Connector " + i + " is closed!");
-                    return;
-                }
+            final Connector[] connectors = server.getConnectors();
+            int port = ((ServerConnector)connectors[0]).getLocalPort();
+            int port_ssl = ((ServerConnector)connectors[1]).getLocalPort();
+            int port_ssl_test = ((ServerConnector)connectors[2]).getLocalPort();
+
+            // Early exit if any of the connectors is not opened or closed.
+            if ((port == -1) || (port == -2)) {
+                System.out.println("ERROR: Connector 0 is not opened or closed!");
+                return;
+            }
+            if ((port_ssl == -1) || (port_ssl == -2)) {
+                System.out.println("ERROR: Connector 1 is not opened or closed!");
+                return;
+            }
+            if ((port_ssl_test == -1) || (port_ssl_test == -2)) {
+                System.out.println("ERROR: Connector 2 is not opened or closed!");
+                return;
             }
 
             try {
@@ -409,9 +423,9 @@ public class TestHttpServer extends AbstractHandler
                 PrintWriter writer = new PrintWriter(tempname, "UTF-8");
                 writer.println("# These are the sockets the test server currently listens to");
                 writer.println("[server]");
-                writer.println(String.format("socket=%d", server.getConnectors()[0].getLocalPort()));
-                writer.println(String.format("socket_ssl=%d", server.getConnectors()[1].getLocalPort()));
-                writer.println(String.format("socket_ssl_test=%d", server.getConnectors()[2].getLocalPort()));
+                writer.println(String.format("socket=%d", port));
+                writer.println(String.format("socket_ssl=%d", port_ssl));
+                writer.println(String.format("socket_ssl_test=%d", port_ssl_test));
                 writer.close();
 
                 File tempfile = new File(tempname);

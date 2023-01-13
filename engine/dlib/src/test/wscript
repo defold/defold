@@ -89,8 +89,9 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     test.env['JS_LIB_PATHS'] = js_lib_paths
 
 def configure(conf):
-    conf.env.append_value('CLASSPATH', '../ext/jetty-all-7.0.2.v20100331.jar')
-    conf.env.append_value('CLASSPATH', '../ext/servlet-api-2.5.jar')
+    conf.env.append_value('CLASSPATH', '../ext/*')
+    conf.env.append_value('CLASSPATH', '../ext/jetty/*')
+    conf.env.append_value('CLASSPATH', '../ext/jetty/logging/*')
 
 def build(bld):
     bld(features='javac seq',
