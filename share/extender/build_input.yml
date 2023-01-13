@@ -250,9 +250,9 @@ platforms:
   armv7-android:
     env:
         PROGUARD:               "{{env.ANDROID_PROGUARD}}"
-        LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR}}"
+        LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR_33}}"
         NDK_PATH:               "{{env.ANDROID_NDK25_PATH}}"
-        PATH:                   "{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
+        PATH:                   "{{ANDROID_SDK_BUILD_TOOLS_PATH_33}}:{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
         SYSROOT:                "{{env.ANDROID_NDK25_SYSROOT}}"
         NDK_VERSION:            "{{env.ANDROID_NDK25_API_VERSION}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
@@ -298,9 +298,9 @@ platforms:
   arm64-android:
     env:
         PROGUARD:               "{{env.ANDROID_PROGUARD}}"
-        LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR}}"
+        LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR_33}}"
         NDK_PATH:               "{{env.ANDROID_NDK25_PATH}}"
-        PATH:                   "{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
+        PATH:                   "{{ANDROID_SDK_BUILD_TOOLS_PATH_33}}:{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
         SYSROOT:                "{{env.ANDROID_NDK25_SYSROOT}}"
         NDK_VERSION:            "{{env.ANDROID_64_NDK25_API_VERSION}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
