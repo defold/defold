@@ -31,9 +31,7 @@
 
 (set! *warn-on-reflection* true)
 
-;; HACK: Don't forget to restore the url once we've merged the change into extension-spine.
-;; (defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
-(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/refs/heads/editor-node-msg-avoid-texture-size.zip")
+(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
 
 (def ^:private error-item-open-info-without-opts (comp pop build-errors-view/error-item-open-info))
 
