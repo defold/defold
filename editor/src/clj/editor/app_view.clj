@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -66,6 +66,7 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
+            [editor.sync :as sync]
             [editor.system :as system]
             [editor.targets :as targets]
             [editor.types :as types]
@@ -511,9 +512,10 @@
       (set-pane-visible! scene pane-kw false))))
 
 (handler/defhandler :preferences :global
-  (run [workspace prefs]
+  (run [workspace prefs app-view]
     (prefs-dialog/open-prefs prefs)
-    (workspace/update-build-settings! workspace prefs)))
+    (workspace/update-build-settings! workspace prefs)
+    (ui/invalidate-menubar-item! ::file)))
 
 (defn- collect-resources [{:keys [children] :as resource}]
   (if (empty? children)
@@ -639,8 +641,36 @@
 (defn- report-build-launch-progress! [message]
   (render-main-task-progress! (progress/make message)))
 
-(defn clear-build-launch-progress! []
+(defn- clear-build-launch-progress! []
   (render-main-task-progress! progress/done))
+
+(def ^:private build-in-progress-atom (atom false))
+
+(defn- build-in-progress? []
+  @build-in-progress-atom)
+
+(defn- async-reload-on-app-focus? [prefs]
+  (prefs/get-prefs prefs "external-changes-load-on-app-focus" true))
+
+(defn- can-async-reload? []
+  (and (disk-availability/available?)
+       (not (build-in-progress?))
+       (not (sync/sync-dialog-open?))))
+
+(defn async-reload!
+  [app-view changes-view workspace moved-files]
+  (let [render-reload-progress! (make-render-task-progress :resource-sync)]
+    (disk/async-reload! render-reload-progress! workspace moved-files changes-view
+                        (fn [_success]
+                          (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))
+
+(defn handle-application-focused! [app-view changes-view workspace prefs]
+  (when (and (disk-availability/available?)
+             (not (build-in-progress?)))
+    (clear-build-launch-progress!))
+  (when (and (async-reload-on-app-focus? prefs)
+             (can-async-reload?))
+    (async-reload! app-view changes-view workspace [])))
 
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
@@ -688,11 +718,6 @@
     (catch Exception e
       (report-build-launch-progress! "Reboot failed")
       (throw e))))
-
-(def ^:private build-in-progress-atom (atom false))
-
-(defn build-in-progress? []
-  @build-in-progress-atom)
 
 (defn- on-launched-hook! [project process url]
   (let [hook-options {:exception-policy :ignore :opts {:url url}}]
@@ -776,7 +801,7 @@
         (error-reporting/report-exception! error)
         nil))))
 
-(defn async-build! [project prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
+(defn async-build! [project prefs {:keys [debug? engine? run-build-hooks?] :or {debug? false engine? true run-build-hooks? true}} old-artifact-map render-build-progress! result-fn]
   (let [;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
         ;; can work while we build the project. We will await the results of the
@@ -892,7 +917,9 @@
                   (build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
                 (project/update-system-cache-build-targets! evaluation-context)
-                (phase-4-run-post-build-hook! project-build-results)))))
+                (if run-build-hooks?
+                  (phase-4-run-post-build-hook! project-build-results)
+                  (phase-5-await-engine-build! project-build-results))))))
 
         phase-2-start-engine-build!
         (fn phase-2-start-engine-build! []
@@ -934,7 +961,9 @@
     ;; soon as they can.
     (assert (not @build-in-progress-atom))
     (reset! build-in-progress-atom true)
-    (phase-1-run-pre-build-hook!)))
+    (if run-build-hooks?
+      (phase-1-run-pre-build-hook!)
+      (phase-2-start-engine-build!))))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
   (let [{:keys [error artifact-map etags]} build-results]
@@ -954,7 +983,7 @@
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project prefs {:debug? false :engine? (not skip-engine)} (workspace/artifact-map workspace)
+    (async-build! project prefs {:debug? false :engine? (not skip-engine) :run-build-hooks? true} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (when (handle-build-results! workspace render-build-error! build-results)
@@ -990,7 +1019,7 @@ If you do not specifically require different script states, consider changing th
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
   (let [project-directory (io/file (workspace/project-path workspace))
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
-    (async-build! project prefs {:debug? true :engine? (not skip-engine)} (workspace/artifact-map workspace)
+    (async-build! project prefs {:debug? true :engine? (not skip-engine) :run-build-hooks? true} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (when (handle-build-results! workspace render-build-error! build-results)
@@ -1004,7 +1033,7 @@ If you do not specifically require different script states, consider changing th
                           (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
-  (async-build! project prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
+  (async-build! project prefs {:debug? true :engine? false :run-build-hooks? false} (workspace/artifact-map workspace)
                 (make-render-task-progress :build)
                 (fn [build-results _ _]
                   (when (handle-build-results! workspace render-build-error! build-results)
@@ -1093,7 +1122,7 @@ If you do not specifically require different script states, consider changing th
         old-etags (workspace/etags workspace)
         render-build-progress! (make-render-task-progress :build)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        opts {:debug? false :engine? false}]
+        opts {:debug? false :engine? false :run-build-hooks? false}]
     ;; NOTE: We must build the entire project even if we only want to reload a
     ;; subset of resources in order to maintain a functioning build cache.
     ;; If we decide to support hot reload of a subset of resources, we must
@@ -1311,6 +1340,9 @@ If you do not specifically require different script states, consider changing th
                {:label "Open"
                 :id ::open
                 :command :open}
+               {:label "Load External Changes"
+                :id ::async-reload
+                :command :async-reload}
                {:label "Synchronize..."
                 :id ::synchronize
                 :command :synchronize}
@@ -1890,6 +1922,11 @@ If you do not specifically require different script states, consider changing th
                            (fn [successful?]
                              (when successful?
                                (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))))
+
+(handler/defhandler :async-reload :global
+  (active? [prefs] (not (async-reload-on-app-focus? prefs)))
+  (enabled? [] (can-async-reload?))
+  (run [app-view changes-view workspace] (async-reload! app-view changes-view workspace [])))
 
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection evaluation-context]

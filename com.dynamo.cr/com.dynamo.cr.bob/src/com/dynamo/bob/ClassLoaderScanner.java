@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -69,10 +69,6 @@ public class ClassLoaderScanner implements IClassScanner {
         }
     }
 
-    protected URL resolveURL(URL url) throws IOException {
-        return url;
-    }
-
     // Implemented as a stack
     // The last inserted file takes precedence
     @Override
@@ -100,11 +96,11 @@ public class ClassLoaderScanner implements IClassScanner {
         return classLoader;
     }
 
-    private void scanLoader(ClassLoader classLoader, String pkg, Set<String> classes) {
+    private static void scanLoader(ClassLoader classLoader, String pkg, Set<String> classes) {
         try {
             Enumeration<URL> e = classLoader.getResources(pkg.replace(".", "/"));
             while (e.hasMoreElements()) {
-                URL url = resolveURL(e.nextElement());
+                URL url = e.nextElement();
                 String protocol = url.getProtocol();
                 if (protocol.equals("file")) {
                     File dir = new File(url.getFile());
@@ -118,13 +114,16 @@ public class ClassLoaderScanner implements IClassScanner {
         }
     }
 
+    public static Set<String> scanClassLoader(ClassLoader classLoader, String pkg) {
+        // Called by the editor.
+        Set<String> classes = new HashSet<String>();
+        scanLoader(classLoader, pkg, classes);
+        return classes;
+    }
+
     @Override
     public Set<String> scan(String pkg) {
-        Set<String> classes = new HashSet<String>();
-
         ClassLoader classLoader = getClassLoader();
-        scanLoader(classLoader, pkg, classes);
-
-        return classes;
+        return scanClassLoader(classLoader, pkg);
     }
 }

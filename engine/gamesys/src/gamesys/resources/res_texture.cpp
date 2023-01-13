@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,6 +23,7 @@
 namespace dmGameSystem
 {
     static const uint32_t MAX_MIPMAP_COUNT = 14; // 2^14 => 16384
+
     struct ImageDesc
     {
         dmGraphics::TextureImage* m_DDFImage;
@@ -99,11 +100,6 @@ namespace dmGameSystem
 
             if (dmGraphics::IsFormatTranscoded(image->m_CompressionType))
             {
-                // Note: Requesting an upload of a specific mipmap level is only done in the resource.set_texture function,
-                //       which doesn't support any format that needs to be transcoded. So we should not hit this assert
-                //       but we'll leave this assert as a mental reminder that we need to fix it at some point if we want to support that.
-                assert(!specific_mip_requested);
-
                 num_mips = MAX_MIPMAP_COUNT;
                 output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
                 bool result = dmGraphics::Transcode(path, image, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips);
@@ -198,19 +194,34 @@ namespace dmGameSystem
             // -> See script_resource.cpp::SetTexture
             if (specific_mip_requested)
             {
-                // Note: We don't support transcoded data for uploading specific mipmaps yet
-                assert(image_desc->m_DecompressedData[0] == 0);
-                params.m_Data     = &image->m_Data[image->m_MipMapOffset[0]];
-                params.m_DataSize = image->m_MipMapSize[0];
+                if (image_desc->m_DecompressedData[0] == 0)
+                {
+                    params.m_Data     = &image->m_Data[image->m_MipMapOffset[0]];
+                    params.m_DataSize = image->m_MipMapSize[0];
+                }
+                else
+                {
+                    params.m_Data     = image_desc->m_DecompressedData[0];
+                    params.m_DataSize = image_desc->m_DecompressedDataSize[0];
+                }
                 dmGraphics::SetTextureAsync(texture, params);
             }
             else
             {
                 for (uint32_t i = 0; i < num_mips; ++i)
                 {
-                    params.m_MipMap = i;
-                    params.m_Data = image_desc->m_DecompressedData[i] == 0 ? &image->m_Data[image->m_MipMapOffset[i]] : image_desc->m_DecompressedData[i];
-                    params.m_DataSize = image_desc->m_DecompressedData[i] == 0 ? image->m_MipMapSize[i] : image_desc->m_DecompressedDataSize[i];
+                    if (image_desc->m_DecompressedData[i] == 0)
+                    {
+                        params.m_Data     = &image->m_Data[image->m_MipMapOffset[i]];
+                        params.m_DataSize = image->m_MipMapSize[i];
+                    }
+                    else
+                    {
+                        params.m_Data     = image_desc->m_DecompressedData[i];
+                        params.m_DataSize = image_desc->m_DecompressedDataSize[i];
+                    }
+
+                    params.m_MipMap   = i;
                     dmGraphics::SetTextureAsync(texture, params);
 
                     params.m_Width >>= 1;
@@ -261,7 +272,7 @@ namespace dmGameSystem
         return result;
     }
 
-    static ImageDesc* CreateImage(const char* path, dmGraphics::HContext context, dmGraphics::TextureImage* texture_image)
+    static ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image)
     {
         ImageDesc* image_desc = new ImageDesc;
         memset(image_desc, 0x0, sizeof(ImageDesc));
@@ -289,7 +300,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        ImageDesc* image_desc = CreateImage(params.m_Filename, (dmGraphics::HContext) params.m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
         *params.m_PreloadData = image_desc;
         return dmResource::RESULT_OK;
     }
@@ -333,11 +344,15 @@ namespace dmGameSystem
     {
         ResTextureReCreateParams* recreate_params = (ResTextureReCreateParams*)params.m_Message;
         dmGraphics::TextureImage* texture_image = 0x0;
+
         if (recreate_params)
         {
             texture_image = (dmGraphics::TextureImage*) recreate_params->m_TextureImage;
         }
-        if(!texture_image)
+
+        bool texture_image_raw = texture_image != 0x0;
+
+        if(!texture_image_raw)
         {
             dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
             if ( e != dmDDF::RESULT_OK )
@@ -350,7 +365,7 @@ namespace dmGameSystem
 
         // Create the image from the DDF data.
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
-        ImageDesc* image_desc = CreateImage(params.m_Filename, (dmGraphics::HContext) params.m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
 
         ResTextureUploadParams upload_params = {};
 
@@ -368,7 +383,7 @@ namespace dmGameSystem
 
         DestroyImage(image_desc);
 
-        if( params.m_Message == 0 )
+        if(!texture_image_raw)
         {
             dmDDF::FreeMessage(texture_image);
         }

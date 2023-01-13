@@ -64,6 +64,7 @@ message Info
     required string description = 4;
     required string path = 5;
     required string file = 6;
+    repeated string notes = 7;
 }
 
 message Document

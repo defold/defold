@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -181,6 +181,12 @@
         :pref-row-count (max 3 (count (string/split (:text props "") #"\n" 10)))
         :variant :borderless
         :editable false)))
+
+(def ^String indented-bullet
+  ;; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+  "\u00A0\u00A0\u2022\u00A0")
+
+(def indent-with-bullet (partial str indented-bullet))
 
 (defn make-info-dialog
   "Shows a dialog with selectable text content and blocks current thread until

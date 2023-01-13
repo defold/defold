@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -238,3 +238,14 @@
       (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf] coll)))
       (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf xf] coll)))
       (is (thrown? AssertionError (util/into-multiple [[] [] []] [xf xf xf xf] coll))))))
+
+(defn elements-identical? [a b]
+  (every? true? (map identical? a b)))
+
+(deftest make-dedupe-fn-test
+  (let [original-items (mapv #(str (mod % 10)) (range 100))
+        dedupe-fn (util/make-dedupe-fn original-items)
+        additional-items (mapv #(str (mod % 10)) (range 100))
+        partitions (partition 10 (map dedupe-fn (concat original-items additional-items)))]
+    (is (every? (partial elements-identical? (first partitions))
+                partitions))))

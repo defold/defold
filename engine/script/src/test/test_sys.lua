@@ -1,4 +1,4 @@
--- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2020-2023 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -87,12 +87,20 @@ function test_sys()
     assert(data['name'] == data_prim['name'])
 
 
-    -- get_config
-    print("Testing get_config")
-    assert(sys.get_config("main.does_not_exists") == nil)
-    assert(sys.get_config("main.does_not_exists", "foobar") == "foobar")
-    assert(sys.get_config("foo.value") == "123")
-    assert(sys.get_config("foo.value", 456) == "123")
+    -- get_config_string
+    print("Testing get_config_string")
+    assert(sys.get_config_string("main.does_not_exists") == nil)
+    assert(sys.get_config_string("main.does_not_exists", "foobar") == "foobar")
+    assert(sys.get_config_string("foo.value") == "123")
+    assert(sys.get_config_string("foo.value", 456) == "123")
+
+    -- test get_config_int / get_config_number
+    assert(sys.get_config_int("foo.value", 456) == 123)
+    assert(sys.get_config_int("main.does_not_exists") == 0)
+    assert(sys.get_config_int("main.does_not_exists", 456.7) == 456)
+    assert(sys.get_config_number("foo.value", 456) == 123)
+    assert(sys.get_config_number("main.does_not_exists") == 0)
+    assert(sys.get_config_number("main.does_not_exists", 456.7) - 456.7 < 0.1)
 
     -- load_resource
     print("Load existing resource")

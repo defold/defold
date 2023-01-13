@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -118,7 +118,7 @@
                         :result true}]})
       (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
         (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-        (async-reload! workspace changes-view moved-files)))))
+        (async-reload! changes-view moved-files)))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
@@ -179,7 +179,7 @@
       (when (some? git)
         (.close git)))))
 
-(defn make-changes-view [view-graph workspace prefs async-reload! ^Parent parent]
+(defn make-changes-view [view-graph workspace prefs ^Parent parent async-reload!]
   (assert (fn? async-reload!))
   (let [^ListView list-view     (.lookup parent "#changes")
         diff-button             (.lookup parent "#changes-diff")

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -91,6 +91,8 @@ namespace dmBuffer
      * @member dmBuffer::RESULT_STREAM_MISSING
      * @member dmBuffer::RESULT_STREAM_TYPE_MISMATCH
      * @member dmBuffer::RESULT_STREAM_COUNT_MISMATCH
+     * @member dmBuffer::RESULT_METADATA_INVALID
+     * @member dmBuffer::RESULT_METADATA_MISSING
      *
      */
     enum Result
@@ -106,7 +108,7 @@ namespace dmBuffer
         RESULT_STREAM_COUNT_MISMATCH,
         RESULT_STREAM_MISMATCH,
         RESULT_METADATA_INVALID,
-        RESULT_METADATA_NOT_EXIST,
+        RESULT_METADATA_MISSING,
     };
 
     /*# StreamDeclaration struct

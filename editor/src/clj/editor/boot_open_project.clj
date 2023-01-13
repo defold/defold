@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,7 +28,6 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
-            [editor.disk-availability :as disk-availability]
             [editor.editor-extensions :as extensions]
             [editor.fxui :as fxui]
             [editor.git :as git]
@@ -102,20 +101,6 @@
     (workspace/resource-sync! workspace)
     (workspace/load-build-cache! workspace)
     workspace))
-
-(defn- async-reload!
-  ([workspace changes-view]
-   (async-reload! workspace changes-view []))
-  ([workspace changes-view moved-files]
-   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)]
-     (disk/async-reload! render-reload-progress! workspace moved-files changes-view))))
-
-(defn- handle-application-focused! [workspace changes-view]
-  (app-view/clear-build-launch-progress!)
-  (when (and (not (app-view/build-in-progress?))
-             (not (sync/sync-dialog-open?))
-             (disk-availability/available?))
-    (async-reload! workspace changes-view)))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
@@ -206,8 +191,9 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs async-reload!
-                                                               (.lookup root "#changes-container"))
+          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs (.lookup root "#changes-container")
+                                                               (fn [changes-view moved-files]
+                                                                 (app-view/async-reload! app-view changes-view workspace moved-files)))
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
@@ -218,7 +204,7 @@
                                                       root
                                                       open-resource
                                                       (partial app-view/debugger-state-changed! scene tool-tabs))]
-      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
+      (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (extensions/reload! project :all (app-view/make-extensions-ui workspace changes-view prefs))
 
       (when updater
@@ -352,12 +338,12 @@
 
               ;; User chose to cancel sync.
               (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                  (async-reload! workspace changes-view))
+                  (app-view/async-reload! app-view changes-view workspace []))
 
               ;; User chose to resume sync.
               (let [flow (sync/resume-flow git)]
                 (sync/open-sync-dialog flow prefs)
-                (async-reload! workspace changes-view))))
+                (app-view/async-reload! app-view changes-view workspace []))))
 
           ;; A sync was not in progress.
           (do
@@ -397,11 +383,12 @@
      :size :large
      :icon :icon/triangle-error
      :header "There are missing dependencies"
-     :content (string/join "\n" (concat ["The following dependencies are missing:"]
-                                        (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+     :content (string/join "\n" (concat ["The following dependencies are missing:"
+                                         ""]
+                                        (map dialogs/indent-with-bullet
                                              (sort-by str dependencies))
                                         [""
-                                         "The project might not work without them. "
+                                         "The project might not work without them."
                                          "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
 
 (defn open-project!

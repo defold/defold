@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -188,7 +188,7 @@
    :extender-platform <String platform the engine was compiled for>}"
   [project evaluation-context prefs platform]
   (or (dev-custom-engine prefs platform)
-      (if (native-extensions/has-extensions? project evaluation-context)
+      (if (native-extensions/has-engine-extensions? project evaluation-context)
         (let [build-server-url (native-extensions/get-build-server-url prefs)
               build-server-headers (native-extensions/get-build-server-headers prefs)]
           (native-extensions/get-engine-archive project evaluation-context platform build-server-url build-server-headers))

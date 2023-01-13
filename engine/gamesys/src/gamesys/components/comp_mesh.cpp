@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,6 +28,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/intersection.h>
 #include <gameobject/gameobject_ddf.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -212,6 +213,8 @@ namespace dmGameSystem
 
     static const dmhash_t PROP_VERTICES = dmHashString64("vertices");
 
+    static const uint64_t AABB_HASH = dmHashString64("AABB");
+
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
 
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -319,7 +322,7 @@ namespace dmGameSystem
 
         if (world->m_Components.Full())
         {
-            dmLogError("Mesh could not be created since the buffer is full (%d).", world->m_Components.Capacity());
+            ShowFullBufferError("Mesh", "mesh.max_count", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = world->m_Components.Alloc();
@@ -739,6 +742,52 @@ namespace dmGameSystem
         }
     }
 
+    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
+    {
+        DM_PROFILE("Mesh");
+
+        const dmIntersection::Frustum frustum = *params.m_Frustum;
+        uint32_t num_entries = params.m_NumEntries;
+        for (uint32_t i = 0; i < num_entries; ++i)
+        {
+            dmRender::RenderListEntry* entry = &params.m_Entries[i];
+            MeshComponent* component_p = (MeshComponent*)entry->m_UserData;
+
+            dmGameSystem::BufferResource* br = GetVerticesBuffer(component_p, component_p->m_Resource);
+
+            void* data;
+            uint32_t count;
+            dmBuffer::ValueType valueType;
+            dmBuffer::Result r = dmBuffer::GetMetaData(br->m_Buffer, AABB_HASH, &data, &count, &valueType );
+            if (r == dmBuffer::RESULT_METADATA_MISSING)
+            {
+                // no bounding box available - no culling
+                entry->m_Visibility = dmRender::VISIBILITY_FULL;
+                continue;
+            } else
+            if (valueType != dmBuffer::VALUE_TYPE_FLOAT32 || count != 6)
+            {
+                dmLogError("Invalid AABB metadata. Expected array of 6 floats.");
+                entry->m_Visibility = dmRender::VISIBILITY_FULL;
+                continue;
+            } else
+            if (r != dmBuffer::RESULT_OK)
+            {
+                dmLogError("Error getting AABB for mesh buffer");
+                continue;
+            }
+
+            dmVMath::Vector3 boundsMin(((float*)data)[0], ((float*)data)[1], ((float*)data)[2] );
+            dmVMath::Vector3 boundsMax(((float*)data)[3], ((float*)data)[4], ((float*)data)[5] );
+
+            bool intersect = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax, false);
+            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+
+        }
+
+    }
+
+
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         MeshWorld *world = (MeshWorld *) params.m_UserData;
@@ -785,7 +834,7 @@ namespace dmGameSystem
 
         // Prepare list submit
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         for (uint32_t i = 0; i < count; ++i)

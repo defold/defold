@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,9 @@
 
 namespace dmResource
 {
+    // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
+    const uint32_t RESOURCE_PATH_MAX = 1024;
+
     const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
 
     const static uint32_t MANIFEST_VERSION = 0x04;
@@ -168,6 +171,26 @@ namespace dmResource
      * @return SResourceDescriptor* pointer to the resource descriptor
      */
     SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
+
+    /**
+     * Creates and inserts a resource into the factory
+     * @param factory Factory handle
+     * @param name Name of the resource
+     * @param data Resource data
+     * @param data_size Resource data size
+     * @param resource Will contain a pointer to the resource after this function has completed
+     * @return RESULT_OK on success
+     */
+    Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource);
+
+    /**
+     * Get a resource extension from a path, i.e resource.ext will return .ext. Note the included dot in the output.
+     * @param path The path to the resource
+     * @param buffer Pointer to buffer to use when getting the extension
+     * @param buffersize Size of buffer
+     * @return Pointer to extension string if success (same as buffer), 0 otherwise
+     */
+    const char* GetExtFromPath(const char* path, char* buffer, uint32_t buffersize);
 
     /**
      * Get raw resource data. Unregistered resources can be loaded with this function.
@@ -411,6 +434,14 @@ namespace dmResource
     /*# Get the support path for the project, with the hashed project name at the end
      */
     Result GetApplicationSupportPath(const Manifest* manifest, char* buffer, uint32_t buffer_len);
+
+    /**
+     * Gets the actual resource path e.g. "/my/icon.texturec".
+     * @param relative_dir the relative dir of the resource
+     * @param buf the result of the operation
+     * @return the length of the buffer
+     */
+    uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
 
     void RegisterArchiveLoader();
 }
