@@ -101,9 +101,13 @@ public class ArchiveReader {
         // Hashes are stored linearly in memory instead of within each entry, so the hashes are read in a separate loop.
         // Once the hashes are read, the rest of the entries are read.
 
-        archiveIndexFile.seek(hashOffset);
-        ManifestData manifestData = ManifestData.parseFrom(this.manifestFile.getData());
+        ManifestData manifestData = null;
+        if (this.manifestFile != null) {    // some tests do not initialize this.manifestFile
+            manifestData = ManifestData.parseFrom(this.manifestFile.getData());
+        }
+
         // Read entry hashes
+        archiveIndexFile.seek(hashOffset);
         for (int i = 0; i < entryCount; ++i) {
             archiveIndexFile.seek(hashOffset + i * HASH_BUFFER_BYTESIZE);
             ArchiveEntry e = new ArchiveEntry("");
