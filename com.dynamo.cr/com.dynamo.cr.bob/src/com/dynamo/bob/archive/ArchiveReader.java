@@ -102,6 +102,7 @@ public class ArchiveReader {
         // Once the hashes are read, the rest of the entries are read.
 
         archiveIndexFile.seek(hashOffset);
+        ManifestData manifestData = ManifestData.parseFrom(this.manifestFile.getData());
         // Read entry hashes
         for (int i = 0; i < entryCount; ++i) {
             archiveIndexFile.seek(hashOffset + i * HASH_BUFFER_BYTESIZE);
@@ -110,11 +111,11 @@ public class ArchiveReader {
             archiveIndexFile.read(e.hash, 0, hashLength);
 
             if (this.manifestFile != null) {
-                ManifestData manifestData = ManifestData.parseFrom(this.manifestFile.getData());
                 for (ResourceEntry resource : manifestData.getResourcesList()) {
 	            	if (matchHash(e.hash, resource.getHash().getData().toByteArray(), this.hashLength)) {
 	            		e.fileName = resource.getUrl();
 	            		e.relName = resource.getUrl();
+                        break;
 	            	}
 	            }
             }
