@@ -295,6 +295,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call

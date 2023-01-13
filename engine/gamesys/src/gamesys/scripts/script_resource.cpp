@@ -2201,6 +2201,12 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
+/*# COMPRESSION_TYPE_DEFAULT compression type
+ *
+ * @name resource.COMPRESSION_TYPE_DEFAULT
+ * @variable
+ */
+
 /*# BASIS_UASTC compression type
  *
  * @name resource.COMPRESSION_TYPE_BASIS_UASTC
