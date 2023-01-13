@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -86,6 +86,13 @@ namespace dmGraphics
      * @name HVertexDeclaration
      */
     typedef struct VertexDeclaration* HVertexDeclaration;
+
+    /*#
+     * Vertex stream declaration handle
+     * @typedef
+     * @name HVertexStreamDeclaration
+     */
+    typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
 
     /*#
      * @enum
@@ -384,43 +391,51 @@ namespace dmGraphics
     };
 
     /*#
-     * @struct
-     * @name VertexElement
-     * @member m_Name [type: const char*] name of the element (e.g. "position")
-     * @member m_Stream [type: uint32_t] stream index
-     * @member m_Size [type: uint32_t] number of elements (e.g. 3 for "position")
-     * @member m_Type [type: dmGraphics::Type] data type
-     * @member m_Normalize [type: bool] if set, will normalize the output in the program
+     * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
+     * that should be used to create a vertex declaration from.
+     * @name NewVertexStreamDeclaration
+     * @param context [type: dmGraphics::HContext] the context
+     * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
      */
-    struct VertexElement
-    {
-        const char*     m_Name;
-        uint32_t        m_Stream;
-        uint32_t        m_Size;
-        Type            m_Type;
-        bool            m_Normalize;
-    };
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context);
 
     /*#
-     * Create new vertex declaration
+     * Adds a stream to a stream declaration
+     * @name AddVertexStream
+     * @param context [type: dmGraphics::HContext] the context
+     * @param name [type: const char*] the name of the stream
+     * @param size [type: uint32_t] the size of the stream, i.e number of components
+     * @param type [type: dmGraphics::Type] the data type of the stream
+     * @param normalize [type: bool] true if the stream should be normalized in the 0..1 range
+     */
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize);
+
+    /*#
+     * Delete vertex stream declaration
+     * @name DeleteVertexStreamDeclaration
+     * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
+     */
+    void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration);
+
+    /*#
+     * Create new vertex declaration from a vertex stream declaration
      * @name NewVertexDeclaration
      * @param context [type: dmGraphics::HContext] the context
-     * @param element [type: dmGraphics::VertexElement*] the array of vertex elements
-     * @param count [type: uint32_t] the number of items in the element array
+     * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
      * @return declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
      */
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration);
 
     /*#
-     * Create new vertex declaration
+     * Create new vertex declaration from a vertex stream declaration and an explicit stride value,
+     * where the stride is the number of bytes between each consecutive vertex in a vertex buffer
      * @name NewVertexDeclaration
      * @param context [type: dmGraphics::HContext] the context
-     * @param element [type: dmGraphics::VertexElement*] the array of vertex elements
-     * @param count [type: uint32_t] the number of items in the element array
+     * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
      * @param stride [type: uint32_t] the stride between the start of each vertex (in bytes)
      * @return declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
      */
-    HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
+    HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
 
     /*#
      * Delete vertex declaration

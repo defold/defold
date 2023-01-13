@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -77,24 +77,34 @@ bool TestFrustumPoint(const Frustum& frustum, const dmVMath::Point3& pos, bool s
     return true;
 }
 
-bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Point3& pos, float radius, bool skip_near_far)
+bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Point3& pos, float radius_sq, bool skip_near_far)
 {
     dmVMath::Vector4 vpos(pos);
-    return TestFrustumSphere(frustum, vpos, radius, skip_near_far);
+    return TestFrustumSphereSq(frustum, vpos, radius_sq, skip_near_far);
 }
 
-bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, float radius, bool skip_near_far)
+bool TestFrustumSphereSq(const Frustum& frustum, const dmVMath::Vector4& pos, float radius_sq, bool skip_near_far)
 {
     uint32_t num_planes = skip_near_far ? 4 : 6;
     for (uint32_t i = 0; i < num_planes; ++i)
     {
         float d = DistanceToPlane(frustum.m_Planes[i], pos);
-        if (d < -radius)
+        if (d < 0 && (d*d) > radius_sq)
         {
             return false;
         }
     }
     return true;
+}
+
+bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Point3& pos, float radius, bool skip_near_far)
+{
+    return TestFrustumSphereSq(frustum, pos, radius*radius, skip_near_far);
+}
+
+bool TestFrustumSphere(const Frustum& frustum, const dmVMath::Vector4& pos, float radius, bool skip_near_far)
+{
+    return TestFrustumSphereSq(frustum, pos, radius*radius, skip_near_far);
 }
 
 // Returns 'false' if the bounding box is off the frustum. Returning 'true' does not guarantee that the object intersects the frustum or is inside it.

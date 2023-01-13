@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1606,34 +1606,34 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static HVertexDeclaration OpenGLNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    static HVertexDeclaration OpenGLNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
-        HVertexDeclaration vd = NewVertexDeclaration(context, element, count);
+        HVertexDeclaration vd = NewVertexDeclaration(context, stream_declaration);
         vd->m_Stride = stride;
         return vd;
     }
 
-    static HVertexDeclaration OpenGLNewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
+    static HVertexDeclaration OpenGLNewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
         VertexDeclaration* vd = new VertexDeclaration;
         memset(vd, 0, sizeof(VertexDeclaration));
 
         vd->m_Stride = 0;
-        assert(count <= (sizeof(vd->m_Streams) / sizeof(vd->m_Streams[0]) ) );
 
-        for (uint32_t i=0; i<count; i++)
+        for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
         {
-            vd->m_Streams[i].m_Name = element[i].m_Name;
-            vd->m_Streams[i].m_LogicalIndex = i;
+            vd->m_Streams[i].m_Name          = stream_declaration->m_Streams[i].m_Name;
+            vd->m_Streams[i].m_LogicalIndex  = i;
             vd->m_Streams[i].m_PhysicalIndex = -1;
-            vd->m_Streams[i].m_Size = element[i].m_Size;
-            vd->m_Streams[i].m_Type = element[i].m_Type;
-            vd->m_Streams[i].m_Normalize = element[i].m_Normalize;
-            vd->m_Streams[i].m_Offset = vd->m_Stride;
+            vd->m_Streams[i].m_Size          = stream_declaration->m_Streams[i].m_Size;
+            vd->m_Streams[i].m_Type          = stream_declaration->m_Streams[i].m_Type;
+            vd->m_Streams[i].m_Normalize     = stream_declaration->m_Streams[i].m_Normalize;
+            vd->m_Streams[i].m_Offset        = vd->m_Stride;
 
-            vd->m_Stride += element[i].m_Size * GetTypeSize(element[i].m_Type);
+            vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
-        vd->m_StreamCount = count;
+        vd->m_StreamCount = stream_declaration->m_StreamCount;
+
         return vd;
     }
 
