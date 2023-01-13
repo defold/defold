@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -71,8 +71,8 @@
 (defn- compile-file
   [proj-path ^File input ^File output arch]
   (let [{:keys [exit out err]} (shell/sh (luajit-exec-path arch)
-                                         "-bgf"
-                                         (str "@" (luajit-path-to-chunk-name proj-path))
+                                         "-bgF"
+                                         (luajit-path-to-chunk-name proj-path) ;; "@" is added by the luajit executable
                                          (.getAbsolutePath input)
                                          (.getAbsolutePath output)
                                          :env {"LUA_PATH" (str (luajit-lua-path) "/?.lua")})]

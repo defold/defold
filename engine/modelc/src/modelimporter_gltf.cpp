@@ -1,13 +1,13 @@
 
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,8 +27,13 @@
 #include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/transform.h>
+
+// Terminology:
+// Defold: Model, GLTF: Mesh
+// Defold: Mesh,  GLTF: Primitive
 
 namespace dmModelImporter
 {
@@ -256,6 +261,35 @@ static Skin* FindSkin(Scene* scene, const char* name)
     return 0;
 }
 
+static uint32_t FindIndex(uintptr_t base_pointer, uintptr_t pointer)
+{
+    if (!pointer)
+        return 0xFFFFFFFF;
+    return (uint32_t)(pointer - base_pointer);
+}
+
+static char* CreateNameFromHash(const char* prefix, uint32_t hash)
+{
+    char buffer[128];
+    dmSnPrintf(buffer, sizeof(buffer), "%s_%X", prefix, hash);
+    return strdup(buffer);
+}
+
+template <typename T>
+static char* CreateObjectName(T* object, const char* prefix, uint32_t index)
+{
+    if (object && object->name)
+        return strdup(object->name);
+    return CreateNameFromHash(prefix, index);
+}
+
+template <>
+static char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t index)
+{
+    (void)object;
+    return CreateNameFromHash("mesh", index);
+}
+
 static void UpdateWorldTransforms(Node* node)
 {
     if (node->m_Parent)
@@ -282,7 +316,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         cgltf_node* gltf_node = &gltf_data->nodes[i];
 
         Node* node = &scene->m_Nodes[i];
-        node->m_Name = strdup(gltf_node->name ? gltf_node->name : "unknown");
+        node->m_Name = CreateObjectName(gltf_node, "node", i);
         node->m_Index = i;
 
         // We link them together later
@@ -353,7 +387,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
-static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
+static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
     model->m_MeshesCount = gltf_mesh->primitives_count;
     model->m_Meshes = new Mesh[model->m_MeshesCount];
@@ -363,9 +397,10 @@ static void LoadPrimitives(Model* model, cgltf_mesh* gltf_mesh)
     {
         cgltf_primitive* prim = &gltf_mesh->primitives[i];
         Mesh* mesh = &model->m_Meshes[i];
-        mesh->m_Name = strdup(gltf_mesh->name ? gltf_mesh->name : "unknown");
+        mesh->m_Name = CreateObjectName(prim, "mesh", i);
 
-        mesh->m_Material = strdup(prim->material ? prim->material->name : "no_material");
+        uint32_t material_index = FindIndex((uintptr_t)gltf_data->materials, (uintptr_t)prim->material);
+        mesh->m_Material = CreateObjectName(prim->material, "material", material_index);
         mesh->m_VertexCount = 0;
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
@@ -468,10 +503,10 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
     {
         cgltf_mesh* gltf_mesh = &gltf_data->meshes[i]; // our "Model"
         Model* model = &scene->m_Models[i];
-        model->m_Name = strdup(gltf_mesh->name ? gltf_mesh->name : "unknown");
+        model->m_Name = CreateObjectName(gltf_mesh, "model", i);
         model->m_Index = i;
 
-        LoadPrimitives(model, gltf_mesh); // Our "Meshes"
+        LoadPrimitives(model, gltf_data, gltf_mesh); // Our "Meshes"
     }
 }
 
@@ -503,7 +538,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
         cgltf_skin* gltf_skin = &gltf_data->skins[i];
 
         Skin* skin = &scene->m_Skins[i];
-        skin->m_Name = strdup(gltf_skin->name ? gltf_skin->name : "unknown");
+        skin->m_Name = CreateObjectName(gltf_skin, "skin", i);
         skin->m_Index = i;
 
         skin->m_BonesCount = gltf_skin->joints_count;
@@ -515,7 +550,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
         {
             cgltf_node* gltf_joint = gltf_skin->joints[j];
             Bone* bone = &skin->m_Bones[j];
-            bone->m_Name = strdup(gltf_joint->name ? gltf_joint->name : "unknown");
+            bone->m_Name = CreateObjectName(gltf_joint, "bone", j);
             bone->m_Index = j;
             bone->m_ParentIndex = FindBoneIndex(gltf_skin, gltf_joint->parent);
             // Cannot translate the bones here, since they're not created yet
@@ -566,7 +601,7 @@ static void GenerateRootBone(Scene* scene)
             memset(node, 0, sizeof(Node));
             node->m_Index = scene->m_NodesCount++;
 
-            node->m_Name = strdup("_generated_node");
+            node->m_Name = CreateNameFromHash("_generated_node", node->m_Index);
             node->m_Local.SetIdentity();
             node->m_World.SetIdentity();
 
@@ -771,7 +806,7 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
         cgltf_animation* gltf_animation = &gltf_data->animations[i];
         Animation* animation = &scene->m_Animations[i];
 
-        animation->m_Name = strdup(gltf_animation->name ? gltf_animation->name : "default");
+        animation->m_Name = CreateObjectName(gltf_animation, "animation", i);
 
         dmHashTable64<uint32_t> node_name_to_index;
         animation->m_NodeAnimationsCount = CountAnimatedNodes(gltf_animation, node_name_to_index);

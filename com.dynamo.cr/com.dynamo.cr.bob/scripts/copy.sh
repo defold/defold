@@ -1,4 +1,4 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -84,10 +84,10 @@ cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.d
 
 rm -rf tmp
 mkdir -p tmp
-tar xf ../../packages/luajit-2.1.0-633f265-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-633f265-x86_64-win32.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-633f265-x86_64-linux.tar.gz -C tmp
-tar xf ../../packages/luajit-2.1.0-633f265-x86_64-macos.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-6c4826f-win32.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-6c4826f-x86_64-win32.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-6c4826f-x86_64-linux.tar.gz -C tmp
+tar xf ../../packages/luajit-2.1.0-6c4826f-x86_64-macos.tar.gz -C tmp
 
 cp -v tmp/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v tmp/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64

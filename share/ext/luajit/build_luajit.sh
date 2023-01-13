@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -150,10 +150,32 @@ case $1 in
 		export TARGET_SYS=iOS
 		;;
 	armv7-android)
+		# using insttructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
 		export TARGET_SYS=Android
+		function cmi_make() {
+			local host_platform=`uname | awk '{print tolower($0)}'`
+			export NDKBIN=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${host_platform}-x86_64/bin
+			NDKCROSS=$NDKBIN/arm-linux-androideabi-
+			make -j8 CROSS=$NDKCROSS \
+					STATIC_CC=${CC} DYNAMIC_CC="${CC} ${CFLAGS}" \
+					TARGET_LD=${CC} TARGET_AR="${AR} rcus" \
+					TARGET_STRIP=$NDKBIN/llvm-strip
+			make install
+		}
 		;;
 	arm64-android)
+		# using insttructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
 		export TARGET_SYS=Android
+		function cmi_make() {
+			local host_platform=`uname | awk '{print tolower($0)}'`
+			export NDKBIN=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${host_platform}-x86_64/bin
+			export NDKCROSS=$NDKBIN/aarch64-linux-android-
+			make -j8 CROSS=$NDKCROSS \
+					STATIC_CC=${CC} DYNAMIC_CC="${CC} ${CFLAGS}" \
+					TARGET_LD=${CC} TARGET_AR="${AR} rcus" \
+					TARGET_STRIP=$NDKBIN/llvm-strip
+			make install
+		}
 		;;
 	x86_64-linux)
 		export TARGET_SYS=Linux
@@ -193,7 +215,7 @@ case $1 in
 	x86_64-macos)
 		export TARGET_SYS=Darwin
 		function cmi_make() {
-            		export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
+					export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
 
 					# Since GC32 mode isn't supported on macOS, in the new version.
 					# We'll just use the old built executable from the previous package
@@ -215,101 +237,6 @@ case $1 in
 					cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
 					set +e
 		}
-		;;
-	win32)
-		export TARGET_SYS=Windows
-		cmi_setup_vs2019_env $1
-
-		function cmi_make() {
-			cd src
-			export DEFOLD_ARCH="32"
-			cmd "/C echo PATH=%Path% "
-
-			cmd "/C msvcbuild.bat nogc64 static dummy ${CONF_TARGET} "
-			mkdir -p $PREFIX/lib/$CONF_TARGET
-			mkdir -p $PREFIX/bin/$CONF_TARGET
-			mkdir -p $PREFIX/include/luajit-2.0
-			mkdir -p $PREFIX/share
-			mkdir -p $PREFIX/share/lua/5.1
-			mkdir -p $PREFIX/share/luajit/jit
-			mkdir -p $PREFIX/share/man/man1
-			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
-			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
-			cp -r jit $PREFIX/share/luajit
-		}
-		;;
-	x86_64-win32)
-		export TARGET_SYS=Windows
-		cmi_setup_vs2019_env $1
-
-		function cmi_make() {
-			cd src
-			export DEFOLD_ARCH="32"
-			cmd "/C echo PATH=%Path% "
-
-			cmd "/C msvcbuild.bat nogc64 static dummy ${CONF_TARGET} "
-			mkdir -p $PREFIX/lib/$CONF_TARGET
-			mkdir -p $PREFIX/bin/$CONF_TARGET
-			mkdir -p $PREFIX/include/luajit-2.0
-			mkdir -p $PREFIX/share
-			mkdir -p $PREFIX/share/lua/5.1
-			mkdir -p $PREFIX/share/luajit/jit
-			mkdir -p $PREFIX/share/man/man1
-			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
-			cp luajit.exe $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}.exe
-			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
-			cp -r jit $PREFIX/share/luajit
-			cp ../etc/luajit.1 $PREFIX/share/man/man1
-
-			rm -rf tmp/build
-
-			export DEFOLD_ARCH="64"
-			cmd "/C msvcbuild.bat static gc64 ${CONF_TARGET} "
-			mkdir -p $PREFIX/lib/$CONF_TARGET
-			mkdir -p $PREFIX/bin/$CONF_TARGET
-			mkdir -p $PREFIX/include/luajit-2.0
-			mkdir -p $PREFIX/share
-			mkdir -p $PREFIX/share/lua/5.1
-			mkdir -p $PREFIX/share/luajit/jit
-			mkdir -p $PREFIX/share/man/man1
-			cp libluajit*.lib $PREFIX/lib/$CONF_TARGET
-			cp luajit.exe $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}.exe
-			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
-			cp -r jit $PREFIX/share/luajit
-			cp ../etc/luajit.1 $PREFIX/share/man/man1
-		}
-		;;
-	arm64-nx64)
-		export TARGET_SYS=Other
-
-		OLDPATH=$PATH
-		cmi_setup_vs2019_env $1 "cmd"
-
-		# no need to create a bin folder
-		TAR_SKIP_BIN=1
-
-		function cmi_make() {
-			cd src
-
-			cmd "/C echo PATH=%Path% "
-
-			export DEFOLD_ARCH="64"
-
-			cp ../../build_nx64.bat .
-
-			cmd "/C build_nx64.bat noamalg static gc64 ${CONF_TARGET} "
-			mkdir -p $PREFIX/lib/$CONF_TARGET
-			mkdir -p $PREFIX/include/luajit-2.0
-			mkdir -p $PREFIX/share
-			mkdir -p $PREFIX/share/lua/5.1
-			mkdir -p $PREFIX/share/luajit/jit
-			cp libluajit*.a $PREFIX/lib/$CONF_TARGET
-			cp luajit.h lauxlib.h lua.h lua.hpp luaconf.h lualib.h $PREFIX/include/luajit-2.0
-			cp -r jit $PREFIX/share/luajit
-
-			PATH=$OLDPATH
-		}
-
 		;;
 esac
 

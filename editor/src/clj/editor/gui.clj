@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -48,6 +48,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
+            [internal.util :as util]
             [schema.core :as s]
             [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$ResourceDesc Gui$SceneDesc$TextureDesc]
@@ -687,7 +688,7 @@
                                        (sort-by #(get-in % [0 :child-index])
                                                 node-rt-msgs)))))
   (output aabb g/Any :abstract)
-  (output scene-children g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
+  (output scene-children g/Any (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output scene-updatable g/Any (g/constantly nil))
   (output scene-renderable g/Any (g/constantly nil))
   (output scene-outline-renderable g/Any (g/constantly nil))
@@ -827,14 +828,57 @@
 
 (def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
 
+(def ^:private size-prop-index (prop-key->prop-index :manual-size))
+
+(def ^:private is-size-prop-index? (partial = size-prop-index))
+
+(def ^:private is-size-mode-prop-index? (partial = (prop-key->prop-index :size-mode)))
+
+(defn- strip-size-from-overridden-fields [overridden-fields]
+  (util/removev is-size-prop-index? overridden-fields))
+
+(defn- add-size-to-overridden-fields [overridden-fields]
+  (vec (sort (conj overridden-fields size-prop-index))))
+
+(defn- strip-size-from-node-desc [node-desc]
+  (-> node-desc
+      (assoc :size [0.0 0.0 0.0 0.0])
+      (update :overridden-fields strip-size-from-overridden-fields)))
+
+(defn- add-size-to-overridden-fields-in-node-desc [node-desc]
+  (update node-desc :overridden-fields add-size-to-overridden-fields))
+
+(defn- strip-unwanted-shape-base-node-fields [node-desc]
+  (let [size-mode (:size-mode node-desc)
+        overridden-fields (:overridden-fields node-desc)]
+    (cond-> node-desc
+
+            ;; We don't want to write image sizes to the files, as it results in
+            ;; a lot of changed files whenever an image changes dimensions.
+            (= :size-mode-auto size-mode)
+            (strip-size-from-node-desc)
+
+            ;; Previously, image sizes were written to the files, but if a node
+            ;; overrode the size-mode of its original, its size field would not
+            ;; be flagged as overridden unless it had diverged from the image
+            ;; size. This was clearly a bug, but now unless we also flag the
+            ;; size field as overridden, the manual size stored in the file will
+            ;; be overwritten by the size of its auto-sized original (which will
+            ;; be zero now that we strip away auto-sized node sizes).
+            (and (= :size-mode-manual size-mode)
+                 (some is-size-mode-prop-index? overridden-fields)
+                 (not-any? is-size-prop-index? overridden-fields))
+            (add-size-to-overridden-fields-in-node-desc))))
+
 (g/defnk produce-shape-base-node-msg [visual-base-node-msg manual-size size-mode texture clipping-mode clipping-visible clipping-inverted]
-  (assoc visual-base-node-msg
-    :size (v3->v4 manual-size)
-    :size-mode size-mode
-    :texture texture
-    :clipping-mode clipping-mode
-    :clipping-visible clipping-visible
-    :clipping-inverted clipping-inverted))
+  (-> visual-base-node-msg
+      (assoc :size (v3->v4 manual-size)
+             :size-mode size-mode
+             :texture texture
+             :clipping-mode clipping-mode
+             :clipping-visible clipping-visible
+             :clipping-inverted clipping-inverted)
+      (strip-unwanted-shape-base-node-fields)))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -1306,12 +1350,12 @@
                        (if (some? template-scene)
                          (:aabb template-scene)
                          geom/empty-bounding-box)))
-  (output scene-children g/Any :cached (g/fnk [_node-id id template-scene]
-                                         (when (seq (:children template-scene))
-                                           (-> template-scene
-                                               (scene/claim-scene _node-id id)
-                                               (add-renderable-tags #{:gui})
-                                               :children))))
+  (output scene-children g/Any (g/fnk [_node-id id template-scene]
+                                 (when (seq (:children template-scene))
+                                   (-> template-scene
+                                       (scene/claim-scene _node-id id)
+                                       (add-renderable-tags #{:gui})
+                                       :children))))
   (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha enabled]
                                                 {:passes [pass/selection]
                                                  :child-index child-index
@@ -1769,16 +1813,16 @@
 
   (input child-scenes g/Any :array)
   (input child-indices NodeIndex :array)
-  (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
+  (output child-scenes g/Any (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [type-info] {:node-type (:node-cls type-info)
                                                                      :tx-attach-fn (gen-gui-node-attach-fn (:node-type type-info))})
                                                     (get-registered-node-type-infos))))
 
-  (output scene g/Any :cached (g/fnk [_node-id child-scenes]
-                                {:node-id _node-id
-                                 :aabb geom/null-aabb
-                                 :children child-scenes}))
+  (output scene g/Any (g/fnk [_node-id child-scenes]
+                        {:node-id _node-id
+                         :aabb geom/null-aabb
+                         :children child-scenes}))
   (input ids g/Str :array)
   (output id-counts NameCounts :cached (g/fnk [ids] (frequencies ids)))
   (input node-msgs g/Any :array)
@@ -1786,13 +1830,13 @@
                                          (->> node-msgs
                                               (sort-by #(get-in % [0 :child-index]))
                                               flatten
-                                              (map #(dissoc % :child-index)))))
+                                              (mapv #(dissoc % :child-index)))))
   (input node-rt-msgs g/Any :array)
   (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs]
                                             (->> node-rt-msgs
                                                  (sort-by #(get-in % [0 :child-index]))
                                                  flatten
-                                                 (map #(dissoc % :child-index)))))
+                                                 (mapv #(dissoc % :child-index)))))
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids IDMap :array)
@@ -2299,7 +2343,7 @@
   (input font-msgs g/Any :array)
   (input texture-msgs g/Any :array)
   (input layer-msgs g/Any)
-  (output layer-msgs g/Any (g/fnk [layer-msgs] (map #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
+  (output layer-msgs g/Any (g/fnk [layer-msgs] (mapv #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
   (input layout-msgs g/Any :array)
   (input layout-rt-msgs g/Any :array)
   (input particlefx-resource-msgs g/Any :array)
@@ -2384,9 +2428,9 @@
   (input default-scene g/Any)
   (input layout-scenes g/Any :array)
   (output layout-scenes g/Any :cached (g/fnk [layout-scenes] (into {} layout-scenes)))
-  (output child-scenes g/Any :cached (g/fnk [default-scene layout-scenes current-layout]
-                                       (let [node-tree-scene (get layout-scenes current-layout default-scene)]
-                                         (:children node-tree-scene))))
+  (output child-scenes g/Any (g/fnk [default-scene layout-scenes current-layout]
+                               (let [node-tree-scene (get layout-scenes current-layout default-scene)]
+                                 (:children node-tree-scene))))
   (output scene g/Any :cached produce-scene)
   (output scene-dims g/Any :cached (g/fnk [project-settings current-layout display-profiles]
                                           (or (some #(and (= current-layout (:name %)) (first (:qualifiers %))) display-profiles)
@@ -2721,9 +2765,14 @@
                       (for [layout-desc (:layouts scene)
                             :let [layout-desc (-> layout-desc
                                                   (select-keys prop-keys)
-                                                  (update :nodes (fn [nodes] (->> nodes
-                                                                                  (map (fn [v] [(:id v) (-> v extract-overrides convert-node-desc)]))
-                                                                                  (into {})))))]]
+                                                  (update :nodes (fn [nodes]
+                                                                   (into {}
+                                                                         (map (fn [node-desc]
+                                                                                (pair (:id node-desc)
+                                                                                      (-> node-desc
+                                                                                          convert-node-desc
+                                                                                          extract-overrides))))
+                                                                         nodes))))]]
                         (g/make-nodes graph-id [layout [LayoutNode (dissoc layout-desc :nodes)]]
                                       (attach-layout self layouts-node layout)
                                       (g/set-property layout :nodes (:nodes layout-desc))))))
@@ -2772,6 +2821,7 @@
 
 (defn- strip-unwanted-fields [node-desc]
   (case (:type node-desc)
+    (:type-box :type-pie) (strip-unwanted-shape-base-node-fields node-desc)
     :type-particlefx (strip-unwanted-particlefx-node-fields node-desc)
     :type-text (strip-unwanted-text-node-fields node-desc)
     :type-template (strip-unwanted-template-node-fields node-desc)

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -144,17 +144,6 @@ namespace dmGameSystem
         uint32_t                    m_MaxSoundInstances;
     };
 
-    struct MeshContext
-    {
-        MeshContext()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        dmRender::HRenderContext    m_RenderContext;
-        dmResource::HFactory        m_Factory;
-        uint32_t                    m_MaxMeshCount;
-    };
-
     struct ScriptLibContext
     {
         ScriptLibContext();
@@ -214,7 +203,6 @@ namespace dmGameSystem
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   ModelContext* model_context,
-                                                  MeshContext* Mesh_context,
                                                   LabelContext* label_context,
                                                   TilemapContext* tilemap_context,
                                                   SoundContext* sound_context);

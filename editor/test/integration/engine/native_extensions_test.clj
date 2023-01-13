@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,7 +40,7 @@
           project (test-util/setup-project! workspace)]
       (g/with-auto-evaluation-context evaluation-context
         (is (= #{"/extension1" "/subdir/extension2"}
-               (set (map resource/proj-path (native-extensions/extension-roots project evaluation-context)))))))))
+               (set (map resource/proj-path (native-extensions/engine-extension-roots project evaluation-context)))))))))
 
 (deftest extension-resource-nodes-test
   (letfn [(platform-resources [project platform]

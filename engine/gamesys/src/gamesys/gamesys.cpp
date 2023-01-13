@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -140,7 +140,6 @@ namespace dmGameSystem
                                                 FactoryContext* factory_context,
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 ModelContext* model_context,
-                                                MeshContext* mesh_context,
                                                 LabelContext* label_context,
                                                 TilemapContext* tilemap_context,
                                                 SoundContext* sound_context)
@@ -243,13 +242,7 @@ namespace dmGameSystem
                 0, CompModelIterProperties,
                 0);
 
-        REGISTER_COMPONENT_TYPE("meshc", 725, mesh_context,
-                CompMeshNewWorld, CompMeshDeleteWorld,
-                CompMeshCreate, CompMeshDestroy, 0, 0, CompMeshAddToUpdate, 0,
-                CompMeshUpdate, 0, CompMeshRender, 0, CompMeshOnMessage, 0,
-                0, CompMeshGetProperty, CompMeshSetProperty,
-                0, CompMeshIterProperties,
-                0);
+        // prio: 725  comp_mesh.cpp
 
         REGISTER_COMPONENT_TYPE("particlefxc", 800, particlefx_context,
                 &CompParticleFXNewWorld, &CompParticleFXDeleteWorld,

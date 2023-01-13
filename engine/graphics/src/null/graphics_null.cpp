@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -481,27 +481,26 @@ namespace dmGraphics
         return true;
     }
 
-    static HVertexDeclaration NullNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    static HVertexDeclaration NullNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
-        return NewVertexDeclaration(context, element, count);
+        return NewVertexDeclaration(context, stream_declaration);
     }
 
-    static HVertexDeclaration NullNewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
+    static HVertexDeclaration NullNewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
         VertexDeclaration* vd = new VertexDeclaration();
-        memset(vd, 0, sizeof(*vd));
-        vd->m_Count = count;
-        for (uint32_t i = 0; i < count; ++i)
+        if (stream_declaration == 0)
         {
-            assert(vd->m_Elements[element[i].m_Stream].m_Size == 0);
-            vd->m_Elements[element[i].m_Stream] = element[i];
+            memset(vd, 0, sizeof(*vd));
+            return vd;
         }
+        memcpy(&vd->m_StreamDeclaration, stream_declaration, sizeof(VertexStreamDeclaration));
         return vd;
     }
 
     bool NullSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
     {
-        if (stream_index > vertex_declaration->m_Count) {
+        if (stream_index > vertex_declaration->m_StreamDeclaration.m_StreamCount) {
             return false;
         }
 
@@ -517,18 +516,18 @@ namespace dmGraphics
     {
         assert(context);
         assert(vertex_buffer);
-        VertexStream& s = context->m_VertexStreams[stream];
+        VertexStreamBuffer& s = context->m_VertexStreams[stream];
         assert(s.m_Source == 0x0);
         assert(s.m_Buffer == 0x0);
         s.m_Source = vertex_buffer;
-        s.m_Size = size * TYPE_SIZE[type - dmGraphics::TYPE_BYTE];
+        s.m_Size   = size * TYPE_SIZE[type - dmGraphics::TYPE_BYTE];
         s.m_Stride = stride;
     }
 
     static void DisableVertexStream(HContext context, uint16_t stream)
     {
         assert(context);
-        VertexStream& s = context->m_VertexStreams[stream];
+        VertexStreamBuffer& s = context->m_VertexStreams[stream];
         s.m_Size = 0;
         if (s.m_Buffer != 0x0)
         {
@@ -545,16 +544,20 @@ namespace dmGraphics
         assert(vertex_buffer);
         VertexBuffer* vb = (VertexBuffer*)vertex_buffer;
         uint16_t stride = 0;
-        for (uint32_t i = 0; i < vertex_declaration->m_Count; ++i)
-            stride += vertex_declaration->m_Elements[i].m_Size * TYPE_SIZE[vertex_declaration->m_Elements[i].m_Type - dmGraphics::TYPE_BYTE];
-        uint32_t offset = 0;
-        for (uint16_t i = 0; i < vertex_declaration->m_Count; ++i)
+
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
         {
-            VertexElement& ve = vertex_declaration->m_Elements[i];
-            if (ve.m_Size > 0)
+            stride += vertex_declaration->m_StreamDeclaration.m_Streams[i].m_Size * TYPE_SIZE[vertex_declaration->m_StreamDeclaration.m_Streams[i].m_Type - dmGraphics::TYPE_BYTE];
+        }
+
+        uint32_t offset = 0;
+        for (uint16_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
+        {
+            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
+            if (stream.m_Size > 0)
             {
-                EnableVertexStream(context, i, ve.m_Size, ve.m_Type, stride, &vb->m_Buffer[offset]);
-                offset += ve.m_Size * TYPE_SIZE[ve.m_Type - dmGraphics::TYPE_BYTE];
+                EnableVertexStream(context, i, stream.m_Size, stream.m_Type, stride, &vb->m_Buffer[offset]);
+                offset += stream.m_Size * TYPE_SIZE[stream.m_Type - dmGraphics::TYPE_BYTE];
             }
         }
     }
@@ -568,22 +571,21 @@ namespace dmGraphics
     {
         assert(context);
         assert(vertex_declaration);
-        for (uint32_t i = 0; i < vertex_declaration->m_Count; ++i)
-            if (vertex_declaration->m_Elements[i].m_Size > 0)
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
+            if (vertex_declaration->m_StreamDeclaration.m_Streams[i].m_Size > 0)
                 DisableVertexStream(context, i);
     }
 
     void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
     {
-        uint16_t stream_count = vertex_declaration->m_Count;
-        for (int i = 0; i < stream_count; ++i)
+        for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
         {
-            VertexElement& vert_elem = vertex_declaration->m_Elements[i];
-            dmHashUpdateBuffer32(state, vert_elem.m_Name, strlen(vert_elem.m_Name));
-            dmHashUpdateBuffer32(state, &vert_elem.m_Stream, sizeof(vert_elem.m_Stream));
-            dmHashUpdateBuffer32(state, &vert_elem.m_Size, sizeof(vert_elem.m_Size));
-            dmHashUpdateBuffer32(state, &vert_elem.m_Type, sizeof(vert_elem.m_Type));
-            dmHashUpdateBuffer32(state, &vert_elem.m_Normalize, sizeof(vert_elem.m_Normalize));
+            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
+            dmHashUpdateBuffer32(state, stream.m_Name,       strlen(stream.m_Name));
+            dmHashUpdateBuffer32(state, &stream.m_Stream,    sizeof(stream.m_Stream));
+            dmHashUpdateBuffer32(state, &stream.m_Size,      sizeof(stream.m_Size));
+            dmHashUpdateBuffer32(state, &stream.m_Type,      sizeof(stream.m_Type));
+            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
         }
     }
 
@@ -630,7 +632,7 @@ namespace dmGraphics
         assert(index_buffer);
         for (uint32_t i = 0; i < MAX_VERTEX_STREAM_COUNT; ++i)
         {
-            VertexStream& vs = context->m_VertexStreams[i];
+            VertexStreamBuffer& vs = context->m_VertexStreams[i];
             if (vs.m_Size > 0)
             {
                 vs.m_Buffer = new char[vs.m_Size * count];
@@ -641,7 +643,7 @@ namespace dmGraphics
             uint32_t index = GetIndex(type, index_buffer, i + first);
             for (uint32_t j = 0; j < MAX_VERTEX_STREAM_COUNT; ++j)
             {
-                VertexStream& vs = context->m_VertexStreams[j];
+                VertexStreamBuffer& vs = context->m_VertexStreams[j];
                 if (vs.m_Size > 0)
                     memcpy(&((char*)vs.m_Buffer)[i * vs.m_Size], &((char*)vs.m_Source)[index * vs.m_Stride], vs.m_Size);
             }
@@ -1116,6 +1118,13 @@ namespace dmGraphics
         if (params.m_Data != 0x0)
             memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
         texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+
+        // The width/height of the texture can change from this function as well
+        if (!params.m_SubUpdate && params.m_MipMap == 0)
+        {
+            texture->m_Width  = params.m_Width;
+            texture->m_Height = params.m_Height;
+        }
     }
 
     // Not used?

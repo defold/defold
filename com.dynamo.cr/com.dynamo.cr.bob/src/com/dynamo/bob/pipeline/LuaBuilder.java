@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,6 +40,9 @@ import javax.vecmath.Vector4d;
 
 import org.apache.commons.io.IOUtils;
 
+import com.defold.extension.pipeline.ILuaObfuscator;
+import com.defold.extension.pipeline.ILuaPreprocessor;
+
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.Project;
@@ -71,7 +74,8 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
 
-    private static LuaBuilderPlugin luaBuilderPlugin = null;
+    private static List<ILuaPreprocessor> luaPreprocessors = null;
+    private static List<ILuaObfuscator> luaObfuscators = null;
 
     private Map<String, LuaScanner> luaScanners = new HashMap();
 
@@ -82,12 +86,32 @@ public abstract class LuaBuilder extends Builder<Void> {
      * @param resource The resource to get a LuaScanner for
      * @return A LuaScanner instance
      */
-    private LuaScanner getLuaScanner(IResource resource) throws IOException {
+    private LuaScanner getLuaScanner(IResource resource) throws IOException, CompileExceptionError {
         final String path = resource.getAbsPath();
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         LuaScanner scanner = luaScanners.get(path);
         if (scanner == null) {
             final byte[] scriptBytes = resource.getContent();
-            final String script = new String(scriptBytes, "UTF-8");
+            String script = new String(scriptBytes, "UTF-8");
+
+            // Create and run preprocessors if some exists.
+            if (luaPreprocessors == null) {
+                luaPreprocessors = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaPreprocessor.class);
+
+                if (luaPreprocessors == null) {
+                    luaPreprocessors = new ArrayList<ILuaPreprocessor>(0);
+                }
+            }
+
+            for (ILuaPreprocessor luaPreprocessor : luaPreprocessors) {
+                try {
+                    script = luaPreprocessor.preprocess(script, path, variant);
+                }
+                catch (Exception e) {
+                    throw new CompileExceptionError(resource, 0, "Unable to run Lua preprocessor", e);
+                }
+            }
+
             scanner = new LuaScanner();
             scanner.parse(script);
             luaScanners.put(path, scanner);
@@ -103,6 +127,8 @@ public abstract class LuaBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(params.outExt()));
 
         LuaScanner scanner = getLuaScanner(input);
+        long finalLuaHash = MurmurHash.hash64(scanner.getParsedLua());
+        taskBuilder.addExtraCacheKey(Long.toString(finalLuaHash));
 
         List<LuaScanner.Property> properties = scanner.getProperties();
         for (LuaScanner.Property property : properties) {
@@ -266,7 +292,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         // Doing a bit of custom set up here as the path is required.
         //
-        // NOTE: The -f option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
+        // NOTE: The -F option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
         //       correct chunk name (the original source file) already here.
         //
         // See implementation of luaO_chunkid and why a prefix '@' is used; it is to show the last 60 characters of the name.
@@ -279,7 +305,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
         options.add("-b");
         options.add("-g"); // Keep debug info
-        options.add("-f"); options.add(chunkName);
+        options.add("-F"); options.add(task.input(0).getPath()); // The @ is added in the tool
         options.add(inputFile.getAbsolutePath());
         options.add(outputFile.getAbsolutePath());
 
@@ -387,14 +413,25 @@ public abstract class LuaBuilder extends Builder<Void> {
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
 
-        // create and apply a builder plugin if one exists
-        LuaBuilderPlugin luaBuilderPlugin = PluginScanner.getOrCreatePlugin("com.dynamo.bob.pipeline", LuaBuilderPlugin.class);
-        if (luaBuilderPlugin != null) {
-            try {
-                script = luaBuilderPlugin.build(script);
+        // Create and run obfuscators if some exists.
+        if (luaObfuscators == null) {
+            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
+
+            if (luaObfuscators == null) {
+                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
             }
-            catch(Exception e) {
-                throw new CompileExceptionError(task.input(0), 0, "Unable to run Lua builder plugin", e);
+        }
+
+        final IResource sourceResource = task.input(0);
+        final String sourcePath = sourceResource.getAbsPath();
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+
+        for (ILuaObfuscator luaObfuscator : luaObfuscators) {
+            try {
+                script = luaObfuscator.obfuscate(script, sourcePath, variant);
+            }
+            catch (Exception e) {
+                throw new CompileExceptionError(sourceResource, 0, "Unable to run Lua obfuscator", e);
             }
         }
 

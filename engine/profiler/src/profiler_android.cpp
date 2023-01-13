@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,9 +25,15 @@ extern struct android_app* __attribute__((weak)) g_AndroidApp;
 
 void dmProfilerExt::SampleCpuUsage()
 {
-    // Should be implemented using JNI for Android 8+
     // see https://github.com/defold/defold/issues/3385
-    dmProfilerExt::SampleProcCpuUsage();
+    int api_level = android_get_device_api_level();
+    if (api_level >= 26)
+    {
+        dmProfilerExt::SampleProcCpuUsage(true);
+    } else
+    {
+        dmProfilerExt::SampleProcCpuUsage(false);
+    }
 }
 
 uint64_t dmProfilerExt::GetMemoryUsage()

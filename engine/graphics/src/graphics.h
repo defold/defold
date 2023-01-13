@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -70,7 +70,6 @@ namespace dmGraphics
         ADAPTER_TYPE_OPENGL,
         ADAPTER_TYPE_VULKAN,
     };
-
 
     // buffer clear types, each value is guaranteed to be separate bits
     enum BufferType
@@ -579,6 +578,8 @@ namespace dmGraphics
     PipelineState GetPipelineState(HContext context);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
+
+    uint32_t GetTextureFormatBitsPerPixel(TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
 
@@ -609,6 +610,8 @@ namespace dmGraphics
     void EnableTexture(HContext context, uint32_t unit, HTexture texture);
     void DisableTexture(HContext context, uint32_t unit, HTexture texture);
     uint32_t GetMaxTextureSize(HContext context);
+    uint16_t GetMipmapSize(uint16_t size_0, uint8_t mipmap);
+    uint8_t GetMipmapCount(uint16_t size);
 
     /**
      * Get status of texture.

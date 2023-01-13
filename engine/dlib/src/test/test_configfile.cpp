@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -97,9 +97,11 @@ public:
     virtual void TearDown()
     {
         delete [] m_Buffer;
+        m_Buffer = 0;
         if (config)
         {
             dmConfigFile::Delete(config);
+            config = 0;
         }
     }
 };
@@ -194,6 +196,15 @@ TEST_P(Test01, Test01)
 
     ASSERT_STREQ("missing_value", dmConfigFile::GetString(config, "missing_key", "missing_value"));
     ASSERT_EQ(1122, dmConfigFile::GetInt(config, "missing_int_key", 1122));
+
+    // The extension plugin hooks are disabled
+    ASSERT_STREQ("hello", dmConfigFile::GetString(config, "ext.string", 0));
+    ASSERT_STREQ("42", dmConfigFile::GetString(config, "ext.int", 0));
+    ASSERT_STREQ("1.0", dmConfigFile::GetString(config, "ext.float", 0));
+
+    ASSERT_EQ(42, dmConfigFile::GetInt(config, "ext.int", 0));
+    ASSERT_EQ(1.0f, dmConfigFile::GetFloat(config, "ext.float", 0));
+    ASSERT_EQ(0, dmConfigFile::GetInt(config, "ext.virtual", 0));
 }
 
 const TestParam params_test01[] = {
@@ -280,6 +291,100 @@ const TestParam params_long_value[] = {
 };
 
 INSTANTIATE_TEST_CASE_P(LongValue, LongValue, jc_test_values_in(params_long_value));
+
+static int g_ExtensionTestEnabled = 0;
+static int g_ExtensionTestCreated = 0;
+static int g_ExtensionTestDestroyed = 0;
+static const char* g_ExtensionTestString = "world";
+
+static void TestCreate(dmConfigFile::HConfig config)
+{
+    if (!g_ExtensionTestEnabled) return;
+    g_ExtensionTestCreated++;
+}
+static void TestDestroy(dmConfigFile::HConfig config)
+{
+    if (!g_ExtensionTestEnabled) return;
+    g_ExtensionTestDestroyed++;
+}
+static bool TestGetString(dmConfigFile::HConfig config, const char* key, const char* default_value, const char** out)
+{
+    if (!g_ExtensionTestEnabled) return false;
+    if (strstr(key, "ext.") != key)
+        return false;
+
+    if (strcmp("ext.string", key) == 0)
+    {
+        *out = g_ExtensionTestString;
+        return true;
+    }
+    return false;
+}
+static bool TestGetInt(dmConfigFile::HConfig config, const char* key, int32_t default_value, int32_t* out)
+{
+    if (!g_ExtensionTestEnabled) return false;
+    if (strstr(key, "ext.") != key)
+        return false;
+    if (strcmp("ext.virtual", key) == 0)
+    {
+        *out = 1301;
+        return true;
+    }
+    *out = default_value * 2;
+    return true;
+}
+static bool TestGetFloat(dmConfigFile::HConfig config, const char* key, float default_value, float* out)
+{
+    if (!g_ExtensionTestEnabled) return false;
+    if (strstr(key, "ext.") != key)
+        return false;
+    if (strcmp("ext.virtual", key) == 0)
+    {
+        *out = 4096;
+        return true;
+    }
+    *out = default_value * 2;
+    return true;
+}
+
+DM_DECLARE_CONFIGFILE_EXTENSION(TestConfigfileExtension, "TestConfigfileExtension", TestCreate, TestDestroy, TestGetString, TestGetInt, TestGetFloat);
+
+class ConfigfileExtension : public ConfigTest {
+    virtual void SetUp()
+    {
+        g_ExtensionTestEnabled = 1;
+        ConfigTest::SetUp();
+
+        ASSERT_EQ(g_ExtensionTestCreated, 1);
+    }
+    virtual void TearDown()
+    {
+        ConfigTest::TearDown();
+        g_ExtensionTestEnabled = 0;
+
+        ASSERT_EQ(g_ExtensionTestDestroyed, 1);
+    }
+};
+
+TEST_P(ConfigfileExtension, ConfigfileExtension)
+{
+    ASSERT_STREQ("world", dmConfigFile::GetString(config, "ext.string", 0));
+    ASSERT_STREQ("42", dmConfigFile::GetString(config, "ext.int", 0));
+    ASSERT_STREQ("1.0", dmConfigFile::GetString(config, "ext.float", 0));
+
+    ASSERT_EQ(84, dmConfigFile::GetInt(config, "ext.int", 0));
+    ASSERT_EQ(2.0f, dmConfigFile::GetFloat(config, "ext.float", 0));
+
+    ASSERT_EQ(1301, dmConfigFile::GetInt(config, "ext.virtual", 0));
+    ASSERT_EQ(4096.0f, dmConfigFile::GetFloat(config, "ext.virtual", 0));
+}
+
+const TestParam params_extension[] = {
+    TestParam("src/test/data/test.config"),
+};
+
+INSTANTIATE_TEST_CASE_P(ConfigfileExtension, ConfigfileExtension, jc_test_values_in(params_extension));
+
 
 
 static void Usage()

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -141,6 +141,7 @@
               (complete! false)
               (do
                 (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
+                (workspace/reload-plugins! workspace (into #{} (map :resource) save-data))
                 (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
                   (render-save-progress! progress/done)
                   (ui/run-later

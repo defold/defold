@@ -13,10 +13,10 @@ You can build and run the editor and use an existing released version of the Def
 cd defold
 
 # Setup the shell environment (consider putting it in an alias in your bash profile)
-python2 ./scripts/build.py shell
+python ./scripts/build.py shell
 
 # you only need to do this once
-python2 ./scripts/build.py install_ext
+python ./scripts/build.py install_ext
 
 # Change directory to the editor directory
 cd editor

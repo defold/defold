@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,13 +26,13 @@ int _glfwPlatformGetJoystickButtons( int joy, unsigned char *buttons, int numbut
 {
     return 0;
 }
+int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
+{
+    return 0;
+}
 int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
 {
     (void) joy;
     (void) device_id;
     return GL_FALSE;
-}
-int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
-{
-    return 0;
 }

@@ -16,7 +16,7 @@ def append_yaml(task):
     with open(path, 'wb') as out_f:
         for i in task.inputs:
             with open(i.abspath(), 'rb') as in_f:
-                data = in_f.read();
+                data = in_f.read()
                 out_f.write(data)
 
     digest = waflib.Utils.h_file(path)

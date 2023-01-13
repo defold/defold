@@ -1,12 +1,12 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1259,7 +1259,7 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
     return ret
 
 def run_tests(ctx, valgrind = False, configfile = None):
-    if ctx == None or getattr(Options.options, 'skip_tests', False):
+    if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
 
     # TODO: Add something similar to this
@@ -1711,6 +1711,9 @@ def detect(conf):
     conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
     conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null_noasan']
+
+    if platform in ('arm64-nx64',):
+        conf.env['STLIB_PROFILE'] = conf.env['STLIB_PROFILE_NULL']
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'

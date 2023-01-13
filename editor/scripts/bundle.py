@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,7 +23,6 @@ import optparse
 import re
 import shutil
 import subprocess
-import tarfile
 import zipfile
 import configparser
 import datetime
@@ -76,16 +75,8 @@ def mkdirs(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def extract_tar(file, path, is_mac):
-    if is_mac:
-        # We use the system tar command for macOS because tar (and
-        # others) on macOS has special handling of ._ files that
-        # contain additional HFS+ attributes. See for example:
-        # http://superuser.com/questions/61185/why-do-i-get-files-like-foo-in-my-tarball-on-os-x
-        run.command(['tar', '-C', path, '-xzf', file])
-    else:
-        with tarfile.TarFile.open(file, 'r:gz') as tf:
-            tf.extractall(path)
+def extract_tar(file, path):
+    run.command(['tar', '-C', path, '-xzf', file])
 
 def extract_zip(file, path, is_mac):
     if is_mac:
@@ -102,7 +93,7 @@ def extract(file, path, is_mac):
     print('Extracting %s to %s' % (file, path))
 
     if fnmatch.fnmatch(file, "*.tar.gz-*"):
-        extract_tar(file, path, is_mac)
+        extract_tar(file, path)
     elif fnmatch.fnmatch(file, "*.zip-*"):
         extract_zip(file, path, is_mac)
     else:

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -252,9 +252,9 @@ namespace dmHID
         }
     }
 
-    void GetGamepadDeviceName(HGamepad gamepad, const char** device_name)
+    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name)
     {
-        glfwGetJoystickDeviceId(gamepad->m_Index, (char**)device_name);
+        glfwGetJoystickDeviceId(gamepad->m_Index, (char**)out_device_name);
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)

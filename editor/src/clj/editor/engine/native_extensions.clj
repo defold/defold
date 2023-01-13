@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -132,15 +132,34 @@
   [platform]
   (into common-extension-paths (map #(vector "lib" %) (get-in extender-platforms [platform :library-paths]))))
 
-(defn- extension-root?
-  [resource]
-  (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
+(defn- engine-extension-root?
+  "Tests if the resource is an extension root that should be built remotely
 
-(defn extension-roots
+  Engine extension root should be a folder with ext.manifest file and either src
+  or commonsrc folder"
+  [resource]
+  (= :both
+     (reduce
+       (fn [acc resource]
+         (case (resource/resource-name resource)
+           "ext.manifest"
+           (if (= acc :source)
+             (reduced :both)
+             :manifest)
+
+           ("src" "commonsrc")
+           (if (= acc :manifest)
+             (reduced :both)
+             :source)
+           acc))
+       :none
+       (resource/children resource))))
+
+(defn engine-extension-roots
   [project evaluation-context]
   (->> (g/node-value project :resources evaluation-context)
-       (filter extension-root?)
-       (seq)))
+       (filter engine-extension-root?)
+       seq))
 
 (defn- resource-child
   [resource name]
@@ -153,7 +172,7 @@
 
 (defn extension-resource-nodes
   [project evaluation-context platform]
-  (let [native-extension-roots (extension-roots project evaluation-context)
+  (let [native-extension-roots (engine-extension-roots project evaluation-context)
         paths (platform-extension-paths platform)]
     (->> (for [root native-extension-roots
                path paths
@@ -231,7 +250,7 @@
   ;; Otherwise, you will likely get an Internal Server Error response.
   (let [cc (DefaultClientConfig.)
         ;; TODO: Random errors without this... Don't understand why random!
-        ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream"
+        ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream'
         _ (.add (.getClasses cc) MultiPartWriter)
         _ (.add (.getClasses cc) InputStreamProvider)
         _ (.add (.getClasses cc) StringProvider)
@@ -321,13 +340,13 @@
 
 (defn- get-main-manifest-file-upload-resource [project evaluation-context platform]
   (let [ne-platform (get-ne-platform platform)
-        target-path  (get-main-manifest-name ne-platform)]
-  (when target-path
-    (let [project-settings (g/node-value project :settings evaluation-context)
-          [section key] (get-main-manifest-section-and-key ne-platform)
-          resource (get project-settings [section key])
-          resource-node (project/get-resource-node project resource evaluation-context)]
-      {target-path resource-node}))))
+        target-path (get-main-manifest-name ne-platform)]
+    (when target-path
+      (let [project-settings (g/node-value project :settings evaluation-context)
+            [section key] (get-main-manifest-section-and-key ne-platform)
+            resource (get project-settings [section key])
+            resource-node (project/get-resource-node project resource evaluation-context)]
+        {target-path resource-node}))))
 
 (defn- resource-node-upload-path [resource-node evaluation-context]
   (fs/without-leading-slash (resource/proj-path (g/node-value resource-node :resource evaluation-context))))
@@ -337,9 +356,12 @@
         (map (juxt #(resource-node-upload-path % evaluation-context) identity))
         (extension-resource-nodes project evaluation-context platform)))
 
-(defn has-extensions? [project evaluation-context]
-  (not (empty? (merge (extension-roots project evaluation-context)
-                      (global-resource-nodes-by-upload-path project evaluation-context)))))
+(defn has-engine-extensions?
+  "Returns true if the project's engine should be built remotely"
+  [project evaluation-context]
+  (boolean
+    (or (seq (engine-extension-roots project evaluation-context))
+        (pos? (count (global-resource-nodes-by-upload-path project evaluation-context))))))
 
 (defn get-engine-archive [project evaluation-context platform build-server-url build-server-headers]
   (if-not (supported-platform? platform)

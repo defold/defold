@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -105,7 +105,6 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
         uint32_t next_component_instance_data = 0;
         uintptr_t* component_instance_data = 0;
 
-        bool found = false;
         for (uint32_t k = 0; k < prototype->m_ComponentCount; ++k)
         {
             ComponentType* component_type = prototype->m_Components[k].m_Type;
@@ -118,7 +117,6 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
                 if (k >= index)
                 {
                     index = k;
-                    found = true;
                     break;
                 }
             }

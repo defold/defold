@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@ ordinary paths."
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code.preprocessors :as code.preprocessors]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.library :as library]
@@ -33,12 +34,20 @@ ordinary paths."
             [internal.cache :as c]
             [service.log :as log]
             [util.coll :refer [pair]])
-  (:import [editor.resource FileResource]
+  (:import [clojure.lang DynamicClassLoader]
+           [editor.resource FileResource]
            [java.io File PushbackReader]
            [java.net URI]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
+
+;; Class loader used when loading editor extensions from libraries.
+;; It's important to use the same class loader, so the type signatures match.
+(def ^:private ^DynamicClassLoader class-loader (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
+
+(defn load-class! [class-name]
+  (Class/forName class-name true class-loader))
 
 (def build-dir "/build/default/")
 (def plugins-dir "/build/plugins/")
@@ -49,6 +58,13 @@ ordinary paths."
      (project-path workspace evaluation-context)))
   (^File [workspace evaluation-context]
    (io/as-file (g/node-value workspace :root evaluation-context))))
+
+(defn code-preprocessors
+  ([workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (code-preprocessors workspace evaluation-context)))
+  ([workspace evaluation-context]
+   (g/node-value workspace :code-preprocessors evaluation-context)))
 
 (defn- skip-first-char [path]
   (subs path 1))
@@ -341,11 +357,7 @@ ordinary paths."
 (defn- is-plugin-clojure-file? [resource]
   (= "clj" (resource/ext resource)))
 
-(defn- find-clojure-plugins [workspace]
-  (let [resources (filter is-plugin-clojure-file? (g/node-value workspace :resource-list))]
-    resources))
-
-(defn- load-plugin! [workspace resource]
+(defn- load-clojure-plugin! [workspace resource]
   (log/info :msg (str "Loading plugin " (resource/path resource)))
   (try
     (if-let [plugin-fn (load-string (slurp resource))]
@@ -364,11 +376,17 @@ ordinary paths."
            :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
       false)))
 
-(defn- load-editor-plugins! [workspace added]
-  (let [added-resources (set (map resource/proj-path added))
-        plugin-resources (find-clojure-plugins workspace)
-        plugin-resources (filter (fn [x] (contains? added-resources (resource/proj-path x))) plugin-resources)]
-    (dorun (map (fn [x] (load-plugin! workspace x)) plugin-resources))))
+(defn- load-clojure-editor-plugins! [workspace added]
+  (->> added
+       (filterv is-plugin-clojure-file?)
+       ;; FIXME: hack for extension-spine: spineguiext.clj requires spineext.clj
+       ;;        that needs to be loaded first
+       (sort-by resource/proj-path util/natural-order)
+       (run! #(load-clojure-plugin! workspace %))))
+
+(defn- load-java-editor-plugins! [workspace]
+  (let [code-preprocessors (code-preprocessors workspace)]
+    (code.preprocessors/reload-lua-preprocessors! code-preprocessors class-loader)))
 
 ; Determine if the extension has plugins, if so, it needs to be extracted
 
@@ -380,40 +398,29 @@ ordinary paths."
   [resource]
   (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
 
-(defn- is-extension-file? [workspace resource]
+(defn- is-extension-file? [resource]
   (let [parent-path (resource/parent-proj-path (resource/proj-path resource))
-        parent (find-resource workspace (str parent-path))]
-    (if (extension-root? resource)
-      true
-      (if parent
-        (is-extension-file? workspace parent)
-        false))))
+        parent (find-resource (resource/workspace resource) (str parent-path))]
+    (or (extension-root? resource)
+        (and (some? parent) (recur parent)))))
 
-(defn- is-plugin-file? [workspace resource]
+(defn- is-plugin-file? [resource]
   (and
     (string/includes? (resource/proj-path resource) "/plugins/")
-    (is-extension-file? workspace resource)))
+    (is-extension-file? resource)))
 
 (defn- is-shared-library? [resource]
   (contains? #{"dylib" "dll" "so"} (resource/ext resource)))
 
-(defn- find-plugins-shared-libraries [workspace]
-  (let [resources (filter (fn [x] (is-plugin-file? workspace x)) (g/node-value workspace :resource-list))]
-    resources))
-
-(defn unpack-resource! [workspace resource]
+(defn- unpack-resource! [workspace resource]
   (let [target-path (plugin-path workspace (resource/proj-path resource))
         parent-dir (.getParentFile ^File target-path)
         input-stream (io/input-stream resource)]
     (when-not (.exists parent-dir)
       (.mkdirs parent-dir))
-    (io/copy input-stream target-path)))
-
-; It's important to use the same class loader, so that the type signatures match
-(def class-loader (clojure.lang.DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
-
-(defn load-class! [class-name]
-  (Class/forName class-name true class-loader))
+    (io/copy input-stream target-path)
+    (when (string/includes? (resource/proj-path resource) "/plugins/bin/")
+      (.setExecutable target-path true))))
 
 (defn- add-to-path-property [propertyname path]
   (let [current (System/getProperty propertyname)
@@ -424,7 +431,7 @@ ordinary paths."
 
 (defn- register-jar-file! [workspace resource]
   (let [jar-file (plugin-path workspace (resource/proj-path resource))]
-    (.addURL ^clojure.lang.DynamicClassLoader class-loader (io/as-url jar-file))))
+    (.addURL class-loader (io/as-url jar-file))))
 
 (defn- register-shared-library-file! [workspace resource]
   (let [resource-file (plugin-path workspace (resource/proj-path resource))
@@ -456,20 +463,21 @@ ordinary paths."
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
-  (let [changed-resources (set (map resource/proj-path changed))
-        all-plugin-resources (find-plugins-shared-libraries workspace)
-        changed-plugin-resources (filter (fn [x] (contains? changed-resources (resource/proj-path x))) all-plugin-resources)
-        changed-shared-library-resources (filter is-shared-library? changed-plugin-resources)
-        changed-jar-resources (filter is-jar-file? changed-plugin-resources)]
+  (let [changed-plugin-resources (filterv is-plugin-file? changed)]
     (doseq [x changed-plugin-resources]
       (try
         (unpack-resource! workspace x)
         (catch java.io.FileNotFoundException error
-          (throw (java.io.IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!")))))
-    (doseq [x changed-jar-resources]
-      (register-jar-file! workspace x))
-    (doseq [x changed-shared-library-resources]
-      (register-shared-library-file! workspace x))))
+          (throw (java.io.IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!"))))
+      (when (is-jar-file? x)
+        (register-jar-file! workspace x))
+      (when (is-shared-library? x)
+        (register-shared-library-file! workspace x)))))
+
+(defn reload-plugins! [workspace touched-resources]
+  (unpack-editor-plugins! workspace touched-resources)
+  (load-java-editor-plugins! workspace)
+  (load-clojure-editor-plugins! workspace touched-resources))
 
 (defn resource-sync!
   ([workspace]
@@ -545,8 +553,7 @@ ordinary paths."
                  added (:added changes)
                  changed (:changed changes)
                  all-changed (set/union added changed)]
-             (unpack-editor-plugins! workspace all-changed)
-             (load-editor-plugins! workspace all-changed)
+             (reload-plugins! workspace all-changed)
              (loop [listeners listeners
                     parent-progress (progress/make "" total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]
@@ -584,6 +591,8 @@ ordinary paths."
   (property snapshot-cache g/Any (default {}))
   (property build-settings g/Any)
   (property editable-proj-path? g/Any)
+
+  (input code-preprocessors g/NodeID :cascade-delete)
 
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
@@ -676,13 +685,19 @@ ordinary paths."
   (let [editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
                               (make-editable-proj-path-predicate non-editable-directory-proj-paths)
                               (constantly true))]
-    (g/make-node! graph Workspace
-                  :root project-path
-                  :resource-snapshot (resource-watch/empty-snapshot)
-                  :view-types {:default {:id :default}}
-                  :resource-listeners (atom [])
-                  :build-settings build-settings
-                  :editable-proj-path? editable-proj-path?)))
+    (first
+      (g/tx-nodes-added
+        (g/transact
+          (g/make-nodes graph
+            [workspace [Workspace
+                        :root project-path
+                        :resource-snapshot (resource-watch/empty-snapshot)
+                        :view-types {:default {:id :default}}
+                        :resource-listeners (atom [])
+                        :build-settings build-settings
+                        :editable-proj-path? editable-proj-path?]
+             code-preprocessors code.preprocessors/CodePreprocessorsNode]
+            (g/connect code-preprocessors :_node-id workspace :code-preprocessors)))))))
 
 (defn register-view-type
   "Register a new view type that can be used by resources

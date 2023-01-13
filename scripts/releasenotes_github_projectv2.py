@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,7 @@ import json
 
 token = None
 
+TYPE_BREAKING_CHANGE = "BREAKING CHANGE"
 TYPE_FIX = "FIX"
 TYPE_NEW = "NEW"
 
@@ -61,13 +62,21 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
       title
       items(first: 100) {
         nodes {
+          type
           content {
             ... on Issue {
               id
               closed
               title
               number
-              timeline(first: 100) {
+              body
+              url
+              labels(first: 10) {
+                nodes {
+                  name
+                }
+              }
+              timelineItems(first: 100) {
                 nodes {
                   ... on CrossReferencedEvent {
                     source {
@@ -88,29 +97,42 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
                   }
                 }
               }
-              body
-              url
-              labels(first: 10) {
-                nodes {
-                  name
-                }
-              }
             }
             ... on PullRequest {
               id
               merged
               title
+              number
               body
+              url
               labels(first: 10) {
                 nodes {
                   name
                 }
               }
-              url
-              number
+              timelineItems(first: 100) {
+                nodes {
+                  ... on CrossReferencedEvent {
+                    source {
+                      ... on Issue {
+                        id
+                        body
+                        number
+                        closed
+                        title
+                        url
+                        labels(first: 10) {
+                          nodes {
+                            name
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
-          type
         }
       }
     }
@@ -154,7 +176,9 @@ def get_labels(issue_or_pr):
 
 def get_issue_type(issue):
     labels = get_labels(issue)
-    if "bug" in labels:
+    if "breaking change" in labels:
+        return TYPE_BREAKING_CHANGE
+    elif "bug" in labels:
         return TYPE_FIX
     elif "task" in labels:
         return TYPE_NEW
@@ -163,7 +187,7 @@ def get_issue_type(issue):
     return TYPE_FIX
 
 def get_closing_pr(issue):
-    for t in issue["timeline"]["nodes"]:
+    for t in issue["timelineItems"]["nodes"]:
         if "source" in t and t["source"]:
             return t["source"]
     return issue
@@ -202,6 +226,9 @@ def generate(version, hide_details = False):
             continue
 
         issue_labels = get_labels(content)
+        if "skip release notes" in issue_labels:
+            continue
+
         issue_type = get_issue_type(content)
         if is_issue:
             content = get_closing_pr(content)
@@ -216,10 +243,13 @@ def generate(version, hide_details = False):
             "is_issue": is_issue,
             "type": issue_type
         }
-        entry["body"] = re.sub("Fixes #....", "", entry["body"]).strip()
-        entry["body"] = re.sub("Fixes https.*", "", entry["body"]).strip()
-        entry["body"] = re.sub("Fix #....", "", entry["body"]).strip()
-        entry["body"] = re.sub("Fix https.*", "", entry["body"]).strip()
+        entry["body"] = re.sub("## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("Fixes .*/.*#....", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fix .*/.*#....", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fixes #....", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fix #....", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
 
         output.append(entry)
 
@@ -230,33 +260,22 @@ def generate(version, hide_details = False):
             editor.append(o)
         else:
             engine.append(o)
-
-
-    content = ("# Defold %s\n" % version)
-
-    # list of issue titles
-    content += ("\n## Summary\n")
-    for issue_type in [TYPE_NEW, TYPE_FIX]:
+ 
+    types = [ TYPE_BREAKING_CHANGE, TYPE_NEW, TYPE_FIX ]
+    summary = ("\n## Summary\n")
+    details_engine = ("\n## Engine\n")
+    details_editor = ("\n## Editor\n")
+    for issue_type in types:
         for issue in engine:
             if issue["type"] == issue_type:
-                content += issue_to_markdown(issue, title_only = True)
+                summary += issue_to_markdown(issue, title_only = True)
+                details_engine += issue_to_markdown(issue, hide_details = hide_details)
         for issue in editor:
             if issue["type"] == issue_type:
-                content += issue_to_markdown(issue, title_only = True)
+                summary += issue_to_markdown(issue, title_only = True)
+                details_editor += issue_to_markdown(issue, hide_details = hide_details)
 
-    # the details
-    content += ("\n## Engine\n")
-    for issue_type in [TYPE_NEW, TYPE_FIX]:
-        for issue in engine:
-            if issue["type"] == issue_type:
-                content += issue_to_markdown(issue, hide_details = hide_details)
-
-    content += ("\n## Editor\n")
-    for issue_type in [TYPE_NEW, TYPE_FIX]:
-        for issue in editor:
-            if issue["type"] == issue_type:
-                content += issue_to_markdown(issue, hide_details = hide_details)
-
+    content = ("# Defold %s\n" % version) + summary + details_engine + details_editor
     with io.open("releasenotes-forum-%s.md" % version, "wb") as f:
         f.write(content.encode('utf-8'))
 

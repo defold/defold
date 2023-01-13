@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,9 +29,49 @@
 #include "dstrings.h"
 #include "math.h"
 #include "sys.h"
+#include "static_assert.h"
 
 namespace dmConfigFile
 {
+    struct PluginDesc
+    {
+        const char* m_Name;
+        void (*m_Create)(HConfig config);
+        void (*m_Destroy)(HConfig config);
+        bool (*m_GetString)(HConfig config, const char* key, const char* default_value, const char** out);
+        bool (*m_GetInt)(HConfig config, const char* key, int32_t default_value, int32_t* out);
+        bool (*m_GetFloat)(HConfig config, const char* key, float default_value, float* out);
+        const PluginDesc* m_Next;
+    };
+
+    PluginDesc* g_FirstExtension = 0;
+    extern const uint32_t m_ExtensionDescBufferSize;
+
+    void Register(struct PluginDesc* desc,
+        uint32_t desc_size,
+        const char *name,
+        void (*create)(HConfig config),
+        void (*destroy)(HConfig config),
+        bool (*get_string)(HConfig config, const char* key, const char* default_value, const char** out),
+        bool (*get_int)(HConfig config, const char* key, int32_t default_value, int32_t* out),
+        bool (*get_float)(HConfig config, const char* key, float default_value, float* out))
+    {
+        DM_STATIC_ASSERT(dmConfigFile::m_ExtensionDescBufferSize >= sizeof(struct PluginDesc), Invalid_Struct_Size);
+        desc->m_Name = name;
+        desc->m_Create = create;
+        desc->m_Destroy = destroy;
+        desc->m_GetString = get_string;
+        desc->m_GetInt = get_int;
+        desc->m_GetFloat = get_float;
+
+        desc->m_Next = g_FirstExtension;
+        g_FirstExtension = desc;
+    }
+
+    static const PluginDesc* GetFirstExtension()
+    {
+        return g_FirstExtension;
+    }
 
     const int32_t CATEGORY_MAX_SIZE = 512;
 
@@ -459,6 +499,28 @@ namespace dmConfigFile
 
     }
 
+    static void PluginsCreate(HConfig config)
+    {
+        const PluginDesc* plugin = GetFirstExtension();
+        while (plugin != 0)
+        {
+            if (plugin->m_Create)
+                plugin->m_Create(config);
+            plugin = plugin->m_Next;
+        }
+    }
+
+    static void PluginsDestroy(HConfig config)
+    {
+        const PluginDesc* plugin = GetFirstExtension();
+        while (plugin != 0)
+        {
+            if (plugin->m_Destroy)
+                plugin->m_Destroy(config);
+            plugin = plugin->m_Next;
+        }
+    }
+
     static Result LoadFromFileInternal(const char* url, int argc, const char** argv, HConfig* config)
     {
 #ifdef __ANDROID__
@@ -535,10 +597,14 @@ namespace dmConfigFile
     Result LoadFromBuffer(const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config)
     {
         Result r = LoadFromBufferInternal("<buffer>", buffer, buffer_size, argc, argv, config);
+        if (r == RESULT_OK)
+        {
+            PluginsCreate(*config);
+        }
         return r;
     }
 
-    Result Load(const char* url, int argc, const char** argv, HConfig* config)
+    static Result DoLoad(const char* url, int argc, const char** argv, HConfig* config)
     {
         assert(url);
         assert(config);
@@ -591,12 +657,23 @@ namespace dmConfigFile
         return RESULT_INVALID_URI;
     }
 
+    Result Load(const char* url, int argc, const char** argv, HConfig* config)
+    {
+        Result result = DoLoad(url, argc, argv, config);
+        if (result == RESULT_OK)
+        {
+            PluginsCreate(*config);
+        }
+        return result;
+    }
+
     void Delete(HConfig config)
     {
+        PluginsDestroy(config);
         delete config;
     }
 
-    const char* GetString(HConfig config, const char* key, const char* default_value)
+    static const char* GetBaseString(HConfig config, const char* key, const char* default_value)
     {
         uint64_t key_hash = dmHashString64(key);
         for (uint32_t i = 0; i < config->m_Entries.Size(); ++i)
@@ -611,9 +688,30 @@ namespace dmConfigFile
         return default_value;
     }
 
-    int32_t GetInt(HConfig config, const char* key, int32_t default_value)
+    static bool GetStringOverride(HConfig config, const char* key, const char* default_value, const char** out_value)
     {
-        const char* tmp = GetString(config, key, 0);
+        const PluginDesc* plugin = GetFirstExtension();
+        while (plugin != 0)
+        {
+            if (plugin->m_GetString && plugin->m_GetString(config, key, default_value, out_value))
+                return true;
+            plugin = plugin->m_Next;
+        }
+        return false;
+    }
+
+    const char* GetString(HConfig config, const char* key, const char* default_value)
+    {
+        const char* base_value = GetBaseString(config, key, default_value);
+        const char* out_value = 0;
+        if (GetStringOverride(config, key, base_value, &out_value))
+            return out_value;
+        return base_value;
+    }
+
+    static int32_t GetBaseInt(HConfig config, const char* key, int32_t default_value)
+    {
+        const char* tmp = GetBaseString(config, key, 0);
         if (tmp == 0)
             return default_value;
         int l = strlen(tmp);
@@ -627,9 +725,30 @@ namespace dmConfigFile
         return ret;
     }
 
-    float GetFloat(HConfig config, const char* key, float default_value)
+    static bool GetIntOverride(HConfig config, const char* key, int32_t default_value, int32_t* out_value)
     {
-        const char* tmp = GetString(config, key, 0);
+        const PluginDesc* plugin = GetFirstExtension();
+        while (plugin != 0)
+        {
+            if (plugin->m_GetInt && plugin->m_GetInt(config, key, default_value, out_value))
+                return true;
+            plugin = plugin->m_Next;
+        }
+        return false;
+    }
+
+    int32_t GetInt(HConfig config, const char* key, int32_t default_value)
+    {
+        int32_t base_value = GetBaseInt(config, key, default_value);
+        int32_t out_value = 0;
+        if (GetIntOverride(config, key, base_value, &out_value))
+            return out_value;
+        return base_value;
+    }
+
+    static float GetBaseFloat(HConfig config, const char* key, float default_value)
+    {
+        const char* tmp = GetBaseString(config, key, 0);
         if (tmp == 0)
             return default_value;
         int l = strlen(tmp);
@@ -641,6 +760,27 @@ namespace dmConfigFile
             return default_value;
         }
         return ret;
+    }
+
+    static bool GetFloatOverride(HConfig config, const char* key, float default_value, float* out_value)
+    {
+        const PluginDesc* plugin = GetFirstExtension();
+        while (plugin != 0)
+        {
+            if (plugin->m_GetFloat && plugin->m_GetFloat(config, key, default_value, out_value))
+                return true;
+            plugin = plugin->m_Next;
+        }
+        return false;
+    }
+
+    float GetFloat(HConfig config, const char* key, float default_value)
+    {
+        float base_value = GetBaseFloat(config, key, default_value);
+        float out_value = 0;
+        if (GetFloatOverride(config, key, base_value, &out_value))
+            return out_value;
+        return base_value;
     }
 
 }

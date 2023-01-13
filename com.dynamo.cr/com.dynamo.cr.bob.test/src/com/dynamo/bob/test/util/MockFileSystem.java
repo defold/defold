@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -113,8 +113,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
 
             boolean isInPath = entryPath.startsWith(path);
             if (isInPath) {
-
-                boolean isDirectory = entryPath.lastIndexOf('/') == entryPath.length() - 1;
+                boolean isDirectory = !resources.get(entryPath).isFile();
                 if (isDirectory) {
                     if (!walker.handleDirectory(entryPath, results)) {
                         // If we should skip this directory, continue loop until entryPath does not match anymore.

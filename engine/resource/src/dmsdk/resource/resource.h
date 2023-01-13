@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -464,6 +464,16 @@ namespace dmResource
      * @return result [type: dmResource::Result]  RESULT_OK on success
      */
     Result Get(HFactory factory, const char* name, void** resource);
+
+    /*#
+     * Get a resource from factory
+     * @name Get
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param name [type: dmhash_t] Resource name
+     * @param resource [type: void**] Created resource
+     * @return result [type: dmResource::Result]  RESULT_OK on success
+     */
+    Result Get(HFactory factory, dmhash_t name, void** resource);
 
 
     /*#
