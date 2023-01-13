@@ -399,12 +399,10 @@ ordinary paths."
    (unpack-resource! workspace nil resource))
   ([workspace infix-path resource]
    (let [resource-path (str infix-path (resource/proj-path resource))
-         target-path (plugin-path workspace resource-path)
-         parent-dir (.getParentFile ^File target-path)
-         input-stream (io/input-stream resource)]
-     (when-not (.exists parent-dir)
-       (.mkdirs parent-dir))
-     (io/copy input-stream target-path)
+         target-path (plugin-path workspace resource-path)]
+     (fs/create-parent-directories! target-path)
+     (with-open [is (io/input-stream resource)]
+       (io/copy is target-path))
      (when (string/includes? resource-path "/plugins/bin/")
        (.setExecutable target-path true)))))
 
@@ -464,6 +462,7 @@ ordinary paths."
     (boolean (some #(string/ends-with? path %) bin-zip-names))))
 
 (defn- unpack-bin-zip! [workspace resource]
+  {:pre [(string/ends-with? (resource/proj-path resource) ".zip")]}
   (let [proj-path (resource/proj-path resource)
         plugin-file (plugin-path workspace proj-path)
         infix-path (subs proj-path 0 (- (count proj-path) 4))]
