@@ -10,3 +10,4 @@ def build(bld):
             bld.recurse('gdc')
 
         bld.recurse('launcher')
+        bld.recurse('texconvert')
