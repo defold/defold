@@ -21,6 +21,7 @@
             [editor.lsp.async :as lsp.async]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
+            [editor.lua :as lua]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log])
@@ -152,8 +153,11 @@
                          :else
                          (throw (ex-info "Invalid text document sync kind" {:value textDocumentSync})))})
 
+(def default-settings
+  {"Lua" {:diagnostics {:globals lua/defined-globals}}})
+
 (defn- configuration-handler [{:keys [items]}]
-  (vec (repeat (count items) nil)))
+  (mapv (comp default-settings :section) items))
 
 (defn- initialize [jsonrpc project]
   (lsp.jsonrpc/request!
