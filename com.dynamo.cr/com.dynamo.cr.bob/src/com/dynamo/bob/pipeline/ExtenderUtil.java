@@ -17,6 +17,9 @@ package com.dynamo.bob.pipeline;
 import static org.apache.commons.io.FilenameUtils.normalize;
 
 import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.ZipMountPoint;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 
@@ -824,12 +827,19 @@ public class ExtenderUtil {
             try {
                 byte[] data = resource.getContent();
                 FileUtils.writeByteArrayToFile(outputFile, data);
-                // if file ends with plugins/bin/{platform}.zip, extract it too
+                String outputPath = outputFile.toString();
                 if (isBinZip(relativePath)) {
-                    String fileName = outputFile.getName();
-                    File binDir = new File(outputFile.getParent(), fileName.substring(0, fileName.length() - 4));
-                    BundleHelper.unzip(new FileInputStream(outputFile), binDir.toPath());
-                } else if (relativePath.startsWith("plugins/bin/") || relativePath.contains("/plugins/bin/")) {
+                    ZipMountPoint zip = new ZipMountPoint(new DefaultFileSystem(), outputFile.toString(), false);
+                    try {
+                        zip.mount();
+                        ArrayList<String> results = new ArrayList<>();
+                        zip.walk("", new FileSystemWalker(), results);
+                        File binDir = new File(outputFile.getParent(), outputPath.substring(0, outputPath.length() - 4));
+                        storeResources(binDir, results.stream().map(zip::get).collect(Collectors.toList()));
+                    } finally {
+                        zip.unmount();
+                    }
+                } else if (outputPath.contains("/plugins/bin/")) {
                     outputFile.setExecutable(true);
                 }
             } catch (Exception e) {
