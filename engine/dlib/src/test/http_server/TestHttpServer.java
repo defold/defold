@@ -39,13 +39,16 @@ import org.eclipse.jetty.server.handler.ResourceHandler;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.jetty.server.HttpConfiguration;
 import org.eclipse.jetty.server.HttpConnection;
+import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.SecureRequestCustomizer;
 
 
 class TestSslSocketConnector extends ServerConnector
 {
-    public TestSslSocketConnector(Server server, SslContextFactory.Server sslContextFactory) {
-        super(server, sslContextFactory);
+    public TestSslSocketConnector(Server server, SslContextFactory.Server sslContextFactory, HttpConnectionFactory connectionFactory) {
+        super(server, sslContextFactory, connectionFactory);
     }
 
     @Override
@@ -307,9 +310,7 @@ public class TestHttpServer extends AbstractHandler
             response.getWriter().print("will close connection now.");
             response.setStatus(HttpServletResponse.SC_OK);
         } else if (closem.matches()) {
-            java.net.Socket socket = (java.net.Socket) HttpConnection.getCurrentConnection().getHttpChannel().getEndPoint().getTransport();
-            socket.setSoTimeout(1);
-            socket.close();
+            HttpConnection.getCurrentConnection().getHttpChannel().getConnection().close();
         } else if (sleepm.matches()) {
             int t = Integer.parseInt(sleepm.group(1));
             try {
@@ -333,16 +334,23 @@ public class TestHttpServer extends AbstractHandler
             connector.setIdleTimeout(1000); // millis
             server.addConnector(connector);
 
+            SecureRequestCustomizer src = new SecureRequestCustomizer();
+            src.setSniHostCheck(false);
+            HttpConfiguration httpConfig = new HttpConfiguration();
+            httpConfig.addCustomizer(src);
+            HttpConnectionFactory connectionFactory = new HttpConnectionFactory(httpConfig);
+
             SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
-            sslContextFactory.setSslSessionTimeout(1); // seconds§  
+            sslContextFactory.setSniRequired(false);
+            sslContextFactory.setSslSessionTimeout(1); // seconds
             sslContextFactory.setKeyStorePath("src/test/data/keystore");
             sslContextFactory.setKeyStorePassword("defold");
 
-            ServerConnector sslConnector = new ServerConnector(server, sslContextFactory);
+            ServerConnector sslConnector = new ServerConnector(server, sslContextFactory, connectionFactory);
             sslConnector.setIdleTimeout(1000); // millis
             server.addConnector(sslConnector);
 
-            TestSslSocketConnector testsslConnector = new TestSslSocketConnector(server, sslContextFactory);
+            TestSslSocketConnector testsslConnector = new TestSslSocketConnector(server, sslContextFactory, connectionFactory);
             testsslConnector.setIdleTimeout(1000); // millis
             server.addConnector(testsslConnector);
 
