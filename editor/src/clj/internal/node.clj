@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -73,6 +73,7 @@
 (defn- has-flag? [flag entry]
   (contains? (:flags entry) flag))
 
+(def ^:private abstract?           (partial has-flag? :abstract))
 (def ^:private cached?             (partial has-flag? :cached))
 (def ^:private cascade-deletes?    (partial has-flag? :cascade-delete))
 (def ^:private unjammable?         (partial has-flag? :unjammable))
@@ -130,6 +131,13 @@
   "Beware, more expensive than you might think."
   [nt]
   (into {} (filter (comp (declared-property-labels nt) key)) (all-properties nt)))
+
+(defn abstract-output-labels [nt]
+  (into #{}
+        (keep (fn [[label outdef]]
+                (when (abstract? outdef)
+                  label)))
+        (declared-outputs nt)))
 
 (defn jammable-output-labels [nt]
   (into #{}

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,7 +23,6 @@
 namespace dmGraphics
 {
     const static uint8_t DM_MAX_SET_COUNT              = 2;
-    const static uint8_t DM_MAX_VERTEX_STREAM_COUNT    = 8;
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
 
@@ -143,7 +142,7 @@ namespace dmGraphics
         };
 
         uint64_t    m_Hash;
-        Stream      m_Streams[DM_MAX_VERTEX_STREAM_COUNT];
+        Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
         uint16_t    m_StreamCount;
         uint16_t    m_Stride;
     };
