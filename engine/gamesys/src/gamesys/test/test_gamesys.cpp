@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -295,6 +295,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
@@ -333,6 +335,14 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     //      -> set_texture.script::test_fail_wrong_mipmap
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 5: Set texture with compressed / transcoded data
+    //      -> set_texture.script::test_success_compressed
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 32);
 
     // cleanup
     ASSERT_TRUE(dmGameObject::Final(m_Collection));

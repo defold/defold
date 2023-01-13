@@ -19,7 +19,7 @@ or by specifying the `DM_PACKAGES_URL` environment variable.
 As a result, all packages should be unpacked under the path `$DYNAMO_HOME/ext/SDKs`:
 
 	./tmp/dynamo_home/ext/SDKs
-	├── android-ndk-r20
+	├── android-ndk-r25b
 	└── android-sdk
 
 ## Android
@@ -45,9 +45,9 @@ Run the script (on any host):
 and it will output the package in:
 
 ```
-	_tmpdir/darwin/android-ndk-r20-darwin-x86_64.tar.gz
-	_tmpdir/linux/android-ndk-r20-linux-x86_64.tar.gz
-	_tmpdir/windows/android-ndk-r20-windows-x86_64.tar.gz
+	_tmpdir/darwin/android-ndk-r25b-darwin.tar.gz
+	_tmpdir/linux/android-ndk-r25b-linux.tar.gz
+	_tmpdir/windows/android-ndk-r25b-windows.tar.gz
 ```
 
 #### Android SDK

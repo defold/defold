@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,7 @@
    [internal.util :as util])
   (:import
    [com.jogamp.common.nio Buffers]
-   [java.nio Buffer ByteBuffer ByteOrder IntBuffer]
+   [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
    [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
@@ -82,24 +82,49 @@
   (position! [this position])
   (version [this]))
 
-(deftype VertexBuffer [vertex-description usage ^Buffer buf ^{:unsynchronized-mutable true} version]
+(deftype VertexBuffer [vertex-description usage ^Buffer buf ^long buf-items-per-vertex ^{:unsynchronized-mutable true} version]
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
-  (flipped? [this] (and (= 0 (.position buf))))
+  (flipped? [this] (= 0 (.position buf)))
   (clear! [this] (.clear buf) this)
-  (position! [this position] (.position buf (int (* position ^long (:size vertex-description)))) this)
+  (position! [this position] (.position buf (int (* position buf-items-per-vertex))) this)
   (version [this] version)
 
   clojure.lang.Counted
-  (count [this] (let [bytes (if (pos? (.position buf)) (.position buf) (.limit buf))]
-                  (/ bytes ^long (:size vertex-description)))))
+  (count [this] (let [item-count (if (pos? (.position buf)) (.position buf) (.limit buf))]
+                  (/ item-count buf-items-per-vertex))))
+
+(defn buffer-item-byte-size
+  ^long [^Buffer buffer]
+  (condp instance? buffer
+    ByteBuffer 1
+    DoubleBuffer 8
+    FloatBuffer 4
+    IntBuffer 4
+    LongBuffer 8
+    ShortBuffer 2))
+
+(defn- buffer-items-per-vertex
+  ^long [^Buffer buffer vertex-description]
+  (let [^long vertex-byte-size (:size vertex-description)
+        buffer-item-byte-size (buffer-item-byte-size buffer)]
+    (/ vertex-byte-size buffer-item-byte-size)))
+
+(defn- buffer-size-in-bytes
+  ^long [^Buffer buffer]
+  (* (buffer-item-byte-size buffer) (.limit buffer)))
+
+(defn wrap-vertex-buffer
+  [vertex-description usage ^Buffer buffer]
+  (let [buffer-items-per-vertex (buffer-items-per-vertex buffer vertex-description)]
+    (->VertexBuffer vertex-description usage buffer buffer-items-per-vertex 0)))
 
 (defn make-vertex-buffer
   [vertex-description usage ^long capacity]
   (let [nbytes (* capacity ^long (:size vertex-description))
         buf (doto (ByteBuffer/allocateDirect nbytes)
               (.order ByteOrder/LITTLE_ENDIAN))]
-    (->VertexBuffer vertex-description usage buf 0)))
+    (wrap-vertex-buffer vertex-description usage buf)))
 
 
 ;; vertex description
@@ -287,7 +312,7 @@
         attributes (:attributes (.vertex-description vbuf))
         attrib-locs (vertex-locate-attribs gl shader attributes)]
     (assert (flipped? vbuf) "VertexBuffer must be flipped before use.")
-    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit buf) buf (usage-types (.usage vbuf)))
+    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (buffer-size-in-bytes buf) buf (usage-types (.usage vbuf)))
     [vbo attrib-locs]))
 
 (defn- make-vbo [^GL2 gl data]

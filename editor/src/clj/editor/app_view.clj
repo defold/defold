@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -801,7 +801,7 @@
         (error-reporting/report-exception! error)
         nil))))
 
-(defn async-build! [project prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
+(defn async-build! [project prefs {:keys [debug? engine? run-build-hooks?] :or {debug? false engine? true run-build-hooks? true}} old-artifact-map render-build-progress! result-fn]
   (let [;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
         ;; can work while we build the project. We will await the results of the
@@ -917,7 +917,9 @@
                   (build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
                 (project/update-system-cache-build-targets! evaluation-context)
-                (phase-4-run-post-build-hook! project-build-results)))))
+                (if run-build-hooks?
+                  (phase-4-run-post-build-hook! project-build-results)
+                  (phase-5-await-engine-build! project-build-results))))))
 
         phase-2-start-engine-build!
         (fn phase-2-start-engine-build! []
@@ -959,7 +961,9 @@
     ;; soon as they can.
     (assert (not @build-in-progress-atom))
     (reset! build-in-progress-atom true)
-    (phase-1-run-pre-build-hook!)))
+    (if run-build-hooks?
+      (phase-1-run-pre-build-hook!)
+      (phase-2-start-engine-build!))))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
   (let [{:keys [error artifact-map etags]} build-results]
@@ -979,7 +983,7 @@
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project prefs {:debug? false :engine? (not skip-engine)} (workspace/artifact-map workspace)
+    (async-build! project prefs {:debug? false :engine? (not skip-engine) :run-build-hooks? true} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (when (handle-build-results! workspace render-build-error! build-results)
@@ -1015,7 +1019,7 @@ If you do not specifically require different script states, consider changing th
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
   (let [project-directory (io/file (workspace/project-path workspace))
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
-    (async-build! project prefs {:debug? true :engine? (not skip-engine)} (workspace/artifact-map workspace)
+    (async-build! project prefs {:debug? true :engine? (not skip-engine) :run-build-hooks? true} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (when (handle-build-results! workspace render-build-error! build-results)
@@ -1029,7 +1033,7 @@ If you do not specifically require different script states, consider changing th
                           (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
-  (async-build! project prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
+  (async-build! project prefs {:debug? true :engine? false :run-build-hooks? false} (workspace/artifact-map workspace)
                 (make-render-task-progress :build)
                 (fn [build-results _ _]
                   (when (handle-build-results! workspace render-build-error! build-results)
@@ -1118,7 +1122,7 @@ If you do not specifically require different script states, consider changing th
         old-etags (workspace/etags workspace)
         render-build-progress! (make-render-task-progress :build)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        opts {:debug? false :engine? false}]
+        opts {:debug? false :engine? false :run-build-hooks? false}]
     ;; NOTE: We must build the entire project even if we only want to reload a
     ;; subset of resources in order to maintain a functioning build cache.
     ;; If we decide to support hot reload of a subset of resources, we must
