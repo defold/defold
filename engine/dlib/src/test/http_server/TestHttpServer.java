@@ -342,7 +342,7 @@ public class TestHttpServer extends AbstractHandler
 
             SslContextFactory.Server sslContextFactory = new SslContextFactory.Server();
             sslContextFactory.setSniRequired(false);
-            sslContextFactory.setSslSessionTimeout(1); // seconds
+            sslContextFactory.setSslSessionTimeout(5); // seconds
             sslContextFactory.setKeyStorePath("src/test/data/keystore");
             sslContextFactory.setKeyStorePassword("defold");
 
