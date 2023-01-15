@@ -242,7 +242,7 @@ def full_jdk_url(jdk_platform):
     version = urllib.parse.quote(java_version)
     platform = urllib.parse.quote(jdk_platform)
     extension = "zip" if jdk_platform.startswith("windows") else "tar.gz"
-    return '%s/OpenJDK17U-jdk_x64_%s_hotspot_%s.%s' % (CDN_PACKAGES_URL, platform, version, extension)
+    return '%s/OpenJDK17U-jdk_%s_hotspot_%s.%s' % (CDN_PACKAGES_URL, platform, version, extension)
 
 def full_build_jdk_url():
     return full_jdk_url(python_platform_to_java[sys.platform])
