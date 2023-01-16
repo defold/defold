@@ -96,10 +96,10 @@ ordinary paths."
   (editable? [this] false)
 
   io/IOFactory
-  (make-input-stream  [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
-  (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-input-stream [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
+  (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (make-output-stream [this opts] (let [file (File. (resource/abs-path this))] (io/make-output-stream file opts)))
-  (make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
+  (make-writer [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
   (as-file [this] (File. (resource/abs-path this))))
@@ -380,11 +380,13 @@ ordinary paths."
   [resource]
   (some #(= "ext.manifest" (resource/resource-name %)) (resource/children resource)))
 
+(defn- find-parent [resource]
+  (let [parent-path (resource/parent-proj-path (resource/proj-path resource))]
+    (find-resource (resource/workspace resource) (str parent-path))))
+
 (defn- is-extension-file? [resource]
-  (let [parent-path (resource/parent-proj-path (resource/proj-path resource))
-        parent (find-resource (resource/workspace resource) (str parent-path))]
-    (or (extension-root? resource)
-        (and (some? parent) (recur parent)))))
+  (or (extension-root? resource)
+      (some-> (find-parent resource) recur)))
 
 (defn- is-plugin-file? [resource]
   (and
@@ -393,18 +395,6 @@ ordinary paths."
 
 (defn- shared-library? [resource]
   (contains? #{"dylib" "dll" "so"} (resource/ext resource)))
-
-(defn unpack-resource!
-  ([workspace resource]
-   (unpack-resource! workspace nil resource))
-  ([workspace infix-path resource]
-   (let [resource-path (str infix-path (resource/proj-path resource))
-         target-path (plugin-path workspace resource-path)]
-     (fs/create-parent-directories! target-path)
-     (with-open [is (io/input-stream resource)]
-       (io/copy is target-path))
-     (when (string/includes? resource-path "/plugins/bin/")
-       (.setExecutable target-path true)))))
 
 ; It's important to use the same class loader, so that the type signatures match
 (def class-loader (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
@@ -419,16 +409,33 @@ ordinary paths."
                    path)]
     (System/setProperty propertyname newvalue)))
 
-(defn- register-jar-file! [workspace resource]
-  (let [jar-file (plugin-path workspace (resource/proj-path resource))]
-    (.addURL ^DynamicClassLoader class-loader (io/as-url jar-file))))
+(defn- register-jar-file! [jar-file]
+  (.addURL ^DynamicClassLoader class-loader (io/as-url jar-file)))
 
-(defn- register-shared-library-file! [workspace resource]
-  (let [resource-file (plugin-path workspace (resource/proj-path resource))
-        parent-dir (.getParent resource-file)]
-; TODO: Only add files for the current platform (e.g. dylib on macOS)
+(defn- register-shared-library-file! [^File shared-library-file]
+  (let [parent-dir (.getParent shared-library-file)]
+    ; TODO: Only add files for the current platform (e.g. dylib on macOS)
     (add-to-path-property "jna.library.path" parent-dir)
     (add-to-path-property "java.library.path" parent-dir)))
+
+(defn unpack-resource!
+  ([workspace resource]
+   (unpack-resource! workspace nil resource))
+  ([workspace infix-path resource]
+   (try
+     (let [resource-path (str infix-path (resource/proj-path resource))
+           target-file (plugin-path workspace resource-path)]
+       (fs/create-parent-directories! target-file)
+       (with-open [is (io/input-stream resource)]
+         (io/copy is target-file))
+       (when (string/includes? resource-path "/plugins/bin/")
+         (.setExecutable target-file true))
+       (when (jar-file? resource)
+         (register-jar-file! target-file))
+       (when (shared-library? resource)
+         (register-shared-library-file! target-file)))
+     (catch FileNotFoundException e
+       (throw (IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!" e))))))
 
 (defn- delete-directory-recursive [^File file]
   ;; Recursively delete a directory. // https://gist.github.com/olieidel/c551a911a4798312e4ef42a584677397
@@ -450,22 +457,25 @@ ordinary paths."
     (if (.exists dir)
       (delete-directory-recursive dir))))
 
-(def ^:private bin-zip-names
-  (into #{"/plugins/bin/common.zip"}
-        (comp
-          (mapcat (juxt #(.getPair ^Platform %) #(.getOs ^Platform %)))
-          (map #(str "/plugins/bin/" % ".zip")))
-        [Platform/X86_64Linux Platform/X86_64MacOS Platform/X86_64Win32]))
+(def ^:private plugin-zip-names
+  (let [platform (Platform/getHostPlatform)]
+    {"/plugins/common.zip" 0
+     (str "/plugins/" (.getOs platform) ".zip") 1
+     (str "/plugins/" (.getPair platform) ".zip") 2}))
 
-(defn- bin-zip? [resource]
+(defn- plugin-zip-priority [resource]
+  (plugin-zip-names (re-find #"/plugins/[^/]+\.zip" (resource/proj-path resource))))
+
+(defn- plugin-zip? [resource]
   (let [path (resource/proj-path resource)]
-    (boolean (some #(string/ends-with? path %) bin-zip-names))))
+    (some? (some #(string/ends-with? path %) (keys plugin-zip-names)))))
 
-(defn- unpack-bin-zip! [workspace resource]
+(defn- unpack-plugin-zip! [workspace resource]
   {:pre [(string/ends-with? (resource/proj-path resource) ".zip")]}
+  (unpack-resource! workspace resource)
   (let [proj-path (resource/proj-path resource)
         plugin-file (plugin-path workspace proj-path)
-        infix-path (subs proj-path 0 (- (count proj-path) 4))]
+        infix-path (resource/parent-proj-path proj-path)]
     (run! #(unpack-resource! workspace infix-path %)
           (eduction
             (mapcat resource/resource-seq)
@@ -475,16 +485,19 @@ ordinary paths."
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
-  (let [changed-plugin-resources (filterv is-plugin-file? changed)]
-    (doseq [x changed-plugin-resources]
-      (try
-        (unpack-resource! workspace x)
-        (cond
-          (bin-zip? x) (unpack-bin-zip! workspace x)
-          (jar-file? x) (register-jar-file! workspace x)
-          (shared-library? x) (register-shared-library-file! workspace x))
-        (catch FileNotFoundException _
-          (throw (IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!")))))))
+  (let [{plugin-zips true resources false} (->> changed
+                                                (eduction (filter is-plugin-file?))
+                                                (group-by plugin-zip?))]
+    (->> plugin-zips
+         (into []
+               (comp
+                 (map find-parent)
+                 (distinct)
+                 (mapcat resource/children)
+                 (filter plugin-zip?)))
+         (sort-by plugin-zip-priority)
+         (run! #(unpack-plugin-zip! workspace %)))
+    (run! #(unpack-resource! workspace %) resources)))
 
 (defn reload-plugins! [workspace touched-resources]
   (unpack-editor-plugins! workspace touched-resources)

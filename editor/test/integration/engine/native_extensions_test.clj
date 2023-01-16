@@ -43,12 +43,12 @@
                (set (map resource/proj-path (native-extensions/engine-extension-roots project evaluation-context)))))))))
 
 (deftest unpack-bin-zip-test
-  (testing "${ext}/plugins/bin/${platform}.zip is extracted to /build/plugins/${ext}/plugins/bin/platform/ folder"
+  (testing "${ext}/plugins/${platform}.zip is extracted to /build/plugins/${ext}/plugins/ folder"
    (with-clean-system
      (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
            _ (test-util/setup-project! workspace)
            root (g/node-value workspace :root)]
-       (is (.exists (io/file (str root "/ext_with_bin_zip/plugins/bin/x86_64-macos.zip"))))
+       (is (.exists (io/file (str root "/ext_with_bin_zip/plugins/x86_64-macos.zip"))))
        (is (not (.exists (io/file (str root "/ext_with_bin_zip/plugins/bin/x86_64-macos/lsp.editor_script")))))
        (is (.exists (io/file (str root "/build/plugins/ext_with_bin_zip/plugins/bin/x86_64-macos/lsp.editor_script"))))))))
 
