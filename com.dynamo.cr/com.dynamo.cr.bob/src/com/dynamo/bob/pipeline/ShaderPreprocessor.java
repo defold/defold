@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.regex.Matcher;
+import java.util.Scanner;
 import java.io.IOException;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -146,8 +147,7 @@ public class ShaderPreprocessor {
         Path rootDirPath       = Paths.get(rootDirFile.getCanonicalPath());
         String relativePathRes = rootDirPath.relativize(includeFilePath).toString();
 
-        if (relativePathRes.startsWith(".."))
-        {
+        if (relativePathRes.startsWith("..")) {
             throw new CompileExceptionError(fromFilePath + " includes file from outside of project root '" + includePath + "'");
         }
 
@@ -157,8 +157,7 @@ public class ShaderPreprocessor {
     private String getIncludeData(String fromPath) throws CompileExceptionError, IOException
     {
         IResource res = this.project.getResource(fromPath);
-        if (res.getContent() == null)
-        {
+        if (res.getContent() == null) {
             throw new CompileExceptionError(this.sourcePath + " includes '" + fromPath + "', but the file is invalid. " +
                 "Make sure that the path is relative to the project root and that the file is valid!");
         }
@@ -181,24 +180,22 @@ public class ShaderPreprocessor {
         newIncludeNode.source      = fromSource;
         newIncludeNode.parent      = parent;
 
-        String[] lines = fromSource.split(System.lineSeparator());
-        for (String line : lines) {
+        Scanner scanner = new Scanner(fromSource);
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
             Matcher includeMatcher = Common.includeDirectivePattern.matcher(line);
             if(includeMatcher.find()) {
                 String path                = getPathFromMatcher(includeMatcher);
                 String projectRelativePath = toProjectRelativePath(fromPath, path);
 
-                if (projectRelativePath.equals(fromPath))
-                {
+                if (projectRelativePath.equals(fromPath)) {
                     throw new CompileExceptionError(fromPath + " is trying to include itself from " + path);
                 }
 
                 // Scan tree backwards to see if the path we want to add already is a parent to this node
                 IncludeNode tmp = parent;
-                while (tmp != null)
-                {
-                    if (tmp.path.equals(projectRelativePath))
-                    {
+                while (tmp != null) {
+                    if (tmp.path.equals(projectRelativePath)) {
                         throw new CompileExceptionError(tmp.path + " has a cyclic dependency with " + fromPath);
                     }
                     tmp = tmp.parent;
