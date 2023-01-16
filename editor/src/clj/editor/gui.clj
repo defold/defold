@@ -1382,13 +1382,12 @@
     (assoc-in [:renderable :topmost?] true)))
 
 (defn- strip-unwanted-particlefx-node-fields [node-desc]
-  (dissoc node-desc :blend-mode :pivot))
+  (dissoc node-desc :blend-mode :pivot :size))
 
 (g/defnk produce-particlefx-node-msg [visual-base-node-msg particlefx]
   (-> visual-base-node-msg
       (strip-unwanted-particlefx-node-fields)
       (assoc :particlefx particlefx
-             :size [1.0 1.0 0.0 1.0]
              :size-mode :size-mode-auto)))
 
 (g/defnode ParticleFXNode
@@ -1624,9 +1623,8 @@
                                                            :child-index child-index
                                                            :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any (g/fnk [name child-index]
-                         (protobuf/make-map Gui$SceneDesc$LayerDesc
-                           :name name
-                           :child-index child-index))) ; Added metadata field. Used to sort layers in the SceneDesc.
+                         (-> (protobuf/make-map Gui$SceneDesc$LayerDesc :name name)
+                             (assoc :child-index child-index)))) ; Used to sort layers in the SceneDesc.
   (output build-errors g/Any (g/fnk [_node-id name name-counts]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")))))
@@ -2236,7 +2234,7 @@
           dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
           deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
           resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
-          dep-resources (map (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
+          dep-resources (mapv (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
       [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
@@ -2782,7 +2780,7 @@
 (def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))
 (assert (= (float 1.0) default-pb-read-node-alpha))
 
-(defn- sanitize-node-color-field [node-desc color-field alpha-field]
+(defn- sanitize-node-color [node-desc color-field alpha-field]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
   ;; In previous versions of the file format, alpha was stored in the fourth
   ;; color component. This was later moved to a separate alpha field to support
@@ -2808,23 +2806,30 @@
                                       (or color-alpha default-pb-read-node-alpha)
                                       node-alpha)))))))))
 
-(defn- sanitize-node-colors [node]
-  (reduce (fn [node [color-field alpha-field]]
-            (sanitize-node-color-field node color-field alpha-field))
-          node
-          [[:color :alpha]
-           [:shadow :shadow-alpha]
-           [:outline :outline-alpha]]))
-
 (defn- sanitize-node-rotation [node]
   (update node :rotation (comp clj-quat->euler-v4 euler-v4->clj-quat)))
 
-(defn- strip-unwanted-fields [node-desc]
+(defn- sanitize-node-specifics [node-desc]
   (case (:type node-desc)
-    (:type-box :type-pie) (strip-unwanted-shape-base-node-fields node-desc)
-    :type-particlefx (strip-unwanted-particlefx-node-fields node-desc)
-    :type-text (strip-unwanted-text-node-fields node-desc)
-    :type-template (strip-unwanted-template-node-fields node-desc)
+
+    (:type-box :type-pie)
+    (-> node-desc
+        (strip-unwanted-shape-base-node-fields))
+
+    :type-particlefx
+    (-> node-desc
+        (strip-unwanted-particlefx-node-fields))
+
+    :type-text
+    (-> node-desc
+        (strip-unwanted-text-node-fields)
+        (sanitize-node-color :outline :outline-alpha)
+        (sanitize-node-color :shadow :shadow-alpha))
+
+    :type-template
+    (-> node-desc
+        (strip-unwanted-template-node-fields))
+
     node-desc))
 
 (defn- sanitize-node [node-desc]
@@ -2835,9 +2840,9 @@
                     (convert-fn node-type-info node-desc)
                     node-desc)]
     (-> node-desc
-        sanitize-node-colors
-        sanitize-node-rotation
-        strip-unwanted-fields)))
+        (sanitize-node-color :color :alpha)
+        (sanitize-node-rotation)
+        (sanitize-node-specifics))))
 
 (def ^:private sanitize-nodes #(mapv sanitize-node %))
 
