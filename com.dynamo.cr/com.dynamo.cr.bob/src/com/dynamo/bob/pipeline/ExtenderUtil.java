@@ -16,7 +16,6 @@ package com.dynamo.bob.pipeline;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
 
-import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.ZipMountPoint;
@@ -33,13 +32,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -803,48 +803,72 @@ public class ExtenderUtil {
         }
     }
 
-    private static boolean isBinZip(String resourcePath) {
-        return resourcePath.endsWith("plugins/bin/common.zip") || Stream
+    private static boolean isPluginZip(String resourcePath) {
+        return resourcePath.endsWith("plugins/common.zip") || Stream
                 .of(Platform.X86_64MacOS, Platform.X86_64Linux, Platform.X86_64Win32)
                 .flatMap(platform -> Stream.of(platform.getPair(), platform.getOs()))
-                .anyMatch(platformOption -> resourcePath.endsWith("plugins/bin/" + platformOption + ".zip"));
+                .anyMatch(platformOption -> resourcePath.endsWith("plugins/" + platformOption + ".zip"));
+    }
+
+    private static int getPluginZipSpecificity(String resourcePath) {
+        String baseName = FilenameUtils.getBaseName(resourcePath);
+        if (baseName.equals("common")) {
+            return 0;
+        } else if (baseName.contains("-")) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    private static File storeResource(File targetDirectory, IResource resource) throws CompileExceptionError {
+        String relativePath = resource.getPath();
+        File outputFile = new File(targetDirectory, relativePath);
+        if (!outputFile.getParentFile().exists()) {
+            outputFile.getParentFile().mkdirs();
+        }
+
+        // We do this because we might be called from within the editor, which might have the .dll's locked.
+        // and so we don't want to fail copying those if we can avoid it.
+        if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
+            return outputFile;
+        }
+
+        try {
+            byte[] data = resource.getContent();
+            FileUtils.writeByteArrayToFile(outputFile, data);
+            String outputPath = outputFile.toString();
+            if (outputPath.contains("/plugins/bin/")) {
+                outputFile.setExecutable(true);
+            }
+            return outputFile;
+        } catch (Exception e) {
+            throw new CompileExceptionError(resource, 0, e);
+        }
     }
 
     public static void storeResources(File targetDirectory, List<IResource> resources) throws CompileExceptionError {
-        for (IResource resource : resources) {
-            String relativePath = resource.getPath();
-            File outputFile = new File(targetDirectory, relativePath);
-            if (!outputFile.getParentFile().exists()) {
-                outputFile.getParentFile().mkdirs();
-            }
-
-            // We do this because we might be called from within the editor, which ight have the .dll's locked.
-            // and so we don't want to fail copying those if we can avoid it.
-            if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
-                continue;
-            }
-
+        Map<Boolean, List<IResource>> separatedResources = resources.stream().collect(Collectors.groupingBy(r -> isPluginZip(r.getPath())));
+        // sort plugin zips in specificity order, then extract
+        List<IResource> pluginZips = separatedResources.getOrDefault(true, Collections.emptyList());
+        pluginZips.sort(Comparator.comparingInt(zip -> getPluginZipSpecificity(zip.getPath())));
+        for (IResource zipResource : pluginZips) {
+            File outputFile = storeResource(targetDirectory, zipResource);
+            ZipMountPoint zip = new ZipMountPoint(new DefaultFileSystem(), outputFile.toString(), false);
             try {
-                byte[] data = resource.getContent();
-                FileUtils.writeByteArrayToFile(outputFile, data);
-                String outputPath = outputFile.toString();
-                if (isBinZip(relativePath)) {
-                    ZipMountPoint zip = new ZipMountPoint(new DefaultFileSystem(), outputFile.toString(), false);
-                    try {
-                        zip.mount();
-                        ArrayList<String> results = new ArrayList<>();
-                        zip.walk("", new FileSystemWalker(), results);
-                        File binDir = new File(outputFile.getParent(), outputPath.substring(0, outputPath.length() - 4));
-                        storeResources(binDir, results.stream().map(zip::get).collect(Collectors.toList()));
-                    } finally {
-                        zip.unmount();
-                    }
-                } else if (outputPath.contains("/plugins/bin/")) {
-                    outputFile.setExecutable(true);
-                }
-            } catch (Exception e) {
-                throw new CompileExceptionError(resource, 0, e);
+                zip.mount();
+                ArrayList<String> results = new ArrayList<>();
+                zip.walk("", new FileSystemWalker(), results);
+                storeResources(outputFile.getParentFile(), results.stream().map(zip::get).collect(Collectors.toList()));
+            } catch (IOException e) {
+                throw new CompileExceptionError(zipResource, 0, e);
+            } finally {
+                zip.unmount();
             }
+        }
+        // simply extract other resources
+        for (IResource resource : separatedResources.getOrDefault(false, Collections.emptyList())) {
+            storeResource(targetDirectory, resource);
         }
     }
 
