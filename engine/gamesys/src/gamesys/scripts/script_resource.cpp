@@ -1819,11 +1819,13 @@ static int SetSound(lua_State* L) {
 /*# create a buffer resource
  * This function creates a new buffer resource that can be used in the same way as any buffer created during build time.
  * The function requires a valid buffer created from either [ref:buffer.create] or another pre-existing buffer resource.
- * By default, the new resource will take ownership of the buffer, meaning the buffer will not automatically be removed
+ * By default, the new resource will take ownership of the buffer lua reference, meaning the buffer will not automatically be removed
  * when the lua reference to the buffer is garbage collected. This behaviour can be overruled by specifying 'transfer_ownership = false'
- * in the argument table. Note that the path to the new resource must have the '.bufferc' extension,
- * meaning "/path/my_buffer" is not a valid path but "/path/my_buffer.bufferc" is. The path must also be unique, attempting to create
- * a buffer with the same name as an existing resource will raise an error.
+ * in the argument table. If the new buffer resource is created from a buffer object that is created by another resource,
+ * the buffer object will be copied and the new resource will effectively own a copy of the buffer instead.
+ *
+ * Note that the path to the new resource must have the '.bufferc' extension, "/path/my_buffer" is not a valid path but "/path/my_buffer.bufferc" is.
+ * The path must also be unique, attempting to create a buffer with the same name as an existing resource will raise an error.
  *
  * @name resource.create_buffer
  *
@@ -1831,7 +1833,7 @@ static int SetSound(lua_State* L) {
  * @param table [type:table] A table containing info about how to create the buffer. Supported entries:
  *
  * * `buffer`
- * : [type:buffer] the buffer resource to bind to this resource
+ * : [type:buffer] the buffer to bind to this resource
  *
  * * `transfer_ownership`
  * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object (default true)
@@ -1872,6 +1874,19 @@ static int SetSound(lua_State* L) {
  *
  *     local my_buffer = resource.create_buffer("/my_buffer.bufferc", { buffer = buffer_handle })
  *     go.set("/go#mesh", "vertices", my_buffer)
+ * end
+ * ```
+ *
+ * * @examples
+ * Create a buffer resource from existing resource
+ *
+ * ```lua
+ * function init(self)
+ *     local res = resource.get_buffer("/my_buffer_path.bufferc")
+ *     -- create a cloned buffer resource from another resource buffer
+ *     local buf = reource.create_buffer("/my_cloned_buffer.bufferc", { buffer = res })
+ *     -- assign cloned buffer to a mesh component
+ *     go.set("/go#mesh", "vertices", buf)
  * end
  * ```
  */
@@ -1927,6 +1942,48 @@ static int CreateBuffer(lua_State* L)
 
     dmBuffer::HBuffer buffer = dmGameSystem::UnpackLuaBuffer(lua_buffer);
 
+    // Regardless of transferring ownership, if the lua buffer is referring to a resource,
+    // we nee to copy that buffer into this new resource
+    if (lua_buffer->m_Owner == dmScript::OWNER_RES)
+    {
+        uint32_t stream_count;
+        dmBuffer::GetNumStreams(buffer, &stream_count);
+        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*) malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
+
+        for (uint32_t i = 0; i < stream_count; ++i)
+        {
+            dmhash_t stream_name;
+            dmBuffer::ValueType stream_type;
+            uint32_t stream_type_count;
+
+            dmBuffer::GetStreamName(buffer, i, &stream_name);
+            dmBuffer::GetStreamType(buffer, stream_name, &stream_type, &stream_type_count);
+            streams_decl[i].m_Name  = stream_name;
+            streams_decl[i].m_Type  = stream_type;
+            streams_decl[i].m_Count = stream_type_count;
+        }
+
+        uint32_t dst_count = 0;
+        dmBuffer::Result br = dmBuffer::GetCount(buffer, &dst_count);
+
+        dmBuffer::HBuffer dst_buffer;
+        br = dmBuffer::Create(dst_count, streams_decl, stream_count, &dst_buffer);
+        free(streams_decl);
+
+        if (br != dmBuffer::RESULT_OK) {
+            return luaL_error(L, "Unable to create copy buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+        }
+
+        // Copy supplied data to buffer
+        br = dmBuffer::Copy(dst_buffer, buffer);
+        if (br != dmBuffer::RESULT_OK) {
+            dmBuffer::Destroy(dst_buffer);
+            return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+        }
+
+        buffer = dst_buffer;
+    }
+
     resource->m_BufferDDF = 0;
     resource->m_Buffer    = buffer;
     resource->m_Stride    = dmBuffer::GetStructSize(buffer);
@@ -1944,15 +2001,11 @@ static int CreateBuffer(lua_State* L)
         }
         else if (lua_buffer->m_Owner == dmScript::OWNER_RES)
         {
-            // Ensure that resource is unlinked from collection (if created as a dynamic resource)
-            // dmhash_t res_path_hash;
-            // dmResource::GetPath(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes, &res_path_hash);
-            // dmGameObject::RemoveDynamicResourceHash(collection, res_path_hash);
-
+            // We are transferring the ownership of the resource in the lua buffer
+            // from one resource to another, so we need to decref the old resource
+            // and incref the new one by the same logic as with the lua case
             dmResource::Release(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes);
-
             dmResource::IncRef(g_ResourceModule.m_Factory, resource);
-            // dmResource::Release(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes);
         }
 
         lua_buffer->m_Owner     = dmScript::OWNER_RES;
