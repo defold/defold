@@ -30,7 +30,8 @@
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/mutex.h>
-#include <dmsdk/dlib/thread.h>
+// Until we can safely forward declare some Windows.h types, we'll leave this out of the sdk.h
+// #include <dmsdk/dlib/thread.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/graphics/graphics_native.h>
