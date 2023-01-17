@@ -182,7 +182,7 @@
 (def preinstalled-modules (into #{} (remove #{""} (keys defold-docs))))
 
 (def base-globals
-  (into #{}
+  (into #{"coroutine" "package" "string" "table" "math" "io" "file" "os" "debug"}
         (map #(.getName ^ScriptDoc$Element %))
         (get (load-sdoc (sdoc-path "base")) "")))
 
