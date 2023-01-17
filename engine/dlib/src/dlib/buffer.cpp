@@ -439,6 +439,47 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
+    Result Clone(const HBuffer src_buffer, HBuffer* out_buffer)
+    {
+        Buffer* buffer = GetBuffer(g_BufferContext, src_buffer);
+        Result res = dmBuffer::ValidateBuffer(buffer);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+
+        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*) alloca(buffer->m_NumStreams * sizeof(dmBuffer::StreamDeclaration));
+        for (int i = 0; i < buffer->m_NumStreams; ++i)
+        {
+            streams_decl[i].m_Name  = buffer->m_Streams[i].m_Name;
+            streams_decl[i].m_Type  = (ValueType) buffer->m_Streams[i].m_ValueType;
+            streams_decl[i].m_Count = buffer->m_Streams[i].m_ValueCount;
+        }
+
+        HBuffer dst_buffer;
+        res = dmBuffer::Create(buffer->m_Count, streams_decl, buffer->m_NumStreams, &dst_buffer);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+
+        dmBuffer::Copy(dst_buffer, src_buffer);
+
+        // Clone the meta data entries
+        for (uint32_t i = 0; i < buffer->m_MetaDataArray.Size(); i++)
+        {
+            res = SetMetaData(dst_buffer,
+                buffer->m_MetaDataArray[i]->m_Name,
+                buffer->m_MetaDataArray[i]->m_Data,
+                buffer->m_MetaDataArray[i]->m_ValueCount,
+                (ValueType) buffer->m_MetaDataArray[i]->m_ValueType);
+            assert(res == RESULT_OK);
+        }
+
+        *out_buffer = dst_buffer;
+        return RESULT_OK;
+    }
+
     Result GetStreamOffset(HBuffer buffer_handle, uint32_t index, uint32_t* offset)
     {
         Buffer* buffer = GetBuffer(g_BufferContext, buffer_handle);
@@ -660,7 +701,8 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
-    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type) {
+    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type)
+    {
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;

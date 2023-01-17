@@ -154,10 +154,7 @@ namespace dmGameSystem
     static void DecRefVertexBuffer(MeshWorld* world, dmhash_t path)
     {
         VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(path);
-        if (info == 0x0)
-        {
-            return;
-        }
+        assert(info != 0);
 
         info->m_RefCount--;
         if (info->m_RefCount == 0) {
@@ -457,17 +454,7 @@ namespace dmGameSystem
                 component.m_BufferVersion = CalcBufferVersion(&component, br);
 
                 VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
-
-                if (info == 0x0 || !dmBuffer::IsBufferValid(br->m_Buffer))
-                {
-                    if (info)
-                    {
-                        world->m_ResourceToVertexBuffer.Erase(br->m_NameHash);
-                        DeallocVertexBuffer(world, info->m_VertexBuffer);
-                    }
-                    dmLogError("Rendering mesh failed, buffer resource '%s' is not valid", dmHashReverseSafe64(br->m_NameHash));
-                    return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-                }
+                assert(info != 0);
 
                 if (info->m_Version != component.m_BufferVersion)
                 {
@@ -721,11 +708,7 @@ namespace dmGameSystem
             const MeshResource* mr = component->m_Resource;
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component, mr);
             VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
-
-            if (info == NULL)
-            {
-                continue;
-            }
+            assert(info != 0);
 
             DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, br->m_ElementCount);
             DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, br->m_Stride * br->m_ElementCount);

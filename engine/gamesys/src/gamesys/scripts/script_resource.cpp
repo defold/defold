@@ -1946,39 +1946,15 @@ static int CreateBuffer(lua_State* L)
     // we nee to copy that buffer into this new resource
     if (lua_buffer->m_Owner == dmScript::OWNER_RES)
     {
-        uint32_t stream_count;
-        dmBuffer::GetNumStreams(buffer, &stream_count);
-        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*) malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
-
-        for (uint32_t i = 0; i < stream_count; ++i)
-        {
-            dmhash_t stream_name;
-            dmBuffer::ValueType stream_type;
-            uint32_t stream_type_count;
-
-            dmBuffer::GetStreamName(buffer, i, &stream_name);
-            dmBuffer::GetStreamType(buffer, stream_name, &stream_type, &stream_type_count);
-            streams_decl[i].m_Name  = stream_name;
-            streams_decl[i].m_Type  = stream_type;
-            streams_decl[i].m_Count = stream_type_count;
-        }
-
-        uint32_t dst_count = 0;
-        dmBuffer::Result br = dmBuffer::GetCount(buffer, &dst_count);
-
         dmBuffer::HBuffer dst_buffer;
-        br = dmBuffer::Create(dst_count, streams_decl, stream_count, &dst_buffer);
-        free(streams_decl);
-
-        if (br != dmBuffer::RESULT_OK) {
-            return luaL_error(L, "Unable to create copy buffer: %s (%d).", dmBuffer::GetResultString(br), br);
-        }
-
-        // Copy supplied data to buffer
-        br = dmBuffer::Copy(dst_buffer, buffer);
-        if (br != dmBuffer::RESULT_OK) {
-            dmBuffer::Destroy(dst_buffer);
-            return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+        dmBuffer::Result br = dmBuffer::Clone(buffer, &dst_buffer);
+        if (br != dmBuffer::RESULT_OK)
+        {
+            dmhash_t res_path_other;
+            dmResource::GetPath(g_ResourceModule.m_Factory, lua_buffer->m_BufferRes, &res_path_other);
+            return luaL_error(L, "Unable to create buffer resource '%s' from buffer resource '%s': %s (%d).",
+                dmHashReverseSafe64(canonical_path_hash), dmHashReverseSafe64(res_path_other),
+                dmBuffer::GetResultString(br), br);
         }
 
         buffer = dst_buffer;
@@ -2112,69 +2088,51 @@ static int GetBuffer(lua_State* L)
 static int SetBuffer(lua_State* L)
 {
     int top = lua_gettop(L);
-    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+    dmhash_t path_hash           = dmScript::CheckHashOrString(L, 1);
     dmScript::LuaHBuffer* luabuf = dmScript::CheckBuffer(L, 2);
-    dmBuffer::HBuffer src_buffer = luabuf->m_Buffer;
-    if (luabuf->m_Owner == dmScript::OWNER_RES) {
-        src_buffer = ((BufferResource*)luabuf->m_BufferRes)->m_Buffer;
-    }
+    dmBuffer::HBuffer src_buffer = dmGameSystem::UnpackLuaBuffer(luabuf);
 
-    void* resource = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
-
+    void* resource                                = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
-    dmBuffer::HBuffer dst_buffer = buffer_resource->m_Buffer;
+    dmBuffer::HBuffer dst_buffer                  = buffer_resource->m_Buffer;
 
     // Make sure the destination buffer has enough size (otherwise, resize it).
     // TODO: Check if incoming buffer size is smaller than current size -> don't allocate new dmbuffer,
     //       but copy smaller data and change "size".
     uint32_t dst_count = 0;
     dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
-    if (br != dmBuffer::RESULT_OK) {
+    if (br != dmBuffer::RESULT_OK)
+    {
         return luaL_error(L, "Unable to get buffer size for %s: %s (%d).", dmHashReverseSafe64(path_hash), dmBuffer::GetResultString(br), br);
     }
+
     uint32_t src_count = 0;
     br = dmBuffer::GetCount(src_buffer, &src_count);
-    if (br != dmBuffer::RESULT_OK) {
+    if (br != dmBuffer::RESULT_OK)
+    {
         return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
     }
 
-    bool new_buffer_needed = dst_count != src_count;
-    if (new_buffer_needed) {
-        // Need to create a new buffer to copy data to.
-
-        // Copy stream declaration
-        uint32_t stream_count = buffer_resource->m_BufferDDF->m_Streams.m_Count;
-        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*)malloc(stream_count * sizeof(dmBuffer::StreamDeclaration));
-        for (uint32_t i = 0; i < stream_count; ++i)
+    if (dst_count != src_count)
+    {
+        dmBuffer::HBuffer dst_buffer;
+        br = dmBuffer::Clone(src_buffer, &dst_buffer);
+        if (br != dmBuffer::RESULT_OK)
         {
-            const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-            streams_decl[i].m_Name  = ddf_stream.m_NameHash;
-            streams_decl[i].m_Type  = (dmBuffer::ValueType)ddf_stream.m_ValueType;
-            streams_decl[i].m_Count = ddf_stream.m_ValueCount;
+            return luaL_error(L, "Unable to create cloned buffer: %s (%d)", dmBuffer::GetResultString(br), br);
         }
 
-        br = dmBuffer::Create(src_count, streams_decl, stream_count, &dst_buffer);
-        free(streams_decl);
-
-        if (br != dmBuffer::RESULT_OK) {
-            return luaL_error(L, "Unable to create copy buffer: %s (%d).", dmBuffer::GetResultString(br), br);
-        }
-    }
-
-    // Copy supplied data to buffer
-    br = dmBuffer::Copy(dst_buffer, src_buffer);
-    if (br != dmBuffer::RESULT_OK) {
-        if (new_buffer_needed) {
-            dmBuffer::Destroy(dst_buffer);
-        }
-        return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
-    }
-
-    // If we created a new buffer, make sure to destroy the old one.
-    if (new_buffer_needed) {
         dmBuffer::Destroy(buffer_resource->m_Buffer);
-        buffer_resource->m_Buffer = dst_buffer;
+        buffer_resource->m_Buffer       = dst_buffer;
         buffer_resource->m_ElementCount = src_count;
+    }
+    else
+    {
+        br = dmBuffer::Copy(dst_buffer, src_buffer);
+        if (br != dmBuffer::RESULT_OK)
+        {
+            return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
+        }
     }
 
     // Update the content version
