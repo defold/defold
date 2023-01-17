@@ -36,7 +36,9 @@ ordinary paths."
             [util.coll :refer [pair]])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
-           [java.io File PushbackReader]
+           [com.dynamo.bob Platform]
+           [editor.resource FileResource]
+           [java.io File FileNotFoundException IOException PushbackReader]
            [java.net URI]
            [org.apache.commons.io FilenameUtils]))
 
@@ -300,11 +302,13 @@ ordinary paths."
 
 (defn resolve-resource [base-resource path]
   (when-not (empty? path)
-    (let [path (if (absolute-path path)
-                 path
-                 (to-absolute-path (str (.getParent (File. (resource/proj-path base-resource)))) path))]
-      (when-let [workspace (:workspace base-resource)]
-        (resolve-workspace-resource workspace path)))))
+    (let [workspace (:workspace base-resource)
+          path  (if (absolute-path path)
+                  path
+                  (resource/file->proj-path (project-path workspace)
+                                            (.getCanonicalFile (io/file (.getParentFile (io/file base-resource))
+                                                                        path))))]
+      (resolve-workspace-resource workspace path))))
 
 (defn- template-path [resource-type]
   (or (:template resource-type)
@@ -390,7 +394,7 @@ ordinary paths."
 
 ; Determine if the extension has plugins, if so, it needs to be extracted
 
-(defn- is-jar-file? [resource]
+(defn- jar-file? [resource]
   (= "jar" (resource/ext resource)))
 
 ; from native_extensions.clj
@@ -409,23 +413,25 @@ ordinary paths."
     (string/includes? (resource/proj-path resource) "/plugins/")
     (is-extension-file? resource)))
 
-(defn- is-shared-library? [resource]
+(defn- shared-library? [resource]
   (contains? #{"dylib" "dll" "so"} (resource/ext resource)))
 
-(defn- unpack-resource! [workspace resource]
-  (let [target-path (plugin-path workspace (resource/proj-path resource))
-        parent-dir (.getParentFile ^File target-path)
-        input-stream (io/input-stream resource)]
-    (when-not (.exists parent-dir)
-      (.mkdirs parent-dir))
-    (io/copy input-stream target-path)
-    (when (string/includes? (resource/proj-path resource) "/plugins/bin/")
-      (.setExecutable target-path true))))
+(defn unpack-resource!
+  ([workspace resource]
+   (unpack-resource! workspace nil resource))
+  ([workspace infix-path resource]
+   (let [resource-path (str infix-path (resource/proj-path resource))
+         target-path (plugin-path workspace resource-path)]
+     (fs/create-parent-directories! target-path)
+     (with-open [is (io/input-stream resource)]
+       (io/copy is target-path))
+     (when (string/includes? resource-path "/plugins/bin/")
+       (.setExecutable target-path true)))))
 
 (defn- add-to-path-property [propertyname path]
   (let [current (System/getProperty propertyname)
         newvalue (if current
-                   (str current java.io.File/pathSeparator path)
+                   (str current File/pathSeparator path)
                    path)]
     (System/setProperty propertyname newvalue)))
 
@@ -440,7 +446,7 @@ ordinary paths."
     (add-to-path-property "jna.library.path" parent-dir)
     (add-to-path-property "java.library.path" parent-dir)))
 
-(defn- delete-directory-recursive [^java.io.File file]
+(defn- delete-directory-recursive [^File file]
   ;; Recursively delete a directory. // https://gist.github.com/olieidel/c551a911a4798312e4ef42a584677397
   ;; when `file` is a directory, list its entries and call this
   ;; function with each entry. can't `recur` here as it's not a tail
@@ -449,7 +455,7 @@ ordinary paths."
   ;; `doseq` :)
   (when (.isDirectory file)
     (run! delete-directory-recursive (.listFiles file)))
-  ;; delete the file or directory. if it it's a file, it's easily
+  ;; delete the file or directory. if it's a file, it's easily
   ;; deletable. if it's a directory, we already have deleted all its
   ;; contents with the code above (remember?)
   (io/delete-file file))
@@ -460,6 +466,28 @@ ordinary paths."
     (if (.exists dir)
       (delete-directory-recursive dir))))
 
+(def ^:private bin-zip-names
+  (into #{"/plugins/bin/common.zip"}
+        (comp
+          (mapcat (juxt #(.getPair ^Platform %) #(.getOs ^Platform %)))
+          (map #(str "/plugins/bin/" % ".zip")))
+        [Platform/X86_64Linux Platform/X86_64MacOS Platform/X86_64Win32]))
+
+(defn- bin-zip? [resource]
+  (let [path (resource/proj-path resource)]
+    (boolean (some #(string/ends-with? path %) bin-zip-names))))
+
+(defn- unpack-bin-zip! [workspace resource]
+  {:pre [(string/ends-with? (resource/proj-path resource) ".zip")]}
+  (let [proj-path (resource/proj-path resource)
+        plugin-file (plugin-path workspace proj-path)
+        infix-path (subs proj-path 0 (- (count proj-path) 4))]
+    (run! #(unpack-resource! workspace infix-path %)
+          (eduction
+            (mapcat resource/resource-seq)
+            (filter #(= :file (resource/source-type %)))
+            (:tree (resource/load-zip-resources workspace plugin-file))))))
+
 (defn- unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
@@ -467,12 +495,12 @@ ordinary paths."
     (doseq [x changed-plugin-resources]
       (try
         (unpack-resource! workspace x)
-        (catch java.io.FileNotFoundException error
-          (throw (java.io.IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!"))))
-      (when (is-jar-file? x)
-        (register-jar-file! workspace x))
-      (when (is-shared-library? x)
-        (register-shared-library-file! workspace x)))))
+        (cond
+          (bin-zip? x) (unpack-bin-zip! workspace x)
+          (jar-file? x) (register-jar-file! workspace x)
+          (shared-library? x) (register-shared-library-file! workspace x))
+        (catch FileNotFoundException _
+          (throw (IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!")))))))
 
 (defn reload-plugins! [workspace touched-resources]
   (unpack-editor-plugins! workspace touched-resources)

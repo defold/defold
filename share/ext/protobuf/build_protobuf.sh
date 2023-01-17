@@ -45,6 +45,17 @@ function download() {
 download
 
 function cmi_configure() {
+    case $1 in
+        armv7-android)
+        export LDFLAGS="$LDFLAGS -llog"
+        ;;
+
+        arm64-android)
+        export LDFLAGS="$LDFLAGS -llog"
+        ;;
+        *)
+    esac
+
 	./autogen.sh
     echo CONFIGURE_ARGS=$CONFIGURE_ARGS $2
     ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \

@@ -447,9 +447,9 @@
       (when-not exc
         (let [target-dir (.resolve target (.relativize source source-dir))]
           (try (Files/setLastModifiedTime target-dir (Files/getLastModifiedTime source-dir no-follow-link-options))
-               (catch IOException _
+               (catch IOException _))))
                  ;; TODO: log
-                 ))))
+
       FileVisitResult/CONTINUE)))
 
 (defn- copy-tree! [^Path source-path ^Path target-path]

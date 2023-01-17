@@ -73,6 +73,7 @@
 (defn- has-flag? [flag entry]
   (contains? (:flags entry) flag))
 
+(def ^:private abstract?           (partial has-flag? :abstract))
 (def ^:private cached?             (partial has-flag? :cached))
 (def ^:private cascade-deletes?    (partial has-flag? :cascade-delete))
 (def ^:private unjammable?         (partial has-flag? :unjammable))
@@ -130,6 +131,13 @@
   "Beware, more expensive than you might think."
   [nt]
   (into {} (filter (comp (declared-property-labels nt) key)) (all-properties nt)))
+
+(defn abstract-output-labels [nt]
+  (into #{}
+        (keep (fn [[label outdef]]
+                (when (abstract? outdef)
+                  label)))
+        (declared-outputs nt)))
 
 (defn jammable-output-labels [nt]
   (into #{}
@@ -1333,12 +1341,16 @@
         node (gt/node-by-id-at basis node-id)]
     (type-name (gt/node-type node))))
 
+(defn- update-in-production [in-production endpoint]
+  (if (contains? in-production endpoint)
+    (throw (ex-info "Cycle detected on node"
+                    {:cause :cycle-detected
+                     :endpoint endpoint
+                     :in-production in-production}))
+    (conj in-production endpoint)))
+
 (defn mark-in-production [node-id label evaluation-context]
-  (assert (not (contains? (:in-production evaluation-context) (gt/endpoint node-id label)))
-          (format "Cycle detected on node type %s and output %s"
-                  (node-type-name node-id evaluation-context)
-                  label))
-  (update evaluation-context :in-production conj (gt/endpoint node-id label)))
+  (update evaluation-context :in-production update-in-production (gt/endpoint node-id label)))
 
 (defn- mark-in-production-form [node-id-sym label-sym evaluation-context-sym forms]
   `(let [~evaluation-context-sym (mark-in-production ~node-id-sym ~label-sym ~evaluation-context-sym)]
