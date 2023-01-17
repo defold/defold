@@ -14,15 +14,15 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.util.List;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ShaderPreprocessor;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -33,14 +33,17 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
     private boolean soft_fail = true;
 
     @Override
-    public void build(Task<Void> task) throws IOException, CompileExceptionError {
-        IResource in = task.getInputs().get(0);
-        try (ByteArrayInputStream is = new ByteArrayInputStream(in.getContent())) {
-            boolean isDebug = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
-            boolean outputSpirv = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
-            ShaderDesc shaderDesc = compile(is, SHADER_TYPE, in, task.getOutputs().get(0).getPath(), project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
-            task.output(0).setContent(shaderDesc.toByteArray());
-        }
+    public void build(Task<ShaderPreprocessor> task) throws IOException, CompileExceptionError {
+        List<IResource> inputs                = task.getInputs();
+        IResource in                          = inputs.get(0);
+        ShaderPreprocessor shaderPreprocessor = task.getData();
+
+        boolean isDebug       = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
+        boolean outputSpirv   = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
+        ShaderDesc shaderDesc = compile(shaderPreprocessor,
+            SHADER_TYPE, in, task.getOutputs().get(0).getPath(),
+            project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
+        task.output(0).setContent(shaderDesc.toByteArray());
     }
 
     public static void main(String[] args) throws IOException, CompileExceptionError {

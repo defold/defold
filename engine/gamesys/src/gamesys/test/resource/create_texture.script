@@ -68,7 +68,7 @@ function update(self)
 		test_release,
 		test_wrong_ext,
 		test_already_exist,
-		test_release_not_found
+		test_release_not_found,
 	}
 
 	tests[self.update_counter]()

@@ -96,7 +96,11 @@ function test_sys()
 
     -- test get_config_int / get_config_number
     assert(sys.get_config_int("foo.value", 456) == 123)
+    assert(sys.get_config_int("main.does_not_exists") == 0)
+    assert(sys.get_config_int("main.does_not_exists", 456.7) == 456)
     assert(sys.get_config_number("foo.value", 456) == 123)
+    assert(sys.get_config_number("main.does_not_exists") == 0)
+    assert(sys.get_config_number("main.does_not_exists", 456.7) - 456.7 < 0.1)
 
     -- load_resource
     print("Load existing resource")
