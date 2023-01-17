@@ -41,23 +41,25 @@
 (set! *warn-on-reflection* true)
 
 (defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
-  (protobuf/make-map GameObject$EmbeddedInstanceDesc
-    :id id
-    :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
-    :position position
-    :rotation rotation
-    :scale3 scale
-    :children (vec (sort child-ids))))
+  (-> (protobuf/make-map GameObject$EmbeddedInstanceDesc
+        :id id
+        :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
+        :position position
+        :rotation rotation
+        :scale3 scale
+        :children (vec (sort child-ids)))
+      (dissoc :scale))) ; Deprecated field. Migrated to :scale3 on load.
 
 (defn- gen-ref-ddf [id child-ids position rotation scale path ddf-component-properties]
-  (protobuf/make-map GameObject$InstanceDesc
-    :id id
-    :prototype (resource/resource->proj-path path)
-    :position position
-    :rotation rotation
-    :scale3 scale
-    :children (vec (sort child-ids))
-    :component-properties ddf-component-properties))
+  (-> (protobuf/make-map GameObject$InstanceDesc
+        :id id
+        :prototype (resource/resource->proj-path path)
+        :position position
+        :rotation rotation
+        :scale3 scale
+        :children (vec (sort child-ids))
+        :component-properties ddf-component-properties)
+      (dissoc :scale))) ; Deprecated field. Migrated to :scale3 on load.
 
 (g/defnode InstanceNode
   (inherits outline/OutlineNode)

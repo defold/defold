@@ -70,15 +70,16 @@
 (def ^:private hack-upgrade-constants (partial mapv hack-upgrade-constant))
 
 (g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space]
-  (protobuf/make-map Material$MaterialDesc
-    :name name
-    :vertex-program (resource/resource->proj-path vertex-program)
-    :fragment-program (resource/resource->proj-path fragment-program)
-    :vertex-constants (hack-upgrade-constants vertex-constants)
-    :fragment-constants (hack-upgrade-constants fragment-constants)
-    :samplers samplers
-    :tags tags
-    :vertex-space vertex-space))
+  (-> (protobuf/make-map Material$MaterialDesc
+        :name name
+        :vertex-program (resource/resource->proj-path vertex-program)
+        :fragment-program (resource/resource->proj-path fragment-program)
+        :vertex-constants (hack-upgrade-constants vertex-constants)
+        :fragment-constants (hack-upgrade-constants fragment-constants)
+        :samplers samplers
+        :tags tags
+        :vertex-space vertex-space)
+      (dissoc :textures))) ; Deprecated field. Migrated to :samplers on load.
 
 (defn- build-material [resource dep-resources user-data]
   (let [pb (reduce (fn [pb [label resource]] (assoc pb label resource))

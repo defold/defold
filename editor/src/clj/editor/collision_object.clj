@@ -426,18 +426,18 @@
                                  (remove string/blank?))
                            (string/split mask #",")))]
     (-> (protobuf/make-map Physics$CollisionObjectDesc
-              :collision-shape (resource/resource->proj-path collision-shape-resource)
-              :type type
-              :mass mass
-              :friction friction
-              :restitution restitution
-              :group group
-              :mask mask
-              :linear-damping linear-damping
-              :angular-damping angular-damping
-              :locked-rotation locked-rotation
-              :bullet bullet
-              :embedded-collision-shape embedded-collision-shape)
+          :collision-shape (resource/resource->proj-path collision-shape-resource)
+          :type type
+          :mass mass
+          :friction friction
+          :restitution restitution
+          :group group
+          :mask mask
+          :linear-damping linear-damping
+          :angular-damping angular-damping
+          :locked-rotation locked-rotation
+          :bullet bullet
+          :embedded-collision-shape embedded-collision-shape)
         (strip-empty-embedded-collision-shape))))
 
 (defn build-collision-object

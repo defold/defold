@@ -25,6 +25,7 @@ Macros currently mean no foreseeable performance gain, however."
             [internal.java :as j]
             [editor.util :as util]
             [editor.workspace :as workspace]
+            [util.coll :refer [pair]]
             [util.digest :as digest])
   (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor DescriptorProtos$FieldOptions
             Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
@@ -63,12 +64,23 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- field->key [^Descriptors$FieldDescriptor field-desc]
   (field-name->key (.getName field-desc)))
 
+(defn- enum-name->keyword-raw [^String enum-name]
+  (keyword (util/lower-case* (s/replace enum-name "_" "-"))))
+
+(def ^:private enum-name->keyword (memoize enum-name->keyword-raw))
+
+(defn- keyword->enum-name-raw
+  ^String [keyword]
+  (.intern (s/replace (util/upper-case* (name keyword)) "-" "_")))
+
+(def ^:private keyword->enum-name (memoize keyword->enum-name-raw))
+
 (defn pb-enum->val
   [val-or-desc]
   (let [^Descriptors$EnumValueDescriptor desc (if (instance? ProtocolMessageEnum val-or-desc)
                                                 (.getValueDescriptor ^ProtocolMessageEnum val-or-desc)
                                                 val-or-desc)]
-    (keyword (util/lower-case* (s/replace (.getName desc) "_" "-")))))
+    (enum-name->keyword (.getName desc))))
 
 (declare pb-accessor)
 
@@ -90,7 +102,8 @@ Macros currently mean no foreseeable performance gain, however."
   (memoize
     (fn methods-by-name [^Class class]
       (into {}
-            (map (fn [^Method m] [(.getName m) m]))
+            (map (fn [^Method m]
+                   (pair (.getName m) m)))
             (.getDeclaredMethods class)))))
 
 (defn- lookup-method
@@ -202,14 +215,15 @@ Macros currently mean no foreseeable performance gain, however."
                                      :options (options (.getOptions field-desc))}
                               (some? default-value)
                               (assoc :default default-value))]
-                   [(field->key field-desc) info]))
+                   (pair (field->key field-desc) info)))
                (.getFields desc)))))
 
-(defn- field-get-method ^Method [{:keys [java-name repeated?]} ^Class cls]
+(defn- field-get-method
+  ^Method [{:keys [java-name repeated?]} ^Class cls]
   (let [get-method-name (str "get" java-name (if repeated? "List" ""))]
     (lookup-method cls get-method-name)))
 
-(def field-info (memoize field-info-raw))
+(def ^:private field-info (memoize field-info-raw))
 
 (declare resource-field-paths)
 
@@ -316,7 +330,7 @@ Macros currently mean no foreseeable performance gain, however."
                        (let [get-method (field-get-method field-info class)
                              field-accessor (field-accessor-fn field-info)
                              field-accessor (if repeated? (partial mapv field-accessor) field-accessor)]
-                         [key (fn [pb] (field-accessor (.invoke get-method pb j/no-args-array)))]))
+                         (pair key (fn [pb] (field-accessor (.invoke get-method pb j/no-args-array))))))
                      (field-info class))]
     (fn [pb]
       (->> (reduce (fn [m [field get-fn]] (assoc m field (get-fn pb)))
@@ -332,9 +346,10 @@ Macros currently mean no foreseeable performance gain, however."
     (accessor pb)))
 
 (defn- default-vals-raw [^Class cls]
-  (into {} (keep (fn [[key info]]
-                     (when-some [default (:default info)]
-                       [key ((field-accessor-fn info) default)])))
+  (into {}
+        (keep (fn [[key info]]
+                (when-some [default (:default info)]
+                  (pair key ((field-accessor-fn info) default)))))
         (field-info cls)))
 
 (def ^:private default-vals (memoize default-vals-raw))
@@ -384,7 +399,7 @@ Macros currently mean no foreseeable performance gain, however."
       (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (fn [v] (Boolean/valueOf (boolean v)))
       (= type (Descriptors$FieldDescriptor$JavaType/BYTE_STRING)) identity
       (= type (Descriptors$FieldDescriptor$JavaType/ENUM)) (let [enum-cls (desc->proto-cls (.getEnumType desc))]
-                                                             (fn [v] (Enum/valueOf enum-cls (s/replace (util/upper-case* (name v)) "-" "_"))))
+                                                             (fn [v] (Enum/valueOf enum-cls (keyword->enum-name v))))
       :else nil)))
 
 (def ^:private pb-builder)
@@ -401,9 +416,9 @@ Macros currently mean no foreseeable performance gain, however."
                                                       (when-some [^Class first-arg-class (first (.getParameterTypes m))]
                                                         (.endsWith (.getName first-arg-class) "$Builder")))]
                             (when (not set-via-builder?)
-                              [m-name m]))))
+                              (pair m-name m)))))
                   (.getDeclaredMethods builder-class))
-        field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method class "getDescriptor"))
+        field-descs (.getFields desc)
         setters (into {}
                   (map (fn [^Descriptors$FieldDescriptor fd]
                          (let [j-name (->CamelCase (.getName fd))
@@ -416,8 +431,9 @@ Macros currently mean no foreseeable performance gain, however."
                                value-fn (if repeated?
                                           (partial mapv field-builder)
                                           field-builder)]
-                           [(field->key fd) (fn [^GeneratedMessage$Builder b v]
-                                              (.invoke field-set-method b (to-array [(value-fn v)])))])))
+                           (pair (field->key fd)
+                                 (fn [^GeneratedMessage$Builder b v]
+                                   (.invoke field-set-method b (to-array [(value-fn v)])))))))
                   field-descs)
         builder-fn (fn [m]
                      (let [b ^GeneratedMessage$Builder (new-builder class)]
@@ -459,7 +475,7 @@ Macros currently mean no foreseeable performance gain, however."
     (.toByteArray out)))
 
 (defn val->pb-enum [^Class enum-class val]
-  (Enum/valueOf enum-class (s/replace (util/upper-case* (name val)) "-" "_")))
+  (Enum/valueOf enum-class (keyword->enum-name val)))
 
 (extend-protocol PbConverter
   DdfMath$Point3
@@ -617,7 +633,8 @@ Macros currently mean no foreseeable performance gain, however."
   (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
     (into {}
           (map (fn [^Descriptors$FieldDescriptor field]
-                 [(.getNumber field) (field->key field)]))
+                 (pair (.getNumber field)
+                       (field->key field))))
           (.getFields desc))))
 
 (def fields-by-indices (memoize fields-by-indices-raw))
@@ -648,13 +665,12 @@ Macros currently mean no foreseeable performance gain, however."
   (into (default-vals cls)
         (keep (fn [[field-kw info]]
                 (when (:repeated? info)
-                  [field-kw []])))
+                  (pair field-kw []))))
         (field-info cls)))
 
 (def ^:private default-map (memoize default-map-raw))
 
-(defn make-map
-  [^Class cls & kvs]
+(defn make-map [^Class cls & kvs]
   (into (default-map cls)
         (partition-all 2)
         kvs))
