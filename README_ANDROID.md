@@ -239,7 +239,7 @@ We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms
 
 Creating a new android package is straight forward:
 
-    APILEVEL=31
+    APILEVEL=33
 
     mkdir -p sdkpack_android
     cd sdkpack_android
@@ -257,7 +257,7 @@ Creating a new android package is straight forward:
 
 Update the reference to the tar ball in `<defold>/scripts/build.py`
 
-    PACKAGES_ANDROID="... android-31 ...".split()
+    PACKAGES_ANDROID="... android-33 ...".split()
 
 Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the `defold` project folder.
 
