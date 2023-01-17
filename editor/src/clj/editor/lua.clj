@@ -190,8 +190,10 @@
   (into #{}
         (comp
           (remove #(#{:message :property} (:type %)))
-          (map #(-> % :name (string/split #":" 2) first))
-          (remove (conj base-globals "")))
+          (map :name)
+          (remove #(or (= "" %)
+                       (string/includes? % ":")
+                       (contains? base-globals %))))
         (get defold-docs "")))
 
 (defn lua-base-documentation []
