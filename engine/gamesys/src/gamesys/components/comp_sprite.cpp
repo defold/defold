@@ -100,7 +100,7 @@ namespace dmGameSystem
         float z;
         float u;
         float v;
-        uint8_t p;
+        float p;
     };
 
     struct SpriteWorld
@@ -476,7 +476,7 @@ namespace dmGameSystem
                 vertices->z = p.getZ();
                 vertices->u = us[x];
                 vertices->v = vs[y];
-                vertices->p = page_index;
+                vertices->p = (float) page_index;
                 vertices++;
             }
         }
@@ -589,7 +589,7 @@ namespace dmGameSystem
                     vertices[0].z = ((float*)&p0)[2];
                     vertices[0].u = u;
                     vertices[0].v = v;
-                    vertices[0].p = page_index;
+                    vertices[0].p = (float) page_index;
                 }
 
                 uint32_t index_count = geometry->m_Indices.m_Count;
@@ -671,7 +671,7 @@ namespace dmGameSystem
                         vert.z = vp.getZ();                         \
                         vert.u = tc[tex_lookup[tc_index] * 2 + 0]; \
                         vert.v = tc[tex_lookup[tc_index] * 2 + 1]; \
-                        vert.p = page_index;
+                        vert.p = (float) page_index;
 
                     Vector4 p0 = w * Point3(-0.5f, -0.5f, 0.0f);
                     Vector4 p1 = w * Point3(-0.5f, 0.5f, 0.0f);
