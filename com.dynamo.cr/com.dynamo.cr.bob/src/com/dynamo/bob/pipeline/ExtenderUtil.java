@@ -804,10 +804,10 @@ public class ExtenderUtil {
     }
 
     private static boolean isPluginZip(String resourcePath) {
-        return resourcePath.endsWith("plugins/common.zip") || Stream
-                .of(Platform.X86_64MacOS, Platform.X86_64Linux, Platform.X86_64Win32)
-                .flatMap(platform -> Stream.of(platform.getPair(), platform.getOs()))
-                .anyMatch(platformOption -> resourcePath.endsWith("plugins/" + platformOption + ".zip"));
+        Platform hostPlatform = Platform.getHostPlatform();
+        return resourcePath.endsWith("plugins/common.zip")
+                || resourcePath.endsWith("plugins/" + hostPlatform.getPair() + ".zip")
+                || resourcePath.endsWith("plugins/" + hostPlatform.getOs() + ".zip");
     }
 
     private static int getPluginZipSpecificity(String resourcePath) {
