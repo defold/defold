@@ -486,7 +486,7 @@ ordinary paths."
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
   (let [{plugin-zips true resources false} (->> changed
-                                                (eduction (filter is-plugin-file?))
+                                                (filter is-plugin-file?)
                                                 (group-by plugin-zip?))]
     (->> plugin-zips
          (into []
