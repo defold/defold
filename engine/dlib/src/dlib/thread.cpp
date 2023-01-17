@@ -17,6 +17,7 @@
 #include <dmsdk/dlib/thread.h>
 
 #if defined(_WIN32)
+#include <dmsdk/dlib/safe_windows.h>
 #include <stdlib.h>
 #include <wchar.h>
 #endif
