@@ -25,7 +25,6 @@
 
 namespace dmGraphics
 {
-
     typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
 
     typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);

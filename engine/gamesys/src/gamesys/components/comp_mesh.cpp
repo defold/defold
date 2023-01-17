@@ -155,10 +155,10 @@ namespace dmGameSystem
     {
         VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(path);
         assert(info != 0);
+
         info->m_RefCount--;
         if (info->m_RefCount == 0) {
             world->m_ResourceToVertexBuffer.Erase(path);
-
             DeallocVertexBuffer(world, info->m_VertexBuffer);
         }
     }
@@ -707,12 +707,11 @@ namespace dmGameSystem
             const MeshComponent* component = (MeshComponent*) buf[*i].m_UserData;
             const MeshResource* mr = component->m_Resource;
             dmGameSystem::BufferResource* br = GetVerticesBuffer(component, mr);
+            VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
+            assert(info != 0);
 
             DM_PROPERTY_ADD_U32(rmtp_MeshVertexCount, br->m_ElementCount);
             DM_PROPERTY_ADD_U32(rmtp_MeshVertexSize, br->m_Stride * br->m_ElementCount);
-
-            VertexBufferInfo* info = world->m_ResourceToVertexBuffer.Get(br->m_NameHash);
-            assert(info != 0);
 
             dmGraphics::HVertexDeclaration vert_decl = GetVertexDeclaration(component);
             FillRenderObject(ro, mr->m_PrimitiveType, material, mr->m_Textures, component->m_Textures, vert_decl, info->m_VertexBuffer, 0, br->m_ElementCount, component->m_World, component->m_RenderConstants);
@@ -759,19 +758,20 @@ namespace dmGameSystem
             uint32_t count;
             dmBuffer::ValueType valueType;
             dmBuffer::Result r = dmBuffer::GetMetaData(br->m_Buffer, AABB_HASH, &data, &count, &valueType );
+
             if (r == dmBuffer::RESULT_METADATA_MISSING)
             {
                 // no bounding box available - no culling
                 entry->m_Visibility = dmRender::VISIBILITY_FULL;
                 continue;
-            } else
-            if (valueType != dmBuffer::VALUE_TYPE_FLOAT32 || count != 6)
+            }
+            else if (valueType != dmBuffer::VALUE_TYPE_FLOAT32 || count != 6)
             {
                 dmLogError("Invalid AABB metadata. Expected array of 6 floats.");
                 entry->m_Visibility = dmRender::VISIBILITY_FULL;
                 continue;
-            } else
-            if (r != dmBuffer::RESULT_OK)
+            }
+            else if (r != dmBuffer::RESULT_OK)
             {
                 dmLogError("Error getting AABB for mesh buffer");
                 continue;
@@ -780,13 +780,10 @@ namespace dmGameSystem
             dmVMath::Vector3 boundsMin(((float*)data)[0], ((float*)data)[1], ((float*)data)[2] );
             dmVMath::Vector3 boundsMax(((float*)data)[3], ((float*)data)[4], ((float*)data)[5] );
 
-            bool intersect = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax, false);
+            bool intersect      = dmIntersection::TestFrustumOBB(frustum, component_p->m_World, boundsMin, boundsMax, false);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
-
         }
-
     }
-
 
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {

@@ -68,12 +68,6 @@ namespace dmGraphics
         uint8_t                 m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
     };
 
-    static inline void IncreaseModificationVersion(Context* context)
-    {
-        ++context->m_ModificationVersion;
-        context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
-    }
-
     struct Texture
     {
         TextureType m_Type;
@@ -96,13 +90,13 @@ namespace dmGraphics
     {
         struct Stream
         {
-            const char* m_Name;
-            uint16_t    m_LogicalIndex;
-            int16_t     m_PhysicalIndex;
-            uint16_t    m_Size;
-            uint16_t    m_Offset;
-            Type        m_Type;
-            bool        m_Normalize;
+            dmhash_t m_NameHash;
+            uint16_t m_LogicalIndex;
+            int16_t  m_PhysicalIndex;
+            uint16_t m_Size;
+            uint16_t m_Offset;
+            Type     m_Type;
+            bool     m_Normalize;
         };
 
         Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
@@ -112,17 +106,24 @@ namespace dmGraphics
         uint32_t    m_ModificationVersion;
     };
 
-    struct Program
-    {
-        GLuint          m_Id;
-        dmArray<GLuint> m_VariantIds;
-    };
-
     struct Shader
     {
         GLuint   m_Id;
         char*    m_VariantTextureArrayData;
         uint32_t m_VariantTextureArrayDataSize;
+    };
+
+    struct OpenglVertexAttribute
+    {
+        dmhash_t m_NameHash;
+        int32_t  m_Location;
+    };
+
+    struct OpenGLProgram
+    {
+        GLuint                         m_Id;
+        dmArray<OpenglVertexAttribute> m_Attributes;
+        dmArray<GLuint>                m_VariantIds;
     };
 
     struct RenderTarget

@@ -254,14 +254,20 @@ namespace dmGraphics
 
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize)
     {
+        AddVertexStream(stream_declaration, dmHashString64(name), size, type, normalize);
+    }
+
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, dmhash_t name_hash, uint32_t size, Type type, bool normalize)
+    {
         if (stream_declaration->m_StreamCount >= MAX_VERTEX_STREAM_COUNT)
         {
-            dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)", name, MAX_VERTEX_STREAM_COUNT);
+            dmLogError("Unable to add vertex stream '%s', stream declaration has no slots left (max: %d)",
+                dmHashReverseSafe64(name_hash), MAX_VERTEX_STREAM_COUNT);
             return;
         }
 
         uint8_t stream_index = stream_declaration->m_StreamCount;
-        stream_declaration->m_Streams[stream_index].m_Name      = name;
+        stream_declaration->m_Streams[stream_index].m_NameHash  = name_hash;
         stream_declaration->m_Streams[stream_index].m_Size      = size;
         stream_declaration->m_Streams[stream_index].m_Type      = type;
         stream_declaration->m_Streams[stream_index].m_Normalize = normalize;

@@ -411,6 +411,17 @@ namespace dmGraphics
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize);
 
     /*#
+     * Adds a stream to a stream declaration
+     * @name AddVertexStream
+     * @param context [type: dmGraphics::HContext] the context
+     * @param name_hash [type: uint64_t] the name hash of the stream
+     * @param size [type: uint32_t] the size of the stream, i.e number of components
+     * @param type [type: dmGraphics::Type] the data type of the stream
+     * @param normalize [type: bool] true if the stream should be normalized in the 0..1 range
+     */
+    void AddVertexStream(HVertexStreamDeclaration stream_declaration, uint64_t name_hash, uint32_t size, Type type, bool normalize);
+
+    /*#
      * Delete vertex stream declaration
      * @name DeleteVertexStreamDeclaration
      * @param stream_declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex stream declaration
