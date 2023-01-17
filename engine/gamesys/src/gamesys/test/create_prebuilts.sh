@@ -25,7 +25,7 @@ cd mesh_prebuilt_project/
 java -jar $DYNAMO_HOME/share/java/bob-light.jar build
 
 # Copy and rename prebuilt files to test folder
-cp build/mesh/no_data.bufferc ../mesh/no_data.prebuilt_bufferc
-cp build/mesh/no_data.meshc ../mesh/no_data.prebuilt_meshc
-cp build/mesh/triangle.bufferc ../mesh/triangle.prebuilt_bufferc
-cp build/mesh/triangle.meshc ../mesh/triangle.prebuilt_meshc
+cp build/default/mesh/no_data.bufferc ../mesh/no_data.prebuilt_bufferc
+cp build/default/mesh/no_data.meshc ../mesh/no_data.prebuilt_meshc
+cp build/default/mesh/triangle.bufferc ../mesh/triangle.prebuilt_bufferc
+cp build/default/mesh/triangle.meshc ../mesh/triangle.prebuilt_meshc
