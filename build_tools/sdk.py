@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -58,7 +58,7 @@ PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION
 ## **********************************************************************************************
 # Android
 
-ANDROID_NDK_VERSION='20'
+ANDROID_NDK_VERSION='25b'
 
 ## **********************************************************************************************
 # Win32
@@ -384,7 +384,7 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
-        info['xcode-clang'] = defold_info['xcode-clang']
+        info['xcode-clang'] = defold_info['xcode-clang']['version']
         info['asan'] = {}
         info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}

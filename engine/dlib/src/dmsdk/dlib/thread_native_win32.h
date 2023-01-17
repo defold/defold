@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,7 +15,8 @@
 #ifndef DMSDK_THREAD_NATIVE_WIN32_H
 #define DMSDK_THREAD_NATIVE_WIN32_H
 
-#include "safe_windows.h"
+#include <dmsdk/dlib/safe_windows.h>
+
 namespace dmThread
 {
     typedef HANDLE Thread;

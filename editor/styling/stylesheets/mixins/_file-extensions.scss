@@ -39,7 +39,7 @@
     &.resource-ext- {
         /* Script files */
         &fp, &gui_script, &lua,
-        &render_script, &script, &vp {
+        &render_script, &script, &vp, &glsl {
             @include extension-template($element, -df-script-file, -df-script-file-active);
         }
 

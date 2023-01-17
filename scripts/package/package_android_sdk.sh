@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,9 +25,9 @@
 
 set -e
 
-ANDROID_PLATFORM=31
-ANDROID_TARGET_API_LEVEL=31
-ANDROID_BUILD_TOOLS_VERSION=32.0.0
+ANDROID_PLATFORM=33
+ANDROID_TARGET_API_LEVEL=33
+ANDROID_BUILD_TOOLS_VERSION=33.0.1
 
 PLATFORM=android-${ANDROID_PLATFORM}
 

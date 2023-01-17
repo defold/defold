@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -250,6 +250,12 @@ TEST_F(MetaDataTest, WrongParams)
     r = dmBuffer::SetMetaData(buffer, dmHashString64("min_AABB"), min_aabb, 0, dmBuffer::VALUE_TYPE_FLOAT32);
     ASSERT_EQ(dmBuffer::RESULT_METADATA_INVALID, r);
 
+    // no such metadata entry
+    void* data;
+    uint32_t count;
+    dmBuffer::ValueType valuetype;
+    r = dmBuffer::GetMetaData(buffer, dmHashString64("not_exists"), &data, &count, &valuetype);
+    ASSERT_EQ(dmBuffer::RESULT_METADATA_MISSING, r);
 }
 
 template <typename T>

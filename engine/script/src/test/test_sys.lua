@@ -1,4 +1,4 @@
--- Copyright 2020-2022 The Defold Foundation
+-- Copyright 2020-2023 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -96,7 +96,11 @@ function test_sys()
 
     -- test get_config_int / get_config_number
     assert(sys.get_config_int("foo.value", 456) == 123)
+    assert(sys.get_config_int("main.does_not_exists") == 0)
+    assert(sys.get_config_int("main.does_not_exists", 456.7) == 456)
     assert(sys.get_config_number("foo.value", 456) == 123)
+    assert(sys.get_config_number("main.does_not_exists") == 0)
+    assert(sys.get_config_number("main.does_not_exists", 456.7) - 456.7 < 0.1)
 
     -- load_resource
     print("Load existing resource")

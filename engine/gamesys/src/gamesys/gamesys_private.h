@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -75,6 +75,12 @@ namespace dmGameSystem
 
     // A wrapper for dmScript::CheckGoInstance
     dmGameObject::HInstance CheckGoInstance(lua_State* L);
+
+    // Logs an error for when a component buffer is full
+    void ShowFullBufferError(const char* object_name, const char* config_key, int max_count);
+
+    // Logs an error for when a component buffer is full, but the buffer in question cannot be changed by the user
+    void ShowFullBufferError(const char* object_name, int max_count);
 
     /**
      * Log message error. The function will send a formatted printf-style string to dmLogError

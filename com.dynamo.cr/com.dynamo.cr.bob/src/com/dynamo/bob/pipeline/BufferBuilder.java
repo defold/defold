@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,6 +31,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.BufferProto.StreamDesc;
@@ -185,6 +186,7 @@ public class BufferBuilder extends Builder<Void> {
 
                 StreamDesc.Builder streamDescBuilder = StreamDesc.newBuilder();
                 streamDescBuilder.setName(streamName);
+                streamDescBuilder.setNameHash(MurmurHash.hash64(streamName));
                 streamDescBuilder.setValueType(streamType);
                 streamDescBuilder.setValueCount(streamValueCount);
 

@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -170,50 +170,50 @@
   (let [workspace (tu/setup-workspace! world project-path)
         project (tu/setup-project! workspace)]
     (tu/make-atlas-resource-node! project "/assets/from-script.atlas")
-    (tu/make-atlas-resource-node! project "/assets/from-chair-sprite.atlas")
-    (tu/make-atlas-resource-node! project "/assets/from-room-embedded-chair-sprite.atlas")
+    (tu/make-atlas-resource-node! project "/assets/from-chair-embedded-sprite.atlas")
+    (tu/make-atlas-resource-node! project "/assets/from-room-embedded-chair-embedded-sprite.atlas")
     (doseq [atlas-proj-path atlas-proj-paths]
       (tu/make-atlas-resource-node! project atlas-proj-path))
     (let [sprite-resource-type (workspace/get-resource-type workspace "sprite")
           script (doto (tu/make-resource-node! project "/assets/script.script")
                    (tu/code-editor-source! "go.property('atlas', resource.atlas('/assets/from-script.atlas'))"))
           chair (tu/make-resource-node! project "/assets/chair.go")
-          chair-script (tu/add-referenced-component! chair (resource-node/resource script))
-          chair-sprite (tu/add-embedded-component! chair sprite-resource-type)
+          chair-referenced-script (tu/add-referenced-component! chair (resource-node/resource script))
+          chair-embedded-sprite (tu/add-embedded-component! chair sprite-resource-type)
           room (tu/make-resource-node! project "/assets/room.collection")
           room-embedded-chair (tu/add-embedded-game-object! room)
-          room-embedded-chair-script (tu/add-referenced-component! room-embedded-chair (resource-node/resource script))
-          room-embedded-chair-sprite (tu/add-embedded-component! room-embedded-chair sprite-resource-type)
+          room-embedded-chair-referenced-script (tu/add-referenced-component! room-embedded-chair (resource-node/resource script))
+          room-embedded-chair-embedded-sprite (tu/add-embedded-component! room-embedded-chair sprite-resource-type)
           room-referenced-chair (tu/add-referenced-game-object! room (resource-node/resource chair))
-          room-referenced-chair-script (tu/referenced-component room-referenced-chair)
+          room-referenced-chair-referenced-script (tu/referenced-component room-referenced-chair)
           house (tu/make-resource-node! project "/assets/house.collection")
           house-room (tu/add-referenced-collection! house (resource-node/resource room))
           house-room-embedded-chair (tu/embedded-game-object house-room)
-          house-room-embedded-chair-script (tu/referenced-component house-room-embedded-chair)
+          house-room-embedded-chair-referenced-script (tu/referenced-component house-room-embedded-chair)
           house-room-referenced-chair (tu/referenced-game-object house-room)
-          house-room-referenced-chair-script (tu/referenced-component house-room-referenced-chair)]
+          house-room-referenced-chair-referenced-script (tu/referenced-component house-room-referenced-chair)]
       (g/transact
         (concat
-          (g/set-property chair-script :id "chair-script")
-          (g/set-property chair-sprite :id "chair-sprite")
+          (g/set-property chair-referenced-script :id "chair-referenced-script")
+          (g/set-property chair-embedded-sprite :id "chair-embedded-sprite")
           (g/set-property room-embedded-chair :id "room-embedded-chair")
-          (g/set-property room-embedded-chair-script :id "room-embedded-chair-script")
-          (g/set-property room-embedded-chair-sprite :id "room-embedded-chair-sprite")
+          (g/set-property room-embedded-chair-referenced-script :id "room-embedded-chair-referenced-script")
+          (g/set-property room-embedded-chair-embedded-sprite :id "room-embedded-chair-embedded-sprite")
           (g/set-property room-referenced-chair :id "room-referenced-chair")
           (g/set-property house-room :id "house-room")))
-      (tu/prop! chair-sprite :image (tu/resource workspace "/assets/from-chair-sprite.atlas"))
-      (tu/prop! chair-sprite :default-animation "from-chair-sprite")
-      (tu/prop! room-embedded-chair-sprite :image (tu/resource workspace "/assets/from-room-embedded-chair-sprite.atlas"))
-      (tu/prop! room-embedded-chair-sprite :default-animation "from-room-embedded-chair-sprite")
+      (tu/prop! chair-embedded-sprite :image (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
+      (tu/prop! chair-embedded-sprite :default-animation "from-chair-embedded-sprite")
+      (tu/prop! room-embedded-chair-embedded-sprite :image (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
+      (tu/prop! room-embedded-chair-embedded-sprite :default-animation "from-room-embedded-chair-embedded-sprite")
       {:chair chair
-       :chair-script chair-script
+       :chair-referenced-script chair-referenced-script
        :house house
-       :house-room-embedded-chair-script house-room-embedded-chair-script
-       :house-room-referenced-chair-script house-room-referenced-chair-script
+       :house-room-embedded-chair-referenced-script house-room-embedded-chair-referenced-script
+       :house-room-referenced-chair-referenced-script house-room-referenced-chair-referenced-script
        :project project
        :room room
-       :room-embedded-chair-script room-embedded-chair-script
-       :room-referenced-chair-script room-referenced-chair-script
+       :room-embedded-chair-referenced-script room-embedded-chair-referenced-script
+       :room-referenced-chair-referenced-script room-referenced-chair-referenced-script
        :script script
        :workspace workspace})))
 
@@ -266,36 +266,36 @@
   (doseq [atlas-property-proj-paths-by-node-key
           [{}
 
-           {:chair-script "/assets/from-chair-script.atlas"}
+           {:chair-referenced-script "/assets/from-chair-referenced-script.atlas"}
 
-           {:room-referenced-chair-script "/assets/from-room-referenced-chair-script.atlas"}
+           {:room-referenced-chair-referenced-script "/assets/from-room-referenced-chair-referenced-script.atlas"}
 
-           {:house-room-embedded-chair-script "/assets/from-house-room-embedded-chair-script.atlas"}
+           {:house-room-embedded-chair-referenced-script "/assets/from-house-room-embedded-chair-referenced-script.atlas"}
 
-           {:house-room-referenced-chair-script "/assets/from-house-room-referenced-chair-script.atlas"}
+           {:house-room-referenced-chair-referenced-script "/assets/from-house-room-referenced-chair-referenced-script.atlas"}
 
-           {:chair-script "/assets/from-chair-script.atlas"
-            :room-referenced-chair-script "/assets/from-room-referenced-chair-script.atlas"}
+           {:chair-referenced-script "/assets/from-chair-referenced-script.atlas"
+            :room-referenced-chair-referenced-script "/assets/from-room-referenced-chair-referenced-script.atlas"}
 
-           {:chair-script "/assets/from-chair-script.atlas"
-            :house-room-embedded-chair-script "/assets/from-house-room-embedded-chair-script.atlas"}
+           {:chair-referenced-script "/assets/from-chair-referenced-script.atlas"
+            :house-room-embedded-chair-referenced-script "/assets/from-house-room-embedded-chair-referenced-script.atlas"}
 
-           {:chair-script "/assets/from-chair-script.atlas"
-            :house-room-referenced-chair-script "/assets/from-house-room-referenced-chair-script.atlas"}
+           {:chair-referenced-script "/assets/from-chair-referenced-script.atlas"
+            :house-room-referenced-chair-referenced-script "/assets/from-house-room-referenced-chair-referenced-script.atlas"}
 
-           {:room-referenced-chair-script "/assets/from-room-referenced-chair-script.atlas"
-            :house-room-embedded-chair-script "/assets/from-house-room-embedded-chair-script.atlas"}
+           {:room-referenced-chair-referenced-script "/assets/from-room-referenced-chair-referenced-script.atlas"
+            :house-room-embedded-chair-referenced-script "/assets/from-house-room-embedded-chair-referenced-script.atlas"}
 
-           {:room-referenced-chair-script "/assets/from-room-referenced-chair-script.atlas"
-            :house-room-referenced-chair-script "/assets/from-house-room-referenced-chair-script.atlas"}
+           {:room-referenced-chair-referenced-script "/assets/from-room-referenced-chair-referenced-script.atlas"
+            :house-room-referenced-chair-referenced-script "/assets/from-house-room-referenced-chair-referenced-script.atlas"}
 
-           {:chair-script "/assets/from-chair-script.atlas"
-            :room-referenced-chair-script "/assets/from-room-referenced-chair-script.atlas"
-            :house-room-embedded-chair-script "/assets/from-house-room-embedded-chair-script.atlas"}
+           {:chair-referenced-script "/assets/from-chair-referenced-script.atlas"
+            :room-referenced-chair-referenced-script "/assets/from-room-referenced-chair-referenced-script.atlas"
+            :house-room-embedded-chair-referenced-script "/assets/from-house-room-embedded-chair-referenced-script.atlas"}
 
-           {:chair-script "/assets/from-chair-script.atlas"
-            :room-referenced-chair-script "/assets/from-room-referenced-chair-script.atlas"
-            :house-room-referenced-chair-script "/assets/from-house-room-referenced-chair-script.atlas"}]]
+           {:chair-referenced-script "/assets/from-chair-referenced-script.atlas"
+            :room-referenced-chair-referenced-script "/assets/from-room-referenced-chair-referenced-script.atlas"
+            :house-room-referenced-chair-referenced-script "/assets/from-house-room-referenced-chair-referenced-script.atlas"}]]
     (perform-build-target-test atlas-property-proj-paths-by-node-key)))
 
 ;; -----------------------------------------------------------------------------

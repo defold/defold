@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -45,6 +45,17 @@ function download() {
 download
 
 function cmi_configure() {
+    case $1 in
+        armv7-android)
+        export LDFLAGS="$LDFLAGS -llog"
+        ;;
+
+        arm64-android)
+        export LDFLAGS="$LDFLAGS -llog"
+        ;;
+        *)
+    esac
+
 	./autogen.sh
     echo CONFIGURE_ARGS=$CONFIGURE_ARGS $2
     ${CONFIGURE_WRAPPER} ./configure $CONFIGURE_ARGS $2 \

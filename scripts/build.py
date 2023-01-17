@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -109,8 +109,8 @@ PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
 PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f glslc-31bddbb vulkan-1.1.108 luac-32-5.1.5".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-31 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 libunwind-8ba86320a71bcdc7b411070c0c0f101cf2131cf2".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -122,10 +122,10 @@ DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ
 
 PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
-PACKAGES_ANDROID_NDK="android-ndk-r20"
+PACKAGES_ANDROID_NDK="android-ndk-r25b"
 PACKAGES_ANDROID_SDK="android-sdk"
-ANDROID_TARGET_API_LEVEL=31
-ANDROID_BUILD_TOOLS_VERSION="32.0.0"
+ANDROID_TARGET_API_LEVEL=33
+ANDROID_BUILD_TOOLS_VERSION="33.0.1"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -596,7 +596,7 @@ class Configuration(object):
                 host = 'darwin' # our packages are still called darwin
 
             # Android NDK
-            download_sdk(self, '%s/%s-%s-x86_64.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
+            download_sdk(self, '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
             download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, ANDROID_TARGET_API_LEVEL, ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
@@ -905,16 +905,11 @@ class Configuration(object):
 
         strip = "strip"
         if 'android' in self.target_platform:
-            ANDROID_NDK_VERSION = '20'
+            ANDROID_NDK_VERSION = '25b'
             ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % ANDROID_NDK_VERSION)
-            ANDROID_GCC_VERSION = '4.9'
-            if target_platform == 'armv7-android':
-                ANDROID_PLATFORM = 'arm-linux-androideabi'
-            elif target_platform == 'arm64-android':
-                ANDROID_PLATFORM = 'aarch64-linux-android'
 
             ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
-            strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, ANDROID_PLATFORM, ANDROID_GCC_VERSION, ANDROID_HOST, ANDROID_PLATFORM)
+            strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (ANDROID_NDK_ROOT, ANDROID_HOST)
 
         if self.target_platform in ('x86_64-macos','arm64-macos','arm64-ios','x86_64-ios') and 'linux' == sys.platform:
             strip = os.path.join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG, 'bin', 'x86_64-apple-darwin19-strip')

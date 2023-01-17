@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -74,13 +74,15 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :refer [first-where]]
             [service.log :as log]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util]
             [service.smoke-log :as slog])
-  (:import [com.defold.editor Editor]
+  (:import [clojure.lang ExceptionInfo]
+           [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException]
@@ -790,6 +792,22 @@
                                 :text "If the engine is already running, shut down the process manually and retry"}]}
            :content (.getMessage e)})))))
 
+(defn- get-cycle-detected-help-message [node-id]
+  (let [basis (g/now)
+        proj-path (some-> (resource-node/owner-resource basis node-id) resource/proj-path)
+        resource-path (or proj-path "'unknown'")]
+    (case (g/node-type-kw basis node-id)
+      :editor.collection/CollectionNode
+      (format "This is caused by a two or more collections referenced in a loop from either collection proxies or collection factories. One of the resources is: %s." resource-path)
+
+      :editor.game-object/GameObjectNode
+      (format "This is caused by two or more game objects referenced in a loop from game object factories. One of the resources is: %s." resource-path)
+
+      :editor.code.script/ScriptNode
+      (format "This is caused by two or more Lua modules required in a loop. One of the resources is: %s." resource-path)
+
+      (format "This is caused by two or more resources referenced in a loop. One of the resources is: %s." resource-path))))
+
 (defn- build-project!
   [project evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
@@ -797,11 +815,22 @@
     (try
       (ui/with-progress [render-progress! render-progress!]
         (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+      (catch ExceptionInfo e
+        (if (= :cycle-detected (-> e ex-data :cause))
+          (ui/run-later
+            (dialogs/make-info-dialog
+              {:title "Build Error"
+               :icon :icon/triangle-error
+               :header "Cyclic resource dependency detected"
+               :content {:fx/type fxui/label
+                         :style-class "dialog-content-padding"
+                         :text (get-cycle-detected-help-message (-> e ex-data :endpoint gt/endpoint-node-id))}}))
+          (error-reporting/report-exception! e)))
       (catch Throwable error
         (error-reporting/report-exception! error)
         nil))))
 
-(defn async-build! [project prefs {:keys [debug? engine?] :or {debug? false engine? true}} old-artifact-map render-build-progress! result-fn]
+(defn async-build! [project prefs {:keys [debug? engine? run-build-hooks?] :or {debug? false engine? true run-build-hooks? true}} old-artifact-map render-build-progress! result-fn]
   (let [;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
         ;; can work while we build the project. We will await the results of the
@@ -917,7 +946,9 @@
                   (build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
                 (project/update-system-cache-build-targets! evaluation-context)
-                (phase-4-run-post-build-hook! project-build-results)))))
+                (if run-build-hooks?
+                  (phase-4-run-post-build-hook! project-build-results)
+                  (phase-5-await-engine-build! project-build-results))))))
 
         phase-2-start-engine-build!
         (fn phase-2-start-engine-build! []
@@ -959,7 +990,9 @@
     ;; soon as they can.
     (assert (not @build-in-progress-atom))
     (reset! build-in-progress-atom true)
-    (phase-1-run-pre-build-hook!)))
+    (if run-build-hooks?
+      (phase-1-run-pre-build-hook!)
+      (phase-2-start-engine-build!))))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
   (let [{:keys [error artifact-map etags]} build-results]
@@ -979,7 +1012,7 @@
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
     (build-errors-view/clear-build-errors build-errors-view)
-    (async-build! project prefs {:debug? false :engine? (not skip-engine)} (workspace/artifact-map workspace)
+    (async-build! project prefs {:debug? false :engine? (not skip-engine) :run-build-hooks? true} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (when (handle-build-results! workspace render-build-error! build-results)
@@ -1015,7 +1048,7 @@ If you do not specifically require different script states, consider changing th
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
   (let [project-directory (io/file (workspace/project-path workspace))
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))]
-    (async-build! project prefs {:debug? true :engine? (not skip-engine)} (workspace/artifact-map workspace)
+    (async-build! project prefs {:debug? true :engine? (not skip-engine) :run-build-hooks? true} (workspace/artifact-map workspace)
                   (make-render-task-progress :build)
                   (fn [build-results engine-descriptor build-engine-exception]
                     (when (handle-build-results! workspace render-build-error! build-results)
@@ -1029,7 +1062,7 @@ If you do not specifically require different script states, consider changing th
                           (engine-build-errors/handle-build-error! render-build-error! project evaluation-context build-engine-exception))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
-  (async-build! project prefs {:debug? true :engine? false} (workspace/artifact-map workspace)
+  (async-build! project prefs {:debug? true :engine? false :run-build-hooks? false} (workspace/artifact-map workspace)
                 (make-render-task-progress :build)
                 (fn [build-results _ _]
                   (when (handle-build-results! workspace render-build-error! build-results)
@@ -1118,7 +1151,7 @@ If you do not specifically require different script states, consider changing th
         old-etags (workspace/etags workspace)
         render-build-progress! (make-render-task-progress :build)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        opts {:debug? false :engine? false}]
+        opts {:debug? false :engine? false :run-build-hooks? false}]
     ;; NOTE: We must build the entire project even if we only want to reload a
     ;; subset of resources in order to maintain a functioning build cache.
     ;; If we decide to support hot reload of a subset of resources, we must

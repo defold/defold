@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,25 +13,51 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.java
-  (:import [java.lang.reflect Method Modifier]))
+  (:import [java.lang.reflect Constructor Method Modifier]))
 
 (set! *warn-on-reflection* true)
 
-(defn- get-declared-method-raw [^Class class method args-classes]
-  (.getDeclaredMethod class method (into-array Class args-classes)))
+(defonce no-args-array (make-array Object 0))
+
+(defonce no-classes-array (make-array Class 0))
+
+(defn- get-declared-constructor-raw [^Class class args-classes]
+  {:pre [(counted? args-classes)]}
+  (.getDeclaredConstructor class (if (zero? (count args-classes))
+                                   no-classes-array
+                                   (into-array Class args-classes))))
+
+(def get-declared-constructor (memoize get-declared-constructor-raw))
+
+(defn- get-declared-method-raw [^Class class ^String method-name args-classes]
+  {:pre [(counted? args-classes)]}
+  (.getDeclaredMethod class method-name (if (zero? (count args-classes))
+                                     no-classes-array
+                                     (into-array Class args-classes))))
 
 (def get-declared-method (memoize get-declared-method-raw))
 
-(def no-args-array (to-array []))
+(defn invoke-no-arg-constructor
+  [^Class class]
+  (-> class
+      ^Constructor (get-declared-constructor [])
+      (.newInstance no-args-array)))
 
 (defn invoke-no-arg-class-method
-  [^Class class method]
+  [^Class class ^String method-name]
   (-> class
-    ^Method (get-declared-method method [])
-    (.invoke nil no-args-array)))
+      ^Method (get-declared-method method-name [])
+      (.invoke nil no-args-array)))
 
 (defn invoke-class-method
   [^Class class ^String method-name args]
   (-> class
-    ^Method (get-declared-method class method-name (mapv class args))
-    (.invoke nil (to-array args))))
+      ^Method (get-declared-method method-name (mapv clojure.core/class args))
+      (.invoke nil (to-array args))))
+
+(defn public-implementation? [^Class subclass ^Class superclass]
+  (let [modifiers (.getModifiers subclass)]
+    (and (Modifier/isPublic modifiers)
+         (not (Modifier/isAbstract modifiers))
+         (not= superclass subclass)
+         (isa? subclass superclass))))

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -289,7 +289,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
-TEST_F(ResourceTest, TestSetAtlasFromScript)
+TEST_F(ResourceTest, TestResourceScriptBuffer)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory    = m_Factory;
@@ -300,8 +300,25 @@ TEST_F(ResourceTest, TestSetAtlasFromScript)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/set_atlas.goc", dmHashString64("/set_atlas"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ResourceTest, TestResourceScriptAtlas)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_atlas.goc", dmHashString64("/script_atlas"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -316,6 +333,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -635,6 +654,26 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
     dmGameObject::PropertyOptions opt;
     opt.m_Index = 0;
     return dmGameObject::SetProperty(instance, comp_name, prop_name, opt, prop_var);
+}
+
+TEST_F(BufferMetadataTest, MetadataLuaApi)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* go_path = "/buffer/metadata.goc";
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(SoundTest, UpdateSoundResource)
@@ -3463,6 +3502,9 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
 
 int main(int argc, char **argv)
 {
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
     dmHashEnableReverseHash(true);
     // Enable message descriptor translation when sending messages
     dmDDF::RegisterAllTypes();

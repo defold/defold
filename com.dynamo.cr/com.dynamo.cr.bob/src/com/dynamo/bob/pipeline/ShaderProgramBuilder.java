@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,19 +16,17 @@ package com.dynamo.bob.pipeline;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -49,7 +47,10 @@ import com.dynamo.bob.Builder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.util.Exec;
@@ -57,21 +58,33 @@ import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
-public abstract class ShaderProgramBuilder extends Builder<Void> {
-
+public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task<ShaderPreprocessor> create(IResource input) throws IOException, CompileExceptionError {
 
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder<ShaderPreprocessor> taskBuilder = Task.<ShaderPreprocessor>newBuilder(this)
             .setName(params.name())
             .addInput(input);
+
+        // Parse source for includes and add the include nodes as inputs/dependancies to the shader
+        String source     = new String(input.getContent(), StandardCharsets.UTF_8);
+        String projectDir = this.project.getRootDirectory();
+
+        ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
+        String[] includes = shaderPreprocessor.getIncludes();
+
+        for (String path : includes) {
+            taskBuilder.addInput(this.project.getResource(path));
+        }
+
         taskBuilder.addOutput(input.changeExt(params.outExt()));
+        taskBuilder.setData(shaderPreprocessor);
 
         return taskBuilder.build();
     }
 
     static public String compileGLSL(String shaderSource, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
-                            String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
+            String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
 
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(os);
@@ -81,9 +94,12 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         String firstNonDirectiveLine = null;
         int directiveLineCount = 0;
 
-        Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
+        Pattern directiveLinePattern = Pattern.compile("^\\s*(#).*");
         Scanner scanner = new Scanner(shaderSource);
 
+        // Iterate the source lines to find the first occurance of a 'valid' line
+        // i.e a line that doesn't already have a preprocessor directive, or is empty
+        // This is needed to get a valid line number when shader compilation has failed
         while (scanner.hasNextLine()) {
             line = scanner.nextLine();
             if (line.isEmpty() || directiveLinePattern.matcher(line).find()) {
@@ -154,18 +170,11 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         return source;
     }
 
-    private ShaderDesc.Shader.Builder buildGLSL(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
+    private ShaderDesc.Shader.Builder buildGLSL(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
                                 IResource resource, String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(shaderLanguage);
-
-        int n = is.available();
-        byte[] bytes = new byte[n];
-        is.read(bytes, 0, n);
-        String source = new String(bytes, StandardCharsets.UTF_8);
-
         String transformedSource = compileGLSL(source, shaderType, shaderLanguage, resourceOutput, isDebug);
-
         builder.setSource(ByteString.copyFrom(transformedSource, "UTF-8"));
         return builder;
     }
@@ -193,35 +202,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         }
     }
 
-    static private ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString)
-    {
-        switch(typeAsString)
-        {
-            case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
-            case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
-            case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
-            case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
-            case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
-            case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
-            case "mat2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
-            case "mat3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
-            case "mat4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
-            case "sampler2D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
-            case "sampler3D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
-            case "samplerCube" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
-            default: break;
-        }
-
-        return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
-    }
-
-    static private boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
-    {
-        return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE ||
-               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D ||
-               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
-    }
-
     static private class BindingEntry extends ArrayList<SPIRVReflector.Resource> {}
     static private class SetEntry extends HashMap<Integer,BindingEntry> {}
     static private class SortBindingsComparator implements Comparator<SPIRVReflector.Resource> {
@@ -240,6 +220,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
     static public SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
+
+        // Start all bindings on 1, this means that we can catch unused uniforms
+        int glslcBindingBase = 1;
 
         int version = 140;
         if(targetProfile.equals("es"))
@@ -265,11 +248,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         file_out_spv.deleteOnExit();
 
         String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
+        String glslcBindingBaseStr = String.valueOf(glslcBindingBase);
 
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
                 "-w",
                 "-fauto-bind-uniforms",
                 "-fauto-map-locations",
+                "-fubo-binding-base", glslcBindingBaseStr,
+                "-ftexture-binding-base", glslcBindingBaseStr,
                 "-std=" + es3Result.shaderVersion + es3Result.shaderProfile,
                 "-fshader-stage=" + spirvShaderStage,
                 "-o", file_out_spv.getAbsolutePath(),
@@ -349,7 +335,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 uniform.set          = ubo.set;
                 bindingEntry.add(uniform);
 
-                ShaderDesc.ShaderDataType type = stringTypeToShaderType(uniform.type);
+                ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(uniform.type);
 
                 int issue_count = shaderIssues.size();
                 if (type == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
@@ -379,8 +365,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 setEntry.put(tex.binding, bindingEntry);
             }
 
-            ShaderDesc.ShaderDataType type = stringTypeToShaderType(tex.type);
-            if (!isShaderTypeTexture(type)) {
+            ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(tex.type);
+            if (!Common.isShaderTypeTexture(type)) {
                 shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
             } else {
                 resource_list.add(tex);
@@ -395,7 +381,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             for (Map.Entry<Integer, BindingEntry> bindings : setEntry.entrySet()) {
                 Integer bindingIndex = bindings.getKey();
                 BindingEntry bindingEntry = bindings.getValue();
-                if (bindingEntry.size() > 1) {
+                if (bindingIndex >= glslcBindingBase && bindingEntry.size() > 1) {
                     String duplicateList = "";
                     for (int i = 0; i < bindingEntry.size(); i++) {
                         duplicateList += bindingEntry.get(i).name;
@@ -433,13 +419,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         return res;
     }
 
-    static private ShaderDesc.Shader.Builder buildSpirvFromGLSL(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
-        InputStreamReader isr = new InputStreamReader(is);
-        CharBuffer source = CharBuffer.allocate(is.available());
-        isr.read(source);
-        source.flip();
-
-        SPIRVCompileResult compile_res = compileGLSLToSPIRV(source.toString(), shaderType, resourceOutput, targetProfile, isDebug, soft_fail);
+    static private ShaderDesc.Shader.Builder buildSpirvFromGLSL(String source, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
+        source = Common.stripComments(source);
+        SPIRVCompileResult compile_res = compileGLSLToSPIRV(source, shaderType, resourceOutput, targetProfile, isDebug, soft_fail);
 
         if (compile_res.compile_warnings.size() > 0)
         {
@@ -467,7 +449,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         for (SPIRVReflector.Resource input : compile_res.attributes) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(input.name);
-            resourceBindingBuilder.setType(stringTypeToShaderType(input.type));
+            resourceBindingBuilder.setType(Common.stringTypeToShaderType(input.type));
             resourceBindingBuilder.setSet(input.set);
             resourceBindingBuilder.setBinding(input.binding);
             builder.addAttributes(resourceBindingBuilder);
@@ -477,7 +459,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         for (SPIRVReflector.Resource res : compile_res.resource_list) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
             resourceBindingBuilder.setName(res.name);
-            resourceBindingBuilder.setType(stringTypeToShaderType(res.type));
+            resourceBindingBuilder.setType(Common.stringTypeToShaderType(res.type));
             resourceBindingBuilder.setElementCount(res.elementCount);
             resourceBindingBuilder.setSet(res.set);
             resourceBindingBuilder.setBinding(res.binding);
@@ -487,21 +469,23 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         return builder;
     }
 
-    public ShaderDesc compile(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug, boolean outputSpirv, boolean soft_fail) throws IOException, CompileExceptionError {
+    public ShaderDesc compile(ShaderPreprocessor shaderPreprocessor, ES2ToES3Converter.ShaderType shaderType, IResource resource,
+        String resourceOutput, String platform, boolean isDebug, boolean outputSpirv, boolean soft_fail) throws IOException, CompileExceptionError {
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 
         // Build platform specific shader targets (e.g SPIRV, MSL, ..)
         Platform platformKey = Platform.get(platform);
         if(platformKey != null) {
+            String shaderSource = shaderPreprocessor.getCompiledSource();
+
             switch(platformKey) {
                 case X86_64MacOS:
                 {
-                    shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));
-                    is.reset();
+                    shaderDescBuilder.addShaders(buildGLSL(shaderSource, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));
 
                     if (outputSpirv)
                     {
-                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(shaderSource, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                         if (builder != null)
                         {
                             shaderDescBuilder.addShaders(builder);
@@ -513,12 +497,11 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case X86Win32:
                 case X86_64Win32:
                 {
-                    shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));
-                    is.reset();
+                    shaderDescBuilder.addShaders(buildGLSL(shaderSource, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));
 
                     if (outputSpirv)
                     {
-                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(shaderSource, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                         if (builder != null)
                         {
                             shaderDescBuilder.addShaders(builder);
@@ -530,11 +513,10 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case X86Linux:
                 case X86_64Linux:
                 {
-                    shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));
-                    is.reset();
+                    shaderDescBuilder.addShaders(buildGLSL(shaderSource, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));
                     if (outputSpirv)
                     {
-                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(shaderSource, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                         if (builder != null)
                         {
                             shaderDescBuilder.addShaders(builder);
@@ -546,11 +528,10 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case Arm64Ios:
                 case X86_64Ios:
                 {
-                    shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300, resource, resourceOutput, isDebug));
-                    is.reset();
+                    shaderDescBuilder.addShaders(buildGLSL(shaderSource, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300, resource, resourceOutput, isDebug));
                     if (outputSpirv)
                     {
-                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "es", isDebug, soft_fail);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(shaderSource, shaderType, resource, resourceOutput, "es", isDebug, soft_fail);
                         if (builder != null)
                         {
                             shaderDescBuilder.addShaders(builder);
@@ -562,13 +543,11 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 case Armv7Android:
                 case Arm64Android:
                 {
-                    shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300, resource, resourceOutput, isDebug));
-                    is.reset();
-                    shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM100, resource, resourceOutput, isDebug));
-                    is.reset();
+                    shaderDescBuilder.addShaders(buildGLSL(shaderSource, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300, resource, resourceOutput, isDebug));
+                    shaderDescBuilder.addShaders(buildGLSL(shaderSource, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM100, resource, resourceOutput, isDebug));
                     if (outputSpirv)
                     {
-                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                        ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(shaderSource, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                         if (builder != null)
                         {
                             shaderDescBuilder.addShaders(builder);
@@ -579,17 +558,14 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
                 case JsWeb:
                 case WasmWeb:
-                    shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300, resource, resourceOutput, isDebug));
-                    is.reset();
-                    shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM100, resource, resourceOutput, isDebug));
-                    is.reset();
+                    shaderDescBuilder.addShaders(buildGLSL(shaderSource, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300, resource, resourceOutput, isDebug));
+                    shaderDescBuilder.addShaders(buildGLSL(shaderSource, shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM100, resource, resourceOutput, isDebug));
                 break;
 
                 case Arm64NX64:
                 {
-                    shaderDescBuilder.addShaders(buildGLSL(is, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));
-                    is.reset();
-                    ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(is, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
+                    shaderDescBuilder.addShaders(buildGLSL(shaderSource, shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140, resource, resourceOutput, isDebug));
+                    ShaderDesc.Shader.Builder builder = buildSpirvFromGLSL(shaderSource, shaderType, resource, resourceOutput, "", isDebug, soft_fail);
                     if (builder != null)
                     {
                         shaderDescBuilder.addShaders(builder);
@@ -630,8 +606,13 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
            is.read(inBytes);
            ByteArrayInputStream bais = new ByteArrayInputStream(inBytes);
 
-           boolean outputSpirv = true;
-           ShaderDesc shaderDesc = compile(bais, shaderType, null, args[1], cmd.getOptionValue("platform", ""), cmd.getOptionValue("variant", "").equals("debug") ? true : false, outputSpirv, false);
+           String source = new String(inBytes, StandardCharsets.UTF_8);
+           Project project = new Project(new DefaultFileSystem());
+           ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, args[0], source);
+
+           ShaderDesc shaderDesc = compile(shaderPreprocessor,
+                shaderType, null, args[1], cmd.getOptionValue("platform", ""),
+                cmd.getOptionValue("variant", "").equals("debug") ? true : false, true, false);
            shaderDesc.writeTo(os);
            os.close();
        }

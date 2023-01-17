@@ -726,7 +726,7 @@ int  _glfwPlatformOpenWindow( int width, int height,
 
         NSPoint point = [_glfwWin.window mouseLocationOutsideOfEventStream];
         _glfwInput.MousePosX = point.x;
-        _glfwInput.MousePosY = point.y;
+        _glfwInput.MousePosY = [[_glfwWin.window contentView] bounds].size.height - point.y;
 
         CVDisplayLinkRef displayLink;
         CVDisplayLinkCreateWithActiveCGDisplays(&displayLink);
