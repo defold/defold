@@ -1126,12 +1126,6 @@ namespace dmGraphics
         }
     }
 
-    // Not used?
-    uint8_t* GetTextureData(HTexture texture)
-    {
-        return 0x0;
-    }
-
     static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
         uint32_t size_total = 0;
@@ -1316,18 +1310,6 @@ namespace dmGraphics
     static PipelineState NullGetPipelineState(HContext context)
     {
         return context->m_PipelineState;
-    }
-
-    // Not used?
-    bool AcquireSharedContext()
-    {
-        return false;
-    }
-
-    // Not used?
-    void UnacquireContext()
-    {
-
     }
 
     static void NullSetTextureAsync(HTexture texture, const TextureParams& params)

@@ -16,19 +16,17 @@ package com.dynamo.bob.pipeline;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -49,6 +47,8 @@ import com.dynamo.bob.Builder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
@@ -59,21 +59,33 @@ import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
-public abstract class ShaderProgramBuilder extends Builder<Void> {
-
+public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task<ShaderPreprocessor> create(IResource input) throws IOException, CompileExceptionError {
 
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder<ShaderPreprocessor> taskBuilder = Task.<ShaderPreprocessor>newBuilder(this)
             .setName(params.name())
             .addInput(input);
+
+        // Parse source for includes and add the include nodes as inputs/dependancies to the shader
+        String source     = new String(input.getContent(), StandardCharsets.UTF_8);
+        String projectDir = this.project.getRootDirectory();
+
+        ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
+        String[] includes = shaderPreprocessor.getIncludes();
+
+        for (String path : includes) {
+            taskBuilder.addInput(this.project.getResource(path));
+        }
+
         taskBuilder.addOutput(input.changeExt(params.outExt()));
+        taskBuilder.setData(shaderPreprocessor);
 
         return taskBuilder.build();
     }
 
     static public String compileGLSL(String shaderSource, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
-                            String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
+            String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
 
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(os);
@@ -83,9 +95,12 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         String firstNonDirectiveLine = null;
         int directiveLineCount = 0;
 
-        Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
+        Pattern directiveLinePattern = Pattern.compile("^\\s*(#).*");
         Scanner scanner = new Scanner(shaderSource);
 
+        // Iterate the source lines to find the first occurance of a 'valid' line
+        // i.e a line that doesn't already have a preprocessor directive, or is empty
+        // This is needed to get a valid line number when shader compilation has failed
         while (scanner.hasNextLine()) {
             line = scanner.nextLine();
             if (line.isEmpty() || directiveLinePattern.matcher(line).find()) {
@@ -157,13 +172,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         return source;
     }
 
-    static private String byteArrayInputStreamToString(ByteArrayInputStream is) {
-        int n = is.available();
-        byte[] bytes = new byte[n];
-        is.read(bytes, 0, n);
-        return new String(bytes, StandardCharsets.UTF_8);
-    }
-
     private ShaderDesc.Shader.Builder[] buildGLSL(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
                                 IResource resource, String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
 
@@ -219,13 +227,6 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 throw new CompileExceptionError(resourceOutput + ":" + result_string, null);
             }
         }
-    }
-
-    static private boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type) {
-        return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
-               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
-               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
-               data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
     }
 
     static private class BindingEntry extends ArrayList<SPIRVReflector.Resource> {}
@@ -392,7 +393,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
             }
 
             ShaderDesc.ShaderDataType type = Common.stringTypeToShaderType(tex.type);
-            if (!isShaderTypeTexture(type)) {
+
+            if (!Common.isShaderTypeTexture(type)) {
                 shaderIssues.add("Unsupported type '" + tex.type + "'for texture sampler '" + tex.name + "'");
             } else {
                 resource_list.add(tex);
@@ -446,6 +448,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
     }
 
     static private ShaderDesc.Shader.Builder buildSpirvFromGLSL(String source, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
+        source = Common.stripComments(source);
         SPIRVCompileResult compile_res = compileGLSLToSPIRV(source, shaderType, resourceOutput, targetProfile, isDebug, soft_fail);
 
         if (compile_res.compile_warnings.size() > 0)
@@ -570,18 +573,18 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         return shaderLanguages.toArray(new ShaderDesc.Language[0]);
     }
 
-    public ShaderDesc compile(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+    public ShaderDesc compile(ShaderPreprocessor shaderPreprocessor, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
         ShaderDesc.Shader.Builder[] shaderBuilders = null;
 
         // Build platform specific shader targets (e.g SPIRV, MSL, ..)
         Platform platformKey = Platform.get(platform);
-
         if(platformKey != null) {
             String spirvTargetProfile = platformKey == Platform.X86_64Ios ? "es" : "";
+            String shaderSource       = shaderPreprocessor.getCompiledSource();
 
             shaderBuilders = getShaderBuilders(
-                byteArrayInputStreamToString(is), shaderType,
+                shaderSource, shaderType,
                 getShaderLanguagesList(platformKey, outputSpirv),
                 resource, resourceOutput, spirvTargetProfile, isDebug, softFail);
         }
@@ -620,8 +623,13 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
            is.read(inBytes);
            ByteArrayInputStream bais = new ByteArrayInputStream(inBytes);
 
-           boolean outputSpirv = true;
-           ShaderDesc shaderDesc = compile(bais, shaderType, null, args[1], cmd.getOptionValue("platform", ""), cmd.getOptionValue("variant", "").equals("debug") ? true : false, outputSpirv, false);
+           String source = new String(inBytes, StandardCharsets.UTF_8);
+           Project project = new Project(new DefaultFileSystem());
+           ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, args[0], source);
+
+           ShaderDesc shaderDesc = compile(shaderPreprocessor,
+                shaderType, null, args[1], cmd.getOptionValue("platform", ""),
+                cmd.getOptionValue("variant", "").equals("debug") ? true : false, true, false);
            shaderDesc.writeTo(os);
            os.close();
        }

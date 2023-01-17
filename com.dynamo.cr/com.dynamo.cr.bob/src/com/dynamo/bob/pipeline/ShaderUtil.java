@@ -28,8 +28,48 @@ import org.codehaus.jackson.map.ObjectMapper;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-
 public class ShaderUtil {
+    public static class Common {
+        public static final String  regexCommentRemovePattern      = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
+        public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
+        public static String        includeDirectiveBaseStr        = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
+        public static final Pattern includeDirectivePattern        = Pattern.compile(includeDirectiveBaseStr);
+
+        public static String stripComments(String source)
+        {
+            return source.replaceAll(regexCommentRemovePattern,"");
+        }
+
+        public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString)
+        {
+            switch(typeAsString)
+            {
+                case "int"         : return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
+                case "uint"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
+                case "float"       : return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
+                case "vec2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
+                case "vec3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
+                case "vec4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
+                case "mat2"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
+                case "mat3"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
+                case "mat4"        : return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
+                case "sampler2D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
+                case "sampler3D"   : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                case "samplerCube" : return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
+                default: break;
+            }
+
+            return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
+        }
+
+        public static boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
+        {
+            return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+        }
+    }
 
     public static class SPIRVReflector {
         private static JsonNode root;
@@ -307,8 +347,7 @@ public class ShaderUtil {
         };
 
         private static final String[] opaqueUniformTypesPrefix = { "sampler", "image", "atomic_uint" };
-
-        private static final String  regexCommentRemovePattern = "(?:/\\*(?:[^*]|(?:\\*+[^*/]))*\\*+/)|(?://.*)"; // Ref http://blog.ostermiller.org/find-comment
+        private static final Pattern regexLineBreakPattern = Pattern.compile("(?<=;)|(?<=\\{)|(?<=\\})|(?<=(#(.{0,1024}\\n)))");
         private static final Pattern regexVersionStringPattern = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
         private static final Pattern regexFragDataArrayPattern = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
@@ -329,8 +368,6 @@ public class ShaderUtil {
         public static Result transform(String input, ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
             Result result = new Result();
 
-            // Remove comments, early bail if zero code
-            input = input.replaceAll(regexCommentRemovePattern,"");
             if(input.isEmpty()) {
                 return result;
             }

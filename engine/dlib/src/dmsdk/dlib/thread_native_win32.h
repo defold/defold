@@ -15,7 +15,8 @@
 #ifndef DMSDK_THREAD_NATIVE_WIN32_H
 #define DMSDK_THREAD_NATIVE_WIN32_H
 
-#include "safe_windows.h"
+#include <dmsdk/dlib/safe_windows.h>
+
 namespace dmThread
 {
     typedef HANDLE Thread;
