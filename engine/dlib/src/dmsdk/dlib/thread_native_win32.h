@@ -15,6 +15,8 @@
 #ifndef DMSDK_THREAD_NATIVE_WIN32_H
 #define DMSDK_THREAD_NATIVE_WIN32_H
 
+#include <windef.h>
+
 namespace dmThread
 {
     typedef HANDLE Thread;
