@@ -94,13 +94,13 @@ namespace dmGraphics
     {
         struct Stream
         {
-            const char* m_Name;
-            uint16_t    m_LogicalIndex;
-            int16_t     m_PhysicalIndex;
-            uint16_t    m_Size;
-            uint16_t    m_Offset;
-            Type        m_Type;
-            bool        m_Normalize;
+            dmhash_t m_NameHash;
+            uint16_t m_LogicalIndex;
+            int16_t  m_PhysicalIndex;
+            uint16_t m_Size;
+            uint16_t m_Offset;
+            Type     m_Type;
+            bool     m_Normalize;
         };
 
         Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
@@ -110,16 +110,16 @@ namespace dmGraphics
         uint32_t    m_ModificationVersion;
     };
 
-    // TODO: Why this one here!? Not used?
-    struct VertexBuffer
+    struct OpenglVertexAttribute
     {
-        GLuint      m_VboId;
+        dmhash_t m_NameHash;
+        int32_t  m_Location;
     };
 
-    // TODO: Why this one here!? Not used?
-    struct IndexBuffer
+    struct OpenGLProgram
     {
-        GLuint      m_VboId;
+        GLuint                         m_Program;
+        dmArray<OpenglVertexAttribute> m_Attributes;
     };
 
     struct RenderTarget

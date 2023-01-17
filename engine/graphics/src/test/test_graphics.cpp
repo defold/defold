@@ -276,7 +276,7 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
     dmGraphics::AddVertexStream(stream_declaration, "stream1", 4, dmGraphics::TYPE_FLOAT, false);
 
     #define TEST_STREAM(streams, name, ix, size, type, normalize) \
-        ASSERT_EQ(dmStrCaseCmp(streams[ix].m_Name, name), 0); \
+        ASSERT_TRUE(streams[ix].m_NameHash == dmHashString64(name)); \
         ASSERT_EQ(streams[ix].m_Stream, ix); \
         ASSERT_EQ(streams[ix].m_Size, size); \
         ASSERT_EQ(streams[ix].m_Type, type); \
@@ -308,6 +308,7 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "uv",       2, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);
+
     dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, vertex_buffer);
 
     float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f };

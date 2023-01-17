@@ -136,7 +136,6 @@ namespace dmGameSystem
 
         world->m_Components.SetCapacity(comp_count);
         world->m_RenderObjects.SetCapacity(comp_count);
-
         DM_STATIC_ASSERT( sizeof(dmRig::RigModelVertex) == ((3+3+3+4+2+2)*4), Invalid_Struct_Size);
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
