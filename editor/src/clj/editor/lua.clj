@@ -189,7 +189,7 @@
 (def defined-globals
   (into #{}
         (comp
-          (remove #(= :message (:type %)))
+          (remove #(#{:message :property} (:type %)))
           (map #(-> % :name (string/split #":" 2) first))
           (remove (conj base-globals "")))
         (get defold-docs "")))
