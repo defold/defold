@@ -56,7 +56,7 @@ CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-java_version = '17.0.5_8'
+java_version = '17.0.5+8'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86_64-macos': 'macos-x64',
