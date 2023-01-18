@@ -1224,35 +1224,57 @@ namespace dmScript
         lua_setmetatable(L, -2);
     }
 
-    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
-    {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
-            if (dmGameSystem::CanUnpackLuaBuffer(buffer))
-            {
-                dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
-                if( buffer && dmBuffer::IsBufferValid(hbuffer))
-                {
-                    return buffer;
-                }
-            }
-        }
-        return 0x0;
-    }
-
-    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
+    // Note: the throw_error only controls this particular function, not the CheckUserType
+    static dmBuffer::HBuffer CheckBufferUnpackInternal(lua_State* L, int index, bool throw_error, dmScript::LuaHBuffer** out_luabuffer)
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
             dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
+            if (!dmGameSystem::CanUnpackLuaBuffer(buffer))
+            {
+                if (throw_error)
+                    luaL_error(L, "The buffer handle was stale");
+                else
+                    return 0;
+            }
+
             dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
             if( dmBuffer::IsBufferValid( hbuffer ) ) {
-                return buffer;
+                if (out_luabuffer)
+                    *out_luabuffer = buffer;
+                return hbuffer;
             }
-            luaL_error(L, "The buffer handle is invalid");
+
+            if (throw_error)
+                luaL_error(L, "The buffer handle is invalid");
+            else
+                return 0;
         }
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
         return 0x0;
+    }
+
+    dmBuffer::HBuffer CheckBufferUnpack(lua_State* L, int index)
+    {
+        return CheckBufferUnpackInternal(L, index, true, 0);
+    }
+
+    dmBuffer::HBuffer CheckBufferUnpackNoError(lua_State* L, int index)
+    {
+        return CheckBufferUnpackInternal(L, index, false, 0);
+    }
+
+    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
+    {
+        dmScript::LuaHBuffer* buffer = 0;
+        dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, true, &buffer);
+        return hbuffer != 0 ? buffer : 0; // SHouldn't get here due to the lua_error
+    }
+
+    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
+    {
+        dmScript::LuaHBuffer* buffer = 0;
+        dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, false, &buffer);
+        return hbuffer != 0 ? buffer : 0;
     }
 }
