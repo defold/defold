@@ -17,6 +17,7 @@
             [editor.buffers :as buffers]
             [editor.code.lang.json :as json]
             [editor.code.resource :as r]
+            [util.murmur :as murmur]
             [editor.pipeline :as pipeline])
   (:import [com.dynamo.gamesys.proto BufferProto$BufferDesc]))
 
@@ -74,6 +75,7 @@
 
 (defn- json-stream->pb-stream [{:keys [name type count data] :as _json-stream}]
   (assoc {:name name
+          :name-hash (murmur/hash64 name)
           :value-type type
           :value-count count}
     (pb-value-type->pb-stream-field type) data))

@@ -239,7 +239,6 @@ local function test_create_atlas_invalid(self)
 end
 
 function init(self)
-    self.update_counter = 0
     self.valid_tileset_path = "/tile/valid.t.texturesetc"
     self.valid_texture_path = "/tile/mario_tileset.texturec"
 
