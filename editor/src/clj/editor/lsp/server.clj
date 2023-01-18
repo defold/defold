@@ -14,6 +14,7 @@
 
 (ns editor.lsp.server
   (:require [clojure.core.async :as a :refer [<! >!]]
+            [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -27,7 +28,7 @@
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [editor.code.data Cursor CursorRange]
-           [java.io InputStream]
+           [java.io File InputStream]
            [java.lang ProcessHandle ProcessBuilder$Redirect]
            [java.net URI]
            [java.util Map]
@@ -63,16 +64,16 @@
                                      :exit-code (.exitValue process)))))))))))
 
 (defprotocol Launcher
-  (launch [launcher directory]))
+  (launch [launcher ^File directory]))
 
 (extend-protocol Launcher
   Map
-  (launch [{:keys [command]} directory]
+  (launch [{:keys [command]} ^File directory]
     {:pre [(vector? command)]}
     ;; We need to resolve command in addition to setting ProcessBuilder's directory,
     ;; since the latter only affects the current directory of the spawned process,
     ;; and does not affect executable resolution
-    (let [resolved-command (update command 0 #(workspace/to-absolute-path (str directory) %))]
+    (let [resolved-command (update command 0 #(str (.resolve (.toPath directory) (.toPath (io/file %)))))]
       (.start
         (doto (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String resolved-command))
           (.redirectError ProcessBuilder$Redirect/INHERIT)
