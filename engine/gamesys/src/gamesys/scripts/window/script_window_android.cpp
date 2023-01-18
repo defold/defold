@@ -63,7 +63,11 @@ namespace
 
             g_Window.m_Initialized                = true;
 
+            environment->DeleteLocalRef(jni_class_Window);
             environment->DeleteLocalRef(jni_string_Window);
+            environment->DeleteLocalRef(jni_class_ClassLoader);
+            environment->DeleteLocalRef(jni_object_getClassLoader);
+            environment->DeleteLocalRef(jni_class_NativeActivity);
         }
         else
         {

@@ -202,6 +202,9 @@ namespace dmDeviceOpenSL
         jmethodID get_sample_rate = env->GetStaticMethodID(sound_class, "getSampleRate", "(Landroid/content/Context;)I");
         assert(get_sample_rate);
         jint sample_rate = env->CallStaticIntMethod(sound_class, get_sample_rate, thread.GetActivity()->clazz);
+
+        env->DeleteLocalRef(sound_class);
+
         return (int)sample_rate;
     }
 
