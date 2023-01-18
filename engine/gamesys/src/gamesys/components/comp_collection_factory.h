@@ -55,6 +55,7 @@ namespace dmGameSystem
 
     dmResource::HFactory        CompCollectionFactoryGetResourceFactory(CollectionFactoryWorld* world);
     CompCollectionFactoryStatus CompCollectionFactoryGetStatus(CollectionFactoryComponent* component);
+    bool                        CompCollectionFactoryIsDynamicPrototype(CollectionFactoryComponent* component);
     bool                        CompCollectionFactoryIsLoading(CollectionFactoryComponent* component);
     CollectionFactoryResource*  CompCollectionFactoryGetResource(CollectionFactoryComponent* component);
     CollectionFactoryResource*  CompCollectionFactoryGetDefaultResource(CollectionFactoryComponent* component);

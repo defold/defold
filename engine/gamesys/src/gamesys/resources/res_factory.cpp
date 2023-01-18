@@ -22,20 +22,42 @@ namespace dmGameSystem
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmGameSystemDDF::FactoryDesc* factory_desc, FactoryResource* factory_res)
     {
-        factory_res->m_FactoryDesc = factory_desc;
-        if(factory_desc->m_LoadDynamically)
+        factory_res->m_LoadDynamically = factory_desc->m_LoadDynamically;
+        factory_res->m_DynamicPrototype = factory_desc->m_DynamicPrototype;
+        factory_res->m_PrototypePath = strdup(factory_desc->m_Prototype);
+        if(factory_res->m_LoadDynamically)
         {
             return dmResource::RESULT_OK;
         }
-        return dmResource::Get(factory, factory_desc->m_Prototype, (void **)&factory_res->m_Prototype);
+        return dmResource::Get(factory, factory_res->m_PrototypePath, (void **)&factory_res->m_Prototype);
     }
 
     static void ReleaseResources(dmResource::HFactory factory, FactoryResource* factory_res)
     {
         if(factory_res->m_Prototype)
             dmResource::Release(factory, factory_res->m_Prototype);
-        if(factory_res->m_FactoryDesc)
-            dmDDF::FreeMessage(factory_res->m_FactoryDesc);
+        free((void*)factory_res->m_PrototypePath);
+    }
+
+    dmResource::Result ResFactoryLoadResource(dmResource::HFactory factory, const char* goc_path, bool load_dynamically, bool dynamic_prototype, FactoryResource** out_res)
+    {
+        FactoryResource* factory_res = new FactoryResource;
+        memset(factory_res, 0, sizeof(FactoryResource));
+        factory_res->m_PrototypePath = strdup(goc_path);
+        factory_res->m_LoadDynamically = load_dynamically;
+        factory_res->m_DynamicPrototype = dynamic_prototype;
+        *out_res = factory_res;
+        if(factory_res->m_LoadDynamically)
+        {
+            return dmResource::RESULT_OK;
+        }
+        return dmResource::Get(factory, factory_res->m_PrototypePath, (void **)&factory_res->m_Prototype);
+    }
+
+    void ResFactoryDestroyResource(dmResource::HFactory factory, FactoryResource* resource)
+    {
+        ReleaseResources(factory, resource);
+        delete resource;
     }
 
     dmResource::Result ResFactoryPreload(const dmResource::ResourcePreloadParams& params)
@@ -58,6 +80,7 @@ namespace dmGameSystem
         FactoryResource* factory_res = new FactoryResource;
         memset(factory_res, 0, sizeof(FactoryResource));
         dmResource::Result res = AcquireResources(params.m_Factory, ddf, factory_res);
+        dmDDF::FreeMessage(ddf);
 
         if(res == dmResource::RESULT_OK)
         {
@@ -65,7 +88,7 @@ namespace dmGameSystem
         }
         else
         {
-            ReleaseResources(params.m_Factory, factory_res);
+            ResFactoryDestroyResource(params.m_Factory, factory_res);
             delete factory_res;
         }
         return res;
@@ -74,8 +97,7 @@ namespace dmGameSystem
     dmResource::Result ResFactoryDestroy(const dmResource::ResourceDestroyParams& params)
     {
         FactoryResource* factory_res = (FactoryResource*) params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, factory_res);
-        delete factory_res;
+        ResFactoryDestroyResource(params.m_Factory, factory_res);
         return dmResource::RESULT_OK;
     }
 
@@ -89,6 +111,7 @@ namespace dmGameSystem
         FactoryResource tmp_factory_res;
         memset(&tmp_factory_res, 0, sizeof(FactoryResource));
         dmResource::Result r = AcquireResources(params.m_Factory, ddf, &tmp_factory_res);
+        dmDDF::FreeMessage(ddf);
 
         if (r == dmResource::RESULT_OK)
         {

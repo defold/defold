@@ -112,6 +112,8 @@ namespace dmGameSystem
         CollectionFactoryResource* factory_res = new CollectionFactoryResource;
         memset(factory_res, 0, sizeof(CollectionFactoryResource));
         factory_res->m_LoadDynamically = ddf->m_LoadDynamically;
+        factory_res->m_DynamicPrototype = ddf->m_DynamicPrototype;
+        factory_res->m_PrototypePathHash = dmHashString64(ddf->m_Prototype);
         dmResource::Result r = AcquireCollectionDesc(factory, ddf->m_Prototype, (dmGameObjectDDF::CollectionDesc**)&factory_res->m_CollectionDesc);
         dmDDF::FreeMessage(ddf);
         *out_res = factory_res;
@@ -120,11 +122,12 @@ namespace dmGameSystem
 
     // Loads a .collectionc into a resource description that the collection factory can use
     // The resources of the collection aren't actually loaded
-    dmResource::Result ResCollectionFactoryLoadResourceDesc(dmResource::HFactory factory, const char* collectionc, CollectionFactoryResource** out_res)
+    dmResource::Result ResCollectionFactoryLoadResource(dmResource::HFactory factory, const char* collectionc, bool load_dynamically, bool dynamic_prototype, CollectionFactoryResource** out_res)
     {
         CollectionFactoryResource* factory_res = new CollectionFactoryResource;
         memset(factory_res, 0, sizeof(CollectionFactoryResource));
-        factory_res->m_LoadDynamically = 1; // since we're loading this outside of the regular loading flow, it needs to be manually loaded
+        factory_res->m_LoadDynamically = load_dynamically;
+        factory_res->m_DynamicPrototype = dynamic_prototype;
         factory_res->m_PrototypePathHash = dmHashString64(collectionc);
         dmResource::Result r = AcquireCollectionDesc(factory, collectionc, (dmGameObjectDDF::CollectionDesc**)&factory_res->m_CollectionDesc);
         *out_res = factory_res;
@@ -164,7 +167,6 @@ namespace dmGameSystem
         dmResource::Result res = AcquireResources(params.m_Factory, factory_res);
         if(res == dmResource::RESULT_OK)
         {
-            factory_res->m_PrototypePathHash = dmHashString64(params.m_Filename);
             params.m_Resource->m_Resource = (void*) factory_res;
             params.m_Resource->m_ResourceSize = sizeof(CollectionFactoryResource) + (factory_res->m_CollectionResources.Size()*sizeof(void*)) + params.m_BufferSize;
         }
@@ -195,7 +197,6 @@ namespace dmGameSystem
     {
         CollectionFactoryResource* tmp_factory_res = 0;
         dmResource::Result r = LoadResourceFromMemory(params.m_Factory, (const uint8_t*)params.m_Buffer, params.m_BufferSize, &tmp_factory_res);
-        tmp_factory_res->m_PrototypePathHash = dmHashString64(params.m_Filename);
 
         if (r == dmResource::RESULT_OK)
         {

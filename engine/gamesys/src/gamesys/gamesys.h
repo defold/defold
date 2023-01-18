@@ -171,6 +171,7 @@ namespace dmGameSystem
         {
             memset(this, 0, sizeof(*this));
         }
+        dmResource::HFactory m_Factory;
         dmScript::HContext m_ScriptContext;
         uint32_t m_MaxFactoryCount;
     };

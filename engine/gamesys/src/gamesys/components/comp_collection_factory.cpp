@@ -318,6 +318,11 @@ namespace dmGameSystem
         return component->m_Loading;
     }
 
+    bool CompCollectionFactoryIsDynamicPrototype(CollectionFactoryComponent* component)
+    {
+        return component->m_Resource->m_DynamicPrototype;
+    }
+
     dmResource::HFactory CompCollectionFactoryGetResourceFactory(CollectionFactoryWorld* world)
     {
         return world->m_Factory;

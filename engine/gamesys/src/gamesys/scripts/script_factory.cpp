@@ -364,12 +364,111 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# changes the prototype for the factory
+     *
+     * Changes the prototype for the factory.
+     *
+     * @name factory.set_prototype
+     * @param [url] [type:string|hash|url] the factory component
+     * @param [prototype] [type:string|nil] the path to the new prototype, or nil
+     *
+     * @note
+     *   - Requires the factory to have the "Dynamic Prototype" set
+     *   - Cannot be set when the state is COMP_FACTORY_STATUS_LOADING
+     *   - Setting the prototype to "nil" will revert back to the original prototype.
+     *
+     * @examples
+     *
+     * How to unload the previous prototypes resources, and then spawn a new game object
+     *
+     * ```lua
+     * factory.unload("#factory") -- unload the previous resources
+     * factory.set_prototype("#factory", "/main/levels/enemyA.goc")
+     * local id = factory.create("#factory", go.get_world_position(), vmath.quat())
+     * ```
+     */
+    static int FactoryComp_SetPrototype(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmMessage::URL url;
+        FactoryWorld* world;
+        FactoryComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, (void**)&world, (void**)&component, &url);
+
+        if(!CompFactoryIsDynamicPrototype(component))
+        {
+            return luaL_error(L, "Cannot set prototype to a factory that doesn't have dynamic prototype set: '%s:%s#%s'",
+                                        dmMessage::GetSocketName(url.m_Socket),
+                                        dmHashReverseSafe64(url.m_Path),
+                                        dmHashReverseSafe64(url.m_Fragment));
+        }
+
+        if (dmGameSystem::CompFactoryIsLoading(component))
+        {
+            return luaL_error(L, "Cannot set prototype while factory is loading");
+        }
+
+        dmResource::HFactory factory = CompFactoryGetResourceFactory(world);
+        FactoryResource* default_resource = CompFactoryGetDefaultResource(component);
+        FactoryResource* custom_resource = CompFactoryGetCustomResource(component);
+        FactoryResource* new_resource = 0;
+        FactoryResource* old_resource = custom_resource;
+
+        const char* path = 0;
+        if (!lua_isnil(L, 2))
+        {
+            path = luaL_checkstring(L, 2);
+
+            // check that the path is a .goc
+            const char* ext = dmResource::GetExtFromPath(path);
+            if (strcmp(ext, ".goc") != 0)
+            {
+                return luaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .goc resources are allowed",
+                                        path,
+                                        dmMessage::GetSocketName(url.m_Socket),
+                                        dmHashReverseSafe64(url.m_Path),
+                                        dmHashReverseSafe64(url.m_Fragment));
+            }
+        }
+
+        if (path == 0 || strcmp(path, default_resource->m_PrototypePath) == 0) // We want to reset to the default prototype
+        {
+            new_resource = 0;
+            old_resource = custom_resource;
+        }
+        else if (custom_resource && strcmp(path, custom_resource->m_PrototypePath) == 0) // we try to reset the currently set custom prototype
+        {
+            new_resource = custom_resource;
+            old_resource = 0;
+        }
+        else { // We want to create a new resource
+
+            dmResource::Result r = dmGameSystem::ResFactoryLoadResource(factory, path, true, true, &new_resource);
+            if (dmResource::RESULT_OK != r)
+            {
+                return luaL_error(L, "Failed to load collection factory prototype %s", path);
+            }
+        }
+
+        CompFactorySetResource(component, new_resource);
+
+        if (old_resource)
+        {
+            dmGameSystem::ResFactoryDestroyResource(factory, old_resource);
+        }
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     static const luaL_reg FACTORY_COMP_FUNCTIONS[] =
     {
         {"create",            FactoryComp_Create},
         {"load",              FactoryComp_Load},
         {"unload",            FactoryComp_Unload},
         {"get_status",        FactoryComp_GetStatus},
+        {"set_prototype",     FactoryComp_SetPrototype},
         {0, 0}
     };
 

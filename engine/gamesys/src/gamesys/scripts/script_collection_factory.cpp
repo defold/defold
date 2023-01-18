@@ -413,6 +413,11 @@ namespace dmGameSystem
      * @param [url] [type:string|hash|url] the collection factory component
      * @param [prototype] [type:string|nil] the path to the new prototype, or nil
      *
+     * @note
+     *   - Requires the factory to have the "Dynamic Prototype" set
+     *   - Cannot be set when the state is COMP_FACTORY_STATUS_LOADING
+     *   - Setting the prototype to "nil" will revert back to the original prototype.
+     *
      * @examples
      *
      * How to unload the previous prototypes resources, and then spawn a new collection
@@ -432,21 +437,31 @@ namespace dmGameSystem
         dmMessage::URL url; // for reporting errors only
         dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, &url);
 
+        if(!CompCollectionFactoryIsDynamicPrototype(component))
+        {
+            return luaL_error(L, "Cannot set prototype to a collection factory that doesn't have dynamic prototype set: '%s:%s#%s'",
+                                        dmMessage::GetSocketName(url.m_Socket),
+                                        dmHashReverseSafe64(url.m_Path),
+                                        dmHashReverseSafe64(url.m_Fragment));
+        }
+
         if (dmGameSystem::CompCollectionFactoryIsLoading(component))
         {
             return luaL_error(L, "Cannot set prototype while factory is loading");
         }
 
+        dmResource::HFactory factory = CompCollectionFactoryGetResourceFactory(world);
+        CollectionFactoryResource* default_resource = CompCollectionFactoryGetDefaultResource(component);
+        CollectionFactoryResource* custom_resource = CompCollectionFactoryGetCustomResource(component);
+        CollectionFactoryResource* new_resource = 0;
+        CollectionFactoryResource* old_resource = custom_resource;
+
         const char* path = 0;
         dmhash_t path_hash = 0;
-        bool clear_custom_resource = false;
-        if (lua_isnil(L, 2))
-        {
-            clear_custom_resource = true;
-        }
-        else
+        if (!lua_isnil(L, 2))
         {
             path = luaL_checkstring(L, 2);
+            path_hash = dmHashString64(path);
 
             // check that the path is a .collectionc
             const char* ext = dmResource::GetExtFromPath(path);
@@ -458,34 +473,21 @@ namespace dmGameSystem
                                         dmHashReverseSafe64(url.m_Path),
                                         dmHashReverseSafe64(url.m_Fragment));
             }
-
-            // double check if the path is the default path
-            path_hash = dmHashString64(path);
-
-            CollectionFactoryResource* default_resource = CompCollectionFactoryGetDefaultResource(component);
-            if (path_hash == default_resource->m_PrototypePathHash)
-                clear_custom_resource = true;
         }
 
-        if (clear_custom_resource)
+        if (path == 0 || path_hash == default_resource->m_PrototypePathHash) // We want to reset to the default prototype
         {
-            CompCollectionFactorySetResource(component, 0); // reset it to the default factory
-            assert(top == lua_gettop(L));
-            return 1;
+            new_resource = 0;
+            old_resource = custom_resource;
         }
-
-        CollectionFactoryResource* old_custom_resource = CompCollectionFactoryGetCustomResource(component);
-        if (old_custom_resource && path_hash == old_custom_resource->m_PrototypePathHash)
+        else if (custom_resource && path_hash == custom_resource->m_PrototypePathHash) // we try to reset the currently set custom prototype
         {
-            // already have the prototype set!
-            assert(top == lua_gettop(L));
-            return 1;
+            new_resource = custom_resource;
+            old_resource = 0;
         }
+        else { // We want to create a new resource
 
-        CollectionFactoryResource* new_resource = 0;
-        dmResource::HFactory factory = CompCollectionFactoryGetResourceFactory(world);
-        {
-            dmResource::Result r = dmGameSystem::ResCollectionFactoryLoadResourceDesc(factory, path, &new_resource);
+            dmResource::Result r = dmGameSystem::ResCollectionFactoryLoadResource(factory, path, true, true, &new_resource);
             if (dmResource::RESULT_OK != r)
             {
                 return luaL_error(L, "Failed to load collection factory prototype %s", path);
@@ -494,13 +496,13 @@ namespace dmGameSystem
 
         CompCollectionFactorySetResource(component, new_resource);
 
-        if (old_custom_resource)
+        if (old_resource)
         {
-            dmGameSystem::ResCollectionFactoryDestroyResource(factory, old_custom_resource);
+            dmGameSystem::ResCollectionFactoryDestroyResource(factory, old_resource);
         }
 
         assert(top == lua_gettop(L));
-        return 1;
+        return 0;
     }
 
     static const luaL_reg COLLECTION_FACTORY_COMP_FUNCTIONS[] =
