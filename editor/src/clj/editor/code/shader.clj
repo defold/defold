@@ -23,7 +23,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
+  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$ES2Variants ShaderUtil$SPIRVReflector$Resource)
            (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language)
            (com.google.protobuf ByteString)))
 
@@ -214,13 +214,14 @@
 ;; Used for rendering in the editor
 (g/defnk produce-full-source [resource proj-path+full-lines]
   (let [[proj-path full-lines] proj-path+full-lines
-        source (string/join "\n" full-lines)
         resource-ext (resource/type-ext resource)
         shader-stage (shader-stage-from-ext resource-ext)
         is-debug true
         shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL source shader-stage (shader-language-to-java shader-language) proj-path is-debug)]
-    glsl-compile-result))
+        shader-type (shader-language-to-java shader-language)
+        source (string/join "\n" full-lines)
+        augmented-source (or (ShaderUtil$ES2Variants/variantTextureArrayFallback source) source)]
+    (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-type proj-path is-debug)))
 
 (g/deftype ^:private ProjPath+Lines [(s/one s/Str "proj-path") (s/one [String] "lines")])
 

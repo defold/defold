@@ -13,32 +13,23 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.material
-  (:require [editor.protobuf :as protobuf]
-            [editor.protobuf-forms :as protobuf-forms]
+  (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.graph-util :as gu]
-            [editor.geom :as geom]
-            [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
-            [editor.gl.texture :as texture]
             [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.math :as math]
+            [editor.gl.shader :as shader]
+            [editor.graph-util :as gu]
+            [editor.protobuf :as protobuf]
+            [editor.protobuf-forms :as protobuf-forms]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
-            [editor.gl.pass :as pass]
+            [editor.workspace :as workspace]
             [internal.util :as util])
-  (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$WrapMode Material$MaterialDesc$FilterModeMin Material$MaterialDesc$FilterModeMag Material$MaterialDesc$VertexSpace]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Vector4d Matrix4d Point3d Quat4d]
-           [editor.gl.shader ShaderLifecycle]))
+  (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
+           [com.jogamp.opengl GL2]
+           [editor.gl.shader ShaderLifecycle]
+           [javax.vecmath Matrix4d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -72,7 +63,7 @@
 
 (def ^:private hack-upgrade-constants (partial mapv hack-upgrade-constant))
 
-(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space :as pb-msg]
+(g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count :as pb-msg]
   (-> pb-msg
       (dissoc :_node-id :basis)
       (update :vertex-program resource/resource->proj-path)
@@ -179,7 +170,11 @@
           :label "Vertex Space"
           :type :choicebox
           :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace))
-          :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}]}]}))
+          :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
+         {:path [:max-page-count]
+          :label "Max Atlas Pages"
+          :type :integer
+          :default 1}]}]}))
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property! node-id property value))
@@ -250,6 +245,11 @@
        (merge params default-tex-params)
        params))))
 
+(defn- inject-max-page-count [shader-source max-page-count]
+  (string/replace-first shader-source
+                        "#define DM_MAX_PAGE_COUNT ###"
+                        (str "#define DM_MAX_PAGE_COUNT " max-page-count)))
+
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
 
@@ -273,6 +273,7 @@
                                     [:full-source :fragment-source]
                                     [:build-targets :dep-build-targets]))))
 
+  (property max-page-count g/Int (default 1) (dynamic visible (g/constantly false)))
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
   (property samplers g/Any (dynamic visible (g/constantly false)))
@@ -291,6 +292,8 @@
 
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
+  (output vertex-source g/Str :cached (g/fnk [vertex-source max-page-count] (inject-max-page-count vertex-source max-page-count)))
+  (output fragment-source g/Str :cached (g/fnk [fragment-source max-page-count] (inject-max-page-count fragment-source max-page-count)))
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source vertex-program fragment-source fragment-program vertex-constants fragment-constants samplers]
                                                 (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
                                                     (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
@@ -311,7 +314,7 @@
     (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
     (g/set-property self :vertex-constants (hack-downgrade-constants (:vertex-constants pb)))
     (g/set-property self :fragment-constants (hack-downgrade-constants (:fragment-constants pb)))
-    (for [field [:name :samplers :tags :vertex-space]]
+    (for [field [:name :samplers :tags :vertex-space :max-page-count]]
       (g/set-property self field (field pb)))))
 
 (defn- convert-textures-to-samplers
