@@ -436,8 +436,7 @@ namespace dmGameSystem
     static int GetStream(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
         dmhash_t stream_name = dmScript::CheckHashOrString(L, 2);
         PushStream(L, 1, hbuffer, stream_name);
         return 1;
@@ -601,10 +600,8 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmScript::LuaHBuffer* _dstbuffer = dmScript::CheckBuffer(L, 1);
-        dmScript::LuaHBuffer* _srcbuffer = dmScript::CheckBuffer(L, 3);
-        dmBuffer::HBuffer dst_hbuffer = UnpackLuaBuffer(_dstbuffer);
-        dmBuffer::HBuffer src_hbuffer = UnpackLuaBuffer(_srcbuffer);
+        dmBuffer::HBuffer dst_hbuffer = dmScript::CheckBufferUnpack(L, 1);
+        dmBuffer::HBuffer src_hbuffer = dmScript::CheckBufferUnpack(L, 3);
         dmBuffer::HBuffer dstbuffer = dst_hbuffer;
         dmBuffer::HBuffer srcbuffer = src_hbuffer;
         int dstoffset = luaL_checkint(L, 2);
@@ -699,8 +696,7 @@ namespace dmGameSystem
     static int GetBytes(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
 
         uint8_t* data;
         uint32_t datasize;
@@ -736,10 +732,9 @@ namespace dmGameSystem
     static int Buffer_tostring(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
 
         uint32_t num_streams;
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
         dmBuffer::GetNumStreams(hbuffer, &num_streams);
 
         uint32_t out_element_count = 0;
@@ -787,8 +782,7 @@ namespace dmGameSystem
     static int Buffer_len(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
         uint32_t count = 0;
         dmBuffer::Result r = dmBuffer::GetCount(hbuffer, &count);
         if (r != dmBuffer::RESULT_OK) {
@@ -948,8 +942,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
 
         // get buffer
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
 
         // get metadata entry name
         dmhash_t entry_name = dmScript::CheckHashOrString(L, 2);
@@ -1063,8 +1056,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 2);
 
         // get buffer
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
 
         // get metadata entry name
         dmhash_t entry_name = dmScript::CheckHashOrString(L, 2);
