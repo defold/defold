@@ -14,6 +14,7 @@
 
 (ns editor.lsp.server
   (:require [clojure.core.async :as a :refer [<! >!]]
+            [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -23,10 +24,11 @@
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lua :as lua]
             [editor.resource :as resource]
+            [editor.util :as util]
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [editor.code.data Cursor CursorRange]
-           [java.io InputStream]
+           [java.io File InputStream]
            [java.lang ProcessHandle ProcessBuilder$Redirect]
            [java.net URI]
            [java.util Map]
@@ -62,18 +64,26 @@
                                      :exit-code (.exitValue process)))))))))))
 
 (defprotocol Launcher
-  (launch [launcher directory]))
+  (launch [launcher ^File directory]))
 
 (extend-protocol Launcher
   Map
-  (launch [{:keys [command]} directory]
-    (.start
-      (doto (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String command))
-        (.redirectError ProcessBuilder$Redirect/INHERIT)
-        (.directory directory)))))
+  (launch [{:keys [command]} ^File directory]
+    {:pre [(vector? command)]}
+    ;; We need to resolve command in addition to setting ProcessBuilder's directory,
+    ;; since the latter only affects the current directory of the spawned process,
+    ;; and does not affect executable resolution
+    (let [resolved-command (update command 0 #(str (.resolve (.toPath directory) (.toPath (io/file %)))))]
+      (.start
+        (doto (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String resolved-command))
+          (.redirectError ProcessBuilder$Redirect/INHERIT)
+          (.directory directory))))))
 
 (defn- make-uri-string [abs-path]
-  (str (URI. "file" "" abs-path nil)))
+  (let [path (if (util/is-win32?)
+               (str "/" (string/replace abs-path "\\" "/"))
+               abs-path)]
+    (str (URI. "file" "" path nil))))
 
 (defn resource-uri [resource]
   (make-uri-string (resource/abs-path resource)))
