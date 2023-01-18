@@ -22,28 +22,28 @@ Caching of libraries is based on the Git SHA1, to the actual commit
 Debugging
 ---------
 
-Bob can be easily debugged with IntelliJ IDE. You will need to build bob.jar and download IntelliJ Community version first.
+Once bob.jar has been built, it can be debugged with IntelliJ IDE (Community IntelliJ IDEA 2022.3.1 was used in this guide).
 
-1. Start IDE and from the initial welcome screen choose 'Open' project. Navigate to Bob's source directory `com.dynamo.cr/com.dynamo.cr.bob` inside Defold's source tree.
+1. Start the IDE and on the initial welcome screen choose _Open_' project. Navigate to Bob's source directory `com.dynamo.cr/com.dynamo.cr.bob` inside Defold's source tree.
 
-2. In case there is popup that detected maven/eclipse configuration and asks about it, just choose maven. It should make no difference.
+2. In case there is popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference.
 
-You should now see Bob source tree code on the left. You will now have to create a _Run configuration_.
+You should now see Bob's source code tree on the left.
 
-### Add Run Configuration
+### Run Configuration
 
-A _Run configuration_ has to be specified that will execute bob.jar. Set it up as if it would be executed on the command line.
+A _Run configuration_ has to be specified that will execute bob.jar. Set it up as if executing it on the command line.
 
-1. From the "Configurations" dropdown on the top bar (next to the hammer) click "Edit configuration" to open the "Run/Debug Configuraitons" dialog.
+1. From the _Configurations_ dropdown on the top bar (next to the hammer) click _Edit configuration_ to open the _Run/Debug Configurations_ dialog.
 
-2. Click "Add new/JAR Application" and set a proper name for it.
+2. Click _Add new/JAR Application_ and set a proper name for it.
 
-3. In the "Configuration" tab use the following settings:
+3. In the _Configuration_ tab use the following settings:
 
 	* `Path to JAR` - Absolute path to bob.jar. For example, /home/.../defold/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
 	* `Program arguments` - Command line arguments given when executing bob. For example, `--platform x86_64-linux distclean build --archive bundle --variant debug`. It really depends on what parts of Bob's functionallity you want to debug.
-	* `Working directory` - Path of a Defold project root, since the command line arguments tell bob to build a project.
-	* `JRE` - Pick the JVM used by Defold.
+	* `Working directory` - Path of a Defold project root, since the command line arguments tells bob to build a project.
+	* `JRE` - JVM used by Defold.
 	
 Leave the rest of the fields empty and click "Apply".
 	
