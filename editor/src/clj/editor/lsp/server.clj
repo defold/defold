@@ -23,6 +23,7 @@
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lua :as lua]
             [editor.resource :as resource]
+            [editor.util :as util]
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [editor.code.data Cursor CursorRange]
@@ -67,13 +68,21 @@
 (extend-protocol Launcher
   Map
   (launch [{:keys [command]} directory]
-    (.start
-      (doto (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String command))
-        (.redirectError ProcessBuilder$Redirect/INHERIT)
-        (.directory directory)))))
+    {:pre [(vector? command)]}
+    ;; We need to resolve command in addition to setting ProcessBuilder's directory,
+    ;; since the latter only affects the current directory of the spawned process,
+    ;; and does not affect executable resolution
+    (let [resolved-command (update command 0 #(workspace/to-absolute-path (str directory) %))]
+      (.start
+        (doto (ProcessBuilder. ^"[Ljava.lang.String;" (into-array String resolved-command))
+          (.redirectError ProcessBuilder$Redirect/INHERIT)
+          (.directory directory))))))
 
 (defn- make-uri-string [abs-path]
-  (str (URI. "file" "" abs-path nil)))
+  (let [path (if (util/is-win32?)
+               (str "/" (string/replace abs-path "\\" "/"))
+               abs-path)]
+    (str (URI. "file" "" path nil))))
 
 (defn resource-uri [resource]
   (make-uri-string (resource/abs-path resource)))
