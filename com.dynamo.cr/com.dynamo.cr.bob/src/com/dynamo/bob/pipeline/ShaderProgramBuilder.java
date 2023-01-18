@@ -177,6 +177,8 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
         ArrayList<ShaderDesc.Shader.Builder> variantBuilders = new ArrayList<ShaderDesc.Shader.Builder>();
 
+        shaderLanguage = ShaderDesc.Language.LANGUAGE_GLSL_SM120;
+
         ///////////////////////////////////////////////////////
         // Build the base variant with just the incoming source
         ///////////////////////////////////////////////////////

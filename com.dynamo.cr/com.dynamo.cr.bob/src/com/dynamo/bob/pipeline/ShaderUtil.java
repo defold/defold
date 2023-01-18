@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.io.IOException;
@@ -124,41 +125,70 @@ public class ShaderUtil {
     }
 
     public static class ES2Variants {
+        private static void generateTextureArrayFn(ArrayList<String> buffer, String samplerName, int maxPages) {
+
+            buffer.add(String.format("vec4 texture2DArray_%s(vec3 dm_texture_array_args) {", samplerName));
+
+            String lineFmt = "    %s if (page_index == %d) return texture2D(%s_%d, dm_texture_array_args.st);";
+            for (int i = 0; i < maxPages; i++) {
+
+                if (i == 0) {
+                    buffer.add(String.format(lineFmt, "", i, samplerName, i));
+                } else {
+                    buffer.add("#if DM_MAX_PAGE_COUNT > " + i);
+                    buffer.add(String.format(lineFmt, "else", i, samplerName, i));
+                    buffer.add("#endif");
+                }
+            }
+
+            buffer.add("   return vec4(0.0);");
+            buffer.add("}");
+        }
+
         public static String variantTextureArrayFallback(String shaderSource) {
             // For texture array support, we need to convert texture2DArray functions
             if (Common.hasUniformType(shaderSource, ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)) {
-                ArrayList<String> texture2DArrayFn = new ArrayList<>();
+                final int max_global_page_count = 4;
 
-                texture2DArrayFn.add("#define DM_MAX_PAGE_COUNT ###");
-                texture2DArrayFn.add("vec4 texture2DArray(sampler2D dm_texture_arrays[DM_MAX_PAGE_COUNT], vec3 dm_texture_array_args) {");
-                texture2DArrayFn.add("    int page_index = int(dm_texture_array_args.z);");
-                texture2DArrayFn.add("    for (int i = 0; i < DM_MAX_PAGE_COUNT; ++i)");
-                texture2DArrayFn.add("    {");
-                texture2DArrayFn.add("        if (i == page_index)");
-                texture2DArrayFn.add("        {");
-                texture2DArrayFn.add("            return texture2D(dm_texture_arrays[i], dm_texture_array_args.st);");
-                texture2DArrayFn.add("        }");
-                texture2DArrayFn.add("    }");
-                texture2DArrayFn.add("    return vec4(0.0);");
-                texture2DArrayFn.add( "}");
+                ArrayList<String> shaderHeader = new ArrayList<>();
+                ArrayList<String> shaderBody = new ArrayList<>();
 
-                StringBuilder sb = new StringBuilder();
-                for (String line : texture2DArrayFn) {
-                    sb.append(line).append(System.lineSeparator());
-                }
-                shaderSource = sb.toString() + shaderSource;
-                shaderSource = shaderSource.replaceAll(Common.glSampler2DArrayRegex, "$1 sampler2D $2[DM_MAX_PAGE_COUNT];");
+                shaderHeader.add("#define DM_MAX_PAGE_COUNT ###");
 
-                ArrayList<String> output = new ArrayList<String>(shaderSource.length());
+                String arrayReplaceTextureRegex  = "texture2DArray\\s*\\((([^,]+)),\\s*";
+                Pattern arrayArraySamplerPattern = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
+                String uniformArrayFormat        = "uniform %s %s_%d;";
 
-                String[] lines = shaderSource.split(System.getProperty("line.separator"));
-                for(String sourceLine : lines) {
-                    if (!sourceLine.contains(Common.shaderTypeToString(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY))) {
-                        output.add(sourceLine);
+                Scanner scanner = new Scanner(shaderSource);
+                while (scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    Matcher samplerMatcher      = arrayArraySamplerPattern.matcher(line);
+
+                    if(samplerMatcher.find()) {
+                        String uniformName = samplerMatcher.group("uniform");
+                        String qualifier   = samplerMatcher.group("qualifier");
+
+                        generateTextureArrayFn(shaderHeader, uniformName, max_global_page_count);
+
+                        for (int i=0; i < max_global_page_count; i++) {
+                            String pageUniform = String.format(uniformArrayFormat, qualifier, uniformName, i);
+                            if (i == 0) {
+                                shaderHeader.add(pageUniform);
+                            } else {
+                                shaderHeader.add("#if DM_MAX_PAGE_COUNT > " + String.valueOf(i));
+                                shaderHeader.add(pageUniform);
+                                shaderHeader.add("#endif");
+                            }
+                        }
+                    } else {
+                        shaderBody.add(line);
                     }
                 }
 
-                return String.join("\n", output);
+                String shaderBodyStr = String.join("\n", shaderBody);
+                shaderBodyStr = shaderBodyStr.replaceAll(arrayReplaceTextureRegex, "texture2DArray_$1(");
+
+                return String.join("\n", shaderHeader) + "\n" + shaderBodyStr + "\n";
             }
             return null;
         }
