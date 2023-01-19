@@ -62,12 +62,7 @@ import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 @ProtoParams(srcClass = CollectionDesc.class, messageClass = CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
 public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
-
-    private Map<Long, IResource> uniqueResources = new HashMap<>();
     private List<Task<?>> embedTasks = new ArrayList<>();
-
-    private HashMap<String, Integer> components = new HashMap<>();
-    private HashMap<String, Integer> componentsInFactories = new HashMap<>();
 
     private void collectSubCollections(CollectionDesc.Builder collection, Set<IResource> subCollections) throws CompileExceptionError, IOException {
         for (CollectionInstanceDesc sub : collection.getCollectionInstancesList()) {
@@ -79,7 +74,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
-    private void createGeneratedResources(Project project, CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
+    private void createGeneratedResources(Project project, CollectionDesc.Builder builder,
+        Map<Long, IResource> uniqueResources ) throws IOException, CompileExceptionError {
+
         for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
             byte[] data = desc.getData().getBytes();
             long hash = MurmurHash.hash64(data, data.length);
@@ -101,7 +98,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             CollectionDesc.Builder subCollectionBuilder = CollectionDesc.newBuilder();
             ProtoUtil.merge(collectionResource, subCollectionBuilder);
 
-            createGeneratedResources(project, subCollectionBuilder);
+            createGeneratedResources(project, subCollectionBuilder, uniqueResources);
         }
     }
 
@@ -128,21 +125,23 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         collectSubCollections(builder, subCollections);
         for (IResource subCollection : subCollections) {
             taskBuilder.addInput(subCollection);
+            taskBuilder.addInput(input.getResource(ComponentsCounter.replaceExt(subCollection)).output());
         }
 
         for (InstanceDesc inst : builder.getInstancesList()) {
             InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
             List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
             createResourcePropertyTasks(sourceProperties, input);
-            // taskBuilder.addInput(input.getResource(ComponentsCounter.replaceExt(subCollection)).output());
+            IResource res = project.getResource(inst.getPrototype());
+            taskBuilder.addInput(input.getResource(ComponentsCounter.replaceExt(res)).output());
         }
 
-        createGeneratedResources(this.project, builder);
+        Map<Long, IResource> uniqueResources = new HashMap<>();
+        createGeneratedResources(this.project, builder, uniqueResources);
 
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
             taskBuilder.addOutput(genResource);
-            // taskBuilder.addInput(input.getResource(ComponentsCounter.replaceExt(genResource)).output());
             Task<?> embedTask = project.createTask(genResource);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,

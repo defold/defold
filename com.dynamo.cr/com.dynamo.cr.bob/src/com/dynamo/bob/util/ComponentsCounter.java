@@ -70,7 +70,7 @@ public class ComponentsCounter {
                 components.put(componentName, UNCOUNTABLE);
             } 
             else if (currentValue != UNCOUNTABLE) {
-                System.out.println("Bob: " +"Add component " + componentName);
+                System.out.println("Bob: " +" Add component " + componentName + " count "+ count);
                 components.put(componentName, components.getOrDefault(componentName, 0) + count);
             }
         }
@@ -182,9 +182,9 @@ public class ComponentsCounter {
     public static String replaceExt(IResource res) {
         String path = res.getPath();
          if (path.endsWith(".go")) {
-            return BuilderUtil.replaceExt(path, ".go", EXT_GO);
+            return "/" + BuilderUtil.replaceExt(path, ".go", EXT_GO);
         } else if (path.endsWith(".collection")) {
-            return BuilderUtil.replaceExt(path, ".collection", EXT_COL);
+            return "/" + BuilderUtil.replaceExt(path, ".collection", EXT_COL);
         }
         return null;
     }
