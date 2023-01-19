@@ -1415,7 +1415,7 @@
                                 visible-titles (into #{} (map :title) visible-sections)
                                 selected-section-title (or (-> ui-state :selected-section-title (or default-section-name) visible-titles)
                                                            (some-> groups first val first visible-titles))]
-                            {:fx/type :h-box
+                            {:fx/type fx.h-box/lifecycle
                              :anchor-pane/top 0
                              :anchor-pane/right 0
                              :anchor-pane/bottom 0
