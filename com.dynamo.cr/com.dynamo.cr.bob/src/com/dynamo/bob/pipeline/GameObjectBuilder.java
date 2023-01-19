@@ -39,6 +39,7 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
+import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
@@ -88,7 +89,6 @@ public class GameObjectBuilder extends Builder<Void> {
         b.clearComponents();
         b.addAllComponents(newList);
 
-
         return b;
     }
 
@@ -99,14 +99,23 @@ public class GameObjectBuilder extends Builder<Void> {
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
+                .addOutput(input.changeExt(params.outExt()))
+                .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
+
+        Set<String> uniquResourcesForCompCounter = new HashSet<>();
 
         for (ComponentDesc cd : b.getComponentsList()) {
+
+            String factoryPrototype = ComponentsCounter.getFromFactoryPrototype(cd, project);
+            if (factoryPrototype != null) {
+                uniquResourcesForCompCounter.add(factoryPrototype);
+            }
+
             Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
             for(String r : resources) {
-                IResource resource = BuilderUtil.checkResource(this.project, input, "resource", r);
+                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
                 taskBuilder.addInput(resource);
-                PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
+                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
             }
         }
 
@@ -114,7 +123,6 @@ public class GameObjectBuilder extends Builder<Void> {
 
         // Gather the unique resources first
         Map<Long, IResource> uniqueResources = new HashMap<>();
-        Set<Long> productsOfThisTask = new HashSet<>();
         List<Task<?>> embedTasks = new ArrayList<>();
 
         for (EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
@@ -131,25 +139,28 @@ public class GameObjectBuilder extends Builder<Void> {
                 genResource.setContent(data);
 
                 uniqueResources.put(hash, genResource);
-                productsOfThisTask.add(hash);
             }
+
+            String factoryPrototype = ComponentsCounter.getFromFactoryPrototype(ec.getType(), genResource);
+            if (factoryPrototype != null) {
+                uniquResourcesForCompCounter.add(factoryPrototype);
+            }
+        }
+
+        for (String resPath : uniquResourcesForCompCounter) {
+            taskBuilder.addInput(input.getResource(resPath).output());
         }
 
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-
             taskBuilder.addOutput(genResource);
-
-            if (productsOfThisTask.contains(hash)) {
-
-                Task<?> embedTask = project.createTask(genResource);
-                if (embedTask == null) {
-                    throw new CompileExceptionError(input,
-                                                    0,
-                                                    String.format("Failed to create build task for component '%s'", genResource.getPath()));
-                }
-                embedTasks.add(embedTask);
+            Task<?> embedTask = project.createTask(genResource);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input,
+                                                0,
+                                                String.format("Failed to create build task for component '%s'", genResource.getPath()));
             }
+            embedTasks.add(embedTask);
         }
 
         Task<Void> task = taskBuilder.build();
@@ -164,6 +175,7 @@ public class GameObjectBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
         IResource input = task.getInputs().get(0);
+        System.out.println("Bob: " +" build task "+input);
         PrototypeDesc.Builder protoBuilder = loadPrototype(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
@@ -207,7 +219,9 @@ public class GameObjectBuilder extends Builder<Void> {
             protoBuilder.addComponents(c);
         }
 
-        protoBuilder = transformGo(input, protoBuilder);
+        ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
+        protoBuilder = transformGo(input, protoBuilder, compStorage);
+        ComponentsCounter.sumInputs(compStorage, task.getInputs());
         protoBuilder.clearEmbeddedComponents();
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
@@ -215,10 +229,11 @@ public class GameObjectBuilder extends Builder<Void> {
         proto.writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
+        task.output(1).setContent(compStorage.toByteArray());
     }
 
     private PrototypeDesc.Builder transformGo(IResource resource,
-            PrototypeDesc.Builder protoBuilder) throws CompileExceptionError {
+            PrototypeDesc.Builder protoBuilder, ComponentsCounter.Storage compStorage) throws CompileExceptionError {
 
         final Vector3 defaultScale = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
 
@@ -230,6 +245,7 @@ public class GameObjectBuilder extends Builder<Void> {
             // Use the BuilderParams from each builder to map the input ext to the output ext
             String inExt = "." + FilenameUtils.getExtension(c);
             String outExt = project.replaceExt(inExt);
+            compStorage.add(outExt);
             c = BuilderUtil.replaceExt(c, inExt, outExt);
 
             PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
