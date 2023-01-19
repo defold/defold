@@ -38,6 +38,8 @@ namespace dmGameSystem
 
     const char* FACTORY_MAX_COUNT_KEY = "factory.max_count";
 
+    static const dmhash_t FACTORY_PROP_PROTOTYPE = dmHashString64("prototype");
+
     static void CleanupAsyncLoading(lua_State*, FactoryComponent*);
     static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams*);
     static void LoadComplete(const dmGameObject::ComponentsUpdateParams&, FactoryComponent*, const dmResource::Result);
@@ -369,6 +371,20 @@ namespace dmGameSystem
         component->m_CustomResource = resource;
     }
     // end scripting
+
+    dmGameObject::PropertyResult CompFactoryGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    {
+        FactoryComponent* component = (FactoryComponent*)*params.m_UserData;
+
+        dmhash_t get_property = params.m_PropertyId;
+
+        if (get_property == FACTORY_PROP_PROTOTYPE)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(dmHashString64(CompFactoryGetResource(component)->m_PrototypePath));
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
 
     static void CleanupAsyncLoading(lua_State* L, FactoryComponent* component)
     {

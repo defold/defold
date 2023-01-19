@@ -256,7 +256,7 @@ namespace dmGameSystem
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
                 CompFactoryCreate, CompFactoryDestroy, 0, 0, CompFactoryAddToUpdate, 0,
                 CompFactoryUpdate, 0, 0, 0, CompFactoryOnMessage, 0,
-                0, 0, 0,
+                0, CompFactoryGetProperty, 0,
                 0, 0,
                 0);
 
