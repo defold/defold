@@ -506,11 +506,11 @@
   (let [^Color background-color (Color/valueOf "#27292D")
         ^Color selection-background-color (Color/valueOf "#264A8B")]
     (view/make-color-scheme
-      [["editor.error" (Color/valueOf "#FF6161")]
+      [["console.reload.successful" (Color/valueOf "#33CC33")]
+       ["editor.error" (Color/valueOf "#FF6161")]
        ["editor.warning" (Color/valueOf "#FF9A34")]
        ["editor.info" (Color/valueOf "#CCCFD3")]
        ["editor.debug" (Color/valueOf "#3B8CF8")]
-       ["console.reload.successful" (Color/valueOf "#33CC33")]
        ["editor.foreground" (Color/valueOf "#A2B0BE")]
        ["editor.background" background-color]
        ["editor.cursor" Color/TRANSPARENT]
