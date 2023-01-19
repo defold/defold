@@ -1363,7 +1363,7 @@ run:
                 // compare all task signature. current task signature between previous
                 // signature from state on disk
                 TimeProfiler.start("compare signatures");
-                TimeProfiler.addData("main input", task.input(0).toString());
+                TimeProfiler.addData("main input", String.valueOf(task.input(0)));
                 byte[] taskSignature = task.calculateSignature();
                 boolean allSigsEquals = true;
                 for (IResource r : outputResources) {

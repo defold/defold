@@ -129,7 +129,7 @@ public class Task<T> {
     }
 
     public IResource input(int i) {
-        return inputs.get(i);
+        return inputs.size() > i ? inputs.get(i) : null;
     }
 
     public List<IResource> getOutputs() {
@@ -141,7 +141,7 @@ public class Task<T> {
     }
 
     public IResource output(int i) {
-        return outputs.get(i);
+        return outputs.size() > i ? outputs.get(i) : null;
     }
 
     public boolean isCacheable() {
