@@ -24,9 +24,9 @@ Debugging
 
 Once bob.jar has been built, it can be debugged with IntelliJ IDE (Community IntelliJ IDEA 2022.3.1 was used in this guide).
 
-1. Start the IDE and on the initial welcome screen choose _Open_' project. Navigate to Bob's source directory `com.dynamo.cr/com.dynamo.cr.bob` inside Defold's source tree.
+1. Start the IDE and on the initial welcome screen choose _Open_ project. Navigate to Bob's source directory `com.dynamo.cr/com.dynamo.cr.bob` inside Defold's source tree.
 
-2. In case there is popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference.
+2. In case there is a popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference.
 
 You should now see Bob's source code tree on the left.
 
@@ -41,7 +41,7 @@ A _Run configuration_ has to be specified that will execute bob.jar. Set it up a
 3. In the _Configuration_ tab use the following settings:
 
 	* `Path to JAR` - Absolute path to bob.jar. For example, /home/.../defold/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
-	* `Program arguments` - Command line arguments given when executing bob. For example, `--platform x86_64-linux distclean build --archive bundle --variant debug`. It really depends on what parts of Bob's functionallity you want to debug.
+	* `Program arguments` - Command line arguments given when executing bob. For example, `--platform x86_64-linux distclean build --archive bundle --variant debug`. It really depends on what parts of Bob's functionality you want to debug.
 	* `Working directory` - Path of a Defold project root, since the command line arguments tells bob to build a project.
 	* `JRE` - JVM used by Defold.
 	
