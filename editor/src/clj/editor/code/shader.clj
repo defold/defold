@@ -74,11 +74,13 @@
 (def ^:private glsl-opts {:code {:grammar glsl-grammar}})
 
 (def shader-defs [{:ext "vp"
+                   :language "glsl"
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "fp"
+                   :language "glsl"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
                    :view-types [:code :default]

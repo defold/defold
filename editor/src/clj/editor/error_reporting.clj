@@ -108,8 +108,12 @@
      (let [{:keys [ex-map suppressed?]} (record-exception! exception)]
        (if suppressed?
          (when (system/defold-dev?)
-           (log/debug :msg "Suppressed unhandled" :exception exception))
-         (do (log/error :exception exception)
+           (if-let [data (ex-data exception)]
+             (log/debug :msg "Suppressed unhandled" :exception exception :ex-data data)
+             (log/debug :msg "Suppressed unhandled" :exception exception)))
+         (do (if-let [data (ex-data exception)]
+               (log/error :exception exception :ex-data data)
+               (log/error :exception exception))
              (analytics/track-exception! exception)
              (let [sentry-id-promise (sentry-reporter exception thread)]
                (exception-notifier ex-map sentry-id-promise)

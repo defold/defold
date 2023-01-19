@@ -24,6 +24,7 @@
 
   :dependencies     [[org.clojure/clojure                         "1.10.0"]
                      [org.clojure/core.cache                      "0.7.1"]
+                     [org.clojure/core.async                      "1.5.648"]
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "1.2.0"]
@@ -80,7 +81,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.7.21"]
+                     [cljfx "1.7.22"]
 
                      [org.openjfx/javafx-base "18"]
                      [org.openjfx/javafx-base "18" :classifier "linux"]
