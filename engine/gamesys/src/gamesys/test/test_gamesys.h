@@ -237,6 +237,7 @@ public:
 struct CollectionFactoryTestParams
 {
     const char* m_GOPath;
+    const char* m_PrototypePath; // If set, then it uses "Dynamic Prototype"
     bool m_IsDynamic;
     bool m_IsPreloaded;
 };
