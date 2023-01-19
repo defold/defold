@@ -76,6 +76,13 @@ public class Task<T> {
             return this;
         }
 
+        public TaskBuilder<T> addInputIfUnique(IResource input) {
+            if (!task.inputs.contains(input)){
+                task.inputs.add(input);
+            }
+            return this;
+        }
+
         public TaskBuilder<T> addOutput(IResource output) {
             if (!output.isOutput()) {
                 throw new IllegalArgumentException(String.format("Resource '%s' is not an output resource", output));

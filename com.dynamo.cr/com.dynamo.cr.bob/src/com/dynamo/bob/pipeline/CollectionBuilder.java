@@ -64,7 +64,6 @@ import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     private Map<Long, IResource> uniqueResources = new HashMap<>();
-    private Set<Long> productsOfThisTask = new HashSet<>();
     private List<Task<?>> embedTasks = new ArrayList<>();
 
     private HashMap<String, Integer> components = new HashMap<>();
@@ -93,9 +92,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 // If the file isn't created here <EmbeddedComponent>#create
                 // can't access generated resource data (embedded component desc)
                 genResource.setContent(data);
-
                 uniqueResources.put(hash, genResource);
-                productsOfThisTask.add(hash);
             }
         }
 
@@ -131,32 +128,28 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         collectSubCollections(builder, subCollections);
         for (IResource subCollection : subCollections) {
             taskBuilder.addInput(subCollection);
-            taskBuilder.addInput(input.getResource(ComponentsCounter.replaceExt(subCollection)).output());
         }
 
         for (InstanceDesc inst : builder.getInstancesList()) {
             InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
             List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
             createResourcePropertyTasks(sourceProperties, input);
+            // taskBuilder.addInput(input.getResource(ComponentsCounter.replaceExt(subCollection)).output());
         }
 
         createGeneratedResources(this.project, builder);
 
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-
             taskBuilder.addOutput(genResource);
-
-            if (productsOfThisTask.contains(hash)) {
-
-                Task<?> embedTask = project.createTask(genResource);
-                if (embedTask == null) {
-                    throw new CompileExceptionError(input,
-                                                    0,
-                                                    String.format("Failed to create build task for component '%s'", genResource.getPath()));
-                }
-                embedTasks.add(embedTask);
+            // taskBuilder.addInput(input.getResource(ComponentsCounter.replaceExt(genResource)).output());
+            Task<?> embedTask = project.createTask(genResource);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input,
+                                                0,
+                                                String.format("Failed to create build task for component '%s'", genResource.getPath()));
             }
+            embedTasks.add(embedTask);
         }
 
         Task<Void> task = taskBuilder.build();

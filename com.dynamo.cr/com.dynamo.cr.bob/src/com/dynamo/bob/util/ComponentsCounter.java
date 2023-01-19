@@ -34,6 +34,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
 import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
+import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
+import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 
@@ -129,7 +131,7 @@ public class ComponentsCounter {
         return res.getPath().endsWith(EXT_GO) || res.getPath().endsWith(EXT_COL);
     }
 
-    public static String getFromFactoryPrototype(String type, IResource resource) throws IOException, CompileExceptionError {
+    private static String getCompCounterPathFromFactoryPrototype(String type, IResource resource) throws IOException, CompileExceptionError {
         if (type.equals("factory")) {
             FactoryDesc.Builder factoryDesc = FactoryDesc.newBuilder();
             ProtoUtil.merge(resource, factoryDesc);
@@ -142,14 +144,31 @@ public class ComponentsCounter {
         return null;
     }
 
-    public static String getFromFactoryPrototype(ComponentDesc cd, Project project) throws IOException, CompileExceptionError {
+    public static Boolean addCompCounterInputFromFactory(EmbeddedComponentDesc ec, IResource genResource,
+        TaskBuilder taskBuilder, IResource input) throws IOException, CompileExceptionError {
+        
+        String compCounterPath = getCompCounterPathFromFactoryPrototype(ec.getType(), genResource);
+        if (compCounterPath != null) {
+            taskBuilder.addInputIfUnique(input.getResource(compCounterPath).output());
+            return true;
+        }
+        return false;
+    }
+
+    public static Boolean addCompCounterInputFromFactory(ComponentDesc cd, TaskBuilder taskBuilder,
+        IResource input, Project project) throws IOException, CompileExceptionError {
+        
         String comp = cd.getComponent();
         String type = FilenameUtils.getExtension(comp);
         if (ComponentsCounter.isFactoryType(type)) {
-            IResource resource = project.getResource(comp);
-            return getFromFactoryPrototype(type, resource);
+            IResource genResource = project.getResource(comp);
+            String compCounterPath = getCompCounterPathFromFactoryPrototype(type, genResource);
+            if (compCounterPath != null) {
+                taskBuilder.addInputIfUnique(input.getResource(compCounterPath).output());
+                return true;
+            }
         }
-        return null;
+        return false;
     }
 
     public static void sumInputs(Storage targetStorage, List<IResource> inputs) throws IOException, CompileExceptionError  {

@@ -102,15 +102,9 @@ public class GameObjectBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
 
-        Set<String> uniquResourcesForCompCounter = new HashSet<>();
-
         for (ComponentDesc cd : b.getComponentsList()) {
 
-            String factoryPrototype = ComponentsCounter.getFromFactoryPrototype(cd, project);
-            if (factoryPrototype != null) {
-                uniquResourcesForCompCounter.add(factoryPrototype);
-            }
-
+            ComponentsCounter.addCompCounterInputFromFactory(cd, taskBuilder, input, project);
             Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
             for(String r : resources) {
                 IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
@@ -137,18 +131,10 @@ public class GameObjectBuilder extends Builder<Void> {
                 // If the file isn't created here <EmbeddedComponent>#create
                 // can't access generated resource data (embedded component desc)
                 genResource.setContent(data);
-
                 uniqueResources.put(hash, genResource);
             }
 
-            String factoryPrototype = ComponentsCounter.getFromFactoryPrototype(ec.getType(), genResource);
-            if (factoryPrototype != null) {
-                uniquResourcesForCompCounter.add(factoryPrototype);
-            }
-        }
-
-        for (String resPath : uniquResourcesForCompCounter) {
-            taskBuilder.addInput(input.getResource(resPath).output());
+            ComponentsCounter.addCompCounterInputFromFactory(ec, genResource, taskBuilder, input);
         }
 
         for (long hash : uniqueResources.keySet()) {
