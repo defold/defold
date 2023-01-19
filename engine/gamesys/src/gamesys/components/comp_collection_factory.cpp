@@ -14,7 +14,6 @@
 
 #include "comp_collection_factory.h"
 #include "resources/res_collection_factory.h"
-//#include <dmsdk/gamesys/resources/res_collection_factory.h>
 
 #include <string.h>
 
@@ -36,8 +35,6 @@ DM_PROPERTY_U32(rmtp_CollectionFactory, 0, FrameReset, "# components", &rmtp_Com
 
 namespace dmGameSystem
 {
-    struct CollectionFactoryResource;
-
     const char* COLLECTION_FACTORY_MAX_COUNT_KEY = "collectionfactory.max_count";
 
     static const dmhash_t COLLECTION_FACTORY_PROP_PROTOTYPE = dmHashString64("prototype");
