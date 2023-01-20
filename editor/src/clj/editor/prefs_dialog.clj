@@ -102,6 +102,7 @@
   []
   (cond-> [{:name  "General"
             :prefs [{:label "Load External Changes on App Focus" :type :boolean :key "external-changes-load-on-app-focus" :default true}
+                    {:label "Open Bundle Target Folder" :type :boolean :key "open-bundle-target-folder" :default true}
                     {:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
                     {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}
