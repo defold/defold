@@ -1507,9 +1507,15 @@ TEST_P(CollectionFactoryTest, Test)
 
             // --- state: load prototype ---
             // the default prototype is unloaded, and we've queued the new prototype to load
-            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-            dmGameObject::PostUpdate(m_Register);
+            dmhash_t last_object_id = dmHashString64("/collection6/go");
+            for(;;)
+            {
+                if(dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
+                    break;
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmGameObject::PostUpdate(m_Register);
+            }
 
             // The factory holds the prototype resource
             ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
@@ -1599,9 +1605,16 @@ TEST_P(CollectionFactoryTest, Test)
 
             // --- state: load prototype ---
             // the default prototype is unloaded, and we've queued the new prototype to load
-            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-            dmGameObject::PostUpdate(m_Register);
+            // update until instances are created through test script (collectionfactory.load and create)
+            dmhash_t last_object_id = dmHashString64("/collection3/go");
+            for(;;)
+            {
+                if(dmGameObject::GetInstanceFromIdentifier(m_Collection, last_object_id) != 0x0)
+                    break;
+                ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+                ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+                dmGameObject::PostUpdate(m_Register);
+            }
 
             ASSERT_EQ(4, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[0])));
             ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(dyn_prototype_resource_path[1])));
