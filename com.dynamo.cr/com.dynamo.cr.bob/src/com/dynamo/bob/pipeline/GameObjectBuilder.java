@@ -206,7 +206,8 @@ public class GameObjectBuilder extends Builder<Void> {
 
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         protoBuilder = transformGo(input, protoBuilder, compStorage);
-        ComponentsCounter.sumInputs(compStorage, task.getInputs());
+        // these inputs are from factories
+        ComponentsCounter.sumInputs(compStorage, task.getInputs(), ComponentsCounter.UNCOUNTABLE);
         protoBuilder.clearEmbeddedComponents();
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);

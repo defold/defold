@@ -17,7 +17,9 @@ package com.dynamo.bob.util;
 import org.apache.commons.io.FilenameUtils;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
@@ -29,6 +31,7 @@ import java.io.Serializable;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
@@ -46,7 +49,7 @@ public class ComponentsCounter {
 
     public static final String EXT_GO = ".compcount_go";
     public static final String EXT_COL = ".compcount_col";
-    private static final Integer UNCOUNTABLE = 0xFFFFFFFF;
+    public static final Integer UNCOUNTABLE = 0xFFFFFFFF;
 
     /**
      * Class represents a storage for counted components which can be written on disk
@@ -66,11 +69,11 @@ public class ComponentsCounter {
                 componentName = componentName.substring(1);
             }
             Integer currentValue = components.getOrDefault(componentName, 0);
+            System.out.println("Bob: " +" Add component " + componentName + " count "+ count);
             if (count == UNCOUNTABLE) {
                 components.put(componentName, UNCOUNTABLE);
             } 
             else if (currentValue != UNCOUNTABLE) {
-                System.out.println("Bob: " +" Add component " + componentName + " count "+ count);
                 components.put(componentName, components.getOrDefault(componentName, 0) + count);
             }
         }
@@ -89,7 +92,7 @@ public class ComponentsCounter {
         public void add(Storage storage, Integer count) {
             Map<String, Integer> comps = storage.get();
             for (Map.Entry<String,Integer> entry : comps.entrySet()) {
-                add(entry.getKey(), entry.getValue() * count);
+                add(entry.getKey(), count == UNCOUNTABLE ? UNCOUNTABLE : entry.getValue() * count);
             }
         }
 
@@ -178,10 +181,21 @@ public class ComponentsCounter {
         return false;
     }
 
-    public static void sumInputs(Storage targetStorage, List<IResource> inputs) throws IOException, CompileExceptionError  {
+    public static Set<IResource> getCounterInputs(Task<?> task) {
+        List<IResource> inputs = task.getInputs();
+        Set<IResource> counterInputs = new HashSet<IResource>();
+        for (IResource res : inputs) {
+            if (isCompCountInput(res)) {
+                counterInputs.add(res);
+            }
+        }
+        return counterInputs;
+    }
+
+    public static void sumInputs(Storage targetStorage, List<IResource> inputs, Integer count) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
             if (isCompCountInput(res)) {
-                targetStorage.add(Storage.load(res));
+                targetStorage.add(Storage.load(res), count);
             }
         }
     }

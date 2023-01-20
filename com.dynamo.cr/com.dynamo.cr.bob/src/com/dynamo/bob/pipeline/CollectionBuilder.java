@@ -155,6 +155,13 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                                                 String.format("Failed to create build task for component '%s'", genResource.getPath()));
             }
             embedTasks.add(embedTask);
+            // if embeded objects have factories, they should be in input for our collection
+            Set<IResource> counterInputs = ComponentsCounter.getCounterInputs(embedTask);
+            for(IResource res : counterInputs) {
+                taskBuilder.addInput(res);
+                System.out.println("Bob: " +" UNCOUNTABLE "+res);
+                compCounterInputsCount.put(res, ComponentsCounter.UNCOUNTABLE);
+            }
         }
 
         Task<Void> task = taskBuilder.build();
@@ -338,11 +345,10 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
         mergeSubCollections(resource, messageBuilder);
         //TODO:
-        // - count inputs as many times as they are in the collection
-        // - embeded objects inputs from factories
         // - embeded objects count
         // - collection output
-        // 
+        //  - make sure all inputs from factories are uncountable
+        // - copy data into collection proto
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
             byte[] data = desc.getData().getBytes();
