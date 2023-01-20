@@ -21,8 +21,8 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/gamesys/script.h>
 #include <dmsdk/gameobject/script.h>
-#include <gameobject/script.h>
 
 #include "gamesys.h"
 #include <gamesys/gamesys_ddf.h>
@@ -108,7 +108,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
 
         CollectionFactoryComponent* component;
-        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, 0, (void**)&component, 0);
+        dmScript::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, 0, (void**)&component, 0);
 
         dmGameSystem::CompCollectionFactoryStatus status = dmGameSystem::CompCollectionFactoryGetStatus(component);
         lua_pushinteger(L, (int)status);
@@ -138,7 +138,7 @@ namespace dmGameSystem
 
         CollectionFactoryWorld* world;
         CollectionFactoryComponent* component;
-        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, 0);
+        dmScript::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, 0);
 
         bool success = dmGameSystem::CompCollectionFactoryUnload(world, component);
         if (!success)
@@ -186,7 +186,7 @@ namespace dmGameSystem
         CollectionFactoryWorld* world;
         CollectionFactoryComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, &receiver);
+        dmScript::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, &receiver);
 
         if (dmGameSystem::CompCollectionFactoryIsLoading(component)) {
             dmLogError("Trying to load collection factory resource when already loading.");
@@ -290,7 +290,7 @@ namespace dmGameSystem
 
         CollectionFactoryWorld* world;
         CollectionFactoryComponent* component;
-        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, 0);
+        dmScript::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, 0);
 
         dmVMath::Point3 position;
         if (top >= 2 && !lua_isnil(L, 2))
@@ -435,7 +435,7 @@ namespace dmGameSystem
         CollectionFactoryWorld* world;
         CollectionFactoryComponent* component;
         dmMessage::URL url; // for reporting errors only
-        dmGameObject::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, &url);
+        dmScript::GetComponentFromLua(L, 1, COLLECTION_FACTORY_EXT, (void**)&world, (void**)&component, &url);
 
         if(!CompCollectionFactoryIsDynamicPrototype(component))
         {

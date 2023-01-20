@@ -57,7 +57,7 @@ namespace dmScript
      * @name CheckGOInstance
      * @param L [type: lua_State*] lua state
      * @param index [type: int] lua-arg
-     * @return instance [type: lua_State*] gameobject instance
+     * @return instance [type: dmGameObject::HInstance] gameobject instance
      *
      * @examples
      *
@@ -77,6 +77,32 @@ namespace dmScript
      * ```
      */
     dmGameObject::HInstance CheckGOInstance(lua_State* L, int index);
+
+    /*#
+     * Get current gameobject's collection handle
+     *
+     * @note Works from both a .script/.gui_script
+     *
+     * @name CheckCollection
+     * @param L [type: lua_State*] lua state
+     * @param index [type: int] lua-arg
+     * @return instance [type: lua_State*] gameobject instance
+     */
+    dmGameObject::HCollection CheckCollection(lua_State* L);
+
+    /*#
+     * Get component user data from a url.
+     * @note The object referenced by the url must be in the same collection as the caller.
+     *
+     * @name GetComponentFromLua
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] index to argument (a url)
+     * @param component_type [type:const char*] E.g. "factoryc". The call will fail if the found component does not have the specified extension
+     * @param world [type:void**] The world associated owning the component. May be 0
+     * @param component [type:void**] The component data associated with the url. May be 0
+     * @param url [type:dmMessage::URL*] The resolved url. May be 0
+     */
+    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** out_world, void** component, dmMessage::URL* url);
 
     /*# buffer ownership
      *

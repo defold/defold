@@ -20,6 +20,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/gamesys/script.h>
 #include <dmsdk/gameobject/script.h>
 #include <gameobject/script.h>
 
@@ -84,7 +85,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         FactoryComponent* component;
-        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, 0);
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, 0);
 
         dmGameSystem::CompFactoryStatus status = dmGameSystem::CompFactoryGetStatus(component);
         lua_pushinteger(L, (int)status);
@@ -111,11 +112,10 @@ namespace dmGameSystem
     static int FactoryComp_Unload(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::HCollection collection = dmScript::CheckCollection(L);
 
         FactoryComponent* component;
-        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, 0);
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, 0);
 
         bool success = dmGameSystem::CompFactoryUnload(collection, component);
         if (!success)
@@ -162,12 +162,11 @@ namespace dmGameSystem
             return luaL_error(L, "Argument #2 is expected to be completion function.");
         }
 
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::HCollection collection = dmScript::CheckCollection(L);
 
         FactoryComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, &receiver);
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, &receiver);
 
         if (dmGameSystem::CompFactoryIsLoading(component)) {
             dmLogError("Trying to load factory prototype resource when already loading.");
@@ -240,12 +239,12 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         FactoryComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, &receiver);
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, 0, (void**)&component, &receiver);
 
         dmVMath::Point3 position;
         if (top >= 2 && !lua_isnil(L, 2))
@@ -270,7 +269,7 @@ namespace dmGameSystem
         uint32_t actual_prop_buffer_size = 0;
         uint8_t* prop_buffer = buffer;
         uint32_t prop_buffer_size = buffer_size;
-        bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0;
+        bool msg_passing = dmGameObject::GetInstanceFromLua(L) == 0x0; // TODO: When does this actually happen? In render scripts?
         if (msg_passing) {
             const uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
             prop_buffer = &(buffer[msg_size]);
@@ -394,7 +393,7 @@ namespace dmGameSystem
         dmMessage::URL url;
         FactoryWorld* world;
         FactoryComponent* component;
-        dmGameObject::GetComponentFromLua(L, 1, FACTORY_EXT, (void**)&world, (void**)&component, &url);
+        dmScript::GetComponentFromLua(L, 1, FACTORY_EXT, (void**)&world, (void**)&component, &url);
 
         if(!CompFactoryIsDynamicPrototype(component))
         {
