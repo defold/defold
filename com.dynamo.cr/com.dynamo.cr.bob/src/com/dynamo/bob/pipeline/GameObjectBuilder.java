@@ -95,7 +95,6 @@ public class GameObjectBuilder extends Builder<Void> {
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder b = loadPrototype(input);
-
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)

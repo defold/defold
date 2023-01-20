@@ -86,6 +86,13 @@ public class ComponentsCounter {
             }
         }
 
+        public void add(Storage storage, Integer count) {
+            Map<String, Integer> comps = storage.get();
+            for (Map.Entry<String,Integer> entry : comps.entrySet()) {
+                add(entry.getKey(), entry.getValue() * count);
+            }
+        }
+
         public byte[] toByteArray() throws IOException {
             ByteArrayOutputStream bos = new ByteArrayOutputStream(128 * 16);
             ObjectOutputStream os = new ObjectOutputStream(bos);
@@ -175,6 +182,15 @@ public class ComponentsCounter {
         for (IResource res :  inputs) {
             if (isCompCountInput(res)) {
                 targetStorage.add(Storage.load(res));
+            }
+        }
+    }
+
+    public static void sumInputs(Storage targetStorage, List<IResource> inputs,
+        Map<IResource, Integer> compCounterInputsCount) throws IOException, CompileExceptionError  {
+        for (IResource res :  inputs) {
+            if (isCompCountInput(res)) {
+                targetStorage.add(Storage.load(res), compCounterInputsCount.get(res));
             }
         }
     }

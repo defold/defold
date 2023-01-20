@@ -63,11 +63,12 @@ import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
 public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     private List<Task<?>> embedTasks = new ArrayList<>();
+    private Map<IResource, Integer> compCounterInputsCount = new HashMap<>();
 
-    private void collectSubCollections(CollectionDesc.Builder collection, Set<IResource> subCollections) throws CompileExceptionError, IOException {
+    private void collectSubCollections(CollectionDesc.Builder collection, Map<IResource, Integer> subCollections) throws CompileExceptionError, IOException {
         for (CollectionInstanceDesc sub : collection.getCollectionInstancesList()) {
             IResource subResource = project.getResource(sub.getCollection());
-            subCollections.add(subResource);
+            subCollections.put(subResource, subCollections.getOrDefault(subResource, 0) + 1);
             CollectionDesc.Builder builder = CollectionDesc.newBuilder();
             ProtoUtil.merge(subResource, builder);
             collectSubCollections(builder, subCollections);
@@ -121,11 +122,14 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
         CollectionDesc.Builder builder = CollectionDesc.newBuilder();
         ProtoUtil.merge(input, builder);
-        Set<IResource> subCollections = new HashSet<IResource>();
+
+        Map<IResource, Integer> subCollections = new HashMap<>();
         collectSubCollections(builder, subCollections);
-        for (IResource subCollection : subCollections) {
+        for (IResource subCollection : subCollections.keySet()) {
             taskBuilder.addInput(subCollection);
-            taskBuilder.addInput(input.getResource(ComponentsCounter.replaceExt(subCollection)).output());
+            IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(subCollection)).output();
+            taskBuilder.addInput(compCounterInput);
+            compCounterInputsCount.put(compCounterInput, subCollections.get(subCollection));
         }
 
         for (InstanceDesc inst : builder.getInstancesList()) {
@@ -133,7 +137,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
             createResourcePropertyTasks(sourceProperties, input);
             IResource res = project.getResource(inst.getPrototype());
-            taskBuilder.addInput(input.getResource(ComponentsCounter.replaceExt(res)).output());
+            IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
+            taskBuilder.addInputIfUnique(compCounterInput);
+            compCounterInputsCount.put(compCounterInput, compCounterInputsCount.getOrDefault(compCounterInput, 0) + 1);
         }
 
         Map<Long, IResource> uniqueResources = new HashMap<>();
@@ -153,6 +159,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
         Task<Void> task = taskBuilder.build();
         for (Task<?> et : embedTasks) {
+            System.out.println("Bob: " +" col embed task inputs:"+et.getInputsString() + "  outputs: "+et.getOutputsString());
             et.setProductOf(task);
         }
         return task;
@@ -330,6 +337,12 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     @Override
     protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
         mergeSubCollections(resource, messageBuilder);
+        //TODO:
+        // - count inputs as many times as they are in the collection
+        // - embeded objects inputs from factories
+        // - embeded objects count
+        // - collection output
+        // 
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
             byte[] data = desc.getData().getBytes();
@@ -394,6 +407,10 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             messageBuilder.setInstances(i, b);
         }
         messageBuilder.addAllPropertyResources(propertyResources);
+
+        ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
+        ComponentsCounter.sumInputs(compStorage, task.getInputs(), compCounterInputsCount);
+        task.output(1).setContent(compStorage.toByteArray());
 
         return messageBuilder;
     }
