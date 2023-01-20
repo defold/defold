@@ -23,6 +23,7 @@
 #include "../dlib/mutex.h"
 #include "../dlib/dstrings.h"
 #include "../dlib/socket.h"
+#include "../dlib/time.h"
 #include "../dlib/thread.h"
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
@@ -256,6 +257,51 @@ TEST(dmLog, TestCapture)
                 "FATAL:DLIB: This is a fatal message\n";
 
     ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
+}
+
+
+static void LogThreadWithLogCalls(void* arg)
+{
+    int* run = (int*)arg;
+    int count = 0;
+    while (*run)
+    {
+        dmLogError("a warning %d", count);
+        count++;
+    }
+}
+
+int g_LogThreadWithLogCallsCount = 0;
+static void LogThreadWithLogCallsListener(LogSeverity severity, const char* domain, const char* formatted_string)
+{
+    g_LogThreadWithLogCallsCount++;
+}
+
+TEST(dmLog, TestLogThreadWithLogCalls)
+{
+    int run = 1;
+    dLib::SetDebugMode(false); // avoid spam in the unit tests
+
+    dmThread::Thread log_thread = dmThread::New(LogThreadWithLogCalls, 0x80000, (void*)&run, "test");
+
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
+
+    g_LogThreadWithLogCallsCount = 0;
+    dmLogRegisterListener(LogThreadWithLogCallsListener);
+
+    while (g_LogThreadWithLogCallsCount < 40)
+        dmTime::Sleep(1000);
+
+    dmLog::LogFinalize();
+
+    dmTime::Sleep(1000); // make sure we write some more logs
+
+    // wait for thread to join
+    run = 0;
+    dmThread::Join(log_thread);
+    dLib::SetDebugMode(true);
 }
 
 int main(int argc, char **argv)

@@ -933,8 +933,9 @@ INSTANTIATE_TEST_CASE_P(dmHttpClientTest, dmHttpClientTest, jc_test_values_in(pa
 // NOTE: These buckets might expire. If so, we'll have to disable that server test
 const char* params_http_client_external_test[] = {  // They expire after a few days, but I keep it here in case you wish to test with it
 													// during development "https://hookb.in/je1lZ3X0ngTobX0plMME",
-                                                    "https://httpbin.org/post",
-                                                    "https://webhook.site/e22f2d03-abf4-4f23-a8dc-7e24126cefab"};
+                                                    //                    "https://webhook.site/e22f2d03-abf4-4f23-a8dc-7e24126cefab",
+                                                    "https://httpbin.org/post"
+                                                };
 INSTANTIATE_TEST_CASE_P(dmHttpClientTestExternal, dmHttpClientTestExternal, jc_test_values_in(params_http_client_external_test));
 #endif
 
