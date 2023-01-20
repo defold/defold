@@ -188,10 +188,10 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         baseBuilder.setSource(ByteString.copyFrom(transformedSource, "UTF-8"));
         variantBuilders.add(baseBuilder);
 
+        /*
         boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                                 shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
-
-        if (true /*gles2Standard*/) {
+        if (gles2Standard) {
             ///////////////////////////////////////////////////////
             // Texture array variant
             ///////////////////////////////////////////////////////
@@ -216,6 +216,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
                 variantBuilders.add(builder);
             }
         }
+        */
 
         return variantBuilders.toArray(new ShaderDesc.Shader.Builder[0]);
     }

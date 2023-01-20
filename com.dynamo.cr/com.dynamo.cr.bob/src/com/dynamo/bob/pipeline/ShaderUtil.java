@@ -125,6 +125,18 @@ public class ShaderUtil {
     }
 
     public static class ES2Variants {
+
+
+        public static needsVariantTextureArray(ShaderDesc.Language shaderLanguage) {
+            boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
+                                    shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
+            if (gles2Standard) {
+
+            }
+            return false;
+        }
+
+
         private static void generateTextureArrayFn(ArrayList<String> buffer, String samplerName, int maxPages) {
             buffer.add(String.format("vec4 texture2DArray_%s(vec3 dm_texture_array_args) {", samplerName));
             buffer.add("    int page_index = int(dm_texture_array_args.z);");
@@ -171,7 +183,7 @@ public class ShaderUtil {
                 Scanner scanner = new Scanner(shaderSource);
                 while (scanner.hasNextLine()) {
                     String line = scanner.nextLine();
-                    Matcher samplerMatcher      = arrayArraySamplerPattern.matcher(line);
+                    Matcher samplerMatcher = arrayArraySamplerPattern.matcher(line);
 
                     if(samplerMatcher.find()) {
                         String uniformName = samplerMatcher.group("uniform");

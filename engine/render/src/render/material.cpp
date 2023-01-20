@@ -29,12 +29,11 @@ namespace dmRender
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, const dmGraphics::ProgramCreationParams& creation_params) // dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
     {
-        Material* m = new Material;
-        m->m_RenderContext = render_context;
-        m->m_VertexProgram = creation_params.m_VertexProgram;
+        Material* m          = new Material;
+        m->m_RenderContext   = render_context;
+        m->m_VertexProgram   = creation_params.m_VertexProgram;
         m->m_FragmentProgram = creation_params.m_FragmentProgram;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        m->m_Program = dmGraphics::NewProgram(graphics_context, creation_params);
+        m->m_Program         = dmGraphics::NewProgram(dmRender::GetGraphicsContext(render_context), creation_params);
 
         uint32_t total_constants_count = dmGraphics::GetUniformCount(m->m_Program);
         const uint32_t buffer_size = 128;
