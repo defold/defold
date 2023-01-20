@@ -126,12 +126,11 @@ public class ShaderUtil {
 
     public static class ES2Variants {
         private static void generateTextureArrayFn(ArrayList<String> buffer, String samplerName, int maxPages) {
-
             buffer.add(String.format("vec4 texture2DArray_%s(vec3 dm_texture_array_args) {", samplerName));
-
+            buffer.add("    int page_index = int(dm_texture_array_args.z);");
             String lineFmt = "    %s if (page_index == %d) return texture2D(%s_%d, dm_texture_array_args.st);";
-            for (int i = 0; i < maxPages; i++) {
 
+            for (int i = 0; i < maxPages; i++) {
                 if (i == 0) {
                     buffer.add(String.format(lineFmt, "", i, samplerName, i));
                 } else {
@@ -145,11 +144,21 @@ public class ShaderUtil {
             buffer.add("}");
         }
 
-        public static String variantTextureArrayFallback(String shaderSource) {
+        public static class VariantTextureArrayFallbackResult
+        {
+            public String source;
+            public SPIRVReflector.Resource[] uniforms;
+        }
+
+        public static VariantTextureArrayFallbackResult variantTextureArrayFallback(String shaderSource) {
             // For texture array support, we need to convert texture2DArray functions
             if (Common.hasUniformType(shaderSource, ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)) {
+
+                VariantTextureArrayFallbackResult result = new VariantTextureArrayFallbackResult();
+
                 final int max_global_page_count = 4;
 
+                ArrayList<SPIRVReflector.Resource> uniforms = new ArrayList<SPIRVReflector.Resource>();
                 ArrayList<String> shaderHeader = new ArrayList<>();
                 ArrayList<String> shaderBody = new ArrayList<>();
 
@@ -157,7 +166,7 @@ public class ShaderUtil {
 
                 String arrayReplaceTextureRegex  = "texture2DArray\\s*\\((([^,]+)),\\s*";
                 Pattern arrayArraySamplerPattern = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
-                String uniformArrayFormat        = "uniform %s %s_%d;";
+                String uniformArrayFormat        = "uniform %s sampler2D %s_%d;";
 
                 Scanner scanner = new Scanner(shaderSource);
                 while (scanner.hasNextLine()) {
@@ -167,8 +176,6 @@ public class ShaderUtil {
                     if(samplerMatcher.find()) {
                         String uniformName = samplerMatcher.group("uniform");
                         String qualifier   = samplerMatcher.group("qualifier");
-
-                        generateTextureArrayFn(shaderHeader, uniformName, max_global_page_count);
 
                         for (int i=0; i < max_global_page_count; i++) {
                             String pageUniform = String.format(uniformArrayFormat, qualifier, uniformName, i);
@@ -180,6 +187,19 @@ public class ShaderUtil {
                                 shaderHeader.add("#endif");
                             }
                         }
+
+                        shaderHeader.add("");
+                        generateTextureArrayFn(shaderHeader, uniformName, max_global_page_count);
+
+                        SPIRVReflector.Resource res = new SPIRVReflector.Resource();
+                        res.name                    = uniformName;
+                        res.type                    = "sampler2DArray";
+                        res.elementCount            = 1;
+                        res.binding                 = 0;
+                        res.set                     = 0;
+
+                        uniforms.add(res);
+
                     } else {
                         shaderBody.add(line);
                     }
@@ -188,7 +208,10 @@ public class ShaderUtil {
                 String shaderBodyStr = String.join("\n", shaderBody);
                 shaderBodyStr = shaderBodyStr.replaceAll(arrayReplaceTextureRegex, "texture2DArray_$1(");
 
-                return String.join("\n", shaderHeader) + "\n" + shaderBodyStr + "\n";
+                result.source = String.join("\n", shaderHeader) + "\n" + shaderBodyStr + "\n";
+                result.uniforms = uniforms.toArray(new SPIRVReflector.Resource[0]);
+
+                return result;
             }
             return null;
         }

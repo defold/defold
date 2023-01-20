@@ -1247,6 +1247,8 @@ static void LogFrameBufferError(GLenum status)
         #endif
         }
 
+        context->m_TextureArraySupport = 0;
+
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
         if ((OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint")))
         {
@@ -1854,6 +1856,16 @@ static void LogFrameBufferError(GLenum status)
             shader->m_VariantTextureArrayData     = (char*) malloc(ddf->m_Source.m_Count);
             shader->m_VariantTextureArrayDataSize = ddf->m_Source.m_Count;
             memcpy(shader->m_VariantTextureArrayData, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+
+            for (int i = 0; i < ddf->m_Uniforms.m_Count; ++i)
+            {
+                if (ddf->m_Uniforms[i].m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY)
+                {
+                    shader->m_VariantTextureArrayUniforms.OffsetCapacity(1);
+                    shader->m_VariantTextureArrayUniforms.Push(strdup(ddf->m_Uniforms[i].m_Name));
+                }
+            }
+
             return shader;
         }
         else
@@ -1879,7 +1891,7 @@ static void LogFrameBufferError(GLenum status)
         return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf);
     }
 
-    static GLuint CreateShaderVariantTextureArray(Shader* shader, GLenum type, uint8_t max_page_count)
+    static GLuint CreateShaderVariantTextureArray(OpenGLProgram* program_ptr, Shader* shader, GLenum type, uint8_t max_page_count)
     {
         assert(max_page_count > 0);
 
@@ -1899,6 +1911,25 @@ static void LogFrameBufferError(GLenum status)
 
         GLuint handle = DoCreateShader(type, source_copy, shader->m_VariantTextureArrayDataSize);
         free(source_copy);
+
+        program_ptr->m_VariantIds.OffsetCapacity(1);
+        program_ptr->m_VariantIds.Push(handle);
+
+        program_ptr->m_UniformNameIndirectionTable.OffsetCapacity(shader->m_VariantTextureArrayUniforms.Size() * max_page_count);
+        for (int i = 0; i < shader->m_VariantTextureArrayUniforms.Size(); ++i)
+        {
+            char* array_sampler_base = shader->m_VariantTextureArrayUniforms[i];
+            char buf[128] = {0};
+
+            for (int j = 0; j < max_page_count; ++j)
+            {
+                snprintf(buf, sizeof(buf), "%s_%d", array_sampler_base, j);
+                UniformNameIndirectionEntry entry = {};
+                entry.m_FromName                  = strdup(buf);
+                entry.m_ToName                    = array_sampler_base;
+                program_ptr->m_UniformNameIndirectionTable.Push(entry);
+            }
+        }
 
         return handle;
     }
@@ -1933,6 +1964,71 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static ShaderResourceBinding* GetOrCreateResourceBinding(OpenGLProgram* program_ptr, char* name)
+    {
+        char* base_uniform_name = name;
+        for (int i = 0; i < program_ptr->m_UniformNameIndirectionTable.Size(); ++i)
+        {
+            if (dmStrCaseCmp(name, program_ptr->m_UniformNameIndirectionTable[i].m_FromName) == 0)
+            {
+                base_uniform_name = program_ptr->m_UniformNameIndirectionTable[i].m_ToName;
+                break;
+            }
+        }
+
+        for (int i = 0; i < program_ptr->m_ResourceBindings.Size(); ++i)
+        {
+            if (dmStrCaseCmp(program_ptr->m_ResourceBindings[i].m_Name, base_uniform_name) == 0)
+            {
+                return &program_ptr->m_ResourceBindings[i];
+            }
+        }
+
+        ShaderResourceBinding new_binding = {};
+        new_binding.m_Name                = strdup(base_uniform_name);
+        new_binding.m_Binding             = -1;
+
+        program_ptr->m_ResourceBindings.Push(new_binding);
+
+        return &program_ptr->m_ResourceBindings[program_ptr->m_ResourceBindings.Size()-1];
+    }
+
+    static void BuildUniforms(OpenGLProgram* program_ptr)
+    {
+        GLint count;
+        glGetProgramiv(program_ptr->m_Id, GL_ACTIVE_UNIFORMS, &count);
+        CHECK_GL_ERROR;
+
+        program_ptr->m_ResourceBindings.SetCapacity(count);
+        program_ptr->m_ResourceBindings.SetSize(0);
+
+        const int uniform_name_size = 128;
+        char uniform_name[uniform_name_size];
+        for (int i = 0; i < count; ++i)
+        {
+            GLint uniform_size;
+            GLenum uniform_type;
+            GLsizei uniform_name_length;
+            glGetActiveUniform(program_ptr->m_Id, i, uniform_name_size, &uniform_name_length, &uniform_size, &uniform_type, uniform_name);
+
+            GLint location = glGetUniformLocation(program_ptr->m_Id, uniform_name);
+            if (location == -1)
+            {
+                // Clear error if uniform isn't found
+                CLEAR_GL_ERROR
+            }
+
+            ShaderResourceBinding* binding = GetOrCreateResourceBinding(program_ptr, uniform_name);
+            binding->m_ElementCount       += uniform_size;
+            binding->m_Type                = GetGraphicsType(uniform_type);
+
+            if (binding->m_Binding == -1)
+            {
+                binding->m_Binding = location;
+            }
+        }
+    }
+
     static inline void IncreaseModificationVersion(Context* context)
     {
         ++context->m_ModificationVersion;
@@ -1955,25 +2051,14 @@ static void LogFrameBufferError(GLenum status)
         GLuint vertex_id   = vertex_shader->m_Id;
         GLuint fragment_id = fragment_shader->m_Id;
 
-        uint32_t variant_count = 0;
-        variant_count += vertex_shader->m_VariantTextureArrayData ? 1 : 0;
-        variant_count += fragment_shader->m_VariantTextureArrayData ? 1 : 0;
-
-        if (variant_count != 0)
+        if (vertex_shader->m_VariantTextureArrayData)
         {
-            program->m_VariantIds.SetCapacity(variant_count);
+            vertex_id = CreateShaderVariantTextureArray(program, vertex_shader, GL_VERTEX_SHADER, params.m_MaxPagesCount);
         }
 
-        if (vertex_shader->m_VariantTextureArrayData != 0)
+        if (fragment_shader->m_VariantTextureArrayData)
         {
-            vertex_id = CreateShaderVariantTextureArray(vertex_shader, GL_VERTEX_SHADER, params.m_MaxPagesCount);
-            program->m_VariantIds.Push(vertex_id);
-        }
-
-        if (fragment_shader->m_VariantTextureArrayData != 0)
-        {
-            fragment_id = CreateShaderVariantTextureArray(fragment_shader, GL_FRAGMENT_SHADER, params.m_MaxPagesCount);
-            program->m_VariantIds.Push(fragment_id);
+            fragment_id = CreateShaderVariantTextureArray(program, fragment_shader, GL_FRAGMENT_SHADER, params.m_MaxPagesCount);
         }
 
         glAttachShader(p, vertex_id);
@@ -2020,6 +2105,7 @@ static void LogFrameBufferError(GLenum status)
         program->m_Id = p;
 
         BuildAttributes(program);
+        BuildUniforms(program);
         return (HProgram) program;
     }
 
@@ -2032,6 +2118,16 @@ static void LogFrameBufferError(GLenum status)
         for (int i = 0; i < program_ptr->m_VariantIds.Size(); ++i)
         {
             glDeleteShader(program_ptr->m_VariantIds[i]);
+        }
+
+        for (int i = 0; i < program_ptr->m_ResourceBindings.Size(); ++i)
+        {
+            free(program_ptr->m_ResourceBindings[i].m_Name);
+        }
+
+        for (int i = 0; i < program_ptr->m_UniformNameIndirectionTable.Size(); ++i)
+        {
+            free(program_ptr->m_UniformNameIndirectionTable[i].m_FromName);
         }
 
         delete program_ptr;
@@ -2113,30 +2209,31 @@ static void LogFrameBufferError(GLenum status)
         return success;
     }
 
-    static void OpenGLDeleteVertexProgram(HVertexProgram program)
+    static void OpenGLDeleteShader(Shader* shader)
     {
-        assert(program);
-        Shader* shader = ((Shader*) program);
         glDeleteShader(shader->m_Id);
         CHECK_GL_ERROR;
         if (shader->m_VariantTextureArrayData)
         {
             delete shader->m_VariantTextureArrayData;
         }
-        delete (Shader*) program;
+
+        for (int i = 0; i < shader->m_VariantTextureArrayUniforms.Size(); ++i)
+        {
+            free(shader->m_VariantTextureArrayUniforms[i]);
+        }
+
+        delete shader;
+    }
+
+    static void OpenGLDeleteVertexProgram(HVertexProgram program)
+    {
+        OpenGLDeleteShader(((Shader*) program));
     }
 
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
-        assert(program);
-        Shader* shader = ((Shader*) program);
-        glDeleteShader(shader->m_Id);
-        CHECK_GL_ERROR;
-        if (shader->m_VariantTextureArrayData)
-        {
-            delete shader->m_VariantTextureArrayData;
-        }
-        delete (Shader*) program;
+        OpenGLDeleteShader(((Shader*) program));
     }
 
     static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext context)
@@ -2210,41 +2307,41 @@ static void LogFrameBufferError(GLenum status)
 
         BuildAttributes(program_ptr);
 
+        BuildUniforms(program_ptr);
+
         return true;
     }
 
     static uint32_t OpenGLGetUniformCount(HProgram prog)
     {
-        GLint count;
         OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        glGetProgramiv(program_ptr->m_Id, GL_ACTIVE_UNIFORMS, &count);
-        CHECK_GL_ERROR;
-        return count;
+        return program_ptr->m_ResourceBindings.Size();
     }
 
     static uint32_t OpenGLGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
-        GLint uniform_size;
-        GLenum uniform_type;
-        GLsizei uniform_name_length;
         OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        glGetActiveUniform(program_ptr->m_Id, index, buffer_size, &uniform_name_length, &uniform_size, &uniform_type, buffer);
-        *type = GetGraphicsType(uniform_type);
-        *size = uniform_size;
-        CHECK_GL_ERROR;
-        return (uint32_t)uniform_name_length;
+        ShaderResourceBinding& binding = program_ptr->m_ResourceBindings[index];
+
+        *type = binding.m_Type;
+        *size = binding.m_ElementCount;
+
+        return dmStrlCpy(buffer, binding.m_Name, buffer_size);
     }
 
     static int32_t OpenGLGetUniformLocation(HProgram prog, const char* name)
     {
         OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        GLint location = glGetUniformLocation(program_ptr->m_Id, name);
-        if (location == -1)
+
+        for (int i = 0; i < program_ptr->m_ResourceBindings.Size(); ++i)
         {
-            // Clear error if uniform isn't found
-            CLEAR_GL_ERROR
+            if (dmStrCaseCmp(name, program_ptr->m_ResourceBindings[i].m_Name) == 0)
+            {
+                return program_ptr->m_ResourceBindings[i].m_Binding;
+            }
         }
-        return (uint32_t) location;
+
+        return -1;
     }
 
     static void OpenGLSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)

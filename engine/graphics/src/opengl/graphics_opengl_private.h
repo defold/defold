@@ -108,9 +108,10 @@ namespace dmGraphics
 
     struct Shader
     {
-        GLuint   m_Id;
-        char*    m_VariantTextureArrayData;
-        uint32_t m_VariantTextureArrayDataSize;
+        GLuint         m_Id;
+        char*          m_VariantTextureArrayData;
+        uint32_t       m_VariantTextureArrayDataSize;
+        dmArray<char*> m_VariantTextureArrayUniforms;
     };
 
     struct OpenglVertexAttribute
@@ -119,11 +120,28 @@ namespace dmGraphics
         int32_t  m_Location;
     };
 
+    struct UniformNameIndirectionEntry
+    {
+        char* m_FromName;
+        char* m_ToName;
+    };
+
+    struct ShaderResourceBinding
+    {
+        char*    m_Name;
+        uint64_t m_NameHash;
+        Type     m_Type;
+        uint16_t m_ElementCount;
+        int16_t  m_Binding;
+    };
+
     struct OpenGLProgram
     {
-        GLuint                         m_Id;
-        dmArray<OpenglVertexAttribute> m_Attributes;
-        dmArray<GLuint>                m_VariantIds;
+        GLuint                               m_Id;
+        dmArray<OpenglVertexAttribute>       m_Attributes;
+        dmArray<ShaderResourceBinding>       m_ResourceBindings;
+        dmArray<GLuint>                      m_VariantIds;
+        dmArray<UniformNameIndirectionEntry> m_UniformNameIndirectionTable;
     };
 
     struct RenderTarget

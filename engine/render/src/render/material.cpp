@@ -337,6 +337,30 @@ namespace dmRender
         return 0x0;
     }
 
+    uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit)
+    {
+        Sampler* s                            = (Sampler*) sampler;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+
+        for (int i = 0; i < dmGraphics::GetNumTextureHandles(texture); ++i)
+        {
+            dmGraphics::EnableTexture(graphics_context, unit, i, texture);
+            if (s->m_Location != -1)
+            {
+                dmGraphics::SetSampler(graphics_context, s->m_Location + i, unit);
+
+                if (s->m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
+                    s->m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
+                {
+                    dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
+                }
+            }
+            unit++;
+        }
+
+        return unit;
+    }
+
     void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
     {
         if (!sampler)

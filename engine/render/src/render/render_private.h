@@ -268,6 +268,7 @@ namespace dmRender
     void                            GetMaterialTagList(HRenderContext context, uint32_t list_hash, MaterialTagList* list);
 
     bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
+    uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter
