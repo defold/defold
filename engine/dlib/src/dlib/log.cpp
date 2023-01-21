@@ -318,7 +318,8 @@ static void DoLogSynchronized(LogSeverity severity, const char* domain, const ch
 {
     DM_SPINLOCK_SCOPED_LOCK(g_ListenerLock); // Make sure no listeners are added or removed during the scope
 
-    for (int i = dmLog::g_ListenersCount - 1; i >= 0 ; --i)
+    int count = dmAtomicGet32(&dmLog::g_ListenersCount);
+    for (int i = count - 1; i >= 0 ; --i)
     {
         g_Listeners[i]((LogSeverity)severity, domain, output);
     }
@@ -453,12 +454,14 @@ void LogInitialize(const LogParams* params)
     }
 
     dmLogServer* server = new dmLogServer(server_socket, port, message_socket);
+    g_dmLogServer = server;
+
     server->m_Thread = 0;
     if(dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP)) // e.g. Emscripten doesn't support it
     {
         server->m_Thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     }
-    g_dmLogServer = server;
+
     dmAtomicStore32(&g_LogServerInitialized, 1);
 
     dmAtomicStore32(&g_ListenersCount, 0);
@@ -559,22 +562,21 @@ bool SetLogFile(const char* path)
 void dmLogRegisterListener(FLogListener listener)
 {
     DM_SPINLOCK_SCOPED_LOCK(dmLog::g_ListenerLock);
-    if (dmLog::g_ListenersCount >= dmLog::g_MaxListeners) {
+    if (dmAtomicGet32(&dmLog::g_ListenersCount) >= dmLog::g_MaxListeners) {
         dmLogWarning("Max dmLog listeners reached (%d)", dmLog::g_MaxListeners);
     } else {
-        dmLog::g_Listeners[dmLog::g_ListenersCount++] = listener;
+        dmLog::g_Listeners[dmAtomicAdd32(&dmLog::g_ListenersCount, 1)] = listener;
     }
 }
 
 void dmLogUnregisterListener(FLogListener listener)
 {
     DM_SPINLOCK_SCOPED_LOCK(dmLog::g_ListenerLock);
-    for (int i = 0; i < dmLog::g_ListenersCount; ++i)
+    for (int i = 0; i < dmAtomicGet32(&dmLog::g_ListenersCount); ++i)
     {
         if (dmLog::g_Listeners[i] == listener)
         {
-            dmLog::g_Listeners[i] = dmLog::g_Listeners[dmLog::g_ListenersCount - 1];
-            dmLog::g_ListenersCount--;
+            dmLog::g_Listeners[i] = dmLog::g_Listeners[dmAtomicSub32(&dmLog::g_ListenersCount, 1)];
             return;
         }
     }

@@ -17,6 +17,7 @@
 #include <string>
 #include <map>
 #include "../dlib/array.h"
+#include "../dlib/atomic.h"
 #include "../dlib/dlib.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
@@ -262,24 +263,24 @@ TEST(dmLog, TestCapture)
 
 static void LogThreadWithLogCalls(void* arg)
 {
-    int* run = (int*)arg;
+    int32_atomic_t* run = (int32_atomic_t*)arg;
     int count = 0;
-    while (*run)
+    while (dmAtomicGet32(run) != 0)
     {
         dmLogError("a warning %d", count);
         count++;
     }
 }
 
-int g_LogThreadWithLogCallsCount = 0;
+int32_atomic_t g_LogThreadWithLogCallsCount = 0;
 static void LogThreadWithLogCallsListener(LogSeverity severity, const char* domain, const char* formatted_string)
 {
-    g_LogThreadWithLogCallsCount++;
+    dmAtomicAdd32(&g_LogThreadWithLogCallsCount, 1);
 }
 
 TEST(dmLog, TestLogThreadWithLogCalls)
 {
-    int run = 1;
+    int32_atomic_t run = 1;
     dLib::SetDebugMode(false); // avoid spam in the unit tests
 
     dmThread::Thread log_thread = dmThread::New(LogThreadWithLogCalls, 0x80000, (void*)&run, "test");
@@ -287,11 +288,10 @@ TEST(dmLog, TestLogThreadWithLogCalls)
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
-
     g_LogThreadWithLogCallsCount = 0;
     dmLogRegisterListener(LogThreadWithLogCallsListener);
 
-    while (g_LogThreadWithLogCallsCount < 40)
+    while (dmAtomicGet32(&g_LogThreadWithLogCallsCount) < 40)
         dmTime::Sleep(1000);
 
     dmLog::LogFinalize();
@@ -299,7 +299,7 @@ TEST(dmLog, TestLogThreadWithLogCalls)
     dmTime::Sleep(1000); // make sure we write some more logs
 
     // wait for thread to join
-    run = 0;
+    dmAtomicStore32(&run, 0);
     dmThread::Join(log_thread);
     dLib::SetDebugMode(true);
 }
