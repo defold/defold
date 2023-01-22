@@ -665,6 +665,9 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
         dmLog::DoLogPlatform(severity, str_buf, actual_n);
     }
 
+    if (!dmLog::IsServerInitialized()) // in case the server lock isn't even created
+        return;
+
     // Make sure we have the lock, so that the log system cannot shut down in between
     DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
     if (!dmLog::IsServerInitialized())

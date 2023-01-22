@@ -37,6 +37,17 @@
     #undef HAS_SYSTEM_FUNCTION
 #endif
 
+TEST(dmLog, TestUninitialized)
+{
+    dmLogError("Logging an error");
+
+    dLib::SetDebugMode(false); // avoid spam in the unit tests
+
+    dmLogError("Logging an second error");
+
+    dLib::SetDebugMode(true);
+}
+
 TEST(dmLog, Init)
 {
     dmLog::LogParams params;
