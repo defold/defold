@@ -363,20 +363,18 @@ public class TextureSetGenerator {
         return new TextureSetResult(vertexData.left, vertexData.right, new LayoutResult(layouts, innerPadding, extrudeBorders));
     }
 
-    public static BufferedImage layoutImages(LayoutResult layoutResult, Map<String, BufferedImage> images) {
-        Layout layout = layoutResult.layouts.get(0);
-
+    public static BufferedImage layoutImages(Layout layout, int innerPadding, int extrudeBorders, Map<String, BufferedImage> images) {
         BufferedImage packedImage = new BufferedImage(layout.getWidth(), layout.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
         Graphics2D g = packedImage.createGraphics();
         for (Rect r : layout.getRectangles()) {
             BufferedImage image = images.get(r.id);
 
-            if (layoutResult.innerPadding > 0) {
-                image = TextureUtil.createPaddedImage(image, layoutResult.innerPadding, paddingColour);
+            if (innerPadding > 0) {
+                image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
             }
 
-            if (layoutResult.extrudeBorders > 0) {
-                image = TextureUtil.extrudeBorders(image, layoutResult.extrudeBorders);
+            if (extrudeBorders > 0) {
+                image = TextureUtil.extrudeBorders(image, extrudeBorders);
             }
 
             if (r.rotated) {

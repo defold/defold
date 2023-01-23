@@ -19,7 +19,7 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect TextureSetLayout$Layout]
+  (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect TextureSetLayout$Layout]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
@@ -72,9 +72,13 @@
      :size [(.. layout-first getWidth) (.. layout-first getHeight)]
      :rects all-rects}))
 
-(defn layout-images
+(defn layout-atlas-pages
   [layout-result id->image]
-  (TextureSetGenerator/layoutImages layout-result id->image))
+  (let [inner-padding (.-innerPadding layout-result)
+        extrude-borders (.-extrudeBorders layout-result)]
+    (mapv (fn [^Layout layout]
+            (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image))
+          (.-layouts layout-result))))
 
 (defn- sprite-trim-mode->hull-vertex-count
   ^long [sprite-trim-mode]
@@ -278,6 +282,9 @@
     (TextureSetResult->result result)))
 
 (defn layout-tile-source
-  [layout-result ^BufferedImage image tile-source-attributes]
-  (let [id->image (zipmap (map (fn [x] (format "tile%d" x)) (range)) (split-image image tile-source-attributes))]
-    (TextureSetGenerator/layoutImages layout-result id->image)))
+  [^TextureSetGenerator$LayoutResult layout-result ^BufferedImage image tile-source-attributes]
+  (let [layout (first (.-layouts layout-result))
+        inner-padding (.-innerPadding layout-result)
+        extrude-borders (.-extrudeBorders layout-result)
+        id->image (zipmap (map (fn [x] (format "tile%d" x)) (range)) (split-image image tile-source-attributes))]
+    (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image)))

@@ -212,7 +212,7 @@
     [proj-path full-lines]))
 
 ;; Used for rendering in the editor
-(g/defnk produce-full-source [resource proj-path+full-lines]
+(g/defnk produce-shader-source-info [resource proj-path+full-lines]
   (let [[proj-path full-lines] proj-path+full-lines
         resource-ext (resource/type-ext resource)
         shader-stage (shader-stage-from-ext resource-ext)
@@ -220,11 +220,14 @@
         shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
         shader-type (shader-language-to-java shader-language)
         source (string/join "\n" full-lines)
-        ^ShaderUtil$ES2Variants$TextureArrayResult variant-texture-array (ShaderUtil$ES2Variants/variantTextureArrayFallback source)
+        variant-texture-array (ShaderUtil$ES2Variants/variantTextureArrayFallback source)
+        array-sampler-names (set (some-> variant-texture-array .-arraySamplers))
         augmented-source (if (nil? variant-texture-array)
                            source
-                           (.source variant-texture-array))]
-    (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-type proj-path is-debug)))
+                           (.source variant-texture-array))
+        full-source (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-type proj-path is-debug)]
+    {:shader-source full-source
+     :array-sampler-names array-sampler-names}))
 
 (g/deftype ^:private ProjPath+Lines [(s/one s/Str "proj-path") (s/one [String] "lines")])
 
@@ -264,7 +267,7 @@
   (output proj-path->full-lines g/Any (g/fnk [included-proj-paths+full-lines]
                                                 (into {} included-proj-paths+full-lines)))
   (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
-  (output full-source g/Str :cached produce-full-source))
+  (output shader-source-info g/Str :cached produce-shader-source-info))
 
 (defn- additional-load-fn [project self _resource]
   (g/connect project :settings self :project-settings))

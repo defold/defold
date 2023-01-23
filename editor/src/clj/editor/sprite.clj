@@ -56,6 +56,7 @@
   (vec4 position)
   (vec2 texcoord0 true))
 
+;; TODO: These shaders need to be updated to support multi-page atlases.
 (shader/defshader vertex-shader
   (attribute vec4 position)
   (attribute vec2 texcoord0)

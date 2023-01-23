@@ -453,12 +453,12 @@
                           (not-empty))]
     (g/error-aggregate errors)))
 
-(g/defnk produce-build-targets [_node-id resource texture-set packed-image-generator texture-profile build-settings build-errors]
+(g/defnk produce-build-targets [_node-id resource texture-set packed-page-image-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
     (let [project           (project/get-project _node-id)
           workspace         (project/workspace project)
           compress?         (:compress-textures? build-settings false)
-          texture-target    (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)
+          texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-image-generator texture-profile compress?)
           pb-msg            texture-set
           dep-build-targets [texture-target]]
       [(pipeline/make-protobuf-build-target resource dep-build-targets
@@ -547,7 +547,7 @@
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
-(defn- generate-packed-image [{:keys [_node-id image-resources layout-data-generator]}]
+(defn- generate-packed-page-images [{:keys [_node-id image-resources layout-data-generator]}]
   (let [buffered-images (mapv #(resource-io/with-error-translation % _node-id nil
                                  (image-util/read-image %))
                               image-resources)]
@@ -555,7 +555,7 @@
       (let [layout-data (call-generator layout-data-generator)]
         (g/precluding-errors layout-data
           (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
-            (texture-set-gen/layout-images (:layout layout-data) id->image)))))))
+            (texture-set-gen/layout-atlas-pages (:layout layout-data) id->image)))))))
 
 (g/defnk produce-layout-data-generator
   [_node-id animation-images all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
@@ -577,6 +577,28 @@
                                (assoc :animations fake-animations))]
         {:f generate-texture-set-data
          :args augmented-args})))
+
+(g/defnk produce-packed-page-image-generator
+  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
+  (let [flat-image-resources (filterv some? (flatten image-resources))
+        image-sha1s (map (fn [resource]
+                           (resource-io/with-error-translation resource _node-id nil
+                             (resource/resource->path-inclusive-sha1-hex resource)))
+                         flat-image-resources)
+        errors (filter g/error? image-sha1s)]
+    (if (seq errors)
+      (g/error-aggregate errors)
+      (let [packed-image-sha1 (digestable/sha1-hash
+                                {:extrude-borders extrude-borders
+                                 :image-sha1s image-sha1s
+                                 :inner-padding inner-padding
+                                 :margin margin
+                                 :type :packed-atlas-image})]
+        {:f generate-packed-page-images
+         :sha1 packed-image-sha1
+         :args {:_node-id _node-id
+                :image-resources flat-image-resources
+                :layout-data-generator layout-data-generator}}))))
 
 (defn- complete-ddf-animation [ddf-animation {:keys [flip-horizontal flip-vertical fps id playback] :as _animation}]
   (assert (boolean? flip-horizontal))
@@ -682,28 +704,9 @@
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output packed-image-generator g/Any (g/fnk [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
-                                         (let [flat-image-resources (filterv some? (flatten image-resources))
-                                               image-sha1s (map (fn [resource]
-                                                                  (resource-io/with-error-translation resource _node-id nil
-                                                                    (resource/resource->path-inclusive-sha1-hex resource)))
-                                                                flat-image-resources)
-                                               errors (filter g/error? image-sha1s)]
-                                           (if (seq errors)
-                                             (g/error-aggregate errors)
-                                             (let [packed-image-sha1 (digestable/sha1-hash
-                                                                       {:extrude-borders extrude-borders
-                                                                        :image-sha1s image-sha1s
-                                                                        :inner-padding inner-padding
-                                                                        :margin margin
-                                                                        :type :packed-atlas-image})]
-                                               {:f generate-packed-image
-                                                :sha1 packed-image-sha1
-                                                :args {:_node-id _node-id
-                                                       :image-resources flat-image-resources
-                                                       :layout-data-generator layout-data-generator}})))))
+  (output packed-page-image-generator g/Any    produce-packed-page-image-generator)
 
-  (output packed-image     BufferedImage       :cached (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
+  (output packed-page-images [BufferedImage]   :cached (g/fnk [packed-page-image-generator] (call-generator packed-page-image-generator)))
 
   (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
                                                  (tex-gen/make-preview-texture-image packed-image texture-profile)))

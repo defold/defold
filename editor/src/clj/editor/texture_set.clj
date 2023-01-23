@@ -56,18 +56,22 @@
 ;; anim data
 
 (defn- ->anim-frame
-  [frame-index tex-coords tex-dims tex-coord-order frame-indices]
+  [frame-index page-index tex-coords tex-dims tex-coord-order]
   (let [tex-coords-data (->uv-quad frame-index tex-coords tex-coord-order)
         {:keys [width height]} (->tex-dim frame-index tex-dims)]
-    {:tex-coords tex-coords-data
+    {:page-index page-index
+     :tex-coords tex-coords-data
      :width width
      :height height}))
 
-
 (defn- ->anim-data
-  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices]
+  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices page-indices]
   (let [tex-coord-order (tex-coord-lookup flip-horizontal flip-vertical)
-        frames (mapv #(->anim-frame % tex-coords tex-dims tex-coord-order frame-indices) (range start end))]
+        frames (mapv (fn [i]
+                       (let [frame-index (frame-indices i)
+                             page-index (page-indices frame-index)]
+                         (->anim-frame frame-index page-index tex-coords tex-dims tex-coord-order)))
+                     (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
      :playback playback
@@ -86,9 +90,10 @@
                      (.order ByteOrder/LITTLE_ENDIAN)
                      (.asFloatBuffer))
         animations (:animations texture-set)
-        frame-indices (:frame-indices texture-set)]
+        frame-indices (:frame-indices texture-set)
+        page-indices (:page-indices texture-set)]
     (into {}
-          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices)))
+          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices)))
           animations)))
 
 

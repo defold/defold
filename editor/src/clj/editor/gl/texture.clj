@@ -71,16 +71,21 @@
           :else (println "WARNING: ignoring unknown texture parameter " p))))))
 
 (defprotocol TextureProxy
-  (->texture ^Texture [this ^GL2 gl]))
+  (->texture ^Texture [this ^GL2 gl page-index]))
 
 (defrecord TextureLifecycle [request-id cache-id unit params texture-data]
   TextureProxy
-  (->texture [this gl]
+  (->texture [this gl page-index]
+    ;; TODO: texture-data should be a vector of TextureData instances
+    ;; representing each page or array index in a "virtual" array texture.
+    ;; unit should be a vector of texture units to bind to.
+    ;; For sprites, we keep the assumption that we'll bind to unit 0 onwards.
     (scene-cache/request-object! cache-id request-id gl texture-data))
 
   GlBind
   (bind [this gl _render-args]
-    (let [tex (->texture this gl)
+    ;; TODO: Look over texture-datas and bind to units.
+    (let [tex (->texture this gl 0)
           tgt (.getTarget tex)]
       (.enable tex gl)                ; Enable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
       (.glActiveTexture ^GL2 gl unit) ; Set the active texture unit. Implicit parameter to (.bind ...)
@@ -88,7 +93,8 @@
       (apply-params! gl tgt params))) ; Apply filtering settings to the bound texture
 
   (unbind [this gl _render-args]
-    (let [tex (->texture this gl)
+    ;; TODO: Look over texture-datas and unbind from units.
+    (let [tex (->texture this gl 0)
           tgt (.getTarget tex)]
       (.glActiveTexture ^GL2 gl unit)           ; Set the active texture unit. Implicit parameter to (.glBindTexture ...)
       (.glBindTexture ^GL2 gl tgt 0)            ; Re-bind default "no-texture" to the active texture unit
@@ -270,8 +276,8 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
         :min-filter GL2/GL_NEAREST
         :mag-filter GL2/GL_NEAREST))))
 
-(defn tex-sub-image [^GL2 gl ^TextureLifecycle texture data x y w h data-format]
-  (let [tex (->texture texture gl)
+(defn tex-sub-image [^GL2 gl ^TextureLifecycle texture page-index data x y w h data-format]
+  (let [tex (->texture texture gl page-index)
         data (->texture-data w h data-format data false)]
     (.updateSubImage tex gl data 0 x y)))
 
