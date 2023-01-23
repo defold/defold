@@ -336,9 +336,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
         Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
         mergeSubCollections(resource, messageBuilder);
-        //TODO:
-        // - collection output
-        // - make sure all inputs from factories are uncountable
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
