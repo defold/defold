@@ -341,7 +341,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         //TODO:
         // - collection output
         // - make sure all inputs from factories are uncountable
-        // - copy data into collection proto
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
@@ -414,7 +413,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         messageBuilder.addAllPropertyResources(propertyResources);
 
         ComponentsCounter.sumInputs(compStorage, task.getInputs(), compCounterInputsCount);
-        System.out.println("Bob: " +" save comp count for colection "+task.output(1)+" : " + compStorage);
+        System.out.println("Bob: " +" ---save comp count for colection "+task.output(1)+" : " + compStorage);
+        ComponentsCounter.copyDataToBuilder(compStorage, project, messageBuilder);
+        System.out.println("Bob: " +" ---Done");
         task.output(1).setContent(compStorage.toByteArray());
 
         return messageBuilder;

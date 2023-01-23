@@ -36,6 +36,8 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
 import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
@@ -231,6 +233,35 @@ public class ComponentsCounter {
             String comp = cd.getComponent();
             String type = FilenameUtils.getExtension(comp);
             compStorage.add(type);
+        }
+    }
+
+    public static void copyDataToBuilder(Storage storage, Project project, CollectionDesc.Builder builder) {
+        Map<String, Integer> components = storage.get();
+        HashMap<String, Integer> mergedComponents = new HashMap<>();
+        for (Map.Entry<String, Integer> entry : components.entrySet()) {
+            // different input component names may have the same output name
+            // for example wav ans sound both are soundc
+            String name = project.replaceExt("." + entry.getKey()).substring(1);
+             // different input component names may have the same output name
+            // for example wav ans sound both are soundc
+            if (mergedComponents.containsKey(name)) {
+                Integer mergedValue = mergedComponents.get(name);
+                Integer value = entry.getValue();
+                if (mergedValue == UNCOUNTABLE || value == UNCOUNTABLE) {
+                    mergedComponents.put(name, UNCOUNTABLE);
+                } else {
+                    mergedComponents.put(name, mergedValue + value);
+                }
+            } else {
+                mergedComponents.put(name, entry.getValue());
+            }
+        }
+        for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
+            ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
+            componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
+            System.out.println("Bob: " +"  KEY: "+entry.getKey() +" count: "+entry.getValue());
+            builder.addComponentTypes(componentTypeDesc);
         }
     }
 }
