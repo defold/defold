@@ -2143,7 +2143,7 @@ If you do not specifically require different script states, consider changing th
                            (fn [successful?]
                              (when successful?
                                (if (some-> output-directory .isDirectory)
-                                 (when (prefs/get-prefs prefs "open-bundle-target-folder" false) (ui/open-file output-directory))
+                                 (when (prefs/get-prefs prefs "open-bundle-target-folder" true) (ui/open-file output-directory))
                                  (dialogs/make-info-dialog
                                    {:title "Bundle Failed"
                                     :icon :icon/triangle-error
