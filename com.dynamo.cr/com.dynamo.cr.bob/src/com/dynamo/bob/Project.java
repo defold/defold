@@ -489,7 +489,6 @@ public class Project {
                 Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
                 if (!ignoreTaskAutoCreation.contains(builderClass)) {
                     Task<?> task = createTask(input, builderClass);
-                    Bob.verbose("\nCreate:\nInput: %s \nOutput:'%s'", task.getInputsString(), task.getOutputsString());
                 }
             }
         }
@@ -1364,7 +1363,6 @@ run:
                 // compare all task signature. current task signature between previous
                 // signature from state on disk
                 TimeProfiler.start("compare signatures");
-                Bob.verbose("\nSignatures:\nInput: %s \nOutput:'%s'", task.getInputsString(), task.getOutputsString());
                 TimeProfiler.addData("main input", String.valueOf(task.input(0)));
                 byte[] taskSignature = task.calculateSignature();
                 boolean allSigsEquals = true;
@@ -1396,8 +1394,6 @@ run:
                 TimeProfiler.start(task.getName());
                 TimeProfiler.addData("output", task.getOutputsString());
                 TimeProfiler.addData("type", "buildTask");
-
-                Bob.verbose("\nBuild:\nInput: %s \nOutput:'%s'", task.getInputsString(), task.getOutputsString());
 
                 completedTasks.add(task);
 

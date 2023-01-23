@@ -72,7 +72,6 @@ public class ComponentsCounter {
                 componentName = componentName.substring(1);
             }
             Integer currentValue = components.getOrDefault(componentName, 0);
-            System.out.println("Bob: " +" Add component " + componentName + " count "+ count);
             if (count == UNCOUNTABLE) {
                 components.put(componentName, UNCOUNTABLE);
             } 
@@ -252,8 +251,6 @@ public class ComponentsCounter {
             // different input component names may have the same output name
             // for example wav ans sound both are soundc
             String name = project.replaceExt("." + entry.getKey()).substring(1);
-             // different input component names may have the same output name
-            // for example wav ans sound both are soundc
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);
                 Integer value = entry.getValue();
@@ -269,7 +266,6 @@ public class ComponentsCounter {
         for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
             componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
-            System.out.println("Bob: " +"  KEY: "+entry.getKey() +" count: "+entry.getValue());
             builder.addComponentTypes(componentTypeDesc);
         }
     }

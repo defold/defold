@@ -152,14 +152,12 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             Set<IResource> counterInputs = ComponentsCounter.getCounterInputs(embedTask);
             for(IResource res : counterInputs) {
                 taskBuilder.addInput(res);
-                System.out.println("Bob: " +" UNCOUNTABLE "+res);
                 compCounterInputsCount.put(res, ComponentsCounter.UNCOUNTABLE);
             }
         }
 
         Task<Void> task = taskBuilder.build();
         for (Task<?> et : embedTasks) {
-            System.out.println("Bob: " +" col embed task inputs:"+et.getInputsString() + "  outputs: "+et.getOutputsString());
             et.setProductOf(task);
         }
         return task;
@@ -413,9 +411,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         messageBuilder.addAllPropertyResources(propertyResources);
 
         ComponentsCounter.sumInputs(compStorage, task.getInputs(), compCounterInputsCount);
-        System.out.println("Bob: " +" ---save comp count for colection "+task.output(1)+" : " + compStorage);
         ComponentsCounter.copyDataToBuilder(compStorage, project, messageBuilder);
-        System.out.println("Bob: " +" ---Done");
         task.output(1).setContent(compStorage.toByteArray());
 
         return messageBuilder;
