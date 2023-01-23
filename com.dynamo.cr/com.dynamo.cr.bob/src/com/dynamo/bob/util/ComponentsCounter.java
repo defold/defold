@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Iterator;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -139,8 +140,12 @@ public class ComponentsCounter {
         return type.equals("factory") || type.equals("collectionfactory");
     }
 
-    private static Boolean isCompCountInput(IResource res) {
+    private static Boolean isCompCounterStorage(IResource res) {
         return res.getPath().endsWith(EXT_GO) || res.getPath().endsWith(EXT_COL);
+    }
+
+    private static Boolean isCompCounterStorage(String path) {
+        return path.endsWith(EXT_GO) || path.endsWith(EXT_COL);
     }
 
     private static String getCompCounterPathFromFactoryPrototype(String type, IResource resource) throws IOException, CompileExceptionError {
@@ -187,7 +192,7 @@ public class ComponentsCounter {
         List<IResource> inputs = task.getInputs();
         Set<IResource> counterInputs = new HashSet<IResource>();
         for (IResource res : inputs) {
-            if (isCompCountInput(res)) {
+            if (isCompCounterStorage(res)) {
                 counterInputs.add(res);
             }
         }
@@ -196,7 +201,7 @@ public class ComponentsCounter {
 
     public static void sumInputs(Storage targetStorage, List<IResource> inputs, Integer count) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
-            if (isCompCountInput(res)) {
+            if (isCompCounterStorage(res)) {
                 targetStorage.add(Storage.load(res), count);
             }
         }
@@ -205,20 +210,24 @@ public class ComponentsCounter {
     public static void sumInputs(Storage targetStorage, List<IResource> inputs,
         Map<IResource, Integer> compCounterInputsCount) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
-            if (isCompCountInput(res)) {
+            if (isCompCounterStorage(res)) {
                 targetStorage.add(Storage.load(res), compCounterInputsCount.get(res));
             }
         }
     }
 
-    public static String replaceExt(IResource res) {
-        String path = res.getPath();
-         if (path.endsWith(".go")) {
-            return "/" + BuilderUtil.replaceExt(path, ".go", EXT_GO);
+    public static String replaceExt(String path) {
+        if (path.endsWith(".go")) {
+            return BuilderUtil.replaceExt(path, ".go", EXT_GO);
         } else if (path.endsWith(".collection")) {
-            return "/" + BuilderUtil.replaceExt(path, ".collection", EXT_COL);
+            return BuilderUtil.replaceExt(path, ".collection", EXT_COL);
         }
         return null;
+    }
+
+    public static String replaceExt(IResource res) {
+        String path = "/" + res.getPath();
+        return replaceExt(path);
     }
 
     public static void countComponents(Project project, IResource res, Storage compStorage) throws IOException, CompileExceptionError {
@@ -262,6 +271,16 @@ public class ComponentsCounter {
             componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
             System.out.println("Bob: " +"  KEY: "+entry.getKey() +" count: "+entry.getValue());
             builder.addComponentTypes(componentTypeDesc);
+        }
+    }
+
+    public static void excludeCounterPaths(HashSet<String> paths) {
+        Iterator<String> iterator = paths.iterator();
+        while (iterator.hasNext()) {
+            String path = iterator.next();
+            if (isCompCounterStorage(path)) {
+                iterator.remove();
+            }
         }
     }
 }
