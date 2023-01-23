@@ -711,9 +711,16 @@ static int CreateTexture(lua_State* L)
     uint32_t format      = (uint32_t) CheckTableInteger(L, 2, "format");
     uint32_t max_mipmaps = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
 
-    dmGraphics::TextureImage::CompressionType compression_type = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
-    uint8_t max_mipmaps_actual = dmGraphics::GetMipmapCount(dmMath::Max(width, height));
+    dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
+    dmBuffer::HBuffer buffer = 0;
+    if (dmScript::IsBuffer(L, 3))
+    {
+        dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
+        buffer                         = dmGameSystem::UnpackLuaBuffer(l_buffer);
+    }
+
+    uint8_t max_mipmaps_actual = dmGraphics::GetMipmapCount(dmMath::Max(width, height));
     if (max_mipmaps > max_mipmaps_actual)
     {
         dmLogWarning("Max mipmaps %d requested for texture %s, but max mipmaps supported for size (%d, %d) is %d",
@@ -721,13 +728,11 @@ static int CreateTexture(lua_State* L)
         max_mipmaps = max_mipmaps_actual;
     }
 
-    dmBuffer::HBuffer buffer = 0;
-    if (dmScript::IsBuffer(L, 3))
+    if (buffer == 0 && compression_type != dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT)
     {
-        // If a buffer has been passed in we can optionally support compression type
-        dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
-        buffer                         = l_buffer->m_Buffer;
-        compression_type               = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
+        dmLogWarning("Compression type %d requested for textures %s, but no buffer was supplied. This is not supported, COMPRESSION_TYPE_DEFAULT will be used",
+            (int) compression_type, path_str);
+        compression_type = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
     }
 
     // Max mipmap count is inclusive, so need at least 1
