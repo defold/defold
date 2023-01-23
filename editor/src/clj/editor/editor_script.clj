@@ -34,6 +34,7 @@
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
                                  :ext "editor_script"
+                                 :language "lua"
                                  :label "Editor Script"
                                  :icon "icons/32/Icons_29-AT-Unknown.png"
                                  :view-types [:code :default]

@@ -93,6 +93,10 @@ namespace dmSound
             g_SoundManager.m_IsMusicPlaying          = environment->GetMethodID(jni_class_SoundManager, "isMusicPlaying", "()Z");
 
             environment->DeleteLocalRef(jni_string_SoundManager);
+            environment->DeleteLocalRef(jni_class_SoundManager);
+            environment->DeleteLocalRef(jni_class_ClassLoader);
+            environment->DeleteLocalRef(jni_object_getClassLoader);
+            environment->DeleteLocalRef(jni_class_NativeActivity);
         }
         return thread.Detach() ? RESULT_OK : RESULT_INIT_ERROR;
     }

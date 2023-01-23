@@ -2785,6 +2785,29 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
     dmScript::LuaHBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     ASSERT_NE((void*)0x0, buffer_ptr);
     ASSERT_EQ(m_Buffer, buffer_ptr->m_Buffer);
+
+    dmScript::LuaHBuffer* buffer_ptr2 = dmScript::CheckBufferNoError(L, -1);
+    ASSERT_NE((void*)0x0, buffer_ptr2);
+    ASSERT_EQ(m_Buffer, buffer_ptr2->m_Buffer);
+
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptBufferTest, PushCheckUnpackBuffer)
+{
+    int top = lua_gettop(L);
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
+    dmScript::PushBuffer(L, luabuf);
+
+    dmBuffer::HBuffer buf = dmScript::CheckBufferUnpack(L, -1);
+    ASSERT_NE((dmBuffer::HBuffer)0x0, buf);
+    ASSERT_EQ(m_Buffer, buf);
+
+    dmBuffer::HBuffer buf2 = dmScript::CheckBufferUnpackNoError(L, -1);
+    ASSERT_NE((dmBuffer::HBuffer)0x0, buf2);
+    ASSERT_EQ(m_Buffer, buf2);
+
     lua_pop(L, 1);
     ASSERT_EQ(top, lua_gettop(L));
 }
