@@ -147,6 +147,7 @@
                       {:path [:wrap-v]
                        :label "Wrap V"
                        :type :choicebox
+
                        :options (protobuf-forms/make-options wrap-options)
                        :default (ffirst wrap-options)}
                       {:path [:filter-min]

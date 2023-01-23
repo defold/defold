@@ -23,7 +23,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$ES2Variants ShaderUtil$SPIRVReflector$Resource)
+  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$ES2Variants ShaderUtil$ES2Variants$TextureArrayResult ShaderUtil$SPIRVReflector$Resource)
            (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language)
            (com.google.protobuf ByteString)))
 
@@ -220,7 +220,10 @@
         shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
         shader-type (shader-language-to-java shader-language)
         source (string/join "\n" full-lines)
-        augmented-source (or (ShaderUtil$ES2Variants/variantTextureArrayFallback source) source)]
+        ^ShaderUtil$ES2Variants$TextureArrayResult variant-texture-array (ShaderUtil$ES2Variants/variantTextureArrayFallback source)
+        augmented-source (if (nil? variant-texture-array)
+                           source
+                           (.source variant-texture-array))]
     (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-type proj-path is-debug)))
 
 (g/deftype ^:private ProjPath+Lines [(s/one s/Str "proj-path") (s/one [String] "lines")])

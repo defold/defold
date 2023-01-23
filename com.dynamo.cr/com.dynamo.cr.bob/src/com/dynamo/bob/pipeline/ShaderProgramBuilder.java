@@ -194,7 +194,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             ///////////////////////////////////////////////////////
             // Texture array variant
             ///////////////////////////////////////////////////////
-            ES2Variants.VariantTextureArrayFallbackResult sourceVariantTextureArray = ES2Variants.variantTextureArrayFallback(source);
+            ES2Variants.TextureArrayResult sourceVariantTextureArray = ES2Variants.variantTextureArrayFallback(source);
             if (sourceVariantTextureArray != null) {
                 ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
                 String src = compileGLSL(sourceVariantTextureArray.source, shaderType, shaderLanguage, resourceOutput, isDebug);

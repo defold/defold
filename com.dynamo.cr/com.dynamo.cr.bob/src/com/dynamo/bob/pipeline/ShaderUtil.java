@@ -157,17 +157,17 @@ public class ShaderUtil {
             buffer.add("}");
         }
 
-        public static class VariantTextureArrayFallbackResult
+        public static class TextureArrayResult
         {
             public String   source;
             public String[] arraySamplers;
         }
 
-        public static VariantTextureArrayFallbackResult variantTextureArrayFallback(String shaderSource) {
+        public static TextureArrayResult variantTextureArrayFallback(String shaderSource) {
             // For texture array support, we need to convert texture2DArray functions
             if (Common.hasUniformType(shaderSource, ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)) {
 
-                VariantTextureArrayFallbackResult result = new VariantTextureArrayFallbackResult();
+                TextureArrayResult result = new TextureArrayResult();
 
                 final int max_global_page_count = 4;
 
