@@ -320,6 +320,7 @@ public class Project {
         {".script", ".scriptc"},
         {".sound", ".soundc"},
         {".wav", ".soundc"},
+        {".ogg", ".soundc"},
         {".collectionfactory", ".collectionfactoryc"},
         {".factory", ".factoryc"},
         {".light", ".lightc"},
