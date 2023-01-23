@@ -25,7 +25,8 @@
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -247,6 +248,7 @@
        params))))
 
 (defn- inject-max-page-count [shader-source max-page-count]
+  {:pre [(integer? max-page-count)]}
   (string/replace-first shader-source
                         "#define DM_MAX_PAGE_COUNT ###"
                         (str "#define DM_MAX_PAGE_COUNT " max-page-count)))
@@ -262,7 +264,7 @@
     (set (fn [evaluation-context self old-value new-value]
            (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :vertex-resource]
-                                    [:full-source :vertex-source]
+                                    [:shader-source-info :vertex-shader-source-info]
                                     [:build-targets :dep-build-targets]))))
 
   (property fragment-program resource/Resource
@@ -271,7 +273,7 @@
     (set (fn [evaluation-context self old-value new-value]
            (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :fragment-resource]
-                                    [:full-source :fragment-source]
+                                    [:shader-source-info :fragment-shader-source-info]
                                     [:build-targets :dep-build-targets]))))
 
   (property max-page-count g/Int (default 1) (dynamic visible (g/constantly false)))
@@ -285,25 +287,34 @@
 
   (input dep-build-targets g/Any :array)
   (input vertex-resource resource/Resource)
-  (input vertex-source g/Str)
+  (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
-  (input fragment-source g/Str)
+  (input fragment-shader-source-info g/Any)
 
   (output pb-msg g/Any produce-pb-msg)
 
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
-  (output vertex-source g/Str :cached (g/fnk [vertex-source max-page-count] (inject-max-page-count vertex-source max-page-count)))
-  (output fragment-source g/Str :cached (g/fnk [fragment-source max-page-count] (inject-max-page-count fragment-source max-page-count)))
-  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-source vertex-program fragment-source fragment-program vertex-constants fragment-constants samplers]
-                                                (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
-                                                    (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-                                                    (let [uniforms (-> {}
-                                                                       (into (map (fn [constant] [(:name constant) (constant->val constant)]))
-                                                                             (concat vertex-constants fragment-constants))
-                                                                       (into (map (fn [s] [(:name s) nil]))
-                                                                             samplers))]
-                                                      (shader/make-shader _node-id vertex-source fragment-source uniforms)))))
+  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-shader-source-info vertex-program fragment-shader-source-info fragment-program vertex-constants fragment-constants samplers max-page-count]
+                                           (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
+                                               (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+                                               (let [vertex-source (inject-max-page-count (:shader-source vertex-shader-source-info) max-page-count)
+                                                     fragment-source (inject-max-page-count  (:shader-source fragment-shader-source-info) max-page-count)
+                                                     array-sampler-name? (into (:array-sampler-names vertex-shader-source-info)
+                                                                               (:array-sampler-names fragment-shader-source-info))
+                                                     uniforms (-> {}
+                                                                  (into (map (fn [constant]
+                                                                               [(:name constant) (constant->val constant)]))
+                                                                        (concat vertex-constants fragment-constants))
+                                                                  (into (mapcat (fn [{sampler-name :name}]
+                                                                                  (if (array-sampler-name? sampler-name)
+                                                                                    (map (fn [page-index]
+                                                                                           (let [page-sampler-name (str sampler-name "_" page-index)]
+                                                                                             (pair page-sampler-name nil)))
+                                                                                         (range max-page-count))
+                                                                                    [(pair sampler-name nil)])))
+                                                                        samplers))]
+                                                 (shader/make-shader _node-id vertex-source fragment-source uniforms)))))
   (output samplers [g/KeywordMap] (g/fnk [samplers] (vec samplers))))
 
 (defn- make-sampler [name]

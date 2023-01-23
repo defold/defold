@@ -26,6 +26,8 @@
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
   (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+           [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.graphics.proto Graphics$TextureImage]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
@@ -55,6 +57,37 @@
        :resource (workspace/make-build-resource texture-resource)
        :build-fn build-texture
        :user-data {:content-generator image-generator
+                   :compress? compress?
+                   :texture-profile texture-profile}})))
+
+(defn- build-array-texture [resource _dep-resources user-data]
+  (let [{:keys [content-generator texture-profile compress?]} user-data
+        images ((:f content-generator) (:args content-generator))]
+    (g/precluding-errors
+      [images]
+      (let [texture-images (map #(tex-gen/make-texture-image % texture-profile compress?)
+                                images)
+            combined-texture-image (->> texture-images
+                                        (into-array Graphics$TextureImage)
+                                        (TextureUtil/createBuilder)
+                                        (.build))]
+        {:resource resource
+         :content  (protobuf/pb->bytes combined-texture-image)}))))
+
+(defn make-array-texture-build-target
+  [workspace node-id array-images-generator texture-profile compress?]
+  (assert (contains? array-images-generator :sha1))
+  (let [texture-type (workspace/get-resource-type workspace "texture")
+        texture-hash (digestable/sha1-hash
+                       {:compress? compress?
+                        :image-sha1 (:sha1 array-images-generator)
+                        :texture-profile texture-profile})
+        texture-resource (resource/make-memory-resource workspace texture-type texture-hash)]
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource (workspace/make-build-resource texture-resource)
+       :build-fn build-array-texture
+       :user-data {:content-generator array-images-generator
                    :compress? compress?
                    :texture-profile texture-profile}})))
 

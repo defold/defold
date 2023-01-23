@@ -14,19 +14,17 @@
 
 (ns editor.gl.texture
   "Functions for creating and using textures"
-  (:require [editor.image-util :as image-util]
+  (:require [editor.gl :as gl]
             [editor.gl.protocols :refer [GlBind]]
-            [editor.gl :as gl]
-            [internal.util :as util]
+            [editor.image-util :as image-util]
             [editor.scene-cache :as scene-cache]
-            [dynamo.graph :as g])
-  (:import [java.awt.image BufferedImage DataBuffer DataBufferByte]
-           [java.nio Buffer IntBuffer ByteBuffer]
-           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
-           [com.jogamp.opengl GL GL2 GL3 GLContext GLProfile]
-           [com.jogamp.common.nio Buffers]
+            [internal.util :as util])
+  (:import [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
+           [com.jogamp.opengl GL GL2 GL3 GLProfile]
            [com.jogamp.opengl.util.texture Texture TextureIO TextureData]
-           [com.jogamp.opengl.util.awt ImageUtil]))
+           [com.jogamp.opengl.util.awt ImageUtil]
+           [java.awt.image BufferedImage DataBufferByte]
+           [java.nio Buffer ByteBuffer]))
 
 (set! *warn-on-reflection* true)
 
@@ -71,29 +69,36 @@
           :else (println "WARNING: ignoring unknown texture parameter " p))))))
 
 (defprotocol TextureProxy
-  (->texture ^Texture [this ^GL2 gl]))
+  (->texture ^Texture [this ^GL2 gl texture-array-index]))
 
-(defrecord TextureLifecycle [request-id cache-id unit params texture-data]
+(defrecord TextureLifecycle [request-id cache-id params texture-datas texture-units]
   TextureProxy
-  (->texture [this gl]
-    (scene-cache/request-object! cache-id request-id gl texture-data))
+  (->texture [_this gl texture-array-index]
+    (let [texture-data (texture-datas texture-array-index)]
+      (scene-cache/request-object! cache-id request-id gl texture-data)))
 
   GlBind
   (bind [this gl _render-args]
-    (let [tex (->texture this gl)
-          tgt (.getTarget tex)]
-      (.enable tex gl)                ; Enable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
-      (.glActiveTexture ^GL2 gl unit) ; Set the active texture unit. Implicit parameter to (.bind ...)
-      (.bind tex gl)                  ; Bind our texture to the active texture unit. Used for subsequent render calls. Also implicit parameter to (apply-params! ...)
-      (apply-params! gl tgt params))) ; Apply filtering settings to the bound texture
+    (doseq [texture-unit-index (range 0 (min (count texture-units) (count texture-datas)))]
+      (let [texture-unit (texture-units texture-unit-index)
+            gl-texture-unit (+ texture-unit GL2/GL_TEXTURE0)]
+        (let [tex (->texture this gl texture-unit)
+              tgt (.getTarget tex)]
+          (.enable tex gl)                           ; Enable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
+          (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.bind ...)
+          (.bind tex gl)                             ; Bind our texture to the active texture unit. Used for subsequent render calls. Also implicit parameter to (apply-params! ...)
+          (apply-params! gl tgt params)))))          ; Apply filtering settings to the bound texture
 
   (unbind [this gl _render-args]
-    (let [tex (->texture this gl)
-          tgt (.getTarget tex)]
-      (.glActiveTexture ^GL2 gl unit)           ; Set the active texture unit. Implicit parameter to (.glBindTexture ...)
-      (.glBindTexture ^GL2 gl tgt 0)            ; Re-bind default "no-texture" to the active texture unit
-      (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0) ; Set TEXTURE0 as the active texture unit in case anything outside of the bind / unbind cycle forgets to call (.glActiveTexture ...)
-      (.disable tex gl))))                      ; Disable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
+    (doseq [texture-unit-index (range 0 (min (count texture-units) (count texture-datas)))]
+      (let [texture-unit (texture-units texture-unit-index)
+            gl-texture-unit (+ texture-unit GL2/GL_TEXTURE0)]
+        (let [tex (->texture this gl texture-unit)
+              tgt (.getTarget tex)]
+          (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.glBindTexture ...)
+          (.glBindTexture ^GL2 gl tgt 0)             ; Re-bind default "no-texture" to the active texture unit
+          (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0)  ; Set TEXTURE0 as the active texture unit in case anything outside of the bind / unbind cycle forgets to call (.glActiveTexture ...)
+          (.disable tex gl))))))                     ; Disable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
 
 (defn set-params [^TextureLifecycle tlc params]
   (update tlc :params merge params))
@@ -183,9 +188,9 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   ([request-id img params]
    (image-texture request-id img params 0))
   ([request-id ^BufferedImage img params unit-index]
-    (let [texture-data (image->texture-data (flip-y (or img (:contents image-util/placeholder-image))) true)
-          unit (+ unit-index GL2/GL_TEXTURE0)]
-      (->TextureLifecycle request-id ::texture unit params texture-data))))
+    (let [texture-datas [(image->texture-data (flip-y (or img (:contents image-util/placeholder-image))) true)]
+          texture-units [unit-index]]
+      (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
 
 
 (def format->gl-format
@@ -252,13 +257,14 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   ([request-id img params]
    (texture-image->gpu-texture request-id img params 0))
   ([request-id ^Graphics$TextureImage img params unit-index]
-   (let [texture-data (texture-image->texture-data img)
-         unit (+ unit-index GL2/GL_TEXTURE0)]
-      (->TextureLifecycle request-id ::texture unit params texture-data))))
+   (let [texture-datas [(texture-image->texture-data img)]
+         texture-units [unit-index]]
+      (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
 
 (defn empty-texture [request-id width height data-format params unit-index]
-  (let [unit (+ unit-index GL2/GL_TEXTURE0)]
-    (->TextureLifecycle request-id ::texture unit params (->texture-data width height data-format nil false))))
+  (let [texture-datas [(->texture-data width height data-format nil false)]
+        texture-units [unit-index]]
+    (->TextureLifecycle request-id ::texture params texture-datas texture-units)))
 
 (defonce white-pixel
   (delay
@@ -270,8 +276,8 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
         :min-filter GL2/GL_NEAREST
         :mag-filter GL2/GL_NEAREST))))
 
-(defn tex-sub-image [^GL2 gl ^TextureLifecycle texture data x y w h data-format]
-  (let [tex (->texture texture gl)
+(defn tex-sub-image [^GL2 gl ^TextureLifecycle texture page-index data x y w h data-format]
+  (let [tex (->texture texture gl page-index)
         data (->texture-data w h data-format data false)]
     (.updateSubImage tex gl data 0 x y)))
 
@@ -288,9 +294,9 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   ([request-id texture-images params]
    (cubemap-texture-images->gpu-texture request-id texture-images params 0))
   ([request-id texture-images params unit-index]
-   (let [texture-datas (util/map-vals texture-image->texture-data texture-images)
-         unit (+ unit-index GL2/GL_TEXTURE0)]
-     (->TextureLifecycle request-id ::cubemap-texture unit params texture-datas))))
+   (let [texture-datas [(util/map-vals texture-image->texture-data texture-images)]
+         texture-units [unit-index]]
+     (->TextureLifecycle request-id ::cubemap-texture params texture-datas texture-units))))
 
 (defn- make-texture [^GL2 gl ^TextureData texture-data]
   (Texture. gl texture-data))

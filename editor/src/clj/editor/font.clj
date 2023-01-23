@@ -756,7 +756,7 @@
                                                   (.put src-data)
                                                   (.flip))]
                                    (when (> (:glyph-data-size glyph) 0)
-                                     (texture/tex-sub-image gl texture tgt-data x y w h data-format))
+                                     (texture/tex-sub-image gl texture 0 tgt-data x y w h data-format))
                                    (assoc m glyph {:x x :y y})))))))
             glyph)))))
 
