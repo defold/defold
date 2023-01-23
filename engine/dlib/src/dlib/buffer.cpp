@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -69,8 +69,6 @@ namespace dmBuffer
         uint16_t m_Version;
         uint16_t m_ContentVersion;  // A running number, which user can use to signal content changes
         uint8_t  m_NumStreams;
-
-
     };
 
     struct BufferContext
@@ -166,10 +164,8 @@ namespace dmBuffer
         return version << 16 | index;
     }
 
-    static void FreeMetadata(Buffer* buffer) {
-
-        uint32_t count = buffer->m_MetaDataArray.Size();
-
+    static void FreeMetadata(Buffer* buffer)
+    {
         for (uint32_t i=0; i<buffer->m_MetaDataArray.Size(); i++) {
             Buffer::MetaData* metadata = buffer->m_MetaDataArray[i];
             free(metadata->m_Data);
@@ -180,6 +176,12 @@ namespace dmBuffer
 
     static void FreeBuffer(BufferContext* ctx, HBuffer hbuffer)
     {
+        if (!IsBufferValid(hbuffer))
+        {
+            dmLogError("Invalid buffer when freeing buffer");
+            return;
+        }
+
         uint16_t version = hbuffer >> 16;
         Buffer* b = ctx->m_Buffers[hbuffer & 0xffff];
         if (version != b->m_Version)
@@ -437,6 +439,47 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
+    Result Clone(const HBuffer src_buffer, HBuffer* out_buffer)
+    {
+        Buffer* buffer = GetBuffer(g_BufferContext, src_buffer);
+        Result res = dmBuffer::ValidateBuffer(buffer);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+
+        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*) alloca(buffer->m_NumStreams * sizeof(dmBuffer::StreamDeclaration));
+        for (int i = 0; i < buffer->m_NumStreams; ++i)
+        {
+            streams_decl[i].m_Name  = buffer->m_Streams[i].m_Name;
+            streams_decl[i].m_Type  = (ValueType) buffer->m_Streams[i].m_ValueType;
+            streams_decl[i].m_Count = buffer->m_Streams[i].m_ValueCount;
+        }
+
+        HBuffer dst_buffer;
+        res = dmBuffer::Create(buffer->m_Count, streams_decl, buffer->m_NumStreams, &dst_buffer);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+
+        dmBuffer::Copy(dst_buffer, src_buffer);
+
+        // Clone the meta data entries
+        for (uint32_t i = 0; i < buffer->m_MetaDataArray.Size(); i++)
+        {
+            res = SetMetaData(dst_buffer,
+                buffer->m_MetaDataArray[i]->m_Name,
+                buffer->m_MetaDataArray[i]->m_Data,
+                buffer->m_MetaDataArray[i]->m_ValueCount,
+                (ValueType) buffer->m_MetaDataArray[i]->m_ValueType);
+            assert(res == RESULT_OK);
+        }
+
+        *out_buffer = dst_buffer;
+        return RESULT_OK;
+    }
+
     Result GetStreamOffset(HBuffer buffer_handle, uint32_t index, uint32_t* offset)
     {
         Buffer* buffer = GetBuffer(g_BufferContext, buffer_handle);
@@ -533,28 +576,6 @@ namespace dmBuffer
             }
         }
         return 0x0;
-    }
-
-    Result CheckStreamType(HBuffer hbuffer, dmhash_t stream_name, dmBuffer::ValueType type, uint32_t type_count)
-    {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
-        if (!buffer) {
-            return RESULT_BUFFER_INVALID;
-        }
-
-        // Get stream
-        Buffer::Stream* stream = GetStream(buffer, stream_name);
-        if (stream == 0x0) {
-            return RESULT_STREAM_MISSING;
-        }
-
-        // Validate expected type and value count
-        if (stream->m_ValueType != type) {
-            return dmBuffer::RESULT_STREAM_TYPE_MISMATCH;
-        } else if (stream->m_ValueCount != type_count) {
-            return dmBuffer::RESULT_STREAM_COUNT_MISMATCH;
-        }
-        return RESULT_OK;
     }
 
     Result GetStream(HBuffer hbuffer, dmhash_t stream_name, void** out_stream, uint32_t* count, uint32_t* component_count, uint32_t* stride)
@@ -680,7 +701,8 @@ namespace dmBuffer
         return RESULT_OK;
     }
 
-    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type) {
+    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type)
+    {
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
         if (!buffer) {
             return RESULT_BUFFER_INVALID;

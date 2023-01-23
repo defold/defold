@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -166,7 +166,6 @@ static int SetListener(lua_State* L)
     if (!dmScript::IsCallbackValid(window_info->m_Callback))
         return luaL_error(L, "Failed to create callback");
 
-    lua_State* cbkL = dmScript::GetCallbackLuaContext(window_info->m_Callback);
     return 0;
 }
 

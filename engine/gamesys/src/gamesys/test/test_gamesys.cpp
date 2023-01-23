@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -211,6 +211,8 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
+
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -255,6 +257,27 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 6: test creating with compressed basis data
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // If the transcode function failed, the texture will be 1x1
+    dmGraphics::HTexture compressed_texture = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed.texturec", (void**) &compressed_texture));
+    ASSERT_EQ(32, dmGraphics::GetTextureWidth(compressed_texture));
+    ASSERT_EQ(32, dmGraphics::GetTextureHeight(compressed_texture));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 7: fail by using an empty buffer
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // res_texture will make an empty texture here if the test "worked", i.e coulnd't create a valid transcoded texture
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_compressed_fail.texturec", (void**) &compressed_texture));
+    ASSERT_EQ(1, dmGraphics::GetTextureWidth(compressed_texture));
+    ASSERT_EQ(1, dmGraphics::GetTextureHeight(compressed_texture));
+
     // cleanup
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -265,6 +288,24 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
 
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ResourceTest, TestResourceScriptBuffer)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
@@ -294,6 +335,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -333,6 +376,14 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     //      -> set_texture.script::test_fail_wrong_mipmap
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 5: Set texture with compressed / transcoded data
+    //      -> set_texture.script::test_success_compressed
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 32);
 
     // cleanup
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -2867,6 +2918,29 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
     dmScript::LuaHBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     ASSERT_NE((void*)0x0, buffer_ptr);
     ASSERT_EQ(m_Buffer, buffer_ptr->m_Buffer);
+
+    dmScript::LuaHBuffer* buffer_ptr2 = dmScript::CheckBufferNoError(L, -1);
+    ASSERT_NE((void*)0x0, buffer_ptr2);
+    ASSERT_EQ(m_Buffer, buffer_ptr2->m_Buffer);
+
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptBufferTest, PushCheckUnpackBuffer)
+{
+    int top = lua_gettop(L);
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
+    dmScript::PushBuffer(L, luabuf);
+
+    dmBuffer::HBuffer buf = dmScript::CheckBufferUnpack(L, -1);
+    ASSERT_NE((dmBuffer::HBuffer)0x0, buf);
+    ASSERT_EQ(m_Buffer, buf);
+
+    dmBuffer::HBuffer buf2 = dmScript::CheckBufferUnpackNoError(L, -1);
+    ASSERT_NE((dmBuffer::HBuffer)0x0, buf2);
+    ASSERT_EQ(m_Buffer, buf2);
+
     lua_pop(L, 1);
     ASSERT_EQ(top, lua_gettop(L));
 }

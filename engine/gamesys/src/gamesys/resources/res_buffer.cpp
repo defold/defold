@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -118,9 +118,9 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < stream_count; ++i)
         {
             const dmBufferDDF::StreamDesc& ddf_stream = buffer_resource->m_BufferDDF->m_Streams[i];
-            streams_decl[i].m_Name = dmHashString64(ddf_stream.m_Name);
-            streams_decl[i].m_Type = (dmBuffer::ValueType)ddf_stream.m_ValueType;
-            streams_decl[i].m_Count = ddf_stream.m_ValueCount;
+            streams_decl[i].m_Name                    = ddf_stream.m_NameHash;
+            streams_decl[i].m_Type                    = (dmBuffer::ValueType)ddf_stream.m_ValueType;
+            streams_decl[i].m_Count                   = ddf_stream.m_ValueCount;
 
             assert(streams_decl[i].m_Count > 0);
 

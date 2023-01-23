@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -58,7 +58,7 @@ PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION
 ## **********************************************************************************************
 # Android
 
-ANDROID_NDK_VERSION='20'
+ANDROID_NDK_VERSION='25b'
 
 ## **********************************************************************************************
 # Win32

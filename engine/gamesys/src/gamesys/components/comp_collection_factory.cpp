@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -112,7 +112,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogError("Can not create more collection factory components since the buffer is full (%d).", fw->m_Components.Size());
+            ShowFullBufferError("Collection factory", COLLECTION_FACTORY_MAX_COUNT_KEY, fw->m_Components.Size());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::CREATE_RESULT_OK;

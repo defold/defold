@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,18 +13,18 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.engine.native-extensions-test
-  (:require
-   [clojure.string :as string]
-   [clojure.test :refer :all]
-   [integration.test-util :as test-util]
-   [support.test-support :refer [with-clean-system]]
-   [dynamo.graph :as g]
-   [editor.app-view :as app-view]
-   [editor.defold-project :as project]
-   [editor.engine.native-extensions :as native-extensions]
-   [editor.fs :as fs]
-   [editor.resource :as resource]
-   [util.repo :as repo])
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [clojure.test :refer :all]
+            [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]
+            [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.defold-project :as project]
+            [editor.engine.native-extensions :as native-extensions]
+            [editor.fs :as fs]
+            [editor.resource :as resource]
+            [util.repo :as repo])
   (:import [com.dynamo.bob.archive EngineVersion]))
 
 (defn fix-engine-sha1 [f]
@@ -41,6 +41,24 @@
       (g/with-auto-evaluation-context evaluation-context
         (is (= #{"/extension1" "/subdir/extension2"}
                (set (map resource/proj-path (native-extensions/engine-extension-roots project evaluation-context)))))))))
+
+(deftest unpack-bin-zip-test
+  (testing "${ext}/plugins/${platform}.zip is extracted to /build/plugins/${ext}/plugins/ folder"
+   (with-clean-system
+     (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+           _ (test-util/setup-project! workspace)
+           root (g/node-value workspace :root)]
+       ;; The plugins/x86_64-macos.zip archive has a following structure:
+       ;; /bin
+       ;;   /x86_64-macos
+       ;;     /lsp.editor_script
+       (is (.exists (io/file (str root "/ext_with_bin_zip/plugins/x86_64-macos.zip"))))
+       ;; We verify that there is no file resource at
+       ;; plugins/bin/x86_64-macos/lsp.editor_script path that could be extracted
+       ;; to the expected place (so it must come from the zip)
+       (is (not (.exists (io/file (str root "/ext_with_bin_zip/plugins/bin/x86_64-macos/lsp.editor_script")))))
+       ;; The file is extracted to its place from zip:
+       (is (.exists (io/file (str root "/build/plugins/ext_with_bin_zip/plugins/bin/x86_64-macos/lsp.editor_script"))))))))
 
 (deftest extension-resource-nodes-test
   (letfn [(platform-resources [project platform]
@@ -62,7 +80,8 @@
                    "/extension1/lib/common/file"
                    "/extension1/lib/x86_64-osx/file"
                    "/extension1/lib/osx/file"
-                   "/subdir/extension2/ext.manifest"}
+                   "/subdir/extension2/ext.manifest"
+                   "/subdir/extension2/src/.gitkeep"}
                  (platform-resources project "x86_64-macos"))))))
     (testing "arm64-ios"
       (with-clean-system
@@ -76,7 +95,8 @@
                    "/extension1/lib/common/file"
                    "/extension1/lib/arm64-ios/file"
                    "/extension1/lib/ios/file"
-                   "/subdir/extension2/ext.manifest"}
+                   "/subdir/extension2/ext.manifest"
+                   "/subdir/extension2/src/.gitkeep"}
                  (platform-resources project "arm64-ios"))))))))
 
 (defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
