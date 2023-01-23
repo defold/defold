@@ -355,6 +355,7 @@ public class ProtoBuilders {
     @BuilderParams(name="Material", inExts=".material", outExt=".materialc")
     public static class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
+        /*
         private static void asd(String program) {
             IResource programRes = project.getResource(program);
 
@@ -362,9 +363,9 @@ public class ProtoBuilders {
             ProtoUtil.merge(programRes, shaderBuilder);
 
             for (ShaderDesc.Shader shader : shaderBuilder.getShadersList()) {
-                
             }
         }
+        */
 
         @Override
         protected MaterialDesc.Builder transform(Task<Void> task, IResource resource, MaterialDesc.Builder messageBuilder)
@@ -374,7 +375,7 @@ public class ProtoBuilders {
 
             BuilderUtil.checkResource(this.project, resource, "fragment program", messageBuilder.getFragmentProgram());
 
-            asd(messageBuilder.getFragmentProgram());
+            // asd(messageBuilder.getFragmentProgram());
 
             messageBuilder.setFragmentProgram(BuilderUtil.replaceExt(messageBuilder.getFragmentProgram(), ".fp", ".fpc"));
             return messageBuilder;

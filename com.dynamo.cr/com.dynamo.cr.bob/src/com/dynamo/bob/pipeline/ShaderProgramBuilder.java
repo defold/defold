@@ -188,10 +188,9 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         baseBuilder.setSource(ByteString.copyFrom(transformedSource, "UTF-8"));
         variantBuilders.add(baseBuilder);
 
-        /*
         boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                                 shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
-        if (gles2Standard) {
+        if (true /*gles2Standard*/) {
             ///////////////////////////////////////////////////////
             // Texture array variant
             ///////////////////////////////////////////////////////
@@ -203,20 +202,19 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
                 builder.setSource(ByteString.copyFrom(src, "UTF-8"));
                 builder.setVariantTextureArray(true);
 
-                for (SPIRVReflector.Resource res : sourceVariantTextureArray.uniforms) {
+                for (String samplerName : sourceVariantTextureArray.arraySamplers) {
                     ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-                    resourceBindingBuilder.setName(res.name);
-                    resourceBindingBuilder.setType(Common.stringTypeToShaderType(res.type));
-                    resourceBindingBuilder.setElementCount(res.elementCount);
-                    resourceBindingBuilder.setSet(res.set);
-                    resourceBindingBuilder.setBinding(res.binding);
+                    resourceBindingBuilder.setName(samplerName);
+                    resourceBindingBuilder.setType(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
+                    resourceBindingBuilder.setElementCount(1);
+                    resourceBindingBuilder.setSet(0);
+                    resourceBindingBuilder.setBinding(0);
                     builder.addUniforms(resourceBindingBuilder);
                 }
 
                 variantBuilders.add(builder);
             }
         }
-        */
 
         return variantBuilders.toArray(new ShaderDesc.Shader.Builder[0]);
     }
