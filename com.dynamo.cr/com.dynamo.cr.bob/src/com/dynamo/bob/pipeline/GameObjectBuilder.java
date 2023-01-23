@@ -229,9 +229,10 @@ public class GameObjectBuilder extends Builder<Void> {
         for (ComponentDesc cd : protoBuilder.getComponentsList()) {
             String c = cd.getComponent();
             // Use the BuilderParams from each builder to map the input ext to the output ext
-            String inExt = "." + FilenameUtils.getExtension(c);
+            String ext = FilenameUtils.getExtension(c);
+            compStorage.add(ext);
+            String inExt = "." + ext;
             String outExt = project.replaceExt(inExt);
-            compStorage.add(outExt);
             c = BuilderUtil.replaceExt(c, inExt, outExt);
 
             PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();

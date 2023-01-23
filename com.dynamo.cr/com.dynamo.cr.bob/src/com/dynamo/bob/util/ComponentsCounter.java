@@ -218,4 +218,19 @@ public class ComponentsCounter {
         }
         return null;
     }
+
+    public static void countComponents(Project project, IResource res, Storage compStorage) throws IOException, CompileExceptionError {
+        PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
+        ProtoUtil.merge(res, prot);
+
+        for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
+            String type = cd.getType();
+            compStorage.add(type);
+        }
+        for (ComponentDesc cd : prot.getComponentsList()) {
+            String comp = cd.getComponent();
+            String type = FilenameUtils.getExtension(comp);
+            compStorage.add(type);
+        }
+    }
 }

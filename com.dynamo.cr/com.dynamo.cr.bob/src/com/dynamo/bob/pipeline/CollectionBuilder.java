@@ -50,14 +50,7 @@ import com.dynamo.gameobject.proto.GameObject.EmbeddedInstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
-import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
-
-import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
-import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
-import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
-import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 
 @ProtoParams(srcClass = CollectionDesc.class, messageClass = CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
@@ -343,12 +336,13 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     @Override
     protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
+        Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
         mergeSubCollections(resource, messageBuilder);
         //TODO:
-        // - embeded objects count
         // - collection output
-        //  - make sure all inputs from factories are uncountable
+        // - make sure all inputs from factories are uncountable
         // - copy data into collection proto
+        ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         int embedIndex = 0;
         for (EmbeddedInstanceDesc desc : messageBuilder.getEmbeddedInstancesList()) {
             byte[] data = desc.getData().getBytes();
@@ -359,6 +353,11 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             // TODO: We have to set content again here as distclean might have removed everything at this point
             // See comment in create. Should tasks be recreated after distclean (or before actual build?). See Project.java
             genResource.setContent(data);
+
+            // mergeSubCollections() embeds instances, but we want to count only "real" embeded instances
+            if (embedIndex < countOfRealEmbededObjects) {
+                ComponentsCounter.countComponents(project, genResource, compStorage);
+            }
 
             int buildDirLen = project.getBuildDirectory().length();
             String path = genResource.getPath().substring(buildDirLen);
@@ -383,7 +382,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             ++embedIndex;
         }
         messageBuilder.clearEmbeddedInstances();
-
+        
         Collection<String> propertyResources = new HashSet<String>();
         for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
             InstanceDesc.Builder b = InstanceDesc.newBuilder().mergeFrom(messageBuilder.getInstances(i));
@@ -414,8 +413,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
         messageBuilder.addAllPropertyResources(propertyResources);
 
-        ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         ComponentsCounter.sumInputs(compStorage, task.getInputs(), compCounterInputsCount);
+        System.out.println("Bob: " +" save comp count for colection "+task.output(1)+" : " + compStorage);
         task.output(1).setContent(compStorage.toByteArray());
 
         return messageBuilder;
