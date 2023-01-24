@@ -2191,9 +2191,7 @@
   (property def g/Any (dynamic visible (g/constantly false)))
   (property background-color types/Color (dynamic visible (g/constantly false)) (default [1 1 1 1]))
   (property visible-layout g/Str (default (g/constantly ""))
-            (dynamic visible (g/constantly false))
-            (dynamic edit-type (g/fnk [layout-msgs] {:type :choicebox
-                                                     :options (into {"" "Default"} (map (fn [l] [(:name l) (:name l)]) layout-msgs))})))
+            (dynamic visible (g/constantly false)))
   (property max-nodes g/Int
             (dynamic error (g/fnk [_node-id max-nodes node-ids]
                              (validate-max-nodes _node-id max-nodes node-ids))))
