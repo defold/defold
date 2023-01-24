@@ -296,6 +296,9 @@ This must be submitted to the driver for compilation before you can use it. See
   (set-uniform [this gl name val])
   (set-uniform-array [this gl name count val]))
 
+(defprotocol SamplerVariables
+  (set-sampler-texture [this gl sampler-uniform-name texture-units]))
+
 (defmulti set-uniform-at-index (fn [_ _ _ val] (class val)))
 (defmulti set-uniforms-at-index (fn [_ _ _ _ val] (class val)))
 
@@ -410,7 +413,7 @@ This must be submitted to the driver for compilation before you can use it. See
 (def make-fragment-shader (partial make-shader* GL2/GL_FRAGMENT_SHADER))
 (def make-vertex-shader (partial make-shader* GL2/GL_VERTEX_SHADER))
 
-(defrecord ShaderLifecycle [request-id verts frags uniforms]
+(defrecord ShaderLifecycle [request-id verts frags uniforms array-sampler-name?]
   GlBind
   (bind [_this gl render-args]
     (let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags (into #{} (map first) uniforms)])]
@@ -455,15 +458,32 @@ This must be submitted to the driver for compilation before you can use it. See
           (try
             (set-uniforms-at-index gl program loc count vals)
             (catch IllegalArgumentException e
-              (throw (IllegalArgumentException. (format "Failed setting uniform '%s'" name) e)))))))))
+              (throw (IllegalArgumentException. (format "Failed setting uniform '%s'" name) e))))))))
+
+  SamplerVariables
+  (set-sampler-texture [this gl sampler-uniform-name texture-units]
+    (assert (string? (not-empty sampler-uniform-name)))
+    (assert (vector? (not-empty texture-units)))
+    (if (and (some? array-sampler-name?)
+             (array-sampler-name? sampler-uniform-name))
+      (doall
+        (map-indexed (fn [slice-index texture-unit]
+                       (let [slice-sampler-uniform-name (str sampler-uniform-name "_" slice-index)]
+                         (set-uniform this gl slice-sampler-uniform-name texture-unit)))
+                     texture-units))
+      (do
+        (assert (= 1 (count texture-units)))
+        (set-uniform this gl sampler-uniform-name (first texture-units))))))
 
 (defn make-shader
   "Ready a shader program for use by compiling and linking it. Takes a collection
 of GLSL strings and returns an object that satisfies GlBind and GlEnable."
   ([request-id verts frags]
-    (make-shader request-id verts frags {}))
+   (make-shader request-id verts frags {}))
   ([request-id verts frags uniforms]
-    (->ShaderLifecycle request-id verts frags uniforms)))
+   (->ShaderLifecycle request-id verts frags uniforms nil))
+  ([request-id verts frags uniforms array-sampler-name?]
+   (->ShaderLifecycle request-id verts frags uniforms array-sampler-name?)))
 
 (defn- make-shader-program [^GL2 gl [verts frags uniform-names]]
   (let [vs (make-vertex-shader gl verts)]

@@ -314,7 +314,7 @@
                                                                                          (range max-page-count))
                                                                                     [(pair sampler-name nil)])))
                                                                         samplers))]
-                                                 (shader/make-shader _node-id vertex-source fragment-source uniforms)))))
+                                                 (shader/make-shader _node-id vertex-source fragment-source uniforms array-sampler-name?)))))
   (output samplers [g/KeywordMap] (g/fnk [samplers] (vec samplers))))
 
 (defn- make-sampler [name]
