@@ -154,29 +154,42 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         target.put(component, target.getOrDefault(component, 0) + 1);
     }
 
-    private void countComponentsInFactory(Project project, IResource input, String type) throws IOException, CompileExceptionError {
+    private boolean countComponentsInFactory(Project project, IResource input, String type) throws IOException, CompileExceptionError {
         if (type.equals("factory")) {
             FactoryDesc.Builder factoryDesc = FactoryDesc.newBuilder();
             ProtoUtil.merge(input, factoryDesc);
+
+            if (factoryDesc.getDynamicPrototype())
+            {
+                return false; // If the prototype is dynamically set, we cannot know the component counts
+            }
+
             IResource res = project.getResource(factoryDesc.getPrototype());
 
             countComponentInResource(project, res, componentsInFactories);
         } else if (type.equals("collectionfactory")) {
             CollectionFactoryDesc.Builder factoryDesc = CollectionFactoryDesc.newBuilder();
             ProtoUtil.merge(input, factoryDesc);
+
+            if (factoryDesc.getDynamicPrototype())
+            {
+                return false; // If the prototype is dynamically set, we cannot know the component counts
+            }
+
             IResource res = project.getResource(factoryDesc.getPrototype());
             CollectionDesc.Builder builder = CollectionDesc.newBuilder();
             ProtoUtil.merge(res, builder);
 
             countComponentsInCollectionRecursively(project, builder, componentsInFactories);
         }
+        return true;
     }
 
     private boolean isFactoryType(String type) throws IOException, CompileExceptionError {
         return type.equals("factory") || type.equals("collectionfactory");
     }
 
-    private void countComponentInResource(Project project, IResource res, Map<String, Integer> target) throws IOException, CompileExceptionError {
+    private boolean countComponentInResource(Project project, IResource res, Map<String, Integer> target) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
         ProtoUtil.merge(res, prot);
 
@@ -188,7 +201,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 long hash = MurmurHash.hash64(data, data.length);
                 IResource resource = project.getGeneratedResource(hash, type);
                 resource.setContent(data);
-                countComponentsInFactory(project, resource, type);
+                if (!countComponentsInFactory(project, resource, type))
+                    return false;
             }
         }
         for (ComponentDesc cd : prot.getComponentsList()) {
@@ -197,29 +211,35 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             addOneComponent(type, target);
             if (isFactoryType(type)) {
                 IResource resource = project.getResource(comp);
-                countComponentsInFactory(project, resource, type);
+                if (!countComponentsInFactory(project, resource, type))
+                    return false;
             }
         }
+        return true;
     }
 
-    private void countComponentsInCollectionRecursively(Project project, CollectionDesc.Builder builder, Map<String, Integer> target) throws IOException, CompileExceptionError {
+    private boolean countComponentsInCollectionRecursively(Project project, CollectionDesc.Builder builder, Map<String, Integer> target) throws IOException, CompileExceptionError {
         for (InstanceDesc inst : builder.getInstancesList()) {
             IResource res = project.getResource(inst.getPrototype());
-            countComponentInResource(project, res, target);
+            if (!countComponentInResource(project, res, target))
+                return false;
         }
         for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
             byte[] data = desc.getData().getBytes();
             long hash = MurmurHash.hash64(data, data.length);
 
             IResource res = project.getGeneratedResource(hash, "go");
-            countComponentInResource(project, res, target);
+            if (!countComponentInResource(project, res, target))
+                return false;
         }
         for (CollectionInstanceDesc collInst : builder.getCollectionInstancesList()) {
             IResource collResource = project.getResource(collInst.getCollection());
             CollectionDesc.Builder subCollBuilder = CollectionDesc.newBuilder();
             ProtoUtil.merge(collResource, subCollBuilder);
-            countComponentsInCollectionRecursively(project, subCollBuilder, target);
+            if (!countComponentsInCollectionRecursively(project, subCollBuilder, target))
+                return false;
         }
+        return true;
     }
 
     private String replaceComponentName(Project project, String in) {
@@ -227,25 +247,30 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     }
 
     private void countAllComponentTypes(Project project, CollectionDesc.Builder builder) throws IOException, CompileExceptionError {
-        countComponentsInCollectionRecursively(this.project, builder, components);
-
+        boolean isStatic = countComponentsInCollectionRecursively(this.project, builder, components);
         HashMap<String, Integer> mergedComponents =  new HashMap<>();
 
-        for (Map.Entry<String, Integer> entry : components.entrySet()) {
-            String name = replaceComponentName(project, entry.getKey());
-            // different input component names may have the same output name
-            // for example wav ans sound both are soundc
-            if (mergedComponents.containsKey(name)) {
-                mergedComponents.put(name, mergedComponents.get(name) + entry.getValue());
-            } else {
-                mergedComponents.put(name, entry.getValue());
+        if (isStatic)
+        {
+            for (Map.Entry<String, Integer> entry : components.entrySet()) {
+                String name = replaceComponentName(project, entry.getKey());
+                // different input component names may have the same output name
+                // for example wav and sound both are soundc
+                if (mergedComponents.containsKey(name)) {
+                    mergedComponents.put(name, mergedComponents.get(name) + entry.getValue());
+                } else {
+                    mergedComponents.put(name, entry.getValue());
+                }
+            }
+
+            // if component is in factory or collectionfactory use 0xFFFFFFFF
+            for (Map.Entry<String, Integer> entry : componentsInFactories.entrySet()) {
+                mergedComponents.put(replaceComponentName(project, entry.getKey()), 0xFFFFFFFF);
             }
         }
-
-        // if component is in factory or collectionfactory use 0xFFFFFFFF
-        for (Map.Entry<String, Integer> entry : componentsInFactories.entrySet()) {
-            mergedComponents.put(replaceComponentName(project, entry.getKey()), 0xFFFFFFFF);
-        }
+        // else:
+        //      The factories are using dynamic prototypes
+        //      If we don't store an override, the game will use the project defaults from game.project
 
         for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();

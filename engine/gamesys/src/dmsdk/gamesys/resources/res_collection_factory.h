@@ -16,7 +16,10 @@
 #define DMSDK_GAMESYS_RES_COLLECTION_FACTORY_H
 
 #include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/hash.h>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/gameobject/gameobject.h>
+#include <stdint.h>
 
 namespace dmGameSystem
 {
@@ -24,10 +27,18 @@ namespace dmGameSystem
     {
         CollectionFactoryResource& operator=(CollectionFactoryResource& other);
 
-        dmGameObject::HCollectionDesc m_CollectionDesc;
-        dmArray<void*> m_CollectionResources;
-        bool m_LoadDynamically;
+        dmhash_t                        m_PrototypePathHash;
+        dmGameObject::HCollectionDesc   m_CollectionDesc;
+        dmArray<void*>                  m_CollectionResources;
+        uint8_t                         m_LoadDynamically : 1;
+        uint8_t                         m_DynamicPrototype : 1;
+        uint8_t                         : 6;
     };
+
+    // for scripting
+    dmResource::Result  ResCollectionFactoryLoadResource(dmResource::HFactory factory, const char* collectionc, bool load_dynamically, bool dynamic_prototype,
+                                                            CollectionFactoryResource** out_res);
+    void                ResCollectionFactoryDestroyResource(dmResource::HFactory factory, CollectionFactoryResource* resource);
 }
 
 #endif // DMSDK_GAMESYS_RES_FACTORY_H
