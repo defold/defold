@@ -3,27 +3,37 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.reveal
-  (:require [clojure.main :as m]
+  (:require [cljfx.fx.button :as fx.button]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.label :as fx.label]
+            [cljfx.fx.v-box :as fx.v-box]
+            [clojure.core.async :as a]
+            [clojure.main :as m]
             [clojure.string :as str]
             [dynamo.graph :as g]
+            editor.code.data
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [vlaaad.reveal :as r]
             [internal.system :as is])
-  (:import [clojure.lang IRef]
+  (:import [clojure.core.async.impl.channels ManyToManyChannel]
+           [clojure.lang IRef]
            [editor.resource FileResource ZipResource]
+           [editor.code.data Cursor CursorRange]
            [internal.graph.types Endpoint]
            [javafx.scene Parent]))
+
+(set! *warn-on-reflection* true)
 
 (defn- node-value-or-err [ec node-id label]
   (try
@@ -95,9 +105,9 @@
    :render (node-id-sf ec node-id)
    :children (node-children-fn ec node-id)})
 
-(r/defaction ::defold:node-tree [x]
+(r/defaction ::defold:node-tree [x ann]
   (when (g/node-id? x)
-    (let [ec (g/make-evaluation-context)]
+    (let [ec (or (::evaluation-context ann) (g/make-evaluation-context))]
       (when (g/node-by-id (:basis ec) x)
         (fn []
           {:fx/type r/tree-view
@@ -133,6 +143,12 @@
            :branch? (comp seq #(endpoint-successors basis %))
            :children (comp sort #(endpoint-successors basis %))
            :root x})))))
+
+(defn node-id-in-context
+  ([node-id]
+   (node-id-in-context node-id (g/make-evaluation-context)))
+  ([node-id evaluation-context]
+   (r/stream node-id {::evaluation-context evaluation-context})))
 
 (defn- de-duplicating-observable [ref f]
   (reify IRef
@@ -177,6 +193,28 @@
     r/separator
     (r/stream (resource/proj-path resource))))
 
+(r/defstream Cursor [{:keys [row col]}]
+  (r/horizontal
+    (r/raw-string "#code/cursor [" {:fill :object})
+    (r/stream row)
+    r/separator
+    (r/stream col)
+    (r/raw-string "]" {:fill :object})))
+
+(r/defstream CursorRange [{:keys [from to] :as range}]
+  (r/horizontal
+    (r/raw-string "#code/range [" {:fill :object})
+    (apply
+      r/vertical
+      (r/horizontal
+        (r/stream ((juxt :row :col) from))
+        r/separator
+        (r/stream ((juxt :row :col) to)))
+      (let [rest (dissoc range :from :to)]
+        (when (seq rest)
+          [(r/vertically (map r/horizontally rest))])))
+    (r/raw-string "]" {:fill :object})))
+
 (r/defaction ::javafx:children [x]
   (when (instance? Parent x)
     (constantly {:fx/type r/tree-view
@@ -196,3 +234,35 @@
                  :branch? #(and (instance? Parent %)
                                 (seq (.getChildrenUnmodifiable ^Parent %)))
                  :children #(vec (.getChildrenUnmodifiable ^Parent %))})))
+
+(r/defstream ManyToManyChannel [ch]
+  (r/horizontal
+    (r/raw-string "(a/chan " {:fill :object})
+    (r/raw-string (format "#_0x%08x" (System/identityHashCode ch)) {:fill :util})
+    (r/raw-string ")" {:fill :object})))
+
+(r/defaction ::lsp:watch [x]
+  (when (= :editor.lsp/running-lsps (:type (meta x)))
+    (fn []
+      {:fx/type r/observable-view
+       :ref x
+       :fn (fn [in->state]
+             {:fx/type fx.v-box/lifecycle
+              :children (for [[in state] in->state]
+                          {:fx/type fx.v-box/lifecycle
+                           :v-box/vgrow :always
+                           :children [{:fx/type fx.h-box/lifecycle
+                                       :alignment :center-left
+                                       :padding 10
+                                       :spacing 5
+                                       :children [{:fx/type fx.label/lifecycle
+                                                   :max-width ##Inf
+                                                   :h-box/hgrow :always
+                                                   :text (format "LSP server #0x%08x" (System/identityHashCode in))}
+                                                  {:fx/type fx.button/lifecycle
+                                                   :focus-traversable false
+                                                   :text "Shutdown"
+                                                   :on-action (fn [_] (a/close! in))}]}
+                                      {:fx/type r/value-view
+                                       :v-box/vgrow :always
+                                       :value state}]})})})))

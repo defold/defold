@@ -103,8 +103,7 @@
 
 (defn- file-resource-filter [^File root ^File f]
   (not (or (let [file-name (.getName f)]
-             (and (str/starts-with? file-name ".")
-                  (not= file-name ".defignore")))
+             (= file-name ".DS_Store"))
            (reserved-proj-path? root (resource/file->proj-path root f)))))
 
 (defn- make-file-tree
