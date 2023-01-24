@@ -136,7 +136,7 @@
 (g/defnk produce-pb
   [image tile-width tile-height tile-margin tile-spacing collision material-tag
    cleaned-convex-hulls collision-groups animation-ddfs extrude-borders inner-padding sprite-trim-mode]
-  (protobuf/make-map Tile$TileSet
+  (protobuf/make-map-with-defaults Tile$TileSet
     :image (resource/resource->proj-path image)
     :tile-width tile-width
     :tile-height tile-height
@@ -145,7 +145,7 @@
     :collision (resource/resource->proj-path collision)
     :material-tag material-tag
     :convex-hulls (mapv (fn [{:keys [index count collision-group]}]
-                          (protobuf/make-map Tile$ConvexHull
+                          (protobuf/make-map-with-defaults Tile$ConvexHull
                             :index index
                             :count count
                             :collision-group (or collision-group "")))
@@ -203,7 +203,7 @@
              :color (collision-groups/color collision-groups-data id)})))
 
 (g/defnk produce-animation-ddf [id start-tile end-tile playback fps flip-horizontal flip-vertical cues]
-  (protobuf/make-map Tile$Animation
+  (protobuf/make-map-with-defaults Tile$Animation
     :id id
     :start-tile start-tile
     :end-tile end-tile
@@ -948,7 +948,7 @@
       (g/connect project :collision-groups-data self :collision-groups-data))))
 
 (def ^:private default-animation
-  (protobuf/make-map Tile$Animation
+  (protobuf/make-map-with-defaults Tile$Animation
     :id "New Animation"
     :start-tile 1
     :end-tile 1

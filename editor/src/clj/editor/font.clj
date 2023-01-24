@@ -427,7 +427,7 @@
 (g/defnk produce-pb-msg [font material size antialias alpha outline-alpha outline-width
                          shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
                          all-chars cache-width cache-height render-mode]
-  (protobuf/make-map Font$FontDesc
+  (protobuf/make-map-with-defaults Font$FontDesc
     :font (resource/resource->proj-path font)
     :material (resource/resource->proj-path material)
     :size size

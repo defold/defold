@@ -117,7 +117,7 @@
 
   (input profile-msgs g/Any :array)
   (output pb-msg g/Any (g/fnk [profile-msgs]
-                         (protobuf/make-map Render$DisplayProfiles
+                         (protobuf/make-map-with-defaults Render$DisplayProfiles
                            :profiles profile-msgs)))
   (input profile-form-values g/Any :array)
   (output form-values g/Any (g/fnk [profile-form-values] {[:profiles] profile-form-values}))

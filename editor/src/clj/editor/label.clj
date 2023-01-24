@@ -186,7 +186,7 @@
 (def ^:private default-scale-value-v3 [(float 1.0) (float 1.0) (float 1.0)])
 
 (g/defnk produce-pb-msg [text size color outline shadow leading tracking pivot blend-mode line-break font material]
-  (protobuf/make-map Label$LabelDesc
+  (protobuf/make-map-with-defaults Label$LabelDesc
     :text text
     :size (v3->v4 size)
     :color color

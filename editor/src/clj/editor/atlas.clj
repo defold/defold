@@ -248,7 +248,7 @@
        (mapv #(dissoc % :order))))
 
 (g/defnk produce-anim-ddf [id fps flip-horizontal flip-vertical playback img-ddf]
-  (protobuf/make-map AtlasProto$AtlasAnimation
+  (protobuf/make-map-with-defaults AtlasProto$AtlasAnimation
     :id id
     :fps fps
     :flip-horizontal (if flip-horizontal 1 0)
@@ -388,7 +388,7 @@
                                                  own-build-errors))))
 
 (g/defnk produce-save-value [margin inner-padding extrude-borders img-ddf anim-ddf]
-  (protobuf/make-map AtlasProto$Atlas
+  (protobuf/make-map-with-defaults AtlasProto$Atlas
     :margin margin
     :inner-padding inner-padding
     :extrude-borders extrude-borders
@@ -699,7 +699,7 @@
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
 (def ^:private make-image-nodes-in-animation (partial make-image-nodes attach-image-to-animation))
-(def ^:private default-image-msg (protobuf/pb->map (AtlasProto$AtlasImage/getDefaultInstance)))
+(def ^:private default-image-msg (protobuf/make-map-with-defaults AtlasProto$AtlasImage))
 
 (defn add-images [atlas-node image-resources]
   ; used by tests

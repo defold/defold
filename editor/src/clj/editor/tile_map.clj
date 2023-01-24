@@ -302,7 +302,7 @@
 
 (g/defnk produce-layer-pb-msg
   [id z visible cell-map]
-  (protobuf/make-map Tile$TileLayer
+  (protobuf/make-map-with-defaults Tile$TileLayer
     :id id
     :z z
     :is-visible (if visible 1 0)
@@ -397,7 +397,7 @@
 
 (g/defnk produce-pb-msg
   [tile-source material blend-mode layer-msgs]
-  (protobuf/make-map Tile$TileGrid
+  (protobuf/make-map-with-defaults Tile$TileGrid
     :tile-set (resource/resource->proj-path tile-source)
     :material (resource/resource->proj-path material)
     :blend-mode blend-mode
@@ -1180,8 +1180,8 @@
 
 (defn- make-new-layer
   [id]
-  (assoc (protobuf/pb->map (Tile$TileLayer/getDefaultInstance))
-         :id id))
+  (protobuf/make-map-with-defaults Tile$TileLayer
+    :id id))
 
 (defn- add-layer-handler
   [tile-map-node]

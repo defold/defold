@@ -549,7 +549,7 @@
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
   ;; fine since such an output will have explicit dependencies on all the
   ;; property values it requires.
-  (protobuf/make-map Gui$NodeDesc
+  (protobuf/make-map-with-defaults Gui$NodeDesc
     :type type
     :custom-type custom-type
     :child-index child-index
@@ -1540,7 +1540,7 @@
                                                               :outline-error? (g/error-fatal? build-errors)}
                                                              (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
-                         (protobuf/make-map Gui$SceneDesc$TextureDesc
+                         (protobuf/make-map-with-defaults Gui$SceneDesc$TextureDesc
                            :name name
                            :texture (resource/resource->proj-path texture-resource))))
   (output texture-anim-datas TextureAnimDatas :cached produce-texture-anim-datas)
@@ -1587,7 +1587,7 @@
                                                               :outline-error? (g/error-fatal? build-errors)}
                                                              (resource/openable-resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name font-resource]
-                         (protobuf/make-map Gui$SceneDesc$FontDesc
+                         (protobuf/make-map-with-defaults Gui$SceneDesc$FontDesc
                            :name name
                            :font (resource/resource->proj-path font-resource))))
   (output font-shaders GuiResourceShaders :cached (g/fnk [font-shader name]
@@ -1623,7 +1623,7 @@
                                                            :child-index child-index
                                                            :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any (g/fnk [name child-index]
-                         (-> (protobuf/make-map Gui$SceneDesc$LayerDesc :name name)
+                         (-> (protobuf/make-map-with-defaults Gui$SceneDesc$LayerDesc :name name)
                              (assoc :child-index child-index)))) ; Used to sort layers in the SceneDesc.
   (output build-errors g/Any (g/fnk [_node-id name name-counts]
                                (g/package-errors _node-id
@@ -1664,7 +1664,7 @@
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
 
   (output pb-msg g/Any (g/fnk [name resource-path]
-                         (protobuf/make-map Gui$SceneDesc$ResourceDesc
+                         (protobuf/make-map-with-defaults Gui$SceneDesc$ResourceDesc
                            :name name
                            :path resource-path)))
   (output build-errors g/Any (g/fnk [_node-id name name-counts path]
@@ -1705,7 +1705,7 @@
                                                               :outline-error? (g/error-fatal? build-errors)}
                                                              (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name particlefx]
-                         (protobuf/make-map Gui$SceneDesc$ParticleFXDesc
+                         (protobuf/make-map-with-defaults Gui$SceneDesc$ParticleFXDesc
                            :name name
                            :particlefx (resource/resource->proj-path particlefx))))
   (output particlefx-resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
@@ -1723,7 +1723,7 @@
 
 (defn- layout-pb-msg [name node-msgs]
   (let [node-msgs (filterv (comp not-empty :overridden-fields) node-msgs)]
-    (protobuf/make-map Gui$SceneDesc$LayoutDesc
+    (protobuf/make-map-with-defaults Gui$SceneDesc$LayoutDesc
       :name name
       :nodes node-msgs)))
 
@@ -2175,7 +2175,7 @@
       sort-scene)))
 
 (defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs]
-  (protobuf/make-map Gui$SceneDesc
+  (protobuf/make-map-with-defaults Gui$SceneDesc
     :script (resource/resource->proj-path script-resource)
     :material (resource/resource->proj-path material-resource)
     :adjust-reference adjust-reference

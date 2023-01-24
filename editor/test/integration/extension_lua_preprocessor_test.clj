@@ -38,8 +38,6 @@
       unpack-lua-source
       code.data/string->lines))
 
-;; Temporarily disabled until we can get an updated extension-lua-preprocessor published.
-#_
 (deftest extension-lua-preprocessor-test
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
@@ -138,7 +136,7 @@
                          (texture-build-resource "/from-script-release-variant.atlas")}
                        (tu/node-built-build-resources script)))
             (with-open [_ (tu/build! script)]
-              (let [built-script (protobuf/bytes->map Lua$LuaModule (tu/node-build-output script))
+              (let [built-script (protobuf/bytes->map-with-defaults Lua$LuaModule (tu/node-build-output script))
                     built-lines (built-lua-lines built-script)]
                 (is (= expected-built-lines-before-preprocessing built-lines))
                 (is (= {"atlas"         (build-resource-path-hash "/from-script.atlas")
@@ -166,7 +164,7 @@
                          (texture-build-resource "/from-script-debug-variant.atlas")}
                        (tu/node-built-build-resources script)))
             (with-open [_ (tu/build! script)]
-              (let [built-script (protobuf/bytes->map Lua$LuaModule (tu/node-build-output script))
+              (let [built-script (protobuf/bytes->map-with-defaults Lua$LuaModule (tu/node-build-output script))
                     built-lines (built-lua-lines built-script)]
                 (is (= expected-built-lines-after-preprocessing built-lines))
                 (is (= {"atlas" (build-resource-path-hash "/from-script.atlas")

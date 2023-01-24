@@ -65,7 +65,7 @@
     (let [game-project (test-util/resource-node project "/game.project")]
       (project-build project game-project (g/make-evaluation-context))
       (let [res  (handler-get (partial hot-reload/build-handler workspace project) (->build-url "/main/main.collectionc") nil "GET")
-            data (protobuf/bytes->map GameObject$CollectionDesc (->bytes (:body res)))]
+            data (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (->bytes (:body res)))]
         (is (= 200 (:status res)))
         (is (= "parallax" (:name data)))
         (is (= 13 (count (:instances data)))))

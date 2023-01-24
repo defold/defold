@@ -62,7 +62,7 @@
 (defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type embed-data-handling]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (try
-    (let [unsanitized-prototype-desc (protobuf/str->map GameObject$PrototypeDesc (:data embedded-instance-desc))
+    (let [unsanitized-prototype-desc (protobuf/str->map-with-defaults GameObject$PrototypeDesc (:data embedded-instance-desc))
           sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type embed-data-handling)]
       (assoc embedded-instance-desc
         :data (case embed-data-handling

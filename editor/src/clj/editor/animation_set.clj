@@ -41,7 +41,7 @@
   {:animation (resource/resource->proj-path resource)})
 
 (g/defnk produce-desc-pb-msg [skeleton animation-resources]
-  (protobuf/make-map Rig$AnimationSetDesc
+  (protobuf/make-map-with-defaults Rig$AnimationSetDesc
     :skeleton (resource/resource->proj-path skeleton)
     :animations (mapv animation-instance-desc-pb-msg animation-resources)))
 
@@ -76,7 +76,7 @@
         animation-ids (ArrayList.)]
     
     (AnimationSetBuilder/buildAnimations paths bones streams parent-ids animation-set-builder animation-ids)
-    (let [animation-set (protobuf/pb->map (.build animation-set-builder))]
+    (let [animation-set (protobuf/pb->map-with-defaults (.build animation-set-builder))]
       {:animation-set animation-set
        :animation-ids (vec animation-ids)})))
 

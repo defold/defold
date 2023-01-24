@@ -47,7 +47,7 @@
   returns a GameObject$EmbeddedInstanceDesc in map format with the :data field
   converted to a map."
   [ext->embedded-component-resource-type string-encoded-embedded-instance-desc]
-  (let [game-object-read-fn (partial protobuf/str->map GameObject$PrototypeDesc)
+  (let [game-object-read-fn (partial protobuf/str->map-with-defaults GameObject$PrototypeDesc)
         string-decode-prototype-desc (partial string-decode-prototype-desc ext->embedded-component-resource-type)
         string-decode-embedded-prototype-desc (comp string-decode-prototype-desc game-object-read-fn)]
     (update string-encoded-embedded-instance-desc :data string-decode-embedded-prototype-desc)))

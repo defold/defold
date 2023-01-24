@@ -41,7 +41,7 @@
 (set! *warn-on-reflection* true)
 
 (defn- gen-embed-ddf [id child-ids position rotation scale proto-msg]
-  (-> (protobuf/make-map GameObject$EmbeddedInstanceDesc
+  (-> (protobuf/make-map-with-defaults GameObject$EmbeddedInstanceDesc
         :id id
         :data (protobuf/map->str GameObject$PrototypeDesc proto-msg false)
         :position position
@@ -51,7 +51,7 @@
       (dissoc :scale))) ; Deprecated field. Migrated to :scale3 on load.
 
 (defn- gen-ref-ddf [id child-ids position rotation scale path ddf-component-properties]
-  (-> (protobuf/make-map GameObject$InstanceDesc
+  (-> (protobuf/make-map-with-defaults GameObject$InstanceDesc
         :id id
         :prototype (resource/resource->proj-path path)
         :position position
@@ -368,7 +368,7 @@
                                              (:resource (first source-build-targets)))))
 
 (g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
-  (protobuf/make-map GameObject$CollectionDesc
+  (protobuf/make-map-with-defaults GameObject$CollectionDesc
     :name name
     :scale-along-z (if scale-along-z 1 0)
     :instances ref-inst-ddf
@@ -381,7 +381,7 @@
             (mapv (fn [embedded-instance-desc]
                     (update embedded-instance-desc :data
                             (fn [string-encoded-prototype-desc]
-                              (-> (protobuf/str->map GameObject$PrototypeDesc string-encoded-prototype-desc)
+                              (-> (protobuf/str->map-with-defaults GameObject$PrototypeDesc string-encoded-prototype-desc)
                                   (game-object/prototype-desc-save-value)
                                   (as-> prototype-desc
                                         (protobuf/map->str GameObject$PrototypeDesc prototype-desc false))))))
@@ -572,7 +572,7 @@
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-outline outline/OutlineData :cached produce-coll-inst-outline)
   (output ddf-message g/Any (g/fnk [id source-resource position rotation scale ddf-properties]
-                              (protobuf/make-map GameObject$CollectionInstanceDesc
+                              (protobuf/make-map-with-defaults GameObject$CollectionInstanceDesc
                                 :id id
                                 :collection (resource/resource->proj-path source-resource)
                                 :position position

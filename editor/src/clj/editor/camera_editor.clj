@@ -77,7 +77,7 @@
 
 (g/defnk produce-pb-msg
   [aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom]
-  (protobuf/make-map Camera$CameraDesc
+  (protobuf/make-map-with-defaults Camera$CameraDesc
     :aspect-ratio aspect-ratio
     :fov fov
     :near-z near-z

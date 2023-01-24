@@ -56,7 +56,7 @@
 
 (defn- TextureSetResult->result
   [^TextureSetGenerator$TextureSetResult tex-set-result]
-  {:texture-set (protobuf/pb->map (.build (.builder tex-set-result)))
+  {:texture-set (protobuf/pb->map-with-defaults tex-set-result)
    :uv-transforms (vec (.uvTransforms tex-set-result))
    :layout (.layoutResult tex-set-result)
    :size [(.. tex-set-result layoutResult layout getWidth) (.. tex-set-result layoutResult layout getHeight)]

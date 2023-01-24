@@ -102,10 +102,10 @@
                       [:named-materials] named-materials})))
 
 (g/defnk produce-pb-msg [script-resource named-materials]
-  (protobuf/make-map Render$RenderPrototypeDesc
+  (protobuf/make-map-with-defaults Render$RenderPrototypeDesc
     :script (resource/resource->proj-path script-resource)
     :materials (mapv (fn [{:keys [name material]}]
-                       (protobuf/make-map Render$RenderPrototypeDesc$MaterialDesc
+                       (protobuf/make-map-with-defaults Render$RenderPrototypeDesc$MaterialDesc
                          :name name
                          :material (resource/resource->proj-path material)))
                      named-materials)))

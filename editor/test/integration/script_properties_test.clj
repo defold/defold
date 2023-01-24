@@ -204,7 +204,7 @@
               (is (= prop-value (prop script-component prop-name))))))))))
 
 (defn- save-value [pb-class node-id]
-  (protobuf/str->map pb-class (:content (g/node-value node-id :save-data))))
+  (protobuf/str->map-with-defaults pb-class (:content (g/node-value node-id :save-data))))
 
 (defn- properties [node-id]
   (:properties (g/node-value node-id :_properties)))
@@ -346,7 +346,7 @@
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
               (with-open [_ (tu/build! props-script)]
-                (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
+                (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
                   (is (= (tu/unpack-property-declarations (:properties built-props-script))
                          {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
                           "material" (build-resource-path-hash "/from-props-script.material")
@@ -368,7 +368,7 @@
                        #{(build-resource "/props.script")
                          (build-resource "/from-props-script.png")}))
                 (with-open [_ (tu/build! props-script)]
-                  (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
+                  (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
                     (is (= (tu/unpack-property-declarations (:properties built-props-script))
                            {"other" (build-resource-path-hash "/from-props-script.png")}))
                     (is (= (:property-resources built-props-script)
@@ -470,7 +470,7 @@
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
               (with-open [_ (tu/build! props-game-object)]
-                (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                       built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
                   (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
                   (is (= [] (:property-resources built-props-game-object)))))))
@@ -494,7 +494,7 @@
                          (build-resource         "/from-props-script.fp")
                          (build-resource         "/from-props-script.vp")}))
                 (with-open [_ (tu/build! props-game-object)]
-                  (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
+                  (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
                     (is (= (tu/unpack-property-declarations (:properties built-props-script))
                            {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
                             "material" (build-resource-path-hash "/from-props-script.material")
@@ -524,7 +524,7 @@
                            :type :property-type-hash}])))
 
                 (with-open [_ (tu/build! props-game-object)]
-                  (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                  (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
                     (is (= [] (:properties built-props-script-component)))
                     (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
@@ -543,7 +543,7 @@
                   (is (= [] (:properties saved-props-script-component))))
 
                 (with-open [_ (tu/build! props-game-object)]
-                  (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                  (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
                     (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
                     (is (= [] (:property-resources built-props-game-object))))))))
@@ -648,7 +648,7 @@
                      :type :property-type-hash}])))
 
           (with-open [_ (tu/build! props-game-object)]
-            (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+            (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                   built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)
                   renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-props-game-object.atlas"))]
               (is (= [] (:properties built-props-script-component)))
@@ -728,7 +728,7 @@
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
               (with-open [_ (tu/build! props-collection)]
-                (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))
+                (let [built-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/props.collection"))
                       built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)]
                   (is (= [] (:component-properties built-props-game-object-instance)))
                   (is (= [] (:property-resources built-props-collection)))))))
@@ -752,7 +752,7 @@
                          (build-resource         "/from-props-script.fp")
                          (build-resource         "/from-props-script.vp")}))
                 (with-open [_ (tu/build! props-collection)]
-                  (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
+                  (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
                     (is (= (tu/unpack-property-declarations (:properties built-props-script))
                            {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
                             "material" (build-resource-path-hash "/from-props-script.material")
@@ -761,7 +761,7 @@
                            (sort [(build-resource-path "/from-props-script.atlas")
                                   (build-resource-path "/from-props-script.material")
                                   (build-resource-path "/from-props-script.png")]))))
-                  (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                  (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) ov-props-script-component)]
                     (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
                     (is (= [] (:property-resources built-props-game-object))))))))
@@ -787,7 +787,7 @@
                            :type :property-type-hash}])))
 
                 (with-open [_ (tu/build! props-collection)]
-                  (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))
+                  (let [built-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/props.collection"))
                         built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)
                         built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)]
                     (is (= [] (:properties built-props-script-component)))
@@ -807,7 +807,7 @@
                   (is (= [] (:component-properties saved-props-game-object-instance))))
 
                 (with-open [_ (tu/build! props-collection)]
-                  (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))
+                  (let [built-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/props.collection"))
                         built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)]
                     (is (= [] (:component-properties built-props-game-object-instance)))
                     (is (= [] (:property-resources built-props-collection))))))))
@@ -917,7 +917,7 @@
                      :type :property-type-hash}])))
 
           (with-open [_ (tu/build! props-collection)]
-            (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))
+            (let [built-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/props.collection"))
                   built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)
                   built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)
                   renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-props-collection.atlas"))]
@@ -1010,7 +1010,7 @@
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
               (with-open [_ (tu/build! sub-props-collection)]
-                (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                       built-props-game-object-instance (first (:instances built-sub-props-collection))]
                   (is (= [] (:collection-instances built-sub-props-collection)))
                   (is (= [] (:embedded-instances built-sub-props-collection)))
@@ -1036,7 +1036,7 @@
                          (build-resource         "/from-props-script.fp")
                          (build-resource         "/from-props-script.vp")}))
                 (with-open [_ (tu/build! sub-props-collection)]
-                  (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
+                  (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
                     (is (= (tu/unpack-property-declarations (:properties built-props-script))
                            {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
                             "material" (build-resource-path-hash "/from-props-script.material")
@@ -1045,7 +1045,7 @@
                            (sort [(build-resource-path "/from-props-script.atlas")
                                   (build-resource-path "/from-props-script.material")
                                   (build-resource-path "/from-props-script.png")]))))
-                  (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                  (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) ov-props-script-component)]
                     (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
                     (is (= [] (:property-resources built-props-game-object))))))))
@@ -1072,7 +1072,7 @@
                            :type :property-type-hash}])))
 
                 (with-open [_ (tu/build! sub-props-collection)]
-                  (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                  (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-props-game-object-instance (first (:instances built-sub-props-collection))
                         built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)]
                     (is (= [] (:collection-instances built-sub-props-collection)))
@@ -1094,7 +1094,7 @@
                   (is (= [] (:instance-properties saved-props-collection-instance))))
 
                 (with-open [_ (tu/build! sub-props-collection)]
-                  (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                  (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-props-game-object-instance (first (:instances built-sub-props-collection))]
                     (is (= [] (:component-properties built-props-game-object-instance)))
                     (is (= [] (:property-resources built-sub-props-collection))))))))
@@ -1254,7 +1254,7 @@
                        (build-resource         "/from-props-script.fp")
                        (build-resource         "/from-props-script.vp")}))
               (with-open [_ (tu/build! sub-props-collection)]
-                (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                       built-embedded-game-object-instance (first (:instances built-sub-props-collection))]
                   (is (= [] (:collection-instances built-sub-props-collection)))
                   (is (= [] (:embedded-instances built-sub-props-collection)))
@@ -1280,7 +1280,7 @@
                          (build-resource         "/from-props-script.fp")
                          (build-resource         "/from-props-script.vp")}))
                 (with-open [_ (tu/build! sub-props-collection)]
-                  (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
+                  (let [built-props-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
                     (is (= (tu/unpack-property-declarations (:properties built-props-script))
                            {"atlas"    (build-resource-path-hash "/from-props-script.atlas")
                             "material" (build-resource-path-hash "/from-props-script.material")
@@ -1289,7 +1289,7 @@
                            (sort [(build-resource-path "/from-props-script.atlas")
                                   (build-resource-path "/from-props-script.material")
                                   (build-resource-path "/from-props-script.png")]))))
-                  (let [built-embedded-game-object (protobuf/bytes->map GameObject$PrototypeDesc (tu/node-build-output embedded-game-object-instance))
+                  (let [built-embedded-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (tu/node-build-output embedded-game-object-instance))
                         built-props-script-component (find-corresponding (:components built-embedded-game-object) ov-props-script-component)]
                     (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
                     (is (= [] (:property-resources built-embedded-game-object))))))))
@@ -1316,7 +1316,7 @@
                            :type :property-type-hash}])))
 
                 (with-open [_ (tu/build! sub-props-collection)]
-                  (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                  (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-embedded-game-object-instance (first (:instances built-sub-props-collection))
                         built-props-script-component (find-corresponding (:component-properties built-embedded-game-object-instance) ov-props-script-component)]
                     (is (= [] (:collection-instances built-sub-props-collection)))
@@ -1338,7 +1338,7 @@
                   (is (= [] (:instance-properties saved-props-collection-instance))))
 
                 (with-open [_ (tu/build! sub-props-collection)]
-                  (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                  (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-embedded-game-object-instance (first (:instances built-sub-props-collection))]
                     (is (= [] (:component-properties built-embedded-game-object-instance)))
                     (is (= [] (:property-resources built-sub-props-collection))))))))
@@ -1453,7 +1453,7 @@
                      :type :property-type-hash}])))
 
           (with-open [_ (tu/build! sub-props-collection)]
-            (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+            (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                   built-props-game-object-instance (first (:instances built-sub-props-collection))
                   built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)
                   renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-sub-props-collection.atlas"))]

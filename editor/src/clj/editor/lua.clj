@@ -29,7 +29,7 @@
 (defn- load-sdoc [path]
   (try
     (with-open [in (io/input-stream (io/resource path))]
-      (let [^ScriptDoc$Document doc (.build (protobuf/read-text-into! (ScriptDoc$Document/newBuilder) in))
+      (let [^ScriptDoc$Document doc (protobuf/read-pb ScriptDoc$Document in)
             elements (.getElementsList doc)]
         (reduce
          (fn [ns-elements ^ScriptDoc$Element element]

@@ -170,8 +170,11 @@
             (distinct))
           ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
 
-(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
-  (let [read-raw-fn (partial protobuf/read-text ddf-type)
+(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
+  (let [read-defaults (if (nil? read-defaults) true read-defaults)
+        read-raw-fn (if read-defaults
+                      (partial protobuf/read-map-with-defaults ddf-type)
+                      (partial protobuf/read-map-without-defaults ddf-type))
         read-fn (cond->> read-raw-fn
                          (some? sanitize-fn) (comp sanitize-fn))
         args (assoc args

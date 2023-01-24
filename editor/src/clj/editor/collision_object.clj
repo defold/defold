@@ -425,7 +425,7 @@
                      (into (comp (map string/trim)
                                  (remove string/blank?))
                            (string/split mask #",")))]
-    (-> (protobuf/make-map Physics$CollisionObjectDesc
+    (-> (protobuf/make-map-with-defaults Physics$CollisionObjectDesc
           :collision-shape (resource/resource->proj-path collision-shape-resource)
           :type type
           :mass mass
@@ -587,8 +587,8 @@
 
 (defn- default-shape
   [shape-type]
-  (merge (protobuf/pb->map (Physics$CollisionShape$Shape/getDefaultInstance))
-         {:shape-type shape-type}
+  (merge (protobuf/make-map-with-defaults Physics$CollisionShape$Shape
+           :shape-type shape-type)
          (case shape-type
            :type-sphere {:diameter 20.0}
            :type-box {:dimensions [20.0 20.0 20.0]}

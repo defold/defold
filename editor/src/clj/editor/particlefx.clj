@@ -149,7 +149,7 @@
        props/curve-vals
        (sort-by first)
        (mapv (fn [[x y t-x t-y]]
-               (protobuf/make-map Particle$SplinePoint
+               (protobuf/make-map-with-defaults Particle$SplinePoint
                  :x x
                  :y y
                  :t-x t-x
@@ -164,12 +164,12 @@
                          (keep (fn [kw]
                                  (let [v (get values kw)]
                                    (when-let [points (get-curve-points v)]
-                                     (protobuf/make-map Particle$Modifier$Property
+                                     (protobuf/make-map-with-defaults Particle$Modifier$Property
                                        :key kw
                                        :points points
                                        :spread (or (:spread v) 0.0))))))
                          (mod-type->properties type))]
-    (protobuf/make-map Particle$Modifier
+    (protobuf/make-map-with-defaults Particle$Modifier
       :position position
       :rotation rotation
       :type type
@@ -585,7 +585,7 @@
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs]
   (let [properties (:properties _declared-properties)]
-    (into (protobuf/make-map Particle$Emitter
+    (into (protobuf/make-map-with-defaults Particle$Emitter
             :position position
             :rotation rotation
             :modifiers modifier-msgs)
@@ -598,7 +598,7 @@
                                       (keep (fn [kw]
                                               (let [v (get-in properties [kw :value])]
                                                 (when-let [points (get-curve-points v)]
-                                                  (protobuf/make-map Particle$Emitter$Property
+                                                  (protobuf/make-map-with-defaults Particle$Emitter$Property
                                                     :key kw
                                                     :points points
                                                     :spread (:spread v)))))))
@@ -607,7 +607,7 @@
                                          (comp (map first)
                                                (keep (fn [kw]
                                                        (when-let [points (get-curve-points (get-in properties [kw :value]))]
-                                                         (protobuf/make-map Particle$Emitter$ParticleProperty
+                                                         (protobuf/make-map-with-defaults Particle$Emitter$ParticleProperty
                                                            :key kw
                                                            :points points)))))
                                          (butlast (protobuf/enum-values Particle$ParticleKey)))]]))))
@@ -846,7 +846,7 @@
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (output save-value g/Any (gu/passthrough pb-data))
   (output pb-data g/Any (g/fnk [emitter-msgs modifier-msgs]
-                          (protobuf/make-map Particle$ParticleFX
+                          (protobuf/make-map-with-defaults Particle$ParticleFX
                             :emitters emitter-msgs
                             :modifiers modifier-msgs)))
   (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
@@ -980,11 +980,11 @@
 
 (defn- add-emitter-handler [self type select-fn]
   (when-let [resource (io/resource emitter-template)]
-      (let [emitter (protobuf/read-text Particle$Emitter resource)]
-        (g/transact
-          (concat
-            (g/operation-label "Add Emitter")
-            (make-emitter self (assoc emitter :type type) select-fn true))))))
+    (let [emitter (protobuf/read-map-with-defaults Particle$Emitter resource)]
+      (g/transact
+        (concat
+          (g/operation-label "Add Emitter")
+          (make-emitter self (assoc emitter :type type) select-fn true))))))
 
 (handler/defhandler :add :workbench
   (active? [selection] (selection->particlefx selection))

@@ -70,7 +70,7 @@
 (def ^:private hack-upgrade-constants (partial mapv hack-upgrade-constant))
 
 (g/defnk produce-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space]
-  (-> (protobuf/make-map Material$MaterialDesc
+  (-> (protobuf/make-map-with-defaults Material$MaterialDesc
         :name name
         :vertex-program (resource/resource->proj-path vertex-program)
         :fragment-program (resource/resource->proj-path fragment-program)
@@ -231,7 +231,7 @@
                                     :filter-mode-mag-linear GL2/GL_LINEAR})
 
 (def ^:private default-sampler
-  (protobuf/make-map Material$MaterialDesc$Sampler
+  (protobuf/make-map-with-defaults Material$MaterialDesc$Sampler
     :wrap-u :wrap-mode-clamp-to-edge
     :wrap-v :wrap-mode-clamp-to-edge
     :filter-min :filter-mode-min-linear

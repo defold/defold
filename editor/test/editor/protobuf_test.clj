@@ -14,27 +14,19 @@
 
 (ns editor.protobuf-test
   (:require [clojure.test :refer :all]
-            [clojure.java.io :as io]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestDdf TestDdf$Msg TestDdf$SubMsg TestDdf$Transform TestDdf$DefaultValue
-            TestDdf$OptionalNoDefaultValue TestDdf$EmptyMsg TestDdf$Uint64Msg TestDdf$RepeatedUints
-            TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$BooleanMsg TestDdf$BytesMsg
-            TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage TestDdf$JavaCasingMsg]
-           [javax.vecmath Point3d Vector3d]
-           [com.google.protobuf ByteString]))
+  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage TestDdf TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+           [com.google.protobuf ByteString]
+           [java.io StringReader]))
 
-(defn- read-text [^java.lang.Class cls s]
-  (with-in-str s
-    (protobuf/read-text cls (io/reader *in*))))
-
-(defn- round-trip [^java.lang.Class cls m]
+(defn- round-trip [^Class cls m]
   (->> m
     (protobuf/map->str cls)
-    (read-text cls)))
+    (protobuf/str->map-with-defaults cls)))
 
-(defn- round-trip-data [^java.lang.Class cls s]
+(defn- round-trip-data [^Class cls s]
   (->> s
-    (read-text cls)
+    (protobuf/str->map-with-defaults cls)
     (protobuf/map->str cls)))
 
 (deftest simple
@@ -150,3 +142,248 @@
   (is (= "StoreFrontImageUrl" (protobuf/underscores-to-camel-case "store_front_image_url")))
   (is (= "IOSExecutableUrl" (protobuf/underscores-to-camel-case "iOSExecutableUrl")))
   (is (= "SomeField_" (protobuf/underscores-to-camel-case "some_field#"))))
+
+(deftest read-map-with-defaults-test
+  (are [expected-pb-map pb-str]
+    (= expected-pb-map
+       (with-open [reader (StringReader. pb-str)]
+         (protobuf/read-map-with-defaults
+           TestDdf$NestedDefaults reader)))
+
+    {:with-default "default"
+     :without-default ""
+     :optional {:uint-value 10
+                :string-value "test"
+                :quat-value [0.0 0.0 0.0 1.0]
+                :enum-value :enum-val1
+                :bool-value true}}
+    ""
+
+    {:with-default "overridden with_default"
+     :without-default "overridden without_default"
+     :optional {:uint-value 11
+                :string-value "overridden string_value"
+                :quat-value [1.0 2.0 3.0 4.0]
+                :enum-value :enum-val0
+                :bool-value false}
+     :repeated [{:uint-value 10
+                 :string-value "test"
+                 :quat-value [0.0 0.0 0.0 1.0]
+                 :enum-value :enum-val1
+                 :bool-value true}
+                {:uint-value 11
+                 :string-value "overridden string_value"
+                 :quat-value [1.0 2.0 3.0 4.0]
+                 :enum-value :enum-val0
+                 :bool-value false}]}
+    "
+with_default: 'overridden with_default'
+without_default: 'overridden without_default'
+optional {
+  uint_value: 11
+  string_value: 'overridden string_value'
+  quat_value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  enum_value: ENUM_VAL0
+  bool_value: false
+}
+repeated {
+}
+repeated {
+  uint_value: 11
+  string_value: 'overridden string_value'
+  quat_value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  enum_value: ENUM_VAL0
+  bool_value: false
+}
+"))
+
+(deftest make-map-with-defaults-test
+  (is (= {:with-default "default"
+          :without-default ""
+          :optional {:uint-value 10
+                     :string-value "test"
+                     :quat-value [0.0 0.0 0.0 1.0]
+                     :enum-value :enum-val1
+                     :bool-value true}}
+         (protobuf/make-map-with-defaults TestDdf$NestedDefaults)))
+  (is (= {:with-default "overridden with_default"
+          :without-default "overridden without_default"
+          :optional {:uint-value 11
+                     :string-value "overridden string_value"
+                     :quat-value [1.0 2.0 3.0 4.0]
+                     :enum-value :enum-val0
+                     :bool-value false}
+          :repeated [{:uint-value 10
+                      :string-value "test"
+                      :quat-value [0.0 0.0 0.0 1.0]
+                      :enum-value :enum-val1
+                      :bool-value true}
+                     {:uint-value 11
+                      :string-value "overridden string_value"
+                      :quat-value [1.0 2.0 3.0 4.0]
+                      :enum-value :enum-val0
+                      :bool-value false}]}
+         (protobuf/make-map-with-defaults TestDdf$NestedDefaults
+           :with-default "overridden with_default"
+           :without-default "overridden without_default"
+           :optional (protobuf/make-map-with-defaults TestDdf$DefaultValue
+                       :uint-value 11
+                       :string-value "overridden string_value"
+                       :quat-value [1.0 2.0 3.0 4.0]
+                       :enum-value :enum-val0
+                       :bool-value false)
+           :repeated [(protobuf/make-map-with-defaults TestDdf$DefaultValue)
+                      (protobuf/make-map-with-defaults TestDdf$DefaultValue
+                        :uint-value 11
+                        :string-value "overridden string_value"
+                        :quat-value [1.0 2.0 3.0 4.0]
+                        :enum-value :enum-val0
+                        :bool-value false)]))))
+
+(deftest read-map-without-defaults-test
+  (are [expected-pb-map pb-str]
+    (= expected-pb-map
+       (with-open [reader (StringReader. pb-str)]
+         (protobuf/read-map-without-defaults
+           TestDdf$NestedDefaults reader)))
+
+    {}
+    ""
+
+    {:with-default "overridden with_default"
+     :without-default "overridden without_default"
+     :optional {:uint-value 11
+                :string-value "overridden string_value"
+                :quat-value [1.0 2.0 3.0 4.0]
+                :enum-value :enum-val0
+                :bool-value false}
+     :repeated [{}
+                {:uint-value 11
+                 :string-value "overridden string_value"
+                 :quat-value [1.0 2.0 3.0 4.0]
+                 :enum-value :enum-val0
+                 :bool-value false}]}
+    "
+with_default: 'overridden with_default'
+without_default: 'overridden without_default'
+optional {
+  uint_value: 11
+  string_value: 'overridden string_value'
+  quat_value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  enum_value: ENUM_VAL0
+  bool_value: false
+}
+repeated {
+}
+repeated {
+  uint_value: 11
+  string_value: 'overridden string_value'
+  quat_value {
+    x: 1.0
+    y: 2.0
+    z: 3.0
+    w: 4.0
+  }
+  enum_value: ENUM_VAL0
+  bool_value: false
+}
+"
+
+    {:repeated [{}
+                {}]}
+    "
+with_default: 'default'
+without_default: ''
+optional {
+  uint_value: 10
+  string_value: 'test'
+  quat_value {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  enum_value: ENUM_VAL1
+  bool_value: true
+}
+repeated {
+}
+repeated {
+  uint_value: 10
+  string_value: 'default'
+  quat_value {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  enum_value: ENUM_VAL1
+  bool_value: true
+}
+"))
+
+(deftest make-map-without-defaults-test
+  (is (= {}
+         (protobuf/make-map-without-defaults TestDdf$NestedDefaults)))
+  (is (= {:with-default "overridden with_default"
+          :without-default "overridden without_default"
+          :optional {:uint-value 11
+                     :string-value "overridden string_value"
+                     :quat-value [1.0 2.0 3.0 4.0]
+                     :enum-value :enum-val0
+                     :bool-value false}
+          :repeated [{}
+                     {:uint-value 11
+                      :string-value "overridden string_value"
+                      :quat-value [1.0 2.0 3.0 4.0]
+                      :enum-value :enum-val0
+                      :bool-value false}]}
+         (protobuf/make-map-without-defaults TestDdf$NestedDefaults
+           :with-default "overridden with_default"
+           :without-default "overridden without_default"
+           :optional (protobuf/make-map-without-defaults TestDdf$DefaultValue
+                       :uint-value 11
+                       :string-value "overridden string_value"
+                       :quat-value [1.0 2.0 3.0 4.0]
+                       :enum-value :enum-val0
+                       :bool-value false)
+           :repeated [(protobuf/make-map-without-defaults TestDdf$DefaultValue)
+                      (protobuf/make-map-without-defaults TestDdf$DefaultValue
+                        :uint-value 11
+                        :string-value "overridden string_value"
+                        :quat-value [1.0 2.0 3.0 4.0]
+                        :enum-value :enum-val0
+                        :bool-value false)])))
+  (is (= {:repeated [{}
+                     {}]}
+         (protobuf/make-map-without-defaults TestDdf$NestedDefaults
+           :with-default "default"
+           :without-default ""
+           :optional (protobuf/make-map-without-defaults TestDdf$DefaultValue
+                       :uint-value 10
+                       :string-value "test"
+                       :quat-value [0.0 0.0 0.0 1.0]
+                       :enum-value :enum-val1
+                       :bool-value true)
+           :repeated [(protobuf/make-map-without-defaults TestDdf$DefaultValue)
+                      (protobuf/make-map-without-defaults TestDdf$DefaultValue
+                        :uint-value 10
+                        :string-value "test"
+                        :quat-value [0.0 0.0 0.0 1.0]
+                        :enum-value :enum-val1
+                        :bool-value true)]))))

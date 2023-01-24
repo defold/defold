@@ -97,7 +97,7 @@
   ((:f gpu-texture-generator) (:args gpu-texture-generator) _node-id texture/default-cubemap-texture-params 0))
 
 (g/defnk produce-save-value [right left top bottom front back]
-  (protobuf/make-map Graphics$Cubemap
+  (protobuf/make-map-with-defaults Graphics$Cubemap
     :right (resource/resource->proj-path right)
     :left (resource/resource->proj-path left)
     :top (resource/resource->proj-path top)

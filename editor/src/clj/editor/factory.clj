@@ -71,7 +71,7 @@
 (g/defnk produce-pb-msg
   [prototype-resource load-dynamically factory-type]
   (let [pb-class (-> factory-types factory-type :pb-type)]
-    (protobuf/make-map pb-class
+    (protobuf/make-map-with-defaults pb-class
       :prototype (resource/resource->proj-path prototype-resource)
       :load-dynamically load-dynamically)))
 

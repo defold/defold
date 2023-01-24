@@ -40,10 +40,18 @@ message Msg
 message DefaultValue
 {
     optional uint32 uint_value = 1 [ default = 10 ];
-    optional string string_value = 2  [ default = "test" ];
+    optional string string_value = 2 [ default = "test" ];
     optional dmMath.Quat quat_value = 3;
     optional Enum enum_value = 4 [ default = ENUM_VAL1 ];
     optional bool bool_value = 5 [ default = true ];
+}
+
+message NestedDefaults
+{
+    optional string with_default = 1 [ default = "default" ];
+    optional string without_default = 2;
+    optional DefaultValue optional = 3;
+    repeated DefaultValue repeated = 4;
 }
 
 message OptionalNoDefaultValue

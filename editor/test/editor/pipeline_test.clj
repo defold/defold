@@ -182,7 +182,7 @@
       (testing "produces correct build content"
         (let [build-results (pipeline-build! workspace [sprite-target])
               sprite-result (first (filter #(= (:resource %) (:resource sprite-target)) (:artifacts build-results)))
-              pb-data (protobuf/bytes->map Sprite$SpriteDesc (content-bytes sprite-result))]
+              pb-data (protobuf/bytes->map-with-defaults Sprite$SpriteDesc (content-bytes sprite-result))]
           ;; assert resource paths have been resolved to build paths
           (is (= {:tile-set (-> tile-set-target :resource resource/proj-path)
                   :default-animation "gurka"

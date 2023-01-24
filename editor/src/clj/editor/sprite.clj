@@ -223,7 +223,7 @@
 ; Node defs
 
 (g/defnk produce-save-value [image default-animation material blend-mode size-mode manual-size slice9]
-  (protobuf/make-map Sprite$SpriteDesc
+  (protobuf/make-map-without-defaults Sprite$SpriteDesc
     :tile-set (resource/resource->proj-path image)
     :default-animation default-animation
     :material (resource/resource->proj-path material)
@@ -381,23 +381,22 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-sprite [project self resource sprite]
-  (let [image    (workspace/resolve-resource resource (:tile-set sprite))
-        material (workspace/resolve-resource resource (:material sprite))]
-    (concat
-      (g/connect project :default-tex-params self :default-tex-params)
-      (g/set-property self :default-animation (:default-animation sprite))
-      (g/set-property self :material material)
-      (g/set-property self :blend-mode (:blend-mode sprite))
-      (g/set-property self :size-mode (:size-mode sprite))
-      (g/set-property self :manual-size (v4->v3 (:size sprite)))
-      (g/set-property self :slice9 (:slice9 sprite))
-      (g/set-property self :image image))))
+  (concat
+    (g/connect project :default-tex-params self :default-tex-params)
+    (some->> (:default-animation sprite) (g/set-property self :default-animation))
+    (some->> (:material sprite) (workspace/resolve-resource resource) (g/set-property self :material))
+    (some->> (:blend-mode sprite) (g/set-property self :blend-mode))
+    (some->> (:size-mode sprite) (g/set-property self :size-mode))
+    (some->> (:size sprite) (v4->v3) (g/set-property self :manual-size))
+    (some->> (:slice9 sprite) (g/set-property self :slice9))
+    (some->> (:tile-set sprite) (workspace/resolve-resource resource) (g/set-property self :image))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "sprite"
     :node-type SpriteNode
     :ddf-type Sprite$SpriteDesc
+    :read-defaults false
     :load-fn load-sprite
     :icon sprite-icon
     :view-types [:scene :text]

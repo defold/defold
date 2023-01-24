@@ -118,7 +118,7 @@
 
 (g/defnk produce-pb-msg
   [_node-id sound-resource looping group gain pan speed loopcount]
-  (protobuf/make-map Sound$SoundDesc
+  (protobuf/make-map-with-defaults Sound$SoundDesc
     :sound (resource/resource->proj-path sound-resource)
     :looping (if looping 1 0)
     :group group

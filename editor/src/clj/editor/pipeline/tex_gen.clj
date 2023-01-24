@@ -48,7 +48,7 @@
   (let [texture-profiles-data (some->> texture-profiles (protobuf/map->pb Graphics$TextureProfiles))
         path (if (.startsWith path "/") (subs path 1) path)]
     (when-some [texture-profile (TextureUtil/getTextureProfileByPath texture-profiles-data path)]
-      (protobuf/pb->map texture-profile))))
+      (protobuf/pb->map-with-defaults texture-profile))))
 
 (defn make-texture-image
   (^Graphics$TextureImage [^BufferedImage image texture-profile]
@@ -113,7 +113,7 @@
   ;; FIXME: in graphics_opengl.cpp(1870ish) in the engine, we set the cubemap textures
   ;; using glTexSubImage2D in the order +x, -x, +y, -y, and then ***-z***, ***+z***
   ;; until this is fixed, if ever, we flip the order as below
-  (let [textures (mapv protobuf/pb->map ((juxt :px :nx :py :ny :nz :pz) texture-images))
+  (let [textures (mapv protobuf/pb->map-with-defaults ((juxt :px :nx :py :ny :nz :pz) texture-images))
         alternatives (make-cubemap-texture-image-alternatives textures)
         template-texture (first textures)]
     (-> template-texture

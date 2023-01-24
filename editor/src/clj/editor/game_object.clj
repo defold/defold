@@ -42,7 +42,7 @@
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
 (defn- gen-ref-ddf [id position rotation scale source-resource ddf-properties]
-  (protobuf/make-map GameObject$ComponentDesc
+  (protobuf/make-map-with-defaults GameObject$ComponentDesc
     :id id
     :position position
     :rotation rotation
@@ -51,7 +51,7 @@
     :properties ddf-properties))
 
 (defn- gen-embed-ddf [id position rotation scale save-data]
-  (protobuf/make-map GameObject$EmbeddedComponentDesc
+  (protobuf/make-map-with-defaults GameObject$EmbeddedComponentDesc
     :id id
     :type (or (some-> save-data :resource resource/resource-type :ext) "unknown")
     :position position
@@ -334,7 +334,7 @@
                               (gen-ref-ddf id position rotation scale source-resource ddf-properties))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
-  (protobuf/make-map GameObject$PrototypeDesc
+  (protobuf/make-map-with-defaults GameObject$PrototypeDesc
     :components ref-ddf
     :embedded-components embed-ddf))
 
