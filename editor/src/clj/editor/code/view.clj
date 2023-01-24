@@ -204,13 +204,13 @@
      ["constant" (Color/valueOf "#FFBBFF")]
      ["support.function" (Color/valueOf "#33CCCC")]
      ["support.variable" (Color/valueOf "#FFBBFF")]
+     ["name.function" (Color/valueOf "#33CC33")]
+     ["parameter.function" (Color/valueOf "#E3A869")]
+     ["variable.language" (Color/valueOf "#E066FF")]
      ["editor.error" (Color/valueOf "#FF6161")]
      ["editor.warning" (Color/valueOf "#FF9A34")]
      ["editor.info" (Color/valueOf "#CCCFD3")]
-     ["editor.debug" (Color/valueOf "#3B8CF8")]
-     ["name.function" (Color/valueOf "#33CC33")]
-     ["parameter.function" (Color/valueOf "#E3A869")]
-     ["variable.language" (Color/valueOf "#E066FF")]]))
+     ["editor.debug" (Color/valueOf "#3B8CF8")]]))
 
 (defn color-lookup
   ^Paint [color-scheme key]
