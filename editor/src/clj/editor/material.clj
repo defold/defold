@@ -248,6 +248,7 @@
        params))))
 
 (defn- inject-max-page-count [shader-source max-page-count]
+  {:pre [(integer? max-page-count)]}
   (string/replace-first shader-source
                         "#define DM_MAX_PAGE_COUNT ###"
                         (str "#define DM_MAX_PAGE_COUNT " max-page-count)))
@@ -286,9 +287,9 @@
 
   (input dep-build-targets g/Any :array)
   (input vertex-resource resource/Resource)
-  (input vertex-shader-source-info g/Str)
+  (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
-  (input fragment-shader-source-info g/Str)
+  (input fragment-shader-source-info g/Any)
 
   (output pb-msg g/Any produce-pb-msg)
 
@@ -299,8 +300,8 @@
                                                (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
                                                (let [vertex-source (inject-max-page-count (:shader-source vertex-shader-source-info) max-page-count)
                                                      fragment-source (inject-max-page-count  (:shader-source fragment-shader-source-info) max-page-count)
-                                                     array-sampler-name? (into (:array-sampler-names vertex-source)
-                                                                               (:array-sampler-names fragment-source))
+                                                     array-sampler-name? (into (:array-sampler-names vertex-shader-source-info)
+                                                                               (:array-sampler-names fragment-shader-source-info))
                                                      uniforms (-> {}
                                                                   (into (map (fn [constant]
                                                                                [(:name constant) (constant->val constant)]))

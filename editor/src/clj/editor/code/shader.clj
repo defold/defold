@@ -76,11 +76,13 @@
 (def ^:private glsl-opts {:code {:grammar glsl-grammar}})
 
 (def shader-defs [{:ext "vp"
+                   :language "glsl"
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "fp"
+                   :language "glsl"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
                    :view-types [:code :default]
@@ -267,7 +269,7 @@
   (output proj-path->full-lines g/Any (g/fnk [included-proj-paths+full-lines]
                                                 (into {} included-proj-paths+full-lines)))
   (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
-  (output shader-source-info g/Str :cached produce-shader-source-info))
+  (output shader-source-info g/Any :cached produce-shader-source-info))
 
 (defn- additional-load-fn [project self _resource]
   (g/connect project :settings self :project-settings))

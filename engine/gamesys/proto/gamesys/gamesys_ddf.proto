@@ -11,12 +11,14 @@ message FactoryDesc
 {
     required string prototype = 1 [(resource)=true];
     optional bool load_dynamically = 2 [default=false];
+    optional bool dynamic_prototype = 3 [default=false];
 }
 
 message CollectionFactoryDesc
 {
     required string prototype = 1 [(resource)=true];
     optional bool load_dynamically = 2 [default=false];
+    optional bool dynamic_prototype = 3 [default=false];
 }
 
 message Create

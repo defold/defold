@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.tile-source
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.build-target :as bt]
             [editor.camera :as camera]
@@ -42,7 +41,6 @@
             [editor.scene :as scene]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
-            [editor.util :as util]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.digestable :as digestable])

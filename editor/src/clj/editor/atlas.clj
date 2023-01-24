@@ -453,12 +453,12 @@
                           (not-empty))]
     (g/error-aggregate errors)))
 
-(g/defnk produce-build-targets [_node-id resource texture-set packed-page-image-generator texture-profile build-settings build-errors]
+(g/defnk produce-build-targets [_node-id resource texture-set packed-page-images-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
     (let [project           (project/get-project _node-id)
           workspace         (project/workspace project)
           compress?         (:compress-textures? build-settings false)
-          texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-image-generator texture-profile compress?)
+          texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile compress?)
           pb-msg            texture-set
           dep-build-targets [texture-target]]
       [(pipeline/make-protobuf-build-target resource dep-build-targets
@@ -578,7 +578,7 @@
         {:f generate-texture-set-data
          :args augmented-args})))
 
-(g/defnk produce-packed-page-image-generator
+(g/defnk produce-packed-page-images-generator
   [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
   (let [flat-image-resources (filterv some? (flatten image-resources))
         image-sha1s (map (fn [resource]
@@ -704,12 +704,14 @@
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
 
-  (output packed-page-image-generator g/Any    produce-packed-page-image-generator)
+  (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
 
-  (output packed-page-images [BufferedImage]   :cached (g/fnk [packed-page-image-generator] (call-generator packed-page-image-generator)))
+  (output packed-page-images [BufferedImage]   :cached (g/fnk [packed-page-images-generator] (call-generator packed-page-images-generator)))
 
-  (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
-                                                 (tex-gen/make-preview-texture-image packed-image texture-profile)))
+  (output texture-image    g/Any               (g/fnk [packed-page-images texture-profile]
+                                                 ;; TODO: Make preview texture from multiple images.
+                                                 (let [packed-image (first packed-page-images)]
+                                                   (tex-gen/make-preview-texture-image packed-image texture-profile))))
   
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 

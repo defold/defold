@@ -27,6 +27,7 @@
             [util.digestable :as digestable])
   (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
            [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.graphics.proto Graphics$TextureImage]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
@@ -64,8 +65,12 @@
         images ((:f content-generator) (:args content-generator))]
     (g/precluding-errors
       [images]
-      (let [texture-images (map #(tex-gen/make-texture-image % texture-profile compress?) images)
-            combined-texture-image (-> texture-images to-array TextureUtil/createBuilder .build)]
+      (let [texture-images (map #(tex-gen/make-texture-image % texture-profile compress?)
+                                images)
+            combined-texture-image (->> texture-images
+                                        (into-array Graphics$TextureImage)
+                                        (TextureUtil/createBuilder)
+                                        (.build))]
         {:resource resource
          :content  (protobuf/pb->bytes combined-texture-image)}))))
 

@@ -108,6 +108,9 @@ namespace dmSys
         jclass def_activity_class = env->GetObjectClass(thread.GetActivity()->clazz);
         jmethodID get_connectivity_method = env->GetMethodID(def_activity_class, "getConnectivity", "()I");
         int reti = (int)env->CallIntMethod(thread.GetActivity()->clazz, get_connectivity_method);
+
+        env->DeleteLocalRef(def_activity_class);
+
         return (NetworkConnectivity)reti;
     }
 
@@ -305,9 +308,15 @@ namespace dmSys
                 res = RESULT_INVAL;
             }
             env->ReleaseStringUTFChars(path_obj, filesDir);
+            env->DeleteLocalRef(path_obj);
         } else {
             res = RESULT_UNKNOWN;
         }
+
+        env->DeleteLocalRef(file_class);
+        env->DeleteLocalRef(files_dir_obj);
+        env->DeleteLocalRef(activity_class);
+
         return res;
     }
 
@@ -337,9 +346,15 @@ namespace dmSys
                 res = RESULT_INVAL;
             }
             env->ReleaseStringUTFChars(path_obj, filesDir);
+            env->DeleteLocalRef(path_obj);
         } else {
             res = RESULT_UNKNOWN;
         }
+
+        env->DeleteLocalRef(file_class);
+        env->DeleteLocalRef(files_dir_obj);
+        env->DeleteLocalRef(activity_class);
+
         return res;
     }
 
@@ -361,7 +376,10 @@ namespace dmSys
         jstring str_url = env->NewStringUTF(url);
         jmethodID parse_method = env->GetStaticMethodID(uri_class, "parse", "(Ljava/lang/String;)Landroid/net/Uri;");
         jobject uri = env->CallStaticObjectMethod(uri_class, parse_method, str_url);
+
         env->DeleteLocalRef(str_url);
+        env->DeleteLocalRef(uri_class);
+
         if (uri == NULL)
         {
             return RESULT_UNKNOWN;
@@ -372,6 +390,11 @@ namespace dmSys
         jobject str_action_view = env->GetStaticObjectField(intent_class, action_view_field);
         jmethodID intent_constructor = env->GetMethodID(intent_class, "<init>", "(Ljava/lang/String;Landroid/net/Uri;)V");
         jobject intent = env->NewObject(intent_class, intent_constructor, str_action_view, uri);
+
+        env->DeleteLocalRef(str_action_view);
+        env->DeleteLocalRef(intent_class);
+        env->DeleteLocalRef(uri);
+
         if (intent == NULL)
         {
             return RESULT_UNKNOWN;
@@ -382,8 +405,13 @@ namespace dmSys
         env->CallVoidMethod(thread.GetActivity()->clazz, start_activity_method, intent);
         jthrowable exception = env->ExceptionOccurred();
         env->ExceptionClear();
+
+        env->DeleteLocalRef(activity_class);
+        env->DeleteLocalRef(intent);
+
         if (exception != NULL)
         {
+            env->DeleteLocalRef(exception);
             return RESULT_UNKNOWN;
         }
 
@@ -613,10 +641,17 @@ namespace dmSys
                     res = RESULT_INVAL;
                 }
                 env->ReleaseStringUTFChars(path_obj, filesDir);
+                env->DeleteLocalRef(path_obj);
             } else {
                 res = RESULT_UNKNOWN;
             }
+
+            env->DeleteLocalRef(file_class);
+            env->DeleteLocalRef(files_dir_obj);
         }
+
+        env->DeleteLocalRef(activity_class);
+
         return res;
     }
 
@@ -708,17 +743,22 @@ namespace dmSys
         jstring countryObj = (jstring) env->CallObjectMethod(locale, get_country_method);
         jstring languageObj = (jstring) env->CallObjectMethod(locale, get_language_method);
 
+        env->DeleteLocalRef(locale);
+        env->DeleteLocalRef(locale_class);
+
         char lang[32] = {0};
         if (languageObj) {
             const char* language = env->GetStringUTFChars(languageObj, NULL);
             dmStrlCpy(lang, language, sizeof(lang));
             env->ReleaseStringUTFChars(languageObj, language);
+            env->DeleteLocalRef(languageObj);
         }
         if (countryObj) {
             dmStrlCat(lang, "_", sizeof(lang));
             const char* country = env->GetStringUTFChars(countryObj, NULL);
             dmStrlCat(lang, country, sizeof(lang));
             env->ReleaseStringUTFChars(countryObj, country);
+            env->DeleteLocalRef(countryObj);
         }
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
@@ -737,17 +777,23 @@ namespace dmSys
             const char* manufacturer = env->GetStringUTFChars(manufacturerObj, NULL);
             dmStrlCpy(info->m_Manufacturer, manufacturer, sizeof(info->m_Manufacturer));
             env->ReleaseStringUTFChars(manufacturerObj, manufacturer);
+            env->DeleteLocalRef(manufacturerObj);
         }
         if (modelObj) {
             const char* model = env->GetStringUTFChars(modelObj, NULL);
             dmStrlCpy(info->m_DeviceModel, model, sizeof(info->m_DeviceModel));
             env->ReleaseStringUTFChars(modelObj, model);
+            env->DeleteLocalRef(modelObj);
         }
         if (releaseObj) {
             const char* release = env->GetStringUTFChars(releaseObj, NULL);
             dmStrlCpy(info->m_SystemVersion, release, sizeof(info->m_SystemVersion));
             env->ReleaseStringUTFChars(releaseObj, release);
+            env->DeleteLocalRef(releaseObj);
         }
+
+        env->DeleteLocalRef(build_version_class);
+        env->DeleteLocalRef(build_class);
     }
 
     void GetSecureInfo(SystemInfo* info)
@@ -772,10 +818,15 @@ namespace dmSys
                 const char* android_id = env->GetStringUTFChars(android_id_obj, NULL);
                 dmStrlCpy(info->m_DeviceIdentifier, android_id, sizeof(info->m_DeviceIdentifier));
                 env->ReleaseStringUTFChars(android_id_obj, android_id);
+                env->DeleteLocalRef(android_id_obj);
             }
+            env->DeleteLocalRef(secure_class);
         } else {
             dmLogWarning("Unable to get 'android.id'. Is permission android.permission.READ_PHONE_STATE set?")
         }
+
+        env->DeleteLocalRef(content_resolver);
+        env->DeleteLocalRef(activity_class);
     }
 #elif defined(_WIN32)
     typedef int (WINAPI *PGETUSERDEFAULTLOCALENAME)(LPWSTR, int);
@@ -827,6 +878,7 @@ namespace dmSys
         jstring str_url = env->NewStringUTF(id);
         jboolean installed = env->CallBooleanMethod(thread.GetActivity()->clazz, isAppInstalled, str_url);
         env->DeleteLocalRef(str_url);
+        env->DeleteLocalRef(def_activity_class);
 
         info->m_Installed = installed;
         return installed;

@@ -152,6 +152,9 @@
 (defn is-linux? []
   (= (os) :linux))
 
+(defn is-win32? []
+  (= (os) :win32))
+
 (defn positions [pred coll]
   (keep-indexed (fn [idx x]
                   (when (pred x)

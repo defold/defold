@@ -25,8 +25,7 @@
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
            [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback TextureSetProto$SpriteGeometry]
            [editor.types Image]
-           [java.awt.image BufferedImage]
-           [javax.vecmath Matrix3d Matrix4d Point2d]))
+           [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
 
@@ -73,10 +72,10 @@
      :rects all-rects}))
 
 (defn layout-atlas-pages
-  [layout-result id->image]
+  [^TextureSetGenerator$LayoutResult layout-result id->image]
   (let [inner-padding (.-innerPadding layout-result)
         extrude-borders (.-extrudeBorders layout-result)]
-    (mapv (fn [^Layout layout]
+    (mapv (fn [^TextureSetLayout$Layout layout]
             (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image))
           (.-layouts layout-result))))
 

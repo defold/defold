@@ -184,5 +184,6 @@
                                     :read-fn r/read-fn
                                     :write-fn r/write-fn
                                     :textual? true
+                                    :language "yaml"
                                     :auto-connect-save-data? false))
 
