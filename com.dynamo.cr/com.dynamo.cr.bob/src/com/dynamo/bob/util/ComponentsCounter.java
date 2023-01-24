@@ -17,6 +17,7 @@ package com.dynamo.bob.util;
 import org.apache.commons.io.FilenameUtils;
 
 import java.util.Map;
+import java.util.AbstractMap;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,7 +53,7 @@ public class ComponentsCounter {
 
     public static final String EXT_GO = ".compcount_go";
     public static final String EXT_COL = ".compcount_col";
-    public static final Integer UNCOUNTABLE = 0xFFFFFFFF;
+    public static final Integer DYNAMIC_VALUE = 0xFFFFFFFF;
 
     /**
      * Class represents a storage for counted components which can be written on disk
@@ -62,9 +63,18 @@ public class ComponentsCounter {
         private static final long serialVersionUID = 1L;
 
         private Map<String, Integer> components = new HashMap<>();
+        private Boolean isInDynamicFactory = false;
 
         public Map<String, Integer> get() {
             return components;
+        }
+
+        public void makeDynamic() {
+            isInDynamicFactory = true;
+        }
+
+        public Boolean isDynamic() {
+            return isInDynamicFactory;
         }
 
         public void add(String componentName, Integer count) {
@@ -72,11 +82,11 @@ public class ComponentsCounter {
                 componentName = componentName.substring(1);
             }
             Integer currentValue = components.getOrDefault(componentName, 0);
-            if (count == UNCOUNTABLE) {
-                components.put(componentName, UNCOUNTABLE);
+            if (count == DYNAMIC_VALUE) {
+                components.put(componentName, DYNAMIC_VALUE);
             } 
-            else if (currentValue != UNCOUNTABLE) {
-                components.put(componentName, components.getOrDefault(componentName, 0) + count);
+            else if (currentValue != DYNAMIC_VALUE) {
+                components.put(componentName, currentValue + count);
             }
         }
 
@@ -94,7 +104,7 @@ public class ComponentsCounter {
         public void add(Storage storage, Integer count) {
             Map<String, Integer> comps = storage.get();
             for (Map.Entry<String,Integer> entry : comps.entrySet()) {
-                add(entry.getKey(), count == UNCOUNTABLE ? UNCOUNTABLE : entry.getValue() * count);
+                add(entry.getKey(), count == DYNAMIC_VALUE ? DYNAMIC_VALUE : entry.getValue() * count);
             }
         }
 
@@ -139,59 +149,67 @@ public class ComponentsCounter {
         return type.equals("factory") || type.equals("collectionfactory");
     }
 
-    private static Boolean isCompCounterStorage(IResource res) {
-        return res.getPath().endsWith(EXT_GO) || res.getPath().endsWith(EXT_COL);
-    }
-
     private static Boolean isCompCounterStorage(String path) {
         return path.endsWith(EXT_GO) || path.endsWith(EXT_COL);
     }
 
-    private static String getCompCounterPathFromFactoryPrototype(String type, IResource resource) throws IOException, CompileExceptionError {
+    private static Map.Entry<String, Boolean> getCounterNameAndPrototypeInfo(String type, IResource resource) throws IOException, CompileExceptionError {
         if (type.equals("factory")) {
             FactoryDesc.Builder factoryDesc = FactoryDesc.newBuilder();
             ProtoUtil.merge(resource, factoryDesc);
-            return BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".go", EXT_GO);
+            Boolean isDynamic = factoryDesc.getDynamicPrototype();
+            String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".go", EXT_GO);
+            Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
+            return entry;
         } else if (type.equals("collectionfactory")) {
             CollectionFactoryDesc.Builder factoryDesc = CollectionFactoryDesc.newBuilder();
             ProtoUtil.merge(resource, factoryDesc);
-            return BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".collection", EXT_COL);
+            Boolean isDynamic = factoryDesc.getDynamicPrototype();
+            String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".collection", EXT_COL);
+            Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
+            return entry;
         }
         return null;
     }
 
-    public static Boolean addCompCounterInputFromFactory(EmbeddedComponentDesc ec, IResource genResource,
+    public static Boolean ifStaticFactoryAddProtoAsInput(EmbeddedComponentDesc ec, IResource genResource,
         TaskBuilder taskBuilder, IResource input) throws IOException, CompileExceptionError {
         
-        String compCounterPath = getCompCounterPathFromFactoryPrototype(ec.getType(), genResource);
-        if (compCounterPath != null) {
-            taskBuilder.addInputIfUnique(input.getResource(compCounterPath).output());
-            return true;
+        Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(ec.getType(), genResource);
+        if (info != null) {
+            Boolean isStatic = !info.getValue();
+            if (isStatic) {
+                taskBuilder.addInputIfUnique(input.getResource(info.getKey()).output());
+            }
+            return isStatic;
         }
-        return false;
+        return null;
     }
 
-    public static Boolean addCompCounterInputFromFactory(ComponentDesc cd, TaskBuilder taskBuilder,
+    public static Boolean ifStaticFactoryAddProtoAsInput(ComponentDesc cd, TaskBuilder taskBuilder,
         IResource input, Project project) throws IOException, CompileExceptionError {
         
         String comp = cd.getComponent();
         String type = FilenameUtils.getExtension(comp);
         if (ComponentsCounter.isFactoryType(type)) {
             IResource genResource = project.getResource(comp);
-            String compCounterPath = getCompCounterPathFromFactoryPrototype(type, genResource);
-            if (compCounterPath != null) {
-                taskBuilder.addInputIfUnique(input.getResource(compCounterPath).output());
-                return true;
+            Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource);
+            if (info != null) {
+                Boolean isStatic = !info.getValue();
+                if (isStatic) {
+                    taskBuilder.addInputIfUnique(input.getResource(info.getKey()).output());
+                }
+                return isStatic;
             }
         }
-        return false;
+        return null;
     }
 
     public static Set<IResource> getCounterInputs(Task<?> task) {
         List<IResource> inputs = task.getInputs();
         Set<IResource> counterInputs = new HashSet<IResource>();
         for (IResource res : inputs) {
-            if (isCompCounterStorage(res)) {
+            if (isCompCounterStorage(res.getPath())) {
                 counterInputs.add(res);
             }
         }
@@ -200,7 +218,7 @@ public class ComponentsCounter {
 
     public static void sumInputs(Storage targetStorage, List<IResource> inputs, Integer count) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
-            if (isCompCounterStorage(res)) {
+            if (isCompCounterStorage(res.getPath())) {
                 targetStorage.add(Storage.load(res), count);
             }
         }
@@ -209,7 +227,7 @@ public class ComponentsCounter {
     public static void sumInputs(Storage targetStorage, List<IResource> inputs,
         Map<IResource, Integer> compCounterInputsCount) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
-            if (isCompCounterStorage(res)) {
+            if (isCompCounterStorage(res.getPath())) {
                 targetStorage.add(Storage.load(res), compCounterInputsCount.get(res));
             }
         }
@@ -229,22 +247,45 @@ public class ComponentsCounter {
         return replaceExt(path);
     }
 
-    public static void countComponents(Project project, IResource res, Storage compStorage) throws IOException, CompileExceptionError {
+    public static void countComponentsInEmbededObjects(Project project, IResource res, Storage compStorage) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
         ProtoUtil.merge(res, prot);
 
         for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
             String type = cd.getType();
             compStorage.add(type);
+            if (isFactoryType(type)) {
+                byte[] data = cd.getData().getBytes();
+                long hash = MurmurHash.hash64(data, data.length);
+                IResource genResource = project.getGeneratedResource(hash, type);
+                genResource.setContent(data);
+                Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource);
+                if (info != null && info.getValue()) {
+                    compStorage.makeDynamic();
+                    return;
+                }
+            }
         }
         for (ComponentDesc cd : prot.getComponentsList()) {
             String comp = cd.getComponent();
             String type = FilenameUtils.getExtension(comp);
             compStorage.add(type);
+            if (isFactoryType(type)) {
+                IResource genResource = project.getResource(comp);
+                Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource);
+                if (info != null && info.getValue()) {
+                    compStorage.makeDynamic();
+                    return;
+                }
+            }
         }
     }
 
     public static void copyDataToBuilder(Storage storage, Project project, CollectionDesc.Builder builder) {
+        //Do not copy values for collections with dynamic factories
+        if (storage.isDynamic()) {
+            return;
+        }
         Map<String, Integer> components = storage.get();
         HashMap<String, Integer> mergedComponents = new HashMap<>();
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
@@ -254,8 +295,8 @@ public class ComponentsCounter {
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);
                 Integer value = entry.getValue();
-                if (mergedValue == UNCOUNTABLE || value == UNCOUNTABLE) {
-                    mergedComponents.put(name, UNCOUNTABLE);
+                if (mergedValue == DYNAMIC_VALUE || value == DYNAMIC_VALUE) {
+                    mergedComponents.put(name, DYNAMIC_VALUE);
                 } else {
                     mergedComponents.put(name, mergedValue + value);
                 }

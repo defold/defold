@@ -55,7 +55,6 @@ import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 @ProtoParams(srcClass = CollectionDesc.class, messageClass = CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
 public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
-    private List<Task<?>> embedTasks = new ArrayList<>();
     private Map<IResource, Integer> compCounterInputsCount = new HashMap<>();
 
     private void collectSubCollections(CollectionDesc.Builder collection, Map<IResource, Integer> subCollections) throws CompileExceptionError, IOException {
@@ -137,7 +136,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
         Map<Long, IResource> uniqueResources = new HashMap<>();
         createGeneratedResources(this.project, builder, uniqueResources);
-
+        
+        List<Task<?>> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
             taskBuilder.addOutput(genResource);
@@ -152,7 +152,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             Set<IResource> counterInputs = ComponentsCounter.getCounterInputs(embedTask);
             for(IResource res : counterInputs) {
                 taskBuilder.addInput(res);
-                compCounterInputsCount.put(res, ComponentsCounter.UNCOUNTABLE);
+                compCounterInputsCount.put(res, ComponentsCounter.DYNAMIC_VALUE);
             }
         }
 
@@ -350,7 +350,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
             // mergeSubCollections() embeds instances, but we want to count only "real" embeded instances
             if (embedIndex < countOfRealEmbededObjects) {
-                ComponentsCounter.countComponents(project, genResource, compStorage);
+                ComponentsCounter.countComponentsInEmbededObjects(project, genResource, compStorage);
             }
 
             int buildDirLen = project.getBuildDirectory().length();

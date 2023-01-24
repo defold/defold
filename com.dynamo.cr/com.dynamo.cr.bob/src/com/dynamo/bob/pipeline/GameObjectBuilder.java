@@ -53,7 +53,7 @@ import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
 public class GameObjectBuilder extends Builder<Void> {
-
+    private Boolean ifObjectHasDynamicFactory = false;
 
     private boolean isComponentOfType(EmbeddedComponentDesc d, String type) {
         return d.getType().equals(type);
@@ -102,8 +102,8 @@ public class GameObjectBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
 
         for (ComponentDesc cd : b.getComponentsList()) {
-
-            ComponentsCounter.addCompCounterInputFromFactory(cd, taskBuilder, input, project);
+            Boolean isStatic = Boolean.TRUE.equals(ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project));
+            ifObjectHasDynamicFactory |= !isStatic;
             Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
             for(String r : resources) {
                 IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
@@ -132,8 +132,8 @@ public class GameObjectBuilder extends Builder<Void> {
                 genResource.setContent(data);
                 uniqueResources.put(hash, genResource);
             }
-
-            ComponentsCounter.addCompCounterInputFromFactory(ec, genResource, taskBuilder, input);
+            Boolean isStatic = Boolean.TRUE.equals(ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, taskBuilder, input));
+            ifObjectHasDynamicFactory |= !isStatic;
         }
 
         for (long hash : uniqueResources.keySet()) {
@@ -206,7 +206,10 @@ public class GameObjectBuilder extends Builder<Void> {
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         protoBuilder = transformGo(input, protoBuilder, compStorage);
         // these inputs are from factories
-        ComponentsCounter.sumInputs(compStorage, task.getInputs(), ComponentsCounter.UNCOUNTABLE);
+        if (ifObjectHasDynamicFactory) {
+            compStorage.makeDynamic();
+        }
+        ComponentsCounter.sumInputs(compStorage, task.getInputs(), ComponentsCounter.DYNAMIC_VALUE);
         protoBuilder.clearEmbeddedComponents();
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
