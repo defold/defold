@@ -166,7 +166,6 @@ static int SetListener(lua_State* L)
     if (!dmScript::IsCallbackValid(window_info->m_Callback))
         return luaL_error(L, "Failed to create callback");
 
-    lua_State* cbkL = dmScript::GetCallbackLuaContext(window_info->m_Callback);
     return 0;
 }
 

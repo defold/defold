@@ -494,22 +494,22 @@
    :patterns [{:match #"^INFO:RESOURCE: (.+?) was successfully reloaded\."
                :name "console.reload.successful"}
               {:match #"^ERROR:.+?:"
-               :name "console.error"}
+               :name "editor.error"}
               {:match #"^WARNING:.+?:"
-               :name "console.warning"}
+               :name "editor.warning"}
               {:match #"^INFO:.+?:"
-               :name "console.info"}
+               :name "editor.info"}
               {:match #"^DEBUG:.+?:"
-               :name "console.debug"}]})
+               :name "editor.debug"}]})
 
 (def ^:private console-color-scheme
   (let [^Color background-color (Color/valueOf "#27292D")
         ^Color selection-background-color (Color/valueOf "#264A8B")]
     (view/make-color-scheme
-      [["console.error" (Color/valueOf "#FF6161")]
-       ["console.warning" (Color/valueOf "#FF9A34")]
-       ["console.info" (Color/valueOf "#CCCFD3")]
-       ["console.debug" (Color/valueOf "#3B8CF8")]
+      [["editor.error" (Color/valueOf "#FF6161")]
+       ["editor.warning" (Color/valueOf "#FF9A34")]
+       ["editor.info" (Color/valueOf "#CCCFD3")]
+       ["editor.debug" (Color/valueOf "#3B8CF8")]
        ["console.reload.successful" (Color/valueOf "#33CC33")]
        ["editor.foreground" (Color/valueOf "#A2B0BE")]
        ["editor.background" background-color]
