@@ -53,7 +53,7 @@
   (catch Exception e
     (throw (ex-info "Failed to set verbose logging field in Bob." {} e))))
 
-(def skip-dirs #{".git" "build" ".internal"})
+(def skip-dirs #{".git" "build" ".internal" })
 (def html5-url-prefix "/html5")
 (def html5-mime-types {"js" "application/javascript",
                        "json" "application/json",
