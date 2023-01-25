@@ -19,7 +19,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 
-dmTexc::PixelFormat GetPixelFormat(int channels)
+dmTexc::PixelFormat GetPixelFormatFromChannels(int channels)
 {
     switch(channels)
     {
@@ -49,7 +49,7 @@ struct EncodeParams
 EncodeParams GetDefaultEncodeParams()
 {
     EncodeParams params       = {};
-    params.m_MipMaps          = 1;
+    params.m_MipMaps          = 0;
     params.m_PremultiplyAlpha = 1;
     params.m_ColorSpace       = dmTexc::CS_SRGB;
     params.m_CompressionType  = dmTexc::CT_DEFAULT;
@@ -165,6 +165,8 @@ void GetEncodeParamsFromArgs(int argc, const char* argv[], EncodeParams& params)
                 params.m_FlipY = 1;
             else if (CMP_ARG("verbose"))
                 params.m_Verbose = 1;
+            else if (CMP_ARG("mipmaps"))
+                params.m_MipMaps = 1;
             else if (CMP_ARG_1_OP("color-space"))
                 params.m_ColorSpace = GetArgTypeValue(argv[++i], g_cs_lut, params.m_ColorSpace);
             else if (CMP_ARG_1_OP("compression-type"))
@@ -184,7 +186,7 @@ int DoEncode(EncodeParams params)
     unsigned char *data = stbi_load(params.m_PathIn, &x, &y, &n, 0);
 
     dmTexc::HTexture tex = dmTexc::Create(params.m_PathIn, x, y,
-        GetPixelFormat(n), params.m_ColorSpace, params.m_CompressionType, data);
+        GetPixelFormatFromChannels(n), params.m_ColorSpace, params.m_CompressionType, data);
 
     if (params.m_PremultiplyAlpha && !dmTexc::PreMultiplyAlpha(tex))
     {
@@ -204,8 +206,16 @@ int DoEncode(EncodeParams params)
         return -1;
     }
 
-    if (!dmTexc::Encode(tex, dmTexc::PF_RGBA_BC3, params.m_ColorSpace,
-                params.m_CompressionLevel, params.m_CompressionType, params.m_MipMaps, 4))
+    // Note: For basis, the mipmaps are actually created when we encode, this call just requests that we want mipmaps later
+    if (params.m_MipMaps && !dmTexc::GenMipMaps(tex))
+    {
+        printf("Unable to generate mipmaps\n");
+        return -1;
+    }
+
+    if (params.m_CompressionType != dmTexc::CT_DEFAULT &&
+        !dmTexc::Encode(tex, dmTexc::PF_RGBA_BC3, params.m_ColorSpace,
+            params.m_CompressionLevel, params.m_CompressionType, params.m_MipMaps, 4))
     {
         printf("Unable to encode texture data\n");
         return -1;
@@ -239,11 +249,12 @@ void ShowHelp()
     printf("  --flip-x                    : Flip image on X axis\n");
     printf("  --flip-y                    : Flip image on Y axis\n");
     printf("  --verbose                   : Verbose output\n");
+    printf("  --mipmaps                   : Generate mipmaps\n");
     printf("  --color-space <color-space> : Sets the color space, defaults to 'SRGB'. Supported values are:\n");
     PRINT_ARG_LIST(g_cs_lut);
-    printf("  --compression-type          : Sets the compression type, defaults to 'DEFAULT'. Supported values are:\n");
+    printf("  --compression-type <type>   : Sets the compression type, defaults to 'DEFAULT'. Supported values are:\n");
     PRINT_ARG_LIST(g_ct_lut);
-    printf("  --compression-level         : Sets the compression level, defaults to 'NORMAL'. Supported values are:\n");
+    printf("  --compression-level <level> : Sets the compression level, defaults to 'NORMAL'. Supported values are:\n");
     PRINT_ARG_LIST(g_cl_lut);
 #undef PRINT_ARG_LIST
 }

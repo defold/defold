@@ -32,6 +32,7 @@ import org.junit.Test;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
@@ -51,6 +52,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testProps() throws Exception {
         addFile("/test.go", "");
+        addFile(ComponentsCounter.replaceExt("/build/test.go"), ComponentsCounter.createStorage().toByteArray());
         StringBuilder src = new StringBuilder();
         src.append("name: \"main\"\n");
         src.append("instances {\n");
@@ -85,6 +87,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test(expected = CompileExceptionError.class)
     public void testPropInvalidValue() throws Exception {
         addFile("/test.go", "");
+        addFile(ComponentsCounter.replaceExt("/build/test.go"), ComponentsCounter.createStorage().toByteArray());
         StringBuilder src = new StringBuilder();
         src.append("name: \"main\"\n");
         src.append("instances {\n");
@@ -173,6 +176,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testCollectionFlattening() throws Exception {
         addFile("/test.go", "");
+        addFile(ComponentsCounter.replaceExt("/build/test.go"), ComponentsCounter.createStorage().toByteArray());
 
         Point3d p = new Point3d(1.0, 0.0, 0.0);
         Quat4d r = new Quat4d();
@@ -186,12 +190,14 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addEmbeddedInstance(subSubSrc, "test_embed_child", new HashMap<String, String>(), p, r, s);
         addEmbeddedInstance(subSubSrc, "test_embed", new HashMap<String, String>(), p, r, s, "test_embed_child");
         addFile("/sub_sub.collection", subSubSrc.toString());
+        addFile(ComponentsCounter.replaceExt("/build/sub_sub.collection"), ComponentsCounter.createStorage().toByteArray());
 
         StringBuilder subSrc = new StringBuilder();
         subSrc.append("name: \"sub\"\n");
         addCollectionInstance(subSrc, "sub_sub", "/sub_sub.collection", p, r, s);
         addInstance(subSrc, "test", "/test.go", p, r, s);
         addFile("/sub.collection", subSrc.toString());
+        addFile(ComponentsCounter.replaceExt("/build/sub.collection"), ComponentsCounter.createStorage().toByteArray());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"main\"\n");
@@ -274,6 +280,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testCollectionFlatteningChildren() throws Exception {
         addFile("/test.go", "");
+        addFile(ComponentsCounter.replaceExt("/build/test.go"), ComponentsCounter.createStorage().toByteArray());
 
         Point3d p = new Point3d(1.0, 0.0, 0.0);
         Quat4d r = new Quat4d();
@@ -285,6 +292,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addInstance(subSrc, "child", "/test.go", p, r, s);
         addInstance(subSrc, "parent", "/test.go", p, r, s, "child");
         addFile("/sub.collection", subSrc.toString());
+        addFile(ComponentsCounter.replaceExt("/build/sub.collection"), ComponentsCounter.createStorage().toByteArray());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"main\"\n");
@@ -326,6 +334,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testCollectionFlatteningProperties() throws Exception {
         addFile("/test.go", "");
+        addFile(ComponentsCounter.replaceExt("/build/test.go"), ComponentsCounter.createStorage().toByteArray());
         StringBuilder src = new StringBuilder();
         src.append("name: \"sub\"\n");
         src.append("instances {\n");
@@ -337,6 +346,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("  }\n");
         src.append("}\n");
         addFile("/sub.collection", src.toString());
+        addFile(ComponentsCounter.replaceExt("/build/sub.collection"), ComponentsCounter.createStorage().toByteArray());
 
         src = new StringBuilder();
         src.append("name: \"main\"\n");
@@ -381,6 +391,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("  data: \"\"\n");
         src.append("}\n");
         addFile("/sub_sub.collection", src.toString());
+        addFile(ComponentsCounter.replaceExt("/build/sub_sub.collection"), ComponentsCounter.createStorage().toByteArray());
 
         src = new StringBuilder();
         src.append("name: \"sub\"\n");
@@ -396,6 +407,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("  }\n");
         src.append("}\n");
         addFile("/sub.collection", src.toString());
+        addFile(ComponentsCounter.replaceExt("/build/sub.collection"), ComponentsCounter.createStorage().toByteArray());
 
         src = new StringBuilder();
         src.append("name: \"main\"\n");
@@ -438,6 +450,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addEmbeddedInstance(subSrc, "child", components, p, r, s);
         addEmbeddedInstance(subSrc, "parent", components, p, r, s, "child");
         addFile("/sub.collection", subSrc.toString());
+        addFile(ComponentsCounter.replaceExt("/build/sub.collection"), ComponentsCounter.createStorage().toByteArray());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"main\"\n");
@@ -579,6 +592,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> testColmsg = build("/test.collection", srcTest.toString());
         addFile("/factory.collection", srcTest.toString());
+        build("/factory.collection", srcTest.toString());
 
         StringBuilder collectionfactorySrc = new StringBuilder();
         collectionfactorySrc.append("prototype: \"/factory.collection\"\n");
@@ -672,6 +686,59 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     }
 
     /**
+     * Test that the component counter ignores collections with dynamic factories
+     * Structure:
+     * - go
+     *   - factory
+     *      - collection
+     *          - sprite
+     * @throws Exception
+     */
+    @Test
+    public void testInstanceComponentCounterForDynamicFactory() throws Exception {
+        addFile("/test.atlas", "");
+
+        StringBuilder spriteSrc = new StringBuilder();
+        spriteSrc.append("tile_set: \"/test.atlas\"\n");
+        spriteSrc.append("default_animation: \"\"\n");
+
+        StringBuilder goTestSrc = new StringBuilder();
+        goTestSrc.append("embedded_components {\n");
+        goTestSrc.append("  id: \"sprite\"\n");
+        goTestSrc.append("  type: \"sprite\"\n");
+        goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
+        goTestSrc.append("}\n");
+
+        List<Message> testColmsg = build("/go.go", goTestSrc.toString());
+        addFile("/go.go", goTestSrc.toString());
+
+        StringBuilder goFactorySrc = new StringBuilder();
+        goFactorySrc.append("prototype: \"/go.go\"\n");
+        goFactorySrc.append("\"\"\n");
+
+        StringBuilder goSrc = new StringBuilder();
+        goSrc.append("embedded_components {\n");
+        goSrc.append("  id: \"factory\"\n");
+        goSrc.append("  type: \"factory\"\n");
+        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(goFactorySrc.toString())).append("\"\n");
+        goSrc.append("\"dynamic_prototype: true\"\n");
+        goSrc.append("}\n");
+
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"main\"\n");
+        src.append("embedded_instances {\n");
+        src.append("  id: \"go\"\n");
+        src.append("  data: \"").append(StringEscapeUtils.escapeJava(goSrc.toString())).append("\"\n");
+        src.append("}\n");
+
+        List<Message> mainColmsg = build("/mainf.collection", src.toString());
+
+        CollectionDesc collection = (CollectionDesc)mainColmsg.get(0);
+        List<ComponenTypeDesc> types = collection.getComponentTypesList();
+        Assert.assertEquals(0, types.size());
+    }
+
+    /**
      * Test that the component counter counts components in subcollection from collectionfactory
      * Structure:
      * - go
@@ -706,6 +773,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> testColmsg = build("/subCol.collection", subCol.toString());
         addFile("/subCol.collection", subCol.toString());
+        build("/subCol.collection", subCol.toString());
 
         Point3d p = new Point3d(1.0, 0.0, 0.0);
         Quat4d r = new Quat4d();
@@ -718,6 +786,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> colMsg = build("/factory.collection", col.toString());
         addFile("/factory.collection", col.toString());
+        build("/factory.collection", col.toString());
 
         StringBuilder collectionfactorySrc = new StringBuilder();
         collectionfactorySrc.append("prototype: \"/factory.collection\"\n");

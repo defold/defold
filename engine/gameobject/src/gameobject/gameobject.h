@@ -427,7 +427,7 @@ namespace dmGameObject
     /**
      * Remove the reference to a dynamically created resource. This implies
      * that the resource has been externally removed and should no longer be
-     * tracked by the collection, i.e resource.release(id) has been called
+     * tracked by the collection, e.g resource.release(id) has been called
      */
     void RemoveDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 }

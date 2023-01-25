@@ -1,2 +1,3 @@
 prototype: "/collection_factory/collectionfactory_test.collection"
 load_dynamically: true
+dynamic_prototype: true

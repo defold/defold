@@ -238,6 +238,81 @@ TEST(dmVMath, TestFrustumOBBPerspective)
 
 }
 
+TEST(dmVMath, TestFrustumOBBCorners)
+{
+    // Frustum's center is on origin on X, Y axes. On Z it's placed from -FRUSTUM_NEAR to -FRUSTUM_FAR.
+    dmVMath::Matrix4 proj = dmVMath::Matrix4::orthographic(-FRUSTUM_WIDTH/2, FRUSTUM_WIDTH/2, -FRUSTUM_HEIGHT/2, FRUSTUM_HEIGHT/2, FRUSTUM_NEAR, FRUSTUM_FAR);
+    dmIntersection::Frustum frustum;
+    dmIntersection::CreateFrustumFromMatrix(proj, true, frustum);
+
+    float FRUSTUM_NEARFAR_MIDDLE = (FRUSTUM_NEAR + FRUSTUM_FAR)/2;
+    float BOX_SIDE = 2;
+    float BOX_DIAG = 2*sqrt(3);
+    dmVMath::Vector3 minPoint(-BOX_SIDE/2,-BOX_SIDE/2,-BOX_SIDE/2);
+    dmVMath::Vector3 maxPoint(BOX_SIDE/2,BOX_SIDE/2,BOX_SIDE/2); // note, the box lies in the +Z axis
+
+    float y_rotate_start = PI/4;
+    for (float y_rotate = y_rotate_start; y_rotate < 2*PI; y_rotate += (PI/2) ) // rotate in 4 positions around Y axis so that points are on X axis
+    {
+        float z_rotations[2] = {PI/4,-PI/4};
+        for (int i = 0; i<2; i++)
+        {
+            float z_rotate = z_rotations[i];
+
+            // place it diagonally with its center at the origin, protruding corners towards left, right, top, and bottom
+            dmVMath::Matrix4 trans_model = dmVMath::Matrix4::rotationZ(z_rotate) * dmVMath::Matrix4::rotationY(y_rotate);
+
+            // check against left side of frustum
+            dmVMath::Matrix4 trans = dmVMath::Matrix4::translation(dmVMath::Vector3(-BOX_DIAG/2-FRUSTUM_WIDTH/2-0.1, 0, -FRUSTUM_NEARFAR_MIDDLE/2)) * trans_model;
+            ASSERT_FALSE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(-BOX_DIAG/2-FRUSTUM_WIDTH/2+0.1, 0, -FRUSTUM_NEARFAR_MIDDLE/2)) * trans_model;
+            ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+
+            // check against right side of frustum
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(BOX_DIAG/2+FRUSTUM_WIDTH/2+0.1, 0, -FRUSTUM_NEARFAR_MIDDLE/2)) * trans_model;
+            ASSERT_FALSE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(BOX_DIAG/2+FRUSTUM_WIDTH/2-0.1, 0, -FRUSTUM_NEARFAR_MIDDLE/2)) * trans_model;
+            ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+
+            // check against bottom side of frustum
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(0, -BOX_DIAG/2-FRUSTUM_HEIGHT/2-0.1, -FRUSTUM_NEARFAR_MIDDLE/2)) * trans_model;
+            ASSERT_FALSE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(0, -BOX_DIAG/2-FRUSTUM_HEIGHT/2+0.1, -FRUSTUM_NEARFAR_MIDDLE/2)) * trans_model;
+            ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+
+            // check against top side of frustum
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(0, BOX_DIAG/2+FRUSTUM_HEIGHT/2+0.1, -FRUSTUM_NEARFAR_MIDDLE/2)) * trans_model;
+            ASSERT_FALSE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(0, BOX_DIAG/2+FRUSTUM_HEIGHT/2-0.1, -FRUSTUM_NEARFAR_MIDDLE/2)) * trans_model;
+            ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+
+        }
+
+        float x_rotations[2] = {PI/4,-PI/4};
+        for (int i = 0; i<2; i++)
+        {
+            float x_rotate = x_rotations[i];
+
+            // place it diagonally with its center at the origin, protruding corners towards front, back, top, and bottom
+            dmVMath::Matrix4 trans_model = dmVMath::Matrix4::rotationX(x_rotate) * dmVMath::Matrix4::rotationY(y_rotate);
+
+            // check against near side of frustum
+            dmVMath::Matrix4 trans = dmVMath::Matrix4::translation(dmVMath::Vector3(0, 0, BOX_DIAG/2-FRUSTUM_NEAR+0.1)) * trans_model;
+            ASSERT_FALSE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(0,0, BOX_DIAG/2-FRUSTUM_NEAR-0.1)) * trans_model;
+            ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+
+            // check against far side of frustum
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(0,0,-BOX_DIAG/2-FRUSTUM_FAR-0.1)) * trans_model;
+            ASSERT_FALSE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+            trans = dmVMath::Matrix4::translation(dmVMath::Vector3(0,0,-BOX_DIAG/2-FRUSTUM_FAR+0.1)) * trans_model;
+            ASSERT_TRUE(dmIntersection::TestFrustumOBB(frustum, trans, minPoint, maxPoint, false));
+        }
+    }
+}
+
+
+
 
 int main(int argc, char **argv)
 {

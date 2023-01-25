@@ -125,7 +125,7 @@ namespace dmGameSystem
         int                 m_BufferRef;// Holds a reference to the Lua object
     };
 
-    static inline dmBuffer::HBuffer UnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer)
+    dmBuffer::HBuffer UnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer)
     {
         if (lua_buffer->m_Owner == dmScript::OWNER_RES) {
             BufferResource* res = (BufferResource*)lua_buffer->m_BufferRes;
@@ -133,6 +133,18 @@ namespace dmGameSystem
         } else {
             return lua_buffer->m_Buffer;
         }
+    }
+
+    // Unless we check that a buffer resource actually exists, the engine will crash
+    // when unpacking. This can happen if a user destroys a resource but a LuaHBuffer still holds a reference to the resource
+    static bool CanUnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer)
+    {
+        if (lua_buffer->m_Owner == dmScript::OWNER_RES)
+        {
+            uint64_t hash;
+            return dmResource::RESULT_OK == dmResource::GetPath(g_Factory, lua_buffer->m_BufferRes, &hash);
+        }
+        return true;
     }
 
     static bool IsStream(lua_State *L, int index)
@@ -424,8 +436,7 @@ namespace dmGameSystem
     static int GetStream(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
         dmhash_t stream_name = dmScript::CheckHashOrString(L, 2);
         PushStream(L, 1, hbuffer, stream_name);
         return 1;
@@ -589,10 +600,8 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmScript::LuaHBuffer* _dstbuffer = dmScript::CheckBuffer(L, 1);
-        dmScript::LuaHBuffer* _srcbuffer = dmScript::CheckBuffer(L, 3);
-        dmBuffer::HBuffer dst_hbuffer = UnpackLuaBuffer(_dstbuffer);
-        dmBuffer::HBuffer src_hbuffer = UnpackLuaBuffer(_srcbuffer);
+        dmBuffer::HBuffer dst_hbuffer = dmScript::CheckBufferUnpack(L, 1);
+        dmBuffer::HBuffer src_hbuffer = dmScript::CheckBufferUnpack(L, 3);
         dmBuffer::HBuffer dstbuffer = dst_hbuffer;
         dmBuffer::HBuffer srcbuffer = src_hbuffer;
         int dstoffset = luaL_checkint(L, 2);
@@ -687,8 +696,7 @@ namespace dmGameSystem
     static int GetBytes(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
 
         uint8_t* data;
         uint32_t datasize;
@@ -724,10 +732,9 @@ namespace dmGameSystem
     static int Buffer_tostring(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
 
         uint32_t num_streams;
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
         dmBuffer::GetNumStreams(hbuffer, &num_streams);
 
         uint32_t out_element_count = 0;
@@ -775,8 +782,7 @@ namespace dmGameSystem
     static int Buffer_len(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
         uint32_t count = 0;
         dmBuffer::Result r = dmBuffer::GetCount(hbuffer, &count);
         if (r != dmBuffer::RESULT_OK) {
@@ -936,8 +942,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
 
         // get buffer
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
 
         // get metadata entry name
         dmhash_t entry_name = dmScript::CheckHashOrString(L, 2);
@@ -960,7 +965,7 @@ namespace dmGameSystem
                 return DM_LUA_ERROR("64 bit integer metadata are not supported.");
             }
 
-            void* values;
+            void* values = 0;
             lua_pushvalue(L, 3);
 
             #define DM_LUA_TABLE_TO_ARRAY(_T_) values = (void*) LuaTableToArray<_T_>(L, count, valueType)
@@ -987,6 +992,7 @@ namespace dmGameSystem
                 case dmBuffer::VALUE_TYPE_INT32:
                     DM_LUA_TABLE_TO_ARRAY(int32_t);
                 break;
+                default:break;
             }
             #undef DM_LUA_TABLE_TO_ARRAY
 
@@ -1050,8 +1056,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 2);
 
         // get buffer
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
 
         // get metadata entry name
         dmhash_t entry_name = dmScript::CheckHashOrString(L, 2);
@@ -1211,32 +1216,57 @@ namespace dmScript
         lua_setmetatable(L, -2);
     }
 
-    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
-    {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
-            dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
-            if( buffer && dmBuffer::IsBufferValid(hbuffer))
-            {
-                return buffer;
-            }
-        }
-        return 0x0;
-    }
-
-    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
+    // Note: the throw_error only controls this particular function, not the CheckUserType
+    static dmBuffer::HBuffer CheckBufferUnpackInternal(lua_State* L, int index, bool throw_error, dmScript::LuaHBuffer** out_luabuffer)
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
             dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
+            if (!dmGameSystem::CanUnpackLuaBuffer(buffer))
+            {
+                if (throw_error)
+                    luaL_error(L, "The buffer handle was stale");
+                else
+                    return 0;
+            }
+
             dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
             if( dmBuffer::IsBufferValid( hbuffer ) ) {
-                return buffer;
+                if (out_luabuffer)
+                    *out_luabuffer = buffer;
+                return hbuffer;
             }
-            luaL_error(L, "The buffer handle is invalid");
+
+            if (throw_error)
+                luaL_error(L, "The buffer handle is invalid");
+            else
+                return 0;
         }
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
         return 0x0;
+    }
+
+    dmBuffer::HBuffer CheckBufferUnpack(lua_State* L, int index)
+    {
+        return CheckBufferUnpackInternal(L, index, true, 0);
+    }
+
+    dmBuffer::HBuffer CheckBufferUnpackNoError(lua_State* L, int index)
+    {
+        return CheckBufferUnpackInternal(L, index, false, 0);
+    }
+
+    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
+    {
+        dmScript::LuaHBuffer* buffer = 0;
+        dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, true, &buffer);
+        return hbuffer != 0 ? buffer : 0; // SHouldn't get here due to the lua_error
+    }
+
+    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
+    {
+        dmScript::LuaHBuffer* buffer = 0;
+        dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, false, &buffer);
+        return hbuffer != 0 ? buffer : 0;
     }
 }

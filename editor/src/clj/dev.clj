@@ -23,6 +23,7 @@
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
+            [editor.util :as eutil]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
@@ -401,3 +402,158 @@
   (ordered-occurrences
     (map (comp second key)
          (is/system-cache @g/*the-system*))))
+
+;; Utilities for investigating successors performance
+
+(defn- successor-pairs
+  ([endpoints]
+   (successor-pairs (g/now) endpoints))
+  ([basis endpoints]
+   (successor-pairs basis endpoints nil))
+  ([basis endpoints successor-filter]
+   (letfn [(get-successors [acc endpoints]
+             (let [next-level
+                   (into {}
+                         (comp
+                           (remove acc)
+                           (map
+                             (juxt
+                               identity
+                               (fn [endpoint]
+                                 (let [node-id (gt/endpoint-node-id endpoint)
+                                       label (gt/endpoint-label endpoint)
+                                       graph-id (gt/node-id->graph-id node-id)]
+                                   (cond->> (get-in basis [:graphs graph-id :successors node-id label])
+                                            successor-filter
+                                            (into [] (filter #(successor-filter [endpoint %])))))))))
+                         endpoints)]
+               (cond-> (into acc next-level)
+                       (pos? (count next-level))
+                       (recur (into #{} (mapcat val) next-level)))))]
+     (let [endpoint->successors (get-successors {} endpoints)]
+       (into #{}
+             (mapcat
+               (fn [[endpoint successors]]
+                 (->Eduction
+                   (map (partial pair endpoint))
+                   successors)))
+             endpoint->successors)))))
+
+(defn- successor-pair-type
+  "Returns either :override, :internal or :external"
+  ([source-endpoint target-endpoint]
+   (successor-pair-type (g/now) source-endpoint target-endpoint))
+  ([basis source-endpoint target-endpoint]
+   (cond
+     (and
+       (= (gt/endpoint-node-id source-endpoint)
+          (gt/original-node basis (gt/endpoint-node-id target-endpoint)))
+       (= (gt/endpoint-label source-endpoint)
+          (gt/endpoint-label target-endpoint)))
+     :override
+
+     (= (gt/endpoint-node-id source-endpoint)
+        (gt/endpoint-node-id target-endpoint))
+     :internal
+
+     :else
+     :external)))
+
+(defn- percentage-str [n total]
+  (eutil/format* "%.2f%%" (double (* 100 (/ n total)))))
+
+(defn successor-pair-stats-by-kind
+  "For a given coll of endpoints, group all successors by successor 'type',
+  where the 'type' is either:
+  - override - connection from original to override node with the same label
+  - internal - connection inside a node
+  - external - connection between 2 different nodes"
+  ([endpoints]
+   (successor-pair-stats-by-kind (g/now) endpoints))
+  ([basis endpoints]
+   (let [pairs (successor-pairs basis endpoints)
+         node-count (count (into #{} (comp cat (map gt/endpoint-node-id)) pairs))
+         successor-count (count pairs)]
+     (println "Total" node-count "nodes," successor-count "successors")
+     (println "Successor contribution by type:")
+     (->> pairs
+          (group-by #(apply successor-pair-type basis %))
+          (sort-by (comp - count val))
+          (run! (fn [[kind kind-pairs]]
+                  (let [kind-count (count kind-pairs)]
+                    (println (format "  %s (%s, %s total)"
+                                     (name kind)
+                                     (percentage-str kind-count successor-count)
+                                     kind-count))
+                    (->> kind-pairs
+                         (map (case kind
+                                :external (fn [[source target]]
+                                            (str (name (node-type-key basis (gt/endpoint-node-id source)))
+                                                 " -> "
+                                                 (name (node-type-key basis (gt/endpoint-node-id target)))))
+                                (:override :internal) (fn [[source]]
+                                                        (name (node-type-key basis (gt/endpoint-node-id source))))))
+                         frequencies
+                         (sort-by (comp - val))
+                         (run! (fn [[label group-count]]
+                                 (println (format "  %7s %s (%s total)"
+                                                  (percentage-str group-count successor-count)
+                                                  label
+                                                  group-count))))))))))))
+
+(defn- successor-pair-class [basis source-endpoint target-endoint]
+  [(node-type-key basis (gt/endpoint-node-id source-endpoint))
+   (gt/endpoint-label source-endpoint)
+   (node-type-key basis (gt/endpoint-node-id target-endoint))
+   (gt/endpoint-label target-endoint)])
+
+(defn successor-pair-stats-by-external-connection-influence
+  "For a particular successor tree, find all unique successor connection
+  'classes', where a connection 'class' is a tuple of source node's type, source
+  label, target node's type and target label. Then, for each 'class',
+  re-calculate the successors again, but assuming there are no connections of
+  this 'class'. Finally, print the stats about which 'classes' of successors
+  contribute the most to the resulting number of successors.
+
+  This reports helps to figure out, what kind of performance improvements we
+  will get if we refactor the code to express some dependencies outside
+  the graph.
+
+  Might take a while to run, so it prints a progress report while running"
+  ([endpoints]
+   (successor-pair-stats-by-external-connection-influence (g/now) endpoints))
+  ([basis endpoints]
+   (let [original-pairs (successor-pairs basis endpoints)
+         original-count (count original-pairs)
+         ->external-pair-class (fn [[source-endpoint target-endpoint]]
+                                 (when (= :external (successor-pair-type basis source-endpoint target-endpoint))
+                                   (successor-pair-class basis source-endpoint target-endpoint)))
+         pair-class-options (into #{} (keep ->external-pair-class) original-pairs)
+         intermediate-results
+         (into
+           []
+           (map-indexed
+             (fn [i pair-class]
+               (println (inc i) "/" (count pair-class-options))
+               (let [this-pair-class? (comp #(= pair-class %) ->external-pair-class)]
+                 {:pair-class pair-class
+                  :direct-count (count
+                                  (into [] (filter this-pair-class?) original-pairs))
+                  :indirect-count (count
+                                    (successor-pairs basis endpoints (complement this-pair-class?)))})))
+           pair-class-options)]
+     (println "Baseline:" original-count "successors")
+     (println "Improvements by pair link class:")
+     (->> intermediate-results
+          (sort-by :indirect-count)
+          (run! (fn [{:keys [pair-class direct-count indirect-count]}]
+                  (let [[source-type source-label target-type target-label] pair-class
+                        difference (- original-count indirect-count)]
+                    (println (format "  %6s (of which %s direct) %s"
+                                     (percentage-str difference original-count)
+                                     (percentage-str direct-count difference)
+                                     (str (name source-type)
+                                          source-label
+                                          " -> "
+                                          (name target-type)
+                                          target-label))))))))))

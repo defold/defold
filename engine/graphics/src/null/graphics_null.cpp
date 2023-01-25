@@ -581,7 +581,7 @@ namespace dmGraphics
         for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
         {
             VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
-            dmHashUpdateBuffer32(state, stream.m_Name,       strlen(stream.m_Name));
+            dmHashUpdateBuffer32(state, &stream.m_NameHash,  sizeof(dmhash_t));
             dmHashUpdateBuffer32(state, &stream.m_Stream,    sizeof(stream.m_Stream));
             dmHashUpdateBuffer32(state, &stream.m_Size,      sizeof(stream.m_Size));
             dmHashUpdateBuffer32(state, &stream.m_Type,      sizeof(stream.m_Type));
