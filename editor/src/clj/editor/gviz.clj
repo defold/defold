@@ -261,6 +261,7 @@
                 ranksep=2
                 rankdir=LR
                 overlap=false
+                layout=neato
                 splines=true
                 node [shape=none]
                 edge [ arrowsize = 0.5, color=\"#666666\" ]
@@ -319,6 +320,12 @@
          (map key)
          (mapcat #(conj (g/node-value % :nodes) %)))))
 
+(defn show-external-node-type-connections-for-all-nodes-of-ns-type [node-type-ns]
+  (show-external-node-type-connections-between-nodes
+    (->> (get-in (g/now) [:graphs 1 :nodes])
+         (filter (comp #{node-type-ns} namespace :k :node-type val))
+         (map key))))
+
 (comment
   (show-internal-node-type-successors editor.gui/GuiSceneNode)
   ;; selected scoped node
@@ -327,5 +334,5 @@
   (show-external-node-type-connections-between-nodes (keys (get-in (g/now) [:graphs 1 :nodes])))
   ;; particular type of scope
   (show-external-node-type-connections-for-all-scoped-nodes-of-type editor.gui/GuiSceneNode)
-  (show-external-node-type-connections-for-all-scoped-nodes-of-type editor.atlas/AtlasNode)
+  (show-external-node-type-connections-for-all-nodes-of-ns-type "editor.gui")
   ,)
