@@ -130,7 +130,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             createResourcePropertyTasks(sourceProperties, input);
             IResource res = project.getResource(inst.getPrototype());
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
-            taskBuilder.addInputIfUnique(compCounterInput);
+            taskBuilder.addInput(compCounterInput);
             compCounterInputsCount.put(compCounterInput, compCounterInputsCount.getOrDefault(compCounterInput, 0) + 1);
         }
 

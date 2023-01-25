@@ -179,7 +179,7 @@ public class ComponentsCounter {
         if (info != null) {
             Boolean isStatic = !info.getValue();
             if (isStatic) {
-                taskBuilder.addInputIfUnique(input.getResource(info.getKey()).output());
+                taskBuilder.addInput(input.getResource(info.getKey()).output());
             }
             return isStatic;
         }
@@ -197,7 +197,7 @@ public class ComponentsCounter {
             if (info != null) {
                 Boolean isStatic = !info.getValue();
                 if (isStatic) {
-                    taskBuilder.addInputIfUnique(input.getResource(info.getKey()).output());
+                    taskBuilder.addInput(input.getResource(info.getKey()).output());
                 }
                 return isStatic;
             }

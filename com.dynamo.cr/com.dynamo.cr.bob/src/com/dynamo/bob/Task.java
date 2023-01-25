@@ -72,11 +72,6 @@ public class Task<T> {
         }
 
         public TaskBuilder<T> addInput(IResource input) {
-            task.inputs.add(input);
-            return this;
-        }
-
-        public TaskBuilder<T> addInputIfUnique(IResource input) {
             if (!task.inputs.contains(input)){
                 task.inputs.add(input);
             }
