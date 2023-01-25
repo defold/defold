@@ -184,7 +184,7 @@
     (gl/with-gl-bindings gl render-args [shader]
       (doseq [[name t] textures]
         (gl/bind gl t render-args)
-        (shader/set-sampler-texture shader gl name (:texture-units t)))
+        (shader/set-samplers-by-name shader gl name (:texture-units t)))
       (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
@@ -226,7 +226,7 @@
       (gl/with-gl-bindings gl render-args [id-shader]
         (doseq [[name t] textures]
           (gl/bind gl t render-args)
-          (shader/set-sampler-texture id-shader gl name (:texture-units t)))
+          (shader/set-samplers-by-name id-shader gl name (:texture-units t)))
         (doseq [mesh meshes
                 :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-world scratch)
                       vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]]
