@@ -28,6 +28,7 @@ import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.Gui;
 import com.dynamo.gamesys.proto.ModelProto;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
+import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics;
@@ -72,6 +73,12 @@ public class ParseUtil {
                 return SpriteDesc.parseFrom(content);
             }
         });
+        parseMap.put("soundc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return SoundDesc.parseFrom(content);
+            }
+        });
         parseMap.put("texturec", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
@@ -106,6 +113,18 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 SpriteDesc.Builder builder = SpriteDesc.newBuilder();
+                try {
+                    TextFormat.merge(new String(content), builder);
+                } catch (ParseException e) {
+                    throw new RuntimeException(e);
+                }
+                return builder.build();
+            }
+        });
+        parseMap.put("sound", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                SoundDesc.Builder builder = SoundDesc.newBuilder();
                 try {
                     TextFormat.merge(new String(content), builder);
                 } catch (ParseException e) {
