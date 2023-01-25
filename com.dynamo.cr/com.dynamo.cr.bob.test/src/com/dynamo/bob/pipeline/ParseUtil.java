@@ -204,6 +204,18 @@ public class ParseUtil {
                 return CollectionFactoryDesc.parseFrom(content);
             }
         });
+        parseMap.put("compcount_col", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return null;
+            }
+        });
+        parseMap.put("compcount_go", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return null;
+            }
+        });
     }
 
     public static void addParser(String extension, IParser parser) {
