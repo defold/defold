@@ -72,8 +72,9 @@ public class GameObjectBuilder extends Builder<Void> {
         for (ComponentDesc componentDesc : lst) {
             // Convert .wav resource component to an embedded sound
             // We might generalize this in the future if necessary
-            if (componentDesc.getComponent().endsWith(".wav")) {
-                SoundDesc.Builder sd = SoundDesc.newBuilder().setSound(componentDesc.getComponent());
+            String comp = componentDesc.getComponent();
+            if (comp.endsWith(".wav") || comp.endsWith(".ogg")) {
+                SoundDesc.Builder sd = SoundDesc.newBuilder().setSound(comp);
                 EmbeddedComponentDesc ec = EmbeddedComponentDesc.newBuilder()
                     .setId(componentDesc.getId())
                     .setType("sound")
