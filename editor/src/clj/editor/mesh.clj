@@ -195,7 +195,7 @@
     (gl/with-gl-bindings gl render-args [shader]
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
-        (shader/set-uniform shader gl name (- (:unit texture) GL2/GL_TEXTURE0)))
+        (shader/set-sampler-texture shader gl name (:texture-units texture)))
       (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
       (gl/gl-enable gl GL2/GL_CULL_FACE)
       (gl/gl-cull-face gl GL2/GL_BACK)
@@ -228,7 +228,7 @@
     (gl/with-gl-bindings gl render-args [id-shader]
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
-        (shader/set-uniform id-shader gl name (- (:unit texture) GL2/GL_TEXTURE0)))
+        (shader/set-sampler-texture id-shader gl name (:texture-units texture)))
       (gl/gl-enable gl GL2/GL_CULL_FACE)
       (gl/gl-cull-face gl GL2/GL_BACK)
       (let [vb (request-vb! gl node-id user-data world-transform)
