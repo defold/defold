@@ -796,7 +796,7 @@ ordinary paths."
         (g/transact
           (g/make-nodes graph
             [workspace [Workspace
-                        :root project-path
+                        :root (.getCanonicalPath (io/file project-path))
                         :resource-snapshot (resource-watch/empty-snapshot)
                         :view-types {:default {:id :default}}
                         :resource-listeners (atom [])
