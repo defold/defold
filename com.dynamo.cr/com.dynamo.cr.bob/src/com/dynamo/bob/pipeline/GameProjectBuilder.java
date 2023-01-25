@@ -56,6 +56,7 @@ import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
@@ -552,6 +553,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 for (IResource resource : task.getOutputs()) {
                     resources.remove(resource.getAbsPath());
                 }
+                // compcounter files shouldn't be included into archive
+                ComponentsCounter.excludeCounterPaths(resources);
 
                 // Create output for the data archive
                 String platform = project.option("platform", "generic");
