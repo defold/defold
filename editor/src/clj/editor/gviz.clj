@@ -59,10 +59,10 @@
 (defn- nodes->arcs [basis nodes]
   (let [nodes (set nodes)]
     (seq (into #{} (mapcat (fn [[_ graph]]
-                          (->>
-                            (concat (filter (fn [a] (or (nodes (:source-id a)) (nodes (:target-id a)))) (flatten-arcs (:sarcs graph)))
-                                    (filter #(or (nodes (:source-id %)) (nodes (:target-id %))) (flatten-arcs (:tarcs graph))))
-                            (map (fn [a] [(:source-id a) (:source-label a) (:target-id a) (:target-label a)]))))
+                             (->>
+                               (concat (filter (fn [a] (or (nodes (:source-id a)) (nodes (:target-id a)))) (flatten-arcs (:sarcs graph)))
+                                       (filter #(or (nodes (:source-id %)) (nodes (:target-id %))) (flatten-arcs (:tarcs graph))))
+                               (map (fn [a] [(:source-id a) (:source-label a) (:target-id a) (:target-label a)]))))
                            (:graphs basis))))))
 
 (defn escape-field-label [label]
@@ -149,8 +149,66 @@
     (when (= 0 (.exitValue p))
       *png-file*)))
 
-(defn show [basis & {:keys [root-id input-fn output-fn] :or {root-id nil} :as opts}]
+(defn show [^String dot]
+  (if-let [image (dot->image dot)]
+    (ui/open-file image)
+    :fail))
+
+(defn show-graph [basis & {:keys [root-id input-fn output-fn] :or {root-id nil} :as opts}]
   (let [f (-> (apply subgraph->dot basis (mapcat identity opts))
             (dot->image))]
     (when f
       (ui/open-file f))))
+
+(defn show-internal-node-type-successors
+  "Show the graph of internal connections for a particular node type
+
+  This graph does not show connections from every property to
+  _declared-properties intrinsic because it creates too much noise
+
+  Color codes:
+    blue - inputs
+    green - properties
+    beige - outputs
+    purple - intrinsics"
+  [node-type]
+  (let [label->graphviz-id #(Compiler/munge (name %))
+        type-value @node-type
+        deps (into {} (map (juxt key (comp :dependencies val)) (:output type-value)))
+        all-labels (into (set (keys deps)) cat (vals deps))
+        dot (str "digraph G {
+                    edge [ arrowsize = 0.5, color=\"#666666\" ]
+                    pack=10
+                    fontsize=64
+                    labelloc=t
+                    label=\"Internal successors of " (name (:k node-type)) "\"
+                    rankdir=LR
+                    splines=true
+                    overlap=false
+                 "
+                 (->> all-labels
+                      (map (fn [label]
+                             (str (label->graphviz-id label) "[label=\"" (name label)
+                                  "\", style=\"filled,rounded\",peripheries=0, shape=box, fillcolor=\""
+                                  (if (#{:_declared-properties :_this :_node-id} label)
+                                    "#e4cbef"
+                                    (condp get label
+                                      (:property type-value) "#b1edbc"
+                                      (:input type-value) "#b8e5f9"
+                                      (:output type-value) "#e8e1b9"
+                                      "#ededed"))
+                                  "\"]")))
+                      (string/join "\n"))
+                 "\n"
+                 (string/join
+                   "\n" (for [[to from-labels] deps
+                              from from-labels
+                              :when (and (not= from :_node-id)
+                                         (not= to :_declared-properties))]
+                          (str (label->graphviz-id from) " -> " (label->graphviz-id to) " []")))
+                 "\n}")]
+    (show dot)))
+
+(comment
+  (show-internal-node-type-successors editor.gui/GuiSceneNode)
+  ,)
