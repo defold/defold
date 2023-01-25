@@ -165,7 +165,10 @@ public abstract class AbstractProtoBuilderTest {
             }
             Task<?> task = result.getTask();
             for (IResource output : task.getOutputs()) {
-                messages.add(ParseUtil.parse(output));
+                Message msg = ParseUtil.parse(output);
+                if (msg != null) {
+                    messages.add(msg);
+                }
             }
         }
         return messages;

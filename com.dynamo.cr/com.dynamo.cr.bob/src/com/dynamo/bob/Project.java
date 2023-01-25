@@ -320,6 +320,7 @@ public class Project {
         {".script", ".scriptc"},
         {".sound", ".soundc"},
         {".wav", ".soundc"},
+        {".ogg", ".soundc"},
         {".collectionfactory", ".collectionfactoryc"},
         {".factory", ".factoryc"},
         {".light", ".lightc"},
@@ -475,7 +476,6 @@ public class Project {
                 excludeFolders.set(i, excludeFolder.substring(1));
             }
         }
-
         // create tasks for inputs that are not excluded
         for (String input : sortedInputs) {
             boolean skipped = false;
@@ -1362,6 +1362,9 @@ run:
 
                 // compare all task signature. current task signature between previous
                 // signature from state on disk
+                TimeProfiler.start("compare signatures");
+                TimeProfiler.addData("color", "#FFC0CB");
+                TimeProfiler.addData("main input", String.valueOf(task.input(0)));
                 byte[] taskSignature = task.calculateSignature();
                 boolean allSigsEquals = true;
                 for (IResource r : outputResources) {
@@ -1371,6 +1374,7 @@ run:
                         break;
                     }
                 }
+                TimeProfiler.stop();
 
                 boolean shouldRun = (!allOutputExists || !allSigsEquals) && !completedTasks.contains(task);
 
@@ -1391,6 +1395,7 @@ run:
                 TimeProfiler.start(task.getName());
                 TimeProfiler.addData("output", task.getOutputsString());
                 TimeProfiler.addData("type", "buildTask");
+
                 completedTasks.add(task);
 
                 TaskResult taskResult = new TaskResult(task);
@@ -1420,6 +1425,7 @@ run:
                         // all resources exist in the cache
                         // copy them to the output
                         if (allResourcesCached) {
+                            TimeProfiler.addData("takenFromCache", true);
                             for (IResource r : outputResources) {
                                 r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
                             }
