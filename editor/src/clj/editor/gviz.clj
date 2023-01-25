@@ -18,7 +18,8 @@
             [clojure.string :as string]
             [editor.ui :as ui]
             [editor.fs :as fs])
-  (:import [java.io File BufferedWriter StringWriter IOException]))
+  (:import [java.io File BufferedWriter StringWriter IOException]
+           [javafx.scene.paint Color]))
 
 (set! *warn-on-reflection* true)
 
@@ -209,6 +210,122 @@
                  "\n}")]
     (show dot)))
 
+(defn interpolate-colors [gradient value]
+  (let [value (-> value
+                  (max (key (first (seq gradient))))
+                  (min (key (first (rseq gradient)))))
+        [from-value from-color] (first (rsubseq gradient <= value))
+        [to-value to-color] (first (subseq gradient >= value))
+        offset (- to-value from-value)
+        interpolation (if (zero? offset)
+                        0.0
+                        (/ (- value from-value)
+                           offset))]
+    (str "#" (-> (Color/valueOf from-color)
+                 (.interpolate (Color/valueOf to-color) interpolation)
+                 (str)
+                 (subs 2 8)))))
+
+(defn show-external-node-type-connections-between-nodes [node-ids]
+  (let [basis (g/now)
+        intermediates (into {}
+                            (map (juxt identity
+                                       (fn [node-id]
+                                         (into (g/inputs basis node-id) (g/outputs basis node-id)))))
+                            node-ids)
+        edge-frequencies-doubled (frequencies
+                                   (eduction
+                                     cat
+                                     (filter (fn [[from _ to _]]
+                                               (and (intermediates from)
+                                                    (intermediates to))))
+                                     (remove (fn [[_ from-label _ to-label]]
+                                               (and (= from-label :_node-id)
+                                                    (= to-label :nodes))))
+                                     (map (fn [[from from-label to to-label]]
+                                            [(name (:k (g/node-type* basis from)))
+                                             from-label
+                                             (name (:k (g/node-type* basis to)))
+                                             to-label]))
+                                     (vals intermediates)))
+        edges (keys edge-frequencies-doubled)
+        nodes (reduce
+                (fn [acc [from from-label to to-label]]
+                  (-> acc
+                      (update-in [from :out] (fnil conj #{}) from-label)
+                      (update-in [to :in] (fnil conj #{}) to-label)))
+                {}
+                edges)]
+    (show
+      (str "digraph G {
+                ranksep=2
+                rankdir=LR
+                overlap=false
+                splines=true
+                node [shape=none]
+                edge [ arrowsize = 0.5, color=\"#666666\" ]
+             "
+           (->> nodes
+                (map (fn [[type-name {:keys [in out]}]]
+                       (let [rows (max (count in) (count out))
+                             in (vec (sort in))
+                             out (vec (sort out))
+                             escape-html-string #(-> %
+                                                     (string/replace "&" "&amp;")
+                                                     (string/replace "<" "&lt;")
+                                                     (string/replace ">" "&gt;")
+                                                     (string/replace "\"" "&quot;"))]
+                         (str type-name
+                              " [label=<<table color=\"#cccccc\" border=\"0\" cellborder=\"1\" cellspacing=\"0\" bgcolor=\"#ededed\">
+                                             <tr>
+                                               <td colspan=\"2\"><b>" type-name "</b></td>
+                                            </tr>
+                                "
+                              (string/join
+                                "\n"
+                                (for [i (range rows)]
+                                  (format "<tr>
+                                                   <td port=\"%s\">%s</td>
+                                                   <td port=\"%s\">%s</td>
+                                                 </tr>"
+                                          (Compiler/munge (str "in" (name (get in i ""))))
+                                          (escape-html-string (name (get in i "")))
+                                          (Compiler/munge (str "out" (name (get out i ""))))
+                                          (escape-html-string (name (get out i ""))))))
+                              "        </table>>]\n"))))
+                (string/join "\n"))
+           "\n"
+           (->> edges
+                (map (fn [[from from-label to to-label :as edge]]
+                       (let [weight (Math/log10 (/ (edge-frequencies-doubled edge) 2))]
+                         (str from ":out" (Compiler/munge (name from-label))
+                              " -> "
+                              to ":in" (Compiler/munge (name to-label))
+                              "[color=\"" (interpolate-colors (sorted-map 0.0 "#94d2bd"  ;; 1
+                                                                          3.0 "#ee9b00"  ;; 1000
+                                                                          6.0 "#ae2012") ;; 1000000
+                                                              weight) "\", weight=" weight"]"))))
+                (string/join "\n"))
+           "}"))))
+
+(defn show-external-node-type-connections-for-scoped-node [node-id]
+  (show-external-node-type-connections-between-nodes
+    (conj (g/node-value node-id :nodes) node-id)))
+
+(defn show-external-node-type-connections-for-all-scoped-nodes-of-type [node-type]
+  (show-external-node-type-connections-between-nodes
+    (->> (get-in (g/now) [:graphs 1 :nodes])
+         (filter (comp #{node-type} :node-type val))
+         (map key)
+         (mapcat #(conj (g/node-value % :nodes) %)))))
+
 (comment
   (show-internal-node-type-successors editor.gui/GuiSceneNode)
+  ;; selected scoped node
+  (show-external-node-type-connections-for-scoped-node (first (dev/selection)))
+  ;; all project nodes
+  (show-external-node-type-connections-between-nodes (keys (get-in (g/now) [:graphs 1 :nodes])))
+  ;; particular type of scope
+  (show-external-node-type-connections-for-all-scoped-nodes-of-type editor.gui/GuiSceneNode)
+  (show-external-node-type-connections-for-all-scoped-nodes-of-type editor.atlas/AtlasNode)
   ,)
