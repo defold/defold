@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,7 @@
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.image :as image]
+            [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.lua-parser :as lua-parser]
             [editor.luajit :as luajit]
@@ -144,6 +145,7 @@
           :script-property-type-resource))
 
 (def script-defs [{:ext "script"
+                   :language "lua"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
@@ -151,18 +153,21 @@
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
+                   :language "lua"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "gui_script"
+                   :language "lua"
                    :label "Gui Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "lua"
+                   :language "lua"
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
                    :view-types [:code :default]
@@ -582,6 +587,7 @@
   (property modified-lines r/Lines
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
+                   (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
                    (let [resource (g/node-value self :resource evaluation-context)
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]

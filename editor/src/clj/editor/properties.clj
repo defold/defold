@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -547,10 +547,12 @@
   {:type :choicebox
    :options (mapv (juxt identity identity) (sort util/natural-order vals))})
 
-(defn ->pb-choicebox [cls]
+(defn ->pb-choicebox-raw [cls]
   (let [values (protobuf/enum-values cls)]
     {:type :choicebox
-     :options (map (juxt first (comp :display-name second)) values)}))
+     :options (mapv (juxt first (comp :display-name second)) values)}))
+
+(def ->pb-choicebox (memoize ->pb-choicebox-raw))
 
 (defn vec3->vec2 [default-z]
   {:type t/Vec2

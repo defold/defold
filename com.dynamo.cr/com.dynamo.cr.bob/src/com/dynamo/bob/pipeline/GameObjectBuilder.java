@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,6 +39,7 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
+import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.gameobject.proto.GameObject;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.EmbeddedComponentDesc;
@@ -52,7 +53,7 @@ import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
 public class GameObjectBuilder extends Builder<Void> {
-
+    private Boolean ifObjectHasDynamicFactory = false;
 
     private boolean isComponentOfType(EmbeddedComponentDesc d, String type) {
         return d.getType().equals(type);
@@ -88,25 +89,26 @@ public class GameObjectBuilder extends Builder<Void> {
         b.clearComponents();
         b.addAllComponents(newList);
 
-
         return b;
     }
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder b = loadPrototype(input);
-
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
+                .addOutput(input.changeExt(params.outExt()))
+                .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
 
         for (ComponentDesc cd : b.getComponentsList()) {
+            Boolean isStatic = Boolean.TRUE.equals(ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project));
+            ifObjectHasDynamicFactory |= !isStatic;
             Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
             for(String r : resources) {
-                IResource resource = BuilderUtil.checkResource(this.project, input, "resource", r);
+                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
                 taskBuilder.addInput(resource);
-                PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
+                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
             }
         }
 
@@ -114,7 +116,6 @@ public class GameObjectBuilder extends Builder<Void> {
 
         // Gather the unique resources first
         Map<Long, IResource> uniqueResources = new HashMap<>();
-        Set<Long> productsOfThisTask = new HashSet<>();
         List<Task<?>> embedTasks = new ArrayList<>();
 
         for (EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
@@ -129,27 +130,22 @@ public class GameObjectBuilder extends Builder<Void> {
                 // If the file isn't created here <EmbeddedComponent>#create
                 // can't access generated resource data (embedded component desc)
                 genResource.setContent(data);
-
                 uniqueResources.put(hash, genResource);
-                productsOfThisTask.add(hash);
             }
+            Boolean isStatic = Boolean.TRUE.equals(ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, taskBuilder, input));
+            ifObjectHasDynamicFactory |= !isStatic;
         }
 
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-
             taskBuilder.addOutput(genResource);
-
-            if (productsOfThisTask.contains(hash)) {
-
-                Task<?> embedTask = project.createTask(genResource);
-                if (embedTask == null) {
-                    throw new CompileExceptionError(input,
-                                                    0,
-                                                    String.format("Failed to create build task for component '%s'", genResource.getPath()));
-                }
-                embedTasks.add(embedTask);
+            Task<?> embedTask = project.createTask(genResource);
+            if (embedTask == null) {
+                throw new CompileExceptionError(input,
+                                                0,
+                                                String.format("Failed to create build task for component '%s'", genResource.getPath()));
             }
+            embedTasks.add(embedTask);
         }
 
         Task<Void> task = taskBuilder.build();
@@ -207,7 +203,13 @@ public class GameObjectBuilder extends Builder<Void> {
             protoBuilder.addComponents(c);
         }
 
-        protoBuilder = transformGo(input, protoBuilder);
+        ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
+        protoBuilder = transformGo(input, protoBuilder, compStorage);
+        // these inputs are from factories
+        if (ifObjectHasDynamicFactory) {
+            compStorage.makeDynamic();
+        }
+        ComponentsCounter.sumInputs(compStorage, task.getInputs(), ComponentsCounter.DYNAMIC_VALUE);
         protoBuilder.clearEmbeddedComponents();
 
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
@@ -215,10 +217,11 @@ public class GameObjectBuilder extends Builder<Void> {
         proto.writeTo(out);
         out.close();
         task.output(0).setContent(out.toByteArray());
+        task.output(1).setContent(compStorage.toByteArray());
     }
 
     private PrototypeDesc.Builder transformGo(IResource resource,
-            PrototypeDesc.Builder protoBuilder) throws CompileExceptionError {
+            PrototypeDesc.Builder protoBuilder, ComponentsCounter.Storage compStorage) throws CompileExceptionError {
 
         final Vector3 defaultScale = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
 
@@ -228,7 +231,9 @@ public class GameObjectBuilder extends Builder<Void> {
         for (ComponentDesc cd : protoBuilder.getComponentsList()) {
             String c = cd.getComponent();
             // Use the BuilderParams from each builder to map the input ext to the output ext
-            String inExt = "." + FilenameUtils.getExtension(c);
+            String ext = FilenameUtils.getExtension(c);
+            compStorage.add(ext);
+            String inExt = "." + ext;
             String outExt = project.replaceExt(inExt);
             c = BuilderUtil.replaceExt(c, inExt, outExt);
 

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -436,3 +436,25 @@
 (defn internal?
   [resource]
   (string/starts-with? (resource->proj-path resource) "/_defold"))
+
+(def ^:private known-ext->language
+  ;; See known language identifiers:
+  ;; https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers
+  {"clj" "clojure"
+   "cljc" "clojure"
+   "css" "css"
+   "html" "html"
+   "java" "java"
+   "js" "javascript"
+   "md" "markdown"
+   "plist" "xml"
+   "py" "python"
+   "sh" "shellscript"
+   "xml" "xml"
+   "yaml" "yaml"
+   "yml" "yaml"})
+
+(defn language [resource]
+  (or (:language (resource-type resource))
+      (known-ext->language (ext resource))
+      "plaintext"))

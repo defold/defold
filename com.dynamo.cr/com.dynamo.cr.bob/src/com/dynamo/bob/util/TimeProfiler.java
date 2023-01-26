@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -51,7 +51,6 @@ public class TimeProfiler {
      * Helper class that contains profiling data and represents a linked list of scopes hierarchy.
      */
     private static class ProfilingScope {
-        public String name;
         public long startTime;
         public long endTime;
         HashMap<String, String> additionalStringData;
@@ -101,8 +100,6 @@ public class TimeProfiler {
 
     private static void generateJsonRecursively(JsonGenerator generator, ProfilingScope scope) throws IOException {
         generator.writeStartObject();
-        generator.writeFieldName("name");
-        generator.writeString(scope.name);
         generator.writeFieldName("start");
         generator.writeNumber(scope.startTime - buildTime);
         generator.writeFieldName("duration");
@@ -258,13 +255,14 @@ public class TimeProfiler {
         }
         buildTime = startTime;
         rootScope = new ProfilingScope();
-        rootScope.name = "Total time";
         rootScope.startTime = startTime;
         currentScope = rootScope;
+        unsafeAddData("name", "Total time");
 
         if (!fromEditor) {
             ProfilingScope initScope = new ProfilingScope();
-            initScope.name = "Java VM init";
+            initScope.additionalStringData = new HashMap<String, String>();
+            initScope.additionalStringData.put("name", "Java VM init");
             initScope.startTime = startTime;
             initScope.endTime = time();
             rootScope.children = new ArrayList<ProfilingScope>();

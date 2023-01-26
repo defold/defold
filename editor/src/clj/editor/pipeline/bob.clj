@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -53,7 +53,7 @@
   (catch Exception e
     (throw (ex-info "Failed to set verbose logging field in Bob." {} e))))
 
-(def skip-dirs #{".git" "build/default" ".internal"})
+(def skip-dirs #{".git" "build" ".internal" })
 (def html5-url-prefix "/html5")
 (def html5-mime-types {"js" "application/javascript",
                        "json" "application/json",

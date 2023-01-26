@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1248,15 +1248,25 @@ bail:
         float b = ((float)blue)/255.0f;
         float a = ((float)alpha)/255.0f;
 
+        const BufferType color_buffers[] = {
+            BUFFER_TYPE_COLOR0_BIT,
+            BUFFER_TYPE_COLOR1_BIT,
+            BUFFER_TYPE_COLOR2_BIT,
+            BUFFER_TYPE_COLOR3_BIT,
+        };
+
         for (int i = 0; i < context->m_CurrentRenderTarget->m_ColorAttachmentCount; ++i)
         {
-            VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
-            vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
-            vk_color_attachment.colorAttachment             = i;
-            vk_color_attachment.clearValue.color.float32[0] = r;
-            vk_color_attachment.clearValue.color.float32[1] = g;
-            vk_color_attachment.clearValue.color.float32[2] = b;
-            vk_color_attachment.clearValue.color.float32[3] = a;
+            if (flags & color_buffers[i])
+            {
+                VkClearAttachment& vk_color_attachment          = vk_clear_attachments[attachment_count++];
+                vk_color_attachment.aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
+                vk_color_attachment.colorAttachment             = i;
+                vk_color_attachment.clearValue.color.float32[0] = r;
+                vk_color_attachment.clearValue.color.float32[1] = g;
+                vk_color_attachment.clearValue.color.float32[2] = b;
+                vk_color_attachment.clearValue.color.float32[3] = a;
+            }
         }
 
         // Clear depth / stencil
@@ -1603,48 +1613,45 @@ bail:
         return VK_FORMAT_UNDEFINED;
     }
 
-    static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, VertexElement* element, uint32_t count)
+    static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, HVertexStreamDeclaration stream_declaration)
     {
-        assert(element);
-        assert(count <= DM_MAX_VERTEX_STREAM_COUNT);
-
         VertexDeclaration* vd = new VertexDeclaration();
         memset(vd, 0, sizeof(VertexDeclaration));
 
-        vd->m_StreamCount = count;
+        vd->m_StreamCount = stream_declaration->m_StreamCount;
 
-        for (uint32_t i = 0; i < count; ++i)
+        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; ++i)
         {
-            VertexElement& el           = element[i];
-            vd->m_Streams[i].m_NameHash = dmHashString64(el.m_Name);
-            vd->m_Streams[i].m_Format   = GetVulkanFormatFromTypeAndSize(el.m_Type, el.m_Size);
+            VertexStream& stream        = stream_declaration->m_Streams[i];
+            vd->m_Streams[i].m_NameHash = stream.m_NameHash;
+            vd->m_Streams[i].m_Format   = GetVulkanFormatFromTypeAndSize(stream.m_Type, stream.m_Size);
             vd->m_Streams[i].m_Offset   = vd->m_Stride;
             vd->m_Streams[i].m_Location = 0;
-            vd->m_Stride               += el.m_Size * GetGraphicsTypeSize(el.m_Type);
+            vd->m_Stride               += stream.m_Size * GetGraphicsTypeSize(stream.m_Type);
 
-            dmHashUpdateBuffer64(hash, &el.m_Size, sizeof(el.m_Size));
-            dmHashUpdateBuffer64(hash, &el.m_Type, sizeof(el.m_Type));
+            dmHashUpdateBuffer64(hash, &stream.m_Size, sizeof(stream.m_Size));
+            dmHashUpdateBuffer64(hash, &stream.m_Type, sizeof(stream.m_Type));
             dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Format, sizeof(vd->m_Streams[i].m_Format));
         }
 
         return vd;
     }
 
-    static HVertexDeclaration VulkanNewVertexDeclaration(HContext context, VertexElement* element, uint32_t count)
+    static HVertexDeclaration VulkanNewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
         HashState64 decl_hash_state;
         dmHashInit64(&decl_hash_state, false);
-        VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, element, count);
+        VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
         dmHashUpdateBuffer64(&decl_hash_state, &vd->m_Stride, sizeof(vd->m_Stride));
         vd->m_Hash = dmHashFinal64(&decl_hash_state);
         return vd;
     }
 
-    static HVertexDeclaration VulkanNewVertexDeclarationStride(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
+    static HVertexDeclaration VulkanNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
         HashState64 decl_hash_state;
         dmHashInit64(&decl_hash_state, false);
-        VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, element, count);
+        VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
         dmHashUpdateBuffer64(&decl_hash_state, &stride, sizeof(stride));
         vd->m_Stride          = stride;
         vd->m_Hash            = dmHashFinal64(&decl_hash_state);

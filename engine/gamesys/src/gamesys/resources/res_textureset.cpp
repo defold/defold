@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,7 +25,18 @@ namespace dmGameSystem
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory,  dmGameSystemDDF::TextureSet* texture_set_ddf,
                                         TextureSetResource* tile_set, const char* filename, bool reload)
     {
-        dmResource::Result r = dmResource::Get(factory, texture_set_ddf->m_Texture, (void**)&tile_set->m_Texture);
+        dmResource::Result r = dmResource::RESULT_OK;
+
+        // Get by hash if texture is a dynamically created resource
+        if (texture_set_ddf->m_TextureHash)
+        {
+            r = dmResource::Get(factory, texture_set_ddf->m_TextureHash, (void**)&tile_set->m_Texture);
+        }
+        else
+        {
+            r = dmResource::Get(factory, texture_set_ddf->m_Texture, (void**)&tile_set->m_Texture);
+        }
+
         if (r == dmResource::RESULT_OK)
         {
             // Get path for texture

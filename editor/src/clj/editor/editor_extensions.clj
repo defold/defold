@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,6 +25,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.lsp :as lsp]
             [editor.luart :as luart]
             [editor.outline :as outline]
             [editor.process :as process]
@@ -126,6 +127,12 @@
                                   :ext-command/active
                                   :ext-command/run]))
 (s/def ::commands (s/coll-of ::command))
+(s/def :editor.editor-extensions.language-server/languages (s/coll-of string? :min-count 1 :distinct true))
+(s/def :editor.editor-extensions.language-server/command (s/coll-of string? :min-count 1))
+(s/def ::language-server
+  (s/keys :req-un [:editor.editor-extensions.language-server/languages
+                   :editor.editor-extensions.language-server/command]))
+(s/def ::language-servers (s/coll-of ::language-server))
 
 (defn- ext-state [project]
   (-> project
@@ -724,6 +731,30 @@
             :when dynamic-handler]
         dynamic-handler))))
 
+(defn- reload-language-servers! [project]
+  (let [lsp (lsp/get-node-lsp project)
+        state (ext-state project)
+        ui (:ui state)]
+    (lsp/set-servers!
+      lsp
+      (into
+        #{}
+        (comp
+          (mapcat
+            (fn [[path language-servers]]
+              (try-with-extension-exceptions
+                {:label "Reloading language servers"
+                 :default []
+                 :path path
+                 :ui ui}
+                (ensure-spec ::language-servers language-servers))))
+          (map (fn [language-server]
+                 (-> language-server
+                     (update :languages set)
+                     (dissoc :command)
+                     (assoc :launcher (select-keys language-server [:command]))))))
+        (execute-all-top-level-functions! project state :get-language-servers {})))))
+
 (defn- ensure-file-path-in-project-directory
   ^String [^Path project-path ^String file-name]
   (let [normalized-path (-> project-path
@@ -799,4 +830,5 @@
                       (assoc :project-prototypes
                              (g/node-value extensions :project-prototypes ec)))
               (re-create-ext-agent env))))))
+  (reload-language-servers! project)
   (reload-commands! project))

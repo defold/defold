@@ -1,12 +1,12 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -80,12 +80,11 @@ def transform_runnable_path(platform, path):
 SDK_ROOT=sdk.SDK_ROOT
 
 ANDROID_ROOT=SDK_ROOT
-ANDROID_BUILD_TOOLS_VERSION = '32.0.0'
-ANDROID_NDK_API_VERSION='16' # Android 4.1
+ANDROID_BUILD_TOOLS_VERSION = '33.0.1'
+ANDROID_NDK_API_VERSION='19' # Android 4.4
 ANDROID_NDK_ROOT=os.path.join(SDK_ROOT,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
-ANDROID_TARGET_API_LEVEL='31' # Android 12.0
-ANDROID_MIN_API_LEVEL='16'
-ANDROID_GCC_VERSION='4.9'
+ANDROID_TARGET_API_LEVEL='33' # Android 13.0
+ANDROID_MIN_API_LEVEL='19'
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
@@ -245,9 +244,6 @@ def getAndroidNDKArch(target_arch):
 
 def getAndroidArch(target_arch):
     return 'arm64-v8a' if 'arm64' == target_arch else 'armeabi-v7a'
-
-def getAndroidBuildtoolName(target_arch):
-    return 'aarch64-linux-android' if 'arm64' == target_arch else 'arm-linux-androideabi'
 
 def getAndroidCompilerName(target_arch, api_version):
     if target_arch == 'arm64':
@@ -872,8 +868,7 @@ def _strip_executable(bld, platform, target_arch, path):
     if 'android' in platform:
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
         ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
-        build_tool = getAndroidBuildtoolName(target_arch)
-        strip = "%s/toolchains/%s-%s/prebuilt/%s-x86_64/bin/%s-strip" % (ANDROID_NDK_ROOT, build_tool, ANDROID_GCC_VERSION, ANDROID_HOST, build_tool)
+        strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (ANDROID_NDK_ROOT, ANDROID_HOST)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -1506,7 +1501,7 @@ def detect(conf):
             conf.env['CPP']     = '%s/clang -E' % bin_dir
             conf.env['AR']      = '%s/ar' % bin_dir
             conf.env['RANLIB']  = '%s/ranlib' % bin_dir
-            conf.env['LD']      = '%s/ld' % bin_dir
+            conf.env['LD']      = '%s/lld' % bin_dir
 
         conf.env['GCC-OBJCXX'] = '-xobjective-c++'
         conf.env['GCC-OBJCLINK'] = '-lobjc'
@@ -1516,10 +1511,10 @@ def detect(conf):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         bp_arch, bp_os = host_platform.split('-')
         target_arch = build_util.get_target_architecture()
-        tool_name   = getAndroidBuildtoolName(target_arch)
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
         bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
+        tool_name = "llvm"
 
         conf.env['CC']       = '%s/%s' % (bintools, clang_name)
         conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
@@ -1527,7 +1522,7 @@ def detect(conf):
         conf.env['CPP']      = '%s/%s -E' % (bintools, clang_name)
         conf.env['AR']       = '%s/%s-ar' % (bintools, tool_name)
         conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
-        conf.env['LD']       = '%s/%s-ld' % (bintools, tool_name)
+        conf.env['LD']       = '%s/lld' % (bintools)
         conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
 
     elif 'linux' == build_util.get_target_os():

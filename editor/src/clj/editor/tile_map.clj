@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1139,9 +1139,12 @@
   (output palette-renderables pass/RenderData produce-palette-renderables)
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly (make-input-handler)))
-  (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions]
-                            (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)]
-                              (format "Cell: %d, %d" (+ 1 x) (+ 1 y))))))
+  (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions mode palette-tile]
+                            (case mode 
+                              :editor  (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)] 
+                                         (format "Cell: %d, %d" (+ 1 x) (+ 1 y)))
+                              :palette (when palette-tile 
+                                         (format "Tile: %d" (+ 1 palette-tile)))))))
 
 (defmethod scene/attach-tool-controller ::TileMapController
   [_ tool-id view-id resource-id]

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1415,7 +1415,7 @@
                                 visible-titles (into #{} (map :title) visible-sections)
                                 selected-section-title (or (-> ui-state :selected-section-title (or default-section-name) visible-titles)
                                                            (some-> groups first val first visible-titles))]
-                            {:fx/type :h-box
+                            {:fx/type fx.h-box/lifecycle
                              :anchor-pane/top 0
                              :anchor-pane/right 0
                              :anchor-pane/bottom 0

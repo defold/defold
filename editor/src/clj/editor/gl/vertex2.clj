@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,11 +19,10 @@
    [editor.gl.protocols :refer [GlBind]]
    [editor.gl.shader :as shader]
    [editor.scene-cache :as scene-cache]
-   [editor.types :as types]
    [internal.util :as util])
   (:import
    [com.jogamp.common.nio Buffers]
-   [java.nio ByteBuffer ByteOrder IntBuffer]
+   [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
    [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
@@ -83,24 +82,49 @@
   (position! [this position])
   (version [this]))
 
-(deftype VertexBuffer [vertex-description usage ^ByteBuffer buf ^{:unsynchronized-mutable true} version]
+(deftype VertexBuffer [vertex-description usage ^Buffer buf ^long buf-items-per-vertex ^{:unsynchronized-mutable true} version]
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
-  (flipped? [this] (and (= 0 (.position buf))))
+  (flipped? [this] (= 0 (.position buf)))
   (clear! [this] (.clear buf) this)
-  (position! [this position] (.position buf (int (* position ^long (:size vertex-description)))) this)
+  (position! [this position] (.position buf (int (* position buf-items-per-vertex))) this)
   (version [this] version)
 
   clojure.lang.Counted
-  (count [this] (let [bytes (if (pos? (.position buf)) (.position buf) (.limit buf))]
-                  (/ bytes ^long (:size vertex-description)))))
+  (count [this] (let [item-count (if (pos? (.position buf)) (.position buf) (.limit buf))]
+                  (/ item-count buf-items-per-vertex))))
+
+(defn buffer-item-byte-size
+  ^long [^Buffer buffer]
+  (condp instance? buffer
+    ByteBuffer 1
+    DoubleBuffer 8
+    FloatBuffer 4
+    IntBuffer 4
+    LongBuffer 8
+    ShortBuffer 2))
+
+(defn- buffer-items-per-vertex
+  ^long [^Buffer buffer vertex-description]
+  (let [^long vertex-byte-size (:size vertex-description)
+        buffer-item-byte-size (buffer-item-byte-size buffer)]
+    (/ vertex-byte-size buffer-item-byte-size)))
+
+(defn- buffer-size-in-bytes
+  ^long [^Buffer buffer]
+  (* (buffer-item-byte-size buffer) (.limit buffer)))
+
+(defn wrap-vertex-buffer
+  [vertex-description usage ^Buffer buffer]
+  (let [buffer-items-per-vertex (buffer-items-per-vertex buffer vertex-description)]
+    (->VertexBuffer vertex-description usage buffer buffer-items-per-vertex 0)))
 
 (defn make-vertex-buffer
   [vertex-description usage ^long capacity]
   (let [nbytes (* capacity ^long (:size vertex-description))
         buf (doto (ByteBuffer/allocateDirect nbytes)
               (.order ByteOrder/LITTLE_ENDIAN))]
-    (->VertexBuffer vertex-description usage buf 0)))
+    (wrap-vertex-buffer vertex-description usage buf)))
 
 
 ;; vertex description
@@ -248,8 +272,9 @@
     (vertex-disable-attribs gl attrib-locs))
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
 
-(defn- bind-index-buffer! [^GL2 gl request-id ^"[I" index-buffer]
-  (let [ibo (scene-cache/request-object! ::ibo2 request-id gl index-buffer)]
+(defn- bind-index-buffer! [^GL2 gl request-id ^IntBuffer index-buffer]
+  ;; TODO: Feed in actual version. Perhaps deftype IndexBuffer with IntBuffer + version?
+  (let [ibo (scene-cache/request-object! ::ibo2 request-id gl {:index-buffer index-buffer :version 0})]
     (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)))
 
 (defn- unbind-index-buffer! [^GL2 gl]
@@ -263,7 +288,7 @@
   (unbind [_this gl render-args]
     (unbind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)))
 
-(defrecord VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^"[I" index-buffer shader]
+(defrecord VertexIndexBufferShaderLink [request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader]
   GlBind
   (bind [_this gl render-args]
     (bind-vertex-buffer-with-shader! gl request-id vertex-buffer shader)
@@ -274,20 +299,20 @@
     (unbind-index-buffer! gl)))
 
 (defn use-with
-  ([request-id vertex-buffer shader]
+  ([request-id ^VertexBuffer vertex-buffer shader]
    (->VertexBufferShaderLink request-id vertex-buffer shader))
-  ([request-id vertex-buffer ^"[I" index-buffer shader]
+  ([request-id ^VertexBuffer vertex-buffer ^IntBuffer index-buffer shader]
    (->VertexIndexBufferShaderLink request-id vertex-buffer index-buffer shader)))
 
 (defn- update-vbo [^GL2 gl [vbo _] data]
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
   (let [^VertexBuffer vbuf (:vertex-buffer data)
-        ^ByteBuffer buf (.buf vbuf)
+        ^Buffer buf (.buf vbuf)
         shader (:shader data)
         attributes (:attributes (.vertex-description vbuf))
         attrib-locs (vertex-locate-attribs gl shader attributes)]
     (assert (flipped? vbuf) "VertexBuffer must be flipped before use.")
-    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (.limit buf) buf (usage-types (.usage vbuf)))
+    (gl/gl-buffer-data ^GL2 gl GL/GL_ARRAY_BUFFER (buffer-size-in-bytes buf) buf (usage-types (.usage vbuf)))
     [vbo attrib-locs]))
 
 (defn- make-vbo [^GL2 gl data]
@@ -301,9 +326,9 @@
 
 (defn- update-ibo [^GL2 gl ibo data]
   (gl/gl-bind-buffer gl GL/GL_ELEMENT_ARRAY_BUFFER ibo)
-  (let [int-buffer (IntBuffer/wrap (int-array data))
+  (let [^IntBuffer int-buffer (:index-buffer data)
         count (.remaining int-buffer)
-        size (* count 4)]
+        size (* count Buffers/SIZEOF_INT)]
     (gl/gl-buffer-data ^GL2 gl GL/GL_ELEMENT_ARRAY_BUFFER size int-buffer GL2/GL_STATIC_DRAW))
   ibo)
 
