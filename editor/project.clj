@@ -199,7 +199,7 @@
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
-                      :local-repl {:injections [(future ((requiring-resolve 'editor/-main)))]
+                      :local-repl {:injections [(require 'dev) (future ((requiring-resolve 'editor/-main)))]
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
                       :vscode {:plugins [[nrepl "0.6.0"]]}
                       :cider {:plugins [[cider/cider-nrepl "0.24.0"]
