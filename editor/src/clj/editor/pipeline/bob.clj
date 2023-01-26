@@ -47,7 +47,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def skip-dirs #{".git" "build/default" ".internal"})
+(def skip-dirs #{".git" "build" ".internal"})
 (def html5-url-prefix "/html5")
 (def html5-mime-types {"js" "application/javascript",
                        "json" "application/json",
