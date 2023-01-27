@@ -39,7 +39,7 @@
 
 (namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
 
-(namespaces/import-vars [internal.graph arc node-ids pre-traverse])
+(namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse])
 
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
