@@ -117,7 +117,7 @@
   ([graph project-path]
    (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path)
          workspace (workspace/make-workspace graph
-                                             (.getAbsolutePath (io/file project-path))
+                                             project-path
                                              {}
                                              workspace-config)]
      (g/transact
@@ -129,7 +129,7 @@
 
 (defn make-temp-project-copy! [project-path]
   (let [temp-project-path (-> (fs/create-temp-directory! "test")
-                              (.getAbsolutePath))]
+                              (.getCanonicalPath))]
     (fs/copy-directory! (io/file project-path) (io/file temp-project-path))
     temp-project-path))
 
@@ -582,7 +582,7 @@
   (memoize
     (fn temp-directory-path []
       (let [temp-file (fs/create-temp-file!)
-            parent-directory-path (.getAbsolutePath (.getParentFile temp-file))]
+            parent-directory-path (.getCanonicalPath (.getParentFile temp-file))]
         (fs/delete! temp-file {:fail :silently})
         parent-directory-path))))
 
@@ -592,9 +592,9 @@
   directory path must be a temp directory."
   ^java.lang.AutoCloseable [directory-path]
   (let [directory (io/file directory-path)]
-    (assert (string/starts-with? (.getAbsolutePath directory)
+    (assert (string/starts-with? (.getCanonicalPath directory)
                                  (temp-directory-path))
-            (str "directory-path `" (.getAbsolutePath directory) "` is not a temp directory"))
+            (str "directory-path `" (.getCanonicalPath directory) "` is not a temp directory"))
     (reify java.lang.AutoCloseable
       (close [_]
         (fs/delete-directory! directory {:fail :silently})))))

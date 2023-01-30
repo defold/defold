@@ -13,73 +13,85 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.resource-dialog
-  (:require [editor.resource :as resource]
-            [dynamo.graph :as g]
-            [editor.workspace :as workspace]
-            [cljfx.fx.h-box :as fx.h-box]
-            [editor.ui :as ui]
+  (:require [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
             [clojure.string :as string]
-            [cljfx.fx.text :as fx.text]
-            [editor.fuzzy-text :as fuzzy-text]
-            [editor.defold-project :as project]
+            [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
+            [editor.fuzzy-text :as fuzzy-text]
+            [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.ui :as ui]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
-            [editor.dialogs :as dialogs]))
+            [editor.workspace :as workspace]
+            [internal.graph.types :as gt]))
 
 (def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
 
-(defn- sub-nodes [n]
-  (g/node-value n :nodes))
+(defn- resource-node-ids->project-resources [basis resource-node-ids]
+  (let [project-resources
+        (into []
+              (comp
+                (map #(resource-node/resource basis %))
+                (filter (fn [resource]
+                          (and (some? (resource/proj-path resource))
+                               (resource/exists? resource)))))
+              resource-node-ids)]
+    (sort-by resource/proj-path project-resources)))
 
-(defn- sub-seq [n]
-  (tree-seq (partial g/node-instance? resource-node/ResourceNode) sub-nodes n))
+(defn- node-ids->owner-resource-node-ids [basis node-ids]
+  (into #{}
+        (keep #(resource-node/owner-resource-node-id basis %))
+        node-ids))
 
-(defn- file-scope [node-id]
-  (last (take-while (fn [n] (and n (not (g/node-instance? project/Project n)))) (iterate core/scope node-id))))
+(defn- deps-filter-fn [project filter-value _items]
+  ;; Dependencies are files that this file depends on. I.e. the atlas this sprite uses.
+  (g/with-auto-evaluation-context evaluation-context
+    (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
+      (let [basis (:basis evaluation-context)
+            nodes-in-resource (core/recursive-nodes-in-scope basis resource-node-id)
 
-(defn- deps-filter-fn [project filter-value items]
-  ;; Temp limitation to avoid stalls
-  ;; Optimally we would do the work in the background with a progress-bar
-  (if-let [node-id (project/get-resource-node project filter-value)]
-    (->>
-      (let [all (sub-seq node-id)]
-        (mapcat
-          (fn [n]
-            (keep (fn [[src src-label tgt tgt-label]]
-                    (when-let [src (file-scope src)]
-                      (when (and (not= node-id src)
-                                 (g/node-instance? resource-node/ResourceNode src))
-                        (when-let [r (g/node-value src :resource)]
-                          (when (resource/exists? r)
-                            r)))))
-                  (g/inputs n)))
-          all))
-      distinct)
-    []))
+            nodes-we-depend-on
+            (into #{}
+                  (comp
+                    (mapcat #(g/explicit-arcs-by-target basis %))
+                    (map gt/source-id))
+                  nodes-in-resource)
 
-(defn- override-seq [node-id]
-  (tree-seq g/overrides g/overrides node-id))
+            resource-nodes-we-depend-on
+            (disj (node-ids->owner-resource-node-ids basis nodes-we-depend-on)
+                  resource-node-id)]
 
-(defn- refs-filter-fn [project filter-value items]
-  ;; Temp limitation to avoid stalls
-  ;; Optimally we would do the work in the background with a progress-bar
-  (if-let [n (project/get-resource-node project filter-value)]
-    (->>
-      (let [all (override-seq n)]
-        (mapcat (fn [n]
-                  (keep (fn [[src src-label node-id label]]
-                          (when-let [node-id (file-scope node-id)]
-                            (when (and (not= n node-id)
-                                       (g/node-instance? resource-node/ResourceNode node-id))
-                              (when-let [r (g/node-value node-id :resource)]
-                                (when (resource/exists? r)
-                                  r)))))
-                        (g/outputs n)))
-                all))
-      distinct)
-    []))
+        (resource-node-ids->project-resources basis resource-nodes-we-depend-on)))))
+
+(defn- refs-filter-fn [project filter-value _items]
+  ;; Referencing files are files that depend on this file. I.e. the four sprites that refer to this atlas.
+  (g/with-auto-evaluation-context evaluation-context
+    (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
+      (let [basis (:basis evaluation-context)
+            nodes-in-resource (core/recursive-nodes-in-scope basis resource-node-id)
+            recursive-overrides-fn #(g/overrides basis %)
+
+            all-overrides-of-nodes-in-resource
+            (eduction
+              (mapcat #(tree-seq some? recursive-overrides-fn %))
+              nodes-in-resource)
+
+            nodes-that-depend-on-us
+            (into #{}
+                  (comp
+                    (mapcat #(g/explicit-arcs-by-source basis %))
+                    (map gt/target-id))
+                  all-overrides-of-nodes-in-resource)
+
+            resource-nodes-that-depend-on-us
+            (disj (node-ids->owner-resource-node-ids basis nodes-that-depend-on-us)
+                  resource-node-id)]
+
+        (resource-node-ids->project-resources basis resource-nodes-that-depend-on-us)))))
 
 (defn- make-text-run [text style-class]
   (cond-> {:fx/type fx.text/lifecycle
