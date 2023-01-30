@@ -67,7 +67,8 @@
 
 (vtx/defvertex texture-vtx
   (vec4 position)
-  (vec2 texcoord0))
+  (vec2 texcoord0)
+  (vec1 page_index))
 
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
@@ -474,19 +475,20 @@
 
 (defn gen-renderable-vertex-buffer
   [width height]
-  (let [x0 0
+  (let [page-index 0 ; TODO!
+        x0 0
         y0 0
         x1 width
         y1 height]
     (persistent!
       (doto (->texture-vtx 6)
-           (conj! [x0 y0 0 1 0 0])
-           (conj! [x0 y1 0 1 0 1])
-           (conj! [x1 y1 0 1 1 1])
+           (conj! [x0 y0 0 1 0 0 page-index])
+           (conj! [x0 y1 0 1 0 1 page-index])
+           (conj! [x1 y1 0 1 1 1 page-index])
 
-           (conj! [x1 y1 0 1 1 1])
-           (conj! [x1 y0 0 1 1 0])
-           (conj! [x0 y0 0 1 0 0])))))
+           (conj! [x1 y1 0 1 1 1 page-index])
+           (conj! [x1 y0 0 1 1 0 page-index])
+           (conj! [x0 y0 0 1 0 0 page-index])))))
 
 (defn- render-atlas
   [^GL2 gl render-args [renderable] n]

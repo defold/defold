@@ -100,24 +100,24 @@
 ;; vertex data
 
 (defn- gen-vertex
-  [^Matrix4d world-transform x y u v]
+  [^Matrix4d world-transform x y u v page-index]
   (let [p (Point3d. x y 0.0)]
     (.transform world-transform p)
-    (vector-of :double (.x p) (.y p) (.z p) 1.0 u v)))
+    (vector-of :double (.x p) (.y p) (.z p) 1.0 u v page-index)))
 
 (defn vertex-data
-  [{:keys [width height tex-coords] :as frame} world-transform]
+  [{:keys [width height tex-coords page-index] :as _frame} world-transform]
   (let [x1 (* 0.5 width)
         y1 (* 0.5 height)
         x0 (- x1)
         y0 (- y1)
         [[u0 v0] [u1 v1] [u2 v2] [u3 v3]] tex-coords]
-    [(gen-vertex world-transform x0 y0 u0 v0)
-     (gen-vertex world-transform x1 y0 u3 v3)
-     (gen-vertex world-transform x0 y1 u1 v1)
-     (gen-vertex world-transform x1 y0 u3 v3)
-     (gen-vertex world-transform x1 y1 u2 v2)
-     (gen-vertex world-transform x0 y1 u1 v1)]))
+    [(gen-vertex world-transform x0 y0 u0 v0 page-index)
+     (gen-vertex world-transform x1 y0 u3 v3 page-index)
+     (gen-vertex world-transform x0 y1 u1 v1 page-index)
+     (gen-vertex world-transform x1 y0 u3 v3 page-index)
+     (gen-vertex world-transform x1 y1 u2 v2 page-index)
+     (gen-vertex world-transform x0 y1 u1 v1 page-index)]))
 
 
 ;; animation
