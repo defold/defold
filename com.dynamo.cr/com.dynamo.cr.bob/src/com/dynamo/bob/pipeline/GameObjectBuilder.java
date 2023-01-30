@@ -71,10 +71,11 @@ public class GameObjectBuilder extends Builder<Void> {
 
 
         for (ComponentDesc componentDesc : lst) {
-            // Convert .wav resource component to an embedded sound
-            // We might generalize this in the future if necessary
-            if (componentDesc.getComponent().endsWith(".wav")) {
-                SoundDesc.Builder sd = SoundDesc.newBuilder().setSound(componentDesc.getComponent());
+            // Convert .wav and .ogg resource component to an embedded sound
+            // Should be fixed in the editor, see https://github.com/defold/defold/issues/4959
+            String comp = componentDesc.getComponent();
+            if (comp.endsWith(".wav") || comp.endsWith(".ogg")) {
+                SoundDesc.Builder sd = SoundDesc.newBuilder().setSound(comp);
                 EmbeddedComponentDesc ec = EmbeddedComponentDesc.newBuilder()
                     .setId(componentDesc.getId())
                     .setType("sound")
