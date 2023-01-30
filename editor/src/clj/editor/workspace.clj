@@ -767,7 +767,7 @@ ordinary paths."
                               (make-editable-proj-path-predicate non-editable-directory-proj-paths)
                               (constantly true))]
     (g/make-node! graph Workspace
-                  :root project-path
+                  :root (.getCanonicalPath (io/file project-path))
                   :resource-snapshot (resource-watch/empty-snapshot)
                   :view-types {:default {:id :default}}
                   :resource-listeners (atom [])
