@@ -204,9 +204,9 @@
             vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables num-quads) shader)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-          ;; TODO: We don't have a name? Do we need shader/set-sampler-texture-at-index?
-          ;; Actually, if we're mapping them to the underscore-names, we kind of need the name.
-          #_(shader/set-sampler-texture shader gl name (:texture-units gpu-texture))
+          ;; TODO: We need to validate in the sprite that the selected atlas
+          ;; does not have more pages than are supported in the material.
+          (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))

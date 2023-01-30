@@ -299,22 +299,33 @@
                                            (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
                                                (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
                                                (let [vertex-source (inject-max-page-count (:shader-source vertex-shader-source-info) max-page-count)
-                                                     fragment-source (inject-max-page-count  (:shader-source fragment-shader-source-info) max-page-count)
-                                                     array-sampler-name? (into (:array-sampler-names vertex-shader-source-info)
-                                                                               (:array-sampler-names fragment-shader-source-info))
+                                                     fragment-source (inject-max-page-count (:shader-source fragment-shader-source-info) max-page-count)
+
+                                                     array-sampler-name->slice-sampler-names
+                                                     (into {}
+                                                           (comp (distinct)
+                                                                 (map (fn [array-sampler-name]
+                                                                        (pair array-sampler-name
+                                                                              (mapv (fn [page-index]
+                                                                                      (let [page-sampler-name (str array-sampler-name "_" page-index)]
+                                                                                        (pair page-sampler-name nil)))
+                                                                                    (range max-page-count))))))
+                                                           (concat
+                                                             (:array-sampler-names vertex-shader-source-info)
+                                                             (:array-sampler-names fragment-shader-source-info)))
+
                                                      uniforms (-> {}
                                                                   (into (map (fn [constant]
                                                                                [(:name constant) (constant->val constant)]))
                                                                         (concat vertex-constants fragment-constants))
-                                                                  (into (mapcat (fn [{sampler-name :name}]
-                                                                                  (if (array-sampler-name? sampler-name)
-                                                                                    (map (fn [page-index]
-                                                                                           (let [page-sampler-name (str sampler-name "_" page-index)]
-                                                                                             (pair page-sampler-name nil)))
-                                                                                         (range max-page-count))
-                                                                                    [(pair sampler-name nil)])))
-                                                                        samplers))]
-                                                 (shader/make-shader _node-id vertex-source fragment-source uniforms array-sampler-name?)))))
+                                                                  (into (comp
+                                                                          (mapcat (fn [{sampler-name :name}]
+                                                                                    (or (array-sampler-name->slice-sampler-names sampler-name)
+                                                                                        [sampler-name])))
+                                                                          (map (fn [resolved-sampler-name]
+                                                                                 (pair resolved-sampler-name nil))))
+                                                                          samplers))]
+                                                 (shader/make-shader _node-id vertex-source fragment-source uniforms array-sampler-name->slice-sampler-names)))))
   (output samplers [g/KeywordMap] (g/fnk [samplers] (vec samplers))))
 
 (defn- make-sampler [name]
