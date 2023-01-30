@@ -477,12 +477,6 @@ ordinary paths."
 (defn- shared-library? [resource]
   (contains? #{"dylib" "dll" "so"} (resource/ext resource)))
 
-; It's important to use the same class loader, so that the type signatures match
-(def class-loader (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
-
-(defn load-class! [class-name]
-  (Class/forName class-name true class-loader))
-
 (defn- add-to-path-property [propertyname path]
   (let [current (System/getProperty propertyname)
         newvalue (if current

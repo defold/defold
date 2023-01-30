@@ -14,10 +14,10 @@
 
 (ns editor.core
   "Essential node types"
-  (:require [clojure.set :as set]
-            [cognitect.transit :as transit]
+  (:require [cognitect.transit :as transit]
             [dynamo.graph :as g]
-            [editor.types :as types]))
+            [editor.types :as types]
+            [internal.graph.types :as gt]))
 
 (set! *warn-on-reflection* true)
 
@@ -62,18 +62,43 @@ connected to the Scope's :nodes input.
 When a Scope is deleted, all nodes within that scope will also be deleted."
   (input nodes g/Any :array :cascade-delete))
 
+(defn direct-nodes-in-scope
+  ([scope-id]
+   (direct-nodes-in-scope (g/now) scope-id))
+  ([basis scope-id]
+   {:pre [(g/node-id? scope-id)]}
+   (let [incoming-arcs (g/explicit-arcs-by-target basis scope-id)
+         scope-node-type (g/node-type* basis scope-id)
+         cascade-delete-input-labels (g/cascade-deletes scope-node-type)
+         arc-connects-to-cascade-delete-input? (comp cascade-delete-input-labels gt/target-label)]
+     (eduction
+       (filter arc-connects-to-cascade-delete-input?)
+       (map gt/source-id)
+       (distinct)
+       incoming-arcs))))
+
+(defn recursive-nodes-in-scope
+  ([scope-id]
+   (recursive-nodes-in-scope (g/now) scope-id))
+  ([basis scope-id]
+   (tree-seq some?
+             #(direct-nodes-in-scope basis %)
+             scope-id)))
+
 (defn scope
   ([node-id]
    (scope (g/now) node-id))
   ([basis node-id]
-   (assert (some? node-id))
-   (let [[_ _ scope _] (first
-                         (filter
-                           (fn [[src src-lbl tgt tgt-lbl]]
-                             (and (= src-lbl :_node-id)
-                                  (= tgt-lbl :nodes)))
-                           (g/outputs basis node-id)))]
-     scope)))
+   {:pre [(g/node-id? node-id)]}
+   (let [outgoing-arcs (g/explicit-arcs-by-source basis node-id)
+         outgoing-arcs-by-target-id (group-by gt/target-id outgoing-arcs)]
+     (some (fn [[target-id outgoing-arcs-to-target]]
+             (let [target-node-type (g/node-type* basis target-id)
+                   cascade-delete-input-label? (g/cascade-deletes target-node-type)
+                   arc-connects-to-cascade-delete-input? (comp cascade-delete-input-label? gt/target-label)]
+               (when (some arc-connects-to-cascade-delete-input? outgoing-arcs-to-target)
+                 target-id)))
+           outgoing-arcs-by-target-id))))
 
 (defn scope-of-type
   ([node-id node-type]
@@ -83,7 +108,6 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
      (if (g/node-instance? basis node-type scope-id)
        scope-id
        (recur basis scope-id node-type)))))
-
 
 (g/defnode Saveable
   "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit
