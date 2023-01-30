@@ -1,5 +1,5 @@
 #! /usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -65,7 +65,7 @@ function make_archive() {
 function package_platform() {
 	local platform=$1
 	pushd $PLATFORMS/${platform}.platform/Developer/SDKs/
-	PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l)
+	PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l | head -1)
 	PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
 
 	EXTRA_ARGS=""

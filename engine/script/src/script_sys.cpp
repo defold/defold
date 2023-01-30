@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -409,7 +409,7 @@ union SaveLoadBuffer
      * @name sys.get_config_int
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
      * @param [default_value] [type:integer] (optional) default value to return if the value does not exist
-     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. nil if no default value was supplied.
+     * @return value [type:integer] config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *
      * Get user config value
@@ -431,7 +431,7 @@ union SaveLoadBuffer
 
         const char* key = luaL_checkstring(L, 1);
         int default_value = 0;
-        if (!lua_isnil(L, 2))
+        if (!lua_isnone(L, 2))
         {
             default_value = luaL_checkinteger(L, 2);
         }
@@ -455,7 +455,7 @@ union SaveLoadBuffer
      * @name sys.get_config_number
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
      * @param [default_value] [type:number] (optional) default value to return if the value does not exist
-     * @return value [type:number] config value as an number. default_value if the config key does not exist. nil if no default value was supplied.
+     * @return value [type:number] config value as an number. default_value if the config key does not exist. 0 if no default value was supplied.
      * @examples
      *
      * Get user config value
@@ -470,7 +470,7 @@ union SaveLoadBuffer
 
         const char* key = luaL_checkstring(L, 1);
         float default_value = 0;
-        if (!lua_isnil(L, 2))
+        if (!lua_isnone(L, 2))
         {
             default_value = luaL_checknumber(L, 2);
         }

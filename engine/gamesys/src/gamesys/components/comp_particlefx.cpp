@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -109,13 +109,17 @@ namespace dmGameSystem
         world->m_VertexBufferData.SetCapacity(ctx->m_MaxParticleCount * 6);
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
-        dmGraphics::VertexElement ve[] =
-        {
-            {"position",  0, 3, dmGraphics::TYPE_FLOAT, false},
-            {"color",     1, 4, dmGraphics::TYPE_FLOAT, true},
-            {"texcoord0", 2, 2, dmGraphics::TYPE_FLOAT, true},
-        };
-        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), ve, 3);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext));
+
+        dmGraphics::AddVertexStream(stream_declaration, "position",  3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "color",     4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, true);
+
+        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(ctx->m_RenderContext), stream_declaration);
+
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -150,7 +154,7 @@ namespace dmGameSystem
         ParticleFXWorld* world = (ParticleFXWorld*)params.m_World;
         if (world->m_PrototypeIndices.Remaining() == 0)
         {
-            dmLogError("ParticleFX could not be created since the buffer is full (%d).", world->m_PrototypeIndices.Capacity());
+            ShowFullBufferError("ParticleFx", dmParticle::MAX_INSTANCE_COUNT_KEY, world->m_PrototypeIndices.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         uint32_t index = world->m_PrototypeIndices.Pop();

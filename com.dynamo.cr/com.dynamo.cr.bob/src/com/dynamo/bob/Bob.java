@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -603,8 +603,10 @@ public class Bob {
         }
         project.mount(new ClassLoaderResourceScanner());
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
+        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal", "build"));
+        TimeProfiler.start("findSources");
         project.findSources(sourceDirectory, skipDirs);
+        TimeProfiler.stop();
     }
 
     private static void validateChoices(String optionName, String value, List<String> validChoices) {
@@ -704,8 +706,10 @@ public class Bob {
 
         project.loadProjectFile();
 
+        TimeProfiler.start("setupProject");
         // resolves libraries and finds all sources
         setupProject(project, shouldResolveLibs, sourceDirectory);
+        TimeProfiler.stop();
 
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -133,6 +133,18 @@ namespace dmGameSystem
         } else {
             return lua_buffer->m_Buffer;
         }
+    }
+
+    // Unless we check that a buffer resource actually exists, the engine will crash
+    // when unpacking. This can happen if a user destroys a resource but a LuaHBuffer still holds a reference to the resource
+    static bool CanUnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer)
+    {
+        if (lua_buffer->m_Owner == dmScript::OWNER_RES)
+        {
+            uint64_t hash;
+            return dmResource::RESULT_OK == dmResource::GetPath(g_Factory, lua_buffer->m_BufferRes, &hash);
+        }
+        return true;
     }
 
     static bool IsStream(lua_State *L, int index)
@@ -424,8 +436,7 @@ namespace dmGameSystem
     static int GetStream(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
         dmhash_t stream_name = dmScript::CheckHashOrString(L, 2);
         PushStream(L, 1, hbuffer, stream_name);
         return 1;
@@ -589,10 +600,8 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmScript::LuaHBuffer* _dstbuffer = dmScript::CheckBuffer(L, 1);
-        dmScript::LuaHBuffer* _srcbuffer = dmScript::CheckBuffer(L, 3);
-        dmBuffer::HBuffer dst_hbuffer = UnpackLuaBuffer(_dstbuffer);
-        dmBuffer::HBuffer src_hbuffer = UnpackLuaBuffer(_srcbuffer);
+        dmBuffer::HBuffer dst_hbuffer = dmScript::CheckBufferUnpack(L, 1);
+        dmBuffer::HBuffer src_hbuffer = dmScript::CheckBufferUnpack(L, 3);
         dmBuffer::HBuffer dstbuffer = dst_hbuffer;
         dmBuffer::HBuffer srcbuffer = src_hbuffer;
         int dstoffset = luaL_checkint(L, 2);
@@ -687,8 +696,7 @@ namespace dmGameSystem
     static int GetBytes(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
 
         uint8_t* data;
         uint32_t datasize;
@@ -724,10 +732,9 @@ namespace dmGameSystem
     static int Buffer_tostring(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
 
         uint32_t num_streams;
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
         dmBuffer::GetNumStreams(hbuffer, &num_streams);
 
         uint32_t out_element_count = 0;
@@ -775,8 +782,7 @@ namespace dmGameSystem
     static int Buffer_len(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 1);
-        dmBuffer::HBuffer hbuffer = UnpackLuaBuffer(buffer);
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
         uint32_t count = 0;
         dmBuffer::Result r = dmBuffer::GetCount(hbuffer, &count);
         if (r != dmBuffer::RESULT_OK) {
@@ -879,6 +885,236 @@ namespace dmGameSystem
         return 0;
     }
 
+
+    // Allocates and fills up an array of ints/floats from a table at the top of the stack. It pops the table before returning.
+    template <typename T>
+    static T* LuaTableToArray(lua_State* L, uint32_t count, dmBuffer::ValueType valueType)
+    {
+
+        T* buffer = (T*) malloc(count*dmBuffer::GetSizeForValueType(valueType));
+
+        uint32_t i = 0;
+        lua_pushnil(L);
+        while (lua_next(L, -2) != 0) {
+            if (valueType == dmBuffer::VALUE_TYPE_FLOAT32)
+            {
+                buffer[i] = (T)luaL_checknumber(L, -1);
+            } else
+            {
+                buffer[i] = (T)luaL_checkinteger(L, -1);
+            }
+            luaL_checkint(L, -2); // index of the value. Make sure it's an int
+
+            i++;
+            lua_pop(L, 1); // pop value, keep index for next iteration
+        }
+
+        lua_pop(L, 1); // pop the table itself
+
+        return buffer;
+    }
+
+    /*# set a metadata entry on a buffer
+     *
+     * Creates or updates a metadata array entry on a buffer.
+     *
+     * [icon:attention] The value type and count given when updating the entry should match those used when first creating it.
+     *
+     * @name buffer.set_metadata
+     * @param buf [type:buffer] the buffer to set the metadata on
+     * @param metadata_name [type:hash|string] name of the metadata entry
+     * @param values [type:table] actual metadata, an array of numeric values
+     * @param value_type [type:constant] type of values when stored
+     *
+     * @examples
+     * How to set a metadata entry on a buffer
+     *
+     * ```lua
+     * -- create a new metadata entry with three floats
+     * buffer.set_metadata(buf, hash("somefloats"), {1.5, 3.2, 7.9}, buffer.VALUE_TYPE_FLOAT32)
+     * -- ...
+     * -- update to a new set of values
+     * buffer.set_metadata(buf, hash("somefloats"), {-2.5, 10.0, 32.2}, buffer.VALUE_TYPE_FLOAT32)
+     * ```
+    */
+    static int SetMetadata(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        // get buffer
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
+
+        // get metadata entry name
+        dmhash_t entry_name = dmScript::CheckHashOrString(L, 2);
+
+        // get number type
+        dmBuffer::ValueType valueType = (dmBuffer::ValueType) luaL_checkinteger(L, 4);
+
+        // get array of values
+        luaL_checktype(L, 3, LUA_TTABLE);
+        uint32_t count = lua_objlen(L, 3);
+        if (count > 0)
+        {
+            // validate valuetype early
+            if (valueType < 0 || valueType >= dmBuffer::MAX_VALUE_TYPE_COUNT)
+            {
+                return DM_LUA_ERROR("invalid metadata value type supplied: %ld", (long) valueType);
+            }
+            if (valueType == dmBuffer::VALUE_TYPE_UINT64 || valueType == dmBuffer::VALUE_TYPE_INT64)
+            {
+                return DM_LUA_ERROR("64 bit integer metadata are not supported.");
+            }
+
+            void* values;
+            lua_pushvalue(L, 3);
+
+            #define DM_LUA_TABLE_TO_ARRAY(_T_) values = (void*) LuaTableToArray<_T_>(L, count, valueType)
+            switch(valueType)
+            {
+                case dmBuffer::VALUE_TYPE_FLOAT32:
+                    DM_LUA_TABLE_TO_ARRAY(float);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT8:
+                    DM_LUA_TABLE_TO_ARRAY(uint8_t);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT16:
+                    DM_LUA_TABLE_TO_ARRAY(uint16_t);
+                break;
+                case dmBuffer::VALUE_TYPE_UINT32:
+                    DM_LUA_TABLE_TO_ARRAY(uint32_t);
+                break;
+                case dmBuffer::VALUE_TYPE_INT8:
+                    DM_LUA_TABLE_TO_ARRAY(int8_t);
+                break;
+                case dmBuffer::VALUE_TYPE_INT16:
+                    DM_LUA_TABLE_TO_ARRAY(int16_t);
+                break;
+                case dmBuffer::VALUE_TYPE_INT32:
+                    DM_LUA_TABLE_TO_ARRAY(int32_t);
+                break;
+            }
+            #undef DM_LUA_TABLE_TO_ARRAY
+
+            dmBuffer::Result r = dmBuffer::SetMetaData(hbuffer, entry_name, (void*) values, count, valueType);
+            free(values);
+
+            if( r != dmBuffer::RESULT_OK )
+            {
+                return DM_LUA_ERROR("cannot set metadata for buffer: %s", dmBuffer::GetResultString(r));
+            }
+        } else
+        {
+            return DM_LUA_ERROR("invalid metadata");
+        }
+
+        return 0;
+    }
+
+    // copies values from array to (empty) lua table on top of the stack
+    template <typename T>
+    static void ArrayToLuaTable(lua_State* L, const T* values, uint32_t count, dmBuffer::ValueType valueType) {
+        if (valueType == dmBuffer::VALUE_TYPE_FLOAT32) {
+            for (uint32_t i=0; i<count; i++)
+            {
+                T value = values[i];
+                lua_pushnumber(L, value);
+                lua_rawseti(L, -2, i+1); // lua indices start from 1
+            }
+        } else
+        {
+            for (uint32_t i=0; i<count; i++)
+            {
+                T value = values[i];
+                lua_pushinteger(L, value);
+                lua_rawseti(L, -2, i+1); // lua indices start from 1
+            }
+        }
+    }
+
+    /*# retrieve a metadata entry from a buffer
+     *
+     * Get a named metadata entry from a buffer along with its type.
+     *
+     * @name buffer.get_metadata
+     * @param buf [type:buffer] the buffer to get the metadata from
+     * @param metadata_name [type:hash|string] name of the metadata entry
+     * @return values [type:table] table of metadata values or nil if the entry does not exist
+     * @return value_type [type:constant] numeric type of values or nil
+     *
+     * @examples
+     * How to get a metadata entry from a buffer
+     *
+     * ```lua
+     * -- retrieve a metadata entry named "somefloats" and its nomeric type
+     * local values, type = buffer.get_metadata(buf, hash("somefloats"))
+     * if metadata then print(#metadata.." values in 'somefloats'") end
+     * ```
+    */
+    static int GetMetadata(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 2);
+
+        // get buffer
+        dmBuffer::HBuffer hbuffer = dmScript::CheckBufferUnpack(L, 1);
+
+        // get metadata entry name
+        dmhash_t entry_name = dmScript::CheckHashOrString(L, 2);
+
+        uint32_t count;
+        dmBuffer::ValueType valueType;
+        void* values;
+        dmBuffer::Result r = dmBuffer::GetMetaData(hbuffer, entry_name, &values, &count, &valueType);
+        if ( r == dmBuffer::RESULT_METADATA_MISSING)
+        {
+            lua_pushnil(L);  // nil for metadata entry
+            lua_pushnil(L); // nil for numbertype
+            return 2;
+        }
+        if ( r != dmBuffer::RESULT_OK )
+        {
+            return DM_LUA_ERROR("error getting metadata for buffer: %s", dmBuffer::GetResultString(r));
+        }
+
+        lua_newtable(L);
+        #define DM_ARRAY_TO_LUA_TABLE(_T_) ArrayToLuaTable<_T_>(L, (_T_*) values, count, valueType)
+        switch (valueType)
+        {
+            case dmBuffer::VALUE_TYPE_FLOAT32:
+                DM_ARRAY_TO_LUA_TABLE(float);
+            break;
+            case dmBuffer::VALUE_TYPE_UINT8:
+                DM_ARRAY_TO_LUA_TABLE(uint8_t);
+            break;
+            case dmBuffer::VALUE_TYPE_UINT16:
+                DM_ARRAY_TO_LUA_TABLE(uint16_t);
+            break;
+            case dmBuffer::VALUE_TYPE_UINT32:
+                DM_ARRAY_TO_LUA_TABLE(uint32_t);
+            break;
+            case dmBuffer::VALUE_TYPE_INT8:
+                DM_ARRAY_TO_LUA_TABLE(int8_t);
+            break;
+            case dmBuffer::VALUE_TYPE_INT16:
+                DM_ARRAY_TO_LUA_TABLE(int16_t);
+            break;
+            case dmBuffer::VALUE_TYPE_INT32:
+                DM_ARRAY_TO_LUA_TABLE(int32_t);
+            break;
+            case dmBuffer::VALUE_TYPE_UINT64:
+            case dmBuffer::VALUE_TYPE_INT64:
+                return DM_LUA_ERROR("retrieving 64 bit integer metadata is not supported");
+            break;
+            default:
+                // we shouldn't reach this point
+                return DM_LUA_ERROR("invalid value type supplied: %d", valueType);
+        }
+        #undef DM_ARRAY_TO_LUA_TABLE
+        lua_pushinteger(L, (uint32_t) valueType);
+
+        return 2; // table with values and valueType in the stack
+    }
+
+
     static const luaL_reg Stream_methods[] =
     {
         {0,0}
@@ -902,6 +1138,8 @@ namespace dmGameSystem
         {"get_bytes", GetBytes},
         {"copy_stream", CopyStream},
         {"copy_buffer", CopyBuffer},
+        {"set_metadata",SetMetadata},
+        {"get_metadata",GetMetadata},
         {0, 0}
     };
 
@@ -977,32 +1215,57 @@ namespace dmScript
         lua_setmetatable(L, -2);
     }
 
-    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
-    {
-        if (lua_type(L, index) == LUA_TUSERDATA)
-        {
-            dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::ToUserType(L, index, SCRIPT_BUFFER_TYPE_HASH);
-            dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
-            if( buffer && dmBuffer::IsBufferValid(hbuffer))
-            {
-                return buffer;
-            }
-        }
-        return 0x0;
-    }
-
-    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
+    // Note: the throw_error only controls this particular function, not the CheckUserType
+    static dmBuffer::HBuffer CheckBufferUnpackInternal(lua_State* L, int index, bool throw_error, dmScript::LuaHBuffer** out_luabuffer)
     {
         if (lua_type(L, index) == LUA_TUSERDATA)
         {
             dmScript::LuaHBuffer* buffer = (dmScript::LuaHBuffer*)dmScript::CheckUserType(L, index, SCRIPT_BUFFER_TYPE_HASH, 0);
+            if (!dmGameSystem::CanUnpackLuaBuffer(buffer))
+            {
+                if (throw_error)
+                    luaL_error(L, "The buffer handle was stale");
+                else
+                    return 0;
+            }
+
             dmBuffer::HBuffer hbuffer = dmGameSystem::UnpackLuaBuffer(buffer);
             if( dmBuffer::IsBufferValid( hbuffer ) ) {
-                return buffer;
+                if (out_luabuffer)
+                    *out_luabuffer = buffer;
+                return hbuffer;
             }
-            luaL_error(L, "The buffer handle is invalid");
+
+            if (throw_error)
+                luaL_error(L, "The buffer handle is invalid");
+            else
+                return 0;
         }
         luaL_typerror(L, index, SCRIPT_TYPE_NAME_BUFFER);
         return 0x0;
+    }
+
+    dmBuffer::HBuffer CheckBufferUnpack(lua_State* L, int index)
+    {
+        return CheckBufferUnpackInternal(L, index, true, 0);
+    }
+
+    dmBuffer::HBuffer CheckBufferUnpackNoError(lua_State* L, int index)
+    {
+        return CheckBufferUnpackInternal(L, index, false, 0);
+    }
+
+    dmScript::LuaHBuffer* CheckBuffer(lua_State* L, int index)
+    {
+        dmScript::LuaHBuffer* buffer = 0;
+        dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, true, &buffer);
+        return hbuffer != 0 ? buffer : 0; // SHouldn't get here due to the lua_error
+    }
+
+    dmScript::LuaHBuffer* CheckBufferNoError(lua_State* L, int index)
+    {
+        dmScript::LuaHBuffer* buffer = 0;
+        dmBuffer::HBuffer hbuffer = CheckBufferUnpackInternal(L, index, false, &buffer);
+        return hbuffer != 0 ? buffer : 0;
     }
 }

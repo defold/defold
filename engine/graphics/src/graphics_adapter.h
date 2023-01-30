@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -92,8 +92,8 @@ namespace dmGraphics
     typedef bool (*UnmapIndexBufferFn)(HIndexBuffer buffer);
     typedef bool (*IsIndexBufferFormatSupportedFn)(HContext context, IndexBufferFormat format);
     typedef uint32_t (*GetMaxElementsIndicesFn)(HContext context);
-    typedef HVertexDeclaration (*NewVertexDeclarationFn)(HContext context, VertexElement* element, uint32_t count);
-    typedef HVertexDeclaration (*NewVertexDeclarationStrideFn)(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
+    typedef HVertexDeclaration (*NewVertexDeclarationFn)(HContext context, HVertexStreamDeclaration stream_declaration);
+    typedef HVertexDeclaration (*NewVertexDeclarationStrideFn)(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
     typedef bool (*SetStreamOffsetFn)(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
     typedef void (*DeleteVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
     typedef void (*EnableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);

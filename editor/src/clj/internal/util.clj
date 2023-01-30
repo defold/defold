@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -660,3 +660,15 @@
                                    all-reduced reduced)))
                        (mapv transient tos)
                        from)))))))
+
+(defn make-dedupe-fn
+  "Given a sequence of non-unique items, returns a function that will return the
+  same instance of each item if it is determined to be equal to an item already
+  in the ever-growing set of unique items."
+  [items]
+  (let [unique-volatile (volatile! (set items))]
+    (fn dedupe-fn [item]
+      (or (get @unique-volatile item)
+          (do
+            (vswap! unique-volatile conj item)
+            item)))))

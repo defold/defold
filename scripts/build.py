@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -28,7 +28,6 @@ import release_to_github
 import BuildUtility
 import http_cache
 from urllib.parse import urlparse
-from tarfile import TarFile
 from glob import glob
 from threading import Thread, Event
 from queue import Queue
@@ -361,17 +360,10 @@ class Configuration(object):
 
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
-        version = sys.version_info
+        self._mkdirs(path)
         suffix = os.path.splitext(file)[1]
-        # Avoid a bug in python 2.7 (fixed in 2.7.2) related to not being able to remove symlinks: http://bugs.python.org/issue10761
-        if self.host == 'x86_64-linux' and version[0] == 2 and version[1] == 7 and version[2] < 2:
-            fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
-            run.env_command(self._form_env(), ['tar', 'xf%s' % fmts.get(suffix, 'z'), file], cwd = path)
-        else:
-            fmts = {'.gz': 'gz', '.xz': 'xz', '.bzip2': 'bz2'}
-            tf = TarFile.open(file, 'r:%s' % fmts.get(suffix, 'gz'))
-            tf.extractall(path)
-            tf.close()
+        fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
+        run.env_command(self._form_env(), ['tar', 'xf%s' % fmts.get(suffix, 'z'), file], cwd = path)
 
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1, format=None):
         src = src.replace('\\', '/')
@@ -384,8 +376,7 @@ class Configuration(object):
         parentdir, dirname = os.path.split(target_folder)
         old_dir = os.getcwd()
         os.chdir(parentdir)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
+        self._mkdirs(dirname)
 
         if format is None:
             suffix = os.path.splitext(src)[1]

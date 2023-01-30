@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1287,6 +1287,18 @@ Result Get(HFactory factory, const char* name, void** resource)
     stack.SetSize(stack.Size() - 1);
     --factory->m_RecursionDepth;
     return r;
+}
+
+Result Get(HFactory factory, dmhash_t name, void** resource)
+{
+    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, name);
+    if (!rd)
+    {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+    dmResource::IncRef(factory, rd->m_Resource);
+    *resource = rd->m_Resource;
+    return RESULT_OK;
 }
 
 SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)

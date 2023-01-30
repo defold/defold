@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -213,6 +213,12 @@ class ComponentFailTest : public GamesysTest<const char*>
 {
 public:
     virtual ~ComponentFailTest() {}
+};
+
+class BufferMetadataTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~BufferMetadataTest() {}
 };
 
 struct FactoryTestParams
@@ -537,6 +543,7 @@ void GamesysTest<T>::TearDown()
 
     GameSystemTest_PlatformExit();
 }
+
 
 // Specific test class for testing dmBuffers in scripts
 class ScriptBufferTest : public jc_test_base_class

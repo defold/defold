@@ -74,4 +74,7 @@ message TextureSet
 
     // Maps animation frames to geometry index
     repeated uint32 frame_indices           = 22;
+
+    // A hash of the texture name/path
+    optional uint64 texture_hash            = 23;
 }

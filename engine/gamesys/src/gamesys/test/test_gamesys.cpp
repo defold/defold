@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -268,6 +268,24 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_F(ResourceTest, TestResourceScriptAtlas)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory    = m_Factory;
+    scriptlibcontext.m_Register   = m_Register;
+    scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_atlas.goc", dmHashString64("/script_atlas"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 TEST_F(ResourceTest, TestSetTextureFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -276,6 +294,8 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     scriptlibcontext.m_LuaState   = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    WrapIoFunctions(scriptlibcontext.m_LuaState);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -315,6 +335,14 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     //      -> set_texture.script::test_fail_wrong_mipmap
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 5: Set texture with compressed / transcoded data
+    //      -> set_texture.script::test_success_compressed
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_EQ(dmGraphics::GetTextureWidth(backing_texture), 32);
+    ASSERT_EQ(dmGraphics::GetTextureHeight(backing_texture), 32);
 
     // cleanup
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -587,6 +615,26 @@ static dmGameObject::PropertyResult SetResourceProperty(dmGameObject::HInstance 
     dmGameObject::PropertyOptions opt;
     opt.m_Index = 0;
     return dmGameObject::SetProperty(instance, comp_name, prop_name, opt, prop_var);
+}
+
+TEST_F(BufferMetadataTest, MetadataLuaApi)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory = m_Factory;
+    scriptlibcontext.m_Register = m_Register;
+    scriptlibcontext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* go_path = "/buffer/metadata.goc";
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(SoundTest, UpdateSoundResource)
@@ -2698,6 +2746,29 @@ TEST_F(ScriptBufferTest, PushCheckBuffer)
     dmScript::LuaHBuffer* buffer_ptr = dmScript::CheckBuffer(L, -1);
     ASSERT_NE((void*)0x0, buffer_ptr);
     ASSERT_EQ(m_Buffer, buffer_ptr->m_Buffer);
+
+    dmScript::LuaHBuffer* buffer_ptr2 = dmScript::CheckBufferNoError(L, -1);
+    ASSERT_NE((void*)0x0, buffer_ptr2);
+    ASSERT_EQ(m_Buffer, buffer_ptr2->m_Buffer);
+
+    lua_pop(L, 1);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptBufferTest, PushCheckUnpackBuffer)
+{
+    int top = lua_gettop(L);
+    dmScript::LuaHBuffer luabuf(m_Buffer, dmScript::OWNER_C);
+    dmScript::PushBuffer(L, luabuf);
+
+    dmBuffer::HBuffer buf = dmScript::CheckBufferUnpack(L, -1);
+    ASSERT_NE((dmBuffer::HBuffer)0x0, buf);
+    ASSERT_EQ(m_Buffer, buf);
+
+    dmBuffer::HBuffer buf2 = dmScript::CheckBufferUnpackNoError(L, -1);
+    ASSERT_NE((dmBuffer::HBuffer)0x0, buf2);
+    ASSERT_EQ(m_Buffer, buf2);
+
     lua_pop(L, 1);
     ASSERT_EQ(top, lua_gettop(L));
 }
@@ -3415,6 +3486,9 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
 
 int main(int argc, char **argv)
 {
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
     dmHashEnableReverseHash(true);
     // Enable message descriptor translation when sending messages
     dmDDF::RegisterAllTypes();

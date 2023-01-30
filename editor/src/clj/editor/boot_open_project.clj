@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -383,11 +383,12 @@
      :size :large
      :icon :icon/triangle-error
      :header "There are missing dependencies"
-     :content (string/join "\n" (concat ["The following dependencies are missing:"]
-                                        (map #(str "\u00A0\u00A0\u2022\u00A0" %) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
+     :content (string/join "\n" (concat ["The following dependencies are missing:"
+                                         ""]
+                                        (map dialogs/indent-with-bullet
                                              (sort-by str dependencies))
                                         [""
-                                         "The project might not work without them. "
+                                         "The project might not work without them."
                                          "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
 
 (defn open-project!
