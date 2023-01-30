@@ -425,8 +425,12 @@ This must be submitted to the driver for compilation before you can use it. See
 (defn- set-sampler-uniform-impl! [gl program uniform-infos slice-sampler-uniform-names texture-units]
   (doall
     (map (fn [slice-sampler-uniform-name texture-unit]
-           (let [slice-sampler-uniform-info (uniform-infos slice-sampler-uniform-name)]
-             (set-uniform-at-index gl program (:index slice-sampler-uniform-info) texture-unit)))
+           (if (and (int? texture-unit)
+                    (not (neg? texture-unit)))
+             (if-some [slice-sampler-uniform-info (uniform-infos slice-sampler-uniform-name)]
+               (set-uniform-at-index gl program (:index slice-sampler-uniform-info) texture-unit)
+               (throw (IllegalArgumentException. (format "Uniform '%s' does not exist." slice-sampler-uniform-name))))
+             (throw (IllegalArgumentException. (format "Invalid texture unit '%s' for uniform '%s'." texture-unit slice-sampler-uniform-name)))))
          slice-sampler-uniform-names
          texture-units)))
 
@@ -437,6 +441,7 @@ This must be submitted to the driver for compilation before you can use it. See
       (.glUseProgram ^GL2 gl program)
       (when-not (zero? program)
         (doseq [[name val] uniforms
+                :when (some? val)
                 :let [val (if (keyword? val)
                             (get render-args val)
                             val)]]
@@ -545,11 +550,15 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
         out-name (byte-array name-buffer-size)]
     (fn uniform-info [^GL2 gl program uniform-index]
       (.glGetActiveUniform gl program uniform-index name-buffer-size out-name-length 0 out-size 0 out-type 0 out-name 0)
-      (let [name-length (aget out-name-length 0)]
-        {:name (String. out-name 0 name-length StandardCharsets/UTF_8)
-         :index uniform-index
-         :type (gl-uniform-type->uniform-type (aget out-type 0))
-         :count (aget out-size 0)}))))
+      (let [name-length (aget out-name-length 0)
+            name (String. out-name 0 name-length StandardCharsets/UTF_8)
+            location (.glGetUniformLocation gl program name)
+            type (gl-uniform-type->uniform-type (aget out-type 0))
+            count (aget out-size 0)]
+        {:name name
+         :index location
+         :type type
+         :count count}))))
 
 (defn- make-shader-program [^GL2 gl [vertex-shader-source fragment-shader-source array-sampler-name->uniform-names]]
   (let [vs (make-vertex-shader gl vertex-shader-source)]
