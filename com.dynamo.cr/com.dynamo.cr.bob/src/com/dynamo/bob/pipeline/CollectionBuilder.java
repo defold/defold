@@ -136,7 +136,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
         Map<Long, IResource> uniqueResources = new HashMap<>();
         createGeneratedResources(this.project, builder, uniqueResources);
-        
+
         List<Task<?>> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
@@ -376,7 +376,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             ++embedIndex;
         }
         messageBuilder.clearEmbeddedInstances();
-        
+
         Collection<String> propertyResources = new HashSet<String>();
         for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
             InstanceDesc.Builder b = InstanceDesc.newBuilder().mergeFrom(messageBuilder.getInstances(i));

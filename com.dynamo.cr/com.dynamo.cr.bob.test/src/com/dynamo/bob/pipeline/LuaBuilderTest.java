@@ -83,6 +83,22 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertSubElementsV4(properties.getQuatEntries(0));
     }
 
+    // DEF-7341 - using resource.xxx(path) for resources that doesn't exist should raise an error
+    @Test
+    public void testPropResourceNotFound() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("\n");
+        src.append("go.property(\"material\", resource.material(\"/invalid.material\"))\n");
+
+        boolean expectFail = false;
+        try {
+            LuaModule luaModule = (LuaModule) build("/test.script", src.toString()).get(0);
+        } catch (CompileExceptionError e) {
+            expectFail = true;
+        }
+        assertTrue(expectFail);
+    }
+
     @Test
     public void testPropUnsupportedType() throws Exception {
         StringBuilder src = new StringBuilder();
