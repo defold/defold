@@ -371,7 +371,6 @@
    [:node-outline :child-outlines]
    [:scene :child-scenes]
    [:node-msgs :node-msgs]
-   [:node-rt-msgs :node-rt-msgs]
    [:node-overrides :node-overrides]
    [:build-errors :child-build-errors]
    [:template-build-targets :template-build-targets]])
@@ -683,13 +682,6 @@
                                   (flatten
                                     (sort-by #(get-in % [0 :child-index])
                                              node-msgs)))))
-  (input node-rt-msgs g/Any :array)
-  (output node-rt-msgs g/Any (g/fnk [node-rt-msgs node-msg]
-                               (into [node-msg]
-                                     (map #(dissoc % :child-index))
-                                     (flatten
-                                       (sort-by #(get-in % [0 :child-index])
-                                                node-rt-msgs)))))
   (output aabb g/Any :abstract)
   (output scene-children g/Any (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output scene-updatable g/Any (g/constantly nil))
@@ -1276,7 +1268,6 @@
                                                                   [:build-errors :child-build-errors]
                                                                   [:resource :template-resource]
                                                                   [:pb-msg :scene-pb-msg]
-                                                                  [:rt-pb-msg :scene-rt-pb-msg]
                                                                   [:node-overrides :template-overrides]]]
                                                    (g/connect or-scene from self to))
                                                  (for [[from to] [[:layer-names :layer-names]
@@ -1302,7 +1293,6 @@
   (display-order (into base-display-order [:enabled :template]))
 
   (input scene-pb-msg g/Any :substitute (fn [_] {:nodes []}))
-  (input scene-rt-pb-msg g/Any)
   (input scene-build-targets g/Any)
   (output scene-build-targets g/Any (gu/passthrough scene-build-targets))
 
@@ -1319,24 +1309,12 @@
   (output node-outline-reqs g/Any :cached (g/constantly []))
   (output node-msg g/Any :cached produce-template-node-msg)
   (output node-msgs g/Any :cached (g/fnk [id node-msg scene-pb-msg]
-                                    (into [node-msg] (map #(cond-> (assoc % :template-node-child true)
-                                                             (empty? (:parent %)) (assoc :parent id))
-                                                          (:nodes scene-pb-msg)))))
-  (output node-rt-msgs g/Any :cached (g/fnk [node-msg scene-rt-pb-msg]
-                                       (let [parent-q (math/euler->quat (:rotation node-msg))]
-                                         (into [] (map #(cond-> (assoc % :child-index (:child-index node-msg))
-                                                          (empty? (:layer %)) (assoc :layer (:layer node-msg))
-                                                          (:inherit-alpha %) (->
-                                                                               (update :alpha * (:alpha node-msg))
-                                                                               (assoc :inherit-alpha (:inherit-alpha node-msg)))
-                                                          (empty? (:parent %)) (->
-                                                                                 (assoc :parent (:parent node-msg))
-                                                                                 (update :enabled andf (:enabled node-msg))
-                                                                                 ;; In fact incorrect, but only possibility to retain rotation/scale separation
-                                                                                 (update :scale (partial mapv * (:scale node-msg)))
-                                                                                 (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
-                                                                                 (update :rotation trans-rotation parent-q)))
-                                                       (:nodes scene-rt-pb-msg))))))
+                                    (into [node-msg]
+                                          (map #(-> %
+                                                    (vary-meta update :templates (fnil conj []) node-msg)
+                                                    (assoc :template-node-child true)
+                                                    (cond-> (empty? (:parent %)) (assoc :parent id))))
+                                          (:nodes scene-pb-msg))))
   (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
                                               (-> {id _overridden-properties}
                                                 (merge template-overrides))))
@@ -1743,7 +1721,6 @@
                                      (concat
                                        (for [[from to] [[:node-overrides :layout-overrides]
                                                         [:node-msgs :node-msgs]
-                                                        [:node-rt-msgs :node-rt-msgs]
                                                         [:node-outline :node-tree-node-outline]
                                                         [:scene :node-tree-scene]]]
                                          (g/connect or-node-tree from self to))
@@ -1758,7 +1735,6 @@
   (input name-counts NameCounts)
   (input layout-overrides g/Any :cascade-delete)
   (input node-msgs g/Any)
-  (input node-rt-msgs g/Any)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name build-errors]
                                                           {:node-id _node-id
                                                            :node-outline-key name
@@ -1766,7 +1742,6 @@
                                                            :icon layout-icon
                                                            :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any :cached (g/fnk [name node-msgs] (layout-pb-msg name node-msgs)))
-  (output pb-rt-msg g/Any :cached (g/fnk [name node-rt-msgs] (layout-pb-msg name node-rt-msgs)))
   (input node-tree-node-outline g/Any)
   (output layout-node-outline g/Any (g/fnk [name node-tree-node-outline] [name node-tree-node-outline]))
   (input node-tree-scene g/Any)
@@ -1817,12 +1792,6 @@
                                               (sort-by #(get-in % [0 :child-index]))
                                               flatten
                                               (mapv #(dissoc % :child-index)))))
-  (input node-rt-msgs g/Any :array)
-  (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs]
-                                            (->> node-rt-msgs
-                                                 (sort-by #(get-in % [0 :child-index]))
-                                                 flatten
-                                                 (mapv #(dissoc % :child-index)))))
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids IDMap :array)
@@ -2043,7 +2012,6 @@
    (for [[from to] [[:_node-id :nodes]
                     [:name :layout-names]
                     [:pb-msg :layout-msgs]
-                    [:pb-rt-msg :layout-rt-msgs]
                     [:layout-node-outline :layout-node-outlines]
                     [:layout-scene :layout-scenes]]]
      (g/connect layout from self to))
@@ -2179,9 +2147,6 @@
 (g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs]
   (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs particlefx-resource-msgs resource-msgs))
 
-(g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs particlefx-resource-msgs resource-msgs]
-  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs particlefx-resource-msgs resource-msgs))
-
 (defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
         pb  (:pb user-data)
@@ -2213,10 +2178,52 @@
             [(persistent! textures) (persistent! fonts) (persistent! particlefx-resources) (persistent! resources)]))]
     (assoc rt-pb-msg :textures (mapv second textures) :fonts (mapv second fonts) :particlefxs (mapv second particlefx-resources) :resources (mapv second resources))))
 
-(g/defnk produce-build-targets [_node-id build-errors resource rt-pb-msg dep-build-targets template-build-targets]
+(defn nodes->rt-nodes [nodes]
+  (into []
+        (keep (fn [node]
+                (cond
+                  (= :type-template (:type node))
+                  nil
+
+                  (:template-node-child node)
+                  (reduce
+                    (fn [node template]
+                      (let [parent-q (math/euler->quat (:rotation template))]
+                        (cond-> (assoc node :template-node-child false)
+                                (empty? (:layer node))
+                                (assoc :layer (:layer template))
+
+                                (:inherit-alpha node)
+                                (->
+                                  (update :alpha * (:alpha template))
+                                  (assoc :inherit-alpha (:inherit-alpha template)))
+
+                                (or (= (:id template) (:parent node))
+                                    (empty? (:parent node)))
+                                (->
+                                  (assoc :parent (:parent template))
+                                  (update :enabled andf (:enabled template))
+                                  ;; In fact incorrect, but only possibility to retain rotation/scale separation
+                                  (update :scale (partial mapv * (:scale template)))
+                                  (update :position trans-position (:position template) parent-q (:scale template))
+                                  (update :rotation trans-rotation parent-q)))))
+                    node
+                    (:templates (meta node)))
+
+                  :else
+                  node)))
+        nodes))
+
+(defn pb-msg->pb-rt-msg [msg]
+  (-> msg
+      (update :nodes nodes->rt-nodes)
+      (update :layouts (fn [layouts] (mapv #(update % :nodes nodes->rt-nodes) layouts)))))
+
+(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets]
   (g/precluding-errors build-errors
     (let [def pb-def
           template-build-targets (flatten template-build-targets)
+          rt-pb-msg (pb-msg->pb-rt-msg pb-msg)
           rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
           dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
           deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
@@ -2319,8 +2326,6 @@
   (output current-layout g/Str (g/fnk [current-layout visible-layout] (or current-layout visible-layout)))
   (input node-msgs g/Any)
   (output node-msgs g/Any (gu/passthrough node-msgs))
-  (input node-rt-msgs g/Any)
-  (output node-rt-msgs g/Any (gu/passthrough node-rt-msgs))
   (input node-overrides g/Any)
   (output node-overrides g/Any :cached (gu/passthrough node-overrides))
   (input font-msgs g/Any :array)
@@ -2328,7 +2333,6 @@
   (input layer-msgs g/Any)
   (output layer-msgs g/Any (g/fnk [layer-msgs] (mapv #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
   (input layout-msgs g/Any :array)
-  (input layout-rt-msgs g/Any :array)
   (input particlefx-resource-msgs g/Any :array)
   (input resource-msgs g/Any :array)
   (input node-ids IDMap)
@@ -2387,7 +2391,6 @@
   (input samplers [g/KeywordMap])
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output rt-pb-msg g/Any :cached produce-rt-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (input template-build-targets g/Any :array)
   (output own-build-errors g/Any produce-own-build-errors)
@@ -2683,7 +2686,6 @@
                                      [:_node-id :nodes]
                                      [:node-outline :default-node-outline]
                                      [:node-msgs :node-msgs]
-                                     [:node-rt-msgs :node-rt-msgs]
                                      [:scene :default-scene]
                                      [:node-ids :node-ids]
                                      [:node-overrides :node-overrides]

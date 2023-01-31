@@ -261,7 +261,6 @@
                 ranksep=2
                 rankdir=LR
                 overlap=false
-                layout=neato
                 splines=true
                 node [shape=none]
                 edge [ arrowsize = 0.5, color=\"#666666\" ]
