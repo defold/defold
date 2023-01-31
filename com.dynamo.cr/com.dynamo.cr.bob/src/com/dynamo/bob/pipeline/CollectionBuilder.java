@@ -286,6 +286,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
         createGeneratedResources(this.project, builder);
 
+        List<Task<?>> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
 
