@@ -90,13 +90,11 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("\n");
         src.append("go.property(\"material\", resource.material(\"/invalid.material\"))\n");
 
-        boolean expectFail = false;
         try {
+            @SuppressWarnings("unused")
             LuaModule luaModule = (LuaModule) build("/test.script", src.toString()).get(0);
-        } catch (CompileExceptionError e) {
-            expectFail = true;
-        }
-        assertTrue(expectFail);
+            assertTrue(false);
+        } catch (CompileExceptionError e) { }
     }
 
     @Test

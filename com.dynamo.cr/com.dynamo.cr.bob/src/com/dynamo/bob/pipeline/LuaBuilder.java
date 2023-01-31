@@ -136,7 +136,11 @@ public abstract class LuaBuilder extends Builder<Void> {
             if (property.isResource) {
                 String value = (String) property.value;
 
-                if (!PropertiesUtil.isResourceProperty(project, property.type, value)) {
+                if (value.isEmpty())
+                {
+                    continue;
+                }
+                else if (!PropertiesUtil.isResourceProperty(project, property.type, value)) {
                     throw new IOException(String.format("Resource '%s' referenced from script resource property '%s' does not exist", value, property.name));
                 }
 
