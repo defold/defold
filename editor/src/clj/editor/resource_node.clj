@@ -184,7 +184,7 @@
 
        ;; This is not our owner ResourceNode. Recursively follow the outgoing
        ;; connections that connect to a :cascade-delete input.
-       (some->> (core/scope basis node-id)
+       (some->> (core/owner-node-id basis node-id)
                 (owner-resource-node-id basis))))))
 
 (defn owner-resource
