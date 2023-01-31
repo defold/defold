@@ -52,7 +52,7 @@
   (g/with-auto-evaluation-context evaluation-context
     (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
       (let [basis (:basis evaluation-context)
-            nodes-in-resource (core/recursive-nodes-in-scope basis resource-node-id)
+            nodes-in-resource (core/recursive-owned-node-ids basis resource-node-id)
 
             nodes-we-depend-on
             (into #{}
@@ -72,7 +72,7 @@
   (g/with-auto-evaluation-context evaluation-context
     (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
       (let [basis (:basis evaluation-context)
-            nodes-in-resource (core/recursive-nodes-in-scope basis resource-node-id)
+            nodes-in-resource (core/recursive-owned-node-ids basis resource-node-id)
             recursive-overrides-fn #(g/overrides basis %)
 
             all-overrides-of-nodes-in-resource
