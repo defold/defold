@@ -221,8 +221,8 @@
                         0.0
                         (/ (- value from-value)
                            offset))]
-    (str "#" (-> (Color/valueOf from-color)
-                 (.interpolate (Color/valueOf to-color) interpolation)
+    (str "#" (-> (Color/valueOf ^String from-color)
+                 (.interpolate (Color/valueOf ^String to-color) interpolation)
                  (str)
                  (subs 2 8)))))
 
