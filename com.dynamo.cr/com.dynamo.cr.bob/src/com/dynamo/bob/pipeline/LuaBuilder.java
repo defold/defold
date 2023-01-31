@@ -106,13 +106,21 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         List<LuaScanner.Property> properties = scanner.getProperties();
         for (LuaScanner.Property property : properties) {
-            if (property.type == PropertyType.PROPERTY_TYPE_HASH) {
-                String value = (String)property.value;
-                if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
-                    IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
-                    taskBuilder.addInput(resource);
-                    PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
+
+            if (property.isResource) {
+                String value = (String) property.value;
+
+                if (value.isEmpty())
+                {
+                    continue;
                 }
+                else if (!PropertiesUtil.isResourceProperty(project, property.type, value)) {
+                    throw new IOException(String.format("Resource '%s' referenced from script resource property '%s' does not exist", value, property.name));
+                }
+
+                IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
+                taskBuilder.addInput(resource);
+                PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
             }
         }
 

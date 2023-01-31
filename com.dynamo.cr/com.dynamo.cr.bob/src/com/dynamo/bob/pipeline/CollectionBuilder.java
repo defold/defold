@@ -285,7 +285,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
 
         createGeneratedResources(this.project, builder);
-
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
 
