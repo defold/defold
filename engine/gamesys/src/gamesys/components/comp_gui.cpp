@@ -1030,7 +1030,9 @@ namespace dmGameSystem
             dmTransform::Transform transform = dmTransform::ToTransform(node_transforms[i]);
             dmParticle::SetPosition(gui_world->m_ParticleContext, emitter_render_data->m_Instance, Point3(transform.GetTranslation()));
             dmParticle::SetRotation(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetRotation());
-            dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetUniformScale());
+            // we can't use transform.GetUniformScale() since the z-component is ignored by the gui
+            float scale = dmMath::Min(transform.GetScalePtr()[0], transform.GetScalePtr()[1]);
+            dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, scale);
         }
 
         vertex_count = dmMath::Min(vertex_count, vb_max_size / (uint32_t)sizeof(ParticleGuiVertex));
