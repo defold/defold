@@ -57,7 +57,6 @@
    (make-texture-image image texture-profile compress? true))
   (^Graphics$TextureImage [^BufferedImage image texture-profile compress? flip-y?]
    (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
-     ;; TODO: This takes a single image. Feed atlas pages?
      (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of TexcLibrary$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf TexcLibrary$FlipAxis))))))
 
 (defn- make-preview-profile

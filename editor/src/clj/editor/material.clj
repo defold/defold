@@ -307,8 +307,7 @@
                                                                  (map (fn [array-sampler-name]
                                                                         (pair array-sampler-name
                                                                               (mapv (fn [page-index]
-                                                                                      (let [page-sampler-name (str array-sampler-name "_" page-index)]
-                                                                                        (pair page-sampler-name nil)))
+                                                                                      (str array-sampler-name "_" page-index))
                                                                                     (range max-page-count))))))
                                                            (concat
                                                              (:array-sampler-names vertex-shader-source-info)

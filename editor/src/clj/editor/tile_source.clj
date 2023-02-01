@@ -75,7 +75,8 @@
 
 (vtx/defvertex pos-uv-vtx
   (vec4 position)
-  (vec2 texcoord0))
+  (vec2 texcoord0)
+  (vec1 page_index))
 
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
@@ -334,7 +335,8 @@
 
 (defn gen-tiles-vbuf
   [tile-source-attributes uv-transforms scale]
-  (let [uvs uv-transforms
+  (let [page-index 0 ; TODO!
+        uvs uv-transforms
         rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)]
     (persistent!
@@ -343,10 +345,10 @@
                      [[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
                      [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
                  (-> vbuf
-                     (conj! [x0 y0 0 1 u0 v1])
-                     (conj! [x0 y1 0 1 u0 v0])
-                     (conj! [x1 y1 0 1 u1 v0])
-                     (conj! [x1 y0 0 1 u1 v1]))))
+                     (conj! [x0 y0 0 1 u0 v1 page-index])
+                     (conj! [x0 y1 0 1 u0 v0 page-index])
+                     (conj! [x1 y1 0 1 u1 v0 page-index])
+                     (conj! [x1 y0 0 1 u1 v1 page-index]))))
              (->pos-uv-vtx (* 4 rows cols))
              (range (* rows cols))))))
 

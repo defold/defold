@@ -188,9 +188,9 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   ([request-id img params]
    (image-texture request-id img params 0))
   ([request-id ^BufferedImage img params unit-index]
-    (let [texture-datas [(image->texture-data (flip-y (or img (:contents image-util/placeholder-image))) true)]
-          texture-units [unit-index]]
-      (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
+   (let [texture-datas [(image->texture-data (flip-y (or img (:contents image-util/placeholder-image))) true)]
+         texture-units [unit-index]]
+     (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
 
 
 (def format->gl-format
@@ -238,6 +238,17 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
                   false                   ; flip vertically?
                   mipmap-buffers
                   nil)))
+
+
+(defn texture-images->gpu-texture
+  ([request-id texture-images]
+   (texture-images->gpu-texture request-id texture-images default-image-texture-params 0))
+  ([request-id texture-images params]
+   (texture-images->gpu-texture request-id texture-images params 0))
+  ([request-id texture-images params start-texture-unit]
+   (let [texture-datas (mapv texture-image->texture-data texture-images)
+         texture-units (vec (range start-texture-unit (+ start-texture-unit (count texture-images))))]
+     (->TextureLifecycle request-id ::texture params texture-datas texture-units))))
 
 (defn texture-image->gpu-texture
   "Create an image texture from a generated `TextureImage`. The returned value

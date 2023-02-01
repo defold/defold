@@ -54,7 +54,8 @@
 ; Render assets
 (vtx/defvertex texture-vtx
   (vec4 position)
-  (vec2 texcoord0 true))
+  (vec2 texcoord0 true)
+  (vec1 page_index))
 
 ;; TODO: These shaders need to be updated to support multi-page atlases.
 (shader/defshader vertex-shader
@@ -102,7 +103,11 @@
                          (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
                                positions (geom/transf-p4 world-transform (:position-data slice9-data))
                                uvs (:uv-data slice9-data)]
-                           (mapv into positions uvs))))))
+                           (mapv (fn [vertex-position vertex-uv]
+                                   (conj (into vertex-position vertex-uv)
+                                         (float frame-index)))
+                                 positions
+                                 uvs))))))
 
 (defn- gen-vertex-buffer
   [renderables count]

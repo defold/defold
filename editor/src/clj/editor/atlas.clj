@@ -67,7 +67,8 @@
 
 (vtx/defvertex texture-vtx
   (vec4 position)
-  (vec2 texcoord0))
+  (vec2 texcoord0)
+  (vec1 page_index))
 
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
@@ -474,19 +475,20 @@
 
 (defn gen-renderable-vertex-buffer
   [width height]
-  (let [x0 0
+  (let [page-index 0 ; TODO!
+        x0 0
         y0 0
         x1 width
         y1 height]
     (persistent!
       (doto (->texture-vtx 6)
-           (conj! [x0 y0 0 1 0 0])
-           (conj! [x0 y1 0 1 0 1])
-           (conj! [x1 y1 0 1 1 1])
+           (conj! [x0 y0 0 1 0 0 page-index])
+           (conj! [x0 y1 0 1 0 1 page-index])
+           (conj! [x1 y1 0 1 1 1 page-index])
 
-           (conj! [x1 y1 0 1 1 1])
-           (conj! [x1 y0 0 1 1 0])
-           (conj! [x0 y0 0 1 0 0])))))
+           (conj! [x1 y1 0 1 1 1 page-index])
+           (conj! [x1 y0 0 1 1 0 page-index])
+           (conj! [x0 y0 0 1 0 0 page-index])))))
 
 (defn- render-atlas
   [^GL2 gl render-args [renderable] n]
@@ -707,11 +709,6 @@
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
 
   (output packed-page-images [BufferedImage]   :cached (g/fnk [packed-page-images-generator] (call-generator packed-page-images-generator)))
-
-  (output texture-image    g/Any               (g/fnk [packed-page-images texture-profile]
-                                                 ;; TODO: Make preview texture from multiple images.
-                                                 (let [packed-image (first packed-page-images)]
-                                                   (tex-gen/make-preview-texture-image packed-image texture-profile))))
   
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
@@ -721,11 +718,15 @@
                                                    (let [[w h] layout-size]
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
-  (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-image]
-                                                         (texture/texture-image->gpu-texture _node-id
-                                                                                             texture-image
-                                                                                             {:min-filter gl/nearest
-                                                                                              :mag-filter gl/nearest})))
+  (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-page-images texture-profile]
+                                                         (let [page-texture-images
+                                                               (mapv #(tex-gen/make-preview-texture-image % texture-profile)
+                                                                     packed-page-images)]
+                                                           (texture/texture-images->gpu-texture
+                                                             _node-id
+                                                             page-texture-images
+                                                             {:min-filter gl/nearest
+                                                              :mag-filter gl/nearest}))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
