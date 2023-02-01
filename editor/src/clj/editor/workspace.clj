@@ -46,7 +46,7 @@ ordinary paths."
 
 ;; Class loader used when loading editor extensions from libraries.
 ;; It's important to use the same class loader, so the type signatures match.
-(def ^:private ^DynamicClassLoader class-loader (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
+(def ^DynamicClassLoader class-loader (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
 
 (defn load-class! [class-name]
   (Class/forName class-name true class-loader))
