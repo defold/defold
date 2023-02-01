@@ -52,7 +52,7 @@
            [editor.gl.shader ShaderLifecycle]
            [editor.properties CurveSpread Curve]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.nio ByteBuffer]
+           [java.nio ByteBuffer IntBuffer]
            [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -750,7 +750,9 @@
                 {:gpu-texture gpu-texture
                  :shader material-shader
                  :texture-set-anim texture-set-anim
-                 :tex-coords tex-coords-buffer})))))
+                 :tex-coords tex-coords-buffer
+                 :page-indices (:page-indices texture-set)
+                 :frame-indices (:frame-indices texture-set)})))))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)

@@ -27,7 +27,7 @@
            [com.sun.jna Pointer]
            [com.sun.jna.ptr IntByReference]
            [com.jogamp.common.nio Buffers]
-           [java.nio ByteBuffer]
+           [java.nio ByteBuffer IntBuffer]
            [javax.vecmath Point3d Quat4d Vector3d Matrix4d]
            [com.google.protobuf Message]))
 
@@ -36,7 +36,8 @@
 (vertex/defvertex vertex-format
   (vec3 position)
   (vec4 color true)
-  (vec2 texcoord0 true))
+  (vec2 texcoord0 true)
+  (vec1 page_index))
 
 (defn- create-context [max-emitter-count max-particle-count]
   (ParticleLibrary/Particle_CreateContext max-emitter-count max-particle-count))
@@ -94,6 +95,9 @@
           (assert (= hash (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
           (set! (. out-data texture) (Pointer. index))
           (set! (. out-data texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
+          ;; TODO: Fix these outputs, if these are used the structSize is 0 and 80 otherwise
+          ;;(set! (. out-data pageIndices) (IntBuffer/wrap (int-array (:page-indices data))))
+          ;;(set! (. out-data frameIndices) (IntBuffer/wrap (int-array (:frame-indices data))))
           (set! (. out-data playback) (get playback-map (:playback anim)))
           (set! (. out-data tileWidth) (int (:width anim)))
           (set! (. out-data tileHeight) (int (:height anim)))
