@@ -48,6 +48,8 @@ ordinary paths."
 ;; It's important to use the same class loader, so the type signatures match.
 (def ^:private ^DynamicClassLoader class-loader (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
 
+(defn get-class-loader [] class-loader)
+
 (defn load-class! [class-name]
   (Class/forName class-name true class-loader))
 
