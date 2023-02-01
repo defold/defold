@@ -73,16 +73,27 @@
 (shader/defshader pos-uv-vert
   (attribute vec4 position)
   (attribute vec2 texcoord0)
+  (attribute float page_index)
   (varying vec2 var_texcoord0)
+  (varying float var_page_index)
   (defn void main []
     (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)))
+    (setq var_texcoord0 texcoord0)
+    (setq var_page_index page_index)))
 
+;; TODO: Generate texture samplers based on max page count
 (shader/defshader pos-uv-frag
   (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
+  (varying float var_page_index)
+  (uniform sampler2D texture_sampler_0)
+  (uniform sampler2D texture_sampler_1)
   (defn void main []
-    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
+    (setq int page_index (int var_page_index))
+    (setq gl_FragColor (vec4 0 0 0 0))
+    (if (== page_index 0)
+      (setq gl_FragColor (texture2D texture_sampler_0 var_texcoord0.xy)))
+    (if (== page_index 1)
+      (setq gl_FragColor (texture2D texture_sampler_1 var_texcoord0.xy)))))
 
 (defn- get-rect-page-offset [layout-width page-index]
   (let [page-margin 32]
@@ -474,11 +485,11 @@
     content-pb))
 
 (defn gen-renderable-vertex-buffer
-  [width height]
-  (let [page-index 0 ; TODO!
-        x0 0
+  [width height page-index]
+  (let [page-offset-x (get-rect-page-offset width page-index)
+        x0 page-offset-x
         y0 0
-        x1 width
+        x1 (+ width page-offset-x)
         y1 height]
     (persistent!
       (doto (->texture-vtx 6)
@@ -490,6 +501,7 @@
            (conj! [x1 y0 0 1 1 0 page-index])
            (conj! [x0 y0 0 1 0 0 page-index])))))
 
+;; This is for rendering atlas texture pages!
 (defn- render-atlas
   [^GL2 gl render-args [renderable] n]
   (let [{:keys [pass]} render-args]
@@ -499,7 +511,7 @@
             {:keys [vbuf gpu-texture]} user-data
             vertex-binding (vtx/use-with ::atlas-binding vbuf atlas-shader)]
         (gl/with-gl-bindings gl render-args [atlas-shader vertex-binding gpu-texture]
-          (shader/set-uniform atlas-shader gl "texture_sampler" 0)
+          (shader/set-samplers-by-index atlas-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))
 
 (defn- render-atlas-outline
@@ -525,7 +537,7 @@
      :transform (get-rect-transform layout-width page-index)
      :renderable {:render-fn render-atlas
                   :user-data {:gpu-texture gpu-texture
-                              :vbuf        (gen-renderable-vertex-buffer layout-width layout-height)}
+                              :vbuf        (gen-renderable-vertex-buffer layout-width layout-height page-index)}
                   :tags #{:atlas}
                   :passes [pass/transparent]}
      :children [{:aabb aabb
