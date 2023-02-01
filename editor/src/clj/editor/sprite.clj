@@ -57,7 +57,7 @@
   (vec2 texcoord0 true)
   (vec1 page_index))
 
-;; TODO: These shaders need to be updated to support multi-page atlases.
+;; TODO paged-atlas: These shaders need to be updated to support multi-page atlases.
 (shader/defshader vertex-shader
   (attribute vec4 position)
   (attribute vec2 texcoord0)
@@ -209,7 +209,7 @@
             vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables num-quads) shader)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-          ;; TODO: We need to validate in the sprite that the selected atlas
+          ;; TODO paged-atlas: We need to validate in the sprite that the selected atlas
           ;; does not have more pages than are supported in the material.
           (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
           (gl/set-blend-mode gl blend-mode)

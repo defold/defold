@@ -561,11 +561,11 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
          :count count}))))
 
 (defn- make-shader-program [^GL2 gl [vertex-shader-source fragment-shader-source array-sampler-name->uniform-names]]
-  (let [vs (make-vertex-shader gl vertex-shader-source)]
+  (let [vertex-shader (make-vertex-shader gl vertex-shader-source)]
     (try
-      (let [fs (make-fragment-shader gl fragment-shader-source)]
+      (let [fragment-shader (make-fragment-shader gl fragment-shader-source)]
         (try
-          (let [program (make-program gl vs fs)
+          (let [program (make-program gl vertex-shader fragment-shader)
 
                 uniform-infos
                 (into {}
@@ -599,18 +599,22 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
              :sampler-name->uniform-names sampler-name->uniform-names
              :sampler-index->sampler-name #(get sampler-index->sampler-name %)})
           (finally
-            (delete-shader gl fs)))) ; flag shaders for deletion: they will be deleted immediately, or when we delete the program to which they are attached
+            (delete-shader gl fragment-shader)))) ; flag shaders for deletion: they will be deleted immediately, or when we delete the program to which they are attached
       (finally
-        (delete-shader gl vs)))))
+        (delete-shader gl vertex-shader)))))
 
 (defn- update-shader-program [^GL2 gl {:keys [program]} data]
   (delete-program gl program)
   (try
     (make-shader-program gl data)
     (catch Exception _
-      [0 {}])))
+      {:program 0
+       :uniform-infos {}
+       :sampler-name->uniform-names {}
+       :sampler-index->sampler-name {}})))
 
 (defn- destroy-shader-programs [^GL2 gl shader-infos _]
+  ;; TODO paged-atlas: Exception is thrown while deleting after viewing the scene with a broken shader.
   (doseq [{:keys [program]} shader-infos]
     (delete-program gl program)))
 
