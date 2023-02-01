@@ -142,7 +142,7 @@ public class Project {
     }
 
     public Project(IFileSystem fileSystem) {
-        createProject(fileSystem, rootDirectory, buildDirectory)
+        createProject(fileSystem, rootDirectory, buildDirectory);
     }
 
     public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
