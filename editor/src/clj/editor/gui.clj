@@ -843,9 +843,9 @@
 (defn- add-size-to-overridden-fields [overridden-fields]
   (vec (sort (conj overridden-fields size-prop-index))))
 
-(defn- strip-size-from-node-desc [node-desc]
+(defn- strip-size-from-shape-base-node-msg [node-desc]
   (-> node-desc
-      (assoc :size [0.0 0.0 0.0 0.0])
+      (assoc :size [200.0 100.0 0.0 1.0]) ; Default size for ShapeNode. The runtime uses this size if there is no texture applied.
       (update :overridden-fields strip-size-from-overridden-fields)))
 
 (defn- add-size-to-overridden-fields-in-node-desc [node-desc]
@@ -859,7 +859,7 @@
             ;; We don't want to write image sizes to the files, as it results in
             ;; a lot of changed files whenever an image changes dimensions.
             (= :size-mode-auto size-mode)
-            (strip-size-from-node-desc)
+            (strip-size-from-shape-base-node-msg)
 
             ;; Previously, image sizes were written to the files, but if a node
             ;; overrode the size-mode of its original, its size field would not
