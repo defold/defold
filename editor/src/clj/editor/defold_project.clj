@@ -26,6 +26,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
+            [editor.lsp :as lsp]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -384,11 +385,15 @@
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
-  (run [project-graph] (g/undo! project-graph)))
+  (run [project-graph]
+    (g/undo! project-graph)
+    (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (handler/defhandler :redo :global
   (enabled? [project-graph] (g/has-redo? project-graph))
-  (run [project-graph] (g/redo! project-graph)))
+  (run [project-graph]
+    (g/redo! project-graph)
+    (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (def ^:private bundle-targets
   (into []
@@ -650,7 +655,8 @@
         resource-change-plan (du/metrics-time "Generate resource change plan" (resource-update/resource-change-plan nodes-by-resource-path changes))]
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
-    (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))))
+    (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
+    (lsp/apply-resource-changes! (lsp/get-node-lsp project) changes)))
 
 (g/defnk produce-collision-groups-data
   [collision-group-nodes]
@@ -837,7 +843,8 @@
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :resource-list project :resources)
                 (g/connect workspace-id :resource-map project :resource-map)
-                (g/set-graph-value graph :project-id project)))))]
+                (g/set-graph-value graph :project-id project)
+                (g/set-graph-value graph :lsp (lsp/make project get-resource-node))))))]
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 
