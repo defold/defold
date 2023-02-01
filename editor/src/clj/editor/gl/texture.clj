@@ -99,7 +99,7 @@
     (doseq [texture-unit-index (range 0 (min (count texture-units) (count texture-datas)))]
       (let [texture-unit (texture-units texture-unit-index)
             gl-texture-unit (+ texture-unit GL2/GL_TEXTURE0)]
-        (let [tex (->texture this gl texture-unit)
+        (let [tex (->texture this gl texture-unit-index)
               tgt (.getTarget tex)]
           (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.glBindTexture ...)
           (.glBindTexture ^GL2 gl tgt 0)             ; Re-bind default "no-texture" to the active texture unit
