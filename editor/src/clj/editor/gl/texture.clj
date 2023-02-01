@@ -68,21 +68,27 @@
           (= :default-tex-params p) nil
           :else (println "WARNING: ignoring unknown texture parameter " p))))))
 
+(defn- merge-request-ids [request-id sub-request-id]
+  (if (vector? request-id)
+    (conj request-id sub-request-id)
+    [request-id sub-request-id]))
+
 (defprotocol TextureProxy
   (->texture ^Texture [this ^GL2 gl texture-array-index]))
 
 (defrecord TextureLifecycle [request-id cache-id params texture-datas texture-units]
   TextureProxy
   (->texture [_this gl texture-array-index]
-    (let [texture-data (texture-datas texture-array-index)]
-      (scene-cache/request-object! cache-id request-id gl texture-data)))
+    (let [texture-request-id (merge-request-ids request-id texture-array-index)
+          texture-data (texture-datas texture-array-index)]
+      (scene-cache/request-object! cache-id texture-request-id gl texture-data)))
 
   GlBind
   (bind [this gl _render-args]
     (doseq [texture-unit-index (range 0 (min (count texture-units) (count texture-datas)))]
       (let [texture-unit (texture-units texture-unit-index)
             gl-texture-unit (+ texture-unit GL2/GL_TEXTURE0)]
-        (let [tex (->texture this gl texture-unit)
+        (let [tex (->texture this gl texture-unit-index)
               tgt (.getTarget tex)]
           (.enable tex gl)                           ; Enable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
           (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.bind ...)
@@ -93,7 +99,7 @@
     (doseq [texture-unit-index (range 0 (min (count texture-units) (count texture-datas)))]
       (let [texture-unit (texture-units texture-unit-index)
             gl-texture-unit (+ texture-unit GL2/GL_TEXTURE0)]
-        (let [tex (->texture this gl texture-unit)
+        (let [tex (->texture this gl texture-unit-index)
               tgt (.getTarget tex)]
           (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.glBindTexture ...)
           (.glBindTexture ^GL2 gl tgt 0)             ; Re-bind default "no-texture" to the active texture unit
