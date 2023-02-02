@@ -172,8 +172,8 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return source;
     }
 
-    private ShaderDesc.Shader.Builder[] buildGLSL(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
-                                IResource resource, String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
+    public static ShaderDesc.Shader.Builder[] buildGLSL(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
+                                                        String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
 
         ArrayList<ShaderDesc.Shader.Builder> variantBuilders = new ArrayList<ShaderDesc.Shader.Builder>();
 
@@ -520,7 +520,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
                     builders.add(spirvBuilder);
                 }
             } else {
-                for (ShaderDesc.Shader.Builder variant : buildGLSL(source, shaderType, shaderLanguage, resource, resourceOutput, isDebug)) {
+                for (ShaderDesc.Shader.Builder variant : buildGLSL(source, shaderType, shaderLanguage, resourceOutput, isDebug)) {
                     builders.add(variant);
                 }
             }

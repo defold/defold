@@ -23,8 +23,8 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$ES2Variants ShaderUtil$ES2Variants$TextureArrayResult ShaderUtil$SPIRVReflector$Resource)
-           (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language)
+  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$ES2Variants ShaderUtil$SPIRVReflector$Resource)
+           (com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language Graphics$ShaderDesc$Shader Graphics$ShaderDesc$Shader$Builder)
            (com.google.protobuf ByteString)))
 
 (set! *warn-on-reflection* true)
@@ -116,14 +116,6 @@
     "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
     "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER))
 
-(defn- shader-language-from-str [name]
-  (case name
-    "glsl_sm120" :language-glsl-sm120
-    "glsl_sm140" :language-glsl-sm140
-    "gles_sm100" :language-gles-sm100
-    "gles_sm300" :language-gles-sm300
-    "spirv" :language-spirv))
-
 (defn- shader-language-to-java
   ^Graphics$ShaderDesc$Language [language]
   (case language
@@ -143,13 +135,12 @@
    :set (.set shader-resource)
    :binding (.binding shader-resource)})
 
-(defn- make-glsl-shader [^String glsl-source resource-ext resource-path language]
+(defn- make-glsl-shader-builders
+  ^Graphics$ShaderDesc$Shader$Builder [^String glsl-source resource-ext ^String resource-path shader-language]
   (let [shader-stage (shader-stage-from-ext resource-ext)
-        shader-language (shader-language-from-str language)
-        is-debug true
-        glsl-compile-result (ShaderProgramBuilder/compileGLSL glsl-source shader-stage (shader-language-to-java shader-language) resource-path is-debug)]
-    {:language shader-language
-     :source (ByteString/copyFrom (.getBytes glsl-compile-result "UTF-8"))}))
+        shader-language (shader-language-to-java shader-language)
+        is-debug true]
+    (ShaderProgramBuilder/buildGLSL glsl-source shader-stage shader-language resource-path is-debug)))
 
 (defn- make-spirv-shader [^String glsl-source resource-ext resource-path]
   (let [shader-stage (shader-stage-from-ext resource-ext)
@@ -169,14 +160,16 @@
         spirv-shader-or-errors-or-nil (when compile-spirv
                                         (make-spirv-shader source resource-ext resource-path))]
     (g/precluding-errors spirv-shader-or-errors-or-nil
-      (let [glsl-140-shader (make-glsl-shader source resource-ext resource-path "glsl_sm140")
-            gles-300-shader (make-glsl-shader source resource-ext resource-path "gles_sm300")
-            gles-100-shader (make-glsl-shader source resource-ext resource-path "gles_sm100")
-            shaders (filterv some? [glsl-140-shader gles-300-shader gles-100-shader spirv-shader-or-errors-or-nil])
-            shader-desc {:shaders shaders}
-            content (protobuf/map->bytes Graphics$ShaderDesc shader-desc)]
+      (let [shader-desc-builder (Graphics$ShaderDesc/newBuilder)]
+        (doseq [shader-language [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100]
+                shader-builder (make-glsl-shader-builders source resource-ext resource-path shader-language)]
+          (.addShaders shader-desc-builder ^Graphics$ShaderDesc$Shader$Builder shader-builder))
+        (when (some? spirv-shader-or-errors-or-nil)
+          ;; TODO paged-atlas: Should make-spirv-shader share code with Bob as well?
+          (let [^Graphics$ShaderDesc$Shader spirv-shader-pb (protobuf/map->pb Graphics$ShaderDesc$Shader spirv-shader-or-errors-or-nil)]
+            (.addShaders shader-desc-builder spirv-shader-pb)))
         {:resource resource
-         :content content}))))
+         :content (-> shader-desc-builder .build protobuf/pb->bytes)}))))
 
 (g/defnk produce-build-targets [_node-id compile-spirv proj-path+full-lines resource]
   [(bt/with-content-hash
@@ -219,15 +212,14 @@
         resource-ext (resource/type-ext resource)
         shader-stage (shader-stage-from-ext resource-ext)
         is-debug true
-        shader-language (shader-language-from-str "glsl_sm120") ;; use the old gles2 compatible shaders
-        shader-type (shader-language-to-java shader-language)
+        shader-language (shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
         source (string/join "\n" full-lines)
         variant-texture-array (ShaderUtil$ES2Variants/variantTextureArrayFallback source)
         array-sampler-names (set (some-> variant-texture-array .-arraySamplers))
         augmented-source (if (nil? variant-texture-array)
                            source
                            (.source variant-texture-array))
-        full-source (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-type proj-path is-debug)]
+        full-source (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-language proj-path is-debug)]
     {:shader-source full-source
      :array-sampler-names array-sampler-names}))
 
