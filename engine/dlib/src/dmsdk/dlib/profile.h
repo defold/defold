@@ -580,17 +580,26 @@
 
 namespace dmProfile
 {
-    /// Profile snapshot handle
+    /*# Profile snapshot handle
+     * @typedef
+     * @name HProfile
+     */
     typedef void* HProfile;
 
-    // Opaque pointer to a sample
-    typedef void* HSample;
+    /*#
+     * Begin profiling, eg start of frame
+     * @note NULL is returned if profiling is disabled
+     * @name BeginFrame
+     * @return context [type:dmProfile::HProfile] The current profiling context. Must be released by #EndFrame
+     */
+    HProfile BeginFrame();
 
-    // Opaque pointer to a property
-    typedef void* HProperty;
-
-    // Opaque pointer to a counter
-    typedef void* HCounter;
+    /*#
+     * Release profile returned by #Begin
+     * @name EndFrame
+     * @param profile [type:dmProfile::HProfile] Profile to release
+     */
+    void EndFrame(HProfile profile);
 
     /// Internal, do not use.
     struct ProfileScope
