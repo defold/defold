@@ -81,7 +81,7 @@
     (setq var_texcoord0 texcoord0)
     (setq var_page_index page_index)))
 
-;; TODO: Generate texture samplers based on max page count
+;; TODO paged-atlas: Generate texture samplers based on max page count
 (shader/defshader pos-uv-frag
   (varying vec2 var_texcoord0)
   (varying float var_page_index)
@@ -105,8 +105,13 @@
       (.setIdentity)
       (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
 
+;; TODO paged-atlas: Handle not being able to fit all images into the allocated space / page count.
+;; TODO paged-atlas: Constant in Bob for slice limit.
+(def ^:private array-sampler-name->uniform-names
+  {"texture_sampler" ["texture_sampler_0" "texture_sampler_1"]})
+
 ; TODO - macro of this
-(def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag))
+(def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag {} array-sampler-name->uniform-names))
 
 (defn- render-rect
   [^GL2 gl rect color offset-x]
