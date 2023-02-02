@@ -91,23 +91,21 @@
     (if (or (nil? data) (nil? (:texture-set-anim data)))
       ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_NOT_FOUND
       (let [anim (:texture-set-anim data)]
-        (do
-          (assert (= hash (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
-          (set! (. out-data texture) (Pointer. index))
-          (set! (. out-data texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
-          ;; TODO: Fix these outputs, if these are used the structSize is 0 and 80 otherwise
-          ;;(set! (. out-data pageIndices) (IntBuffer/wrap (int-array (:page-indices data))))
-          ;;(set! (. out-data frameIndices) (IntBuffer/wrap (int-array (:frame-indices data))))
-          (set! (. out-data playback) (get playback-map (:playback anim)))
-          (set! (. out-data tileWidth) (int (:width anim)))
-          (set! (. out-data tileHeight) (int (:height anim)))
-          (set! (. out-data startTile) (:start anim))
-          (set! (. out-data endTile) (:end anim))
-          (set! (. out-data fps) (:fps anim))
-          (set! (. out-data hFlip) (:flip-horizontal anim))
-          (set! (. out-data vFlip) (:flip-vertical anim))
-          (set! (. out-data structSize) (.size out-data))
-          ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK)))))
+        (assert (= hash (ParticleLibrary/Particle_Hash (:id anim))) "Animation id does not match")
+        (set! (. out-data texture) (Pointer. index))
+        (set! (. out-data texCoords) (.asFloatBuffer ^ByteBuffer (:tex-coords data)))
+        (set! (. out-data pageIndices) (.asIntBuffer ^ByteBuffer (:page-indices data)))
+        (set! (. out-data frameIndices) (.asIntBuffer ^ByteBuffer (:frame-indices data)))
+        (set! (. out-data playback) (get playback-map (:playback anim)))
+        (set! (. out-data tileWidth) (int (:width anim)))
+        (set! (. out-data tileHeight) (int (:height anim)))
+        (set! (. out-data startTile) (:start anim))
+        (set! (. out-data endTile) (:end anim))
+        (set! (. out-data fps) (:fps anim))
+        (set! (. out-data hFlip) (:flip-horizontal anim))
+        (set! (. out-data vFlip) (:flip-vertical anim))
+        (set! (. out-data structSize) (.size out-data))
+        ParticleLibrary$FetchAnimationResult/FETCH_ANIMATION_OK))))
 
 (defn- create-instance [^Pointer context ^Pointer prototype ^Pointer emitter-state-callback-data ^Matrix4d transform]
   (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]

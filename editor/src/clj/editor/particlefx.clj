@@ -744,15 +744,23 @@
             (when (and animation texture-set gpu-texture)
               (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
                     ^ByteString tex-coords (:tex-coords texture-set)
-                    tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))]
+                    tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))
+                    page-indices (:page-indices texture-set)
+                    page-indices-buffer (ByteBuffer/allocateDirect (* Integer/BYTES (count page-indices)))
+                    frame-indices (:frame-indices texture-set)
+                    frame-indices-buffer (ByteBuffer/allocateDirect (* Integer/BYTES (count frame-indices)))]
                 (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
                 (.flip tex-coords-buffer)
+                (.put (.asIntBuffer page-indices-buffer) (int-array page-indices))
+                (.flip page-indices-buffer)
+                (.put (.asIntBuffer frame-indices-buffer) (int-array frame-indices))
+                (.flip frame-indices-buffer)
                 {:gpu-texture gpu-texture
                  :shader material-shader
                  :texture-set-anim texture-set-anim
                  :tex-coords tex-coords-buffer
-                 :page-indices (:page-indices texture-set)
-                 :frame-indices (:frame-indices texture-set)})))))
+                 :page-indices page-indices-buffer
+                 :frame-indices frame-indices-buffer})))))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
