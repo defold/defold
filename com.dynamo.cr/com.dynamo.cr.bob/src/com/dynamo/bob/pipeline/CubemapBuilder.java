@@ -96,12 +96,7 @@ public class CubemapBuilder extends Builder<Void> {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        TextureImage.Builder builder = TextureUtil.createBuilder(textures);
-
-        builder.setCount(6);
-        builder.setType(Type.TYPE_CUBEMAP);
-
-        TextureImage texture = builder.build();
+        TextureImage texture = TextureUtil.createCombinedTextureImage(textures, Type.TYPE_CUBEMAP);
         ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);
         texture.writeTo(out);
         out.close();

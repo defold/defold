@@ -27,6 +27,7 @@ import com.google.protobuf.ByteString;
 import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
+import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
@@ -206,10 +207,13 @@ public class TextureUtil {
         return null;
     }
 
-    public static TextureImage.Builder createBuilder(TextureImage[] textures) throws IOException {
+    public static TextureImage createCombinedTextureImage(TextureImage[] textures, Type type) throws IOException {
         int numTextures = textures.length;
         if (numTextures == 0) {
             return null;
+        }
+        else if (numTextures == 1) {
+            return textures[0];
         }
 
         TextureImage.Builder textureImageBuilder = TextureImage.newBuilder(textures[0]);
@@ -234,6 +238,9 @@ public class TextureUtil {
             }
             textureImageBuilder.setAlternatives(i, imageBuilder);
         }
-        return textureImageBuilder;
+
+        textureImageBuilder.setCount(numTextures);
+        textureImageBuilder.setType(type);
+        return textureImageBuilder.build();
     }
 }
