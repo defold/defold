@@ -87,13 +87,31 @@
   (varying float var_page_index)
   (uniform sampler2D texture_sampler_0)
   (uniform sampler2D texture_sampler_1)
+  (uniform sampler2D texture_sampler_2)
+  (uniform sampler2D texture_sampler_3)
+  (uniform sampler2D texture_sampler_4)
+  (uniform sampler2D texture_sampler_5)
+  (uniform sampler2D texture_sampler_6)
+  (uniform sampler2D texture_sampler_7)
   (defn void main []
     (setq int page_index (int var_page_index))
     (setq gl_FragColor (vec4 0 0 0 0))
     (if (== page_index 0)
       (setq gl_FragColor (texture2D texture_sampler_0 var_texcoord0.xy)))
     (if (== page_index 1)
-      (setq gl_FragColor (texture2D texture_sampler_1 var_texcoord0.xy)))))
+      (setq gl_FragColor (texture2D texture_sampler_1 var_texcoord0.xy)))
+    (if (== page_index 2)
+      (setq gl_FragColor (texture2D texture_sampler_2 var_texcoord0.xy)))
+    (if (== page_index 3)
+      (setq gl_FragColor (texture2D texture_sampler_3 var_texcoord0.xy)))
+    (if (== page_index 4)
+      (setq gl_FragColor (texture2D texture_sampler_4 var_texcoord0.xy)))
+    (if (== page_index 5)
+      (setq gl_FragColor (texture2D texture_sampler_5 var_texcoord0.xy)))
+    (if (== page_index 6)
+      (setq gl_FragColor (texture2D texture_sampler_6 var_texcoord0.xy)))
+    (if (== page_index 7)
+      (setq gl_FragColor (texture2D texture_sampler_7 var_texcoord0.xy)))))
 
 (defn- get-rect-page-offset [layout-width page-index]
   (let [page-margin 32]
@@ -108,7 +126,7 @@
 ;; TODO paged-atlas: Handle not being able to fit all images into the allocated space / page count.
 ;; TODO paged-atlas: Constant in Bob for slice limit.
 (def ^:private array-sampler-name->uniform-names
-  {"texture_sampler" ["texture_sampler_0" "texture_sampler_1"]})
+  {"texture_sampler" (mapv #(str "texture_sampler_" %) (range 8))})
 
 ; TODO - macro of this
 (def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag {} array-sampler-name->uniform-names))

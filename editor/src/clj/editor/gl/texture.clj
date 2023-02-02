@@ -88,10 +88,10 @@
     (doseq [texture-unit-index (range 0 (min (count texture-units) (count texture-datas)))]
       (let [texture-unit (texture-units texture-unit-index)
             gl-texture-unit (+ texture-unit GL2/GL_TEXTURE0)]
+        (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.bind ...) and (->texture ...)
         (let [tex (->texture this gl texture-unit-index)
               tgt (.getTarget tex)]
           (.enable tex gl)                           ; Enable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
-          (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.bind ...)
           (.bind tex gl)                             ; Bind our texture to the active texture unit. Used for subsequent render calls. Also implicit parameter to (apply-params! ...)
           (apply-params! gl tgt params)))))          ; Apply filtering settings to the bound texture
 
@@ -99,9 +99,9 @@
     (doseq [texture-unit-index (range 0 (min (count texture-units) (count texture-datas)))]
       (let [texture-unit (texture-units texture-unit-index)
             gl-texture-unit (+ texture-unit GL2/GL_TEXTURE0)]
+        (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.glBindTexture ...) and (->texture ...)
         (let [tex (->texture this gl texture-unit-index)
               tgt (.getTarget tex)]
-          (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.glBindTexture ...)
           (.glBindTexture ^GL2 gl tgt 0)             ; Re-bind default "no-texture" to the active texture unit
           (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0)  ; Set TEXTURE0 as the active texture unit in case anything outside of the bind / unbind cycle forgets to call (.glActiveTexture ...)
           (.disable tex gl))))))                     ; Disable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
