@@ -580,6 +580,18 @@
 
 namespace dmProfile
 {
+    /// Profile snapshot handle
+    typedef void* HProfile;
+
+    // Opaque pointer to a sample
+    typedef void* HSample;
+
+    // Opaque pointer to a property
+    typedef void* HProperty;
+
+    // Opaque pointer to a counter
+    typedef void* HCounter;
+
     /// Internal, do not use.
     struct ProfileScope
     {
