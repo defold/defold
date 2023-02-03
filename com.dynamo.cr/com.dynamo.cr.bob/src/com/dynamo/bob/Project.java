@@ -211,7 +211,7 @@ public class Project {
         return this.publisher;
     }
 
-    public static ClassLoaderScanner createClassLoaderScanner() throws IOException {
+    private ClassLoaderScanner createClassLoaderScanner() throws IOException {
         scanner = new ClassLoaderScanner(getClassLoader());
         return scanner;
     }
