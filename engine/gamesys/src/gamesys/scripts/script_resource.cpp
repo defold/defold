@@ -873,7 +873,7 @@ static int ReleaseResource(lua_State* L)
  *       end
  *   end
  *
- *   local resource_path = go.get("#sprite", "texture0")
+ *   local resource_path = go.get("#model", "texture0")
  *   local args = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
  *   resource.set_texture( resource_path, args, self.buffer )
  * end
@@ -900,7 +900,7 @@ static int ReleaseResource(lua_State* L)
  *       end
  *   end
  *
- *   local resource_path = go.get("#sprite", "texture0")
+ *   local resource_path = go.get("#model", "texture0")
  *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
  *   resource.set_texture( resource_path, args, self.buffer )
  * end
@@ -1409,19 +1409,20 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * ```lua
  * function init(self)
  *     -- create an empty texture
- *     local my_texture_id = resource.create_texture("/my_texture.texturec", {
+ *     local tparams = {
  *         width          = 128,
  *         height         = 128,
  *         type           = resource.TEXTURE_TYPE_2D,
  *         format         = resource.TEXTURE_FORMAT_RGBA,
- *     })
+ *     }
+ *     local my_texture_id = resource.create_texture("/my_texture.texturec", tparams)
  *
  *     -- optionally use resource.set_texture to upload data to texture
  *
  *     -- create an atlas with one animation and one square geometry
  *     -- note that the function doesn't support hashes for the texture,
  *     -- you need to use a string for the texture path here aswell
- *     local my_atlas_id = resource.create_atlas("/my_atlas.texturesetc", {
+ *     local aparams = {
  *         texture = "/my_texture.texturec",
  *         animations = {
  *             {
@@ -1449,7 +1450,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *                 indices = {0,1,2,0,2,3}
  *             }
  *         }
- *     })
+ *     }
+ *     local my_atlas_id = resource.create_atlas("/my_atlas.texturesetc", aparams)
  *
  *     -- assign the atlas to the 'sprite' component on the same go
  *     go.set("#sprite", "image", my_atlas_id)
