@@ -1690,6 +1690,8 @@ static int SetAtlas(lua_State* L)
  * @return data [type:table] A table with the following entries:
  *
  * - texture
+ * - texture_width
+ * - texture_height
  * - geometries
  * - animations
  *
@@ -1723,6 +1725,9 @@ static int GetAtlas(lua_State* L)
     {
         SET_LUA_TABLE_FIELD(lua_pushstring, "texture", texture_set->m_Texture);
     }
+
+    SET_LUA_TABLE_FIELD(lua_pushnumber, "texture_width", tex_width);
+    SET_LUA_TABLE_FIELD(lua_pushnumber, "texture_height", tex_height);
 
     lua_pushliteral(L, "animations");
     lua_newtable(L);
