@@ -235,39 +235,24 @@
                   ;; Append a char to the line
                   (let [glyph (glyphs (int ch))
                         line-width-with-tracking (cond-> line-width (pos? (.length sb)) (+ text-tracking))
-                        new-line-width (+ line-width-with-tracking (:advance glyph 0.0))]
+                        end-line-width (-> line-width-with-tracking
+                                           (+ (:width glyph 0.0))
+                                           (+ (:left-bearing glyph 0.0)))]
                     (.append sb ch)
                     (cond
                       ;; If the char is whitespace, save its index and continue
                       white-space
-                      (recur (inc i) lines (dec (.length sb)) new-line-width)
+                      (recur (inc i) lines (dec (.length sb)) (+ line-width-with-tracking (:advance glyph 0.0)))
 
                       ;; If there is no white space index, we never wrap: continue
                       ;; Additionally, if we don't exceed the line limit, we also continue
                       (or (neg? known-white-space-index)
-                          (<= new-line-width max-width))
-                      (recur (inc i) lines known-white-space-index new-line-width)
+                          (<= end-line-width max-width))
+                      (recur (inc i) lines known-white-space-index (+ line-width-with-tracking (:advance glyph 0.0)))
 
-                      ;; At this point, we know there is whitespace in this line,
-                      ;; and also we exceed the line limit. There are 2 options left:
-                      ;; 1. if we don't exceed the line with left-bearing+width instead of
-                      ;;    advance, and it's either the last character of the string or
-                      ;;    the next char is whitespace, we can add the line as is and
-                      ;;    start a new one
-                      ;; 2. wrap the line after the last known whitespace index
-
-                      ;; Option 1:
-                      (and (<= (-> line-width-with-tracking
-                                   (+ (:left-bearing glyph))
-                                   (+ (:width glyph)))
-                               max-width)
-                           (or (= i last-index)
-                               (let [next-ch (.charAt text (inc i))]
-                                 (or (Character/isWhitespace next-ch)
-                                     (= zero-width-space next-ch)))))
-                      (recur (inc i) (add-line! lines sb) -1 0.0)
-
-                      ;; Option 2:
+                      ;; At this point, we know there is whitespace in this line, and also
+                      ;; we exceed the line limit. We wrap the line after the last known
+                      ;; whitespace index
                       :else
                       (let [wrapped-text-length (- (.length sb) (inc known-white-space-index))]
                         (.setLength sb known-white-space-index)
