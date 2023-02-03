@@ -229,7 +229,6 @@ public class AtlasUtil {
         }
 
         Point3 maxPageSizeP3 = atlas.getMaxPageSize();
-        int maxPageCount = Math.max(1, atlas.getMaxPageCount());
 
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
@@ -238,15 +237,6 @@ public class AtlasUtil {
                 Math.max(0, atlas.getExtrudeBorders()),
                 true, false, null,
                 maxPageSizeP3.getX(), maxPageSizeP3.getY());
-
-        int pagesGenerated = result.layoutResult.layouts.size();
-        if (pagesGenerated > maxPageCount) {
-            throw new CompileExceptionError(atlasResource, 0,
-                String.format("The max page count exceeded (max is %d but %d was generated), increase the max page count on the atlas to fit all the pages.",
-                    maxPageCount, pagesGenerated));
-        }
-
-        result.builder.setMaxPageCount(maxPageCount);
 
         TimeProfiler.stop();
         return result;

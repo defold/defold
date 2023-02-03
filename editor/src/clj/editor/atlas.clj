@@ -457,16 +457,15 @@
 (defn- v3->v2 [v3]
   (subvec v3 0 2))
 
-(g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size max-page-count img-ddf anim-ddf]
+(g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf]
   (cond-> {:margin margin
            :inner-padding inner-padding
            :extrude-borders extrude-borders
            :images (sort-by-and-strip-order img-ddf)
            :animations anim-ddf}
+
           (not= [0.0 0.0] max-page-size)
-          (assoc :max-page-size (v2->v3 max-page-size))
-          (not= 0.0 max-page-count)
-          (assoc :max-page-count max-page-count)))
+          (assoc :max-page-size (v2->v3 max-page-size))))
 
 (defn- validate-margin [node-id margin]
   (validation/prop-error :fatal node-id :margin validation/prop-negative? margin "Margin"))
@@ -477,8 +476,14 @@
 (defn- validate-extrude-borders [node-id extrude-borders]
   (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
 
-(defn- validate-max-page-count [node-id page-count]
-  (validation/prop-error :fatal node-id :validate-max-page-count validation/prop-negative? page-count "Page Count"))
+(defn- max-page-size-error-message [[x y]]
+  (cond
+    (neg? x) "'Max Page Width' cannot be negative"
+    (neg? y) "'Max Page Height' cannot be negative"
+    :else nil))
+
+(defn- validate-max-page-size [node-id page-size]
+  (validation/prop-error :fatal node-id :validate-max-page-size max-page-size-error-message page-size))
 
 (defn- validate-layout-properties [node-id margin inner-padding extrude-borders]
   (when-some [errors (->> [(validate-margin node-id margin)
@@ -578,8 +583,11 @@
      :children (into child-renderables
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
-  (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders max-page-size))
+(defn- generate-texture-set-data [{:keys [_node-id animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
+  (try
+    (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders max-page-size)
+    (catch Exception error
+      (g/->error _node-id :max-page-size :fatal nil (.getMessage error)))))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
@@ -708,11 +716,8 @@
             (default 0)
             (dynamic error (g/fnk [_node-id extrude-borders] (validate-extrude-borders _node-id extrude-borders))))
   (property max-page-size types/Vec2
-            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]})))
-  (property max-page-count g/Int
-            (default 0)
-            (dynamic read-only? (g/fnk [max-page-size] (= [0.0 0.0] max-page-size)))
-            (dynamic error (g/fnk [_node-id max-page-count] (validate-max-page-count _node-id max-page-count))))
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+            (dynamic error (g/fnk [_node-id max-page-size] (validate-max-page-size _node-id max-page-size))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
@@ -782,12 +787,12 @@
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
   (output scene            g/Any          :cached produce-scene)
-  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-count]
+  (output own-build-errors g/Any          (g/fnk [_node-id extrude-borders inner-padding margin max-page-size]
                                             (g/package-errors _node-id
                                                               (validate-margin _node-id margin)
                                                               (validate-inner-padding _node-id inner-padding)
                                                               (validate-extrude-borders _node-id extrude-borders)
-                                                              (validate-max-page-count _node-id max-page-count))))
+                                                              (validate-max-page-size _node-id max-page-size))))
   (output build-errors     g/Any          (g/fnk [_node-id child-build-errors own-build-errors]
                                             (g/package-errors _node-id
                                                               child-build-errors
@@ -852,7 +857,6 @@
       (g/set-property self :inner-padding (:inner-padding atlas))
       (g/set-property self :extrude-borders (:extrude-borders atlas))
       (g/set-property self :max-page-size (v3->v2 (:max-page-size atlas)))
-      (g/set-property self :max-page-count (:max-page-count atlas))
       (make-image-nodes-in-atlas self image-msgs)
       (map (comp (partial make-atlas-animation self)
                  (partial update-int->bool [:flip-horizontal :flip-vertical]))

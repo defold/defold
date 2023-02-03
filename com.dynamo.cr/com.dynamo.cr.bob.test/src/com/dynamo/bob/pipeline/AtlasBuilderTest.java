@@ -63,8 +63,6 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         src.append("  z: 0.0");
         src.append("}");
 
-        src.append("max_page_count: 2");
-
         List<Message> outputs = build("/test.atlas", src.toString());
         TextureSet textureSet = (TextureSet)outputs.get(0);
         TextureImage textureImage1 = (TextureImage)outputs.get(1);
@@ -72,7 +70,6 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(textureSet);
         assertNotNull(textureImage1);
 
-        assertEquals(textureSet.getMaxPageCount(), 2);
         assertEquals(textureSet.getPageIndices(0), 0);
         assertEquals(textureSet.getPageIndices(1), 1);
 
