@@ -642,6 +642,7 @@
   (output layout-size g/Any (g/fnk [texture-set-data] (:size texture-set-data)))
   (output texture-set g/Any (g/fnk [texture-set-data] (:texture-set texture-set-data)))
   (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
+  (output texture-page-count g/Int (g/constantly 0)) ; We do not use pages. Built as TYPE_2D, not TYPE_2D_ARRAY.
 
   (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resource tile-source-attributes]
                                          (let [packed-image-sha1 (digestable/sha1-hash

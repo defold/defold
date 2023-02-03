@@ -614,7 +614,6 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
        :sampler-index->sampler-name {}})))
 
 (defn- destroy-shader-programs [^GL2 gl shader-infos _]
-  ;; TODO paged-atlas: Exception is thrown while deleting after viewing the scene with a broken shader.
   (doseq [{:keys [program]} shader-infos]
     (delete-program gl program)))
 

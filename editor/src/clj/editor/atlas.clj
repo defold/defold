@@ -48,7 +48,8 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.digestable :as digestable])
-  (:import [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
+  (:import [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
+           [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
            [com.dynamo.gamesys.proto Tile$Playback Tile$SpriteTrimmingMode]
            [com.jogamp.opengl GL GL2]
@@ -81,7 +82,7 @@
     (setq var_texcoord0 texcoord0)
     (setq var_page_index page_index)))
 
-;; TODO paged-atlas: Generate texture samplers based on max page count
+;; TODO paged-atlas: Generate texture samplers based on constant from Bob?
 (shader/defshader pos-uv-frag
   (varying vec2 var_texcoord0)
   (varying float var_page_index)
@@ -123,7 +124,6 @@
       (.setIdentity)
       (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
 
-;; TODO paged-atlas: Handle not being able to fit all images into the allocated space / page count.
 ;; TODO paged-atlas: Constant in Bob for slice limit.
 (def ^:private array-sampler-name->uniform-names
   {"texture_sampler" (mapv #(str "texture_sampler_" %) (range 8))})
@@ -745,6 +745,11 @@
   (output texture-set      g/Any               (g/fnk [texture-set-data] (:texture-set texture-set-data)))
   (output uv-transforms    g/Any               (g/fnk [layout-data] (:uv-transforms layout-data)))
   (output layout-rects     g/Any               (g/fnk [layout-data] (:rects layout-data)))
+
+  (output texture-page-count g/Int             (g/fnk [layout-data max-page-size]
+                                                 (if (every? pos? max-page-size)
+                                                   (count (.layouts ^TextureSetGenerator$LayoutResult (:layout layout-data)))
+                                                   0))) ; Not a paged atlas. Built as TYPE_2D, not TYPE_2D_ARRAY.
 
   (output packed-page-images-generator g/Any   produce-packed-page-images-generator)
 

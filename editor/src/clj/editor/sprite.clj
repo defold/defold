@@ -209,8 +209,6 @@
             vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables num-quads) shader)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-          ;; TODO paged-atlas: We need to validate in the sprite that the selected atlas
-          ;; does not have more pages than are supported in the material.
           (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6))
@@ -283,9 +281,35 @@
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode size-mode manual-size slice9 dep-build-targets]
+;; TODO paged-atlas: Add similar validation for Gui, disallowing paged atlases for now.
+(defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
+  (prn 'page-count-mismatch-error-message
+       'is-paged-material is-paged-material
+       'texture-page-count texture-page-count
+       'material-max-page-count material-max-page-count)
+  (when (and (some? texture-page-count)
+             (some? material-max-page-count))
+    (cond
+      (and is-paged-material
+           (zero? texture-page-count))
+      "The Material expects a paged Atlas, but the selected Image is not paged"
+
+      (and (not is-paged-material)
+           (pos? texture-page-count))
+      "The Material does not support paged Atlases, but the selected Image is paged"
+
+      (< material-max-page-count texture-page-count)
+      "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
+
+(defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
+  (let [is-paged-material (pos? (count (:array-sampler-name->uniform-names material-shader)))]
+    (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+        (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")
+        (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
+
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
-                              (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                              (validate-material _node-id material material-max-page-count material-shader texture-page-count)
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids)]
                              (remove nil?)
@@ -317,6 +341,7 @@
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:gpu-texture :gpu-texture]
+                                            [:texture-page-count :texture-page-count]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id image anim-data]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
@@ -341,11 +366,11 @@
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
+                                            [:max-page-count :material-max-page-count]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
-            (dynamic error (g/fnk [_node-id material]
-                                  (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
-                                      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))))
+            (dynamic error (g/fnk [_node-id material material-max-page-count material-shader texture-page-count]
+                             (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
 
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
@@ -372,14 +397,16 @@
   (input anim-data g/Any :substitute nil)
   (input anim-ids g/Any)
   (input gpu-texture g/Any)
+  (input texture-page-count g/Int :substitute nil)
   (input dep-build-targets g/Any :array)
 
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
+  (input material-max-page-count g/Int)
   (input default-tex-params g/Any)
 
-  (output tex-params g/Any (g/fnk [material-samplers material-shader default-tex-params]
+  (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
                              (or (some-> material-samplers first material/sampler->tex-params)
                                  default-tex-params)))
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
