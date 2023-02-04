@@ -132,7 +132,14 @@ public class Project {
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
     private ClassLoader classLoader = null;
 
-    public void createProject(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+    public Project(IFileSystem fileSystem) {
+        this.fileSystem = fileSystem;
+        this.fileSystem.setRootDirectory(rootDirectory);
+        this.fileSystem.setBuildDirectory(buildDirectory);
+        clearProjectProperties();
+    }
+
+    public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
@@ -141,18 +148,15 @@ public class Project {
         clearProjectProperties();
     }
 
-    public Project(IFileSystem fileSystem) {
-        createProject(fileSystem, rootDirectory, buildDirectory);
-    }
-
-    public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
-        createProject(fileSystem, sourceRootDirectory, buildDirectory);
-    }
-
     // For the editor
     public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
         classLoader = loader;
-        createProject(fileSystem, sourceRootDirectory, buildDirectory);
+        this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
+        this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
+        this.fileSystem = fileSystem;
+        this.fileSystem.setRootDirectory(this.rootDirectory);
+        this.fileSystem.setBuildDirectory(this.buildDirectory);
+        clearProjectProperties();
     }
 
     public void dispose() {
