@@ -27,7 +27,7 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    HMaterial NewMaterial(dmRender::HRenderContext render_context, const dmGraphics::ProgramCreationParams& creation_params) // dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
+    HMaterial NewMaterial(dmRender::HRenderContext render_context, const dmGraphics::ProgramCreationParams& creation_params)
     {
         Material* m          = new Material;
         m->m_RenderContext   = render_context;

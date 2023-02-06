@@ -39,6 +39,7 @@ namespace dmGraphics
         WindowIconifyCallback   m_WindowIconifyCallback;
         void*                   m_WindowIconifyCallbackUserData;
         PipelineState           m_PipelineState;
+        HProgram                m_CurrentProgram;
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
@@ -122,8 +123,9 @@ namespace dmGraphics
 
     struct UniformNameIndirectionEntry
     {
-        char* m_FromName;
-        char* m_ToName;
+        dmhash_t m_NameHash;
+        uint16_t m_ResourceBindingIndex;
+        uint16_t m_ResourceLocationIndex;
     };
 
     struct ShaderResourceBinding
@@ -131,8 +133,9 @@ namespace dmGraphics
         char*    m_Name;
         uint64_t m_NameHash;
         Type     m_Type;
-        uint16_t m_ElementCount;
-        int16_t  m_Binding;
+        uint32_t m_ElementCount         : 16;
+        uint32_t m_BindingLocationStart : 8;
+        uint32_t m_BindingLocationSize  : 8;
     };
 
     struct OpenGLProgram
@@ -140,6 +143,7 @@ namespace dmGraphics
         GLuint                               m_Id;
         dmArray<OpenglVertexAttribute>       m_Attributes;
         dmArray<ShaderResourceBinding>       m_ResourceBindings;
+        dmArray<int16_t>                     m_ResourceBindingLocations;
         dmArray<GLuint>                      m_VariantIds;
         dmArray<UniformNameIndirectionEntry> m_UniformNameIndirectionTable;
     };

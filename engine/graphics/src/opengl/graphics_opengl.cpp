@@ -1915,19 +1915,39 @@ static void LogFrameBufferError(GLenum status)
         program_ptr->m_VariantIds.OffsetCapacity(1);
         program_ptr->m_VariantIds.Push(handle);
 
-        program_ptr->m_UniformNameIndirectionTable.OffsetCapacity(shader->m_VariantTextureArrayUniforms.Size() * max_page_count);
-        for (int i = 0; i < shader->m_VariantTextureArrayUniforms.Size(); ++i)
-        {
-            char* array_sampler_base = shader->m_VariantTextureArrayUniforms[i];
-            char buf[128] = {0};
 
+        uint16_t num_texture_array_uniforms = shader->m_VariantTextureArrayUniforms.Size();
+
+        program_ptr->m_ResourceBindings.SetCapacity(num_texture_array_uniforms);
+        program_ptr->m_ResourceBindings.SetSize(num_texture_array_uniforms);
+
+        program_ptr->m_ResourceBindingLocations.SetCapacity(num_texture_array_uniforms * max_page_count);
+        program_ptr->m_ResourceBindingLocations.SetSize(num_texture_array_uniforms * max_page_count);
+
+        program_ptr->m_UniformNameIndirectionTable.SetCapacity(num_texture_array_uniforms * max_page_count);
+        program_ptr->m_UniformNameIndirectionTable.SetSize(num_texture_array_uniforms * max_page_count);
+
+        for (int i = 0; i < num_texture_array_uniforms; ++i)
+        {
+            char* array_sampler_base         = shader->m_VariantTextureArrayUniforms[i];
+            dmhash_t array_sampler_base_hash = dmHashString64(array_sampler_base);
+
+            ShaderResourceBinding& binding = program_ptr->m_ResourceBindings[i];
+            binding.m_NameHash             = array_sampler_base_hash;
+            binding.m_Name                 = strdup(array_sampler_base);
+            binding.m_BindingLocationStart = i * max_page_count;
+            binding.m_BindingLocationSize  = max_page_count;
+
+            char buf[128] = {0};
             for (int j = 0; j < max_page_count; ++j)
             {
                 snprintf(buf, sizeof(buf), "%s_%d", array_sampler_base, j);
-                UniformNameIndirectionEntry entry = {};
-                entry.m_FromName                  = strdup(buf);
-                entry.m_ToName                    = array_sampler_base;
-                program_ptr->m_UniformNameIndirectionTable.Push(entry);
+                int16_t binding_index                                  = i * max_page_count + j;
+                UniformNameIndirectionEntry& indirect_entry            = program_ptr->m_UniformNameIndirectionTable[binding_index];
+                indirect_entry.m_NameHash                              = dmHashString64(buf);
+                indirect_entry.m_ResourceBindingIndex                  = i;
+                indirect_entry.m_ResourceLocationIndex                 = j;
+                program_ptr->m_ResourceBindingLocations[binding_index] = -1;
             }
         }
 
@@ -1964,33 +1984,40 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static ShaderResourceBinding* GetOrCreateResourceBinding(OpenGLProgram* program_ptr, char* name)
+    static void SetShaderResourceBinding(OpenGLProgram* program_ptr, int32_t location, Type type, int count, const char* name)
     {
-        char* base_uniform_name = name;
+        dmhash_t name_hash = dmHashString64(name);
+
         for (int i = 0; i < program_ptr->m_UniformNameIndirectionTable.Size(); ++i)
         {
-            if (dmStrCaseCmp(name, program_ptr->m_UniformNameIndirectionTable[i].m_FromName) == 0)
+            if (program_ptr->m_UniformNameIndirectionTable[i].m_NameHash == name_hash)
             {
-                base_uniform_name = program_ptr->m_UniformNameIndirectionTable[i].m_ToName;
-                break;
+                UniformNameIndirectionEntry& entry = program_ptr->m_UniformNameIndirectionTable[i];
+                ShaderResourceBinding& binding     = program_ptr->m_ResourceBindings[entry.m_ResourceBindingIndex];
+                binding.m_Type                     = type;
+                binding.m_ElementCount            += count;
+
+                assert(program_ptr->m_ResourceBindingLocations[binding.m_BindingLocationStart + entry.m_ResourceLocationIndex] == -1);
+                program_ptr->m_ResourceBindingLocations[binding.m_BindingLocationStart + entry.m_ResourceLocationIndex] = location;
+                return;
             }
         }
 
-        for (int i = 0; i < program_ptr->m_ResourceBindings.Size(); ++i)
-        {
-            if (dmStrCaseCmp(program_ptr->m_ResourceBindings[i].m_Name, base_uniform_name) == 0)
-            {
-                return &program_ptr->m_ResourceBindings[i];
-            }
-        }
-
-        ShaderResourceBinding new_binding = {};
-        new_binding.m_Name                = strdup(base_uniform_name);
-        new_binding.m_Binding             = -1;
+        ShaderResourceBinding new_binding  = {};
+        new_binding.m_Name                 = strdup(name);
+        new_binding.m_NameHash             = name_hash;
+        new_binding.m_Type                 = type;
+        new_binding.m_ElementCount         = count;
+        new_binding.m_BindingLocationStart = program_ptr->m_ResourceBindingLocations.Size();
+        new_binding.m_BindingLocationSize  = 1;
 
         program_ptr->m_ResourceBindings.Push(new_binding);
+        program_ptr->m_ResourceBindingLocations.Push(location);
+    }
 
-        return &program_ptr->m_ResourceBindings[program_ptr->m_ResourceBindings.Size()-1];
+    static bool SortResourceBindingsPred(ShaderResourceBinding const &a, ShaderResourceBinding const &b)
+    {
+        return a.m_Name < b.m_Name;
     }
 
     static void BuildUniforms(OpenGLProgram* program_ptr)
@@ -1999,8 +2026,17 @@ static void LogFrameBufferError(GLenum status)
         glGetProgramiv(program_ptr->m_Id, GL_ACTIVE_UNIFORMS, &count);
         CHECK_GL_ERROR;
 
-        program_ptr->m_ResourceBindings.SetCapacity(count);
-        program_ptr->m_ResourceBindings.SetSize(0);
+        if (program_ptr->m_ResourceBindings.Capacity() < count)
+        {
+            program_ptr->m_ResourceBindings.OffsetCapacity(count - program_ptr->m_ResourceBindings.Capacity());
+        }
+
+        if (program_ptr->m_ResourceBindingLocations.Capacity() < count)
+        {
+            program_ptr->m_ResourceBindingLocations.OffsetCapacity(count - program_ptr->m_ResourceBindingLocations.Capacity());
+        }
+
+        dmLogInfo("\nBuildUniforms");
 
         const int uniform_name_size = 128;
         char uniform_name[uniform_name_size];
@@ -2010,21 +2046,20 @@ static void LogFrameBufferError(GLenum status)
             GLenum uniform_type;
             GLsizei uniform_name_length;
             glGetActiveUniform(program_ptr->m_Id, i, uniform_name_size, &uniform_name_length, &uniform_size, &uniform_type, uniform_name);
+            GLint uniform_location = glGetUniformLocation(program_ptr->m_Id, uniform_name);
+            SetShaderResourceBinding(program_ptr, uniform_location, GetGraphicsType(uniform_type), uniform_size,  uniform_name);
+        }
+        for (int i = 0; i < program_ptr->m_ResourceBindings.Size(); ++i)
+        {
+            ShaderResourceBinding& binding = program_ptr->m_ResourceBindings[i];
 
-            GLint location = glGetUniformLocation(program_ptr->m_Id, uniform_name);
-            if (location == -1)
+            dmLogInfo("Uniform %s", binding.m_Name);
+
+            int start = binding.m_BindingLocationStart;
+            int end = binding.m_BindingLocationStart + binding.m_BindingLocationSize;
+            for (int j = start; j < end; ++j)
             {
-                // Clear error if uniform isn't found
-                CLEAR_GL_ERROR
-            }
-
-            ShaderResourceBinding* binding = GetOrCreateResourceBinding(program_ptr, uniform_name);
-            binding->m_ElementCount       += uniform_size;
-            binding->m_Type                = GetGraphicsType(uniform_type);
-
-            if (binding->m_Binding == -1)
-            {
-                binding->m_Binding = location;
+                dmLogInfo("  Loc: %d", program_ptr->m_ResourceBindingLocations[j]);
             }
         }
     }
@@ -2123,11 +2158,6 @@ static void LogFrameBufferError(GLenum status)
         for (int i = 0; i < program_ptr->m_ResourceBindings.Size(); ++i)
         {
             free(program_ptr->m_ResourceBindings[i].m_Name);
-        }
-
-        for (int i = 0; i < program_ptr->m_UniformNameIndirectionTable.Size(); ++i)
-        {
-            free(program_ptr->m_UniformNameIndirectionTable[i].m_FromName);
         }
 
         delete program_ptr;
@@ -2251,14 +2281,14 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLEnableProgram(HContext context, HProgram program)
     {
-        (void) context;
+        context->m_CurrentProgram = program;
         glUseProgram(((OpenGLProgram*) program)->m_Id);
         CHECK_GL_ERROR;
     }
 
     static void OpenGLDisableProgram(HContext context)
     {
-        (void) context;
+        context->m_CurrentProgram = 0;
         glUseProgram(0);
     }
 
@@ -2337,7 +2367,7 @@ static void LogFrameBufferError(GLenum status)
         {
             if (dmStrCaseCmp(name, program_ptr->m_ResourceBindings[i].m_Name) == 0)
             {
-                return program_ptr->m_ResourceBindings[i].m_Binding;
+                return program_ptr->m_ResourceBindings[i].m_BindingLocationStart;
             }
         }
 
@@ -2355,21 +2385,26 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, int base_register)
     {
         assert(context);
-
-        glUniform4fv(base_register, count, (const GLfloat*) data);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) context->m_CurrentProgram;
+        GLint location = program_ptr->m_ResourceBindingLocations[base_register];
+        glUniform4fv(location, count, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 
     static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, int base_register)
     {
         assert(context);
-        glUniformMatrix4fv(base_register, count, 0, (const GLfloat*) data);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) context->m_CurrentProgram;
+        GLint location = program_ptr->m_ResourceBindingLocations[base_register];
+        glUniformMatrix4fv(location, count, 0, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetSampler(HContext context, int32_t location, int32_t unit)
+    static void OpenGLSetSampler(HContext context, int32_t base_register, int32_t unit)
     {
         assert(context);
+        OpenGLProgram* program_ptr = (OpenGLProgram*) context->m_CurrentProgram;
+        GLint location = program_ptr->m_ResourceBindingLocations[base_register];
         glUniform1i(location, unit);
         CHECK_GL_ERROR;
     }
