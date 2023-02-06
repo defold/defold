@@ -1538,6 +1538,10 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
+        // NOTE: WebGl doesn't seem to like zero-sized vertex buffers (very poor performance)
+        if (size == 0) {
+            return;
+        }
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));

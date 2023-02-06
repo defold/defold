@@ -3209,7 +3209,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         dmTransform::Transform transform = dmTransform::ToTransform(trans);
         dmParticle::SetPosition(scene->m_ParticlefxContext, inst, Point3(transform.GetTranslation()));
         dmParticle::SetRotation(scene->m_ParticlefxContext, inst, transform.GetRotation());
-        dmParticle::SetScale(scene->m_ParticlefxContext, inst, transform.GetUniformScale());
+        // we can't use transform.GetUniformScale() since the z-component is ignored by the gui
+        float scale = dmMath::Min(transform.GetScalePtr()[0], transform.GetScalePtr()[1]);
+        dmParticle::SetScale(scene->m_ParticlefxContext, inst, scale);
 
         uint32_t count = scene->m_AliveParticlefxs.Size();
         scene->m_AliveParticlefxs.SetSize(count + 1);

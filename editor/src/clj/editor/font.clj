@@ -160,46 +160,104 @@
       :defold)
     :distance-field))
 
-(defn- measure-line [glyphs text-tracking line]
-  (let [w (reduce + (- text-tracking) (map (fn [c] (+ text-tracking (get-in glyphs [(int c) :advance] 0))) line))]
-    (if-let [last (get glyphs (and (last line) (int (last line))))]
+(defn- measure-line [glyphs text-tracking ^String line]
+  (let [w (transduce (comp
+                       (map #(:advance (glyphs (int %)) 0.0))
+                       (interpose text-tracking))
+                     +
+                     0.0
+                     line)
+        len (.length line)]
+    (if-let [last (get glyphs (and (pos? len) (int (.charAt line (dec len)))))]
       (- (+ w (:left-bearing last) (:width last)) (:advance last))
       w)))
 
-(defn- split [s i]
-  (mapv s/trim [(subs s 0 i) (subs s i)]))
+(defn- split-text [glyphs ^String text line-break? max-width text-tracking]
+  (if line-break?
+    ;; Rules for line breaks:
+    ;; 1. if a single line without spaces exceeds max width, let it be so
+    ;; 2. always split lines on \r?\n
+    ;; 3. remove trailing empty lines
+    ;; 4. trim start and end of a single line
+    ;; 5. if a line is too long, try splitting it on whitespace (including zero-width
+    ;;    space)
+    (let [text-length (.length text)
+          last-index (dec text-length)
+          zero-width-space (char 0x200B)
+          ;; remove trailing whitespace from sb and add to lines
+          add-line! (fn [lines ^StringBuilder sb]
+                      (let [line-length (.length sb)]
+                        (if (zero? line-length)
+                          (conj! lines "")
+                          (let [last-non-ws-index
+                                ;; Note: normally, this loop would be a subject to IOOB
+                                ;; exception, but here we have an invariant that
+                                ;; the accumulated string in sb is either empty or does
+                                ;; not start with a white space char
+                                (loop [i (dec line-length)]
+                                  (let [ch (.charAt sb i)]
+                                    (if (or (Character/isWhitespace ch)
+                                            (= zero-width-space ch))
+                                      (recur (dec i))
+                                      i)))
+                                s (.substring sb 0 (inc last-non-ws-index))]
+                            (.setLength sb 0)
+                            (conj! lines s)))))
+          ;; remove trailing empty lines and make persistent
+          clean-up-lines! (fn [lines]
+                            (persistent!
+                              (loop [lines lines]
+                                (let [lines-length (count lines)]
+                                  (if (and (pos? lines-length)
+                                           (= "" (lines (dec lines-length))))
+                                    (recur (pop! lines))
+                                    lines)))))
+          sb (StringBuilder.)]
+      (loop [i 0
+             lines (transient [])
+             known-white-space-index -1
+             line-width 0.0]
+        ;; if end of string, add the line and clean up the lines
+        (if (= i text-length)
+          (clean-up-lines! (add-line! lines sb))
+          (let [ch (.charAt text i)]
+            ;; if newline, do new line
+            (if (or (= \return ch) (= \newline ch))
+              (let [rn (and (= \return ch) (< i last-index) (= \newline (.charAt text (inc i))))]
+                (recur (cond-> (inc i) rn inc)
+                       (add-line! lines sb)
+                       -1
+                       0.0))
+              ;; If white space and current line is empty, continue to next char
+              (let [white-space (or (Character/isWhitespace ch) (= zero-width-space ch))]
+                (if (and white-space (zero? (.length sb)))
+                  (recur (inc i) lines -1 0.0)
+                  ;; Append a char to the line
+                  (let [glyph (glyphs (int ch))
+                        line-width-with-tracking (cond-> line-width (pos? (.length sb)) (+ text-tracking))
+                        end-line-width (-> line-width-with-tracking
+                                           (+ (:width glyph 0.0))
+                                           (+ (:left-bearing glyph 0.0)))]
+                    (.append sb ch)
+                    (cond
+                      ;; If the char is whitespace, save its index and continue
+                      white-space
+                      (recur (inc i) lines (dec (.length sb)) (+ line-width-with-tracking (:advance glyph 0.0)))
 
-(defn- break-line [^String line glyphs max-width text-tracking]
-  (loop [b (dec (count line))
-         last-space nil]
-    (if (> b 0)
-      (let [c (.charAt line b)
-            cu (.codePointAt line b)]
-        (if (or (Character/isWhitespace c) (= cu 0x200B))
-          (let [[l1 l2] (split line b)
-                w (measure-line glyphs text-tracking l1)]
-            (if (> w max-width)
-              (recur (dec b) b)
-              [l1 l2]))
-          (recur (dec b) last-space)))
-      (if last-space
-        (split line last-space)
-        [line nil]))))
+                      ;; If there is no white space index, we never wrap: continue
+                      ;; Additionally, if we don't exceed the line limit, we also continue
+                      (or (neg? known-white-space-index)
+                          (<= end-line-width max-width))
+                      (recur (inc i) lines known-white-space-index (+ line-width-with-tracking (:advance glyph 0.0)))
 
-(defn- break-lines [lines glyphs max-width text-tracking]
-  (reduce (fn [result line]
-            (let [trimmed-line (s/trim line)
-                  w (measure-line glyphs text-tracking trimmed-line)]
-              (if (> w max-width)
-                (let [[l1 l2] (break-line trimmed-line glyphs max-width text-tracking)]
-                  (if l2
-                    (recur (conj result l1) l2)
-                    (conj result trimmed-line)))
-                (conj result trimmed-line)))) [] lines))
-
-(defn- split-text [glyphs text line-break? max-width text-tracking]
-  (cond-> (s/split-lines text)
-    line-break? (break-lines glyphs max-width text-tracking)))
+                      ;; At this point, we know there is whitespace in this line, and also
+                      ;; we exceed the line limit. We wrap the line after the last known
+                      ;; whitespace index
+                      :else
+                      (let [wrapped-text-length (- (.length sb) (inc known-white-space-index))]
+                        (.setLength sb known-white-space-index)
+                        (recur (- i wrapped-text-length) (add-line! lines sb) -1 0.0)))))))))))
+    (s/split-lines text)))
 
 (defn- font-map->glyphs [font-map]
   (into {} (map (fn [g] [(:character g) g])) (:glyphs font-map)))
@@ -383,7 +441,7 @@
   (let [user-data (get (first renderables) :user-data)
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
-        text-layout (layout-text font-map (:text user-data) true (:cache-width font-map) 0 1)
+        text-layout (:text-layout user-data)
         vertex-buffer (gen-vertex-buffer gl user-data [{:text-layout text-layout
                                                         :align :left
                                                         :offset [0.0 0.0]
@@ -421,6 +479,7 @@
                                               :texture gpu-texture
                                               :font-map font-map
                                               :shader material-shader
+                                              :text-layout (layout-text font-map preview-text true (:cache-width font-map) 0 1)
                                               :text preview-text}
                                   :passes [pass/transparent]}))))
 

@@ -342,15 +342,15 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::HIndexBuffer ib = dmGraphics::NewIndexBuffer(m_Context, sizeof(i), i, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
-    dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3);
+    dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::DeleteIndexBuffer(ib);
