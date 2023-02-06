@@ -742,6 +742,7 @@
   (output emitter-sim-data g/Any :cached
           (g/fnk [animation texture-set gpu-texture material-shader]
             (when (and animation texture-set gpu-texture)
+              ;; TODO paged-atlas: The page-indices do not appear to reach the runtime code correctly?
               (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
                     ^ByteString tex-coords (:tex-coords texture-set)
                     tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))

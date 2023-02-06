@@ -281,12 +281,7 @@
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
 
-;; TODO paged-atlas: Add similar validation for Gui, disallowing paged atlases for now.
 (defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
-  (prn 'page-count-mismatch-error-message
-       'is-paged-material is-paged-material
-       'texture-page-count texture-page-count
-       'material-max-page-count material-max-page-count)
   (when (and (some? texture-page-count)
              (some? material-max-page-count))
     (cond
@@ -302,7 +297,7 @@
       "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
 
 (defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
-  (let [is-paged-material (pos? (count (:array-sampler-name->uniform-names material-shader)))]
+  (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
     (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
         (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")
         (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))

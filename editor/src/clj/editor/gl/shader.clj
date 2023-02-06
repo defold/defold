@@ -510,6 +510,9 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
   ([request-id verts frags uniforms array-sampler-name->uniform-names]
    (->ShaderLifecycle request-id verts frags uniforms array-sampler-name->uniform-names)))
 
+(defn is-using-array-samplers? [shader-lifecycle]
+  (pos? (count (:array-sampler-name->uniform-names shader-lifecycle))))
+
 (defn- gl-uniform-type->uniform-type [^long gl-uniform-type]
   (condp = gl-uniform-type
     GL2/GL_FLOAT :float

@@ -1491,6 +1491,15 @@
           (map (fn [id] (if id (format "%s/%s" name id) name)))
           (keys anim-data))))
 
+(defn- paged-atlas-not-supported-error-message [texture-page-count]
+  (when (and (some? texture-page-count)
+             (pos? texture-page-count))
+    "Guis do not support paged Atlases, but the selected Texture is paged"))
+
+(defn- validate-texture-resource [_node-id texture texture-page-count]
+  (or (prop-resource-error _node-id :texture texture "Texture")
+      (validation/prop-error :fatal _node-id :texture paged-atlas-not-supported-error-message texture-page-count)))
+
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
 
@@ -1503,11 +1512,12 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :texture-resource]
                                             [:gpu-texture :gpu-texture]
+                                            [:texture-page-count :texture-page-count]
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:build-targets :dep-build-targets])))
-            (dynamic error (g/fnk [_node-id texture]
-                                  (prop-resource-error _node-id :texture texture "Texture")))
+            (dynamic error (g/fnk [_node-id texture texture-page-count]
+                             (validate-texture-resource _node-id texture texture-page-count)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]})))
@@ -1517,6 +1527,7 @@
   (input texture-resource resource/Resource)
   (input image BufferedImage :substitute (constantly nil))
   (input gpu-texture g/Any :substitute nil)
+  (input texture-page-count g/Int :substitute nil)
   (input anim-data g/Any :substitute (constantly nil))
   (input anim-ids g/Any :substitute (constantly []))
   (input samplers [g/KeywordMap] :substitute (constantly []))
@@ -1537,10 +1548,10 @@
   (output texture-anim-datas TextureAnimDatas :cached produce-texture-anim-datas)
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-names GuiResourceNames :cached produce-texture-names)
-  (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
+  (output build-errors g/Any (g/fnk [_node-id name name-counts texture texture-page-count]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (prop-resource-error _node-id :texture texture "Texture")))))
+                                                 (validate-texture-resource _node-id texture texture-page-count)))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
@@ -2238,10 +2249,18 @@
                                                                     (when (> c max-nodes)
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
 
-(g/defnk produce-own-build-errors [_node-id material max-nodes node-ids script]
+(defn- paged-material-not-supported-error-message [is-paged-material]
+  (when is-paged-material
+    "Guis do not support paged Materials, but the selected Material is paged"))
+
+(defn- validate-material-resource [_node-id material material-shader]
+  (or (prop-resource-error _node-id :material material "Material")
+      (validation/prop-error :fatal _node-id :material paged-material-not-supported-error-message (shader/is-using-array-samplers? material-shader))))
+
+(g/defnk produce-own-build-errors [_node-id material material-shader max-nodes node-ids script]
   (g/package-errors _node-id
                     (when script (prop-resource-error _node-id :script script "Script"))
-                    (prop-resource-error _node-id :material material "Material")
+                    (validate-material-resource _node-id material material-shader)
                     (validate-max-nodes _node-id max-nodes node-ids)))
 
 (g/defnk produce-build-errors [_node-id build-errors own-build-errors]
@@ -2273,7 +2292,6 @@
             (dynamic edit-type (g/fnk [] {:type resource/Resource
                                           :ext "gui_script"})))
 
-
   (property material resource/Resource
     (value (gu/passthrough material-resource))
     (set (fn [evaluation-context self old-value new-value]
@@ -2283,8 +2301,8 @@
              [:shader :material-shader]
              [:samplers :samplers]
              [:build-targets :dep-build-targets])))
-    (dynamic error (g/fnk [_node-id material]
-                          (prop-resource-error _node-id :material material "Material")))
+    (dynamic error (g/fnk [_node-id material material-shader]
+                     (validate-material-resource _node-id material material-shader)))
     (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))
