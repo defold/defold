@@ -12,6 +12,25 @@ It is possible to connect to and interact with a debug version of the engine thr
 ## SSDP
 SSDP ([Simple Service Discovery Protocol](https://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol)) is used by the running engine to broadcast its existence on the network so that the editor can discover it and connect to issue commands.
 
+<details><summary>Example of a client in JavaScript</summary><p>
+
+Using npm package [node-ssdp](https://www.npmjs.com/package/node-ssdp)
+
+```js
+const Client = require('node-ssdp').Client;
+const client = new Client();
+
+client.on('response', function (headers, statusCode, rinfo) {
+	if (headers.SERVER.indexOf('Defold') !== -1) {
+		console.log('Found running Defold Engine!', headers.LOCATION);
+	}
+});
+client.search('upnp:rootdevice');
+```
+
+![image](https://user-images.githubusercontent.com/7230306/217389478-c99309f7-5bed-4412-bdeb-a6a0a5ab47b3.png)
+ 
+</p></details>
 
 ## Engine service
 The engine service is implemented as a small web server running within the engine. The server provides a number of endpoints which can be used to query for data or issue commands:
