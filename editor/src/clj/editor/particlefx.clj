@@ -619,6 +619,27 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
+
+(defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
+  (when (and (some? texture-page-count)
+             (some? material-max-page-count))
+    (cond
+      (and is-paged-material
+           (zero? texture-page-count))
+      "The Material expects a paged Atlas, but the selected Image is not paged"
+
+      (and (not is-paged-material)
+           (pos? texture-page-count))
+      "The Material does not support paged Atlases, but the selected Image is paged"
+
+      (< material-max-page-count texture-page-count)
+      "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
+
+(defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
+  (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
+    (or (prop-resource-error :fatal _node-id :material material "Material")
+        (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
+
 (declare ParticleFXNode)
 
 (g/defnode EmitterNode
@@ -646,6 +667,7 @@
                                             [:resource :tile-source-resource]
                                             [:build-targets :dep-build-targets]
                                             [:texture-set :texture-set]
+                                            [:texture-page-count :texture-page-count]
                                             [:gpu-texture :gpu-texture]
                                             [:anim-ids :anim-ids])))
             (dynamic edit-type (g/constantly
@@ -668,14 +690,16 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
+                                            [:max-page-count :material-max-page-count]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]}))
-            (dynamic error (g/fnk [_node-id material]
-                                  (prop-resource-error :fatal _node-id :material material "Material"))))
+            (dynamic error (g/fnk [_node-id material material-max-page-count material-shader texture-page-count]
+                             (prop-resource-error :fatal _node-id :material material "Material")
+                             (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
 
   (property blend-mode g/Keyword
             (dynamic tip (validation/blend-mode-tip blend-mode Particle$BlendMode))
@@ -702,15 +726,17 @@
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
+  (input material-max-page-count g/Int)
   (input default-tex-params g/Any)
   (input texture-set g/Any)
   (input gpu-texture g/Any)
+  (input texture-page-count g/Int :substitute nil)
   (input dep-build-targets g/Any :array)
   (input emitter-indices g/Any)
   (output emitter-index g/Any (g/fnk [_node-id emitter-indices] (emitter-indices _node-id)))
-  (output build-targets g/Any (g/fnk [_node-id tile-source material animation anim-ids dep-build-targets]
+  (output build-targets g/Any (g/fnk [_node-id tile-source material material-max-page-count material-shader texture-page-count animation anim-ids dep-build-targets]
                                 (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
-                                                            (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+                                                            (validate-material _node-id material material-max-page-count material-shader texture-page-count)
                                                             (validation/prop-error :fatal _node-id :animation validation/prop-nil? animation "Animation")
                                                             (validation/prop-error :fatal _node-id :animation validation/prop-anim-missing? animation anim-ids)]
                                                            (remove nil?)
@@ -743,7 +769,6 @@
   (output emitter-sim-data g/Any :cached
           (g/fnk [animation texture-set gpu-texture material-shader]
             (when (and animation texture-set gpu-texture)
-              ;; TODO paged-atlas: The page-indices do not appear to reach the runtime code correctly?
               (let [texture-set-anim (first (filter #(= animation (:id %)) (:animations texture-set)))
                     ^ByteString tex-coords (:tex-coords texture-set)
                     tex-coords-buffer (ByteBuffer/allocateDirect (.size tex-coords))
