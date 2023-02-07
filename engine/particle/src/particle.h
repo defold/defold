@@ -222,6 +222,7 @@ namespace dmParticle
         float m_U, m_V;
         // Offset 36
         float m_PageIndex;
+        // Offset 40
     };
 
     /**

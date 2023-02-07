@@ -52,7 +52,7 @@
            [editor.gl.shader ShaderLifecycle]
            [editor.properties CurveSpread Curve]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.nio ByteBuffer IntBuffer]
+           [java.nio ByteBuffer ByteOrder IntBuffer]
            [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -401,6 +401,7 @@
                   vtx-binding (vtx/use-with context vbuf shader)
                   blend-mode (convert-blend-mode (:blend-mode render-data))]
               (gl/with-gl-bindings gl render-args [shader vtx-binding gpu-texture]
+                (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
                 (gl/set-blend-mode gl blend-mode)
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))
@@ -752,8 +753,10 @@
                     frame-indices-buffer (ByteBuffer/allocateDirect (* Integer/BYTES (count frame-indices)))]
                 (.put tex-coords-buffer (.asReadOnlyByteBuffer tex-coords))
                 (.flip tex-coords-buffer)
+                (.order page-indices-buffer ByteOrder/LITTLE_ENDIAN)
                 (.put (.asIntBuffer page-indices-buffer) (int-array page-indices))
                 (.flip page-indices-buffer)
+                (.order frame-indices-buffer ByteOrder/LITTLE_ENDIAN)
                 (.put (.asIntBuffer frame-indices-buffer) (int-array frame-indices))
                 (.flip frame-indices-buffer)
                 {:gpu-texture gpu-texture
