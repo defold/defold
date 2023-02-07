@@ -125,19 +125,6 @@ public class ShaderUtil {
     }
 
     public static class ES2Variants {
-
-
-        /*
-        public static bool needsVariantTextureArray(ShaderDesc.Language shaderLanguage) {
-            boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
-                                    shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
-            if (gles2Standard) {
-
-            }
-            return false;
-        }
-        */
-
         private static void generateTextureArrayFn(ArrayList<String> buffer, String samplerName, int maxPages) {
             buffer.add(String.format("vec4 texture2DArray_%s(vec3 dm_texture_array_args) {", samplerName));
             buffer.add("    int page_index = int(dm_texture_array_args.z);");
@@ -164,7 +151,8 @@ public class ShaderUtil {
         }
 
         public static TextureArrayResult variantTextureArrayFallback(String shaderSource) {
-            // For texture array support, we need to convert texture2DArray functions
+            // For the texture array fallback variant, we need to convert texture2DArray functions
+            // into separate texture samplers. Samplers in arrays (uniform sampler2D my_samplers[4]; does not work on all platforms unfortunately)
             if (Common.hasUniformType(shaderSource, ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)) {
 
                 TextureArrayResult result = new TextureArrayResult();
@@ -203,16 +191,6 @@ public class ShaderUtil {
 
                         shaderHeader.add("");
                         generateTextureArrayFn(shaderHeader, uniformName, max_global_page_count);
-
-                        /*
-                        SPIRVReflector.Resource res = new SPIRVReflector.Resource();
-                        res.name                    = uniformName;
-                        res.type                    = "sampler2DArray";
-                        res.elementCount            = 1;
-                        res.binding                 = 0;
-                        res.set                     = 0;
-                        */
-
                         arraySamplers.add(uniformName);
 
                     } else {
@@ -221,8 +199,7 @@ public class ShaderUtil {
                 }
 
                 String shaderBodyStr = String.join("\n", shaderBody);
-                shaderBodyStr = shaderBodyStr.replaceAll(arrayReplaceTextureRegex, "texture2DArray_$1(");
-
+                shaderBodyStr        = shaderBodyStr.replaceAll(arrayReplaceTextureRegex, "texture2DArray_$1(");
                 result.source        = String.join("\n", shaderHeader) + "\n" + shaderBodyStr + "\n";
                 result.arraySamplers = arraySamplers.toArray(new String[0]);
 

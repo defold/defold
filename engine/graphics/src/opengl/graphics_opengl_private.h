@@ -107,7 +107,7 @@ namespace dmGraphics
         uint32_t    m_ModificationVersion;
     };
 
-    struct Shader
+    struct OpenGLShader
     {
         GLuint         m_Id;
         char*          m_VariantTextureArrayData;
@@ -121,14 +121,14 @@ namespace dmGraphics
         int32_t  m_Location;
     };
 
-    struct UniformNameIndirectionEntry
+    struct OpenGLUniformNameIndirectionEntry
     {
         dmhash_t m_NameHash;
         uint16_t m_ResourceBindingIndex;
         uint16_t m_ResourceLocationIndex;
     };
 
-    struct ShaderResourceBinding
+    struct OpenGLShaderResourceBinding
     {
         char*    m_Name;
         uint64_t m_NameHash;
@@ -140,12 +140,11 @@ namespace dmGraphics
 
     struct OpenGLProgram
     {
-        GLuint                               m_Id;
-        dmArray<OpenglVertexAttribute>       m_Attributes;
-        dmArray<ShaderResourceBinding>       m_ResourceBindings;
-        dmArray<int16_t>                     m_ResourceBindingLocations;
-        dmArray<GLuint>                      m_VariantIds;
-        dmArray<UniformNameIndirectionEntry> m_UniformNameIndirectionTable;
+        GLuint                                     m_Id;
+        dmArray<OpenglVertexAttribute>             m_Attributes;
+        dmArray<OpenGLUniformNameIndirectionEntry> m_UniformNameIndirectionTable;
+        dmArray<OpenGLShaderResourceBinding>       m_ResourceBindings;
+        dmArray<int16_t>                           m_ResourceBindingLocations;
     };
 
     struct RenderTarget

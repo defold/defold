@@ -354,29 +354,12 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
     @BuilderParams(name="Material", inExts=".material", outExt=".materialc")
     public static class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
-
-        /*
-        private static void asd(String program) {
-            IResource programRes = project.getResource(program);
-
-            ShaderDesc.Builder shaderBuilder = ShaderDesc.newBuilder();
-            ProtoUtil.merge(programRes, shaderBuilder);
-
-            for (ShaderDesc.Shader shader : shaderBuilder.getShadersList()) {
-            }
-        }
-        */
-
         @Override
         protected MaterialDesc.Builder transform(Task<Void> task, IResource resource, MaterialDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "vertex program", messageBuilder.getVertexProgram());
             messageBuilder.setVertexProgram(BuilderUtil.replaceExt(messageBuilder.getVertexProgram(), ".vp", ".vpc"));
-
             BuilderUtil.checkResource(this.project, resource, "fragment program", messageBuilder.getFragmentProgram());
-
-            // asd(messageBuilder.getFragmentProgram());
-
             messageBuilder.setFragmentProgram(BuilderUtil.replaceExt(messageBuilder.getFragmentProgram(), ".fp", ".fpc"));
             return messageBuilder;
         }

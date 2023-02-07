@@ -387,7 +387,7 @@ public class TextureSetGenerator {
         return packedImage;
     }
 
-    //static int debugImageCount = 0;
+    // static int debugImageCount = 0;
 
     /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
