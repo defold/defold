@@ -21,7 +21,7 @@ It should be possible to use macros instead and retain the same API.
 Macros currently mean no foreseeable performance gain, however."
   (:require [camel-snake-kebab :refer [->CamelCase ->kebab-case]]
             [clojure.java.io :as io]
-            [clojure.string :as s]
+            [clojure.string :as string]
             [editor.util :as util]
             [editor.workspace :as workspace]
             [internal.java :as j]
@@ -32,8 +32,6 @@ Macros currently mean no foreseeable performance gain, however."
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
            [java.util Collection]
-    #_[com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$ComponentDesc$Builder]
-    #_[com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Builder Material$MaterialDesc$VertexSpace]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d Vector4d]
            [org.apache.commons.io FilenameUtils]))
 
@@ -52,6 +50,11 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def ^:private upper-pattern (re-pattern #"\p{javaUpperCase}"))
 
+(defn- default-instance-raw [^Class cls]
+  (j/invoke-no-arg-class-method cls "getDefaultInstance"))
+
+(def ^:private default-instance (memoize default-instance-raw))
+
 (defn- new-builder
   ^Message$Builder [^Class cls]
   (j/invoke-no-arg-class-method cls "newBuilder"))
@@ -59,7 +62,7 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- field-name->key-raw [^String field-name]
   (keyword (if (re-find upper-pattern field-name)
              (->kebab-case field-name)
-             (s/replace field-name "_" "-"))))
+             (string/replace field-name "_" "-"))))
 
 (def field-name->key (memoize field-name->key-raw))
 
@@ -67,13 +70,13 @@ Macros currently mean no foreseeable performance gain, however."
   (field-name->key (.getName field-desc)))
 
 (defn- enum-name->keyword-raw [^String enum-name]
-  (keyword (util/lower-case* (s/replace enum-name "_" "-"))))
+  (keyword (util/lower-case* (string/replace enum-name "_" "-"))))
 
 (def ^:private enum-name->keyword (memoize enum-name->keyword-raw))
 
 (defn- keyword->enum-name-raw
   ^String [keyword]
-  (.intern (s/replace (util/upper-case* (name keyword)) "-" "_")))
+  (.intern (string/replace (util/upper-case* (name keyword)) "-" "_")))
 
 (def ^:private keyword->enum-name (memoize keyword->enum-name-raw))
 
@@ -84,21 +87,19 @@ Macros currently mean no foreseeable performance gain, however."
                                                 val-or-desc)]
     (enum-name->keyword (.getName desc))))
 
-(declare pb-accessor)
-
-(defn- field-accessor-fn [{:keys [field-type-key java-type-key type]} get-default-value]
-  (cond
-    (= field-type-key :message)
-    (pb-accessor type get-default-value)
-
-    (= field-type-key :enum)
-    pb-enum->val
-
-    (= java-type-key :boolean)
-    boolean
-
-    :else
-    identity))
+(defn- pb-value->clj-fn [field-info pb->clj-fn]
+  (let [pb-value->clj
+        (case (:field-type-key field-info)
+          :message (pb->clj-fn (:type field-info))
+          :enum pb-enum->val
+          (if (= :boolean (:java-type-key field-info))
+            boolean
+            identity))]
+    (if (:repeated field-info)
+      (fn repeated-pb-value->clj [^Collection values]
+        (when-not (.isEmpty values)
+          (mapv pb-value->clj values)))
+      pb-value->clj)))
 
 (def ^:private methods-by-name
   (memoize
@@ -149,11 +150,12 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def underscores-to-camel-case (memoize underscores-to-camel-case-raw))
 
+(defonce ^:private resource-desc (.getDescriptor DdfExtensions/resource))
+
 (defn- options [^DescriptorProtos$FieldOptions field-options]
-  (let [resource-desc (.getDescriptor DdfExtensions/resource)]
-    (cond-> {}
-      (.getField field-options resource-desc)
-      (assoc :resource true))))
+  (cond-> {}
+          (.getField field-options resource-desc)
+          (assoc :resource true)))
 
 (defn- field-type [^Class class ^Descriptors$FieldDescriptor field-desc]
   (let [java-name (underscores-to-camel-case (.getName field-desc))
@@ -191,10 +193,12 @@ Macros currently mean no foreseeable performance gain, however."
    Descriptors$FieldDescriptor$Type/UINT32 :uint-32
    Descriptors$FieldDescriptor$Type/UINT64 :uint-64})
 
-(defn- field-get-method
+(defn- field-get-method-raw
   ^Method [^Class cls java-name repeated]
   (let [get-method-name (str "get" java-name (if repeated "List" ""))]
     (lookup-method cls get-method-name)))
+
+(def ^:private field-get-method (memoize field-get-method-raw))
 
 (defn- field-has-value-fn
   ^Method [^Class cls java-name repeated]
@@ -206,38 +210,24 @@ Macros currently mean no foreseeable performance gain, however."
     (let [has-method-name (str "has" java-name)
           has-method (lookup-method cls has-method-name)]
       (fn field-has-value? [pb]
-        (.invoke has-method pb j/no-args-array)))))
-
-(defn- field-desc-default ^Object [^Descriptors$FieldDescriptor fd ^Object builder]
-  (when (.isOptional fd)
-    (if (.hasDefaultValue fd)
-      (.getDefaultValue fd)
-      ;; Protobuf does not support default values for messages, e.g. a dmMath.Quat
-      ;; However, when such a field is optional, and dmMath.Quat happens to specify the defaults 0.0, 0.0, 0.0, 1.0
-      ;; for *its* individual fields, it's still possible to retrieve that complex message as a default value.
-      (let [java-name (underscores-to-camel-case (.getName fd))
-            field-get-method (field-get-method (.getClass builder) java-name false)]
-        (.invoke field-get-method builder j/no-args-array)))))
+        ;; Wrapped in boolean because reflection will produce unique Boolean
+        ;; instances that cannot evaluate to false in if-expressions.
+        (boolean (.invoke has-method pb j/no-args-array))))))
 
 (defn- field-info-raw [^Class cls]
-  (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")
-        builder (new-builder cls)]
+  (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
     (into {}
           (map (fn [^Descriptors$FieldDescriptor field-desc]
-                 (let [default-value (field-desc-default field-desc builder)
-                       info (cond-> {:java-name (underscores-to-camel-case (.getName field-desc))
-                                     :type (field-type cls field-desc)
-                                     :java-type-key (java-type->key (.getJavaType field-desc))
-                                     :field-type-key (field-type->key (.getType field-desc))
-                                     :repeated (.isRepeated field-desc)
-                                     :required (.isRequired field-desc)
-                                     :optional (.isOptional field-desc)
-                                     :options (options (.getOptions field-desc))}
-                              (some? default-value)
-                              (assoc :default default-value))]
-                   (pair (field->key field-desc)
-                         info)))
-               (.getFields desc)))))
+                 (pair (field->key field-desc)
+                       {:java-name (underscores-to-camel-case (.getName field-desc))
+                        :type (field-type cls field-desc)
+                        :java-type-key (java-type->key (.getJavaType field-desc))
+                        :field-type-key (field-type->key (.getType field-desc))
+                        :repeated (.isRepeated field-desc)
+                        :required (.isRequired field-desc)
+                        :optional (.isOptional field-desc)
+                        :options (options (.getOptions field-desc))})))
+          (.getFields desc))))
 
 (def ^:private field-info (memoize field-info-raw))
 
@@ -341,59 +331,103 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def get-fields-fn (memoize get-fields-fn-raw))
 
-(defn- pb-accessor-raw [^Class class get-default-value]
-  {:pre [(class? class)
-         (boolean? get-default-value)]}
-  (let [fields (mapv (fn [[field-key {:keys [java-name repeated] :as field-info}]]
-                       (let [get-method (field-get-method class java-name repeated)
-                             field-has-value? (field-has-value-fn class java-name repeated)
-                             field-accessor (field-accessor-fn field-info get-default-value)
-                             field-accessor (if repeated
-                                              (fn repeated-field-accessor [^Collection values]
-                                                (when-not (.isEmpty values)
-                                                  (mapv field-accessor values)))
-                                              field-accessor)]
-                         (pair field-key
-                               (if get-default-value
-                                 (fn pb->field-value-or-default [pb]
-                                   (field-accessor (.invoke get-method pb j/no-args-array)))
-                                 (fn pb->field-value [pb]
-                                   (when (field-has-value? pb)
-                                     (field-accessor (.invoke get-method pb j/no-args-array))))))))
-                     (field-info class))]
-    (fn pb->clj [pb]
-      (->> fields
-           (reduce (fn [pb-map [field-key pb->field-value]]
-                     (if-some [field-value (pb->field-value pb)]
-                       (assoc! pb-map field-key field-value)
-                       pb-map))
-                   (transient {}))
-           (persistent!)
-           (msg->clj pb)))))
+(defn- pb->clj-fn [fields]
+  (fn pb->clj [pb]
+    (->> fields
+         (reduce (fn [pb-map [field-key pb->field-value]]
+                   (if-some [field-value (pb->field-value pb)]
+                     (assoc! pb-map field-key field-value)
+                     pb-map))
+                 (transient {}))
+         (persistent!)
+         (msg->clj pb))))
 
-(def ^:private pb-accessor (memoize pb-accessor-raw))
+(declare ^:private pb->clj-with-defaults-fn)
+
+(defn- pb->clj-with-defaults-fn-raw [^Class class]
+  (pb->clj-fn
+    (mapv (fn [[field-key {:keys [java-name repeated] :as field-info}]]
+            (let [pb-value->clj (pb-value->clj-fn field-info pb->clj-with-defaults-fn)
+                  ^Method field-get-method (field-get-method class java-name repeated)]
+              (pair field-key
+                    (fn pb->field-clj-value-or-default [pb]
+                      (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
+                        (pb-value->clj field-pb-value))))))
+          (field-info class))))
+
+(def ^:private pb->clj-with-defaults-fn (memoize pb->clj-with-defaults-fn-raw))
+
+(declare ^:private pb->clj-without-defaults-fn)
+
+(defn- pb->clj-without-defaults-fn-raw [^Class class]
+  (pb->clj-fn
+    (mapv (fn [[field-key {:keys [java-name repeated] :as field-info}]]
+            (let [pb-value->clj (pb-value->clj-fn field-info pb->clj-without-defaults-fn)
+                  ^Method field-get-method (field-get-method class java-name repeated)
+                  field-has-value? (field-has-value-fn class java-name repeated)]
+              (pair field-key
+                    (fn pb->field-clj-value [pb]
+                      (when (field-has-value? pb)
+                        (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
+                          (pb-value->clj field-pb-value)))))))
+          (field-info class))))
+
+(def ^:private pb->clj-without-defaults-fn (memoize pb->clj-without-defaults-fn-raw))
+
+(declare ^:private clear-defaults-from-message)
+
+(defn- clear-defaults-from-builder!
+  ^Message$Builder [^Message$Builder builder]
+  (let [descriptor (.getDescriptorForType builder)
+        field-descs (.getFields descriptor)]
+    (doseq [^Descriptors$FieldDescriptor field-desc field-descs]
+      (cond
+        (and (.isOptional field-desc)
+             (.hasField builder field-desc))
+        (cond
+          (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
+          (let [^Message without-defaults (clear-defaults-from-message (.getField builder field-desc))]
+            (if (zero? (.getSerializedSize without-defaults))
+              (.clearField builder field-desc)
+              (.setField builder field-desc without-defaults)))
+
+          (= (.getDefaultValue field-desc) (.getField builder field-desc))
+          (.clearField builder field-desc))
+
+        (and (.isRepeated field-desc)
+             (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc)))
+        (doseq [index (range (.getRepeatedFieldCount builder field-desc))]
+          (let [item-with-defaults (.getRepeatedField builder field-desc index)
+                item-without-defaults (clear-defaults-from-message item-with-defaults)]
+            (.setRepeatedField builder field-desc index item-without-defaults)))))
+    builder))
+
+(defn- clear-defaults-from-message
+  ^Message [^Message message]
+  (-> message
+      (.toBuilder)
+      (clear-defaults-from-builder!)
+      (.build)))
 
 (defn pb->map-with-defaults
   [^Message pb]
-  (let [pb->clj-with-defaults (pb-accessor (.getClass pb) true)]
+  (let [pb->clj-with-defaults (pb->clj-with-defaults-fn (.getClass pb))]
     (pb->clj-with-defaults pb)))
 
 (defn pb->map-without-defaults
   [^Message pb]
-  (let [pb->clj-without-defaults (pb-accessor (.getClass pb) false)]
-    (pb->clj-without-defaults pb)))
+  (let [pb->clj-without-defaults (pb->clj-without-defaults-fn (.getClass pb))]
+    (pb->clj-without-defaults (clear-defaults-from-message pb))))
 
-(defn- default-vals-raw [^Class cls]
-  (into {}
-        (keep (fn [[key info]]
-                (when-some [default (:default info)]
-                  (pair key ((field-accessor-fn info true) default)))))
-        (field-info cls)))
+(defn- default-map-raw [^Class cls]
+  (-> cls
+      (default-instance)
+      (pb->map-with-defaults)))
 
-(def ^:private default-vals (memoize default-vals-raw))
+(def ^:private default-map (memoize default-map-raw))
 
 (defn default [^Class cls field]
-  (get (default-vals cls) field))
+  (get (default-map cls) field))
 
 (def ^:private math-type-keys
   {"Point3" [:x :y :z]
@@ -505,8 +539,8 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defn pb->str [^Message pb format-newlines?]
   (cond-> (.printToString (TextFormat/printer) pb)
-    format-newlines?
-    (break-embedded-newlines)))
+          format-newlines?
+          (break-embedded-newlines)))
 
 (defn pb->bytes [^Message pb]
   (let [out (ByteArrayOutputStream. (* 4 1024))]
@@ -556,51 +590,46 @@ Macros currently mean no foreseeable performance gain, however."
 (extend-protocol VecmathConverter
   Point3d
   (vecmath->pb [v]
-    (->
-     (doto (DdfMath$Point3/newBuilder)
-       (.setX (.getX v))
-       (.setY (.getY v))
-       (.setZ (.getZ v)))
-     (.build)))
+    (-> (DdfMath$Point3/newBuilder)
+        (.setX (.getX v))
+        (.setY (.getY v))
+        (.setZ (.getZ v))
+        (.build)))
 
   Vector3d
   (vecmath->pb [v]
-    (->
-     (doto (DdfMath$Vector3/newBuilder)
-       (.setX (.getX v))
-       (.setY (.getY v))
-       (.setZ (.getZ v)))
-     (.build)))
+    (-> (DdfMath$Vector3/newBuilder)
+        (.setX (.getX v))
+        (.setY (.getY v))
+        (.setZ (.getZ v))
+        (.build)))
 
   Vector4d
   (vecmath->pb [v]
-    (->
-     (doto (DdfMath$Vector4/newBuilder)
-       (.setX (.getX v))
-       (.setY (.getY v))
-       (.setZ (.getZ v))
-       (.setW (.getW v)))
-     (.build)))
+    (-> (DdfMath$Vector4/newBuilder)
+        (.setX (.getX v))
+        (.setY (.getY v))
+        (.setZ (.getZ v))
+        (.setW (.getW v))
+        (.build)))
 
   Quat4d
   (vecmath->pb [v]
-    (->
-     (doto (DdfMath$Quat/newBuilder)
-       (.setX (.getX v))
-       (.setY (.getY v))
-       (.setZ (.getZ v))
-       (.setW (.getW v)))
-     (.build)))
+    (-> (DdfMath$Quat/newBuilder)
+        (.setX (.getX v))
+        (.setY (.getY v))
+        (.setZ (.getZ v))
+        (.setW (.getW v))
+        (.build)))
 
   Matrix4d
   (vecmath->pb [v]
-    (->
-     (doto (DdfMath$Matrix4/newBuilder)
-       (.setM00 (.getElement v 0 0)) (.setM01 (.getElement v 0 1)) (.setM02 (.getElement v 0 2)) (.setM03 (.getElement v 0 3))
-       (.setM10 (.getElement v 1 0)) (.setM11 (.getElement v 1 1)) (.setM12 (.getElement v 1 2)) (.setM13 (.getElement v 1 3))
-       (.setM20 (.getElement v 2 0)) (.setM21 (.getElement v 2 1)) (.setM22 (.getElement v 2 2)) (.setM23 (.getElement v 2 3))
-       (.setM30 (.getElement v 3 0)) (.setM31 (.getElement v 3 1)) (.setM32 (.getElement v 3 2)) (.setM33 (.getElement v 3 3)))
-     (.build))))
+    (-> (DdfMath$Matrix4/newBuilder)
+        (.setM00 (.getElement v 0 0)) (.setM01 (.getElement v 0 1)) (.setM02 (.getElement v 0 2)) (.setM03 (.getElement v 0 3))
+        (.setM10 (.getElement v 1 0)) (.setM11 (.getElement v 1 1)) (.setM12 (.getElement v 1 2)) (.setM13 (.getElement v 1 3))
+        (.setM20 (.getElement v 2 0)) (.setM21 (.getElement v 2 1)) (.setM22 (.getElement v 2 2)) (.setM23 (.getElement v 2 3))
+        (.setM30 (.getElement v 3 0)) (.setM31 (.getElement v 3 1)) (.setM32 (.getElement v 3 2)) (.setM33 (.getElement v 3 3))
+        (.build))))
 
 (extend-protocol GenericDescriptor
   Descriptors$Descriptor
@@ -620,14 +649,10 @@ Macros currently mean no foreseeable performance gain, however."
 (defn map->str
   ([^Class cls m] (map->str cls m true))
   ([^Class cls m format-newlines?]
-    (->
-      (map->pb cls m)
-      (pb->str format-newlines?))))
+   (pb->str (map->pb cls m) format-newlines?)))
 
 (defn map->bytes [^Class cls m]
-  (->
-    (map->pb cls m)
-    (pb->bytes)))
+  (pb->bytes (map->pb cls m)))
 
 (defn read-pb-into!
   ^Message$Builder [^Message$Builder builder input]
@@ -669,7 +694,7 @@ Macros currently mean no foreseeable performance gain, however."
     (mapv (fn [^ProtocolMessageEnum value]
             [(pb-enum->val value)
              {:display-name (-> (.getValueDescriptor value) (.getOptions) (.getExtension DdfExtensions/displayName))}])
-      values)))
+          values)))
 
 (def enum-values (memoize enum-values-raw))
 
@@ -705,13 +730,6 @@ Macros currently mean no foreseeable performance gain, however."
   ;; discussion around perhaps omitting default values from the project data.
   (= [0.0 0.0 0.0] value))
 
-(defn- default-map-raw [^Class cls]
-  (-> cls
-      (j/invoke-no-arg-class-method "getDefaultInstance")
-      (pb->map-with-defaults)))
-
-(def ^:private default-map (memoize default-map-raw))
-
 (defn make-map-with-defaults [^Class cls & kvs]
   (into (default-map cls)
         (comp (partition-all 2)
@@ -728,47 +746,9 @@ Macros currently mean no foreseeable performance gain, however."
                         (pair key value)))))
         kvs))
 
-(defn read-map-with-defaults [^Class cls input]
-  (pb->map-with-defaults
-    (read-pb cls input)))
-
-(declare ^:private clear-defaults-from-message)
-
-(defn- clear-defaults-from-builder!
-  ^Message$Builder [^Message$Builder builder]
-  (let [descriptor (.getDescriptorForType builder)
-        fields (.getFields descriptor)]
-    (doseq [^Descriptors$FieldDescriptor field fields]
-      (when (and (.isOptional field)
-                 (.hasField builder field))
-        (cond
-          (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field))
-          (let [^Message without-defaults (clear-defaults-from-message (.getField builder field))]
-            (if (zero? (.getSerializedSize without-defaults))
-              (.clearField builder field)
-              (.setField builder field without-defaults)))
-
-          (= (.getDefaultValue field) (.getField builder field))
-          (.clearField builder field))))
-    builder))
-
-(defn- clear-defaults-from-message
-  ^Message [^Message message]
-  (-> message
-      (.toBuilder)
-      (clear-defaults-from-builder!)
-      (.build)))
-
-(defn read-map-without-defaults [^Class cls input]
-  (-> (new-builder cls)
-      (read-pb-into! input)
-      (clear-defaults-from-builder!)
-      (.build)
-      (pb->map-without-defaults)))
-
 (defn make-map-without-defaults [^Class cls & kvs]
   (let [key->field-info (field-info cls)
-        key->default (default-vals cls)]
+        key->default (default-map cls)]
     (into {}
           (comp (partition-all 2)
                 (keep (fn [[key value]]
@@ -792,54 +772,10 @@ Macros currently mean no foreseeable performance gain, however."
                                 (pair key (vec value)))))))))
           kvs)))
 
-#_
-(comment
-    (let [#_#_pb (map->pb Material$MaterialDesc
-                          {:name "material"
-                           :vertex-program "/shader.vp"
-                           :fragment-program "/shader.fp"})
-          ^Material$MaterialDesc$Builder builder (new-builder Material$MaterialDesc)
-          builder (doto builder
-                    (.setName "material")
-                    (.setVertexProgram "/shader.vp")
-                    (.setFragmentProgram "/shader.fp")
-                    (.setVertexSpace Material$MaterialDesc$VertexSpace/VERTEX_SPACE_WORLD)
-                    (.setField (.findFieldByName (.getDescriptorForType builder) "textures") ["asdf"])
-                    #_(.addTextures "/image.png"))]
-      (-> builder
-          (clear-defaults-from-builder!)
-          (.build)))
+(defn read-map-with-defaults [^Class cls input]
+  (pb->map-with-defaults
+    (read-pb cls input)))
 
-
-    (let [builder (new-builder GameObject$ComponentDesc)]
-      (TextFormat/merge "
-  id: 'apple'
-  component: '/path/to/apple.sprite'
-  position {
-    x: 4
-    y: 5
-  }
-  rotation {
-    x: 0
-  }
-  scale {
-    x: 0
-  }
-  " builder)
-      (clear-defaults-from-builder! builder)
-      (.setField builder (.findFieldByName (.getDescriptorForType builder) "properties") [])
-      (.getAllFields builder))
-
-    (-> (doto ^GameObject$ComponentDesc$Builder (new-builder GameObject$ComponentDesc)
-          (.setId "apple")
-          (.setPosition (let [builder (new-builder DdfMath$Point3)]
-                          (TextFormat/merge "x:0 y:0 z:0 d:0" builder)
-                          builder))
-          (.setComponent "/path/to/apple.sprite"))
-        (clear-defaults-from-builder!)
-        (.build))
-
-    (-> (let [builder (new-builder DdfMath$Point3)]
-          (TextFormat/merge "x:0 y:1 z:0 d:0" builder)
-          builder)
-        (clear-defaults-from-builder!)))
+(defn read-map-without-defaults [^Class cls input]
+  (pb->map-without-defaults
+    (read-pb cls input)))

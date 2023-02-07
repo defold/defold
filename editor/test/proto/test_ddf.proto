@@ -48,10 +48,11 @@ message DefaultValue
 
 message NestedDefaults
 {
-    optional string with_default = 1 [ default = "default" ];
-    optional string without_default = 2;
-    optional DefaultValue optional = 3;
-    repeated DefaultValue repeated = 4;
+    optional string optional_with_default = 1 [ default = "default" ];
+    optional string optional_without_default = 2;
+    optional DefaultValue optional_message = 5;
+    repeated DefaultValue repeated_message = 7;
+    repeated int32 repeated_int = 6;
 }
 
 message OptionalNoDefaultValue
