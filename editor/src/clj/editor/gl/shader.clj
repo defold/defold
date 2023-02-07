@@ -415,21 +415,19 @@ This must be submitted to the driver for compilation before you can use it. See
 (def make-vertex-shader (partial make-shader* GL2/GL_VERTEX_SHADER))
 
 (defn- set-uniform-impl! [gl program uniform-infos uniform-name uniform-value]
-  (if-some [uniform-info (uniform-infos uniform-name)]
+  (when-some [uniform-info (uniform-infos uniform-name)]
     (try
       (set-uniform-at-index gl program (:index uniform-info) uniform-value)
       (catch IllegalArgumentException e
-        (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." uniform-name) e))))
-    (throw (IllegalArgumentException. (format "Uniform '%s' does not exist." uniform-name)))))
+        (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." uniform-name) e))))))
 
 (defn- set-sampler-uniform-impl! [gl program uniform-infos slice-sampler-uniform-names texture-units]
   (doall
     (map (fn [slice-sampler-uniform-name texture-unit]
            (if (and (int? texture-unit)
                     (not (neg? texture-unit)))
-             (if-some [slice-sampler-uniform-info (uniform-infos slice-sampler-uniform-name)]
-               (set-uniform-at-index gl program (:index slice-sampler-uniform-info) texture-unit)
-               (throw (IllegalArgumentException. (format "Uniform '%s' does not exist." slice-sampler-uniform-name))))
+             (when-some [slice-sampler-uniform-info (uniform-infos slice-sampler-uniform-name)]
+               (set-uniform-at-index gl program (:index slice-sampler-uniform-info) texture-unit))
              (throw (IllegalArgumentException. (format "Invalid texture unit '%s' for uniform '%s'." texture-unit slice-sampler-uniform-name)))))
          slice-sampler-uniform-names
          texture-units)))
@@ -468,12 +466,11 @@ This must be submitted to the driver for compilation before you can use it. See
     (assert (string? (not-empty name)))
     (when-let [{:keys [program uniform-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
-        (if-some [uniform-info (uniform-infos name)]
+        (when-some [uniform-info (uniform-infos name)]
           (try
             (set-uniforms-at-index gl program (:index uniform-info) count vals)
             (catch IllegalArgumentException e
-              (throw (IllegalArgumentException. (format "Failed setting array uniform '%s'." name) e))))
-          (throw (IllegalArgumentException. (format "Array uniform '%s' does not exist." name)))))))
+              (throw (IllegalArgumentException. (format "Failed setting array uniform '%s'." name) e))))))))
 
   SamplerVariables
   (set-samplers-by-name [_this gl sampler-name texture-units]
@@ -481,24 +478,22 @@ This must be submitted to the driver for compilation before you can use it. See
     (when-let [{:keys [program uniform-infos sampler-name->uniform-names]}
                (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
-        (if-some [uniform-names (sampler-name->uniform-names sampler-name)]
+        (when-some [uniform-names (sampler-name->uniform-names sampler-name)]
           (try
             (set-sampler-uniform-impl! gl program uniform-infos uniform-names texture-units)
             (catch IllegalArgumentException e
-              (throw (IllegalArgumentException. (format "Failed setting sampler uniform '%s'." sampler-name) e))))
-          (throw (IllegalArgumentException. (format "Sampler uniform '%s' does not exist." sampler-name)))))))
+              (throw (IllegalArgumentException. (format "Failed setting sampler uniform '%s'." sampler-name) e))))))))
 
   (set-samplers-by-index [_this gl sampler-index texture-units]
     (when-let [{:keys [program uniform-infos sampler-index->sampler-name sampler-name->uniform-names]}
                (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
-        (if-some [sampler-name (sampler-index->sampler-name sampler-index)]
+        (when-some [sampler-name (sampler-index->sampler-name sampler-index)]
           (let [uniform-names (sampler-name->uniform-names sampler-name)]
             (try
               (set-sampler-uniform-impl! gl program uniform-infos uniform-names texture-units)
               (catch IllegalArgumentException e
-                (throw (IllegalArgumentException. (format "Failed setting sampler uniform '%s' at index %d." sampler-name sampler-index) e)))))
-          (throw (IllegalArgumentException. (format "Sampler uniform index %d does not exist." sampler-index))))))))
+                (throw (IllegalArgumentException. (format "Failed setting sampler uniform '%s' at index %d." sampler-name sampler-index) e))))))))))
 
 (defn make-shader
   "Ready a shader program for use by compiling and linking it. Takes a collection
