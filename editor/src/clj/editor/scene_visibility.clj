@@ -33,6 +33,7 @@
 
 (def ^:private renderable-tag-toggles-info
   (cond-> [{:label "Collision Shapes" :tag :collision-shape}
+           {:label "Camera" :tag :camera}
            #_{:label "GUI Elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
            {:label "GUI Bounds" :tag :gui-bounds}
            {:label "GUI Shapes" :tag :gui-shape}

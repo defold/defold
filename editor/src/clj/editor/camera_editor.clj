@@ -182,13 +182,14 @@
                (vec4 color))
 
 (defn- camera-view-matrix [^Vector3d position ^Quat4d rotation]
-        (let [m (Matrix4d.)]
+        (let [m (Matrix4d.)
+              p (Vector3d. position)]
           (.setIdentity m)
           (.set m rotation)
           (.transpose m)
-          (.transform m position)
-          (.negate position)
-          (.setColumn m 3 (.x position) (.y position) (.z position) 1.0)
+          (.transform m p)
+          (.negate p)
+          (.setColumn m 3 (.x p) (.y p) (.z p) 1.0)
           m))
 
 (defn- camera-perspective-projection-matrix [near far fov]
@@ -290,23 +291,25 @@
   (assert (= pass/outline (:pass render-args)))
   (let [outline-vertex-binding (vtx/use-with ::frustum-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
     (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-                         (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 24)))))
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 24)))))
 
 (g/defnk produce-camera-scene
   [_node-id fov near-z far-z orthographic-projection]
-  (let [ext-x (* 0.5 2.0)
-        ext-y (* 0.5 2.0)
-        ext-z (* 0.5 2.0)
+  ;; TODO: Better AABB calculation
+  (let [ext-x far-z
+        ext-y far-z
+        ext-z far-z
         ext [ext-x ext-y ext-z]
         neg-ext [(- ext-x) (- ext-y) (- ext-z)]
-        aabb (geom/coords->aabb ext neg-ext)]
+        aabb (geom/coords->aabb neg-ext ext)]
+    (prn aabb)
     {:node-id _node-id
      :aabb aabb
      :children [{:node-id _node-id
                  :aabb aabb
                  :renderable {:render-fn render-frustum-outlines
                               :batch-key [outline-shader]
-                              :tags #{:sprite :outline}
+                              :tags #{:camera :outline}
                               :select-batch-key _node-id
                               :user-data {:fov fov
                                           :near-z near-z
@@ -345,7 +348,7 @@
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
-  (output scene g/Any produce-camera-scene)
+  (output scene g/Any :cached produce-camera-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn register-resource-types
