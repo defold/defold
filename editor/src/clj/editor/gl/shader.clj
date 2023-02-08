@@ -104,7 +104,8 @@ There are some examples in the testcases in dynamo.shader.translate-test."
             [editor.gl.protocols :refer [GlBind]]
             [editor.scene-cache :as scene-cache]
             [util.coll :refer [pair]])
-  (:import [com.jogamp.opengl GL GL2]
+  (:import [com.dynamo.bob.pipeline ShaderUtil$Common]
+           [com.jogamp.opengl GL GL2]
            [java.nio ByteBuffer FloatBuffer IntBuffer]
            [java.nio.charset StandardCharsets]
            [javax.vecmath Matrix4d Point3d Vector4d Vector4f]))
@@ -274,13 +275,52 @@ There are some examples in the testcases in dynamo.shader.translate-test."
 (defn- shader-walk [form]
   (walk/walk inner-walk outer-walk form))
 
-;; ======================================================================
-;; Public API
-(defn create-shader
+
+(def ^:private array-fn-fmt "
+vec4 texture2DArray(vec2 uv, float page_index)
+{
+  int p = int(page_index);
+  %s\n
+  return vec4(0.0);
+}")
+
+(def ^:private shader-version-str "#version 120")
+
+(defn- create-shader
   "Returns a string in GLSL suitable for compilation. Takes a list of forms.
 These forms should be quoted, as if they came from a macro."
   [params]
-  (apply str "#version 120" \newline (shader-walk params)))
+  (apply str shader-version-str \newline (shader-walk params)))
+
+(defn- create-shader-no-version
+  [params]
+  (apply str (shader-walk params)))
+
+(defn- make-sampler-uniforms [sampler-count sampler-name]
+  (let [sampler-indices (into [] (repeat sampler-count 0))
+        samplers (into [] (map-indexed
+                            (fn [i _]
+                              (format "uniform sampler2D %s%d;" sampler-name i))
+                            sampler-indices))]
+    samplers))
+
+(defn- make-texture-array-fn [sampler-count sampler-name]
+  (let [sampler-indices (into [] (repeat sampler-count 0))
+        array-fn-body (into [] (map-indexed
+                                 (fn [i _]
+                                   (format "%sif (p == %d) return texture2D(%s%d, uv);\n"
+                                           (if (pos? i)
+                                             "else "
+                                             "")
+                                           i
+                                           sampler-name
+                                           i))
+                                 sampler-indices))
+        array-fn-str (format array-fn-fmt (apply str array-fn-body))]
+    array-fn-str))
+
+;; ======================================================================
+;; Public API
 
 (defmacro defshader
   "Macro to define the fragment shader program. Defines a new var whose contents will
@@ -290,6 +330,15 @@ This must be submitted to the driver for compilation before you can use it. See
 `make-shader`"
   [name & body]
   `(def ~name ~(create-shader body)))
+
+(defmacro defshader-with-array-samplers
+  [name sampler-name & body]
+  (let [sampler-count ShaderUtil$Common/MAX_ARRAY_SAMPLERS
+        sampler-uniforms (string/join "\n" (make-sampler-uniforms sampler-count sampler-name) )
+        array-fn-str (make-texture-array-fn sampler-count sampler-name)
+        body-part-strs (create-shader-no-version body)
+        full-str (apply str shader-version-str \newline sampler-uniforms array-fn-str \newline body-part-strs)]
+    `(def ~name ~full-str)))
 
 (defprotocol ShaderVariables
   (get-attrib-location [this gl name])

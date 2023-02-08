@@ -52,6 +52,7 @@
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
            [com.dynamo.gamesys.proto Tile$Playback Tile$SpriteTrimmingMode]
+           [com.dynamo.bob.pipeline ShaderUtil$Common]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
@@ -82,37 +83,11 @@
     (setq var_texcoord0 texcoord0)
     (setq var_page_index page_index)))
 
-;; TODO paged-atlas: Generate texture samplers based on constant from Bob?
-(shader/defshader pos-uv-frag
-  (varying vec2 var_texcoord0)
-  (varying float var_page_index)
-  (uniform sampler2D texture_sampler_0)
-  (uniform sampler2D texture_sampler_1)
-  (uniform sampler2D texture_sampler_2)
-  (uniform sampler2D texture_sampler_3)
-  (uniform sampler2D texture_sampler_4)
-  (uniform sampler2D texture_sampler_5)
-  (uniform sampler2D texture_sampler_6)
-  (uniform sampler2D texture_sampler_7)
-  (defn void main []
-    (setq int page_index (int var_page_index))
-    (setq gl_FragColor (vec4 0 0 0 0))
-    (if (== page_index 0)
-      (setq gl_FragColor (texture2D texture_sampler_0 var_texcoord0.xy)))
-    (if (== page_index 1)
-      (setq gl_FragColor (texture2D texture_sampler_1 var_texcoord0.xy)))
-    (if (== page_index 2)
-      (setq gl_FragColor (texture2D texture_sampler_2 var_texcoord0.xy)))
-    (if (== page_index 3)
-      (setq gl_FragColor (texture2D texture_sampler_3 var_texcoord0.xy)))
-    (if (== page_index 4)
-      (setq gl_FragColor (texture2D texture_sampler_4 var_texcoord0.xy)))
-    (if (== page_index 5)
-      (setq gl_FragColor (texture2D texture_sampler_5 var_texcoord0.xy)))
-    (if (== page_index 6)
-      (setq gl_FragColor (texture2D texture_sampler_6 var_texcoord0.xy)))
-    (if (== page_index 7)
-      (setq gl_FragColor (texture2D texture_sampler_7 var_texcoord0.xy)))))
+(shader/defshader-with-array-samplers pos-uv-frag "texture_sampler"
+    (varying vec2 var_texcoord0)
+    (varying float var_page_index)
+    (defn void main []
+    (setq gl_FragColor (texture2DArray var_texcoord0.xy var_page_index))))
 
 (defn- get-rect-page-offset [layout-width page-index]
   (let [page-margin 32]
@@ -124,9 +99,8 @@
       (.setIdentity)
       (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
 
-;; TODO paged-atlas: Constant in Bob for slice limit.
 (def ^:private array-sampler-name->uniform-names
-  {"texture_sampler" (mapv #(str "texture_sampler_" %) (range 8))})
+  {"texture_sampler" (mapv #(str "texture_sampler" %) (range ShaderUtil$Common/MAX_ARRAY_SAMPLERS))})
 
 ; TODO - macro of this
 (def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag {} array-sampler-name->uniform-names))
@@ -149,16 +123,14 @@
 (defn render-image-outline
   [^GL2 gl render-args renderables]
   (doseq [renderable renderables]
-    (let [layout-width (-> renderable :user-data :layout-width)
-          page-index (-> renderable :user-data :page-index)
-          page-offset-x (get-rect-page-offset layout-width page-index)]
-      (render-rect gl (-> renderable :user-data :rect) (if (:selected renderable) colors/selected-outline-color colors/outline-color) page-offset-x)))
+    (let [user-data (-> renderable :user-data)
+          page-offset-x (get-rect-page-offset (:layout-width user-data) (:page-index user-data))]
+      (render-rect gl (:rect user-data) (if (:selected renderable) colors/selected-outline-color colors/outline-color) page-offset-x)))
   (doseq [renderable renderables]
-    (let [layout-width (-> renderable :user-data :layout-width)
-          page-index (-> renderable :user-data :page-index)
-          page-offset-x (get-rect-page-offset layout-width page-index)]
-      (when (= (-> renderable :updatable :state :frame) (-> renderable :user-data :order))
-        (render-rect gl (-> renderable :user-data :rect) colors/defold-pink page-offset-x)))))
+    (let [user-data (-> renderable :user-data)
+          page-offset-x (get-rect-page-offset (:layout-width user-data) (:page-index user-data))]
+      (when (= (-> renderable :updatable :state :frame) (:order user-data))
+        (render-rect gl (:rect user-data) colors/defold-pink page-offset-x)))))
 
 (defn- render-image-outlines
   [^GL2 gl render-args renderables n]
@@ -172,8 +144,11 @@
   (assert (= n 1))
   (let [renderable (first renderables)
         picking-id (:picking-id renderable)
-        id-color (scene-picking/picking-id->color picking-id)]
-    (render-rect gl (-> renderable :user-data :rect) id-color 0)))
+        id-color (scene-picking/picking-id->color picking-id)
+        user-data (-> renderable :user-data)
+        rect (:rect user-data)
+        page-offset-x (get-rect-page-offset (:layout-width user-data) (:page rect))]
+    (render-rect gl (:rect user-data) id-color page-offset-x)))
 
 (defn- atlas-rect->editor-rect [rect]
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
@@ -184,7 +159,7 @@
         rect (get image-path->rect path)
         editor-rect (atlas-rect->editor-rect rect)
         aabb (geom/rect->aabb editor-rect)
-        [layout-width layout-height] layout-size]
+        [layout-width _] layout-size]
     {:node-id _node-id
      :aabb aabb
      :renderable {:render-fn render-image-outlines
@@ -199,7 +174,8 @@
                  :node-id _node-id
                  :renderable {:render-fn render-image-selection
                               :tags #{:atlas}
-                              :user-data {:rect rect}
+                              :user-data {:rect rect
+                                          :layout-width layout-width}
                               :passes [pass/selection]}}]
      :updatable animation-updatable}))
 

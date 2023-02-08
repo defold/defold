@@ -57,24 +57,6 @@
   (vec2 texcoord0 true)
   (vec1 page_index))
 
-;; TODO paged-atlas: These shaders need to be updated to support multi-page atlases.
-(shader/defshader vertex-shader
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position.xyz 1.0)))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
-
-; TODO - macro of this
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
-
 (vtx/defvertex color-vtx
   (vec3 position)
   (vec4 color))
@@ -167,20 +149,23 @@
   (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec2 texcoord0)
+  (attribute float page_index)
   (varying vec2 var_texcoord0)
+  (varying float var_page_index)
   (defn void main []
     (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))
-    (setq var_texcoord0 texcoord0)))
+    (setq var_texcoord0 texcoord0)
+    (setq var_page_index page_index)))
 
-(shader/defshader sprite-id-fragment-shader
+(shader/defshader-with-array-samplers sprite-id-fragment-shader "texture_sampler"
   (varying vec2 var_texcoord0)
-  (uniform sampler2D DIFFUSE_TEXTURE)
+  (varying float var_page_index)
   (uniform vec4 id)
   (defn void main []
-    (setq vec4 color (texture2D DIFFUSE_TEXTURE var_texcoord0))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
+  (setq vec4 color (texture2DArray var_texcoord0 var_page_index))
+  (if (> color.a 0.05)
+    (setq gl_FragColor id)
+    (discard))))
 
 (def id-shader (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader sprite-id-fragment-shader {"view_proj" :view-proj "id" :id}))
 
@@ -217,6 +202,7 @@
       pass/selection
       (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables num-quads) id-shader)]
         (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
+          (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6)))))))
 
 (defn- render-sprite-outlines [^GL2 gl render-args renderables count]

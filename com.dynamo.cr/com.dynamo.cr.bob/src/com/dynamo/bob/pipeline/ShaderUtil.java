@@ -31,6 +31,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderUtil {
     public static class Common {
+        public static final int     MAX_ARRAY_SAMPLERS             = 8;
         public static final String  glSampler2DArrayRegex          = "(.+)sampler2DArray\\s+(\\w+);";
         public static final Pattern regexUniformKeywordPattern     = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
         public static final Pattern regexLineBreakPattern          = Pattern.compile("(?<=;)|(?<=\\{)|(?<=\\})|(?<=(#(.{0,1024}\\n)))");
@@ -157,8 +158,6 @@ public class ShaderUtil {
 
                 TextureArrayResult result = new TextureArrayResult();
 
-                final int max_global_page_count = 4;
-
                 ArrayList<String> arraySamplers = new ArrayList<String>();
                 ArrayList<String> shaderHeader = new ArrayList<>();
                 ArrayList<String> shaderBody = new ArrayList<>();
@@ -178,7 +177,7 @@ public class ShaderUtil {
                         String uniformName = samplerMatcher.group("uniform");
                         String qualifier   = samplerMatcher.group("qualifier");
 
-                        for (int i=0; i < max_global_page_count; i++) {
+                        for (int i=0; i < Common.MAX_ARRAY_SAMPLERS; i++) {
                             String pageUniform = String.format(uniformArrayFormat, qualifier, uniformName, i);
                             if (i == 0) {
                                 shaderHeader.add(pageUniform);
@@ -190,7 +189,7 @@ public class ShaderUtil {
                         }
 
                         shaderHeader.add("");
-                        generateTextureArrayFn(shaderHeader, uniformName, max_global_page_count);
+                        generateTextureArrayFn(shaderHeader, uniformName, Common.MAX_ARRAY_SAMPLERS);
                         arraySamplers.add(uniformName);
 
                     } else {
