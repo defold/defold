@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -180,6 +180,21 @@
 
 (def defold-docs (defold-documentation))
 (def preinstalled-modules (into #{} (remove #{""} (keys defold-docs))))
+
+(def base-globals
+  (into #{"coroutine" "package" "string" "table" "math" "io" "file" "os" "debug"}
+        (map #(.getName ^ScriptDoc$Element %))
+        (get (load-sdoc (sdoc-path "base")) "")))
+
+(def defined-globals
+  (into #{}
+        (comp
+          (remove #(#{:message :property} (:type %)))
+          (map :name)
+          (remove #(or (= "" %)
+                       (string/includes? % ":")
+                       (contains? base-globals %))))
+        (get defold-docs "")))
 
 (defn lua-base-documentation []
   (s/validate documentation-schema

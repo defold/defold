@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,7 +81,7 @@
 ;; │   └── props.script
 ;; └── test.particlefx
 
-(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib file:/imagelib1 file:/imagelib2"))
+(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib, file:/imagelib1, file:/imagelib2"))
 
 (def ^:private scriptlib-uri (first lib-uris)) ; /scripts/main.script
 (def ^:private imagelib1-uri (second lib-uris)) ; /images/{pow,paddle}.png
@@ -805,7 +805,7 @@
     (let [[workspace project] (setup-scratch world)]
       (let [all-files (->>
                         (workspace/resolve-workspace-resource workspace "/")
-                        (tree-seq (fn [r] (and (not (resource/read-only? r)) (resource/children r))) resource/children)
+                        (tree-seq (fn [r] (and (resource/editable? r) (not (resource/read-only? r)) (resource/children r))) resource/children)
                         (filter (fn [r] (= (resource/source-type r) :file))))
             paths (map resource/proj-path all-files)]
         (bulk-change workspace
@@ -813,7 +813,13 @@
         (let [internal-paths (map resource/proj-path (filter (fn [r] (not (:stateless? (resource/resource-type r)))) all-files))
               saved-paths (set (map (fn [s] (resource/proj-path (:resource s))) (g/node-value project :save-data)))
               missing (filter #(not (contains? saved-paths %)) internal-paths)]
-          (is (empty? missing)))))))
+          ;; If some editable resource is missing from the save data, it means
+          ;; an ErrorValue has infected the save-data. A likely culprit would be
+          ;; that you've introduced a dependency on a missing or broken resource
+          ;; into the save-value dependency chain. A resource should never fail
+          ;; to produce a save-value for itself as a result of a bad reference.
+          (when-not (is (empty? missing))
+            (prn 'missing missing)))))))
 
 (deftest new-collection-modified-script
   ;; used to provoke exception because load steps of collection tried to access non-loaded script

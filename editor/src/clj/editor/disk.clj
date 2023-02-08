@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@
             [editor.editor-extensions :as extensions]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
+            [editor.lsp :as lsp]
             [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -141,6 +142,9 @@
               (complete! false)
               (do
                 (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
+                (let [touched-resources (into #{} (map :resource) save-data)]
+                  (workspace/reload-plugins! workspace touched-resources)
+                  (lsp/touch-resources! (lsp/get-node-lsp project) touched-resources))
                 (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
                   (render-save-progress! progress/done)
                   (ui/run-later
@@ -177,7 +181,7 @@
     (do (engine-build-errors/handle-build-error! render-error! project evaluation-context exception)
         true)))
 
-(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! show-build-log-stream! task-cancelled? render-build-error! bob-commands bob-args project changes-view callback!]
+(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! show-build-log-stream! task-cancelled? render-build-error! bob-commands bob-args build-server-headers project changes-view callback!]
   (disk-availability/push-busy!)
   (future
     (try
@@ -222,7 +226,7 @@
                              (let [evaluation-context (g/make-evaluation-context)]
                                (future
                                  (try
-                                   (let [result (bob/bob-build! project evaluation-context bob-commands bob-args render-build-progress! show-build-log-stream! task-cancelled?)]
+                                   (let [result (bob/bob-build! project evaluation-context bob-commands bob-args build-server-headers render-build-progress! show-build-log-stream! task-cancelled?)]
                                      (extensions/execute-hook!
                                        project
                                        :on-bundle-finished

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,8 +18,18 @@
 #include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_sound.h>
 
+namespace dmSound
+{
+    typedef struct SoundData* HSoundData;
+}
+
 namespace dmGameSystem
 {
+    struct SoundDataResource {
+        dmSound::HSoundData m_SoundData;
+        int m_Type;
+    };
+
     dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams& params);
 
     dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams& params);

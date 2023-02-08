@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -139,6 +139,7 @@
 (def fixed-resource-paths #{"/" "/game.project"})
 
 (defn deletable-resource? [x] (and (satisfies? resource/Resource x)
+                                   (resource/editable? x)
                                    (not (resource/read-only? x))
                                    (not (fixed-resource-paths (resource/proj-path x)))))
 
@@ -297,6 +298,7 @@
   moves to reserved directories."
   [tgt-resource src-files]
   (and (disk-availability/available?)
+       (resource/editable? tgt-resource)
        (not (resource/read-only? tgt-resource))
        (let [^Path tgt-path (-> tgt-resource resource/abs-path File. fs/to-folder .getAbsolutePath ->path)
              src-paths (map (fn [^File f] (-> f .getAbsolutePath ->path))
@@ -316,7 +318,9 @@
   (and files-on-clipboard?
        (disk-availability/available?)
        (= 1 (count target-resources))
-       (not (resource/read-only? (first target-resources)))))
+       (let [target-resource (first target-resources)]
+         (and (resource/editable? target-resource)
+              (not (resource/read-only? target-resource))))))
 
 (defn paste! [workspace target-resource src-files select-files!]
   (let [^File tgt-dir (reduce (fn [^File tgt ^File src]
@@ -381,8 +385,10 @@
 (defn rename? [resources]
   (and (disk-availability/available?)
        (= 1 (count resources))
-       (not (resource/read-only? (first resources)))
-       (not (fixed-resource-paths (resource/resource->proj-path (first resources))))))
+       (let [resource (first resources)]
+         (and (resource/editable? resource)
+              (not (resource/read-only? resource))
+              (not (fixed-resource-paths (resource/resource->proj-path resource)))))))
 
 (defn validate-new-resource-name [^File project-directory-file parent-path new-name]
   (let [prospect-path (str parent-path "/" new-name)]
@@ -478,12 +484,15 @@
                (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
            (when (not user-data)
-             (let [resource-types (filter (fn [rt] (workspace/template workspace rt)) (workspace/get-resource-types workspace))]
-               (sort-by (fn [rt] (string/lower-case (:label rt))) (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
-                                                                                       :icon (:icon res-type)
-                                                                                       :style (resource/ext-style-classes (:ext res-type))
-                                                                                       :command :new-file
-                                                                                       :user-data {:resource-type res-type}}) resource-types))))))
+             (sort-by (comp string/lower-case :label)
+                      (keep (fn [[_ext resource-type]]
+                              (when (workspace/template workspace resource-type)
+                                {:label (or (:label resource-type) (:ext resource-type))
+                                 :icon (:icon resource-type)
+                                 :style (resource/ext-style-classes (:ext resource-type))
+                                 :command :new-file
+                                 :user-data {:resource-type resource-type}}))
+                            (workspace/get-resource-type-map workspace))))))
 
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))
@@ -496,8 +505,10 @@
 (defn new-folder? [resources]
   (and (disk-availability/available?)
        (= (count resources) 1)
-       (not (resource/read-only? (first resources)))
-       (not= nil (resource/abs-path (first resources)))))
+       (let [resource (first resources)]
+         (and (resource/editable? resource)
+              (not (resource/read-only? resource))
+              (some? (resource/abs-path resource))))))
 
 (handler/defhandler :new-folder :asset-browser
   (enabled? [selection] (new-folder? selection))
@@ -621,7 +632,10 @@
         ;; here in order to support making copies of non-readonly files, but
         ;; that results in every drag operation becoming a copy on macOS due to
         ;; https://bugs.openjdk.java.net/browse/JDK-8148025
-        mode (if (empty? (filter resource/read-only? resources))
+        mode (if (every? (fn [resource]
+                           (and (resource/editable? resource)
+                                (not (resource/read-only? resource))))
+                         resources)
                TransferMode/MOVE
                TransferMode/COPY)
         db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode [mode]))
@@ -644,6 +658,7 @@
     (when (and cell (not (.isEmpty cell)))
       (let [resource (.getValue (.getTreeItem cell))]
         (when (and (= :folder (resource/source-type resource))
+                   (resource/editable? resource)
                    (not (resource/read-only? resource)))
           (ui/add-style! cell "drop-target"))))))
 

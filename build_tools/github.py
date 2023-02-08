@@ -1,4 +1,4 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,15 +14,39 @@
 
 import mimetypes
 
+URL_GRAPHQL_API = "https://api.github.com/graphql"
+URL_REST_API    = "https://api.github.com"
+
 def _fix_url(url):
     if url.startswith("http"):
         return url
-    return "https://api.github.com" + ("/" if not url.startswith("/") else "") + url
+    return URL_REST_API + ("/" if not url.startswith("/") else "") + url
 
-def get(url, token):
+def _create_headers(headers, token):
+    if not headers:
+        headers = {}
+    headers["Authorization"] = "token %s" % (token)
+    return headers
+
+# use GraphQL API
+def query(query, token, headers = None):
     import requests
     try:
-        response = requests.get(_fix_url(url), headers={"Authorization": "token %s" % (token)})
+        url = URL_GRAPHQL_API
+        json = { 'query': "query " + query }
+        headers = _create_headers(headers, token)
+        response = requests.post(url, json = json, headers = headers)
+        response.raise_for_status()
+        return response.json()
+    except Exception as err:
+        print(err)
+        return None
+
+def get(url, token, headers = None):
+    import requests
+    try:
+        headers = _create_headers(headers, token)
+        response = requests.get(_fix_url(url), headers=headers)
         response.raise_for_status()
         return response.json()
     except Exception as err:
@@ -32,11 +56,8 @@ def get(url, token):
 def post(url, token, data = None, json = None, files = None, headers = None):
     import requests
     try:
-        if not headers:
-            headers = {}
-        headers["Authorization"] = "token %s" % (token)
-
-        response = requests.post(_fix_url(url), data = data, json = json, files = files, headers=headers)
+        headers = _create_headers(headers, token)
+        response = requests.post(_fix_url(url), data = data, json = json, files = files, headers = headers)
         response.raise_for_status()
         return response.json()
     except Exception as err:
@@ -46,11 +67,8 @@ def post(url, token, data = None, json = None, files = None, headers = None):
 def put(url, token, data = None, json = None, headers = None):
     import requests
     try:
-        if not headers:
-            headers = {}
-        headers["Authorization"] = "token %s" % (token)
-
-        response = requests.put(_fix_url(url), data = data, json = json, headers=headers)
+        headers = _create_headers(headers, token)
+        response = requests.put(_fix_url(url), data = data, json = json, headers = headers)
         response.raise_for_status()
         return response.json()
     except Exception as err:
@@ -60,21 +78,19 @@ def put(url, token, data = None, json = None, headers = None):
 def patch(url, token, data = None, json = None, headers = None):
     import requests
     try:
-        if not headers:
-            headers = {}
-        headers["Authorization"] = "token %s" % (token)
-
-        response = requests.patch(_fix_url(url), data = data, json = json, headers=headers)
+        headers = _create_headers(headers, token)
+        response = requests.patch(_fix_url(url), data = data, json = json, headers = headers)
         response.raise_for_status()
         return response.json()
     except Exception as err:
         print(err)
         return None
 
-def delete(url, token):
+def delete(url, token, headers = None):
     import requests
     try:
-        response = requests.delete(_fix_url(url), headers={"Authorization": "token %s" % (token)})
+        headers = _create_headers(headers, token)
+        response = requests.delete(_fix_url(url), headers = headers)
         response.raise_for_status()
         if response.content and response.content != "":
             return response.json()

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -263,6 +263,47 @@ namespace dmGameObject
         return regist->m_DefaultInputStackCapacity;
     }
 
+    void AddDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
+    {
+        Collection* collection = hcollection->m_Collection;
+        dmMutex::Lock(collection->m_Mutex);
+        if (collection->m_DynamicResources.Remaining() == 0)
+        {
+            collection->m_DynamicResources.OffsetCapacity(1);
+        }
+        collection->m_DynamicResources.Push(resource_hash);
+        dmMutex::Unlock(collection->m_Mutex);
+    }
+
+    void RemoveDynamicResourceHash(HCollection hcollection, dmhash_t resource_hash)
+    {
+        Collection* collection = hcollection->m_Collection;
+        dmMutex::Lock(collection->m_Mutex);
+        for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
+        {
+            if (collection->m_DynamicResources[i] == resource_hash)
+            {
+                collection->m_DynamicResources.EraseSwap(i);
+            }
+        }
+        dmMutex::Unlock(collection->m_Mutex);
+    }
+
+    static void ReleaseDynamicResources(Collection* collection)
+    {
+        dmMutex::Lock(collection->m_Mutex);
+        for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
+        {
+            dmResource::SResourceDescriptor* rd = dmResource::FindByHash(collection->m_Factory, collection->m_DynamicResources[i]);
+            assert(rd);
+            void* resource = dmResource::GetResource(rd);
+            dmResource::Release(collection->m_Factory, resource);
+        }
+        collection->m_DynamicResources.SetSize(0);
+        collection->m_DynamicResources.SetCapacity(0);
+        dmMutex::Unlock(collection->m_Mutex);
+    }
+
     void DeleteCollections(HRegister regist)
     {
         uint32_t collection_count = regist->m_Collections.Size();
@@ -482,6 +523,7 @@ namespace dmGameObject
 
         FinalCollection(collection);
         DoDeleteAll(collection);
+        ReleaseDynamicResources(collection);
 
         HCollection hcollection = collection->m_HCollection;
         DetachCollection(collection);
@@ -703,7 +745,7 @@ namespace dmGameObject
     HInstance NewInstance(Collection* collection, Prototype* proto, const char* prototype_name) {
         if (collection->m_InstanceIndices.Remaining() == 0)
         {
-            dmLogError("The game object instance could not be created since the buffer is full (%d).", collection->m_InstanceIndices.Capacity());
+            dmLogError("The game object instance could not be created since the buffer is full (%d). Increase the capacity with collection.max_instances", collection->m_InstanceIndices.Capacity());
             return 0;
         }
         HInstance instance = AllocInstance(proto, prototype_name);

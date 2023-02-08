@@ -1,4 +1,4 @@
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,6 +23,13 @@ class ExecException(Exception):
     def __init__(self, retcode):
         self.retcode = retcode
         self.output = ''
+
+def _to_str(x):
+    if x is None:
+        return ''
+    elif isinstance(x, (bytes, bytearray)):
+        x = str(x, encoding='utf-8')
+    return x
 
 def _to_str(x):
     if x is None:
@@ -79,10 +86,10 @@ def command(args, **kwargs):
     except ExecException as e:
         sys.exit(e.retcode)
 
-def shell_command(args):
+def shell_command(args, **kwargs):
     # Executes a command, and exits if it fails
     try:
-        return _exec_command(args, shell = True)
+        return _exec_command(args, shell = True, **kwargs)
     except ExecException as e:
         sys.exit(e.retcode)
 

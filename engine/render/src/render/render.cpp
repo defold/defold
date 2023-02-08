@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -434,6 +434,13 @@ namespace dmRender
                 ps_now.m_StencilBackOpDepthFail = stp.m_Back.m_OpDPFail;
                 ps_now.m_StencilBackOpPass      = stp.m_Back.m_OpDPPass;
             }
+            else
+            {
+                ps_now.m_StencilBackTestFunc    = stp.m_Front.m_Func;
+                ps_now.m_StencilBackOpFail      = stp.m_Front.m_OpSFail;
+                ps_now.m_StencilBackOpDepthFail = stp.m_Front.m_OpDPFail;
+                ps_now.m_StencilBackOpPass      = stp.m_Front.m_OpDPPass;
+            }
         }
 
         ResetRenderStateIfChanged(graphics_context, ps_now, ps_default);
@@ -819,7 +826,7 @@ namespace dmRender
             if (constant_buffer) // from render script
                 ApplyNamedConstantBuffer(render_context, material, constant_buffer);
 
-            ApplyRenderState(render_context, render_context->m_GraphicsContext, ps_orig, ro);
+            ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
@@ -831,6 +838,7 @@ namespace dmRender
                     dmGraphics::EnableTexture(context, i, texture);
                     ApplyMaterialSampler(render_context, material, i, texture);
                 }
+
             }
 
             dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));

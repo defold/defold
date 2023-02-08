@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,8 @@ namespace dmSys
 {
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
     void FillTimeZone(struct SystemInfo* info);
+    Result ErrnoToResult(int err);
+    const char* ResultToString(Result r);
 }
 
 #endif // #ifndef DM_SYS_PRIVATE_H

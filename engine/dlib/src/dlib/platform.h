@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,7 @@
 #define DM_PLATFORM_ANDROID "android"
 #define DM_PLATFORM_IOS 	"ios"
 #define DM_PLATFORM_SWITCH 	"switch"
+#define DM_PLATFORM_PLAYSTATION "playstation"
 
 // Note: DM_PLATFORM is used as a key in data files, e.g. ".gamepads"
 
@@ -39,6 +40,8 @@
 #define DM_PLATFORM DM_PLATFORM_WEB
 #elif defined(__NX__)
 #define DM_PLATFORM DM_PLATFORM_SWITCH
+#elif defined(__SCE__)
+#define DM_PLATFORM DM_PLATFORM_PLAYSTATION
 #else
 #error "Unsupported platform"
 #endif

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,29 @@
 
 namespace dmGameSystem
 {
+    static dmSound::SoundDataType TryToGetTypeFromBuffer(char* buffer, dmSound::SoundDataType default_type, uint32_t bufferSize)
+    {
+        dmSound::SoundDataType type = default_type;
+        if (bufferSize < 3)
+        {
+            return type;
+        }
+        // positions according to format specs (ogg, wav)
+        if (buffer[0] == 'O' && buffer[1] == 'g' && buffer[2] == 'g')
+        {
+            type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+        }
+        if (bufferSize < 11)
+        {
+            return type;
+        }
+        if (buffer[8] == 'W' && buffer[9] == 'A' && buffer[10] == 'V')
+        {
+            type = dmSound::SOUND_DATA_TYPE_WAV;
+        };
+        return type;
+    }
+
     dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams& params)
     {
         dmSound::HSoundData sound_data;
@@ -36,15 +59,22 @@ namespace dmGameSystem
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
 
-        params.m_Resource->m_Resource = (void*) sound_data;
+        SoundDataResource* sound_data_res = new SoundDataResource();
+
+        sound_data_res->m_SoundData = sound_data;
+        sound_data_res->m_Type = type;
+
+        params.m_Resource->m_Resource = (void*) sound_data_res;
         params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmSound::HSoundData sound_data = (dmSound::HSoundData) params.m_Resource->m_Resource;
-        dmSound::Result r = dmSound::DeleteSoundData(sound_data);
+        SoundDataResource* sound_data_res = (SoundDataResource*) params.m_Resource->m_Resource;
+        dmSound::Result r = dmSound::DeleteSoundData(sound_data_res->m_SoundData);
+        delete sound_data_res;
+        
         if (r != dmSound::RESULT_OK)
         {
             return dmResource::RESULT_INVAL;
@@ -54,12 +84,23 @@ namespace dmGameSystem
 
     dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmSound::HSoundData sound_data = (dmSound::HSoundData) params.m_Resource->m_Resource;
-        dmSound::Result r = dmSound::SetSoundData(sound_data, params.m_Buffer, params.m_BufferSize);
+        SoundDataResource* sound_data_res = (SoundDataResource*) params.m_Resource->m_Resource;
+
+        dmSound::HSoundData sound_data;
+        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params.m_Buffer, (dmSound::SoundDataType)sound_data_res->m_Type, params.m_BufferSize);
+        dmSound::Result r = dmSound::NewSoundData(params.m_Buffer, params.m_BufferSize, type, &sound_data, params.m_Resource->m_NameHash);
+
         if (r != dmSound::RESULT_OK)
         {
-            return dmResource::RESULT_INVAL;
+            return dmResource::RESULT_OUT_OF_RESOURCES;
         }
+
+        dmSound::HSoundData old_sound_data = sound_data_res->m_SoundData;
+        dmSound::DeleteSoundData(old_sound_data);
+
+        sound_data_res->m_SoundData = sound_data;
+
+        params.m_Resource->m_Resource = (void*)sound_data_res;
         params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
         return dmResource::RESULT_OK;
     }

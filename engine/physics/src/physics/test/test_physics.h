@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -57,6 +57,7 @@ protected:
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
+        world_params.m_MaxCollisionObjectsCount = 1024;
         m_World = (*m_Test.m_NewWorldFunc)(m_Context, world_params);
         m_CollisionCount = 0;
         m_ContactPointCount = 0;

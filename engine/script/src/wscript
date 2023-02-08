@@ -44,7 +44,7 @@ def build(bld):
             script.source = remove_from_node_list(script.source, os.path.join('luasocket', 'wsocket.c'))
 
 
-    # luacjson
+    # lua-cjson
     script.source += bld.path.ant_glob('luacjson/*.c')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')

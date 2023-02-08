@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,7 +23,7 @@
 #include "spinlocktypes_pthread.h"
 #elif defined(__MACH__)
 #include "spinlocktypes_mach.h"
-#elif defined(__NX64__)
+#elif defined(__NX__)
 #include "spinlocktypes_nx64.h"
 #elif defined(__SCE__)
 #include "spinlocktypes_ps4.h"

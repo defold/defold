@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -557,7 +557,7 @@ namespace dmEngineService
     {
         uint16_t engine_port = default_port;
 
-        char* service_port_env = getenv("DM_SERVICE_PORT");
+        char* service_port_env = dmSys::GetEnv("DM_SERVICE_PORT");
 
         // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
         if (service_port_env) {

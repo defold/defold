@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -627,8 +627,7 @@
 (defn map-scene [f scene]
   (letfn [(scene-fn [scene]
             (let [children (:children scene)]
-              (cond-> scene
-                true (f)
+              (cond-> (f scene)
                 children (update :children (partial mapv scene-fn)))))]
     (scene-fn scene)))
 
@@ -644,10 +643,10 @@
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
   (let [old-node-id (:node-id scene)
-        child-f (partial claim-child-scene old-node-id new-node-id new-node-outline-key)
         children (:children scene)]
     (cond-> (assoc scene :node-id new-node-id :node-outline-key new-node-outline-key)
-      children (update :children (partial mapv (partial map-scene child-f))))))
+            children (assoc :children (mapv (partial map-scene (partial claim-child-scene old-node-id new-node-id new-node-outline-key))
+                                            children)))))
 
 (defn- box-selection? [^Rect picking-rect]
   (or (> (.width picking-rect) selection/min-pick-size)
@@ -1509,10 +1508,7 @@
                                 :focus-fn focus-view))
 
 (g/defnk produce-transform [position rotation scale]
-  (let [position-v3 (doto (Vector3d.) (math/clj->vecmath position))
-        rotation-q4 (doto (Quat4d.) (math/clj->vecmath rotation))
-        scale-v3 (Vector3d. (double-array scale))]
-    (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3)))
+  (math/clj->mat4 position rotation scale))
 
 (def produce-no-transform-properties (g/constantly #{}))
 (def produce-scalable-transform-properties (g/constantly #{:position :rotation :scale}))

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,10 @@
 package com.dynamo.bob.pipeline;
 
 import static org.apache.commons.io.FilenameUtils.normalize;
+
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.ZipMountPoint;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 
@@ -28,6 +32,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -35,6 +41,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -416,6 +424,37 @@ public class ExtenderUtil {
         }
     }
 
+    /***
+     * @return true if a path is an ext.manifest that defines engine extensions (i.e. should be built remotely)
+     */
+    private static boolean isEngineExtensionManifest(Project project, String path) {
+        File f = new File(path);
+        if (f.getName().equals(ExtenderClient.extensionFilename)) {
+            String parent = f.getParent();
+            if (parent != null) {
+                ArrayList<String> siblings = new ArrayList<>();
+                project.findResourceDirs(parent, siblings);
+                return siblings.stream().anyMatch(x -> x.endsWith("src") || x.endsWith("commonsrc"));
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get a list of paths to engine extension directories in the project (i.e. extensions
+     * that need to be built remotely)
+     * @param project
+     * @return A list of paths to engine extension directories
+     */
+    public static List<String> getEngineExtensionFolders(Project project) {
+        ArrayList<String> paths = new ArrayList<>();
+        project.findResourcePaths("", paths);
+        return paths.stream()
+                .filter(p -> isEngineExtensionManifest(project, p))
+                .map(p -> new File(p).getParent())
+                .collect(Collectors.toList());
+    }
+
     /**
      * Get a list of paths to extension directories in the project.
      * @param project
@@ -435,6 +474,14 @@ public class ExtenderUtil {
         return folders;
     }
 
+
+    public static List<File> getPipelinePlugins(Project project) {
+        String outputDir = project.getBinaryOutputDirectory();
+        Platform hostPlatform = Platform.getHostPlatform();
+        File buildDir = new File(FilenameUtils.concat(outputDir, hostPlatform.getExtenderPair()));
+        List<File> files = listFilesRecursive(buildDir, JAR_RE);
+        return files;
+    }
     private static boolean hasPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
@@ -461,13 +508,7 @@ public class ExtenderUtil {
 
         ArrayList<String> paths = new ArrayList<>();
         project.findResourcePaths("", paths);
-        for (String p : paths) {
-            File f = new File(p);
-            if (f.getName().equals(ExtenderClient.extensionFilename)) {
-                return true;
-            }
-        }
-        return false;
+        return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
     }
 
     private static IResource getPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) throws CompileExceptionError {
@@ -512,8 +553,8 @@ public class ExtenderUtil {
             }
         }
 
-        // Find extension folders
-        List<String> extensionFolders = getExtensionFolders(project);
+        // Find engine extension folders
+        List<String> extensionFolders = getEngineExtensionFolders(project);
         for (String extension : extensionFolders) {
             IResource resource = project.getResource(extension + "/" + ExtenderClient.extensionFilename);
             if (!resource.exists()) {
@@ -762,26 +803,72 @@ public class ExtenderUtil {
         }
     }
 
+    private static boolean isPluginZip(String resourcePath) {
+        Platform hostPlatform = Platform.getHostPlatform();
+        return resourcePath.endsWith("plugins/common.zip")
+                || resourcePath.endsWith("plugins/" + hostPlatform.getPair() + ".zip")
+                || resourcePath.endsWith("plugins/" + hostPlatform.getOs() + ".zip");
+    }
+
+    private static int getPluginZipSpecificity(String resourcePath) {
+        String baseName = FilenameUtils.getBaseName(resourcePath);
+        if (baseName.equals("common")) {
+            return 0;
+        } else if (baseName.contains("-")) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    private static File storeResource(File targetDirectory, IResource resource) throws CompileExceptionError {
+        String relativePath = resource.getPath();
+        File outputFile = new File(targetDirectory, relativePath);
+        if (!outputFile.getParentFile().exists()) {
+            outputFile.getParentFile().mkdirs();
+        }
+
+        // We do this because we might be called from within the editor, which might have the .dll's locked.
+        // and so we don't want to fail copying those if we can avoid it.
+        if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
+            return outputFile;
+        }
+
+        try {
+            byte[] data = resource.getContent();
+            FileUtils.writeByteArrayToFile(outputFile, data);
+            String outputPath = outputFile.toString();
+            if (outputPath.contains("/plugins/bin/")) {
+                outputFile.setExecutable(true);
+            }
+            return outputFile;
+        } catch (Exception e) {
+            throw new CompileExceptionError(resource, 0, e);
+        }
+    }
+
     public static void storeResources(File targetDirectory, List<IResource> resources) throws CompileExceptionError {
-        for (IResource resource : resources) {
-            String relativePath = resource.getPath();
-            File outputFile = new File(targetDirectory, relativePath);
-            if (!outputFile.getParentFile().exists()) {
-                outputFile.getParentFile().mkdirs();
-            }
-
-            // We do this because we might be called from within the editor, which ight have the .dll's locked.
-            // and so we don't want to fail copying those if we can avoid it.
-            if (outputFile.exists() && areFilesIdentical(resource, outputFile)) {
-                continue;
-            }
-
+        Map<Boolean, List<IResource>> separatedResources = resources.stream().collect(Collectors.groupingBy(r -> isPluginZip(r.getPath())));
+        // sort plugin zips in specificity order, then extract
+        List<IResource> pluginZips = separatedResources.getOrDefault(true, Collections.emptyList());
+        pluginZips.sort(Comparator.comparingInt(zip -> getPluginZipSpecificity(zip.getPath())));
+        for (IResource zipResource : pluginZips) {
+            File outputFile = storeResource(targetDirectory, zipResource);
+            ZipMountPoint zip = new ZipMountPoint(new DefaultFileSystem(), outputFile.toString(), false);
             try {
-                byte[] data = resource.getContent();
-                FileUtils.writeByteArrayToFile(outputFile, data);
-            } catch (Exception e) {
-                throw new CompileExceptionError(resource, 0, e);
+                zip.mount();
+                ArrayList<String> results = new ArrayList<>();
+                zip.walk("", new FileSystemWalker(), results);
+                storeResources(outputFile.getParentFile(), results.stream().map(zip::get).collect(Collectors.toList()));
+            } catch (IOException e) {
+                throw new CompileExceptionError(zipResource, 0, e);
+            } finally {
+                zip.unmount();
             }
+        }
+        // simply extract other resources
+        for (IResource resource : separatedResources.getOrDefault(false, Collections.emptyList())) {
+            storeResource(targetDirectory, resource);
         }
     }
 

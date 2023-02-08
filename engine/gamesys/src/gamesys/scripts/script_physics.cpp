@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -558,14 +558,6 @@ namespace dmGameSystem
             bool_out = lua_toboolean(L, -1);
             lua_pop(L, 1);
         }
-    }
-
-    static bool CheckBoolean(lua_State* L, int index)
-    {
-        if ( lua_isboolean( L, index ) )
-            return lua_toboolean( L, index );
-
-        return luaL_error(L, "Argument %d must be a boolean", index);
     }
 
     static void UnpackConnectJointParams(lua_State* L, dmPhysics::JointType type, int table_index, dmPhysics::ConnectJointParams& params)
@@ -1225,7 +1217,7 @@ namespace dmGameSystem
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
         dmhash_t group_id = dmScript::CheckHashOrString(L, 2);
-        bool boolvalue = CheckBoolean(L, 3);
+        bool boolvalue = dmScript::CheckBoolean(L, 3);
 
         if (! dmGameSystem::SetCollisionMaskBit(comp_world, comp, group_id, boolvalue)) {
             return luaL_error(L, "Collision group not registered: %s.", dmHashReverseSafe64(group_id));

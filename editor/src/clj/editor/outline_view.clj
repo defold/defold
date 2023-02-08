@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -324,10 +324,10 @@
 (handler/defhandler :copy :workbench
   (active? [selection] (handler/selection->node-ids selection))
   (enabled? [selection] (< 0 (count selection)))
-  (run [outline-view]
+  (run [outline-view project]
        (let [root-its (root-iterators outline-view)
              cb (Clipboard/getSystemClipboard)
-             data (outline/copy root-its)]
+             data (outline/copy project root-its)]
          (set-paste-parent! root-its)
          (.setContent cb {(data-format-fn) data}))))
 
@@ -345,12 +345,12 @@
                   data-format (data-format-fn)]
               (and target-item-it
                    (.hasContent cb data-format)
-                   (outline/paste? (g/node-id->graph-id project) target-item-it (.getContent cb data-format)))))
+                   (outline/paste? project target-item-it (.getContent cb data-format)))))
   (run [project outline-view app-view]
     (let [target-item-it (paste-target-it (root-iterators outline-view))
           cb (Clipboard/getSystemClipboard)
           data-format (data-format-fn)]
-      (outline/paste! (g/node-id->graph-id project) target-item-it (.getContent cb data-format) (partial app-view/select app-view))
+      (outline/paste! project target-item-it (.getContent cb data-format) (partial app-view/select app-view))
       (set-paste-parent! (root-iterators outline-view)))))
 
 (handler/defhandler :cut :workbench
@@ -359,13 +359,13 @@
             (let [item-iterators (root-iterators outline-view evaluation-context)]
               (and (< 0 (count item-iterators))
                    (outline/cut? item-iterators))))
-  (run [app-view selection-provider outline-view]
+  (run [app-view selection-provider outline-view project]
        (let [item-iterators (root-iterators outline-view)
              cb (Clipboard/getSystemClipboard)
              data-format (data-format-fn)
              next (-> (handler/succeeding-selection selection-provider)
                     handler/selection->node-ids)]
-         (.setContent cb {data-format (outline/cut! item-iterators (if next (app-view/select app-view next)))}))))
+         (.setContent cb {data-format (outline/cut! project item-iterators (if next (app-view/select app-view next)))}))))
 
 (defn- dump-mouse-event [^MouseEvent e]
   (prn "src" (.getSource e))
@@ -377,11 +377,11 @@
   (prn "ges-src" (.getGestureSource e))
   (prn "ges-tgt" (.getGestureTarget e)))
 
-(defn- drag-detected [proj-graph outline-view ^MouseEvent e]
+(defn- drag-detected [project outline-view ^MouseEvent e]
   (let [item-iterators (root-iterators outline-view)]
-    (when (outline/drag? proj-graph item-iterators)
+    (when (outline/drag? item-iterators)
       (let [db (.startDragAndDrop ^Node (.getSource e) (into-array TransferMode TransferMode/COPY_OR_MOVE))
-            data (outline/copy item-iterators)]
+            data (outline/copy project item-iterators)]
         (when-let [icon (and (= 1 (count item-iterators))
                              (:icon (outline/value (first item-iterators))))]
           (.setDragView db (icons/get-image icon 16) 0 16))
@@ -394,7 +394,7 @@
       node
       (target (.getParent node)))))
 
-(defn- drag-over [proj-graph outline-view ^DragEvent e]
+(defn- drag-over [project outline-view ^DragEvent e]
   (if (not (instance? TreeCell (.getTarget e)))
     (when-let [parent (.getParent ^Node (.getTarget e))]
       (Event/fireEvent parent (.copyFor e (.getSource e) parent)))
@@ -414,7 +414,7 @@
           (let [item-iterators (if (ui/drag-internal? e)
                                  (root-iterators outline-view)
                                  [])]
-            (when (outline/drop? proj-graph item-iterators (->iterator (.getTreeItem cell))
+            (when (outline/drop? project item-iterators (->iterator (.getTreeItem cell))
                                  (.getContent db (data-format-fn)))
               (let [modes (if (ui/drag-internal? e)
                             [TransferMode/MOVE]
@@ -422,18 +422,18 @@
                 (.acceptTransferModes e (into-array TransferMode modes)))
               (.consume e))))))))
 
-(defn- drag-dropped [proj-graph app-view outline-view ^DragEvent e]
+(defn- drag-dropped [project app-view outline-view ^DragEvent e]
   (let [^TreeCell cell (target (.getTarget e))
         db (.getDragboard e)]
     (let [item-iterators (if (ui/drag-internal? e)
                            (root-iterators outline-view)
                            [])]
-      (when (outline/drop! proj-graph item-iterators (->iterator (.getTreeItem cell))
+      (when (outline/drop! project item-iterators (->iterator (.getTreeItem cell))
                            (.getContent db (data-format-fn)) (partial app-view/select app-view))
         (.setDropCompleted e true)
         (.consume e)))))
 
-(defn- drag-entered [proj-graph outline-view ^DragEvent e]
+(defn- drag-entered [project outline-view ^DragEvent e]
   (let [^TreeCell cell (target (.getTarget e))
         db (.getDragboard e)]
     (when (and cell
@@ -442,7 +442,7 @@
       (let [item-iterators (if (ui/drag-internal? e)
                              (root-iterators outline-view)
                              [])]
-        (when (outline/drop? proj-graph item-iterators (->iterator (.getTreeItem cell))
+        (when (outline/drop? project item-iterators (->iterator (.getTreeItem cell))
                              (.getContent db (data-format-fn)))
           (ui/add-style! cell "drop-target")))
 
@@ -519,15 +519,15 @@
       ;; TODO - handle selection order
       (app-view/select! app-view selection))))
 
-(defn- setup-tree-view [proj-graph ^TreeView tree-view outline-view app-view]
-  (let [drag-entered-handler (ui/event-handler e (drag-entered proj-graph outline-view e))
+(defn- setup-tree-view [project ^TreeView tree-view outline-view app-view]
+  (let [drag-entered-handler (ui/event-handler e (drag-entered project outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand? true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
-      (.setOnDragDetected (ui/event-handler e (drag-detected proj-graph outline-view e)))
-      (.setOnDragOver (ui/event-handler e (drag-over proj-graph outline-view e)))
-      (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped proj-graph app-view outline-view e))))
+      (.setOnDragDetected (ui/event-handler e (drag-detected project outline-view e)))
+      (.setOnDragOver (ui/event-handler e (drag-over project outline-view e)))
+      (.setOnDragDropped (ui/event-handler e (error-reporting/catch-all! (drag-dropped project app-view outline-view e))))
       (.setCellFactory (reify Callback (call ^TreeCell [this view] (make-tree-cell view drag-entered-handler drag-exited-handler))))
       (ui/observe-selection #(propagate-selection %2 app-view))
       (ui/bind-double-click! :open)
@@ -535,7 +535,7 @@
       (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
                                                                      resource/Resource :link}))))
 
-(defn make-outline-view [view-graph proj-graph tree-view app-view]
+(defn make-outline-view [view-graph project tree-view app-view]
   (let [outline-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph OutlineView :raw-tree-view tree-view))))]
-    (setup-tree-view proj-graph tree-view outline-view app-view)
+    (setup-tree-view project tree-view outline-view app-view)
     outline-view))

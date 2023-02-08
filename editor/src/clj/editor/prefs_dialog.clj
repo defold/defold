@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,20 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.prefs-dialog
-  (:require [clojure.java.io :as io]
-            [service.log :as log]
-            [editor.ui :as ui]
+  (:require [editor.engine :as engine]
+            [editor.engine.native-extensions :as native-extensions]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.engine :as engine]
-            [editor.engine.native-extensions :as native-extensions])
+            [editor.ui :as ui])
   (:import [com.defold.control LongField]
+           [javafx.geometry VPos]
            [javafx.scene Parent Scene]
-           [javafx.scene.paint Color]
-           [javafx.scene.control Button ColorPicker Control CheckBox ChoiceBox Label TextField Tab TabPane]
-           [javafx.scene.layout AnchorPane GridPane]
+           [javafx.scene.control ColorPicker CheckBox ChoiceBox Label TextArea TextField Tab TabPane]
+           [javafx.scene.layout ColumnConstraints GridPane Priority]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.stage Stage Modality DirectoryChooser FileChooser]
            [javafx.util StringConverter]))
 
 (set! *warn-on-reflection* true)
@@ -38,7 +35,8 @@
         commit (fn [] (prefs/set-prefs prefs (:key desc) (ui/value control)))]
     (ui/value! control (prefs/get-prefs prefs (:key desc) (:default desc)))
     (ui/on-focus! control (fn [focus] (when-not focus (commit))))
-    (ui/on-action! control (fn [e] (commit)))
+    (when-not (:multi-line desc)
+      (ui/on-action! control (fn [e] (commit))))
     control))
 
 (defmethod create-control! :boolean [prefs grid desc]
@@ -48,7 +46,9 @@
   (create-generic ColorPicker prefs grid desc))
 
 (defmethod create-control! :string [prefs grid desc]
-  (create-generic TextField prefs grid desc))
+  (if (:multi-line desc)
+    (create-generic TextArea prefs grid desc)
+    (create-generic TextField prefs grid desc)))
 
 (defmethod create-control! :long [prefs grid desc]
   (create-generic LongField prefs grid desc))
@@ -72,17 +72,24 @@
     control))
 
 (defn- create-prefs-row! [prefs ^GridPane grid row desc]
-  (let [label (Label. (str (:label desc) ":"))
+  (let [label (Label. (:label desc))
         ^Parent control (create-control! prefs grid desc)]
-    (GridPane/setConstraints label 1 row)
-    (GridPane/setConstraints control 2 row)
-
+    (GridPane/setConstraints label 0 row)
+    (GridPane/setConstraints control 1 row)
+    (when (:multi-line desc)
+      (GridPane/setValignment label VPos/TOP))
     (.add (.getChildren grid) label)
     (.add (.getChildren grid) control)))
 
 (defn- add-page! [prefs ^TabPane pane page-desc]
   (let [tab (Tab. (:name page-desc))
         grid (GridPane.)]
+    (doto (.getColumnConstraints grid)
+      (.add (doto (ColumnConstraints.)
+              (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+              (.setHgrow Priority/NEVER)))
+      (.add (doto (ColumnConstraints.)
+              (.setHgrow Priority/ALWAYS))))
     (.setHgap grid 4)
     (.setVgap grid 6)
     (.setContent tab grid)
@@ -94,17 +101,20 @@
 (defn- pref-pages
   []
   (cond-> [{:name  "General"
-            :prefs [{:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
+            :prefs [{:label "Load External Changes on App Focus" :type :boolean :key "external-changes-load-on-app-focus" :default true}
+                    {:label "Open Bundle Target Folder" :type :boolean :key "open-bundle-target-folder" :default true}
+                    {:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
                     {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}
-                    {:label "Path to custom keymap" :type :string :key "custom-keymap-path" :default ""}
-                    {:label "Code editor font (requires restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
+                    {:label "Path to Custom Keymap" :type :string :key "custom-keymap-path" :default ""}]}
            {:name  "Code"
             :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}
                     {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
-                    {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}]}
+                    {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}
+                    {:label "Code Editor Font (Requires Restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
            {:name  "Extensions"
-            :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}]}]
+            :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}
+                    {:label "Build Server Headers" :type :string :key "extensions-server-headers" :default native-extensions/defold-build-server-headers :multi-line true}]}]
 
     (system/defold-dev?)
     (conj {:name "Dev"

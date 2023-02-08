@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,10 +24,12 @@ namespace dmScript
 {
     void InitializeLuasocket(lua_State* L)
     {
+#if !defined(DM_LUASOCKET_UNSUPPORTED)
         luaopen_socket_core(L);
 
         // above call leaves a table on the stack, which will not be
         // needed for anything, so clean up.
         lua_pop(L, 1);
+#endif
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -250,14 +250,14 @@
 // to get the current time, or get/set file times, and the C run-time funcs that
 // get/set times won't be called. The current downside is the times written to
 // your archives will be from 1979.
-//#define MINIZ_NO_TIME
+#define MINIZ_NO_TIME
 
 // Define MINIZ_NO_ARCHIVE_APIS to disable all ZIP archive API's.
 //#define MINIZ_NO_ARCHIVE_APIS
 
 // Define MINIZ_NO_ARCHIVE_APIS to disable all writing related ZIP archive
 // API's.
-//#define MINIZ_NO_ARCHIVE_WRITING_APIS
+#define MINIZ_NO_ARCHIVE_WRITING_APIS
 
 // Define MINIZ_NO_ZLIB_APIS to remove all ZLIB-style compression/decompression
 // API's.

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -46,7 +46,7 @@
                    (is (build-error? go-id)))))
       (testing "component embedded instance"
                (let [r-type (workspace/get-resource-type workspace "factory")]
-                 (game-object/add-embedded-component-handler {:_node-id go-id :resource-type r-type} nil)
+                 (game-object/add-embedded-component! go-id r-type nil)
                  (let [factory (:node-id (test-util/outline go-id [0]))]
                    (test-util/with-prop [factory :id "script"]
                      (is (g/error? (test-util/prop-error factory :id)))
@@ -61,14 +61,13 @@
 (deftest embedded-components
   (test-util/with-loaded-project
     (let [resource-types (game-object/embeddable-component-resource-types workspace)
-          add-component! (partial test-util/add-embedded-component! app-view)
           go-id (project/get-resource-node project "/game_object/test.go")
           go-resource (g/node-value go-id :resource)
           go-read-fn (:read-fn (resource/resource-type go-resource))]
       (doseq [resource-type resource-types]
         (testing (:label resource-type)
           (with-open [_ (test-util/make-graph-reverter (project/graph project))]
-            (add-component! resource-type go-id)
+            (test-util/add-embedded-component! go-id resource-type)
             (let [save-value (g/node-value go-id :save-value)
                   load-value (with-open [reader (StringReader. (:content (g/node-value go-id :save-data)))]
                                (go-read-fn reader))

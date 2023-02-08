@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -967,6 +967,10 @@ bail:
 
             if (response.m_CacheCreator)
             {
+                if (r != RESULT_OK)
+                {
+                    dmHttpCache::SetError(client->m_HttpCache, response.m_CacheCreator);
+                }
                 dmHttpCache::End(client->m_HttpCache, response.m_CacheCreator);
                 response.m_CacheCreator = 0;
             }

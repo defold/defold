@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
             [editor.library :as library]
             [editor.resource :as resource]
             [editor.system :as system]
+            [internal.cache :as c]
             [dynamo.graph :as g])
   (:import [java.io File]
            [java.net URI]))
@@ -102,20 +103,21 @@
 
 (defn- file-resource-filter [^File root ^File f]
   (not (or (let [file-name (.getName f)]
-             (and (str/starts-with? file-name ".")
-                  (not= file-name ".defignore")))
+             (= file-name ".DS_Store"))
            (reserved-proj-path? root (resource/file->proj-path root f)))))
 
 (defn- make-file-tree
   ([workspace ^File file]
-   (make-file-tree workspace (io/file (g/node-value workspace :root)) file))
-  ([workspace ^File root ^File file]
+   (let [evaluation-context (g/make-evaluation-context {:basis (g/now) :cache c/null-cache})
+         root (io/file (g/node-value workspace :root evaluation-context))
+         editable-proj-path? (g/node-value workspace :editable-proj-path? evaluation-context)]
+     (make-file-tree workspace root file editable-proj-path?)))
+  ([workspace ^File root ^File file editable-proj-path?]
    (let [children (into []
-                        (comp
-                          (filter (partial file-resource-filter root))
-                          (map #(make-file-tree workspace root %)))
+                        (comp (filter (partial file-resource-filter root))
+                              (map #(make-file-tree workspace root % editable-proj-path?)))
                         (.listFiles file))]
-     (resource/make-file-resource workspace (.getPath root) file children))))
+     (resource/make-file-resource workspace (.getPath root) file children editable-proj-path?))))
 
 (defn- file-resource-status [r]
   (assert (resource/file-resource? r))
@@ -170,7 +172,7 @@
                     (system/defold-unpack-path))
         root (io/file base-path "_defold/debugger")
         mount-root (io/file base-path)
-        resources (resource/children (make-file-tree workspace mount-root root))
+        resources (resource/children (make-file-tree workspace mount-root root (constantly false)))
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
      :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))

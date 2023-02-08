@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -208,6 +208,14 @@ namespace dmSoundCodec
         *out = ((DecodeStreamInfo *) stream)->m_Info;
     }
 
+    static int64_t TremoloGetInternalPos(HDecodeStream stream)
+    {
+        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+        return streamInfo->m_SeekTo == -1 ? (int64_t)ov_pcm_tell(&streamInfo->m_File) : streamInfo->m_SeekTo;
+    }
+
     DM_DECLARE_SOUND_DECODER(AudioDecoderTremolo, "VorbisDecoderTremolo", FORMAT_VORBIS, 8,
-                             TremoloOpenStream, TremoloCloseStream, TremoloDecode, TremoloResetStream, TremoloSkipInStream, TremoloGetInfo);
+                             TremoloOpenStream, TremoloCloseStream, TremoloDecode,
+                             TremoloResetStream, TremoloSkipInStream, TremoloGetInfo,
+                             TremoloGetInternalPos);
 }

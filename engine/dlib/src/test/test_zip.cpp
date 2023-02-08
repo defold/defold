@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,16 +20,11 @@
 #include <jc_test/jc_test.h>
 #include <dlib/dstrings.h>
 #include <dlib/zip.h>
+#include <dlib/testutil.h>
 
 extern unsigned char FOO_ZIP[];
 extern uint32_t FOO_ZIP_SIZE;
 
-
-#if defined(__NX__)
-    #define MOUNTFS "host:/"
-#else
-    #define MOUNTFS ""
-#endif
 
 #define PATH_FORMAT "src/test/data/%s"
 
@@ -43,8 +38,8 @@ TEST(dmZip, NotExist)
 
 TEST(dmZip, Read)
 {
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, "foo.zip");
+    char path[128];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/foo.zip");
 
     dmZip::HZip zip;
     dmZip::Result zr = dmZip::Open(path, &zip);
@@ -78,8 +73,8 @@ TEST(dmZip, Read)
 
 TEST(dmZip, Iterate)
 {
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, "foo.zip");
+    char path[128];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/foo.zip");
 
     dmZip::HZip zip;
     dmZip::Result zr = dmZip::Open(path, &zip);

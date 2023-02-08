@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -226,14 +226,6 @@ namespace dmGui
         /// Color mask (R,G,B,A)
         uint8_t     m_ColorMask : 4;
         uint8_t     m_Padding : 4;
-    };
-
-    struct Scope {
-        Scope(int layer, int index) : m_Index(1), m_RootLayer(layer), m_RootIndex(index) {}
-
-        uint16_t m_Index;
-        uint16_t m_RootLayer;
-        uint16_t m_RootIndex;
     };
 
     struct NewContextParams;

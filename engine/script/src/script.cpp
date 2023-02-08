@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1931,4 +1931,17 @@ namespace dmScript
         return r;
     }
 
+    bool CheckBoolean(lua_State* L, int index)
+    {
+        if (lua_isboolean(L, index))
+        {
+            return lua_toboolean(L, index);
+        }
+        return luaL_error(L, "Argument %d must be a boolean", index);
+    }
+
+    void PushBoolean(lua_State* L, bool v)
+    {
+        lua_pushboolean(L, v);
+    }
 } // dmScript

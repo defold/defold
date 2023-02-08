@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -590,14 +590,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    static bool CheckBoolean(lua_State* L, int index)
-    {
-        if ( lua_isboolean( L, index ) )
-            return lua_toboolean( L, index );
-
-        return luaL_error(L, "Argument %d must be a boolean", index);
-    }
-
     /*# pause a playing a sound(s)
      * Pause all active voices
      *
@@ -623,7 +615,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmGameSystemDDF::PauseSound msg;
-        msg.m_Pause = CheckBoolean(L, 2);
+        msg.m_Pause = dmScript::CheckBoolean(L, 2);
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PauseSound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;

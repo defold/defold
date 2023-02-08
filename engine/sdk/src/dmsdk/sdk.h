@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,9 +28,10 @@
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/buffer.h>
 #include <dmsdk/dlib/log.h>
-#include <dmsdk/dlib/json.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/mutex.h>
+// Until we can safely forward declare some Windows.h types, we'll leave this out of the sdk.h
+// #include <dmsdk/dlib/thread.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/graphics/graphics_native.h>

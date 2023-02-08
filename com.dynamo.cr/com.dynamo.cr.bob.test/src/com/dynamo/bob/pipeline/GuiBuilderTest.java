@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,7 +37,6 @@ import com.dynamo.gamesys.proto.Gui;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
 import com.google.protobuf.Message;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.ProtoBuilder;
@@ -49,7 +48,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
 
     public GuiBuilderTest() throws IOException {
-        this.scanner = Project.createClassLoaderScanner();
+        this.scanner = new ClassLoaderScanner(this.getClass().getClassLoader());
         registerProtoBuilderNames();
     }
 

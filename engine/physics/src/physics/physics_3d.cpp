@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -143,8 +143,7 @@ namespace dmPhysics
         ToBt(params.m_WorldMin, world_aabb_min, context->m_Scale);
         btVector3 world_aabb_max;
         ToBt(params.m_WorldMax, world_aabb_max, context->m_Scale);
-        int maxProxies = 1024;
-        m_OverlappingPairCache = new btAxisSweep3(world_aabb_min,world_aabb_max,maxProxies);
+        m_OverlappingPairCache = new btAxisSweep3(world_aabb_min,world_aabb_max, params.m_MaxCollisionObjectsCount);
 
         m_Solver = new btSequentialImpulseConstraintSolver;
 

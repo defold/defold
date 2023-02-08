@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,9 +31,9 @@
   Comparable
   (compareTo [_ that]
     (let [^Endpoint that that
-          node-id-comparison (Long/compare node-id (.-node-id that))]
+          node-id-comparison (.compareTo node-id (.-node-id that))]
       (if (zero? node-id-comparison)
-        (compare label (.-label that))
+        (.compareTo label (.-label that))
         node-id-comparison)))
   IHashEq
   (hasheq [_]
@@ -87,6 +87,7 @@
   (node-type             [this]                          "Return the node type that created this node.")
   (get-property          [this basis property]           "Return the value of the named property")
   (set-property          [this basis property value]     "Set the named property")
+  (own-properties        [this]                          "Return a map of property name to value explicitly assigned to this node")
   (overridden-properties [this]                          "Return a map of property name to override value")
   (property-overridden?  [this property]))
 
@@ -103,9 +104,9 @@
   (arcs-by-target   [this node-id] [this node-id label])
   (sources          [this node-id] [this node-id label])
   (targets          [this node-id] [this node-id label])
-  (add-node         [this value]                 "returns [basis real-value]")
-  (delete-node      [this node-id]               "returns [basis node]")
-  (replace-node     [this node-id value]         "returns [basis node]")
+  (add-node         [this value])
+  (delete-node      [this node-id])
+  (replace-node     [this node-id value])
   (override-node    [this original-id override-id])
   (override-node-clear [this original-id])
   (add-override     [this override-id override])

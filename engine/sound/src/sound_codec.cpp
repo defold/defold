@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -114,6 +114,13 @@ namespace dmSoundCodec
     {
         assert(decoder);
         return decoder->m_DecoderInfo->m_ResetStream(decoder->m_Stream);
+    }
+
+    int64_t GetInternalPos(HCodecContext context, HDecoder decoder)
+    {
+        assert(context);
+        assert(decoder);
+        return decoder->m_DecoderInfo->m_GetInternalStreamPosition(decoder->m_Stream);
     }
 
     void DeleteDecoder(HCodecContext context, HDecoder decoder)

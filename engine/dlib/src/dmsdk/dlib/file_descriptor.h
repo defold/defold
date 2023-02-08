@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,8 @@
 #include <dmsdk/dlib/array.h>
 #if defined(_WIN32)
     #include <dmsdk/dlib/file_descriptor_win32.h>
+#elif defined(__SCE__)
+    #include <dmsdk/dlib/file_descriptor_ps4.h>
 #else
     #include <dmsdk/dlib/file_descriptor_posix.h>
 #endif
@@ -56,15 +58,6 @@ namespace dmFileDescriptor
     {
         dmArray<PollFD> m_Pollfds;
     };
-
-
-    /*#
-     * Set capacity of poller.
-     * @name PollerSetCapacity
-     * @param poller [type:Poller*] Poller
-     * @param capacity [type:uint32_T] Capacity
-     */
-    void PollerSetCapacity(Poller* poller, uint32_t capacity);
 
     /*#
      * Clear event from poller.

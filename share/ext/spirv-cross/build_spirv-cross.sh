@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,104 +13,81 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+PLATFORM=$1
+PWD=$(pwd)
+SOURCE_DIR=${PWD}/source
+BUILD_DIR=${PWD}/build/${PLATFORM}
+
+if [ -z "$PLATFORM" ]; then
+    echo "No platform specified!"
+    exit 1
+fi
 
 
-readonly PRODUCT=spirv-cross
-readonly VERSION=2018-08-07
-readonly FILE_URL=${VERSION}.tar.gz
-readonly BASE_URL=https://github.com/KhronosGroup/SPIRV-Cross/archive/
+CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_STATIC=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_CLI=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_SHARED=OFF ${CMAKE_FLAGS}"
 
-. ../common.sh
+case $PLATFORM in
+    arm64-macos)
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
+        ;;
+    x86_64-macos)
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
+        ;;
+esac
 
-function cmi_configure() {
-	echo "No configure exists"
-}
+# Follow the build instructions on https://github.com/KhronosGroup/SPIRV-Cross.git
 
-function cmi_make() {
-    set -e
-    make -f $MAKEFILE -j8
-    mkdir -p $PREFIX/bin/$PLATFORM
-    cp $PRODUCT $PREFIX/bin/$PLATFORM
-    cmi_strip
-    set +e
-}
+if [ ! -d "${SOURCE_DIR}" ]; then
+    git clone https://github.com/KhronosGroup/SPIRV-Cross.git ${SOURCE_DIR}
+fi
 
-function cmi_buildplatform() {
-    cmi_do $PLATFORM ""
+# Build
 
-    local TGZ="$PRODUCT-$VERSION-$PLATFORM.tar.gz"
+mkdir -p ${BUILD_DIR}
 
-    pushd $PREFIX  >/dev/null
-    tar cfvz $TGZ bin
+pushd $BUILD_DIR
 
-    popd >/dev/null
-    popd >/dev/null
+echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
+cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
+cmake --build . --config Release
 
-    mkdir ../build
+EXE_SUFFIX=
+case $PLATFORM in
+    win32|x86_64-win32)
+        EXE_SUFFIX=.exe
+        SRC_EXE=./Release/spirv-cross${EXE_SUFFIX}
+        ;;
+    *)
+        SRC_EXE=./spirv-cross${EXE_SUFFIX}
+        ;;
+esac
 
-    mv -v $PREFIX/$TGZ ../build
-    echo "../build/$TGZ created"
+TARGET_EXE=./bin/$PLATFORM/spirv-cross${EXE_SUFFIX}
 
-    rm -rf tmp
-    rm -rf $PREFIX
-}
+mkdir -p ./bin/$PLATFORM
 
-function cmi() {
-    export PREFIX=`pwd`/build
-    export PLATFORM=$1
+cp -v ${SRC_EXE} ${TARGET_EXE}
 
-    case $PLATFORM in
-        x86_64-macos)
-            function cmi_strip() {
-                strip -S -x $PREFIX/bin/$PLATFORM/$PRODUCT
-            }
-            cmi_buildplatform $1
-            ;;
+case $PLATFORM in
+    win32|x86_64-win32)
+        ;;
+    *)
+        strip ${TARGET_EXE}
+        ;;
+esac
 
-        x86_64-linux)
-            function cmi_strip() {
-                strip -s $PREFIX/bin/$PLATFORM/$PRODUCT
-            }
-            cmi_buildplatform $PLATFORM
-            ;;
+popd
 
-    	win32|x86_64-win32)
-            function cmi_configure() {
-                case $PLATFORM in
-                    win32)
-                        CMAKE_GENERATOR="Visual Studio 14 2015"
-                        ;;
-                    x86_64-win32)
-                        CMAKE_GENERATOR="Visual Studio 14 2015 Win64"
-                        ;;
-                esac
+# Package
 
-                set -e
-                mkdir -p build >/dev/null
-                pushd build >/dev/null
-                cmake -G"${CMAKE_GENERATOR}" ..
-                popd >/dev/null
-            }
+VERSION=$(cd $SOURCE_DIR && git rev-parse --short HEAD)
+echo VERSION=${VERSION}
 
-            function cmi_make() {
-                set -e
+PACKAGE=spirv-cross-${VERSION}-${PLATFORM}.tar.gz
 
-                pushd build >/dev/null
-                cmake --build . --config Release
-                mkdir -p $PREFIX/bin/$PLATFORM
-                cp Release/$PRODUCT.exe $PREFIX/bin/$PLATFORM
-                popd >/dev/null
-
-                set +e
-            }
-            cmi_setup_vs2015_env $PLATFORM
-            cmi_buildplatform $PLATFORM
-            ;;
-        *)
-            echo "Unknown target $PLATFORM" && exit 1
-            ;;
-    esac
-}
-
-download
-cmi $1
+pushd $BUILD_DIR
+tar cfvz $PACKAGE bin
+popd

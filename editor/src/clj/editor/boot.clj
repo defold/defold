@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,6 +30,7 @@
             [service.log :as log]
             [util.repo :as repo])
   (:import [com.defold.editor Shutdown]
+           [com.dynamo.bob.archive EngineVersion]
            [java.util Arrays]
            [javax.imageio ImageIO]))
 
@@ -91,13 +92,9 @@
     (when-some [editor-sha1 (repo/detect-editor-sha1)]
       (system/set-defold-editor-sha1! editor-sha1)))
 
-  ;; Try to find the engine revision by looking at the VERSION file in the root
-  ;; of the Defold repo. On a stable engine branch, the contents of this file
-  ;; will correspond to a Git tag. If the tag is present, it will point to the
-  ;; engine revision. This is required when building native extensions.
+  ;; If we don't have an engine sha1 specified, use the sha1 from Bob.
   (when (empty? (system/defold-engine-sha1))
-    (when-some [engine-sha1 (repo/detect-engine-sha1)]
-      (system/set-defold-engine-sha1! engine-sha1))))
+    (system/set-defold-engine-sha1! EngineVersion/sha1)))
 
 (defn disable-imageio-cache!
   []
@@ -126,11 +123,11 @@
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))
         updater (updater/start!)
-        analytics-url "https://www.google-analytics.com/batch"
+        analytics-url (get connection-properties :analytics-url)
         analytics-send-interval 300]
     (when (some? updater)
       (updater/delete-backup-files! updater))
-    (analytics/start! analytics-url analytics-send-interval true)
+    (analytics/start! analytics-url analytics-send-interval)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
       (let [game-project-path (get-in opts [:arguments 0])]

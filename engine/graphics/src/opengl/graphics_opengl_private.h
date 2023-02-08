@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -94,32 +94,32 @@ namespace dmGraphics
     {
         struct Stream
         {
-            const char* m_Name;
-            uint16_t    m_LogicalIndex;
-            int16_t     m_PhysicalIndex;
-            uint16_t    m_Size;
-            uint16_t    m_Offset;
-            Type        m_Type;
-            bool        m_Normalize;
+            dmhash_t m_NameHash;
+            uint16_t m_LogicalIndex;
+            int16_t  m_PhysicalIndex;
+            uint16_t m_Size;
+            uint16_t m_Offset;
+            Type     m_Type;
+            bool     m_Normalize;
         };
 
-        Stream      m_Streams[8];
+        Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
         uint16_t    m_StreamCount;
         uint16_t    m_Stride;
         HProgram    m_BoundForProgram;
         uint32_t    m_ModificationVersion;
-
-    };
-    // TODO: Why this one here!? Not used?
-    struct VertexBuffer
-    {
-        GLuint      m_VboId;
     };
 
-    // TODO: Why this one here!? Not used?
-    struct IndexBuffer
+    struct OpenglVertexAttribute
     {
-        GLuint      m_VboId;
+        dmhash_t m_NameHash;
+        int32_t  m_Location;
+    };
+
+    struct OpenGLProgram
+    {
+        GLuint                         m_Program;
+        dmArray<OpenglVertexAttribute> m_Attributes;
     };
 
     struct RenderTarget

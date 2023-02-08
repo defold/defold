@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,8 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.util :as util]
+            [editor.graph-util :as gu]
+            [editor.lsp :as lsp]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -118,9 +120,11 @@
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-indent-type IndentType (dynamic visible (g/constantly false)))
   (property modified-lines Lines (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self _old-value _new-value]
+            (set (fn [evaluation-context self _old-value new-value]
+                   (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
                    (ensure-unmodified-lines! self evaluation-context)
                    nil)))
+
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
@@ -146,8 +150,8 @@
   ;; Instead we use its hash to determine if we've been dirtied.
   ;; This output must still be named source-value since it is
   ;; invalidated when saving.
-  (output source-value g/Any :cached (g/fnk [_node-id editable? resource]
-                                       (when editable?
+  (output source-value g/Any :cached (g/fnk [_node-id editable resource]
+                                       (when editable
                                          (let [lines (resource-io/with-error-translation resource _node-id :source-value
                                                        (read-fn resource))]
                                            (if (g/error? lines)
@@ -155,10 +159,10 @@
                                              (hash lines))))))
 
   ;; We're dirty if the hash of our non-nil save-value differs from the source.
-  (output dirty? g/Bool (g/fnk [_node-id editable? resource save-value source-value]
-                          (and editable? (some? save-value) (not= source-value (hash save-value))))))
+  (output dirty? g/Bool (g/fnk [_node-id editable resource save-value source-value]
+                          (and editable (some? save-value) (not= source-value (hash save-value))))))
 
-(defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]
+(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]
   (let [debuggable? (contains? tags :debuggable)
         load-fn (partial load-fn additional-load-fn eager-loading? debuggable?)
         args (-> args

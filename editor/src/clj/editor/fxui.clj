@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,7 @@
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.list-cell :as fx.list-cell]
+            [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.text-area :as fx.text-area]
@@ -37,13 +38,19 @@
            [java.util Collection]
            [javafx.application Platform]
            [javafx.collections ObservableList]
+           [javafx.event Event]
            [javafx.scene Node]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.scene.control TextInputControl ListView ScrollPane]
+           [javafx.stage Popup Window]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
+
+(defn event->window
+  ^Window [^Event event]
+  (.getWindow (.getScene ^Node (.getSource event))))
 
 (def ext-value
   "Extension lifecycle that returns value on `:value` key"
@@ -64,6 +71,24 @@
           (set-all! instance (coerce new-value))))
       (retract! [_ instance _ _]
         (set-all! instance [])))))
+
+(def ^:private tuple-lifecycle-instance-meta
+  {`fx.component/instance #(mapv fx.component/instance %)})
+
+(defn tuple-lifecycle [& lifecycles]
+  (let [lifecycles (vec lifecycles)
+        len (count lifecycles)]
+    (reify fx.lifecycle/Lifecycle
+      (create [_ descs opts]
+        (assert (= len (count descs)))
+        (with-meta (mapv #(fx.lifecycle/create %1 %2 opts) lifecycles descs)
+                   tuple-lifecycle-instance-meta))
+      (advance [_ components descs opts]
+        (assert (= len (count descs)))
+        (with-meta (mapv #(fx.lifecycle/advance %1 %2 %3 opts) lifecycles components descs)
+                   tuple-lifecycle-instance-meta))
+      (delete [_ components opts]
+        (mapv #(fx.lifecycle/delete %1 %2 opts) lifecycles components)))))
 
 (extend-protocol fx.lifecycle/Lifecycle
   MultiFn
@@ -450,6 +475,40 @@
                                        :default "text-area-default"
                                        :error "text-area-error"
                                        :borderless "text-area-borderless"))))
+
+(def ^:private ext-with-popup-on-props
+  (fx/make-ext-with-props
+    {:on (fx.prop/make
+           (fx.mutator/adder-remover
+             (fn [^Popup popup [^Node on anchor-x anchor-y]]
+               (.show popup on (double anchor-x) (double anchor-y)))
+             (fn [^Popup popup _]
+               (.hide popup)))
+           (tuple-lifecycle fx.lifecycle/dynamic fx.lifecycle/scalar fx.lifecycle/scalar))}))
+
+(defn with-popup
+  "Helper popup lifecycle that adds a managed popup to :desc node
+
+  Supported props:
+    :desc        node desc that will show a popup
+    :showing     whether the popup is showing
+    :anchor-x    screen anchor x
+    :anchor-y    screen anchor y
+    ...the rest of :popup props"
+  [{:keys [desc showing anchor-x anchor-y]
+    :or {anchor-x 0.0
+         anchor-y 0.0}
+    :as props}]
+  {:fx/type fx/ext-let-refs
+   :refs {::on desc}
+   :desc {:fx/type fx/ext-let-refs
+          :refs {::popup {:fx/type ext-with-popup-on-props
+                          :props (when showing
+                                   {:on [{:fx/type fx/ext-get-ref :ref ::on} anchor-x anchor-y]})
+                          :desc (-> props
+                                    (dissoc :desc :showing :anchor-x :anchor-y)
+                                    (assoc :fx/type fx.popup/lifecycle))}}
+          :desc {:fx/type fx/ext-get-ref :ref ::on}}})
 
 (defn icon
   "An `:svg-path` with content being managed by `:type` key

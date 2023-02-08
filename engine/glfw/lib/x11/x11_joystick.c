@@ -542,4 +542,3 @@ int _glfwPlatformGetJoystickDeviceId( int joy, char** device_id )
         return GL_TRUE;
     }
 }
-

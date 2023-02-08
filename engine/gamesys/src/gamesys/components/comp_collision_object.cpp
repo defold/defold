@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,6 +28,7 @@
 #include <gameobject/gameobject_ddf.h>
 
 #include "gamesys.h"
+#include "gamesys_private.h" // ShowFullBufferError
 #include "../resources/res_collision_object.h"
 #include "../resources/res_tilegrid.h"
 
@@ -41,14 +42,16 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    /// Config key to use for tweaking maximum number of collision objects
+    const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY   = "physics.max_collision_object_count";
     /// Config key to use for tweaking maximum number of collisions reported
-    const char* PHYSICS_MAX_COLLISIONS_KEY      = "physics.max_collisions";
+    const char* PHYSICS_MAX_COLLISIONS_KEY          = "physics.max_collisions";
     /// Config key to use for tweaking maximum number of contacts reported
-    const char* PHYSICS_MAX_CONTACTS_KEY        = "physics.max_contacts";
+    const char* PHYSICS_MAX_CONTACTS_KEY            = "physics.max_contacts";
     /// Config key for using fixed frame rate for the physics worlds
-    const char* PHYSICS_USE_FIXED_TIMESTEP      = "physics.use_fixed_timestep";
+    const char* PHYSICS_USE_FIXED_TIMESTEP          = "physics.use_fixed_timestep";
     /// Config key for using max updates during a single step
-    const char* PHYSICS_MAX_FIXED_TIMESTEPS     = "physics.max_fixed_timesteps";
+    const char* PHYSICS_MAX_FIXED_TIMESTEPS         = "physics.max_fixed_timesteps";
 
     static const dmhash_t PROP_LINEAR_DAMPING = dmHashString64("linear_damping");
     static const dmhash_t PROP_ANGULAR_DAMPING = dmHashString64("angular_damping");
@@ -181,9 +184,11 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_OK;
         }
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, physics_context->m_MaxCollisionObjectCount);
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
+        world_params.m_MaxCollisionObjectsCount = comp_count;
 
         dmPhysics::HWorld2D world2D;
         dmPhysics::HWorld3D world3D;
@@ -219,11 +224,6 @@ namespace dmGameSystem
         world->m_ComponentTypeIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
         world->m_FirstUpdate = 1;
-        uint32_t comp_count = params.m_MaxComponentInstances;
-        if (comp_count == 0xFFFFFFFF)
-        {
-            comp_count = 32;
-        }
         world->m_Components.SetCapacity(comp_count);
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -865,6 +865,11 @@ namespace dmGameSystem
         {
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+        if (world->m_Components.Full())
+        {
+            ShowFullBufferError("Collision object", PHYSICS_MAX_COLLISION_OBJECTS_KEY, world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         assert(!component->m_AddedToUpdate);
 
@@ -875,8 +880,6 @@ namespace dmGameSystem
         }
         component->m_AddedToUpdate = true;
 
-        if (world->m_Components.Full())
-            world->m_Components.OffsetCapacity(32);
         world->m_Components.Push(component);
         return dmGameObject::CREATE_RESULT_OK;
     }

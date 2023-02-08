@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -60,6 +60,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.codec.binary.Base64;
 
 import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
 
 import com.dynamo.bob.archive.EngineVersion;
@@ -121,6 +122,7 @@ public class Project {
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
     private List<String> propertyFiles = new ArrayList<String>();
+    private List<String> buildServerHeaders = new ArrayList<String>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -128,6 +130,7 @@ public class Project {
 
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
+    private ClassLoader classLoader = null;
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -137,6 +140,17 @@ public class Project {
     }
 
     public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+        this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
+        this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
+        this.fileSystem = fileSystem;
+        this.fileSystem.setRootDirectory(this.rootDirectory);
+        this.fileSystem.setBuildDirectory(this.buildDirectory);
+        clearProjectProperties();
+    }
+
+    // For the editor
+    public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+        classLoader = loader;
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
@@ -201,9 +215,15 @@ public class Project {
         return this.publisher;
     }
 
-    public static ClassLoaderScanner createClassLoaderScanner() throws IOException {
-        scanner = new ClassLoaderScanner();
+    private ClassLoaderScanner createClassLoaderScanner() throws IOException {
+        scanner = new ClassLoaderScanner(getClassLoader());
         return scanner;
+    }
+
+    public ClassLoader getClassLoader() {
+        if (classLoader == null)
+            classLoader = this.getClass().getClassLoader();
+        return classLoader;
     }
 
     public static IClassScanner getClassLoaderScanner() {
@@ -318,6 +338,7 @@ public class Project {
         {".script", ".scriptc"},
         {".sound", ".soundc"},
         {".wav", ".soundc"},
+        {".ogg", ".soundc"},
         {".collectionfactory", ".collectionfactoryc"},
         {".factory", ".factoryc"},
         {".light", ".lightc"},
@@ -473,7 +494,6 @@ public class Project {
                 excludeFolders.set(i, excludeFolder.substring(1));
             }
         }
-
         // create tasks for inputs that are not excluded
         for (String input : sortedInputs) {
             boolean skipped = false;
@@ -599,6 +619,10 @@ public class Project {
         if (gameProject.exists()) {
             projectProperties = Project.loadProperties(this, gameProject, this.getPropertyFiles());
         }
+    }
+
+    public void addBuildServerHeader(String header) {
+        buildServerHeaders.add(header);
     }
 
     public void addPropertyFile(String filepath) {
@@ -928,6 +952,7 @@ public class Project {
 
             try {
                 ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+                extender.setHeaders(buildServerHeaders);
                 File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, asyncBuild);
 
                 cleanEngine(platform, buildDir);
@@ -935,7 +960,10 @@ public class Project {
                 BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
             } catch (ConnectException e) {
                 throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
+            } catch (ExtenderClientException e) {
+                throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
             }
+
             m.worked(1);
         }
 
@@ -1113,6 +1141,7 @@ public class Project {
             registerPipelinePlugins();
             scan(scanner, "com.dynamo.bob");
             scan(scanner, "com.dynamo.bob.pipeline");
+            scan(scanner, "com.defold.extension.pipeline");
             mrep.done();
         }
 
@@ -1351,6 +1380,9 @@ run:
 
                 // compare all task signature. current task signature between previous
                 // signature from state on disk
+                TimeProfiler.start("compare signatures");
+                TimeProfiler.addData("color", "#FFC0CB");
+                TimeProfiler.addData("main input", String.valueOf(task.input(0)));
                 byte[] taskSignature = task.calculateSignature();
                 boolean allSigsEquals = true;
                 for (IResource r : outputResources) {
@@ -1360,6 +1392,7 @@ run:
                         break;
                     }
                 }
+                TimeProfiler.stop();
 
                 boolean shouldRun = (!allOutputExists || !allSigsEquals) && !completedTasks.contains(task);
 
@@ -1380,6 +1413,7 @@ run:
                 TimeProfiler.start(task.getName());
                 TimeProfiler.addData("output", task.getOutputsString());
                 TimeProfiler.addData("type", "buildTask");
+
                 completedTasks.add(task);
 
                 TaskResult taskResult = new TaskResult(task);
@@ -1409,6 +1443,7 @@ run:
                         // all resources exist in the cache
                         // copy them to the output
                         if (allResourcesCached) {
+                            TimeProfiler.addData("takenFromCache", true);
                             for (IResource r : outputResources) {
                                 r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
                             }

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -141,8 +141,9 @@
     (count (get refs value))))
 
 (defn- lua-ref->identity-string [ref structure-refs]
-  (let [lua-table (get structure-refs ref)]
-    (format "<%s>" (:string (meta lua-table)))))
+  (if-let [lua-table (get structure-refs ref)]
+    (format "<%s>" (:string (meta lua-table)))
+    (str "..." (:address ref))))
 
 (defn lua-value->identity-string
   "Returns string representing identity of a lua value. Does not show internal

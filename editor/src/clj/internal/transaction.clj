@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -268,8 +268,6 @@
 (defn- disconnect-stale-outputs [ctx node-id old-node new-node]
   (disconnect-stale ctx node-id old-node new-node in/output-labels disconnect-outputs))
 
-(def ^:private replace-node (comp first gt/replace-node))
-
 (defn- delete-single
   [ctx node-id]
   (let [basis (:basis ctx)]
@@ -417,7 +415,7 @@
                    prev-traverse-result nil]
               (if (>= override-node-index override-node-count)
                 ctx
-                (let [^long override-node-id (override-node-ids override-node-index)
+                (let [override-node-id (override-node-ids override-node-index)
                       override-id (node-id->override-id basis override-node-id)
                       traverse-fn (:traverse-fn (ig/override-by-id basis override-id))
                       node-ids (if (identical? prev-traverse-fn traverse-fn)
@@ -499,7 +497,7 @@
                               override-node (gt/node-by-id-at basis override-node-id)
                               old-original (gt/original override-node)
                               new-original (from-id->to-id old-original)
-                              [new-basis] (gt/replace-node basis override-node-id (gt/set-original override-node new-original))]
+                              new-basis (gt/replace-node basis override-node-id (gt/set-original override-node new-original))]
                           (-> ctx
                               (assoc :basis new-basis)
                               (mark-all-outputs-activated override-node-id)
@@ -520,8 +518,8 @@
     (second (first from-id->to-id))))
 
 (defn- property-default-setter
-  [basis node-id node property _ new-value]
-  (first (gt/replace-node basis node-id (gt/set-property node basis property new-value))))
+  [basis node-id node property new-value]
+  (gt/replace-node basis node-id (gt/set-property node basis property new-value)))
 
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
   (try
@@ -538,47 +536,62 @@
       (let [node-type (:name @(:node-type (gt/node-by-id-at basis node-id)))]
         (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
 
+(defn- validate-property-value-impl [node-type node-id property-label property-value]
+  (let [value-type (some-> (in/property-type node-type property-label) deref in/schema s/maybe)]
+    (when-let [validation-error (some-> value-type (s/check property-value))]
+      (in/warn-output-schema node-id node-type property-label property-value value-type validation-error)
+      (throw (ex-info "SCHEMA-VALIDATION"
+                      {:node-id node-id
+                       :type node-type
+                       :property property-label
+                       :expected value-type
+                       :actual property-value
+                       :validation-error validation-error})))))
+
+(defmacro ^:private validate-property-value [node-type node-id property-label property-value]
+  (when in/*check-schemas*
+    `(validate-property-value-impl ~node-type ~node-id ~property-label ~property-value)))
+
 (defn- invoke-setter
   [ctx node-id node property old-value new-value override-node? dynamic?]
   (let [node-type (gt/node-type node)
-        value-type (some-> (in/property-type node-type property) deref in/schema s/maybe)]
-    (if-let [validation-error (and in/*check-schemas* value-type (s/check value-type new-value))]
-      (do
-        (in/warn-output-schema node-id node-type property new-value value-type validation-error)
-        (throw (ex-info "SCHEMA-VALIDATION"
-                        {:node-id node-id
-                         :type node-type
-                         :property property
-                         :expected value-type
-                         :actual new-value
-                         :validation-error validation-error})))
-      (let [setter-fn (in/property-setter node-type property)]
-        (-> ctx
-            (update :basis property-default-setter node-id node property old-value new-value)
-            (cond->
-              (not= old-value new-value)
-              (cond->
-                (not override-node?) (mark-output-activated node-id property)
-                override-node? (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
-                                                                 (not (gt/property-overridden? node property)) (conj :_overridden-properties)))
-                (not (nil? setter-fn))
-                ((fn [ctx] (apply-tx ctx (call-setter-fn ctx property setter-fn (:basis ctx) node-id old-value new-value)))))))))))
+        setter-fn (in/property-setter node-type property)]
+    (validate-property-value node-type node-id property new-value)
+    (-> ctx
+        (update :basis property-default-setter node-id node property new-value)
+        (cond->
+          (not= old-value new-value)
+          (cond->
+            (not override-node?) (mark-output-activated node-id property)
+            override-node? (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
+                                                                   (not (gt/property-overridden? node property)) (conj :_overridden-properties)))
+            (not (nil? setter-fn))
+            (as-> ctx (apply-tx ctx (call-setter-fn ctx property setter-fn (:basis ctx) node-id old-value new-value))))))))
 
 (defn- apply-defaults [ctx node]
+  ;; Ensure property setters are run for all properties that have a non-nil
+  ;; value immediately after construction. We don't need to mark outputs
+  ;; activated, as we're doing this on a newly constructed node and ctx-add-node
+  ;; will mark all our outputs activated regardless.
   (let [node-id (gt/node-id node)
-        override-node? (some? (gt/original node))]
-    (loop [ctx ctx
-           props (seq (in/declared-property-labels (gt/node-type node)))]
-      (if-let [prop (first props)]
-        (let [ctx (if-let [v (get node prop)]
-                    (invoke-setter ctx node-id node prop nil v override-node? false)
-                    ctx)]
-          (recur ctx (rest props)))
-        ctx))))
+        node-type (gt/node-type node)
+        property-entries (gt/own-properties node)]
+    (reduce (fn [ctx property-entry]
+              (let [property-value (val property-entry)]
+                (if (nil? property-value)
+                  ctx
+                  (let [property-label (key property-entry)
+                        setter-fn (in/property-setter node-type property-label)]
+                    (validate-property-value node-type node-id property-label property-value)
+                    (if (nil? setter-fn)
+                      ctx
+                      (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value)))))))
+            ctx
+            property-entries)))
 
 (defn- ctx-add-node [ctx node]
-  (let [[basis-after full-node] (gt/add-node (:basis ctx) node)
-        node-id (gt/node-id full-node)]
+  (let [basis-after (gt/add-node (:basis ctx) node)
+        node-id (gt/node-id node)]
     (-> ctx
         (assoc :basis basis-after)
         (apply-defaults node)
@@ -629,7 +642,7 @@
         (-> ctx
             (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
                                               (and (gt/original node) (gt/property-overridden? node property)) (conj :_overridden-properties)))
-            (update :basis replace-node node-id (gt/clear-property node basis property))
+            (update :basis gt/replace-node node-id (gt/clear-property node basis property))
             (ctx-set-property-to-nil node-id node property)))
       ctx)))
 

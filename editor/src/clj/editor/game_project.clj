@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -64,7 +64,7 @@
                                          (assoc setting :value (settings-core/render-raw-setting-value meta-setting value)))))))
                        (let [transformed-settings-map (transform-settings! settings-map)]
                          (sort-by first transformed-settings-map)))
-        ^String user-data-content (settings-core/settings->str settings)]
+        user-data-content (settings-core/settings->str settings meta-settings :comma-separated-list)]
     {:resource resource :content (.getBytes user-data-content)}))
 
 (defn- resource-content [resource]
@@ -94,6 +94,7 @@
   (workspace [this] (resource/workspace resource))
   (resource-hash [this] (resource/resource-hash resource))
   (openable? [this] (resource/openable? resource))
+  (editable? [this] (resource/editable? resource))
 
   io/IOFactory
   (make-input-stream  [this opts] (io/input-stream resource))
@@ -252,5 +253,6 @@
     :label "Project"
     :node-type GameProjectNode
     :load-fn load-game-project
+    :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
     :view-types [:cljfx-form-view :text]))

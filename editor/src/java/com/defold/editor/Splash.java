@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -83,7 +83,7 @@ public class Splash {
     private static void randomGame(Scene scene) {
         String imagePath = "";
         String gameName = "";
-        switch(randomInt(6)) {
+        switch(randomInt(8)) {
             case 1:
                 imagePath = "/games/familyisland.jpg";
                 gameName = "Family Island";
@@ -104,9 +104,21 @@ public class Splash {
                 imagePath = "/games/plaguelords.jpg";
                 gameName = "Plague Lords";
                 break;
-            default:
+            case 6:
+                imagePath = "/games/voidscrappers.jpg";
+                gameName = "Void Scrappers";
+                break;
+            case 7:
+                imagePath = "/games/monkeymart.jpg";
+                gameName = "Monkey Mart";
+                break;
+            case 8:
                 imagePath = "/games/lookyourloot.jpg";
                 gameName = "Look Your Loot";
+                break;
+            default:
+                imagePath = "/games/familyisland.jpg";
+                gameName = "Family Island";
                 break;
         }
 

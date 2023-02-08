@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -94,7 +94,7 @@
 (deftest label-batch-render-test
   (test-util/with-loaded-project
     (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
-          add-label-component! (partial test-util/add-embedded-component! app-view (workspace/get-resource-type workspace "label"))
+          add-label-component! #(test-util/add-embedded-component! % (workspace/get-resource-type workspace "label"))
           [go view] (test-util/open-scene-view! project app-view "/game_object/test.go" 128 128)
           render-calls (fn [selection key-fn]
                          (get-render-calls-by-pass

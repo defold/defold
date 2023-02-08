@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -524,14 +524,16 @@ public class AndroidBundler implements IBundler {
                 ExtenderUtil.writeResourceToFile(resource, file);
                 BundleHelper.throwIfCanceled(canceled);
             }
+            if (BundleHelper.isArchiveExcluded(project)) {
             // copy Defold archive files to the assets/ dir
-            File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
-            for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
-                File source = new File(buildDir, name);
-                File dest = new File(assetsDir, name);
-                log("Copying asset " + source + " to " + dest);
-                FileUtils.copyFile(source, dest);
-                BundleHelper.throwIfCanceled(canceled);
+                File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
+                for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+                    File source = new File(buildDir, name);
+                    File dest = new File(assetsDir, name);
+                    log("Copying asset " + source + " to " + dest);
+                    FileUtils.copyFile(source, dest);
+                    BundleHelper.throwIfCanceled(canceled);
+                }
             }
             // copy assets from extender (from resolved gradle dependencies)
             for(File asset : getExtenderAssets(project)) {
@@ -857,12 +859,12 @@ public class AndroidBundler implements IBundler {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                properties.put("orientation-support", "landscape");
+                properties.put("orientation-support", "userLandscape");
             } else {
-                properties.put("orientation-support", "portrait");
+                properties.put("orientation-support", "userPortrait");
             }
         } else {
-            properties.put("orientation-support", "sensor");
+            properties.put("orientation-support", "fullUser");
         }
 
         // Since we started to always fill in the default values to the propject properties

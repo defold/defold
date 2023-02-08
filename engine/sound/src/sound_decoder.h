@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -77,6 +77,11 @@ namespace dmSoundCodec
          */
         void (*m_GetStreamInfo)(HDecodeStream, struct Info* out);
 
+        /**
+         * Get internal cursor (for unit tests only)
+         */
+        int64_t (*m_GetInternalStreamPosition)(HDecodeStream);
+
         DecoderInfo *m_Next;
     };
 
@@ -119,7 +124,7 @@ namespace dmSoundCodec
     /**
      * Declare a new stream decoder
      */
-    #define DM_DECLARE_SOUND_DECODER(symbol, name, format, score, open, close, decode, reset, skip, getinfo) \
+    #define DM_DECLARE_SOUND_DECODER(symbol, name, format, score, open, close, decode, reset, skip, getinfo, get_internal_pos) \
             dmSoundCodec::DecoderInfo DM_SOUND_PASTE2(symbol, __LINE__) = { \
                     name, \
                     format, \
@@ -130,6 +135,7 @@ namespace dmSoundCodec
                     reset, \
                     skip, \
                     getinfo, \
+                    get_internal_pos, \
             };\
         DM_REGISTER_SOUND_DECODER(symbol, DM_SOUND_PASTE2(symbol, __LINE__))
 }

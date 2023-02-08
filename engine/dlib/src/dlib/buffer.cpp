@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,14 +13,18 @@
 // specific language governing permissions and limitations under the License.
 
 
+#include <dlib/hash.h>
 #include <dmsdk/dlib/buffer.h>
 
 #include <dlib/log.h>
 #include <dlib/memory.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/vmath.h>
+#include <dlib/array.h>
 
 #include <string.h>
 #include <assert.h>
+#include <new>
 
 #if defined(_WIN32)
 #include <malloc.h>
@@ -49,8 +53,17 @@ namespace dmBuffer
             uint8_t     m_ValueCount;
         };
 
+        struct MetaData
+        {
+            dmhash_t    m_Name;
+            uint8_t     m_ValueType;
+            uint8_t     m_ValueCount;
+            void*       m_Data;
+        };
+
         void*    m_Data;            // All stream data, including guard bytes after each stream and 16 byte aligned.
         Stream*  m_Streams;
+        dmArray<MetaData*> m_MetaDataArray;
         uint32_t m_Stride;          // The struct size (in bytes)
         uint32_t m_Count;           // The number of "structs" in the buffer (e.g. vertex count)
         uint16_t m_Version;
@@ -151,8 +164,24 @@ namespace dmBuffer
         return version << 16 | index;
     }
 
+    static void FreeMetadata(Buffer* buffer)
+    {
+        for (uint32_t i=0; i<buffer->m_MetaDataArray.Size(); i++) {
+            Buffer::MetaData* metadata = buffer->m_MetaDataArray[i];
+            free(metadata->m_Data);
+            free(metadata);
+        }
+        buffer->m_MetaDataArray.SetSize(0);
+    }
+
     static void FreeBuffer(BufferContext* ctx, HBuffer hbuffer)
     {
+        if (!IsBufferValid(hbuffer))
+        {
+            dmLogError("Invalid buffer when freeing buffer");
+            return;
+        }
+
         uint16_t version = hbuffer >> 16;
         Buffer* b = ctx->m_Buffers[hbuffer & 0xffff];
         if (version != b->m_Version)
@@ -160,6 +189,9 @@ namespace dmBuffer
             dmLogError("Stale buffer handle when freeing buffer");
             return;
         }
+        FreeMetadata(b);
+        b->m_MetaDataArray.~dmArray(); // b->m_MetaDataArray was initialized with "placement new" operator. We have to destroy it manually
+
         ctx->m_Buffers[hbuffer & 0xffff] = 0;
         dmMemory::AlignedFree(b);
     }
@@ -239,6 +271,8 @@ namespace dmBuffer
             _TOSTRING(RESULT_STREAM_MISSING)
             _TOSTRING(RESULT_STREAM_TYPE_MISMATCH)
             _TOSTRING(RESULT_STREAM_COUNT_MISMATCH)
+            _TOSTRING(RESULT_METADATA_INVALID)
+            _TOSTRING(RESULT_METADATA_MISSING)
             default: return "buffer.cpp: Unknown result";
         }
 
@@ -397,10 +431,52 @@ namespace dmBuffer
         buffer->m_Data = (void*)((uintptr_t)data_block + header_size);
         buffer->m_Stride = struct_size;
         buffer->m_ContentVersion = 0;
+        new (&buffer->m_MetaDataArray) dmArray<Buffer::MetaData*>();
 
         CreateStreamsInterleaved(buffer, streams_decl, offsets);
 
         *out_buffer = SetBuffer(ctx, index, buffer);
+        return RESULT_OK;
+    }
+
+    Result Clone(const HBuffer src_buffer, HBuffer* out_buffer)
+    {
+        Buffer* buffer = GetBuffer(g_BufferContext, src_buffer);
+        Result res = dmBuffer::ValidateBuffer(buffer);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+
+        dmBuffer::StreamDeclaration* streams_decl = (dmBuffer::StreamDeclaration*) alloca(buffer->m_NumStreams * sizeof(dmBuffer::StreamDeclaration));
+        for (int i = 0; i < buffer->m_NumStreams; ++i)
+        {
+            streams_decl[i].m_Name  = buffer->m_Streams[i].m_Name;
+            streams_decl[i].m_Type  = (ValueType) buffer->m_Streams[i].m_ValueType;
+            streams_decl[i].m_Count = buffer->m_Streams[i].m_ValueCount;
+        }
+
+        HBuffer dst_buffer;
+        res = dmBuffer::Create(buffer->m_Count, streams_decl, buffer->m_NumStreams, &dst_buffer);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
+
+        dmBuffer::Copy(dst_buffer, src_buffer);
+
+        // Clone the meta data entries
+        for (uint32_t i = 0; i < buffer->m_MetaDataArray.Size(); i++)
+        {
+            res = SetMetaData(dst_buffer,
+                buffer->m_MetaDataArray[i]->m_Name,
+                buffer->m_MetaDataArray[i]->m_Data,
+                buffer->m_MetaDataArray[i]->m_ValueCount,
+                (ValueType) buffer->m_MetaDataArray[i]->m_ValueType);
+            assert(res == RESULT_OK);
+        }
+
+        *out_buffer = dst_buffer;
         return RESULT_OK;
     }
 
@@ -502,28 +578,6 @@ namespace dmBuffer
         return 0x0;
     }
 
-    Result CheckStreamType(HBuffer hbuffer, dmhash_t stream_name, dmBuffer::ValueType type, uint32_t type_count)
-    {
-        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
-        if (!buffer) {
-            return RESULT_BUFFER_INVALID;
-        }
-
-        // Get stream
-        Buffer::Stream* stream = GetStream(buffer, stream_name);
-        if (stream == 0x0) {
-            return RESULT_STREAM_MISSING;
-        }
-
-        // Validate expected type and value count
-        if (stream->m_ValueType != type) {
-            return dmBuffer::RESULT_STREAM_TYPE_MISMATCH;
-        } else if (stream->m_ValueCount != type_count) {
-            return dmBuffer::RESULT_STREAM_COUNT_MISMATCH;
-        }
-        return RESULT_OK;
-    }
-
     Result GetStream(HBuffer hbuffer, dmhash_t stream_name, void** out_stream, uint32_t* count, uint32_t* component_count, uint32_t* stride)
     {
         Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
@@ -616,4 +670,71 @@ namespace dmBuffer
         buffer->m_ContentVersion++;
         return RESULT_OK;
     }
+
+    // Returns a pointer to the metadata item or 0 if not found.  Assumes buffer is valid.
+    static Buffer::MetaData* FindMetaDataItem(Buffer* buffer, dmhash_t name_hash) {
+        dmArray<Buffer::MetaData*>& arr = buffer->m_MetaDataArray;
+        for (uint32_t  i=0; i<arr.Size(); i++) {
+            if (arr[i]->m_Name == name_hash) {
+                return arr[i];
+            }
+        }
+        return 0; // nothing found
+    }
+
+
+    Result GetMetaData(HBuffer hbuffer, dmhash_t name_hash, void** data, uint32_t* count, ValueType* type) {
+        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+
+        Buffer::MetaData* item = FindMetaDataItem(buffer, name_hash);
+        if (!item) {
+            return RESULT_METADATA_MISSING;
+        }
+
+        *count = item->m_ValueCount;
+        *type = (ValueType)item->m_ValueType;
+        *data = item->m_Data;
+
+        return RESULT_OK;
+    }
+
+    Result SetMetaData(HBuffer hbuffer, dmhash_t name_hash, const void* data, uint32_t count, ValueType type)
+    {
+        Buffer* buffer = GetBuffer(g_BufferContext, hbuffer);
+        if (!buffer) {
+            return RESULT_BUFFER_INVALID;
+        }
+        if (count == 0) {
+            return RESULT_METADATA_INVALID;
+        }
+
+        Buffer::MetaData* item = FindMetaDataItem(buffer, name_hash);
+        uint32_t values_block_size = GetSizeForValueType(type)*count; // do this once
+        if (item) {
+            // make sure the type and value count is right
+            if (item->m_ValueCount != count || item->m_ValueType != type) {
+                return RESULT_METADATA_INVALID;
+            }
+            memcpy(item->m_Data, data, values_block_size);
+            return RESULT_OK;
+        } else {
+            dmArray<Buffer::MetaData*>& metadata_items = buffer->m_MetaDataArray;
+            if (metadata_items.Full()) {
+                metadata_items.OffsetCapacity(2);
+            }
+            item = (Buffer::MetaData*) malloc(sizeof(Buffer::MetaData));
+            item->m_Name = name_hash;
+            item->m_ValueCount = count;
+            item->m_ValueType = type;
+            item->m_Data = malloc(values_block_size);
+            memcpy(item->m_Data, data, values_block_size);
+            metadata_items.Push(item);
+        }
+
+        return RESULT_OK;
+    }
+
 }

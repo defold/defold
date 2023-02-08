@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -988,7 +988,7 @@ namespace dmGui
      * - `gui.PROP_INNER_RADIUS`
      * - `gui.PROP_SLICE9`
      *
-     * @param to [type:vector3|vector4] target property value
+     * @param to [type:number|vector3|vector4|quaternion] target property value
      * @param easing [type:constant|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
      *      [type:vector] with a custom curve. See the <a href="/manuals/animation#_easing">animation guide</a> for more information.

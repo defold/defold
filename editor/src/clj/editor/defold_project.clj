@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
+            [editor.lsp :as lsp]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -64,6 +65,7 @@
   (concat
     (load-fn project node-id resource)
     (when (and (resource/file-resource? resource)
+               (resource/editable? resource)
                (:auto-connect-save-data? (resource/resource-type resource)))
       (g/connect node-id :save-data project :save-data))))
 
@@ -199,7 +201,7 @@
     load-txs))
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies resource-metrics transaction-metrics]
-  (let [tx-result (g/transact transaction-metrics
+  (let [tx-result (g/transact (du/when-metrics {:metrics transaction-metrics})
                     (load-resource-nodes project node-ids render-progress! resource-node-dependencies resource-metrics))]
     (render-progress! progress/done)
     tx-result))
@@ -217,13 +219,13 @@
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
 (defn- make-nodes! [project resources]
-  (let [project-graph (graph project)]
+  (let [project-graph (graph project)
+        file-resources (filter #(= :file (resource/source-type %)) resources)]
     (g/tx-nodes-added
       (g/transact
-        (for [[resource-type resources] (group-by resource/resource-type resources)
+        (for [[resource-type resources] (group-by resource/resource-type file-resources)
               :let [node-type (resource-type->node-type resource-type)]
-              resource resources
-              :when (not= :folder (resource/source-type resource))]
+              resource resources]
           (g/make-nodes project-graph [node [node-type :resource resource]]
                         (g/connect node :_node-id project :nodes)
                         (g/connect node :node-id+resource project :node-id+resources)))))))
@@ -239,6 +241,21 @@
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
        (get nodes-by-resource-path (resource/proj-path resource))))))
+
+(defn workspace
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (workspace project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :workspace evaluation-context)))
+
+(defn code-preprocessors
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (code-preprocessors project evaluation-context)))
+  ([project evaluation-context]
+   (let [workspace (workspace project evaluation-context)]
+     (workspace/code-preprocessors workspace evaluation-context))))
 
 (defn script-intelligence
   ([project]
@@ -278,15 +295,9 @@
                   :transaction-metrics @transaction-metrics}))
        project))))
 
-(defn make-embedded-resource [project type data]
-  (let [resource-types (g/node-value project :resource-types)]
-    (if-some [resource-type (get resource-types type)]
-      (resource/make-memory-resource (g/node-value project :workspace) resource-type data)
-      (throw (ex-info (format "Unable to locate resource type info. Extension not loaded? (type=%s)"
-                              type)
-                      {:type type
-                       :registered-types (into (sorted-set)
-                                               (keys resource-types))})))))
+(defn make-embedded-resource [project editability ext data]
+  (let [workspace (g/node-value project :workspace)]
+    (workspace/make-embedded-resource workspace editability ext data)))
 
 (defn all-save-data [project]
   (g/node-value project :save-data))
@@ -324,7 +335,8 @@
     (do
       (progress/progress-mapv
         (fn [{:keys [resource content value node-id]} _]
-          (when-not (resource/read-only? resource)
+          (when (and (resource/editable? resource)
+                     (not (resource/read-only? resource)))
             ;; If the file is non-binary, convert line endings to the
             ;; type used by the existing file.
             (if (and (textual-resource-type? (resource/resource-type resource))
@@ -338,13 +350,6 @@
 
 (defn invalidate-save-data-source-values! [save-data]
   (g/invalidate-outputs! (mapv (fn [sd] (g/endpoint (:node-id sd) :source-value)) save-data)))
-
-(defn workspace
-  ([project]
-   (g/with-auto-evaluation-context evaluation-context
-     (workspace project evaluation-context)))
-  ([project evaluation-context]
-   (g/node-value project :workspace evaluation-context)))
 
 (defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
   (fn [state node output-type label]
@@ -380,11 +385,15 @@
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
-  (run [project-graph] (g/undo! project-graph)))
+  (run [project-graph]
+    (g/undo! project-graph)
+    (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (handler/defhandler :redo :global
   (enabled? [project-graph] (g/has-redo? project-graph))
-  (run [project-graph] (g/redo! project-graph)))
+  (run [project-graph]
+    (g/redo! project-graph)
+    (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (def ^:private bundle-targets
   (into []
@@ -483,6 +492,7 @@
     (let [process-metrics (du/make-metrics-collector)
           resource-metrics (du/make-metrics-collector)
           transaction-metrics (du/make-metrics-collector)
+          transact-opts (du/when-metrics {:metrics transaction-metrics})
 
           collected-properties-by-resource
           (du/measuring process-metrics :collect-overridden-properties
@@ -522,7 +532,7 @@
       ;; corresponding override-nodes for the incoming connections will be created in the
       ;; overrides.
       (du/measuring process-metrics :transfer-overrides
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (du/if-metrics
             ;; Doing metrics - Submit separate transaction steps for each resource.
             (for [[resource old-node-id] (:transfer-overrides plan)]
@@ -538,7 +548,7 @@
       ;; must delete old versions of resource nodes before loading to avoid
       ;; load functions finding these when doing lookups of dependencies...
       (du/measuring process-metrics :delete-old-nodes
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (for [node (:delete plan)]
             (g/delete-node node))))
 
@@ -549,7 +559,7 @@
         (g/update-cache-from-evaluation-context! rn-dependencies-evaluation-context))
 
       (du/measuring process-metrics :transfer-outgoing-arcs
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
             (let [source-node (resource->node source-resource)
                   existing-arcs (set (gu/explicit-outputs source-node))]
@@ -563,13 +573,13 @@
                   (g/connect source-node source-label target-node target-label)))))))
 
       (du/measuring process-metrics :redirect
-        (g/transact transaction-metrics
+        (g/transact transact-opts
           (for [[resource-node new-resource] (:redirect plan)]
             (g/set-property resource-node :resource new-resource))))
 
       (du/measuring process-metrics :mark-deleted
         (let [basis (g/now)]
-          (g/transact transaction-metrics
+          (g/transact transact-opts
             (for [node-id (:mark-deleted plan)]
               (let [flaw (resource-io/file-not-found-error node-id nil :fatal (resource-node/resource basis node-id))]
                 (g/mark-defective node-id flaw))))))
@@ -599,7 +609,7 @@
                 (du/measuring resource-metrics (resource/proj-path resource) :restore-overridden-properties
                   (let [restore-properties-tx-data (g/restore-overridden-properties new-node-id collected-properties evaluation-context)]
                     (when (seq restore-properties-tx-data)
-                      (g/transact transaction-metrics restore-properties-tx-data)))))))
+                      (g/transact transact-opts restore-properties-tx-data)))))))
           (let [restore-properties-tx-data
                 (g/with-auto-evaluation-context evaluation-context
                   (into []
@@ -608,7 +618,7 @@
                                     (g/restore-overridden-properties new-node-id collected-properties evaluation-context))))
                         collected-properties-by-resource))]
             (when (seq restore-properties-tx-data)
-              (g/transact transaction-metrics
+              (g/transact transact-opts
                 restore-properties-tx-data)))))
 
       (du/measuring process-metrics :update-selection
@@ -617,7 +627,7 @@
                                     [(old-nodes-by-path p) n]))
                              resource-path->new-node)
               dissoc-deleted (fn [x] (apply dissoc x (:mark-deleted plan)))]
-          (g/transact transaction-metrics
+          (g/transact transact-opts
             (concat
               (let [all-selections (-> (g/node-value project :all-selections)
                                        (dissoc-deleted)
@@ -645,7 +655,8 @@
         resource-change-plan (du/metrics-time "Generate resource change plan" (resource-update/resource-change-plan nodes-by-resource-path changes))]
     ;; For debugging resource loading / reloading issues:
     ;; (resource-update/print-plan resource-change-plan)
-    (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))))
+    (du/metrics-time "Perform resource change plan" (perform-resource-change-plan resource-change-plan project render-progress!))
+    (lsp/apply-resource-changes! (lsp/get-node-lsp project) changes)))
 
 (g/defnk produce-collision-groups-data
   [collision-group-nodes]
@@ -682,7 +693,6 @@
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
   (input resource-map g/Any)
-  (input resource-types g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
   (input node-id+resources g/Any :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
@@ -712,9 +722,13 @@
   (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
-  (output dirty-save-data g/Any :cached (g/fnk [save-data] (filterv #(and (:dirty? %)
-                                                                       (when-let [r (:resource %)]
-                                                                         (not (resource/read-only? r)))) save-data)))
+  (output dirty-save-data g/Any :cached (g/fnk [save-data]
+                                          (filterv (fn [save-data]
+                                                     (and (:dirty? save-data)
+                                                          (when-some [resource (:resource save-data)]
+                                                            (and (resource/editable? resource)
+                                                                 (not (resource/read-only? resource))))))
+                                                   save-data)))
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
@@ -829,8 +843,8 @@
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :resource-list project :resources)
                 (g/connect workspace-id :resource-map project :resource-map)
-                (g/connect workspace-id :resource-types project :resource-types)
-                (g/set-graph-value graph :project-id project)))))]
+                (g/set-graph-value graph :project-id project)
+                (g/set-graph-value graph :lsp (lsp/make project get-resource-node))))))]
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 

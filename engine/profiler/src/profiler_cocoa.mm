@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -69,4 +69,9 @@ double dmProfilerExt::GetCpuUsage()
     vm_deallocate(mach_task_self(), (vm_offset_t)thread_list, thread_count * sizeof(thread_t));
 
     return double(total_cpu) / double(TH_USAGE_SCALE);
+}
+
+void dmProfilerExt::UpdatePlatformProfiler()
+{
+    // nop
 }

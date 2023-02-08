@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,6 +40,7 @@ class BuildUtility:
                             {'platform': 'js-web', 'os': 'web', 'arch': 'js'},
                             {'platform': 'wasm-web', 'os': 'web', 'arch': 'wasm'},
                             {'platform': 'arm64-nx64', 'os': 'nx64', 'arch': 'arm64'},
+                            {'platform': 'x86_64-ps4', 'os': 'ps4', 'arch': 'x86_64'},
                             ]
 
     def __init__(self, platform_id, build_platform_id, dynamo_home = None):

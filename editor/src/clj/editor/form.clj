@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.form
-  (:require [editor.util :as util]))
+  (:require [editor.util :as util])
+  (:import [java.net URI]))
 
 (set! *warn-on-reflection* true)
 
@@ -30,6 +31,9 @@
   {:table []
    :string ""
    :resource nil
+   :file ""
+   :directory ""
+   :url (URI. "https://example.com")
    :boolean false
    :integer 0
    :number 0.0

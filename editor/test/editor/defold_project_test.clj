@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -72,6 +72,7 @@
     (test-util/with-ui-run-later-rebound
       (let [workspace (workspace/make-workspace world
                                                 (.getAbsolutePath (io/file "test/resources/load_project"))
+                                                {}
                                                 {})]
         (g/transact
           (register-resource-types workspace [{:ext "type_a"

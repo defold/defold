@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,7 +28,8 @@ namespace dmSoundCodec
     {
         struct DecodeStreamInfo {
             Info m_Info;
-            stb_vorbis *m_StbVorbis;
+            stb_vorbis* m_StbVorbis;
+            uint32_t m_NumSamples;
         };
     }
 
@@ -46,6 +47,8 @@ namespace dmSoundCodec
             streamInfo->m_Info.m_Channels = info.channels;
             streamInfo->m_Info.m_BitsPerSample = 16;
             streamInfo->m_StbVorbis = vorbis;
+
+            streamInfo->m_NumSamples = (uint32_t)stb_vorbis_stream_length_in_samples(vorbis);
 
             *stream = streamInfo;
             return RESULT_OK;
@@ -84,34 +87,43 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    Result StbVorbisResetStream(HDecodeStream stream)
+    static Result StbVorbisResetStream(HDecodeStream stream)
     {
         stb_vorbis_seek_start(((DecodeStreamInfo*)stream)->m_StbVorbis);
         return RESULT_OK;
     }
 
-    Result StbVorbisSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
+    static Result StbVorbisSkipInStream(HDecodeStream stream, uint32_t num_bytes, uint32_t* skipped)
     {
         // Decode with buffer = null corresponding number of bytes.
-        // stb_vorbis has a special case for this skipping a lot of
-        // decoding work.
-        Result r = StbVorbisDecode(stream, 0, bytes, skipped);
-        return r;
+        // We've modified stb_vorbis to accept a null pointer, which allows us skipping a lot of decoding work.
+        // NOTE: Although the stb-vorbis api has functions for seeking forward in the stream
+        // there seem to be no clear cut way to get the exact position afterwards.
+        // So, we revert to the "decode and discard" approach to keep the internal state of the stream intact.
+        return StbVorbisDecode(stream, 0, num_bytes, skipped);
     }
 
-    void StbVorbisCloseStream(HDecodeStream stream)
+    static void StbVorbisCloseStream(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo*) stream;
         stb_vorbis_close(streamInfo->m_StbVorbis);
         delete streamInfo;
     }
 
-    void StbVorbisGetInfo(HDecodeStream stream, struct Info* out)
+    static void StbVorbisGetInfo(HDecodeStream stream, struct Info* out)
     {
         *out = ((DecodeStreamInfo *)stream)->m_Info;
     }
 
+    static int64_t StbVorbisGetInternalPos(HDecodeStream stream)
+    {
+        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+        return stb_vorbis_get_sample_offset(streamInfo->m_StbVorbis);
+    }
+
     DM_DECLARE_SOUND_DECODER(AudioDecoderStbVorbis, "VorbisDecoderStb", FORMAT_VORBIS,
                              5, // baseline score (1-10)
-                             StbVorbisOpenStream, StbVorbisCloseStream, StbVorbisDecode, StbVorbisResetStream, StbVorbisSkipInStream, StbVorbisGetInfo);
+                             StbVorbisOpenStream, StbVorbisCloseStream, StbVorbisDecode,
+                             StbVorbisResetStream, StbVorbisSkipInStream, StbVorbisGetInfo,
+                             StbVorbisGetInternalPos);
 }

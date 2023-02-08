@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -165,7 +165,7 @@ TEST(Socket, BitDifference_Equal)
     ASSERT_EQ(0U, dmSocket::BitDifference(instance1, instance2));
 }
 
-#if !defined(__NX__) // until we have a helper interface wrapper for inet_addr
+#if !(defined(__NX__) || defined(__SCE__))  // until we have a helper interface wrapper for inet_addr
 TEST(Socket, NetworkOrder)
 {
     dmSocket::Address address;
@@ -1134,6 +1134,7 @@ TEST(Socket, GetIfAddrs)
 
     dmSocket::IfAddr as[16];
     dmSocket::GetIfAddresses(as, 16, &count);
+    ASSERT_NE(0U, count);
 
     for (uint32_t i = 0; i < count; ++i) {
         const dmSocket::IfAddr& a = as[i];

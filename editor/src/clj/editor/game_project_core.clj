@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,9 @@
                                        settings-core/pushback-reader)]
                        (settings-core/load-meta-info r)))
 
+(def meta-settings (:settings basic-meta-info))
+
 (defn default-settings []
-  (-> (:settings basic-meta-info)
+  (-> meta-settings
       settings-core/make-default-settings
       settings-core/make-settings-map))

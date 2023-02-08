@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,52 +24,47 @@
 #include <dlib/sys_internal.h>
 #include <dlib/path.h>
 #include <dlib/log.h>
+#include <dlib/testutil.h>
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSys::ResultToString(r));
 }
 
-static const char* MakeSupportPath(char* dst, uint32_t dst_len, const char* path)
+TEST(dmSys, Exists)
 {
-#if defined(__NX__)
-    dmSys::GetApplicationSupportPath("test_sys", dst, dst_len);
-    dmStrlCat(dst, path, dst_len);
-#else
-    // storing unit test data elsewhere seems unnecessary
-    dmStrlCpy(dst, path, dst_len);
-#endif
-    return dst;
-}
+    char path[128];
+    bool r;
 
-static const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
-{
-#if defined(__NX__)
-    dmStrlCpy(dst, "host:/", dst_len);
-    dmStrlCat(dst, path, dst_len);
-    return dst;
-#else
-    return path;
-#endif
+    r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), "src"));
+    ASSERT_TRUE(r);
+
+    r = dmSys::Exists(dmTestUtil::MakeHostPath(path, sizeof(path), "notexist"));
+    ASSERT_FALSE(r);
 }
 
 TEST(dmSys, Mkdir)
 {
     char path[128];
-
     dmSys::Result r;
-    r = dmSys::Mkdir(MakeSupportPath(path, sizeof(path), "tmp"), 0777);
-#if !defined(DM_NO_SYSTEM_FUNCTION)
-    ASSERT_EQ(dmSys::RESULT_EXIST, r);
-#else
-    ASSERT_EQ(dmSys::RESULT_OK, r);
-#endif
-    r = dmSys::Mkdir(MakeSupportPath(path, sizeof(path), "tmp/dir"), 0777);
+
+    dmTestUtil::MakeHostPath(path, sizeof(path), "tmp");
+
+    if (dmSys::Exists(path)) {
+        dmSys::RmTree(path);
+    }
+    r = dmSys::Mkdir(path, 0777);
     ASSERT_EQ(dmSys::RESULT_OK, r);
 
-    r = dmSys::Mkdir(MakeSupportPath(path, sizeof(path), "tmp/dir"), 0777);
+    r = dmSys::Mkdir(path, 0777);
     ASSERT_EQ(dmSys::RESULT_EXIST, r);
 
-    r = dmSys::Rmdir(MakeSupportPath(path, sizeof(path), "tmp/dir"));
+    r = dmSys::Mkdir(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/dir"), 0777);
+    ASSERT_EQ(dmSys::RESULT_OK, r);
+
+    r = dmSys::Mkdir(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/dir"), 0777);
+    ASSERT_EQ(dmSys::RESULT_EXIST, r);
+
+    r = dmSys::Rmdir(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/dir"));
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
 
@@ -78,16 +73,18 @@ TEST(dmSys, Unlink)
     char path[128];
 
     dmSys::Result r;
-    r = dmSys::Unlink(MakeSupportPath(path, sizeof(path), "tmp/afile"));
+    r = dmSys::Unlink(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/afile"));
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
-    FILE* f = fopen(MakeSupportPath(path, sizeof(path), "tmp/afile"), "wb");
+    FILE* f = fopen(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/afile"), "wb");
     ASSERT_NE((FILE*) 0, f);
     fclose(f);
 
-    r = dmSys::Unlink(MakeSupportPath(path, sizeof(path), "tmp/afile"));
+    r = dmSys::Unlink(dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/afile"));
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
+
+#if !(defined(__SCE__)) // Disabled until we can get the user paths
 
 TEST(dmSys, GetApplicationSupportPathBuffer)
 {
@@ -119,6 +116,8 @@ TEST(dmSys, GetApplicationSupportPath)
     ASSERT_EQ(0, ret);
     ASSERT_EQ((uint32_t)S_IFDIR, stat_data.st_mode & S_IFDIR);
 }
+
+#endif // __SCE__
 
 int g_Argc;
 char** g_Argv;
@@ -202,23 +201,23 @@ TEST(dmSys, LoadResource)
     dmSys::Result r;
     uint32_t size;
 
-    r = dmSys::LoadResource(MakeHostPath(path, sizeof(path), "does_not_exists"), buffer, sizeof(buffer), &size);
+    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), buffer, sizeof(buffer), &size);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
-    r = dmSys::ResourceSize(MakeHostPath(path, sizeof(path), "does_not_exists"), &size);
-    ASSERT_EQ(dmSys::RESULT_NOENT, r);
-
-    r = dmSys::LoadResource(MakeHostPath(path, sizeof(path), "."), buffer, sizeof(buffer), &size);
-    ASSERT_EQ(dmSys::RESULT_NOENT, r);
-    r = dmSys::ResourceSize(MakeHostPath(path, sizeof(path), "does_not_exists"), &size);
+    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &size);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
-    r = dmSys::LoadResource(MakeHostPath(path, sizeof(path), "wscript"), 0, 0, &size);
+    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), "."), buffer, sizeof(buffer), &size);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &size);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+
+    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), 0, 0, &size);
     ASSERT_EQ(dmSys::RESULT_INVAL, r);
 
-    r = dmSys::LoadResource(MakeHostPath(path, sizeof(path), "wscript"), buffer, sizeof(buffer), &size);
+    r = dmSys::LoadResource(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), buffer, sizeof(buffer), &size);
     ASSERT_EQ(dmSys::RESULT_OK, r);
     uint32_t size2;
-    r = dmSys::ResourceSize(MakeHostPath(path, sizeof(path), "wscript"), &size2);
+    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), &size2);
     ASSERT_EQ(dmSys::RESULT_OK, r);
     ASSERT_EQ(size, size2);
     ASSERT_GT(size, 0);
@@ -228,9 +227,7 @@ int main(int argc, char **argv)
 {
     g_Argc = argc;
     g_Argv = argv;
-#if !defined(DM_NO_SYSTEM_FUNCTION)
-    system("python src/test/test_sys.py"); // creates the ./tmp folder
-#endif
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

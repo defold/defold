@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -35,6 +35,8 @@ namespace dmMessage { struct URL; }
 
 namespace dmGameSystem
 {
+    /// Config key to use for tweaking maximum number of collision objects
+    extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported
     extern const char* PHYSICS_MAX_COLLISIONS_KEY;
     /// Config key to use for tweaking maximum number of contacts reported
@@ -80,6 +82,7 @@ namespace dmGameSystem
             dmPhysics::HContext2D m_Context2D;
         };
         uint32_t    m_MaxCollisionCount;
+        uint32_t    m_MaxCollisionObjectCount;
         uint32_t    m_MaxContactPointCount;
         bool        m_Debug;
         bool        m_3D;
@@ -141,24 +144,14 @@ namespace dmGameSystem
         uint32_t                    m_MaxSoundInstances;
     };
 
-    struct MeshContext
-    {
-        MeshContext()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        dmRender::HRenderContext    m_RenderContext;
-        dmResource::HFactory        m_Factory;
-        uint32_t                    m_MaxMeshCount;
-    };
-
     struct ScriptLibContext
     {
         ScriptLibContext();
 
-        lua_State* m_LuaState;
-        dmResource::HFactory m_Factory;
+        lua_State*              m_LuaState;
+        dmResource::HFactory    m_Factory;
         dmGameObject::HRegister m_Register;
+        dmHID::HContext         m_HidContext;
     };
 
 
@@ -178,6 +171,7 @@ namespace dmGameSystem
         {
             memset(this, 0, sizeof(*this));
         }
+        dmResource::HFactory m_Factory;
         dmScript::HContext m_ScriptContext;
         uint32_t m_MaxFactoryCount;
     };
@@ -188,6 +182,7 @@ namespace dmGameSystem
         {
             memset(this, 0, sizeof(*this));
         }
+        dmResource::HFactory m_Factory;
         dmScript::HContext m_ScriptContext;
         uint32_t m_MaxCollectionFactoryCount;
     };
@@ -210,7 +205,6 @@ namespace dmGameSystem
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   ModelContext* model_context,
-                                                  MeshContext* Mesh_context,
                                                   LabelContext* label_context,
                                                   TilemapContext* tilemap_context,
                                                   SoundContext* sound_context);

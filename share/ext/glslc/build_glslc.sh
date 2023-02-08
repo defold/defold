@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,121 +14,89 @@
 # specific language governing permissions and limitations under the License.
 
 
+# License: MIT
+# Copyright 2022 The Defold Foundation
 
-readonly PRODUCT=glslc
-readonly VERSION=v2018.0
-readonly FILE_URL=${VERSION}.tar.gz
-readonly BASE_URL=https://github.com/google/shaderc/archive/
+PLATFORM=$1
+PWD=$(pwd)
+SOURCE_DIR=${PWD}/source
+BUILD_DIR=${PWD}/build/${PLATFORM}
 
-. ../common.sh
+if [ -z "$PLATFORM" ]; then
+    echo "No platform specified!"
+    exit 1
+fi
 
-function cmi_configure() {
-    pushd third_party >/dev/null
-    git clone --depth 1 https://github.com/google/googletest.git
-    git clone --depth 1 https://github.com/google/glslang.git
-    git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Tools.git spirv-tools
-    git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Headers.git spirv-headers
-    git clone --depth 1 https://github.com/google/re2.git
-    git clone --depth 1 https://github.com/google/effcee.git
-    popd >/dev/null
+CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DMACOSX_DEPLOYMENT_TARGET=10.7 ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_TESTS=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_EXAMPLES=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_COPYRIGHT_CHECK=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_INSTALL=ON ${CMAKE_FLAGS}"
+# static link on MSVC
+CMAKE_FLAGS="-DSHADERC_ENABLE_SHARED_CRT=OFF ${CMAKE_FLAGS}"
+# Size opt
+CMAKE_FLAGS="-DSPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS=ON ${CMAKE_FLAGS}"
 
-    case $PLATFORM in
-        x86_64-macos)
-            CMAKE_GENERATOR="Unix Makefiles"
-            MAKE_OPTIONS="-- -j8"
-            OUTPUT_EXECUTABLE_FILE=$PRODUCT/$PRODUCT
-            ;;
+case $PLATFORM in
+    arm64-macos)
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
+        ;;
+    x86_64-macos)
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
+        ;;
+esac
 
-        x86_64-linux)
-            CMAKE_GENERATOR="Unix Makefiles"
-            MAKE_OPTIONS="-- -j8"
-            OUTPUT_EXECUTABLE_FILE=$PRODUCT/$PRODUCT
-            ;;
+# Follow the build instructions on https://github.com/google/shaderc
+if [ ! -d "$SOURCE_DIR" ]; then
+    git clone https://github.com/google/shaderc $SOURCE_DIR
 
-    	win32)
-            CMAKE_GENERATOR="Visual Studio 14 2015"
-            MAKE_OPTIONS=""
-            OUTPUT_EXECUTABLE_FILE=$PRODUCT/Release/$PRODUCT.exe
-            ;;
+    pushd $SOURCE_DIR
+    ./utils/git-sync-deps
+    popd
+fi
 
-        x86_64-win32)
-            CMAKE_GENERATOR="Visual Studio 14 2015 Win64"
-            MAKE_OPTIONS=""
-            OUTPUT_EXECUTABLE_FILE=$PRODUCT/Release/$PRODUCT.exe
-            ;;
-    esac
+# Build
 
-    set -e
-    mkdir -p build >/dev/null
-    pushd build >/dev/null
-    cmake -DSHADERC_SKIP_TESTS=ON -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -G"${CMAKE_GENERATOR}" ..
-    popd >/dev/null
-}
+mkdir -p ${BUILD_DIR}
 
-function cmi_make() {
-    set -e
+pushd $BUILD_DIR
 
-    pushd build >/dev/null
-    cmake --build . --config Release --target glslc_exe $MAKE_OPTIONS
-    mkdir -p $PREFIX/bin/$PLATFORM
-    cp $OUTPUT_EXECUTABLE_FILE $PREFIX/bin/$PLATFORM
-    popd >/dev/null
-    cmi_strip
+cmake ${CMAKE_FLAGS} $SOURCE_DIR
+cmake --build . --config Release -j 8
 
-    set +e
-}
+mkdir -p ./bin/$PLATFORM
 
-function cmi_buildplatform() {
-    cmi_do $PLATFORM ""
+EXE_SUFFIX=
+case $PLATFORM in
+    win32|x86_64-win32)
+        EXE_SUFFIX=.exe
+        cp -v ./glslc/Release/glslc${EXE_SUFFIX} ./bin/$PLATFORM
+        ;;
+    *)
+        cp -v ./glslc/glslc${EXE_SUFFIX} ./bin/$PLATFORM
+        ;;
+esac
 
-    local TGZ="$PRODUCT-$VERSION-$PLATFORM.tar.gz"
+case $PLATFORM in
+    win32|x86_64-win32)
+        ;;
+    *)
+        strip ./bin/$PLATFORM/glslc${EXE_SUFFIX}
+        ;;
+esac
 
-    pushd $PREFIX  >/dev/null
-    tar cfvz $TGZ bin
+popd
 
-    popd >/dev/null
-    popd >/dev/null
+# Package
 
-    mkdir ../build
+VERSION=$(cd $SOURCE_DIR && git rev-parse --short HEAD)
+echo VERSION=${VERSION}
 
-    mv -v $PREFIX/$TGZ ../build
-    echo "../build/$TGZ created"
+PACKAGE=glslc-${VERSION}-${PLATFORM}.tar.gz
 
-    rm -rf tmp
-    rm -rf $PREFIX
-}
+pushd $BUILD_DIR
+tar cfvz ${PACKAGE} bin
+popd
 
-function cmi() {
-    export PREFIX=`pwd`/build
-    export PLATFORM=$1
-
-    case $PLATFORM in
-        x86_64-macos)
-            function cmi_strip() {
-                strip -S -x $PREFIX/bin/$PLATFORM/$PRODUCT
-            }
-            cmi_buildplatform $PLATFORM
-            ;;
-
-        x86_64-linux)
-            function cmi_strip() {
-                strip -s $PREFIX/bin/$PLATFORM/$PRODUCT
-            }
-            cmi_buildplatform $PLATFORM
-            ;;
-
-    	win32|x86_64-win32)
-            function cmi_strip() {
-                echo "No stripping supported"
-            }
-            cmi_setup_vs2015_env $PLATFORM
-            cmi_buildplatform $PLATFORM
-            ;;
-        *)
-            echo "Unknown target $PLATFORM" && exit 1
-            ;;
-    esac
-}
-
-download
-cmi $1
+echo "Wrote ${PACKAGE}"

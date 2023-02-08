@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -246,6 +246,8 @@ def _parse_comment(text):
         md.reset()
         if tag == 'name':
             element.name = value
+        elif tag == 'note':
+            element.notes.append(value)
         elif tag == 'return':
             """ Some of the possible variations:
             @return name
@@ -316,7 +318,7 @@ def _parse_comment(text):
 
 def extract_type_from_docstr(s):
     # try to extract the type information
-    m = re.search(r'^\s*(?:\s*\[type:\s*(.*)\])+\s*([\w\W]*)', s)
+    m = re.search(r'^\s*(?:\s*\[type:\s*([^\]]*)\])+\s*([\w\W]*)', s)
     if m and m.group(1):
         type_list = m.group(1).split("|")
         if len(type_list) == 1:
@@ -386,12 +388,16 @@ def _parse_comment_yaml(str):
     element["members"] = []
     element["tparams"] = []
     element["params"] = []
+    element["notes"] = []
 
     namespace_found = False
     for (tag, value) in lst:
         value = value.strip()
         if tag == 'name':
             element["name"] = value
+
+        elif tag == 'note':
+            element["notes"].append(value)
 
         elif tag == 'return':
             tmp = value.split(' ', 1)
@@ -569,10 +575,14 @@ def doc_to_ydict(info, elements):
         if len(elem_desc) == 0:
             elem_desc = element["brief"]
 
+        # notes
+        elem_notes = element["notes"]
+
         entry = {
             'name': elem_name,
             'type': elem_type,
-            'desc': elem_desc
+            'desc': elem_desc,
+            'notes': elem_notes
         }
 
         # type specific fields

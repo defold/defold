@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -103,6 +103,23 @@
      ((fn step []
         (when (. m (find))
           (cons (.toMatchResult m) (lazy-seq (step)))))))))
+
+(defn- join-lines-rf
+  ([] (StringBuilder.))
+  ([ret] (str ret))
+  ([^StringBuilder acc ^String input] (.append acc input)))
+
+(defn join-lines
+  "Joins the supplied sequence of lines into a string with the optionally
+  specified separator string between the lines. If no separator is specified,
+  newlines are used."
+  (^String [lines]
+   (join-lines "\n" lines))
+  (^String [separator lines]
+   (transduce
+     (interpose separator)
+     join-lines-rf
+     lines)))
 
 (defn split-lines
   "Splits s on \\n or \\r\\n. Contrary to string/split-lines, keeps trailing

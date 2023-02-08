@@ -1,0 +1,8 @@
+#! /usr/bin/env python
+
+def build(bld):
+    bld.program(features = 'cxx test',
+                    includes = '. ..',
+                    use = 'DLIB PROFILE model',
+                    target = 'test_model',
+                    source = 'test_model.cpp')

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -550,7 +550,7 @@ namespace dmGameObject
      * @name go.get
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to retrieve
-     * @param options [type:table] (optional) options table
+     * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
      * @return value [type:any] the value of the specified property
@@ -755,7 +755,7 @@ namespace dmGameObject
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
      * @param value [type:any] the value to set
-     * @param options [type:table] (optional) options table
+     * @param [options] [type:table] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
      * @examples
@@ -2059,7 +2059,7 @@ namespace dmGameObject
      *
      * @name go.property
      * @param name [type:string] the id of the property
-     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
+     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource|boolean] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
      * @examples
      *
      * This example demonstrates how to define a property called "health" in a script.

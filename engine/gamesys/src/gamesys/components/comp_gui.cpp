@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -139,7 +139,8 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogWarning("The gui world could not be stored since the buffer is full (%d). Increase number in gui.max_instance_count", gui_context->m_Worlds.Size());
+            // JG: This seems deprecated?
+            dmLogWarning("The gui world could not be created since the buffer is full (%d). Increase the 'gui.max_instance_count' value in game.project", gui_context->m_Worlds.Size());
         }
 
         gui_world->m_CompGuiContext = gui_context;
@@ -147,17 +148,19 @@ namespace dmGameSystem
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, gui_context->m_MaxGuiComponents);
         gui_world->m_Components.SetCapacity(comp_count);
 
-        dmGraphics::VertexElement ve[] =
-        {
-                {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-                {"color", 2, 4, dmGraphics::TYPE_FLOAT, true},
-        };
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
 
-        gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(gui_context->m_RenderContext), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+        dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_FLOAT, true);
+
+        gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
-        gui_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(gui_context->m_RenderContext), 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        gui_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         uint8_t white_texture[] = { 0xff, 0xff, 0xff, 0xff,
                                     0xff, 0xff, 0xff, 0xff,
@@ -180,7 +183,7 @@ namespace dmGameSystem
         tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
 
-        gui_world->m_WhiteTexture = dmGraphics::NewTexture(dmRender::GetGraphicsContext(gui_context->m_RenderContext), tex_create_params);
+        gui_world->m_WhiteTexture = dmGraphics::NewTexture(graphics_context, tex_create_params);
         dmGraphics::SetTexture(gui_world->m_WhiteTexture, tex_params);
 
         // Grows automatically
@@ -681,6 +684,12 @@ namespace dmGameSystem
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
 
+        if (gui_world->m_Components.Full())
+        {
+            ShowFullBufferError("Gui", "gui.max_count", gui_world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
@@ -724,7 +733,9 @@ namespace dmGameSystem
         }
 
         *params.m_UserData = (uintptr_t)gui_component;
+
         gui_world->m_Components.Push(gui_component);
+
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -1017,10 +1028,10 @@ namespace dmGameSystem
             vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
             dmTransform::Transform transform = dmTransform::ToTransform(node_transforms[i]);
-            // Particlefx nodes have uniformly scaled x/y values from adjust mode, we use x here but y would be fine too.
-            float scale = transform.GetScalePtr()[0];
             dmParticle::SetPosition(gui_world->m_ParticleContext, emitter_render_data->m_Instance, Point3(transform.GetTranslation()));
             dmParticle::SetRotation(gui_world->m_ParticleContext, emitter_render_data->m_Instance, transform.GetRotation());
+            // we can't use transform.GetUniformScale() since the z-component is ignored by the gui
+            float scale = dmMath::Min(transform.GetScalePtr()[0], transform.GetScalePtr()[1]);
             dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, scale);
         }
 

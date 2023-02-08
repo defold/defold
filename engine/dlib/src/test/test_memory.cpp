@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,20 +18,30 @@
 #include <jc_test/jc_test.h>
 #include "../dlib/memory.h"
 
+TEST(dmMemory, Malloc)
+{
+    void* memory = malloc(1024*1024);
+    ASSERT_TRUE(memory != 0);
+    free(memory);//
+}
+
 TEST(dmMemory, AlignedMalloc)
 {
     void* dummy = 0;
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 8, 1024));
+    ASSERT_TRUE(dummy != 0);
     ASSERT_EQ(0u, ((unsigned long)dummy % 8));
     dmMemory::AlignedFree(dummy);
     dummy = 0;
 
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 16, 1024));
+    ASSERT_TRUE(dummy != 0);
     ASSERT_EQ(0u, ((unsigned long)dummy % 16));
     dmMemory::AlignedFree(dummy);
     dummy = 0;
 
     ASSERT_EQ(dmMemory::RESULT_OK, dmMemory::AlignedMalloc(&dummy, 1024*16, 1024));
+    ASSERT_TRUE(dummy != 0);
     ASSERT_EQ(0u, ((unsigned long)dummy % 1024*16));
     dmMemory::AlignedFree(dummy);
     dummy = 0;

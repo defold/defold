@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,7 +27,6 @@ ThreadAttacher::ThreadAttacher()
 , m_Env(NULL)
 , m_IsAttached(false)
 {
-    JNIEnv* env = 0;
     if (m_Activity->vm->GetEnv((void **)&m_Env, JNI_VERSION_1_6) != JNI_OK)
     {
         m_Activity->vm->AttachCurrentThread(&m_Env, 0);

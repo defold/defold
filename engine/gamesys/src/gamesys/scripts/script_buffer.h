@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,9 +15,12 @@
 #ifndef DM_GAMESYS_SCRIPT_BUFFER_H
 #define DM_GAMESYS_SCRIPT_BUFFER_H
 
+#include <dmsdk/gamesys/script.h>
+
 namespace dmGameSystem
 {
     void ScriptBufferRegister(const struct ScriptLibContext& context);
+    dmBuffer::HBuffer UnpackLuaBuffer(dmScript::LuaHBuffer* lua_buffer);
 }
 
 #endif // DM_GAMESYS_SCRIPT_BUFFER_H

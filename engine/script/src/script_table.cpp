@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,17 +25,6 @@ extern "C"
 #include <lua/lauxlib.h>
 #include <lua/lualib.h>
 }
-
-// Emscripten requires data access to be aligned and setting __attribute__((aligned(X)) should force emscripten to
-// make multiple access instructions and merge them.
-// However, there's a bug in emscripten which causes __attribute__((aligned(X)) to sometimes fail
-// To work around this, we can use a typedef
-// The bug is tracked: https://github.com/kripken/emscripten/issues/2378
-#ifdef __EMSCRIPTEN__
-typedef lua_Number __attribute__((aligned(4))) lua_Number_4_align;
-#else
-typedef lua_Number lua_Number_4_align;
-#endif
 
 // custom type when writing negative numbers as keys
 // the rest of the types used when serializing a table come from lua.h
@@ -814,7 +803,7 @@ namespace dmScript
         char log_str[PUSH_TABLE_LOGGER_STR_SIZE]; \
         PushTableLogPrint(LOGGER, log_str); \
         char str[512]; \
-        dmSnPrintf(str, sizeof(str), "Reading outside of buffer after %s element #%d (depth: #%d) [BufStart: %p, Cursor: %p, End: %p, BufSize: %lu, Bytes OOB: %d].\n'%s'", ELEMTYPE, COUNT, DEPTH, LOGGER.m_BufferStart, BUFFER, BUFFER_END, LOGGER.m_BufferSize, (int)(BUFFER_END - BUFFER), log_str); \
+        dmSnPrintf(str, sizeof(str), "Reading outside of buffer after %s element #%d (depth: #%d) [BufStart: %p, Cursor: %p, End: %p, BufSize: %u, Bytes OOB: %d].\n'%s'", ELEMTYPE, COUNT, DEPTH, LOGGER.m_BufferStart, BUFFER, BUFFER_END, (uint32_t)LOGGER.m_BufferSize, (int)(BUFFER_END - BUFFER), log_str); \
         return luaL_error(L, "%s", str); \
     }
 
@@ -897,10 +886,14 @@ namespace dmScript
                     intptr_t aligned_buffer = ((intptr_t) offset + sizeof(float)-1) & ~(sizeof(float)-1);
                     intptr_t align_size = aligned_buffer - (intptr_t) offset;
                     buffer += align_size;
-                    // Sanity-check. At least 4 bytes alignment (de facto)
-                    assert((((intptr_t) buffer) & 3) == 0);
 
-                    lua_pushnumber(L, *((lua_Number_4_align *) buffer));
+                    union
+                    {
+                        lua_Number x;
+                        char x_buf[sizeof(lua_Number)];
+                    };
+                    memcpy(x_buf, buffer, sizeof(lua_Number));
+                    lua_pushnumber(L, x);
                     buffer += sizeof(lua_Number);
 
                     CHECK_PUSHTABLE_OOB("value number", logger, buffer, buffer_end, count, depth);
@@ -1037,7 +1030,7 @@ namespace dmScript
         // Check so that buffer has enough size to read header
         if (buffer_size < sizeof(TableHeader)) {
             char str[256];
-            dmSnPrintf(str, sizeof(str), "Not enough data to read table header (buffer size: %u, header size: %lu)", buffer_size, sizeof(TableHeader));
+            dmSnPrintf(str, sizeof(str), "Not enough data to read table header (buffer size: %u, header size: %u)", buffer_size, (uint32_t)sizeof(TableHeader));
             luaL_error(L, "%s", str);
         }
 

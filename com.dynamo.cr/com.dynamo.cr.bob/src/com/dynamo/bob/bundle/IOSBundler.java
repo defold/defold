@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,6 +25,7 @@ import java.io.StringWriter;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -202,8 +203,10 @@ public class IOSBundler implements IBundler {
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
                 orientationSupport.add("LandscapeRight");
+                orientationSupport.add("LandscapeLeft");
             } else {
                 orientationSupport.add("Portrait");
+                orientationSupport.add("PortraitUpsideDown");
             }
         } else {
             orientationSupport.add("Portrait");
@@ -217,6 +220,15 @@ public class IOSBundler implements IBundler {
         List<String> applicationLocalizations = BundleHelper.createArrayFromString(applicationLocalizationsStr);
         properties.put("application-localizations", applicationLocalizations);
 
+    }
+
+    private void copyManifestFile(BundleHelper helper, Platform platform, File destDir) throws IOException, CompileExceptionError {
+        File manifestFile = helper.copyOrWriteManifestFile(platform, destDir);
+        String manifest = FileUtils.readFileToString(manifestFile, StandardCharsets.UTF_8);
+        // remove attribute definition (https://github.com/defold/defold/pull/6914)
+        // it is automatically removed if the manifest was merged
+        manifest = manifest.replace("[ <!ATTLIST key merge (keep) #IMPLIED> ]", "");
+        FileUtils.write(manifestFile, manifest);
     }
 
     @Override
@@ -290,9 +302,11 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy archive and game.projectc
-        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
-            FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
+        if (BundleHelper.isArchiveExcluded(project)) {
+            // Copy archive and game.projectc
+            for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+                FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
+            }
         }
 
         BundleHelper.throwIfCanceled(canceled);
@@ -366,8 +380,7 @@ public class IOSBundler implements IBundler {
         }
 
         BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant);
-
-        helper.copyOrWriteManifestFile(architectures.get(0), appDir);
+        copyManifestFile(helper, architectures.get(0), appDir);
         helper.copyIosIcons();
 
         BundleHelper.throwIfCanceled(canceled);

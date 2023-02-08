@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,8 +25,13 @@ namespace dmHID
     // detect sloppy init/final usage
     dmHashTable<uintptr_t, char*>* g_DummyData = 0x0;
 
+    // Mostly used for tests
+    static uint8_t g_MouseVisible = 0;
+
     bool Init(HContext context)
     {
+        g_MouseVisible = 1;
+
         if (g_DummyData == 0x0)
         {
             g_DummyData = new dmHashTable<uintptr_t, char*>();
@@ -75,9 +80,9 @@ namespace dmHID
         context->m_Gamepads[0].m_AxisCount = MAX_GAMEPAD_AXIS_COUNT;
     }
 
-    void GetGamepadDeviceName(HGamepad gamepad, const char** device_name)
+    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name)
     {
-        *device_name = "null_device";
+        *out_device_name = "null_device";
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
@@ -94,5 +99,20 @@ namespace dmHID
 
     void EnableAccelerometer()
     {
+    }
+
+    void ShowMouseCursor(HContext context)
+    {
+        g_MouseVisible = 1;
+    }
+
+    void HideMouseCursor(HContext context)
+    {
+        g_MouseVisible = 0;
+    }
+
+    bool GetCursorVisible(HContext context)
+    {
+        return g_MouseVisible;
     }
 }

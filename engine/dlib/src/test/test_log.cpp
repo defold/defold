@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,17 +17,36 @@
 #include <string>
 #include <map>
 #include "../dlib/array.h"
+#include "../dlib/atomic.h"
 #include "../dlib/dlib.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 #include "../dlib/mutex.h"
 #include "../dlib/dstrings.h"
 #include "../dlib/socket.h"
+#include "../dlib/time.h"
 #include "../dlib/thread.h"
 #include "../dlib/path.h"
 #include "../dlib/sys.h"
+#include "../dlib/testutil.h"
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+#define HAS_SYSTEM_FUNCTION
+#if defined(DM_NO_SYSTEM_FUNCTION)
+    #undef HAS_SYSTEM_FUNCTION
+#endif
+
+TEST(dmLog, TestUninitialized)
+{
+    dmLogError("Logging an error");
+
+    dLib::SetDebugMode(false); // avoid spam in the unit tests
+
+    dmLogError("Logging an second error");
+
+    dLib::SetDebugMode(true);
+}
 
 TEST(dmLog, Init)
 {
@@ -92,7 +111,8 @@ static void CustomLogListener(LogSeverity severity, const char* domain, const ch
 
 
 
-#if !(defined(__EMSCRIPTEN__) || defined(__NX__))
+#if defined(HAS_SYSTEM_FUNCTION)
+
 TEST(dmLog, Client)
 {
     char buf[256];
@@ -130,7 +150,8 @@ TEST(dmLog, Client)
     dmThread::Join(log_thread);
     dmLog::LogFinalize();
 }
-#endif
+
+#endif // HAS_SYSTEM_FUNCTION
 
 TEST(dmLog, Stress)
 {
@@ -189,21 +210,25 @@ TEST(dmLog, LogFile)
     dmSys::GetLogPath(path, sizeof(path));
     dmStrlCat(path, "log.txt", sizeof(path));
 
+    char apppath[DMPATH_MAX_PATH];
+    dmTestUtil::MakeHostPath(apppath, sizeof(apppath), path);
+
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
-    dmLog::SetLogFile(path);
+    dmLog::SetLogFile(apppath);
     dmLogInfo("TESTING_LOG");
     dmLog::LogFinalize();
 
     char tmp[1024];
-    FILE* f = fopen(path, "rb");
+
+    FILE* f = fopen(apppath, "rb");
     ASSERT_NE((FILE*) 0, f);
     if (f) {
         fread(tmp, 1, sizeof(tmp), f);
         ASSERT_TRUE(strstr(tmp, "TESTING_LOG") != 0);
         fclose(f);
     }
-    dmSys::Unlink(path);
+    dmSys::Unlink(apppath);
 }
 
 dmArray<char> g_LogListenerOutput;
@@ -244,6 +269,50 @@ TEST(dmLog, TestCapture)
                 "FATAL:DLIB: This is a fatal message\n";
 
     ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
+}
+
+
+static void LogThreadWithLogCalls(void* arg)
+{
+    int32_atomic_t* run = (int32_atomic_t*)arg;
+    int count = 0;
+    while (dmAtomicGet32(run) != 0)
+    {
+        dmLogError("a warning %d", count);
+        count++;
+    }
+}
+
+int32_atomic_t g_LogThreadWithLogCallsCount = 0;
+static void LogThreadWithLogCallsListener(LogSeverity severity, const char* domain, const char* formatted_string)
+{
+    dmAtomicAdd32(&g_LogThreadWithLogCallsCount, 1);
+}
+
+TEST(dmLog, TestLogThreadWithLogCalls)
+{
+    int32_atomic_t run = 1;
+    dLib::SetDebugMode(false); // avoid spam in the unit tests
+
+    dmThread::Thread log_thread = dmThread::New(LogThreadWithLogCalls, 0x80000, (void*)&run, "test");
+
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
+    g_LogThreadWithLogCallsCount = 0;
+    dmLogRegisterListener(LogThreadWithLogCallsListener);
+
+    while (dmAtomicGet32(&g_LogThreadWithLogCallsCount) < 40)
+        dmTime::Sleep(1000);
+
+    dmLog::LogFinalize();
+
+    dmTime::Sleep(1000); // make sure we write some more logs
+
+    // wait for thread to join
+    dmAtomicStore32(&run, 0);
+    dmThread::Join(log_thread);
+    dLib::SetDebugMode(true);
 }
 
 int main(int argc, char **argv)

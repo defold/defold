@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,6 +81,20 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertSubElementsV3(properties.getVector3Entries(0));
         assertSubElementsV4(properties.getVector4Entries(0));
         assertSubElementsV4(properties.getQuatEntries(0));
+    }
+
+    // DEF-7341 - using resource.xxx(path) for resources that doesn't exist should raise an error
+    @Test
+    public void testPropResourceNotFound() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("\n");
+        src.append("go.property(\"material\", resource.material(\"/invalid.material\"))\n");
+
+        try {
+            @SuppressWarnings("unused")
+            LuaModule luaModule = (LuaModule) build("/test.script", src.toString()).get(0);
+            assertTrue(false);
+        } catch (CompileExceptionError e) { }
     }
 
     @Test
@@ -191,7 +205,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testLuaJITBytecode64WithDelta() throws Exception {
+    public void testLuaJITBytecode32And64WithoutDelta() throws Exception {
         Project p = GetProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "armv7-android,arm64-android");
@@ -200,8 +214,73 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
         LuaSource luaSource = luaModule.getSource();
         assertTrue(luaSource.getScript().size() == 0);
+        assertTrue(luaSource.getBytecode32().size() > 0);
+        assertTrue(luaSource.getBytecode64().size() > 0);
+        assertTrue(luaSource.getDelta().size() == 0);
+    }
+
+    @Test
+    public void testLuaJITBytecode64WithDelta() throws Exception {
+        Project p = GetProject();
+        p.setOption("platform", "armv7-android");
+        p.setOption("architectures", "armv7-android,arm64-android");
+        p.setOption("use-lua-bytecode-delta", "true");
+
+        StringBuilder src = new StringBuilder();
+        LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
+        LuaSource luaSource = luaModule.getSource();
+        assertTrue(luaSource.getScript().size() == 0);
         assertTrue(luaSource.getBytecode().size() > 0);
         assertTrue(luaSource.getBytecode64().size() == 0);
         assertTrue(luaSource.getDelta().size() > 0);
+    }
+
+    @Test
+    public void testLuaBytecodeDeltaCalculation() throws Exception {
+        LuaBuilder builder = new LuaBuilder() {};
+
+        // create some mock bytecode
+        byte[] b32 = new byte[258];
+        byte[] b64 = new byte[258];
+        // byte 0 is the same
+        b32[0] = 5;
+        b64[0] = 5;
+        // bytes 1 to 256 are diffing
+        for (int i=1; i <= 256; i++) {
+            b32[i] = 99;
+            b64[i] = 66;
+        }
+        // byte 257 is the same
+        b32[257] = 11;
+        b64[257] = 11;
+
+        // construct the delta
+        byte[] delta = builder.constructBytecodeDelta(b64, b32);
+
+        // each diff consists of index (1-4 bytes), count (1 byte), bytes (count bytes)
+        // this means that each diff contains a maximum of 255 bytes
+
+        // the bytecode in this test is larger than 256 bytes byte but less than
+        // 65536 bytes which means that the index will use two bytes
+
+        // first diff is on byte 1-255
+        // index - diff is on the 2nd byte (0x0001)
+        assertTrue(delta[0] == 0x01);
+        assertTrue(delta[1] == 0x00);
+        // count - diff consists of 255 values
+        assertTrue((delta[2] & 0xff) == 255);
+        // byte - diffing bytes
+        for (int i = 1; i <= 255; i++) {
+            assertTrue(delta[2 + i] == 99);
+        }
+
+        // second diff is on byte 256
+        // index - diff is on the 256th byte (0x0100)
+        assertTrue(delta[258] == 0x00);
+        assertTrue(delta[259] == 0x01);
+        // count - diff consists of 1 value
+        assertTrue((delta[260] & 0xff) == 1);
+        // byte - the last diffing byte
+        assertTrue(delta[261] == 99);
     }
 }

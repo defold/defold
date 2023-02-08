@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -217,8 +217,9 @@
   (input animation-updatable g/Any)
 
   (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size sprite-trim-mode]
-                              (assoc (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)
-                                :digest-ignored/error-node-id _node-id)))
+                              (with-meta
+                                (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)
+                                {:error-node-id _node-id})))
   (output atlas-images [Image] (g/fnk [atlas-image] [atlas-image]))
   (output animation Animation (g/fnk [atlas-image id]
                                 (make-animation id [atlas-image])))
@@ -235,7 +236,7 @@
                                                                (assoc :link maybe-image-resource :outline-show-link? true)))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode]
                               {:image (resource/resource->proj-path maybe-image-resource) :order order :sprite-trim-mode sprite-trim-mode}))
-  (output scene g/Any :cached produce-image-scene)
+  (output scene g/Any produce-image-scene)
   (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource]
                                (g/package-errors _node-id
                                                  (validate-image-resource _node-id maybe-image-resource)
@@ -606,7 +607,7 @@
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
   (output all-atlas-images [Image] :cached (g/fnk [animation-images]
-                                             (vec (distinct (flatten animation-images)))))
+                                             (into [] (distinct) (flatten animation-images))))
 
   (output layout-data-generator g/Any          produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,20 +16,28 @@
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include "../dlib/http_cache.h"
-#include "../dlib/sys.h"
-#include "../dlib/time.h"
-#include "../dlib/hash.h"
-#include "../dlib/dstrings.h"
+#include <dlib/http_cache.h>
+#include <dlib/log.h>
+#include <dlib/sys.h>
+#include <dlib/time.h>
+#include <dlib/hash.h>
+#include <dlib/dstrings.h>
+#include <dlib/testutil.h>
 
 class dmHttpCacheTest : public jc_test_base_class
 {
     virtual void SetUp()
     {
-#if !defined(DM_NO_SYSTEM_FUNCTION)
-        int ret = system("python src/test/test_httpcache.py");
-        ASSERT_EQ(0, ret);
-#endif
+        char path[1024];
+        dmTestUtil::MakeHostPath(path, sizeof(path), "tmp");
+        dmSys::Mkdir(path, 0755);
+
+        dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/afile");
+        FILE* f = fopen(path, "wb");
+        fclose(f);
+
+        dmTestUtil::MakeHostPath(m_Path, sizeof(m_Path), "tmp/cache");
+        dmSys::RmTree(m_Path);
     }
 
 public:
@@ -87,13 +95,14 @@ public:
         return dmHttpCache::RESULT_OK;
     }
 
+    char m_Path[1024];
 };
 
 TEST_F(dmHttpCacheTest, NewCache)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
     r = dmHttpCache::Close(cache);
@@ -102,20 +111,25 @@ TEST_F(dmHttpCacheTest, NewCache)
 
 TEST_F(dmHttpCacheTest, PathIsFile)
 {
+    char path[1024];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "tmp/afile");
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/afile";
+    params.m_Path = path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_INVALID_PATH, r);
 }
 
 TEST_F(dmHttpCacheTest, CorruptIndex)
 {
-    dmSys::Mkdir("tmp/cache", 0755);
+    char index_path[1024];
+    dmSnPrintf(index_path, sizeof(index_path), "%s/index", m_Path);
+
+    dmSys::Mkdir(m_Path, 0755);
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
-    FILE* f = fopen("tmp/cache/index", "wb");
+    params.m_Path = m_Path;
+    FILE* f = fopen(index_path, "wb");
     ASSERT_NE((FILE*) 0, f);
     fclose(f);
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
@@ -128,7 +142,7 @@ TEST_F(dmHttpCacheTest, Simple)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -155,11 +169,42 @@ TEST_F(dmHttpCacheTest, Simple)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 }
 
-TEST_F(dmHttpCacheTest, MaxAge)
+TEST_F(dmHttpCacheTest, SetError)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
     params.m_Path = "tmp/cache";
+    dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+
+    // Start cache entry creation
+    dmHttpCache::HCacheCreator cache_creator;
+    r = dmHttpCache::Begin(cache, "uri", "etag", 0, &cache_creator);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    r = dmHttpCache::Add(cache, cache_creator, "data", strlen("data"));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+    // Raise an error
+    dmHttpCache::SetError(cache, cache_creator);
+    // Finish cache entry creation, which due to the error will not generate
+    // a cache entry
+    r = dmHttpCache::End(cache, cache_creator);
+    ASSERT_EQ(dmHttpCache::RESULT_IO_ERROR, r);
+
+    // Check that there is no stored etag
+    char tag_buffer[16];
+    r = dmHttpCache::GetETag(cache, "uri", tag_buffer, sizeof(tag_buffer));
+    ASSERT_EQ(dmHttpCache::RESULT_NO_ENTRY, r);
+
+    // Free
+    r = dmHttpCache::Close(cache);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, r);
+}
+
+TEST_F(dmHttpCacheTest, MaxAge)
+{
+    dmHttpCache::HCache cache;
+    dmHttpCache::NewParams params;
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -202,11 +247,36 @@ TEST_F(dmHttpCacheTest, MaxAge)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 }
 
+static void CorruptFile(void*, const char* path, bool isdir)
+{
+    if (isdir)
+        return;
+
+    FILE* f = fopen(path, "wb");
+    if (!f) {
+        dmLogError("Failed to open '%s' for writing", path);
+        return;
+    }
+
+    const char* str = "CORRUPTED_FILE";
+    fwrite(str, 1, strlen(str), f);
+    fclose(f);
+}
+
+static void CorruptDirs(void* ctx, const char* path, bool isdir)
+{
+    const char* basename = strrchr(path, '/');
+    if (isdir && basename && strlen(basename+1) == 2)
+    {
+        dmSys::IterateTree(path, false, false, ctx, CorruptFile);
+    }
+}
+
 TEST_F(dmHttpCacheTest, CorruptContent)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -232,10 +302,7 @@ TEST_F(dmHttpCacheTest, CorruptContent)
 
     ASSERT_EQ(1U, dmHttpCache::GetEntryCount(cache));
 
-#if !defined(DM_NO_SYSTEM_FUNCTION)
-    int ret = system("python src/test/test_httpcache_corrupt_content.py");
-    ASSERT_EQ(0, ret);
-#endif
+    dmSys::IterateTree(m_Path, false, false, 0, CorruptDirs);
 
     // Get content, ensure that the checksum is incorrect
     r = Get(cache, "uri", "etag", &buffer, &checksum, &size);
@@ -249,11 +316,27 @@ TEST_F(dmHttpCacheTest, CorruptContent)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 }
 
+static void MissingContent_File(void*, const char* path, bool isdir)
+{
+    if (isdir)
+        return;
+    dmSys::Unlink(path);
+}
+
+static void MissingContent_Dirs(void* ctx, const char* path, bool isdir)
+{
+    const char* basename = strrchr(path, '/');
+    if (isdir && basename && strlen(basename+1) == 2)
+    {
+        dmSys::IterateTree(path, false, false, ctx, MissingContent_File);
+    }
+}
+
 TEST_F(dmHttpCacheTest, MissingContent)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -279,10 +362,7 @@ TEST_F(dmHttpCacheTest, MissingContent)
 
     ASSERT_EQ(1U, dmHttpCache::GetEntryCount(cache));
 
-#if !defined(DM_NO_SYSTEM_FUNCTION)
-    int ret = system("python src/test/test_httpcache_remove_content.py");
-    ASSERT_EQ(0, ret);
-#endif
+    dmSys::IterateTree(m_Path, false, false, 0, MissingContent_Dirs);
 
     // Get content, ensure that the checksum is incorrect
     r = Get(cache, "uri", "etag", &buffer, &checksum, &size);
@@ -298,7 +378,7 @@ TEST_F(dmHttpCacheTest, UpdateReadlocked)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -327,7 +407,7 @@ TEST_F(dmHttpCacheTest, GetWriteLocked)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -359,7 +439,7 @@ TEST_F(dmHttpCacheTest, DoublePut)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -391,7 +471,7 @@ TEST_F(dmHttpCacheTest, PartialUpdate)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -424,7 +504,7 @@ TEST_F(dmHttpCacheTest, Stress1)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -460,7 +540,7 @@ TEST_F(dmHttpCacheTest, Stress2)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -496,7 +576,7 @@ TEST_F(dmHttpCacheTest, StressOpenClose)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
 
     // Open/Close cache for every iteration
     for (int i = 0; i < 100; ++i)
@@ -533,7 +613,7 @@ TEST_F(dmHttpCacheTest, PutGet)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -632,7 +712,7 @@ TEST_F(dmHttpCacheTest, Persist)
 {
     dmHttpCache::HCache cache;
     dmHttpCache::NewParams params;
-    params.m_Path = "tmp/cache";
+    params.m_Path = m_Path;
     dmHttpCache::Result r = dmHttpCache::Open(&params, &cache);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
     ASSERT_EQ(0U, dmHttpCache::GetEntryCount(cache));

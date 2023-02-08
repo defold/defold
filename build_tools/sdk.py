@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,10 +36,12 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 ## **********************************************************************************************
 # Darwin
 
-VERSION_XCODE="13.2.1"
+VERSION_XCODE="13.2.1" # we also use this to match version on Github Actions
 VERSION_MACOSX="12.1"
 VERSION_IPHONEOS="15.2"
+VERSION_XCODE_CLANG="13.0.0"
 VERSION_IPHONESIMULATOR="15.2"
+MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
@@ -56,7 +58,7 @@ PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION
 ## **********************************************************************************************
 # Android
 
-ANDROID_NDK_VERSION='20'
+ANDROID_NDK_VERSION='25b'
 
 ## **********************************************************************************************
 # Win32
@@ -116,29 +118,32 @@ def _convert_darwin_platform(platform):
         return 'iphonesimulator'
     return 'unknown'
 
+def _get_xcode_local_path():
+    return run.shell_command('xcode-select -print-path')
+
+# "xcode-select -print-path" will give you "/Applications/Xcode.app/Contents/Developer"
 def get_local_darwin_toolchain_path():
-    default_path = '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
+    default_path = '%s/Toolchains/XcodeDefault.xctoolchain' % _get_xcode_local_path()
     if os.path.exists(default_path):
         return default_path
-
-    path = run.shell_command('xcrun -f --show-sdk-path') # /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
-    substr = 'Contents/Developer'
-    if substr in path:
-        i = path.find(substr)
-        path = path[:i + len(substr)] + 'XcodeDefault.xctoolchain'
-        return path
-
-    return None
+    return '/Library/Developer/CommandLineTools'
 
 def get_local_darwin_toolchain_version():
     if not os.path.exists('/usr/bin/xcodebuild'):
-        return None
+        return VERSION_XCODE
     # Xcode 12.5.1
     # Build version 12E507
     xcode_version_full = run.shell_command('/usr/bin/xcodebuild -version')
     xcode_version_lines = xcode_version_full.split("\n")
     xcode_version = xcode_version_lines[0].split()[1].strip()
     return xcode_version
+
+def get_local_darwin_clang_version():
+    # Apple clang version 13.1.6 (clang-1316.0.21.2.5)
+    version_full = run.shell_command('clang --version')
+    version_lines = version_full.split("\n")
+    version = version_lines[0].split()[3].strip()
+    return version
 
 def get_local_darwin_sdk_path(platform):
     return run.shell_command('xcrun -f --sdk %s --show-sdk-path' % _convert_darwin_platform(platform)).strip()
@@ -379,10 +384,12 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
-        info['xcode-clang'] = defold_info['xcode-clang']
+        info['xcode-clang'] = defold_info['xcode-clang']['version']
+        info['asan'] = {}
+        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
-        info[platform]['path'] = _get_defold_path(sdkfolder, 'xcode')
+        info[platform]['path'] = _get_defold_path(sdkfolder, platform) # what we use for sysroot
     
     elif platform in ('x86_64-linux',):
         info[platform] = {}
@@ -401,9 +408,15 @@ def _get_local_sdk_info(platform):
         info['xcode'] = {}
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
+        info['xcode-clang'] = get_local_darwin_clang_version()
+        info['asan'] = {}
+        info['asan']['path'] = os.path.join(info['xcode']['path'], MACOS_ASAN_PATH%info['xcode-clang'])
         info[platform] = {}
         info[platform]['version'] = get_local_darwin_sdk_version(platform)
-        info[platform]['path'] = get_local_darwin_sdk_path(platform)
+        info[platform]['path'] = get_local_darwin_sdk_path(platform) # what we use for sysroot
+
+        if not os.path.exists(info['asan']['path']):
+            print("sdk.py: Couldn't find '%s'" % info['asan']['path'], file=sys.stderr)
 
     elif platform in ('x86_64-linux',):
         info[platform] = {}

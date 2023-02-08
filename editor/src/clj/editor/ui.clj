@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -205,27 +205,6 @@
        (do (.initModality stage Modality/WINDOW_MODAL)
            (.initOwner stage owner)))
      stage)))
-
-(defn ^File choose-file [{:keys [^String title ^String directory filters ^Window owner-window] :or {title "Choose File"}}]
-  (let [chooser (doto (FileChooser.)
-                  (.setTitle title))]
-    (when-let [initial-directory (some-> directory (File.))]
-      (when (.isDirectory initial-directory)
-        (.setInitialDirectory chooser initial-directory)))
-    (doseq [{:keys [^String description exts]} filters]
-      (let [ext-array (into-array exts)]
-        (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. description ^"[Ljava.lang.String;" ext-array))))
-    (.showOpenDialog chooser owner-window)))
-
-(defn choose-directory
-  ([title ^File initial-dir] (choose-directory title initial-dir @*main-stage*))
-  ([title ^File initial-dir parent]
-   (let [chooser (DirectoryChooser.)]
-     (when initial-dir
-       (.setInitialDirectory chooser initial-dir))
-     (.setTitle chooser title)
-     (let [file (.showDialog chooser parent)]
-       (when file (.getAbsolutePath file))))))
 
 (defn collect-controls [^Parent root keys]
   (let [controls (zipmap (map keyword keys) (map #(.lookup root (str "#" %)) keys))
@@ -1521,7 +1500,7 @@
   (when-some [parent (or (.getParentMenu old) menu-bar)]
     (when-some [parent-children (menu-items parent)]
       (let [index (.indexOf parent-children old)]
-        (when (pos? index)
+        (when-not (neg? index)
           (.set parent-children index new))))))
 
 (defn- refresh-menubar? [menu-bar menu visible-command-contexts]

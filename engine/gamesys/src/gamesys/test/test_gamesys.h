@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,11 +42,16 @@ struct Params
 
 struct ProjectOptions {
   uint32_t m_MaxCollisionCount;
+  uint32_t m_MaxCollisionObjectCount;
   uint32_t m_MaxContactPointCount;
   bool m_3D;
   float m_Scale;
   float m_VelocityThreshold;
 };
+
+
+extern bool GameSystemTest_PlatformInit();
+extern void GameSystemTest_PlatformExit();
 
 template<typename T>
 class CustomizableGamesysTest : public jc_test_params_class<T>
@@ -59,7 +64,7 @@ public:
     ProjectOptions m_projectOptions;
 protected:
     void SetUp(ProjectOptions& options) {
-      m_projectOptions = options;
+        m_projectOptions = options;
     }
 
     virtual void SetUp() = 0;
@@ -72,6 +77,7 @@ public:
     GamesysTest() {
         // Default configuration values for the engine. Subclass GamesysTest and ovewrite in constructor.
         this->m_projectOptions.m_MaxCollisionCount = 0;
+        this->m_projectOptions.m_MaxCollisionObjectCount = 0;
         this->m_projectOptions.m_MaxContactPointCount = 0;
         this->m_projectOptions.m_3D = false;
         this->m_projectOptions.m_Scale = 1.0f;
@@ -102,7 +108,6 @@ protected:
     dmGameSystem::FactoryContext m_FactoryContext;
     dmGameSystem::CollectionFactoryContext m_CollectionFactoryContext;
     dmGameSystem::ModelContext m_ModelContext;
-    dmGameSystem::MeshContext m_MeshContext;
     dmGameSystem::LabelContext m_LabelContext;
     dmGameSystem::TilemapContext m_TilemapContext;
     dmGameSystem::SoundContext m_SoundContext;
@@ -146,6 +151,7 @@ public:
       // override configuration values specified in GamesysTest()
       m_projectOptions.m_MaxCollisionCount = 32;
       m_projectOptions.m_MaxContactPointCount = 64;
+      m_projectOptions.m_MaxCollisionObjectCount = 512;
       m_projectOptions.m_3D = true;
     }
 };
@@ -209,6 +215,12 @@ public:
     virtual ~ComponentFailTest() {}
 };
 
+class BufferMetadataTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~BufferMetadataTest() {}
+};
+
 struct FactoryTestParams
 {
     const char* m_GOPath;
@@ -225,6 +237,7 @@ public:
 struct CollectionFactoryTestParams
 {
     const char* m_GOPath;
+    const char* m_PrototypePath; // If set, then it uses "Dynamic Prototype"
     bool m_IsDynamic;
     bool m_IsPreloaded;
 };
@@ -248,10 +261,10 @@ public:
 };
 
 
-class WindowEventTest : public GamesysTest<const char*>
+class WindowTest : public GamesysTest<const char*>
 {
 public:
-    virtual ~WindowEventTest() {}
+    virtual ~WindowTest() {}
 };
 
 struct DrawCountParams
@@ -372,6 +385,8 @@ void GamesysTest<T>::SetupComponentCreateContext(dmGameObject::ComponentTypeCrea
 template<typename T>
 void GamesysTest<T>::SetUp()
 {
+    ASSERT_TRUE(GameSystemTest_PlatformInit());
+
     dmSound::Initialize(0x0, 0x0);
 
     m_UpdateContext.m_DT = 1.0f / 60.0f;
@@ -379,7 +394,7 @@ void GamesysTest<T>::SetUp()
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-    m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
+    m_Factory = dmResource::NewFactory(&params, DM_HOSTFS "build/src/gamesys/test");
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
     m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
@@ -425,6 +440,7 @@ void GamesysTest<T>::SetUp()
     memset(&m_PhysicsContext, 0, sizeof(m_PhysicsContext));
     m_PhysicsContext.m_MaxCollisionCount = this->m_projectOptions.m_MaxCollisionCount;
     m_PhysicsContext.m_MaxContactPointCount = this->m_projectOptions.m_MaxContactPointCount;
+    m_PhysicsContext.m_MaxCollisionObjectCount = this->m_projectOptions.m_MaxCollisionObjectCount;
     m_PhysicsContext.m_3D = this->m_projectOptions.m_3D;
     if (m_PhysicsContext.m_3D) {
         m_PhysicsContext.m_Context3D = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
@@ -450,6 +466,7 @@ void GamesysTest<T>::SetUp()
     m_FactoryContext.m_ScriptContext = m_ScriptContext;
     m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
     m_CollectionFactoryContext.m_ScriptContext = m_ScriptContext;
+    m_CollectionFactoryContext.m_Factory = m_Factory;
 
     m_LabelContext.m_RenderContext = m_RenderContext;
     m_LabelContext.m_MaxLabelCount = 32;
@@ -463,10 +480,6 @@ void GamesysTest<T>::SetUp()
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
 
-    m_MeshContext.m_RenderContext = m_RenderContext;
-    m_MeshContext.m_Factory       = m_Factory;
-    m_MeshContext.m_MaxMeshCount  = 128;
-
     dmBuffer::NewContext(); // ???
 
     m_SoundContext.m_MaxComponentCount = 32;
@@ -474,6 +487,7 @@ void GamesysTest<T>::SetUp()
 
     m_PhysicsContext.m_MaxCollisionCount = 64;
     m_PhysicsContext.m_MaxContactPointCount = 128;
+    m_PhysicsContext.m_MaxCollisionObjectCount = 512;
 
     dmResource::Result r = dmGameSystem::RegisterResourceTypes(m_Factory, m_RenderContext, m_InputContext, &m_PhysicsContext);
     ASSERT_EQ(dmResource::RESULT_OK, r);
@@ -491,7 +505,7 @@ void GamesysTest<T>::SetUp()
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
-                                                                                                    &m_ModelContext, &m_MeshContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
+                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
 
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
     //dmGameObject::SortComponentTypes(m_Register);
@@ -528,7 +542,10 @@ void GamesysTest<T>::TearDown()
     }
     dmBuffer::DeleteContext();
     dmConfigFile::Delete(m_Config);
+
+    GameSystemTest_PlatformExit();
 }
+
 
 // Specific test class for testing dmBuffers in scripts
 class ScriptBufferTest : public jc_test_base_class

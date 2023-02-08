@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -305,6 +305,8 @@ namespace dmPhysics
         GetWorldTransformCallback m_GetWorldTransformCallback;
         /// param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
         SetWorldTransformCallback m_SetWorldTransformCallback;
+        /// max number of collision objects
+        uint32_t m_MaxCollisionObjectsCount;
     };
 
     /**

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,27 +15,31 @@
 #ifndef DM_MUTEX_H
 #define DM_MUTEX_H
 
-#include <dmsdk/dlib/mutex.h>
+#include <dmsdk/dlib/mutex.h> // the api + typedef
 
-#if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
-#include <pthread.h>
+#if defined(__SCE__)
+#include <dlib/ps4/mutex.h>
+
+#elif defined(__NX__)
+#include <dlib/nx64/mutex.h>
+
 #elif defined(_WIN32)
-#include "safe_windows.h"
-#else
-#error "Unsupported platform"
-#endif
+#include <dlib/win32/mutex.h>
+
+#elif defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
+
+#include <pthread.h>
 
 namespace dmMutex
 {
     struct Mutex
     {
-#if defined(_WIN32)
-        CRITICAL_SECTION m_NativeHandle;
-#else
         pthread_mutex_t  m_NativeHandle;
-#endif
     };
-
 }
+
+#else
+#error "Unsupported platform"
+#endif
 
 #endif // DM_MUTEX_H

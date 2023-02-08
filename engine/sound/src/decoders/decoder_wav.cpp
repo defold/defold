@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -197,21 +197,21 @@ namespace dmSoundCodec
         }
     }
 
-    void WavCloseStream(HDecodeStream stream)
+    static void WavCloseStream(HDecodeStream stream)
     {
         assert(stream);
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         delete streamInfo;
     }
 
-    Result WavResetStream(HDecodeStream stream)
+    static Result WavResetStream(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         streamInfo->m_Cursor = 0;
         return RESULT_OK;
     }
 
-    Result WavDecodeStream(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
+    static Result WavDecodeStream(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
 
@@ -225,7 +225,7 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
+    static Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
         assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
@@ -235,12 +235,20 @@ namespace dmSoundCodec
         return RESULT_OK;
     }
 
-    void WavGetInfo(HDecodeStream stream, struct Info* out)
+    static void WavGetInfo(HDecodeStream stream, struct Info* out)
     {
         *out = ((DecodeStreamInfo *)stream)->m_Info;
     }
 
+    static int64_t WavGetInternalPos(HDecodeStream stream)
+    {
+        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+        return streamInfo->m_Cursor;
+    }
+
     DM_DECLARE_SOUND_DECODER(AudioDecoderWav, "WavDecoder", FORMAT_WAV,
                              0,
-                             WavOpenStream, WavCloseStream, WavDecodeStream, WavResetStream, WavSkipInStream, WavGetInfo);
+                             WavOpenStream, WavCloseStream, WavDecodeStream,
+                             WavResetStream, WavSkipInStream, WavGetInfo,
+                             WavGetInternalPos);
 }

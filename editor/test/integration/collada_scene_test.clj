@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,12 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 
-(ns integration.collada-scene-test
+(ns integration.model-scene-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [integration.test-util :as test-util]
-            [editor.collada-scene :as collada-scene]
             [editor.math :as math]
+            [editor.model-scene :as model-scene]
             [editor.types :as types])
   (:import [javax.vecmath Point3d]))
 
@@ -37,8 +37,8 @@
           mesh (first (g/node-value node-id :meshes))
           scene (g/node-value node-id :scene)
           user-data (get-in scene [:renderable :user-data])
-          vb (-> (collada-scene/->vtx-pos-nrm-tex (alength (get-in user-data [:meshes 0 :position-indices])))
-               (collada-scene/mesh->vb! (math/->mat4) :vertex-space-world mesh (get user-data :scratch-arrays)))]
+          vb (-> (model-scene/->vtx-pos-nrm-tex (alength (get-in user-data [:meshes 0 :position-indices])))
+                 (model-scene/mesh->vb! (math/->mat4) :vertex-space-world mesh (get user-data :scratch-arrays)))]
       (is (= (count vb) (alength (get mesh :position-indices)))))))
 
 (deftest invalid-scene

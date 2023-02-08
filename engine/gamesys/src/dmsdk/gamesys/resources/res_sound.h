@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,24 +18,21 @@
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
 
-namespace dmSound
-{
-    typedef struct SoundData* HSoundData;
-}
-
 namespace dmGameSystem
 {
+    struct SoundDataResource;
+
     struct Sound
     {
         Sound();
 
-        dmhash_t            m_GroupHash;
-        dmSound::HSoundData m_SoundData;
-        float               m_Gain;
-        float               m_Pan;
-        float               m_Speed;
-        uint8_t             m_Loopcount;
-        uint8_t             m_Looping:1;
+        dmhash_t                    m_GroupHash;
+        SoundDataResource*          m_SoundDataRes;
+        float                       m_Gain;
+        float                       m_Pan;
+        float                       m_Speed;
+        uint8_t                     m_Loopcount;
+        uint8_t                     m_Looping:1;
     };
 }
 

@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,7 @@
 
   :dependencies     [[org.clojure/clojure                         "1.10.0"]
                      [org.clojure/core.cache                      "0.7.1"]
+                     [org.clojure/core.async                      "1.5.648"]
                      [org.clojure/tools.cli                       "0.3.5"]
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "1.2.0"]
@@ -78,7 +79,9 @@
 
                      [org.luaj/luaj-jse "3.0.1"]
 
-                     [cljfx "1.7.21"]
+                     [com.github.ben-manes.caffeine/caffeine "3.1.2"]
+
+                     [cljfx "1.7.22"]
 
                      [org.openjfx/javafx-base "18"]
                      [org.openjfx/javafx-base "18" :classifier "linux"]
@@ -196,13 +199,13 @@
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
-                      :local-repl {:injections [(future ((requiring-resolve 'editor/-main)))]
+                      :local-repl {:injections [(require 'dev) (future ((requiring-resolve 'editor/-main)))]
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
                       :vscode {:plugins [[nrepl "0.6.0"]]}
                       :cider {:plugins [[cider/cider-nrepl "0.24.0"]
                                         ;;[refactor-nrepl "2.4.0"] ;; -- this does not seem to work well together with cider-nrepl 0.24.0 so it might be better to just skip.
                                         [com.billpiel/sayid "0.0.18"]]}
-                      :release {:jvm-opts          ["-Ddefold.build=release"]}
+                      :release {:jvm-opts ["-Ddefold.build=release"]}
                       :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
                                  :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
@@ -210,6 +213,7 @@
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.273"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
+                      :no-asserts {:global-vars {*assert* false}}
                       :dev     {:dependencies      [[com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]

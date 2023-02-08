@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -666,3 +666,18 @@
         (is (= ["destination.txt"] (test-util/file-tree dir)))
         (is (= src-contents (slurp tgt)))))))
 
+(deftest below-directory-test
+  (test-util/with-temp-dir! project-dir
+    (is (true? (fs/below-directory? (io/file project-dir "file.txt") project-dir)))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory") project-dir)))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") project-dir)))
+    (is (true? (fs/below-directory? (io/file project-dir "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (true? (fs/below-directory? (io/file project-dir "otherdirectory" ".." "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (false? (fs/below-directory? (io/file project-dir ".." "subdirectory" "file.txt") (io/file project-dir "subdirectory"))))
+    (is (false? (fs/below-directory? (io/file project-dir "file.txt") (io/file project-dir "subdirectory"))))
+    (is (false? (fs/below-directory? (io/file project-dir "subdirectory") (io/file project-dir "subdir"))))
+    (is (false? (fs/below-directory? project-dir project-dir)))
+
+    (if fs/case-sensitive?
+      (is (false? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory"))))
+      (is (true? (fs/below-directory? (io/file project-dir "SUBDIRECTORY" "file.txt") (io/file project-dir "subdirectory")))))))

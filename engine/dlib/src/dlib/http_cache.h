@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -144,6 +144,13 @@ namespace dmHttpCache
      * @return RESULT_OK on success
      */
     Result Add(HCache cache, HCacheCreator cache_creator, const void* content, uint32_t content_len);
+
+    /**
+     * Set cache entry as erroneous
+     * @param cache cache
+     * @param cache_creator cache creator handle
+     */
+    void SetError(HCache cache, HCacheCreator cache_creator);
 
     /**
      * End cache entry creation

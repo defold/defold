@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2022 The Defold Foundation
+# Copyright 2020-2023 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,14 +32,11 @@ IOS_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk
 IOS_SIMULATOR_SDK_ROOT=${DYNAMO_HOME}/ext/SDKs/iPhoneSimulator${IOS_SDK_VERSION}.sdk
 DARWIN_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault${XCODE_VERSION}.xctoolchain
 
-ANDROID_NDK_VERSION=20
+ANDROID_NDK_VERSION="25b"
 ANDROID_NDK_ROOT=${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}
 
-ANDROID_VERSION=16 # Android 4.1
-ANDROID_GCC_VERSION='4.9'
-
+ANDROID_VERSION=19 # Android 4.4
 ANDROID_64_VERSION=21 # Android 5.0
-ANDROID_64_GCC_VERSION='4.9'
 
 MAKEFILE=Makefile
 MAKEFILE_ARGS=
@@ -285,7 +282,6 @@ function cmi() {
 
          armv7-android)
             local platform=`uname | awk '{print tolower($0)}'`
-            local bin="${ANDROID_NDK_ROOT}/toolchains/arm-linux-androideabi-${ANDROID_GCC_VERSION}/prebuilt/${platform}-x86_64/bin"
             local llvm="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
             local sysroot="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
             #  -fstack-protector
@@ -297,21 +293,18 @@ function cmi() {
             export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
             export LDFLAGS="-isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
 
-            # TODO: for protobuf, we need to add -llog to LDFLAGS
-
             export CPP="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang -E"
             export CC="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang"
             export CXX="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang++"
-            export AR=${bin}/arm-linux-androideabi-ar
-            export AS=${bin}/arm-linux-androideabi-as
-            export LD=${bin}/arm-linux-androideabi-ld
-            export RANLIB=${bin}/arm-linux-androideabi-ranlib
+            export AR="${llvm}/llvm-ar"
+            export AS="${llvm}/llvm-as"
+            export LD="${llvm}/lld"
+            export RANLIB="${llvm}/llvm-ranlib"
             cmi_cross $1 arm-linux
             ;;
 
         arm64-android)
             local platform=`uname | awk '{print tolower($0)}'`
-            local bin="${ANDROID_NDK_ROOT}/toolchains/aarch64-linux-android-${ANDROID_64_GCC_VERSION}/prebuilt/${platform}-x86_64/bin"
             local llvm="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
             local sysroot="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
 
@@ -321,12 +314,10 @@ function cmi() {
             export CPP="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang -E"
             export CC="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang"
             export CXX="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang++"
-            export AR=${bin}/aarch64-linux-android-ar
-            export AS=${bin}/aarch64-linux-android-as
-            export LD=${bin}/aarch64-linux-android-ld
-            export RANLIB=${bin}/aarch64-linux-android-ranlib
-            # TODO: for protobuf, we need to add -llog to LDFLAGS
-            #export LDFLAGS="-llog"
+            export AR="${llvm}/llvm-ar"
+            export AS="${llvm}/llvm-as"
+            export LD="${llvm}/lld"
+            export RANLIB="${llvm}/llvm-ranlib"
 
             cmi_cross $1 arm-linux
             ;;

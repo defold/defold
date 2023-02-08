@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -570,6 +570,15 @@ namespace dmRender
      * @return ok [type: bool] true if constant existed.
      */
     uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer);
+
+    /*#
+     * Iterates over the constants
+     * @name IterateNamedConstants
+     * @param buffer [type: dmRender::HNamedConstantBuffer] the constants buffer
+     * @param callback [type: void (*callback)(dmhash_t name_hash, void* ctx)] the callback function void (*callback)(dmhash_t name_hash, void* ctx)
+     * @param ctx [type: void*] the callback context
+     */
+    void IterateNamedConstants(HNamedConstantBuffer buffer, void (*callback)(dmhash_t name_hash, void* ctx), void* ctx);
 }
 
 #endif /* DMSDK_RENDER_H */

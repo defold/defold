@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,6 +36,7 @@ public class Task<T> {
     private String name;
     private List<IResource> inputs = new ArrayList<IResource>();
     private List<IResource> outputs = new ArrayList<IResource>();
+    private List<String> extraCacheKeys = new ArrayList<String>();
     private Task<?> productOf;
 
     public T data;
@@ -71,7 +72,9 @@ public class Task<T> {
         }
 
         public TaskBuilder<T> addInput(IResource input) {
-            task.inputs.add(input);
+            if (!task.inputs.contains(input)){
+                task.inputs.add(input);
+            }
             return this;
         }
 
@@ -80,6 +83,11 @@ public class Task<T> {
                 throw new IllegalArgumentException(String.format("Resource '%s' is not an output resource", output));
             }
             task.outputs.add(output);
+            return this;
+        }
+
+        public TaskBuilder<T> addExtraCacheKey(String key) {
+            task.extraCacheKeys.add(key);
             return this;
         }
 
@@ -123,7 +131,7 @@ public class Task<T> {
     }
 
     public IResource input(int i) {
-        return inputs.get(i);
+        return inputs.size() > i ? inputs.get(i) : null;
     }
 
     public List<IResource> getOutputs() {
@@ -135,7 +143,7 @@ public class Task<T> {
     }
 
     public IResource output(int i) {
-        return outputs.get(i);
+        return outputs.size() > i ? outputs.get(i) : null;
     }
 
     public boolean isCacheable() {
@@ -163,6 +171,23 @@ public class Task<T> {
         }
     }
 
+    /**
+     * Update a message digest with a list of extra cache parameters.
+     * @param, digest The digest to update with the resources
+     * @param keys A list of keys to add
+     */
+    private void updateDigestWithExtraCacheKeys(MessageDigest digest, List<String> keys) throws IOException {
+        if (keys.size() == 0)
+        {
+            return;
+        }
+        List<String> sortedKeys = new ArrayList<String>(keys);
+        Collections.sort(sortedKeys);
+        for (String r : sortedKeys) {
+            digest.update(r.getBytes());
+        }
+    }
+
     public MessageDigest calculateSignatureDigest() throws IOException {
         // TODO: Checksum of builder-class byte-code. Seems to be rather difficult though..
         MessageDigest digest;
@@ -173,6 +198,7 @@ public class Task<T> {
         }
 
         updateDigestWithResources(digest, inputs);
+        updateDigestWithExtraCacheKeys(digest, extraCacheKeys);
 
         builder.signature(digest);
         return digest;

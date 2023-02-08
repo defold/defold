@@ -1,4 +1,4 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2023 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,41 +13,31 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.library
-  (:require [editor.prefs :as prefs]
-            [editor.progress :as progress]
-            [editor.settings-core :as settings-core]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [editor.fs :as fs]
-            [editor.url :as url]
-            [clojure.java.io :as io]
-            [clojure.string :as str])
+            [editor.progress :as progress]
+            [editor.settings-core :as settings-core])
   (:import [java.io File InputStream]
+           [java.net HttpURLConnection URI]
+           [java.util Base64]
            [java.util.zip ZipInputStream]
-           [java.net URI URLConnection HttpURLConnection]
-           [org.apache.commons.io FilenameUtils]
-           [org.apache.commons.codec.digest DigestUtils]))
+           [org.apache.commons.codec.digest DigestUtils]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
 (defn parse-library-uris [uri-string]
-  (when uri-string
-    (into []
-          (keep url/try-parse)
-          (str/split uri-string #"[,\s]"))))
-
-(defmethod settings-core/parse-setting-value :library-list [_ raw]
-  (parse-library-uris raw))
-
-(defmethod settings-core/render-raw-setting-value :library-list [_ value]
-  (when (seq value) (str/join "," value)))
+  (settings-core/parse-setting-value {:type :list :element {:type :url}} uri-string))
 
 (defn- mangle-library-uri [^URI uri]
   (DigestUtils/sha1Hex (str uri)))
 
 (defn- str->b64 [^String s]
-  (.encodeToString (java.util.Base64/getUrlEncoder) (.getBytes s "UTF-8")))
+  (.encodeToString (Base64/getUrlEncoder) (.getBytes s "UTF-8")))
 
 (defn- b64->str [^String b64str]
-  (String. (.decode (java.util.Base64/getUrlDecoder) b64str) "UTF-8"))
+  (String. (.decode (Base64/getUrlDecoder) b64str) "UTF-8"))
 
 (defn- library-uri-to-file-name ^String [uri tag]
   (str (mangle-library-uri uri) "-" (str->b64 (or tag "")) ".zip"))
@@ -252,4 +242,3 @@
             lib-state)
           (dissoc :new-file)))
     lib-states))
-

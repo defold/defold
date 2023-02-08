@@ -10,10 +10,10 @@ def build(bld):
     texc_sources = bld.path.ant_glob("*.cpp")
 
     # The static library for the tests
-    texc = bld(features = 'cxx cstaticlib',
-               source = texc_sources,
-               includes = ['.'],
-               target   = 'texc')
+    texc = bld.stlib(features = 'cxx cstaticlib',
+                   source = texc_sources,
+                   includes = ['.'],
+                   target   = 'texc')
 
     remove_flags = {}
     remove_flags['CXXFLAGS'] = []

@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,7 +32,7 @@ extern void dmMemProfileInternalData();
 
 void* g_dont_optimize = 0;
 
-#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
+#if !defined(DM_SANITIZE_ADDRESS) // until we can load the dylibs properly
 
 TEST(dmMemProfile, TestMalloc)
 {

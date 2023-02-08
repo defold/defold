@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -138,12 +138,13 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(world->m_RenderContext);
         // TODO: Everything below here should be move to the "universe" when available
         // and hence shared among all the worlds
-        dmGraphics::VertexElement ve[] =
-        {
-                {"position", 0, 3, dmGraphics::TYPE_FLOAT, false},
-                {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
-        };
-        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(ve[0]));
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+        dmGraphics::AddVertexStream(stream_declaration, "position",  3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
         world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(world->m_RenderContext), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         uint32_t vcount = 6 * world->m_MaxTileCount;
         world->m_VertexBufferData = (TileGridVertex*) malloc(sizeof(TileGridVertex) * vcount);
@@ -402,7 +403,7 @@ namespace dmGameSystem
         TileGridWorld* world = (TileGridWorld*) params.m_World;
         if (world->m_Components.Full())
         {
-            dmLogError("Tilemap could not be created since the tilemap buffer is full (%d). You can change this with the config setting tilemap.max_count", world->m_Components.Capacity());
+            ShowFullBufferError("Tilemap", "tilemap.max_count", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -986,7 +987,6 @@ namespace dmGameSystem
 
     static bool CompTileGridIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
     {
-        TileGridWorld* world = (TileGridWorld*)pit->m_Node->m_ComponentWorld;
         TileGridComponent* component = (TileGridComponent*)pit->m_Node->m_Component;
 
         uint64_t index = pit->m_Next++;
