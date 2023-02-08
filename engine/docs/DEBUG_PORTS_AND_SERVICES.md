@@ -10,7 +10,7 @@ It is possible to connect to and interact with a debug version of the engine thr
 
 
 ## SSDP
-SSDP ([Simple Service Discovery Protocol](https://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol)) is used by the running engine to broadcast its existence on the network so that the editor can discover it and connect to issue commands.
+SSDP ([Simple Service Discovery Protocol](https://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol)) is used by the running engine to [broadcast](https://github.com/defold/defold/blob/dev/engine/dlib/src/dlib/ssdp.cpp) its existence on the network so that the editor can [discover](https://github.com/defold/defold/blob/dev/editor/src/java/com/dynamo/upnp/SSDP.java) it and connect to issue commands.
 
 <details><summary>Example of a client in JavaScript</summary><p>
 
