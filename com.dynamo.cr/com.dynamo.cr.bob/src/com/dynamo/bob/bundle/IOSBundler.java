@@ -275,8 +275,10 @@ public class IOSBundler implements IBundler {
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
                 orientationSupport.add("LandscapeRight");
+                orientationSupport.add("LandscapeLeft");
             } else {
                 orientationSupport.add("Portrait");
+                orientationSupport.add("PortraitUpsideDown");
             }
         } else {
             orientationSupport.add("Portrait");

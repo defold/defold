@@ -162,9 +162,9 @@
     (and (g/error? value)
          (g/error-fatal? value))))
 
-(defn owner-resource-node
+(defn owner-resource-node-id
   ([node-id]
-   (owner-resource-node (g/now) node-id))
+   (owner-resource-node-id (g/now) node-id))
   ([basis node-id]
    ;; The owner resource node is the first non-override ResourceNode we find by
    ;; traversing the explicit :cascade-delete connections between nodes. I.e, we
@@ -173,40 +173,26 @@
    (let [node (g/node-by-id basis node-id)]
      ;; Embedded resources will be represented by ResourceNodes, but we want the
      ;; ultimate owner of the embedded resource, so we keep looking if we
-     ;; encounter a d that is an override node.
+     ;; encounter an override node or a ResourceNode whose resource does not
+     ;; have a valid proj-path.
      (if (and (nil? (gt/original node))
-              (g/node-instance*? ResourceNode node))
+              (g/node-instance*? ResourceNode node)
+              (some? (resource/proj-path (resource-node-resource basis node))))
 
-       ;; We found our owner ResourceNode. Return it.
-       node
+       ;; We found our owner ResourceNode. Return its node-id.
+       node-id
 
        ;; This is not our owner ResourceNode. Recursively follow the outgoing
        ;; connections that connect to a :cascade-delete input.
-       (let [outgoing-arcs (gt/arcs-by-source basis node-id)
-             outgoing-arcs-by-target-id (group-by gt/target-id outgoing-arcs)]
-         (some (fn [[target-id outgoing-arcs]]
-                 (let [target-node-type (g/node-type* basis target-id)
-                       cascade-delete-input-labels (g/cascade-deletes target-node-type)
-                       connects-to-cascade-delete-input? (comp cascade-delete-input-labels gt/target-label)]
-                   (some (fn [outgoing-arc]
-                           (when (connects-to-cascade-delete-input? outgoing-arc)
-                             (owner-resource-node basis target-id)))
-                         outgoing-arcs)))
-               outgoing-arcs-by-target-id))))))
-
-(defn owner-resource-node-id
-  ([node-id]
-   (owner-resource-node-id (g/now) node-id))
-  ([basis node-id]
-   (some->> (owner-resource-node basis node-id)
-            (gt/node-id))))
+       (some->> (core/owner-node-id basis node-id)
+                (owner-resource-node-id basis))))))
 
 (defn owner-resource
   ([node-id]
    (owner-resource (g/now) node-id))
   ([basis node-id]
-   (some->> (owner-resource-node basis node-id)
-            (resource-node-resource basis))))
+   (some->> (owner-resource-node-id basis node-id)
+            (resource basis))))
 
 (defn make-ddf-dependencies-fn [ddf-type]
   (fn [source-value]
