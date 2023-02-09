@@ -3,10 +3,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -63,7 +63,7 @@ def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_private.supports_feature(platform, feature, data)
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux', 'arm64-macos']
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux']
     return waf_dynamo_private.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
