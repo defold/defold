@@ -91,6 +91,13 @@ public class ModelImporter {
         public float x, y, z, w;
 
         public Vec4() {}
+        public Vec4(Vec4 other)
+        {
+            this.x = other.x;
+            this.y = other.y;
+            this.z = other.z;
+            this.w = other.w;
+        }
         public Vec4(float x, float y, float z, float w) {
             this.x = x;
             this.y = y;
@@ -121,12 +128,22 @@ public class ModelImporter {
         public Vec4 max;
 
         public Aabb() {
-            this.setIdentity();
+            this.min = new Vec4(1000000.0f,1000000.0f,1000000.0f,1.0f);
+            this.max = new Vec4(-1000000.0f,-1000000.0f,-1000000.0f,1.0f);
         }
 
-        public Aabb setIdentity() {
-            this.min = this.max = new Vec4(0,0,0,1); // i.e. a Point3(x,y,z,1)
-            return this;
+        public Aabb(Aabb other) {
+            this.min = new Vec4(other.min);
+            this.max = new Vec4(other.max);
+        }
+
+        public void expand(float x, float y, float z) {
+            if (x < min.x) min.x = x;
+            if (y < min.y) min.y = y;
+            if (z < min.z) min.z = z;
+            if (x > max.x) max.x = x;
+            if (y > max.y) max.y = y;
+            if (z > max.z) max.z = z;
         }
     }
 

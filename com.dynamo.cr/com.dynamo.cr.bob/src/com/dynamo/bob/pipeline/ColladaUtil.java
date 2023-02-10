@@ -573,7 +573,7 @@ public class ColladaUtil {
         loadMesh(collada, meshSetBuilder, optimize, splitMeshes);
     }
 
-    private static XMLNode getFirstNodeWithGeoemtry(Collection<XMLVisualScene> scenes) {
+    private static XMLNode getFirstNodeWithGeometry(Collection<XMLVisualScene> scenes) {
         for (XMLVisualScene scene : scenes) {
             for (XMLNode node : scene.nodes.values()) {
                 if (node.instanceGeometries.size() > 0) {
@@ -597,6 +597,14 @@ public class ColladaUtil {
         return a.stream().mapToInt(x -> x).toArray();
     }
 
+    private static ModelImporter.Aabb calcAabb(float[] positions) {
+        ModelImporter.Aabb aabb = new ModelImporter.Aabb();
+        for (int i = 0; i < positions.length; i += 3) {
+            aabb.expand(positions[i+0], positions[i+1], positions[i+2]);
+        }
+        return aabb;
+    }
+
     private static ModelImporter.Mesh createModelImporterMesh(List<Float> position_list,
                                                               List<Float> normal_list,
                                                               List<Float> texcoord_list,
@@ -610,6 +618,8 @@ public class ColladaUtil {
         mesh.positions = toFloatArray(position_list);
         if (normal_list.size() > 0)
             mesh.normals = toFloatArray(normal_list);
+
+        mesh.aabb = calcAabb(mesh.positions);
 
         mesh.tangents = null;
         mesh.colors = null;
@@ -649,7 +659,7 @@ public class ColladaUtil {
         XMLNode sceneNode = null;
         Matrix4d sceneNodeMatrix = null;
         if (collada.libraryVisualScenes.size() > 0) {
-            sceneNode = getFirstNodeWithGeoemtry(collada.libraryVisualScenes.get(0).scenes.values());
+            sceneNode = getFirstNodeWithGeometry(collada.libraryVisualScenes.get(0).scenes.values());
             if (sceneNode != null) {
                 XMLInstanceGeometry instanceGeo = sceneNode.instanceGeometries.get(0);
                 String geometryId = instanceGeo.url;
