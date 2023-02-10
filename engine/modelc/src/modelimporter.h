@@ -4,10 +4,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,6 +32,11 @@ namespace dmModelImporter
         const char* m_Name;
     };
 
+    struct Aabb
+    {
+        float m_Min[3];
+        float m_Max[3];
+    };
     struct Mesh
     {
         const char* m_Name;
@@ -47,6 +52,8 @@ namespace dmModelImporter
         float*      m_TexCoord0;              // m_TexCoord0NumComponents floats per vertex
         uint32_t    m_TexCoord1NumComponents; // e.g 2 or 3
         float*      m_TexCoord1;              // m_TexCoord1NumComponents floats per vertex
+
+        Aabb        m_Aabb; // The min/max of the positions data
 
         uint32_t*   m_Indices;
         uint32_t    m_VertexCount;

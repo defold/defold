@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -151,8 +151,16 @@ struct MeshJNI
     jfieldID    vertexCount;
     jfieldID    indexCount;
 
+    jfieldID    aabb;
+
 } g_MeshJNI;
 
+struct AabbJNI
+{
+    jclass      cls;
+    jfieldID    min;
+    jfieldID    max;
+} g_AabbJNI;
 
 struct Vec4JNI
 {
@@ -224,6 +232,11 @@ static void InitializeJNITypes(JNIEnv* env)
         GET_FLD(scale, "Vec4");
     }
     {
+        SETUP_CLASS(AabbJNI, "Aabb");
+        GET_FLD(min, "Vec4");
+        GET_FLD(max, "Vec4");
+    }
+    {
         SETUP_CLASS(SceneJNI, "Scene");
         GET_FLD_ARRAY(nodes, "Node");
         GET_FLD_ARRAY(models, "Model");
@@ -278,6 +291,8 @@ static void InitializeJNITypes(JNIEnv* env)
 
         GET_FLD_TYPESTR(vertexCount, "I");
         GET_FLD_TYPESTR(indexCount, "I");
+
+        GET_FLD(aabb, "Aabb");
 
         GET_FLD_TYPESTR(texCoords0NumComponents, "I");
         GET_FLD_TYPESTR(texCoords1NumComponents, "I");
@@ -369,6 +384,16 @@ static jobjectArray CreateObjectArray(JNIEnv* env, jclass cls, const dmArray<job
 }
 
 static jobject CreateVec4(JNIEnv* env, const dmVMath::Vector4& value)
+{
+    jobject obj = env->AllocObject(g_Vec4JNI.cls);
+    env->SetFloatField(obj, g_Vec4JNI.x, value.getX());
+    env->SetFloatField(obj, g_Vec4JNI.y, value.getY());
+    env->SetFloatField(obj, g_Vec4JNI.z, value.getZ());
+    env->SetFloatField(obj, g_Vec4JNI.w, value.getW());
+    return obj;
+}
+
+static jobject CreateAabb(JNIEnv* env, const Aabb& value)
 {
     jobject obj = env->AllocObject(g_Vec4JNI.cls);
     env->SetFloatField(obj, g_Vec4JNI.x, value.getX());
