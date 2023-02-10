@@ -477,13 +477,12 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
                 if (attribute->type == cgltf_attribute_type_position)
                 {
                     mesh->m_Positions = fdata;
-                    // if (accessor->has_min && accessor->has_max) {
-                    //     memcpy(mesh->m_Aabb.m_Min, accessor->min, sizeof(float)*3);
-                    //     memcpy(mesh->m_Aabb.m_Max, accessor->max, sizeof(float)*3);
-                    // }
-                    // else
+                    if (accessor->has_min && accessor->has_max) {
+                        memcpy(mesh->m_Aabb.m_Min, accessor->min, sizeof(float)*3);
+                        memcpy(mesh->m_Aabb.m_Max, accessor->max, sizeof(float)*3);
+                    }
+                    else
                     {
-                        printf("Need to calculate aabb!");
                         CalcAABB(mesh->m_VertexCount*3, fdata, &mesh->m_Aabb);
                     }
                 }

@@ -279,6 +279,7 @@ static void InitializeJNITypes(JNIEnv* env)
         SETUP_CLASS(MeshJNI, "Mesh");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(material, "Ljava/lang/String;");
+        GET_FLD(aabb, "Aabb");
 
         GET_FLD_TYPESTR(positions, "[F");
         GET_FLD_TYPESTR(normals, "[F");
@@ -291,8 +292,6 @@ static void InitializeJNITypes(JNIEnv* env)
 
         GET_FLD_TYPESTR(vertexCount, "I");
         GET_FLD_TYPESTR(indexCount, "I");
-
-        GET_FLD(aabb, "Aabb");
 
         GET_FLD_TYPESTR(texCoords0NumComponents, "I");
         GET_FLD_TYPESTR(texCoords1NumComponents, "I");
@@ -395,11 +394,9 @@ static jobject CreateVec4(JNIEnv* env, const dmVMath::Vector4& value)
 
 static jobject CreateAabb(JNIEnv* env, const Aabb& value)
 {
-    jobject obj = env->AllocObject(g_Vec4JNI.cls);
-    env->SetFloatField(obj, g_Vec4JNI.x, value.getX());
-    env->SetFloatField(obj, g_Vec4JNI.y, value.getY());
-    env->SetFloatField(obj, g_Vec4JNI.z, value.getZ());
-    env->SetFloatField(obj, g_Vec4JNI.w, value.getW());
+    jobject obj = env->AllocObject(g_AabbJNI.cls);
+    SetFieldObject(env, obj, g_AabbJNI.min, CreateVec4(env, dmVMath::Vector4(value.m_Min[0], value.m_Min[1], value.m_Min[2], 1.0f)));
+    SetFieldObject(env, obj, g_AabbJNI.max, CreateVec4(env, dmVMath::Vector4(value.m_Max[0], value.m_Max[1], value.m_Max[2], 1.0f)));
     return obj;
 }
 
@@ -568,6 +565,8 @@ static jobject CreateMesh(JNIEnv* env, const dmModelImporter::Mesh* mesh)
 
     SET_IARRAY(obj, bones, vcount * 4, mesh->m_Bones);
     SET_IARRAY(obj, indices, icount, mesh->m_Indices);
+
+    SetFieldObject(env, obj, g_MeshJNI.aabb, CreateAabb(env, mesh->m_Aabb));
 
 #undef SET_FARRAY
 #undef SET_UARRAY

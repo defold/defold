@@ -116,9 +116,24 @@ public class ModelImporter {
         }
     }
 
+    public static class Aabb {
+        public Vec4 min;
+        public Vec4 max;
+
+        public Aabb() {
+            this.setIdentity();
+        }
+
+        public Aabb setIdentity() {
+            this.min = this.max = new Vec4(0,0,0,1); // i.e. a Point3(x,y,z,1)
+            return this;
+        }
+    }
+
     public static class Mesh {
         public String      name;
         public String      material;
+        public Aabb        aabb;
 
         public float[]     positions; // float3
         public float[]     normals; // float3
@@ -309,6 +324,8 @@ public class ModelImporter {
         System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
         PrintIndent(indent+1);
         System.out.printf("Material: %s\n", mesh.material);
+        PrintIndent(indent+1);
+        System.out.printf("Aabb: (%f, %f, %f), (%f, %f, %f)\n", mesh.aabb.min.x,mesh.aabb.min.y,mesh.aabb.min.z, mesh.aabb.max.x,mesh.aabb.max.y,mesh.aabb.max.z);
 
         // Print out the first ten of each array
         int max_count = 10;
