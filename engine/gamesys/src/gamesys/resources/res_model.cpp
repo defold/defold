@@ -178,34 +178,40 @@ namespace dmGameSystem
         FlattenMeshes(resource, mesh_set);
         CreateBuffers(context, resource);
 
+        if (mesh_set->m_Materials.m_Count != resource->m_Model->m_Materials.m_Count)
+        {
+            dmLogError("The material set mismatches for model %s", filename);
+            return dmResource::RESULT_INVALID_DATA;
+        }
+
         resource->m_Materials.SetCapacity(mesh_set->m_Materials.m_Count);
         for (uint32_t i = 0; i < mesh_set->m_Materials.m_Count; ++i)
         {
-            // TODO: Map the model materials to the mesh materials!
+            dmModelDDF::Material* model_material = 0;
+
+            // Find the material in the set of name:resource mappings from the model
+            for (uint32_t j = 0; j < resource->m_Model->m_Materials.m_Count; ++j)
+            {
+                if (strcmp(resource->m_Model->m_Materials[j].m_Name, mesh_set->m_Materials[i]) == 0)
+                {
+                    model_material = &resource->m_Model->m_Materials[j];
+                    break;
+                }
+            }
+
+            if (!model_material)
+            {
+                dmLogError("The material wasn't found for model %s: %u: %s", filename, i, mesh_set->m_Materials[i]);
+                return dmResource::RESULT_INVALID_DATA;
+            }
+
             dmRender::HMaterial material;
-            result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &material);
+            result = dmResource::Get(factory, model_material->m_Material, (void**) &material);
             if (result != dmResource::RESULT_OK)
             {
                 return result;
             }
 
-            // TODO: Get the proper materials
-            // Currently the Model only has support for one material
-            resource->m_Materials.Push(material);
-        }
-
-        if (resource->m_Materials.Empty())
-        {
-            dmRender::HMaterial material;
-            result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &material);
-            if (result != dmResource::RESULT_OK)
-            {
-                dmLogError("Failed to load material: %s\n", resource->m_Model->m_Material);
-                return dmResource::RESULT_INVALID_DATA;
-            }
-
-            if (resource->m_Materials.Full())
-                resource->m_Materials.OffsetCapacity(1);
             resource->m_Materials.Push(material);
         }
 
@@ -296,14 +302,17 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
+        for (uint32_t i = 0; i < ddf->m_Materials.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, ddf->m_Materials[i].m_Material);
+        }
+
         for (uint32_t i = 0; i < ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             dmResource::PreloadHint(params.m_HintInfo, ddf->m_Textures[i]);
         }
 
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_RigScene);
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
 
         *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;

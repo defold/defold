@@ -150,6 +150,11 @@ public class ModelImporter {
     public static class Material {
         public String           name;
         public int              index;
+
+        public Material() {
+            name = "";
+            index = 0;
+        }
     }
 
     public static class Mesh {

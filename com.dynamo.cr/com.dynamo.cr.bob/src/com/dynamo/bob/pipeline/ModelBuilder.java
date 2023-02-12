@@ -27,6 +27,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
+import com.dynamo.gamesys.proto.ModelProto.Material;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.rig.proto.Rig.RigScene;
@@ -115,8 +116,24 @@ public class ModelBuilder extends Builder<Void> {
         Model.Builder model = Model.newBuilder();
         model.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
 
-        BuilderUtil.checkResource(this.project, resource, "material", modelDescBuilder.getMaterial());
-        model.setMaterial(BuilderUtil.replaceExt(modelDescBuilder.getMaterial(), ".material", ".materialc"));
+        String singleMaterial = modelDescBuilder.getMaterial();
+        if (!singleMaterial.isEmpty()) {
+            BuilderUtil.checkResource(this.project, resource, "material", singleMaterial);
+
+            Material.Builder materialBuilder = Material.newBuilder();
+            materialBuilder.setName("_dm_default");
+            materialBuilder.setMaterial(BuilderUtil.replaceExt(singleMaterial, ".material", ".materialc"));
+            model.addMaterials(materialBuilder);
+        }
+
+        for (Material material : modelDescBuilder.getMaterialsList()) {
+            Material.Builder materialBuilder = Material.newBuilder();
+
+            BuilderUtil.checkResource(this.project, resource, "material", material.getMaterial());
+            materialBuilder.setName(material.getName());
+            materialBuilder.setMaterial(BuilderUtil.replaceExt(material.getMaterial(), ".material", ".materialc"));
+            model.addMaterials(materialBuilder);
+        }
 
         List<String> newTextureList = new ArrayList<String>();
         for (String t : modelDescBuilder.getTexturesList()) {
