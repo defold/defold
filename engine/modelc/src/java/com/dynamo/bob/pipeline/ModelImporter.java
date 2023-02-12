@@ -8,17 +8,17 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
-import java.io.FileNotFoundException;
+import java.lang.reflect.Method;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
-import java.util.List;
 import java.util.Arrays;
-import java.lang.reflect.Method;
-import java.io.FileNotFoundException;
+import java.util.HashSet;
+import java.util.List;
 
 public class ModelImporter {
 
@@ -147,9 +147,14 @@ public class ModelImporter {
         }
     }
 
+    public static class Material {
+        public String           name;
+        public int              index;
+    }
+
     public static class Mesh {
         public String      name;
-        public String      material;
+        public Material    material;
         public Aabb        aabb;
 
         public float[]     positions; // float3
@@ -236,6 +241,7 @@ public class ModelImporter {
         public Skin[]         skins;
         public Node[]         rootNodes;
         public Animation[]    animations;
+        public Material[]     materials;
     }
 
     public static Scene LoadFromBuffer(Options options, String path, byte[] bytes)
@@ -334,13 +340,20 @@ public class ModelImporter {
         System.out.printf("\n");
     }
 
+    private static void DebugPrintMaterial(Material material, int indent) {
+        PrintIndent(indent);
+        System.out.printf("Material: %s\n", material.name);
+        // PrintIndent(indent+1);
+        // System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
+    }
+
     private static void DebugPrintMesh(Mesh mesh, int indent) {
         PrintIndent(indent);
         System.out.printf("Mesh: %s\n", mesh.name);
         PrintIndent(indent+1);
         System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
         PrintIndent(indent+1);
-        System.out.printf("Material: %s\n", mesh.material);
+        System.out.printf("Material: %s\n", mesh.material.name);
         PrintIndent(indent+1);
         System.out.printf("Aabb: (%f, %f, %f), (%f, %f, %f)\n", mesh.aabb.min.x,mesh.aabb.min.y,mesh.aabb.min.z, mesh.aabb.max.x,mesh.aabb.max.y,mesh.aabb.max.z);
 
@@ -443,6 +456,14 @@ public class ModelImporter {
 
         System.out.printf("Loaded %s %s\n", path, scene!=null ? "ok":"failed");
         System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Materials: %d\n", scene.materials.length);
+        for (Material material : scene.materials)
+        {
+            DebugPrintMaterial(material, 0);
+        }
 
         System.out.printf("--------------------------------\n");
 

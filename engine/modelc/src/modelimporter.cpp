@@ -67,7 +67,6 @@ static void DestroyMesh(Mesh* mesh)
     delete[] mesh->m_Bones;
     delete[] mesh->m_TexCoord0;
     delete[] mesh->m_TexCoord1;
-    free((void*)mesh->m_Material);
     free((void*)mesh->m_Name);
 }
 
@@ -112,6 +111,11 @@ static void DestroyAnimation(Animation* animation)
     delete[] animation->m_NodeAnimations;
 }
 
+static void DestroyMaterial(Material* material)
+{
+    (void)material;
+}
+
 void DestroyScene(Scene* scene)
 {
     if (!scene)
@@ -150,6 +154,11 @@ void DestroyScene(Scene* scene)
         DestroyAnimation(&scene->m_Animations[i]);
     scene->m_AnimationsCount = 0;
     delete[] scene->m_Animations;
+
+    for (uint32_t i = 0; i < scene->m_MaterialsCount; ++i)
+        DestroyMaterial(&scene->m_Materials[i]);
+    scene->m_MaterialsCount = 0;
+    delete[] scene->m_Materials;
 
     delete scene;
 }

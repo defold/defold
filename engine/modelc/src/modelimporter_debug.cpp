@@ -59,12 +59,12 @@ static void OutputIndent(int indent)
     }
 }
 
-static void OutputTransform(const dmTransform::Transform& transform)
-{
-    printf("t: %f, %f, %f  ", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
-    printf("r: %f, %f, %f, %f  ", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
-    printf("s: %f, %f, %f  ", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
-}
+// static void OutputTransform(const dmTransform::Transform& transform)
+// {
+//     printf("t: %f, %f, %f  ", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
+//     printf("r: %f, %f, %f, %f  ", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
+//     printf("s: %f, %f, %f  ", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
+// }
 
 static void OutputVector4(const dmVMath::Vector4& v)
 {
@@ -124,11 +124,19 @@ static void OutputNodeTree(Node* node, int indent)
     }
 }
 
+static void OutputMaterial(Material* material, int indent)
+{
+    OutputIndent(indent);
+    printf("material  %s\n", material->m_Name);
+}
+
 static void OutputMesh(Mesh* mesh, int indent)
 {
     OutputIndent(indent);
-    printf("mesh  %s  vertices: %u  indices: %u mat: %s  weights: %s  colors: %s aabb: (%f, %f, %f) (%f, %f, %f)\n",
-            mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material, mesh->m_Weights?"yes":"no", mesh->m_Color?"yes":"no",
+    assert(mesh->m_Material);
+    assert(mesh->m_Material->m_Name);
+    printf("mesh  %s  vertices: %u  indices: %u  mat: %s  weights: %s  colors: %s aabb: (%f, %f, %f) (%f, %f, %f)\n",
+            mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material->m_Name, mesh->m_Weights?"yes":"no", mesh->m_Color?"yes":"no",
             mesh->m_Aabb.m_Min[0], mesh->m_Aabb.m_Min[1], mesh->m_Aabb.m_Min[2],
             mesh->m_Aabb.m_Max[0], mesh->m_Aabb.m_Max[1], mesh->m_Aabb.m_Max[2]);
 
@@ -219,6 +227,13 @@ void DebugScene(Scene* scene)
     printf("Output model importer scene:\n");
 
     printf("------------------------------\n");
+    for (uint32_t i = 0; i < scene->m_MaterialsCount; ++i)
+    {
+        OutputMaterial(&scene->m_Materials[i], 0);
+    }
+    printf("------------------------------\n");
+
+    printf("------------------------------\n");
     for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
     {
         OutputNode(&scene->m_Nodes[i]);
@@ -289,7 +304,7 @@ static void DebugStructMesh(Mesh* mesh, int indent)
     assert(mesh->m_Name);
     assert(mesh->m_Material);
     OutputIndent(indent); printf("  m_Name: %p (%s)\n", mesh->m_Name, mesh->m_Name);
-    OutputIndent(indent); printf("  m_Material: %p (%s)\n", mesh->m_Material, mesh->m_Material);
+    OutputIndent(indent); printf("  m_Material: %p (%s)\n", mesh->m_Material->m_Name, mesh->m_Material->m_Name);
 
     OutputIndent(indent); printf("  m_Positions: %p\n", mesh->m_Positions);
     OutputIndent(indent); printf("  m_Normals: %p\n", mesh->m_Normals);
