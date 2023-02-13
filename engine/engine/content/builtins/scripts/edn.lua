@@ -35,17 +35,20 @@ local escape_char_map = {
 }
 
 local function str(val)
-  local mt = debug.getmetatable(val)
-  if mt then 
-    if mt.__metatable == NodeProxy then
-      return string.format("%s%p", val, val)
-    elseif type(val) == "table" and mt.__tostring then
-      return string.format("%s %p", val, val)
+  local success, error_or_result = pcall(function()
+    local mt = debug.getmetatable(val)
+    if mt then
+      if mt.__metatable == NodeProxy then
+        return string.format("%s%p", val, val)
+      elseif type(val) == "table" and mt.__tostring then
+        return string.format("%s %p", val, val)
+      end
+      return tostring(val)
+    else
+      return tostring(val)
     end
-    return tostring(val)
-  else
-    return tostring(val)
-  end
+  end)
+  return success and error_or_result or '???'
 end
 
 local function escape_char(c)
@@ -84,15 +87,15 @@ local function encode_table(val)
   return string.format('#lua/ref"%p"', val)
 end
 
-function encode_userdata(val)
+local function encode_userdata(val)
   return '#lua/userdata"'..str(val)..'"'
 end
 
-function encode_function(val)
+local function encode_function(val)
   return '#lua/function"'..str(val)..'"'
 end
 
-function encode_thread(val)
+local function encode_thread(val)
   return '#lua/thread"'..str(val)..'"'
 end
 
