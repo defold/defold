@@ -33,6 +33,11 @@ You need a 64 bit Python 3 version (x86_64) to build the engine and tools. The l
 
 * Install via `https://www.python.org/downloads/release/python-3105/`
 
+Once Python has been installed you also need install certificates (for https requests):
+
+```sh
+> /Applications/Python\ 3.10/Install\ Certificates.command
+```
 
 
 ### Required Software - macOS
