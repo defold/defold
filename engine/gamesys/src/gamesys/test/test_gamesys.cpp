@@ -268,6 +268,9 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ASSERT_EQ(32, dmGraphics::GetTextureWidth(compressed_texture));
     ASSERT_EQ(32, dmGraphics::GetTextureHeight(compressed_texture));
 
+    // Release the dmResource::Get call above
+    dmResource::Release(m_Factory, compressed_texture);
+
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 7: fail by using an empty buffer
     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -278,13 +281,16 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ASSERT_EQ(1, dmGraphics::GetTextureWidth(compressed_texture));
     ASSERT_EQ(1, dmGraphics::GetTextureHeight(compressed_texture));
 
+    // Release the dmResource::Get call again
+    dmResource::Release(m_Factory, compressed_texture);
+
     // cleanup
+    DeleteInstance(m_Collection, go);
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-    DeleteInstance(m_Collection, go);
 
     ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
 
