@@ -127,7 +127,8 @@ static void OutputNodeTree(Node* node, int indent)
 static void OutputMesh(Mesh* mesh, int indent)
 {
     OutputIndent(indent);
-    printf("mesh  %s  vertices: %u  indices: %u mat: %s  weights: %s\n", mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material, mesh->m_Weights?"yes":"no");
+    printf("mesh  %s  vertices: %u  indices: %u mat: %s  weights: %s  colors: %s\n",
+            mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material, mesh->m_Weights?"yes":"no", mesh->m_Color?"yes":"no");
 
     // if (mesh->m_Weights)
     // {
