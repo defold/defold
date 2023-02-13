@@ -137,7 +137,7 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     vp_shader = MakeDDFShader("uniform vec4 dummy;\nuniform vec4 tint;\n", 40);
     dmGraphics::HVertexProgram vp_ovr = dmGraphics::NewVertexProgram(context, &vp_shader);
     dmGraphics::HFragmentProgram fp_ovr = dmGraphics::NewFragmentProgram(context, &fp_shader);
-    dmRender::HMaterial material_ovr = dmRender::NewMaterial(render_context, vp, fp);
+    dmRender::HMaterial material_ovr = dmRender::NewMaterial(render_context, vp_ovr, fp_ovr);
     dmGraphics::HProgram program_ovr = dmRender::GetMaterialProgram(material_ovr);
 
     // Constants
