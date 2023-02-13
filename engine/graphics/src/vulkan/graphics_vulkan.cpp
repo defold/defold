@@ -2454,6 +2454,7 @@ bail:
         return program_ptr->m_VertexModule->m_UniformCount + program_ptr->m_FragmentModule->m_UniformCount;
     }
 
+    // TODO: Move to graphics.cpp
     static Type shaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
     {
         switch(shader_type)

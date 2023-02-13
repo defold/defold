@@ -30,6 +30,7 @@ import java.util.regex.Matcher;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Scanner;
@@ -70,7 +71,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         // Parse source for includes and add the include nodes as inputs/dependancies to the shader
         String source     = new String(input.getContent(), StandardCharsets.UTF_8);
         String projectDir = this.project.getRootDirectory();
-
         ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
         String[] includes = shaderPreprocessor.getIncludes();
 
@@ -80,15 +80,50 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.setData(shaderPreprocessor);
-
-        return taskBuilder.build();
+        Task<ShaderPreprocessor> tsk = taskBuilder.build();
+        return tsk;
     }
 
-    static public String compileGLSL(String shaderSource, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
-            String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
+    public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ES2ToES3Converter.ShaderType shaderType)
+            throws IOException, CompileExceptionError {
+        List<IResource> inputs                = task.getInputs();
+        IResource in                          = inputs.get(0);
+        ShaderPreprocessor shaderPreprocessor = task.getData();
+        boolean isDebug                       = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
+        boolean outputSpirv                   = this.project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
+
+        return compile(shaderPreprocessor,
+            shaderType, in, task.getOutputs().get(0).getPath(),
+            this.project.getPlatformStrings()[0], isDebug, outputSpirv, false); // TODO: soft_fail
+    }
+
+    // TODO paged-atlas: do we have to do this for every compileGLSL call?
+    static private ArrayList<String> getArraySamplers(String shaderSource) {
+        ArrayList<String> arraySamplers = new ArrayList<String>();
+
+        Scanner scanner = new Scanner(shaderSource);
+
+        String line = null;
+        while (scanner.hasNextLine()) {
+            line = scanner.nextLine();
+            Matcher samplerMatcher = Common.arrayArraySamplerPattern.matcher(line);
+
+            if (samplerMatcher.find()) {
+                String uniformName = samplerMatcher.group("uniform");
+                String qualifier   = samplerMatcher.group("qualifier");
+                arraySamplers.add(uniformName);
+            }
+        }
+
+        return arraySamplers;
+    }
+
+    static public Common.GLSLCompileResult compileGLSL(String shaderSource, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug)  throws IOException, CompileExceptionError {
 
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(os);
+
+        ArrayList<String> arraySamplers = getArraySamplers(shaderSource);
 
         // Write directives from shader.
         String line = null;
@@ -103,6 +138,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         // This is needed to get a valid line number when shader compilation has failed
         while (scanner.hasNextLine()) {
             line = scanner.nextLine();
+
             if (line.isEmpty() || directiveLinePattern.matcher(line).find()) {
                 writer.println(line);
                 ++directiveLineCount;
@@ -169,11 +205,14 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             source = es3Result.output;
         }
 
-        return source;
+        Common.GLSLCompileResult compileResult = new Common.GLSLCompileResult();
+        compileResult.source        = source;
+        compileResult.arraySamplers = arraySamplers.toArray(new String[0]);
+
+        return compileResult;
     }
 
-    public static ShaderDesc.Shader.Builder[] buildGLSL(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage,
-                                                        String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
+    public static ShaderDesc.Shader.Builder[] buildGLSL(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug)  throws IOException, CompileExceptionError {
 
         ArrayList<ShaderDesc.Shader.Builder> variantBuilders = new ArrayList<ShaderDesc.Shader.Builder>();
 
@@ -183,14 +222,27 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         // Build the base variant with just the incoming source
         ///////////////////////////////////////////////////////
         ShaderDesc.Shader.Builder baseBuilder = ShaderDesc.Shader.newBuilder();
-        String transformedSource = compileGLSL(source, shaderType, shaderLanguage, resourceOutput, isDebug);
+        Common.GLSLCompileResult compileResult = compileGLSL(source, shaderType, shaderLanguage, isDebug);
+
+        for (String samplerName : compileResult.arraySamplers) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+            resourceBindingBuilder.setName(samplerName);
+            resourceBindingBuilder.setType(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
+            resourceBindingBuilder.setElementCount(1);
+            resourceBindingBuilder.setSet(0);
+            resourceBindingBuilder.setBinding(0);
+            baseBuilder.addUniforms(resourceBindingBuilder);
+        }
+
         baseBuilder.setLanguage(shaderLanguage);
-        baseBuilder.setSource(ByteString.copyFrom(transformedSource, "UTF-8"));
+        baseBuilder.setSource(ByteString.copyFrom(compileResult.source, "UTF-8"));
         variantBuilders.add(baseBuilder);
 
+        /*
         boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                                 shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
-        if (true /*gles2Standard*/) {
+
+        if (gles2Standard) {
             ///////////////////////////////////////////////////////
             // Texture array variant
             ///////////////////////////////////////////////////////
@@ -215,6 +267,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
                 variantBuilders.add(builder);
             }
         }
+        */
 
         return variantBuilders.toArray(new ShaderDesc.Shader.Builder[0]);
     }
@@ -520,7 +573,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
                     builders.add(spirvBuilder);
                 }
             } else {
-                for (ShaderDesc.Shader.Builder variant : buildGLSL(source, shaderType, shaderLanguage, resourceOutput, isDebug)) {
+                for (ShaderDesc.Shader.Builder variant : buildGLSL(source, shaderType, shaderLanguage, isDebug)) {
                     builders.add(variant);
                 }
             }

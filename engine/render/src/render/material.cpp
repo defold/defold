@@ -490,27 +490,36 @@ namespace dmRender
     {
         int32_t* location = material->m_NameHashToLocation.Get(name_hash);
         if (location)
+        {
             return *location;
+        }
         else
+        {
             return -1;
+        }
     }
 
-    void SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
         dmArray<Sampler>& samplers = material->m_Samplers;
-        uint32_t n = samplers.Size();
 
-        if (unit < n && name_hash != 0 && material->m_NameHashToLocation.Get(name_hash) != 0)
+        if (unit < samplers.Size() && name_hash != 0)
         {
-            Sampler& s        = samplers[unit];
-            s.m_NameHash      = name_hash;
-            s.m_Location      = *material->m_NameHashToLocation.Get(name_hash);
-            s.m_UWrap         = u_wrap;
-            s.m_VWrap         = v_wrap;
-            s.m_MinFilter     = min_filter;
-            s.m_MagFilter     = mag_filter;
-            s.m_MaxAnisotropy = max_anisotropy;
+            int32_t* location = material->m_NameHashToLocation.Get(name_hash);
+            if (location)
+            {
+                Sampler& s        = samplers[unit];
+                s.m_NameHash      = name_hash;
+                s.m_Location      = *location;
+                s.m_UWrap         = u_wrap;
+                s.m_VWrap         = v_wrap;
+                s.m_MinFilter     = min_filter;
+                s.m_MagFilter     = mag_filter;
+                s.m_MaxAnisotropy = max_anisotropy;
+                return true;
+            }
         }
+        return false;
     }
 
     HRenderContext GetMaterialRenderContext(HMaterial material)

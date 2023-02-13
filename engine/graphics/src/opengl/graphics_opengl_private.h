@@ -39,7 +39,6 @@ namespace dmGraphics
         WindowIconifyCallback   m_WindowIconifyCallback;
         void*                   m_WindowIconifyCallbackUserData;
         PipelineState           m_PipelineState;
-        HProgram                m_CurrentProgram;
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_WindowWidth;
@@ -107,12 +106,17 @@ namespace dmGraphics
         uint32_t    m_ModificationVersion;
     };
 
+    struct OpenGLShaderResourceBinding
+    {
+        char*    m_Name;
+        uint64_t m_NameHash;
+        Type     m_Type;
+        uint16_t m_ElementCount;
+    };
+
     struct OpenGLShader
     {
-        GLuint         m_Id;
-        char*          m_VariantTextureArrayData;
-        uint32_t       m_VariantTextureArrayDataSize;
-        dmArray<char*> m_VariantTextureArrayUniforms;
+        GLuint m_Id;
     };
 
     struct OpenglVertexAttribute
@@ -121,30 +125,10 @@ namespace dmGraphics
         int32_t  m_Location;
     };
 
-    struct OpenGLUniformNameIndirectionEntry
-    {
-        dmhash_t m_NameHash;
-        uint16_t m_ResourceBindingIndex;
-        uint16_t m_ResourceLocationIndex;
-    };
-
-    struct OpenGLShaderResourceBinding
-    {
-        char*    m_Name;
-        uint64_t m_NameHash;
-        Type     m_Type;
-        uint32_t m_ElementCount         : 16;
-        uint32_t m_BindingLocationStart : 8;
-        uint32_t m_BindingLocationSize  : 8;
-    };
-
     struct OpenGLProgram
     {
-        GLuint                                     m_Id;
-        dmArray<OpenglVertexAttribute>             m_Attributes;
-        dmArray<OpenGLUniformNameIndirectionEntry> m_UniformNameIndirectionTable;
-        dmArray<OpenGLShaderResourceBinding>       m_ResourceBindings;
-        dmArray<int16_t>                           m_ResourceBindingLocations;
+        GLuint                         m_Id;
+        dmArray<OpenglVertexAttribute> m_Attributes;
     };
 
     struct RenderTarget

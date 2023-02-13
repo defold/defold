@@ -34,16 +34,7 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
 
     @Override
     public void build(Task<ShaderPreprocessor> task) throws IOException, CompileExceptionError {
-        List<IResource> inputs                = task.getInputs();
-        IResource in                          = inputs.get(0);
-        ShaderPreprocessor shaderPreprocessor = task.getData();
-
-        boolean isDebug       = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
-        boolean outputSpirv   = project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
-        ShaderDesc shaderDesc = compile(shaderPreprocessor,
-            SHADER_TYPE, in, task.getOutputs().get(0).getPath(),
-            project.getPlatformStrings()[0], isDebug, outputSpirv, soft_fail);
-        task.output(0).setContent(shaderDesc.toByteArray());
+        task.output(0).setContent(getCompiledShaderDesc(task, SHADER_TYPE).toByteArray());
     }
 
     public static void main(String[] args) throws IOException, CompileExceptionError {

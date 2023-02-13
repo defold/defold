@@ -86,6 +86,8 @@ public class ProtoBuilders {
             return;
         }
 
+        // Note: For the texture array feature, we need to determine if the shaders of a material has any array samplers.
+        //       This could be slow since it needs to be run on _every_ sprite & pfx in the project.
         if (textureSet.endsWith("atlas")) {
             IResource atlasResource    = project.getResource(textureSet);
             IResource materialResource = project.getResource(material);
@@ -97,9 +99,6 @@ public class ProtoBuilders {
             Atlas.Builder atlasBuilder = Atlas.newBuilder();
             ProtoUtil.merge(atlasResource, atlasBuilder);
 
-            // JG: The atlas texture has the type which we can use instead, but will it be super slow?
-            //     For now, just check the max texture dimensions value.
-            //     This doesn't cover cube maps, which I think we might want to as well?
             Point3 atlasMaxPageSize           = atlasBuilder.getMaxPageSize();
             boolean textureSetHasArrayTexture = atlasMaxPageSize.getX() > 0 && atlasMaxPageSize.getY() > 0;
 
@@ -328,10 +327,14 @@ public class ProtoBuilders {
                 Emitter.Builder emitterBuilder = Emitter.newBuilder(messageBuilder.getEmitters(i));
                 BuilderUtil.checkResource(this.project, resource, "tile source", emitterBuilder.getTileSource());
                 BuilderUtil.checkResource(this.project, resource, "material", emitterBuilder.getMaterial());
+
+                validateMaterialAtlasCompatability(this.project, resource, emitterBuilder.getMaterial(), emitterBuilder.getTileSource());
+
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "t.texturesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "t.texturesetc"));
                 emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "atlas", "a.texturesetc"));
                 emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
+
                 Point3d ep = MathUtil.ddfToVecmath(emitterBuilder.getPosition());
                 Quat4d er = MathUtil.ddfToVecmath(emitterBuilder.getRotation());
                 for (Modifier modifier : modifiers) {
@@ -347,20 +350,6 @@ public class ProtoBuilders {
                 messageBuilder.setEmitters(i, emitterBuilder.build());
             }
             messageBuilder.clearModifiers();
-            return messageBuilder;
-        }
-    }
-
-    @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
-    @BuilderParams(name="Material", inExts=".material", outExt=".materialc")
-    public static class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
-        @Override
-        protected MaterialDesc.Builder transform(Task<Void> task, IResource resource, MaterialDesc.Builder messageBuilder)
-                throws IOException, CompileExceptionError {
-            BuilderUtil.checkResource(this.project, resource, "vertex program", messageBuilder.getVertexProgram());
-            messageBuilder.setVertexProgram(BuilderUtil.replaceExt(messageBuilder.getVertexProgram(), ".vp", ".vpc"));
-            BuilderUtil.checkResource(this.project, resource, "fragment program", messageBuilder.getFragmentProgram());
-            messageBuilder.setFragmentProgram(BuilderUtil.replaceExt(messageBuilder.getFragmentProgram(), ".fp", ".fpc"));
             return messageBuilder;
         }
     }

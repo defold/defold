@@ -169,17 +169,29 @@ namespace dmGameSystem
         }
 
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
-        uint32_t sampler_count = ddf->m_Samplers.m_Count;
-        for (uint32_t i = 0; i < sampler_count; i++)
+
+        uint32_t sampler_unit = 0;
+        for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
         {
-            dmhash_t name_hash = dmHashString64(sampler[i].m_Name);
-            dmGraphics::TextureWrap uwrap = WrapFromDDF(sampler[i].m_WrapU);
-            dmGraphics::TextureWrap vwrap = WrapFromDDF(sampler[i].m_WrapV);
+            dmhash_t base_name_hash             = dmHashString64(sampler[i].m_Name);
+            dmGraphics::TextureWrap uwrap       = WrapFromDDF(sampler[i].m_WrapU);
+            dmGraphics::TextureWrap vwrap       = WrapFromDDF(sampler[i].m_WrapV);
             dmGraphics::TextureFilter minfilter = FilterMinFromDDF(sampler[i].m_FilterMin);
             dmGraphics::TextureFilter magfilter = FilterMagFromDDF(sampler[i].m_FilterMag);
-            float anisotropy = sampler[i].m_MaxAnisotropy;
+            float anisotropy                    = sampler[i].m_MaxAnisotropy;
 
-            dmRender::SetMaterialSampler(material, name_hash, i, uwrap, vwrap, minfilter, magfilter, anisotropy);
+            if (dmRender::SetMaterialSampler(material, base_name_hash, sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
+            {
+                sampler_unit++;
+            }
+
+            for (int j = 0; j < sampler[i].m_NameIndirections.m_Count; ++j)
+            {
+                if (dmRender::SetMaterialSampler(material, sampler[i].m_NameIndirections[j], sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
+                {
+                    sampler_unit++;
+                }
+            }
         }
     }
 
