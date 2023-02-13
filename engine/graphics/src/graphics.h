@@ -298,13 +298,6 @@ namespace dmGraphics
         uint8_t       : 5;
     };
 
-    struct ProgramCreationParams
-    {
-        HVertexProgram   m_VertexProgram;
-        HFragmentProgram m_FragmentProgram;
-        uint8_t          m_MaxPagesCount;
-    };
-
     const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
@@ -539,7 +532,7 @@ namespace dmGraphics
 
     HVertexProgram   NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
     HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
-    HProgram         NewProgram(HContext context, const ProgramCreationParams& params);
+    HProgram         NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void             DeleteProgram(HContext context, HProgram program);
 
     bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);

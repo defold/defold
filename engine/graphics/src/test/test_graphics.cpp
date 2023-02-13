@@ -406,8 +406,7 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
 
-    dmGraphics::ProgramCreationParams program_params = {vp, fp, 0};
-    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, program_params);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
     ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
     ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
     ASSERT_EQ(1, dmGraphics::GetUniformLocation(program, "world"));

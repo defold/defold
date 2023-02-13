@@ -710,17 +710,17 @@ namespace dmGraphics
         program->m_Uniforms.Push(uniform);
     }
 
-    static HProgram NullNewProgram(HContext context, const ProgramCreationParams& params)
+    static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         VertexProgram* vertex     = 0x0;
         FragmentProgram* fragment = 0x0;
-        if (params.m_VertexProgram != INVALID_VERTEX_PROGRAM_HANDLE)
+        if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
         {
-            vertex = (VertexProgram*) params.m_VertexProgram;
+            vertex = (VertexProgram*) vertex_program;
         }
-        if (params.m_FragmentProgram != INVALID_FRAGMENT_PROGRAM_HANDLE)
+        if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
         {
-            fragment = (FragmentProgram*) params.m_FragmentProgram;
+            fragment = (FragmentProgram*) fragment_program;
         }
         return (HProgram) new Program(vertex, fragment);
     }

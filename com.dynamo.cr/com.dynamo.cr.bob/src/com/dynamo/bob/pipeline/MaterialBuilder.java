@@ -15,12 +15,9 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
-import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
-import java.awt.image.BufferedImage;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -152,10 +149,6 @@ public class MaterialBuilder extends Builder<Void>  {
         taskBuilder.addOutput(input.changeExt(params.outExt()));
 
         return taskBuilder.build();
-    }
-
-    private void MergeSamplerIndirectionEntries() {
-        //long hash = MurmurHash.hash64(data);
     }
 
     @Override

@@ -65,24 +65,30 @@ namespace dmGameSystem
         return true;
     }
 
-    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, dmGraphics::ProgramCreationParams* params)
+    struct MaterialResources
+    {
+        MaterialResources() : m_FragmentProgram(0), m_VertexProgram(0) {}
+
+        dmGraphics::HFragmentProgram m_FragmentProgram;
+        dmGraphics::HVertexProgram m_VertexProgram;
+    };
+
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
     {
         dmResource::Result factory_e;
-        factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &params->m_VertexProgram);
+        factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgram);
         if ( factory_e != dmResource::RESULT_OK)
         {
             return factory_e;
         }
 
-        factory_e = dmResource::Get(factory, ddf->m_FragmentProgram, (void**) &params->m_FragmentProgram);
+        factory_e = dmResource::Get(factory, ddf->m_FragmentProgram, (void**) &resources->m_FragmentProgram);
         if ( factory_e != dmResource::RESULT_OK)
         {
-            dmResource::Release(factory, (void*)params->m_VertexProgram);
-            params->m_VertexProgram = 0x0;
+            dmResource::Release(factory, (void*)resources->m_VertexProgram);
+            resources->m_VertexProgram = 0x0;
             return factory_e;
         }
-
-        params->m_MaxPagesCount = ddf->m_MaxPageCount;
 
         return dmResource::RESULT_OK;
     }
@@ -199,11 +205,11 @@ namespace dmGameSystem
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
         dmRenderDDF::MaterialDesc* ddf = (dmRenderDDF::MaterialDesc*)params.m_PreloadData;
-        dmGraphics::ProgramCreationParams program_create_params;
-        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &program_create_params);
+        MaterialResources resources;
+        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources);
         if (r == dmResource::RESULT_OK)
         {
-            dmRender::HMaterial material = dmRender::NewMaterial(render_context, program_create_params);
+            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
 
             dmResource::SResourceDescriptor desc;
             dmResource::Result factory_e;
@@ -252,8 +258,8 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmGraphics::ProgramCreationParams program_create_params;
-        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &program_create_params);
+        MaterialResources resources;
+        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources);
         if (r == dmResource::RESULT_OK)
         {
             dmRender::HMaterial material = (dmRender::HMaterial) params.m_Resource->m_Resource;

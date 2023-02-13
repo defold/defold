@@ -106,14 +106,6 @@ namespace dmGraphics
         uint32_t    m_ModificationVersion;
     };
 
-    struct OpenGLShaderResourceBinding
-    {
-        char*    m_Name;
-        uint64_t m_NameHash;
-        Type     m_Type;
-        uint16_t m_ElementCount;
-    };
-
     struct OpenGLShader
     {
         GLuint m_Id;

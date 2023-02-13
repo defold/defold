@@ -1266,6 +1266,7 @@ static void LogFrameBufferError(GLenum status)
         #endif
         }
 
+        // TODO: REMOVE!
         context->m_TextureArraySupport = 0;
 
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
@@ -1924,7 +1925,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
     }
 
-    static HProgram OpenGLNewProgram(HContext context, const ProgramCreationParams& params)
+    static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         IncreaseModificationVersion(context);
 
@@ -1934,8 +1935,8 @@ static void LogFrameBufferError(GLenum status)
         GLuint p = glCreateProgram();
         CHECK_GL_ERROR;
 
-        OpenGLShader* vertex_shader   = (OpenGLShader*) params.m_VertexProgram;
-        OpenGLShader* fragment_shader = (OpenGLShader*) params.m_FragmentProgram;
+        OpenGLShader* vertex_shader   = (OpenGLShader*) vertex_program;
+        OpenGLShader* fragment_shader = (OpenGLShader*) fragment_program;
 
         GLuint vertex_id   = vertex_shader->m_Id;
         GLuint fragment_id = fragment_shader->m_Id;

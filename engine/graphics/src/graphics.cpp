@@ -741,9 +741,9 @@ namespace dmGraphics
     {
         return g_functions.m_NewFragmentProgram(context, ddf);
     }
-    HProgram NewProgram(HContext context, const ProgramCreationParams& params)
+    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        return g_functions.m_NewProgram(context, params);
+        return g_functions.m_NewProgram(context, vertex_program, fragment_program);
     }
     void DeleteProgram(HContext context, HProgram program)
     {

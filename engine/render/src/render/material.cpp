@@ -27,13 +27,13 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    HMaterial NewMaterial(dmRender::HRenderContext render_context, const dmGraphics::ProgramCreationParams& creation_params)
+    HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
     {
         Material* m          = new Material;
         m->m_RenderContext   = render_context;
-        m->m_VertexProgram   = creation_params.m_VertexProgram;
-        m->m_FragmentProgram = creation_params.m_FragmentProgram;
-        m->m_Program         = dmGraphics::NewProgram(dmRender::GetGraphicsContext(render_context), creation_params);
+        m->m_VertexProgram   = vertex_program;
+        m->m_FragmentProgram = fragment_program;
+        m->m_Program         = dmGraphics::NewProgram(dmRender::GetGraphicsContext(render_context), vertex_program, fragment_program);
 
         uint32_t total_constants_count = dmGraphics::GetUniformCount(m->m_Program);
         const uint32_t buffer_size = 128;
@@ -82,7 +82,6 @@ namespace dmRender
         uint32_t default_values_capacity = 0;
         dmVMath::Vector4* default_values = 0;
         uint32_t sampler_index = 0;
-        uint32_t sampler_value_index = 0;
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
@@ -185,8 +184,6 @@ namespace dmRender
                         break;
                     default: assert(0);
                 }
-
-                sampler_value_index += num_values;
                 sampler_index++;
             }
         }

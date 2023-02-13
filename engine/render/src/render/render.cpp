@@ -847,11 +847,9 @@ namespace dmRender
 
                 if (texture)
                 {
-                    // HSampler sampler = GetMaterialSampler(material, i);
-                    // next_texture_unit = ApplyTextureAndSampler(render_context, texture, sampler, next_texture_unit);
-
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
                     {
+                        // TODO paged-atlas: We can remove the HSampler concept now I think, unless we do validation?
                         HSampler sampler = GetMaterialSampler(material, next_texture_unit);
 
                         dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
@@ -859,32 +857,6 @@ namespace dmRender
 
                         next_texture_unit++;
                     }
-
-                    /*
-                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
-                    {
-                        ApplyTextureAndSampler(context, texture, sampler, next_texture_unit);
-                        dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
-                        ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
-                        next_texture_unit++;
-                    }
-                    */
-
-                    /*
-                    HSampler sampler = GetMaterialSampler(material, i);
-                    if (GetCanBindTexture(texture, sampler, i))
-                    {
-                        // NOTE: in the case of texture arrays on platforms that doesn't support them,
-                        //       we need to separate between texture units and samplers. Otherwise,
-                        //       we would need separate texture samplers for every sub-texture.
-                        for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
-                        {
-                            dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
-                            ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
-                            next_texture_unit++;
-                        }
-                    }
-                    */
                 }
             }
 
