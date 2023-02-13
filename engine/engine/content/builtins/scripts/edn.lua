@@ -48,7 +48,16 @@ local function str(val)
       return tostring(val)
     end
   end)
-  return success and error_or_result or '???'
+  if success then
+    return error_or_result
+  else
+    print("Debugger caught error in __tostring: " .. error_or_result)
+    local err_trace = debug.traceback();
+    if err_trace ~= nil then
+      print(err_trace)
+    end
+    return "???"
+  end
 end
 
 local function escape_char(c)
