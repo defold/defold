@@ -182,7 +182,7 @@
                                                             hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
                                                             hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
                                                             bob/html5-url-prefix (partial bob/html5-handler project)
-                                                            command-requests/url-prefix (partial command-requests/request-handler root)})
+                                                            command-requests/url-prefix (command-requests/make-request-handler root (app-view/make-render-task-progress :resource-sync))})
                                    http-server/start!)
           open-resource        (partial app-view/open-resource app-view prefs workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource)
@@ -264,6 +264,7 @@
                                 result)))
 
       (ui/on-closed! stage (fn [_]
+                             (http-server/stop! web-server)
                              (ui/remove-application-focused-callback! :main-stage)
 
                              ;; TODO: This takes a long time in large projects.

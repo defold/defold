@@ -58,10 +58,13 @@
   [^HttpServer server handlers]
   (doseq [[path handler] (merge default-handlers handlers)]
     (.createContext server path (reify HttpHandler
-                                  (handle [this t]
+                                  (handle [_this t]
                                     (try
-                                      (-> (handler (exchange->request! t))
-                                          (response->exchange! t))
+                                      (let [request (exchange->request! t)
+                                            handler-result (handler request)]
+                                        (if (fn? handler-result)
+                                          (handler-result #(response->exchange! % t))
+                                          (response->exchange! handler-result t)))
                                       (catch Throwable t
                                         (error-reporting/report-exception! t)))))))
   (.setExecutor server nil)
@@ -82,14 +85,6 @@
      (-> (HttpServer/create inet-socket-address 0)
          (setup-server! handlers)))))
 
-(defn start! [^HttpServer server]
-  (.start server)
-  server)
-
-(defn stop! [^HttpServer server]
-  (.stop server 2)
-  server)
-
 (defn local-url [^HttpServer server]
   (format "http://localhost:%d" (.getPort (.getAddress server))))
 
@@ -99,3 +94,16 @@
 
 (defn port [^HttpServer server]
   (.getPort (.getAddress server)))
+
+(defn start! [^HttpServer server]
+  (.start server)
+  (when-not (Boolean/getBoolean "defold.tests")
+    (log/info :msg "Http server running"
+              :local-url (local-url server)
+              :url (url server)))
+  server)
+
+(defn stop! [^HttpServer server]
+  (.stop server 2)
+  server)
+
