@@ -451,7 +451,7 @@
           (testing "Before overrides"
             (let [saved-props-game-object (save-value GameObject$PrototypeDesc props-game-object)
                   saved-props-script-component (find-corresponding (:components saved-props-game-object) props-script-component)]
-              (is (= [] (:properties saved-props-script-component))))
+              (is (empty? (:properties saved-props-script-component))))
 
             (let [properties (properties props-script-component)]
               (is (atlas-resource-property?    (:__atlas properties)    (resource "/from-props-script.atlas")))
@@ -473,7 +473,7 @@
                 (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                       built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
                   (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
-                  (is (= [] (:property-resources built-props-game-object)))))))
+                  (is (empty? (:property-resources built-props-game-object)))))))
 
           (testing "Overrides do not affect props script"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -526,7 +526,7 @@
                 (with-open [_ (tu/build! props-game-object)]
                   (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
-                    (is (= [] (:properties built-props-script-component)))
+                    (is (empty? (:properties built-props-script-component)))
                     (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                            {(properties/key->user-name prop-kw) (murmur/hash64 (resource/proj-path build-resource))}))
                     (is (= (:property-resources built-props-game-object)
@@ -540,13 +540,13 @@
 
                 (let [saved-props-game-object (save-value GameObject$PrototypeDesc props-game-object)
                       saved-props-script-component (find-corresponding (:components saved-props-game-object) props-script-component)]
-                  (is (= [] (:properties saved-props-script-component))))
+                  (is (empty? (:properties saved-props-script-component))))
 
                 (with-open [_ (tu/build! props-game-object)]
                   (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
                     (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
-                    (is (= [] (:property-resources built-props-game-object))))))))
+                    (is (empty? (:property-resources built-props-game-object))))))))
 
           (testing "Missing resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -651,7 +651,7 @@
             (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                   built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)
                   renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-props-game-object.atlas"))]
-              (is (= [] (:properties built-props-script-component)))
+              (is (empty? (:properties built-props-script-component)))
               (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-props-game-object)
@@ -708,7 +708,7 @@
           (testing "Before overrides"
             (let [saved-props-collection (save-value GameObject$CollectionDesc props-collection)
                   saved-props-game-object-instance (find-corresponding (:instances saved-props-collection) props-game-object-instance)]
-              (is (= [] (:component-properties saved-props-game-object-instance))))
+              (is (empty? (:component-properties saved-props-game-object-instance))))
 
             (let [properties (properties ov-props-script-component)]
               (is (atlas-resource-property?    (:__atlas properties)    (resource "/from-props-script.atlas")))
@@ -730,8 +730,8 @@
               (with-open [_ (tu/build! props-collection)]
                 (let [built-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/props.collection"))
                       built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)]
-                  (is (= [] (:component-properties built-props-game-object-instance)))
-                  (is (= [] (:property-resources built-props-collection)))))))
+                  (is (empty? (:component-properties built-props-game-object-instance)))
+                  (is (empty? (:property-resources built-props-collection)))))))
 
           (testing "Overrides do not affect props script or game object"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -764,7 +764,7 @@
                   (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) ov-props-script-component)]
                     (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
-                    (is (= [] (:property-resources built-props-game-object))))))))
+                    (is (empty? (:property-resources built-props-game-object))))))))
 
           (testing "Overrides"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -790,7 +790,7 @@
                   (let [built-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/props.collection"))
                         built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)
                         built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)]
-                    (is (= [] (:properties built-props-script-component)))
+                    (is (empty? (:properties built-props-script-component)))
                     (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                            {(properties/key->user-name prop-kw) (murmur/hash64 (resource/proj-path build-resource))}))
                     (is (= (:property-resources built-props-collection)
@@ -804,13 +804,13 @@
 
                 (let [saved-props-collection (save-value GameObject$CollectionDesc props-collection)
                       saved-props-game-object-instance (find-corresponding (:instances saved-props-collection) props-game-object-instance)]
-                  (is (= [] (:component-properties saved-props-game-object-instance))))
+                  (is (empty? (:component-properties saved-props-game-object-instance))))
 
                 (with-open [_ (tu/build! props-collection)]
                   (let [built-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/props.collection"))
                         built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)]
-                    (is (= [] (:component-properties built-props-game-object-instance)))
-                    (is (= [] (:property-resources built-props-collection))))))))
+                    (is (empty? (:component-properties built-props-game-object-instance)))
+                    (is (empty? (:property-resources built-props-collection))))))))
 
           (testing "Missing resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -921,7 +921,7 @@
                   built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)
                   built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)
                   renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-props-collection.atlas"))]
-              (is (= [] (:properties built-props-script-component)))
+              (is (empty? (:properties built-props-script-component)))
               (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-props-collection)
@@ -990,7 +990,7 @@
           (testing "Before overrides"
             (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
                   saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
-              (is (= [] (:instance-properties saved-props-collection-instance))))
+              (is (empty? (:instance-properties saved-props-collection-instance))))
 
             (let [properties (properties ov-props-script-component)]
               (is (atlas-resource-property?    (:__atlas properties)    (resource "/from-props-script.atlas")))
@@ -1012,10 +1012,10 @@
               (with-open [_ (tu/build! sub-props-collection)]
                 (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                       built-props-game-object-instance (first (:instances built-sub-props-collection))]
-                  (is (= [] (:collection-instances built-sub-props-collection)))
-                  (is (= [] (:embedded-instances built-sub-props-collection)))
-                  (is (= [] (:component-properties built-props-game-object-instance)))
-                  (is (= [] (:property-resources built-sub-props-collection)))))))
+                  (is (empty? (:collection-instances built-sub-props-collection)))
+                  (is (empty? (:embedded-instances built-sub-props-collection)))
+                  (is (empty? (:component-properties built-props-game-object-instance)))
+                  (is (empty? (:property-resources built-sub-props-collection)))))))
 
           (testing "Overrides do not affect props script or game object"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -1048,7 +1048,7 @@
                   (let [built-props-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
                         built-props-script-component (find-corresponding (:components built-props-game-object) ov-props-script-component)]
                     (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
-                    (is (= [] (:property-resources built-props-game-object))))))))
+                    (is (empty? (:property-resources built-props-game-object))))))))
 
           (testing "Overrides"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -1075,9 +1075,9 @@
                   (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-props-game-object-instance (first (:instances built-sub-props-collection))
                         built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)]
-                    (is (= [] (:collection-instances built-sub-props-collection)))
-                    (is (= [] (:embedded-instances built-sub-props-collection)))
-                    (is (= [] (:properties built-props-script-component)))
+                    (is (empty? (:collection-instances built-sub-props-collection)))
+                    (is (empty? (:embedded-instances built-sub-props-collection)))
+                    (is (empty? (:properties built-props-script-component)))
                     (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                            {(properties/key->user-name prop-kw) (murmur/hash64 (resource/proj-path build-resource))}))
                     (is (= (:property-resources built-sub-props-collection)
@@ -1091,13 +1091,13 @@
 
                 (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
                       saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
-                  (is (= [] (:instance-properties saved-props-collection-instance))))
+                  (is (empty? (:instance-properties saved-props-collection-instance))))
 
                 (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-props-game-object-instance (first (:instances built-sub-props-collection))]
-                    (is (= [] (:component-properties built-props-game-object-instance)))
-                    (is (= [] (:property-resources built-sub-props-collection))))))))
+                    (is (empty? (:component-properties built-props-game-object-instance)))
+                    (is (empty? (:property-resources built-sub-props-collection))))))))
 
           (testing "Missing resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -1234,7 +1234,7 @@
           (testing "Before overrides"
             (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
                   saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
-              (is (= [] (:instance-properties saved-props-collection-instance))))
+              (is (empty? (:instance-properties saved-props-collection-instance))))
 
             (let [properties (properties ov-props-script-component)]
               (is (atlas-resource-property?    (:__atlas properties)    (resource "/from-props-script.atlas")))
@@ -1256,10 +1256,10 @@
               (with-open [_ (tu/build! sub-props-collection)]
                 (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                       built-embedded-game-object-instance (first (:instances built-sub-props-collection))]
-                  (is (= [] (:collection-instances built-sub-props-collection)))
-                  (is (= [] (:embedded-instances built-sub-props-collection)))
-                  (is (= [] (:component-properties built-embedded-game-object-instance)))
-                  (is (= [] (:property-resources built-sub-props-collection)))))))
+                  (is (empty? (:collection-instances built-sub-props-collection)))
+                  (is (empty? (:embedded-instances built-sub-props-collection)))
+                  (is (empty? (:component-properties built-embedded-game-object-instance)))
+                  (is (empty? (:property-resources built-sub-props-collection)))))))
 
           (testing "Overrides do not affect props script or game object"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -1292,7 +1292,7 @@
                   (let [built-embedded-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (tu/node-build-output embedded-game-object-instance))
                         built-props-script-component (find-corresponding (:components built-embedded-game-object) ov-props-script-component)]
                     (is (= {} (tu/unpack-property-declarations (:property-decls built-props-script-component))))
-                    (is (= [] (:property-resources built-embedded-game-object))))))))
+                    (is (empty? (:property-resources built-embedded-game-object))))))))
 
           (testing "Overrides"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -1319,9 +1319,9 @@
                   (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-embedded-game-object-instance (first (:instances built-sub-props-collection))
                         built-props-script-component (find-corresponding (:component-properties built-embedded-game-object-instance) ov-props-script-component)]
-                    (is (= [] (:collection-instances built-sub-props-collection)))
-                    (is (= [] (:embedded-instances built-sub-props-collection)))
-                    (is (= [] (:properties built-props-script-component)))
+                    (is (empty? (:collection-instances built-sub-props-collection)))
+                    (is (empty? (:embedded-instances built-sub-props-collection)))
+                    (is (empty? (:properties built-props-script-component)))
                     (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                            {(properties/key->user-name prop-kw) (murmur/hash64 (resource/proj-path build-resource))}))
                     (is (= (:property-resources built-sub-props-collection)
@@ -1335,13 +1335,13 @@
 
                 (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
                       saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
-                  (is (= [] (:instance-properties saved-props-collection-instance))))
+                  (is (empty? (:instance-properties saved-props-collection-instance))))
 
                 (with-open [_ (tu/build! sub-props-collection)]
                   (let [built-sub-props-collection (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (build-output "/sub-props.collection"))
                         built-embedded-game-object-instance (first (:instances built-sub-props-collection))]
-                    (is (= [] (:component-properties built-embedded-game-object-instance)))
-                    (is (= [] (:property-resources built-sub-props-collection))))))))
+                    (is (empty? (:component-properties built-embedded-game-object-instance)))
+                    (is (empty? (:property-resources built-sub-props-collection))))))))
 
           (testing "Missing resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -1457,7 +1457,7 @@
                   built-props-game-object-instance (first (:instances built-sub-props-collection))
                   built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)
                   renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-sub-props-collection.atlas"))]
-              (is (= [] (:properties built-props-script-component)))
+              (is (empty? (:properties built-props-script-component)))
               (is (= (tu/unpack-property-declarations (:property-decls built-props-script-component))
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-sub-props-collection)

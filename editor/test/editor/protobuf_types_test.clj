@@ -150,8 +150,8 @@
               source-value (g/node-value node-id :source-value)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
           (is (some? (expected-dependencies resource-path)) resource-path)
-          (is (= (sort (dependencies-fn source-value))
-                 (sort (expected-dependencies resource-path))) resource-path))))))
+          (is (= (sort (expected-dependencies resource-path))
+                 (sort (dependencies-fn source-value))) resource-path))))))
 
 (deftest load-order-sanity
   (with-clean-system

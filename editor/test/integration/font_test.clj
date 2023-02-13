@@ -122,7 +122,7 @@
 
       (g/set-property! score-no-antialias :antialias nil)
       (is (= (g/node-value score-no-antialias :antialias) nil))
-      (is (= (pb-property score-no-antialias :antialias) nil))
+      (is (= (pb-property score-no-antialias :antialias) 1)) ; protobuf has not concept of nil, so this results in the default
 
       (g/set-property! score-no-antialias :antialias 1)
       (is (= (g/node-value score-no-antialias :antialiased) true))

@@ -333,10 +333,10 @@
                                   (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                                       (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))))
 
-  (property blend-mode g/Any (default :blend-mode-alpha)
+  (property blend-mode g/Any (default (protobuf/default Sprite$SpriteDesc :blend-mode))
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
-  (property size-mode g/Keyword (default :size-mode-auto)
+  (property size-mode g/Keyword (default (protobuf/default Sprite$SpriteDesc :size-mode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
   (property manual-size types/Vec3 (default [0.0 0.0 0.0])
             (dynamic visible (g/constantly false)))
@@ -384,7 +384,7 @@
   (concat
     (g/connect project :default-tex-params self :default-tex-params)
     (some->> (:default-animation sprite) (g/set-property self :default-animation))
-    (some->> (:material sprite) (workspace/resolve-resource resource) (g/set-property self :material))
+    (->> (or (:material sprite) (protobuf/default Sprite$SpriteDesc :material)) (workspace/resolve-resource resource) (g/set-property self :material))
     (some->> (:blend-mode sprite) (g/set-property self :blend-mode))
     (some->> (:size-mode sprite) (g/set-property self :size-mode))
     (some->> (:size sprite) (v4->v3) (g/set-property self :manual-size))

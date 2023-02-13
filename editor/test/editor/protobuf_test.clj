@@ -160,7 +160,8 @@
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults))))
 
 (deftest make-map-with-defaults-specified-overrides-defaults-test
-  (is (= {:optional-with-default "overridden with_default"
+  (is (= {:required "overridden required"
+          :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:uint-value 11
                              :string-value "overridden string_value"
@@ -180,6 +181,7 @@
           :repeated-int [0
                          1]}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults
+           :required "overridden required"
            :optional-with-default "overridden with_default"
            :optional-without-default "overridden without_default"
            :optional-message (protobuf/make-map-with-defaults TestDdf$DefaultValue
@@ -199,7 +201,8 @@
                           1]))))
 
 (deftest make-map-with-defaults-specified-equals-defaults-test
-  (is (= {:optional-with-default "overridden with_default"
+  (is (= {:required ""
+          :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:uint-value 11
                              :string-value "overridden string_value"
@@ -217,6 +220,7 @@
                               :enum-value :enum-val0
                               :bool-value false}]}
          (protobuf/make-map-with-defaults TestDdf$NestedDefaults
+           :required ""
            :optional-with-default "overridden with_default"
            :optional-without-default "overridden without_default"
            :optional-message (protobuf/make-map-with-defaults TestDdf$DefaultValue
@@ -242,17 +246,19 @@
     (protobuf/read-map-with-defaults cls reader)))
 
 (deftest read-map-with-defaults-unspecified-test
-  (is (= {:optional-with-default "default"
+  (is (= {:required ""
+          :optional-with-default "default"
           :optional-without-default ""
           :optional-message {:uint-value 10
                              :string-value "test"
                              :quat-value [0.0 0.0 0.0 1.0]
                              :enum-value :enum-val1
                              :bool-value true}}
-         (read-map-with-defaults TestDdf$NestedDefaults ""))))
+         (read-map-with-defaults TestDdf$NestedDefaults "required: ''"))))
 
 (deftest read-map-with-defaults-specified-overrides-defaults-test
-  (is (= {:optional-with-default "overridden with_default"
+  (is (= {:required "overridden required"
+          :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:uint-value 11
                              :string-value "overridden string_value"
@@ -272,6 +278,7 @@
           :repeated-int [0
                          1]}
          (read-map-with-defaults TestDdf$NestedDefaults "
+required: 'overridden required'
 optional_with_default: 'overridden with_default'
 optional_without_default: 'overridden without_default'
 optional_message {
@@ -304,7 +311,8 @@ repeated_int: 0
 repeated_int: 1"))))
 
 (deftest read-map-with-defaults-specified-equals-defaults-test
-  (is (= {:optional-with-default "overridden with_default"
+  (is (= {:required ""
+          :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:uint-value 11
                              :string-value "overridden string_value"
@@ -324,6 +332,7 @@ repeated_int: 1"))))
           :repeated-int [0
                          0]}
          (read-map-with-defaults TestDdf$NestedDefaults "
+required: ''
 optional_with_default: 'overridden with_default'
 optional_without_default: 'overridden without_default'
 optional_message {
@@ -364,7 +373,8 @@ repeated_int: 0"))))
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults))))
 
 (deftest make-map-without-defaults-specified-overrides-defaults-test
-  (is (= {:optional-with-default "overridden with_default"
+  (is (= {:required "overridden required"
+          :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:uint-value 11
                              :string-value "overridden string_value"
@@ -380,6 +390,7 @@ repeated_int: 0"))))
           :repeated-int [0
                          1]}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults
+           :required "overridden required"
            :optional-with-default "overridden with_default"
            :optional-without-default "overridden without_default"
            :optional-message (protobuf/make-map-without-defaults TestDdf$DefaultValue
@@ -399,11 +410,13 @@ repeated_int: 0"))))
                           1]))))
 
 (deftest make-map-without-defaults-specified-equals-defaults-test
-  (is (= {:repeated-message [{}
+  (is (= {:required ""
+          :repeated-message [{}
                              {}]
           :repeated-int [0
                          0]}
          (protobuf/make-map-without-defaults TestDdf$NestedDefaults
+           :required ""
            :optional-with-default "default"
            :optional-without-default ""
            :optional-message (protobuf/make-map-without-defaults TestDdf$DefaultValue
@@ -431,11 +444,12 @@ repeated_int: 0"))))
     (protobuf/read-map-without-defaults cls reader)))
 
 (deftest read-map-without-defaults-unspecified-test
-  (is (= {}
-         (read-map-without-defaults TestDdf$NestedDefaults ""))))
+  (is (= {:required ""}
+         (read-map-without-defaults TestDdf$NestedDefaults "required: ''"))))
 
 (deftest read-map-without-defaults-specified-overrides-defaults-test
-  (is (= {:optional-with-default "overridden with_default"
+  (is (= {:required "overridden required"
+          :optional-with-default "overridden with_default"
           :optional-without-default "overridden without_default"
           :optional-message {:uint-value 11
                              :string-value "overridden string_value"
@@ -451,6 +465,7 @@ repeated_int: 0"))))
           :repeated-int [0
                          1]}
          (read-map-without-defaults TestDdf$NestedDefaults "
+required: 'overridden required'
 optional_with_default: 'overridden with_default'
 optional_without_default: 'overridden without_default'
 optional_message {
@@ -483,11 +498,13 @@ repeated_int: 0
 repeated_int: 1"))))
 
 (deftest read-map-without-defaults-specified-equals-defaults-test
-  (is (= {:repeated-message [{}
+  (is (= {:required ""
+          :repeated-message [{}
                              {}]
           :repeated-int [0
                          0]}
          (read-map-without-defaults TestDdf$NestedDefaults "
+required: ''
 optional_with_default: 'default'
 optional_without_default: ''
 optional_message {

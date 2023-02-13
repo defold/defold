@@ -95,11 +95,11 @@ Macros currently mean no foreseeable performance gain, however."
           (if (= :boolean (:java-type-key field-info))
             boolean
             identity))]
-    (if (:repeated field-info)
+    (if (not= :repeated (:field-rule field-info))
+      pb-value->clj
       (fn repeated-pb-value->clj [^Collection values]
         (when-not (.isEmpty values)
-          (mapv pb-value->clj values)))
-      pb-value->clj)))
+          (mapv pb-value->clj values))))))
 
 (def ^:private methods-by-name
   (memoize
@@ -214,24 +214,25 @@ Macros currently mean no foreseeable performance gain, however."
         ;; instances that cannot evaluate to false in if-expressions.
         (boolean (.invoke has-method pb j/no-args-array))))))
 
-(defn- field-info-raw [^Class cls]
+(defn- field-infos-raw [^Class cls]
   (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
     (into {}
           (map (fn [^Descriptors$FieldDescriptor field-desc]
                  (pair (field->key field-desc)
-                       {:java-name (underscores-to-camel-case (.getName field-desc))
-                        :type (field-type cls field-desc)
+                       {:type (field-type cls field-desc)
+                        :java-name (underscores-to-camel-case (.getName field-desc))
                         :java-type-key (java-type->key (.getJavaType field-desc))
+                        :options (options (.getOptions field-desc))
                         :field-type-key (field-type->key (.getType field-desc))
-                        :repeated (.isRepeated field-desc)
-                        :required (.isRequired field-desc)
-                        :optional (.isOptional field-desc)
-                        :options (options (.getOptions field-desc))})))
+                        :field-rule (cond (.isRepeated field-desc) :repeated
+                                          (.isRequired field-desc) :required
+                                          (.isOptional field-desc) :optional
+                                          :else (assert false))})))
           (.getFields desc))))
 
-(def ^:private field-info (memoize field-info-raw))
+(def ^:private field-infos (memoize field-infos-raw))
 
-(declare resource-field-paths)
+(declare default resource-field-paths)
 
 (defn resource-field-paths-raw
   "Returns a list of path expressions pointing out all resource fields.
@@ -280,24 +281,28 @@ Macros currently mean no foreseeable performance gain, however."
   (resource-field-paths-raw RepeatedRepeatedlyNested) -> [ [[:repeateds] [:images]] ]"
   [^Class class]
   (let [resource-field? (fn [field] (and (= (:type field) String) (:resource (:options field))))
-        message? (fn [field] (= (:field-type-key field) :message))]
+        message-field? (fn [field] (= (:field-type-key field) :message))]
     (into []
           (comp
-            (map (fn [[key field]]
+            (map (fn [[key field-info]]
                    (cond
-                     (resource-field? field)
-                     (if (:repeated field)
+                     (resource-field? field-info)
+                     (if (= :repeated (:field-rule field-info))
                        [ [[key]] ]
-                       [ [key] ])
+                       (if-some [default-value (default class key)]
+                         [ [{key default-value}] ]
+                         [ [key] ]))
 
-                     (message? field)
-                     (let [sub-paths (resource-field-paths (:type field))]
+                     (message-field? field-info)
+                     (let [sub-paths (resource-field-paths (:type field-info))]
                        (when (seq sub-paths)
-                         (let [prefix (if (:repeated field) [[key]] [key])]
+                         (let [prefix (if (= :repeated (:field-rule field-info))
+                                        [[key]]
+                                        [key])]
                            (mapv (partial into prefix) sub-paths)))))))
             cat
             (remove nil?))
-          (field-info class))))
+          (field-infos class))))
 
 (def resource-field-paths (memoize resource-field-paths-raw))
 
@@ -311,6 +316,11 @@ Macros currently mean no foreseeable performance gain, however."
         (keyword? elem)
         (fn [pb]
           (sub-path-fn (elem pb)))
+
+        (map? elem)
+        (fn [pb]
+          (let [[key default] (first elem)]
+            (sub-path-fn (get pb key default))))
 
         (vector? elem)
         (let [pbs-fn (first elem)]
@@ -346,14 +356,21 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defn- pb->clj-with-defaults-fn-raw [^Class class]
   (pb->clj-fn
-    (mapv (fn [[field-key {:keys [java-name repeated] :as field-info}]]
+    (mapv (fn [[field-key {:keys [field-rule java-name] :as field-info}]]
             (let [pb-value->clj (pb-value->clj-fn field-info pb->clj-with-defaults-fn)
+                  repeated (= :repeated field-rule)
                   ^Method field-get-method (field-get-method class java-name repeated)]
               (pair field-key
-                    (fn pb->field-clj-value-or-default [pb]
-                      (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
-                        (pb-value->clj field-pb-value))))))
-          (field-info class))))
+                    (if (= :required field-rule)
+                      (let [field-has-value? (field-has-value-fn class java-name false)]
+                        (fn pb->field-clj-value [pb]
+                          (when (field-has-value? pb)
+                            (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
+                              (pb-value->clj field-pb-value)))))
+                      (fn pb->field-clj-value-or-default [pb]
+                        (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
+                          (pb-value->clj field-pb-value)))))))
+          (field-infos class))))
 
 (def ^:private pb->clj-with-defaults-fn (memoize pb->clj-with-defaults-fn-raw))
 
@@ -361,8 +378,9 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defn- pb->clj-without-defaults-fn-raw [^Class class]
   (pb->clj-fn
-    (mapv (fn [[field-key {:keys [java-name repeated] :as field-info}]]
+    (mapv (fn [[field-key {:keys [field-rule java-name] :as field-info}]]
             (let [pb-value->clj (pb-value->clj-fn field-info pb->clj-without-defaults-fn)
+                  repeated (= :repeated field-rule)
                   ^Method field-get-method (field-get-method class java-name repeated)
                   field-has-value? (field-has-value-fn class java-name repeated)]
               (pair field-key
@@ -370,7 +388,7 @@ Macros currently mean no foreseeable performance gain, however."
                       (when (field-has-value? pb)
                         (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
                           (pb-value->clj field-pb-value)))))))
-          (field-info class))))
+          (field-infos class))))
 
 (def ^:private pb->clj-without-defaults-fn (memoize pb->clj-without-defaults-fn-raw))
 
@@ -460,18 +478,18 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- primitive-builder [^Descriptors$FieldDescriptor desc]
   (let [type (.getJavaType desc)]
     (cond
-      (= type (Descriptors$FieldDescriptor$JavaType/INT)) (fn [v]
+      (= type Descriptors$FieldDescriptor$JavaType/INT) (fn [v]
                                                             (int (if (instance? Boolean v)
                                                                    (if v 1 0)
                                                                    v)))
-      (= type (Descriptors$FieldDescriptor$JavaType/LONG)) long
-      (= type (Descriptors$FieldDescriptor$JavaType/FLOAT)) float
-      (= type (Descriptors$FieldDescriptor$JavaType/DOUBLE)) double
-      (= type (Descriptors$FieldDescriptor$JavaType/STRING)) str
+      (= type Descriptors$FieldDescriptor$JavaType/LONG) long
+      (= type Descriptors$FieldDescriptor$JavaType/FLOAT) float
+      (= type Descriptors$FieldDescriptor$JavaType/DOUBLE) double
+      (= type Descriptors$FieldDescriptor$JavaType/STRING) str
       ;; The reason we convert to Boolean object is for symmetry - the protobuf system do this when loading from protobuf files
-      (= type (Descriptors$FieldDescriptor$JavaType/BOOLEAN)) (fn [v] (Boolean/valueOf (boolean v)))
-      (= type (Descriptors$FieldDescriptor$JavaType/BYTE_STRING)) identity
-      (= type (Descriptors$FieldDescriptor$JavaType/ENUM)) (let [enum-cls (desc->proto-cls (.getEnumType desc))]
+      (= type Descriptors$FieldDescriptor$JavaType/BOOLEAN) (fn [v] (Boolean/valueOf (boolean v)))
+      (= type Descriptors$FieldDescriptor$JavaType/BYTE_STRING) identity
+      (= type Descriptors$FieldDescriptor$JavaType/ENUM) (let [enum-cls (desc->proto-cls (.getEnumType desc))]
                                                              (fn [v] (Enum/valueOf enum-cls (keyword->enum-name v))))
       :else nil)))
 
@@ -669,7 +687,7 @@ Macros currently mean no foreseeable performance gain, however."
     (with-open [reader (StringReader. str)]
       (read-pb cls reader))))
 
-(defonce single-byte-array-args (into-array Class [j/byte-array-class]))
+(defonce single-byte-array-args [j/byte-array-class])
 
 (defn- parser-fn-raw [^Class cls]
   (let [^Method parse-method (j/get-declared-method cls "parseFrom" single-byte-array-args)]
@@ -747,29 +765,33 @@ Macros currently mean no foreseeable performance gain, however."
         kvs))
 
 (defn make-map-without-defaults [^Class cls & kvs]
-  (let [key->field-info (field-info cls)
+  (let [key->field-info (field-infos cls)
         key->default (default-map cls)]
     (into {}
           (comp (partition-all 2)
                 (keep (fn [[key value]]
                         (when (some? value)
                           (let [field-info (key->field-info key)]
-                            (cond
-                              (nil? field-info)
-                              (throw (ex-info (str "Invalid field " key " for protobuf class " (.getName cls))
-                                              {:key key
-                                               :pb-class cls}))
-
-                              (:optional field-info)
+                            (case (:field-rule field-info)
+                              :optional
                               (when-not (or (and (= :message (:java-type-key field-info))
                                                  (zero? (coll/bounded-count 1 value)))
                                             (= (key->default key) value))
                                 (pair key value))
 
-                              (:repeated field-info)
+                              :repeated
                               (when (and (pos? (coll/bounded-count 1 value))
                                          (not= (key->default key) value))
-                                (pair key (vec value)))))))))
+                                (pair key (vec value)))
+
+                              :required
+                              (when-not (and (= :message (:java-type-key field-info))
+                                             (zero? (coll/bounded-count 1 value)))
+                                (pair key value))
+
+                              (throw (ex-info (str "Invalid field " key " for protobuf class " (.getName cls))
+                                              {:key key
+                                               :pb-class cls}))))))))
           kvs)))
 
 (defn read-map-with-defaults [^Class cls input]

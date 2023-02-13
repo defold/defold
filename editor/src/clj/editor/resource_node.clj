@@ -162,13 +162,16 @@
     (and (g/error? value)
          (g/error-fatal? value))))
 
-(defn make-ddf-dependencies-fn [ddf-type]
-  (fn [source-value]
-    (into []
-          (comp
-            (filter seq)
-            (distinct))
-          ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
+(defn- make-ddf-dependencies-fn-raw [ddf-type]
+  (let [get-fields (protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type))]
+    (fn [source-value]
+      (into []
+            (comp
+              (filter seq)
+              (distinct))
+            (get-fields source-value)))))
+
+(def make-ddf-dependencies-fn (memoize make-ddf-dependencies-fn-raw))
 
 (defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
   (let [read-defaults (if (nil? read-defaults) true read-defaults)

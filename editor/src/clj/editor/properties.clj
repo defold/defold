@@ -659,16 +659,18 @@
   "Returns transaction steps that applies the overrides from the supplied
   GameObject$PropertyDescs in map format to the specified node."
   [workspace id-mapping overridable-properties property-descs]
-  (assert (sequential? property-descs))
-  (when (seq overridable-properties)
-    (assert (map? overridable-properties))
-    (assert (every? (comp keyword? key) overridable-properties))
-    (mapcat (fn [property-desc]
-              (let [prop-kw (user-name->key (:id property-desc))
-                    prop (get overridable-properties prop-kw)]
-                (when (some? prop)
-                  (apply-property-override workspace id-mapping prop-kw prop property-desc))))
-            property-descs)))
+  {:pre [(or (nil? property-descs) (sequential? property-descs))
+         (or (nil? overridable-properties) (map? overridable-properties))
+         (every? (comp keyword? key) overridable-properties)]}
+  (when (and (seq property-descs)
+             (seq overridable-properties))
+    (eduction
+      (mapcat (fn [property-desc]
+                (let [prop-kw (user-name->key (:id property-desc))
+                      prop (get overridable-properties prop-kw)]
+                  (when (some? prop)
+                    (apply-property-override workspace id-mapping prop-kw prop property-desc)))))
+      property-descs)))
 
 (defn build-target-go-props
   "Convert go-props that may contain references to Resources inside the project
