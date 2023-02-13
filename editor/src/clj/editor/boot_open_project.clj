@@ -22,6 +22,7 @@
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
+            [editor.command-requests :as command-requests]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.debug-view :as debug-view]
@@ -180,7 +181,8 @@
                                                             web-profiler/url-prefix web-profiler/handler
                                                             hot-reload/url-prefix (partial hot-reload/build-handler workspace project)
                                                             hot-reload/verify-etags-url-prefix (partial hot-reload/verify-etags-handler workspace project)
-                                                            bob/html5-url-prefix (partial bob/html5-handler project)})
+                                                            bob/html5-url-prefix (partial bob/html5-handler project)
+                                                            command-requests/url-prefix (partial command-requests/request-handler root)})
                                    http-server/start!)
           open-resource        (partial app-view/open-resource app-view prefs workspace project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource)
