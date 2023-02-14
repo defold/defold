@@ -54,7 +54,7 @@ Verify that Java is installed and working:
 
 You need a 64 bit Python 3 version to build the engine and tools. The latest tested on all platforms is Python 3.10.5.
 
-* Install via `https://www.python.org/downloads/release/python-3105/`
+* Install via https://www.python.org/downloads/release/python-3105/
 
 * Install using Chocolatey:
 

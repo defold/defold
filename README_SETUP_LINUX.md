@@ -33,7 +33,9 @@ Verify that Java is installed and working:
 
 ### Required Software - Python 3
 
-You need a 64 bit Python 3 version to build the engine and tools. The latest tested on all platforms is [Python 3.10.5](https://www.python.org/downloads/release/python-3105/). You also need `easy_install` to install additional packages.
+You need a 64 bit Python 3 version to build the engine and tools. The latest tested on all platforms is Python 3.10.5. You also need `easy_install` to install additional packages.
+
+* Install via https://www.python.org/downloads/release/python-3105/
 
 
 ### Required Software - Additional tools
