@@ -147,6 +147,13 @@ def transform_gameobject(task, msg):
     return msg
 
 def compile_model(task):
+
+    def _replace_model_ext(orig, newext):
+        if 'dae' in orig:
+            return orig.replace(".dae", newext)
+        else:
+            return orig.replace(".gltf", newext)
+
     try:
         import google.protobuf.text_format
         import model_ddf_pb2
@@ -157,9 +164,9 @@ def compile_model(task):
             google.protobuf.text_format.Merge(in_f.read(), msg)
 
         msg_out = rig.rig_ddf_pb2.RigScene()
-        msg_out.mesh_set = "/" + msg.mesh.replace(".dae", ".meshsetc")
-        msg_out.skeleton = "/" + msg.mesh.replace(".dae", ".skeletonc")
-        msg_out.animation_set = "/" + msg.animations.replace(".dae", ".animationsetc")
+        msg_out.mesh_set = "/" + _replace_model_ext(msg.mesh, ".meshsetc")
+        msg_out.skeleton = "/" + _replace_model_ext(msg.mesh, ".skeletonc")
+        msg_out.animation_set = "/" + _replace_model_ext(msg.animations, ".animationsetc")
         with open(task.outputs[1].abspath(), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
 
@@ -168,12 +175,22 @@ def compile_model(task):
 
         for i,n in enumerate(msg.textures):
             msg_out.textures.append(transform_texture_name(task, msg.textures[i]))
-        msg_out.material = msg.material.replace(".material", ".materialc")
+        if msg.material:
+            print("MAWE waf_gamesys", msg.material)
+            material = model_ddf_pb2.Material()
+            material.name = "unknown"
+            material.material = msg.material.replace(".material", ".materialc")
+            msg_out.materials.append(material)
+        for i,n in enumerate(msg.materials):
+            material = msg.materials[i]
+            material.material = material.material.replace(".material", ".materialc")
+            msg_out.materials.append(material)
+
         with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
 
         return 0
-    except (google.protobuf.text_format.ParseError,e):
+    except (google.protobuf.text_format.ParseError,) as e:
         print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
@@ -242,7 +259,7 @@ def compile_animationset(task):
         with open(task.outputs[0].abspath(), 'wb') as out_f:
             out_f.write(msg_animset.SerializeToString())
         return 0
-    except (google.protobuf.text_format.ParseError,e):
+    except (google.protobuf.text_format.ParseError,) as e:
         print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
@@ -576,7 +593,7 @@ def compile_mesh(task):
             out_f.write(rig.rig_ddf_pb2.AnimationSet().SerializeToString())
 
         return 0
-    except (google.protobuf.text_format.ParseError,e):
+    except (google.protobuf.text_format.ParseError,) as e:
         print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
@@ -586,6 +603,18 @@ waflib.Task.task_factory('mesh',
 
 @extension('.dae')
 def dae_file(self, node):
+    mesh = self.create_task('mesh')
+    mesh.set_inputs(node)
+    ext_skeleton      = '.skeletonc'
+    ext_mesh_set      = '.meshsetc'
+    ext_animation_set = '.animationsetc'
+    out_skeleton      = node.change_ext(ext_skeleton)
+    out_mesh_set      = node.change_ext(ext_mesh_set)
+    out_animation_set = node.change_ext(ext_animation_set)
+    mesh.set_outputs([out_skeleton, out_mesh_set, out_animation_set])
+
+@extension('.gltf')
+def gltf_file(self, node):
     mesh = self.create_task('mesh')
     mesh.set_inputs(node)
     ext_skeleton      = '.skeletonc'

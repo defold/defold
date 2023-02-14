@@ -1,7 +1,10 @@
 name: "valid"
-mesh: "/meshset/valid.dae"
-material: "/material/valid.material"
+mesh: "/meshset/valid.gltf"
 textures: "/texture/valid_png.png"
 textures: "/texture/valid_png.png"
-animations: "meshset/valid.dae"
+animations: "meshset/valid.gltf"
 default_animation: "valid"
+materials {
+    name: "default"
+    material: "/material/valid.material"
+}

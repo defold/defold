@@ -178,32 +178,10 @@ namespace dmGameSystem
         FlattenMeshes(resource, mesh_set);
         CreateBuffers(context, resource);
 
-        if (mesh_set->m_Materials.m_Count != resource->m_Model->m_Materials.m_Count)
+        resource->m_Materials.SetCapacity(resource->m_Model->m_Materials.m_Count);
+        for (uint32_t i = 0; i < resource->m_Model->m_Materials.m_Count; ++i)
         {
-            dmLogError("The material set mismatches for model %s", filename);
-            return dmResource::RESULT_INVALID_DATA;
-        }
-
-        resource->m_Materials.SetCapacity(mesh_set->m_Materials.m_Count);
-        for (uint32_t i = 0; i < mesh_set->m_Materials.m_Count; ++i)
-        {
-            dmModelDDF::Material* model_material = 0;
-
-            // Find the material in the set of name:resource mappings from the model
-            for (uint32_t j = 0; j < resource->m_Model->m_Materials.m_Count; ++j)
-            {
-                if (strcmp(resource->m_Model->m_Materials[j].m_Name, mesh_set->m_Materials[i]) == 0)
-                {
-                    model_material = &resource->m_Model->m_Materials[j];
-                    break;
-                }
-            }
-
-            if (!model_material)
-            {
-                dmLogError("The material wasn't found for model %s: %u: %s", filename, i, mesh_set->m_Materials[i]);
-                return dmResource::RESULT_INVALID_DATA;
-            }
+            dmModelDDF::Material* model_material = &resource->m_Model->m_Materials[i];
 
             dmRender::HMaterial material;
             result = dmResource::Get(factory, model_material->m_Material, (void**) &material);

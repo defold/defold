@@ -81,7 +81,7 @@ namespace dmGameSystem
         int                         m_FunctionRef;
         HComponentRenderConstants   m_RenderConstants;
         dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmRender::HMaterial         m_Material;
+        dmRender::HMaterial         m_Material; // Override material
 
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
@@ -781,7 +781,7 @@ namespace dmGameSystem
     {
         DM_PROFILE("Model");
 
-        ModelWorld* world = (ModelWorld*)params.m_UserData;
+        //ModelWorld* world = (ModelWorld*)params.m_UserData;
 
         const dmIntersection::Frustum frustum = *params.m_Frustum;
         uint32_t num_entries = params.m_NumEntries;
