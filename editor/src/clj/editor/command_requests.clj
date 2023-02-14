@@ -14,6 +14,7 @@
 
 (ns editor.command-requests
   (:require [clojure.data.json :as json]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.disk :as disk]
             [editor.ui :as ui]
@@ -156,17 +157,28 @@
     :help "Toggle visibility of the right editor pane."}})
 
 (defonce ^:private help-response
-  (let [utf8-bytes (-> (let [sb (StringBuilder. 4096)]
-                         (.append sb "{\n")
-                         (doseq [[command {:keys [help]}] (sort-by key supported-commands)]
-                           (.append sb "  ")
-                           (.append sb (json/write-str (name command)))
-                           (.append sb ": ")
-                           (.append sb (json/write-str help))
-                           (.append sb "\n"))
-                         (.append sb "}")
-                         (.toString sb))
-                       (.getBytes StandardCharsets/UTF_8))]
+  (let [longest-command-length
+        (reduce (fn [result [command]]
+                  (max result (count (name command))))
+                Long/MIN_VALUE
+                supported-commands)
+
+        command-format-string
+        (str "  %-" (+ longest-command-length 2) "s : %s")
+
+        help-json-string
+        (str "{\n"
+             (->> supported-commands
+                  (sort-by key)
+                  (map (fn [[command {:keys [help]}]]
+                         (format command-format-string
+                                 (str \" (name command) \")
+                                 (json/write-str help))))
+                  (string/join ",\n"))
+             "\n}\n")
+
+        utf8-bytes
+        (.getBytes help-json-string StandardCharsets/UTF_8)]
     {:code 200
      :headers {"Content-Type" "text/plain;charset=UTF-8"
                "Content-Length" (str (count utf8-bytes))}

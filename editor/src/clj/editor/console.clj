@@ -248,9 +248,14 @@
 ;; Setup
 ;; -----------------------------------------------------------------------------
 
+(defmulti json-compatible-region (fn [region] (:type region)))
+
+(defmethod json-compatible-region :default [region] (dissoc region :on-click!))
+
 (g/defnk produce-request-response-body [lines regions]
-  (let [body-data {:lines lines
-                   :regions regions}
+  (let [json-regions (keep json-compatible-region regions)
+        body-data {:lines lines
+                   :regions json-regions}
         ^String body-string (json/write-str body-data)]
     (.getBytes body-string StandardCharsets/UTF_8)))
 
@@ -330,13 +335,13 @@
             (.setFill gc gutter-eval-error-color)
             (.fillText gc "!" text-right text-y))
 
-          :extension-out
+          :extension-output
           (let [text-y (+ ascent line-y)]
             (.setFont gc font)
             (.setFill gc gutter-eval-expression-color)
             (.fillText gc "⚙" text-right text-y))
 
-          :extension-err
+          :extension-error
           (let [text-y (+ ascent line-y)]
             (.setFont gc font)
             (.setFill gc gutter-eval-error-color)
