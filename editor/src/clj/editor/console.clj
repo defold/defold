@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.console
-  (:require [clojure.string :as string]
+  (:require [clojure.data.json :as json]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
@@ -26,18 +27,21 @@
             [editor.workspace :as workspace])
   (:import [clojure.lang PersistentQueue]
            [editor.code.data Cursor CursorRange LayoutInfo Rect]
+           [java.nio.charset StandardCharsets]
            [java.util.regex MatchResult]
            [javafx.beans.property SimpleStringProperty]
            [javafx.scene Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button Tab TextField]
-           [javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent]
+           [javafx.scene.input Clipboard KeyEvent MouseEvent ScrollEvent]
            [javafx.scene.layout GridPane Pane]
            [javafx.scene.paint Color]
            [javafx.scene.text Font FontSmoothingType TextAlignment]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defonce ^:const url-prefix "/console")
 
 (def ^:private pending-atom
   (atom {:clear? false :entries PersistentQueue/EMPTY}))
@@ -244,13 +248,20 @@
 ;; Setup
 ;; -----------------------------------------------------------------------------
 
+(g/defnk produce-request-response-body [lines regions]
+  (let [body-data {:lines lines
+                   :regions regions}
+        ^String body-string (json/write-str body-data)]
+    (.getBytes body-string StandardCharsets/UTF_8)))
+
 (g/defnode ConsoleNode
   (property indent-type r/IndentType (default :two-spaces))
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
-  (output lines r/Lines (gu/passthrough modified-lines)))
+  (output lines r/Lines (gu/passthrough modified-lines))
+  (output request-response-body g/Any :cached produce-request-response-body))
 
 (defn- gutter-metrics []
   [44.0 0.0])
@@ -610,3 +621,14 @@
     ;; Start repaint timer.
     (ui/timer-start! repainter)
     view-node))
+
+(defn make-request-handler [console-view]
+  (let [console-node (g/node-value console-view :resource-node)]
+    (assert (g/node-instance? ConsoleNode console-node))
+    (fn request-handler [request]
+      (when (= "GET" (:method request))
+        (let [utf8-bytes (g/node-value console-node :request-response-body)]
+          {:code 200
+           :headers {"Content-Type" "text/plain;charset=UTF-8"
+                     "Content-Length" (str (count utf8-bytes))}
+           :body utf8-bytes})))))

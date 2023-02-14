@@ -99,8 +99,7 @@
   (.start server)
   (when-not (Boolean/getBoolean "defold.tests")
     (log/info :msg "Http server running"
-              :local-url (local-url server)
-              :url (url server)))
+              :local-url (local-url server)))
   server)
 
 (defn stop! [^HttpServer server]

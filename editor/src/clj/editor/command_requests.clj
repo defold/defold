@@ -14,7 +14,6 @@
 
 (ns editor.command-requests
   (:require [clojure.data.json :as json]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.disk :as disk]
             [editor.ui :as ui]
