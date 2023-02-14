@@ -251,7 +251,13 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
 
-        output.append(entry)
+        duplicate = False
+        for o in output:
+            if o.get("number") == entry.get("number"):
+                duplicate = True
+                break
+        if not duplicate:
+            output.append(entry)
 
     engine = []
     editor = []
