@@ -28,6 +28,7 @@
             [internal.util :as util]
             [util.coll :refer [pair]])
   (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2Variants]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
@@ -85,7 +86,10 @@
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
       (let [dep-build-targets (flatten dep-build-targets)
-            deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
+            deps-by-source (into {}
+                                 (map #(let [res (:resource %)]
+                                         [(:resource res) res])
+                                      dep-build-targets))
             dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)])
                                [[:vertex-program vertex-program]
                                 [:fragment-program fragment-program]])]
@@ -247,11 +251,19 @@
        (merge params default-tex-params)
        params))))
 
-(defn- inject-max-page-count [shader-source max-page-count]
+(defn- transpile-shader-source [shader-ext shader-source max-page-count]
   {:pre [(integer? max-page-count)]}
-  (string/replace-first shader-source
-                        "#define DM_MAX_PAGE_COUNT ###"
-                        (str "#define DM_MAX_PAGE_COUNT " max-page-count)))
+  ;; TODO paged-atlas: move array-samplers-name from code.shader/produce-shader-source-info to here
+  (let [shader-stage (editor.code.shader/shader-stage-from-ext shader-ext)
+        shader-language (editor.code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
+        is-debug true
+        variant-texture-array (ShaderUtil$ES2Variants/variantTextureArrayFallback shader-source max-page-count)
+        array-sampler-names (set (some-> variant-texture-array .-arraySamplers))
+        augmented-source (if (nil? variant-texture-array)
+                           shader-source
+                           (.source variant-texture-array))
+        full-source (.source (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-language is-debug))]
+    full-source))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
@@ -298,9 +310,8 @@
   (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-shader-source-info vertex-program fragment-shader-source-info fragment-program vertex-constants fragment-constants samplers max-page-count]
                                            (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
                                                (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-                                               (let [vertex-source (inject-max-page-count (:shader-source vertex-shader-source-info) max-page-count)
-                                                     fragment-source (inject-max-page-count (:shader-source fragment-shader-source-info) max-page-count)
-
+                                               (let [vertex-source (transpile-shader-source "vp" (:shader-source vertex-shader-source-info) max-page-count)
+                                                     fragment-source (transpile-shader-source "fp" (:shader-source fragment-shader-source-info) max-page-count)
                                                      array-sampler-name->slice-sampler-names
                                                      (into {}
                                                            (comp (distinct)

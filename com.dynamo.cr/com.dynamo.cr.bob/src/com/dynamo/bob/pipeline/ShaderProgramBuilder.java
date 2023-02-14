@@ -216,11 +216,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
         ArrayList<ShaderDesc.Shader.Builder> variantBuilders = new ArrayList<ShaderDesc.Shader.Builder>();
 
-        // shaderLanguage = ShaderDesc.Language.LANGUAGE_GLSL_SM120;
-
-        ///////////////////////////////////////////////////////
-        // Build the base variant with just the incoming source
-        ///////////////////////////////////////////////////////
         ShaderDesc.Shader.Builder baseBuilder = ShaderDesc.Shader.newBuilder();
         Common.GLSLCompileResult compileResult = compileGLSL(source, shaderType, shaderLanguage, isDebug);
 
@@ -237,37 +232,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         baseBuilder.setLanguage(shaderLanguage);
         baseBuilder.setSource(ByteString.copyFrom(compileResult.source, "UTF-8"));
         variantBuilders.add(baseBuilder);
-
-        /*
-        boolean gles2Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
-                                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
-
-        if (gles2Standard) {
-            ///////////////////////////////////////////////////////
-            // Texture array variant
-            ///////////////////////////////////////////////////////
-            ES2Variants.TextureArrayResult sourceVariantTextureArray = ES2Variants.variantTextureArrayFallback(source);
-            if (sourceVariantTextureArray != null) {
-                ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
-                String src = compileGLSL(sourceVariantTextureArray.source, shaderType, shaderLanguage, resourceOutput, isDebug);
-                builder.setLanguage(shaderLanguage);
-                builder.setSource(ByteString.copyFrom(src, "UTF-8"));
-                builder.setVariantTextureArray(true);
-
-                for (String samplerName : sourceVariantTextureArray.arraySamplers) {
-                    ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-                    resourceBindingBuilder.setName(samplerName);
-                    resourceBindingBuilder.setType(ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
-                    resourceBindingBuilder.setElementCount(1);
-                    resourceBindingBuilder.setSet(0);
-                    resourceBindingBuilder.setBinding(0);
-                    builder.addUniforms(resourceBindingBuilder);
-                }
-
-                variantBuilders.add(builder);
-            }
-        }
-        */
 
         return variantBuilders.toArray(new ShaderDesc.Shader.Builder[0]);
     }

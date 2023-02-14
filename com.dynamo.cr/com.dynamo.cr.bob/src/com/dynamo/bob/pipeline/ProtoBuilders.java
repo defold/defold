@@ -108,6 +108,7 @@ public class ProtoBuilders {
             IResource vsResource = project.getResource(materialBuilder.getVertexProgram());
             IResource fsResource = project.getResource(materialBuilder.getFragmentProgram());
 
+            /*
             if (textureSetHasArrayTexture)
             {
                 boolean fsHasArraySampler = Common.hasUniformType(new String(fsResource.getContent()), ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
@@ -129,6 +130,7 @@ public class ProtoBuilders {
                         String.format("Texture %s is not compatible with material %s, material has no 'sampler2D' samplers.", textureSet, material));
                 }
             }
+            */
         }
     }
 

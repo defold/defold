@@ -607,7 +607,7 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
          :type type
          :count count}))))
 
-(defn- make-shader-program [^GL2 gl [vertex-shader-source fragment-shader-source array-sampler-name->uniform-names]]
+(defn- make-shader-program [^GL2 gl [vertex-shader-source fragment-shader-source array-sampler-name->uniform-names max-page-count]]
   (let [vertex-shader (make-vertex-shader gl vertex-shader-source)]
     (try
       (let [fragment-shader (make-fragment-shader gl fragment-shader-source)]
