@@ -21,6 +21,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.gamesys.proto.ModelProto.Model;
+import com.dynamo.gamesys.proto.ModelProto.Material;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.google.protobuf.Message;
 
@@ -40,15 +41,26 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
         StringBuilder src = new StringBuilder();
         src.append(" mesh: \"/test_meshset.dae\"");
-        src.append(" material: \"/test.material\"");
         src.append(" skeleton: \"/test_skeleton.dae\"");
         src.append(" animations: \"/test_animationset.dae\"");
         src.append(" default_animation: \"test\"");
+        src.append(" material: \"/test.material\"");
+        src.append(" materials {");
+        src.append("   name: \"test2\"");
+        src.append("   material: \"/test.material\"");
+        src.append("}");
         List<Message> outputs = build("/test.model", src.toString());
 
         Model model = (Model)outputs.get(0);
+        List<Material> materials = model.getMaterialsList();
+
+        assertEquals(2, materials.size());
+        assertEquals("_dm_default", materials.get(0).getName());
+        assertEquals("/test.materialc", materials.get(0).getMaterial());
+        assertEquals("test2", materials.get(1).getName());
+        assertEquals("/test.materialc", materials.get(1).getMaterial());
         assertEquals("/test.rigscenec", model.getRigScene());
-        assertEquals("/test.materialc", model.getMaterial());
+
         assertEquals("test", model.getDefaultAnimation());
 
         RigScene rigScene = (RigScene)outputs.get(1);
@@ -66,16 +78,25 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
         StringBuilder src = new StringBuilder();
         src.append(" mesh: \"/test_meshset.gltf\"");
-        src.append(" material: \"/test.material\"");
         src.append(" skeleton: \"/test_skeleton.gltf\"");
         src.append(" animations: \"/test_animation.gltf\"");
         src.append(" default_animation: \"test_animation\"");
+        src.append(" materials {");
+        src.append("   name: \"default\"");
+        src.append("   material: \"/test.material\"");
+        src.append("}");
         List<Message> outputs = build("/test.model", src.toString());
 
         Model model = (Model)outputs.get(0);
+        List<Material> materials = model.getMaterialsList();
+
         assertEquals("/test.rigscenec", model.getRigScene());
-        assertEquals("/test.materialc", model.getMaterial());
         assertEquals("test_animation", model.getDefaultAnimation());
+
+        assertEquals(1, materials.size());
+        assertEquals("default", materials.get(0).getName());
+        assertEquals("/test.materialc", materials.get(0).getMaterial());
+        assertEquals("/test.rigscenec", model.getRigScene());
 
         RigScene rigScene = (RigScene)outputs.get(1);
         assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
