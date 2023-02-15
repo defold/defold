@@ -15,19 +15,20 @@
 (ns util.http-server
   (:require [clojure.java.io :as io]
             [editor.error-reporting :as error-reporting]
-            [service.log :as log])
-  (:import [java.io InputStream IOException OutputStream ByteArrayInputStream ByteArrayOutputStream BufferedOutputStream]
-           [java.net InetSocketAddress InetAddress URLDecoder]
-           [org.apache.commons.io IOUtils]
-           [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]))
+            [service.log :as log]
+            [util.http-util :as http-util])
+  (:import [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]
+           [java.io ByteArrayOutputStream InputStream]
+           [java.net InetAddress InetSocketAddress URLDecoder]
+           [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:const default-handlers {"/" (fn [request]
                                      (log/info :msg (format "No handler for '%s'" (:url request)))
-                                     {:code 404})})
+                                     http-util/not-found-response)})
 
-(defn- exchange->request! [^HttpExchange e]
+(defn- get-request [^HttpExchange e]
   {:headers (.getRequestHeaders e)
    :method (.getRequestMethod e)
    :body (let [os (ByteArrayOutputStream.)]
@@ -35,7 +36,7 @@
            (.toByteArray os))
    :url (URLDecoder/decode (.toString (.getRequestURI e)))})
 
-(defn- response->exchange! [response ^HttpExchange e]
+(defn- send-response! [^HttpExchange e response]
   (let [code       (:code response 200)
         body       (:body response)
         headers    (.getResponseHeaders e)
@@ -58,15 +59,16 @@
   [^HttpServer server handlers]
   (doseq [[path handler] (merge default-handlers handlers)]
     (.createContext server path (reify HttpHandler
-                                  (handle [_this t]
+                                  (handle [_this http-exchange]
                                     (try
-                                      (let [request (exchange->request! t)
+                                      (let [request (get-request http-exchange)
                                             handler-result (handler request)]
                                         (if (fn? handler-result)
-                                          (handler-result #(response->exchange! % t))
-                                          (response->exchange! handler-result t)))
-                                      (catch Throwable t
-                                        (error-reporting/report-exception! t)))))))
+                                          (handler-result #(send-response! http-exchange %))
+                                          (send-response! http-exchange handler-result)))
+                                      (catch Throwable error
+                                        (send-response! http-exchange http-util/internal-server-error-response)
+                                        (error-reporting/report-exception! error)))))))
   (.setExecutor server nil)
   server)
 

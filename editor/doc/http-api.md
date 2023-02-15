@@ -15,21 +15,20 @@ http://localhost:[port]/console
 ```
 
 ### The Command Endpoint
-The command endpoint exposes a subset of the commands available from the editor menu bar. To trigger a command, perform a GET request in the format:
+The command endpoint exposes a subset of the commands available from the editor menu bar. To trigger a command, perform an empty POST request to an URL in the format:
 ```
 http://localhost:[port]/command/[command]
 ```
-You can obtain a list of the available commands along with a short description in JSON format from `http://localhost:[port]/command`. At the time of writing, this returns:
+You can obtain a list of the available commands along with a short description in JSON format by making a GET request to `http://localhost:[port]/command`. At the time of writing, this returns:
 ```json
 {
   "asset-portal"       : "Open the Asset Portal in a web browser.",
-  "async-reload"       : "Reload all modified files from disk.",
   "build"              : "Build and run the project.",
   "build-html5"        : "Build the project for HTML5 and open it in a web browser.",
   "debugger-break"     : "Break into the debugger.",
   "debugger-continue"  : "Resume execution in the debugger.",
   "debugger-detach"    : "Detach the debugger from the running project.",
-  "debugger-start"     : "Start the project with the debugger attached.",
+  "debugger-start"     : "Start the project with the debugger, or attach the debugger to the running project.",
   "debugger-step-into" : "Step into the current expression in the debugger.",
   "debugger-step-out"  : "Step out of the current expression in the debugger.",
   "debugger-step-over" : "Step over the current expression in the debugger.",
@@ -62,8 +61,9 @@ Commands are fire-and-forget. You will not know if a command succeeds or not, on
 
 * `202 Accepted` - The request was accepted and we are processing it. We use this instead of `200 OK` since we won't be able to tell you when it is done or how it went.
 * `400 Bad Request` - The request was malformed.
+* `403 Forbidden` - The command is supported, but it can't be executed right now (for example if a build is already in progress).
 * `404 Not Found` - The string after `command/` is not a supported command.
-* `405 Method Not Allowed` - The command is supported, but it can't be executed right now (for example if a build is already in progress).
+* `405 Method Not Allowed` - The request method is invalid. For example, trying to GET a command or POST to the console.
 * `500 Internal Server Error` - Something unexpected went wrong when executing the command. The error will be logged in the editor log.
 
 ### The Console Endpoint

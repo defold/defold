@@ -24,10 +24,10 @@
             [editor.handler :as handler]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.http-util :as http-util])
   (:import [clojure.lang PersistentQueue]
            [editor.code.data Cursor CursorRange LayoutInfo Rect]
-           [java.nio.charset StandardCharsets]
            [java.util.regex MatchResult]
            [javafx.beans.property SimpleStringProperty]
            [javafx.scene Parent Scene]
@@ -252,12 +252,12 @@
 
 (defmethod json-compatible-region :default [region] (dissoc region :on-click!))
 
-(g/defnk produce-request-response-body [lines regions]
+(g/defnk produce-request-response [lines regions]
   (let [json-regions (keep json-compatible-region regions)
         body-data {:lines lines
                    :regions json-regions}
-        ^String body-string (json/write-str body-data)]
-    (.getBytes body-string StandardCharsets/UTF_8)))
+        body-string (json/write-str body-data)]
+    (http-util/make-json-response body-string)))
 
 (g/defnode ConsoleNode
   (property indent-type r/IndentType (default :two-spaces))
@@ -266,7 +266,7 @@
   (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
   (output lines r/Lines (gu/passthrough modified-lines))
-  (output request-response-body g/Any :cached produce-request-response-body))
+  (output request-response g/Any :cached produce-request-response))
 
 (defn- gutter-metrics []
   [44.0 0.0])
@@ -627,13 +627,20 @@
     (ui/timer-start! repainter)
     view-node))
 
+(defn- handle-request! [{:keys [url method] :as _request} console-node]
+  (cond
+    (and (not= "/console" url)
+         (not= "/console/" url))
+    http-util/not-found-response
+
+    (not= "GET" method)
+    http-util/only-get-allowed-response
+
+    :else
+    (g/node-value console-node :request-response)))
+
 (defn make-request-handler [console-view]
   (let [console-node (g/node-value console-view :resource-node)]
     (assert (g/node-instance? ConsoleNode console-node))
     (fn request-handler [request]
-      (when (= "GET" (:method request))
-        (let [utf8-bytes (g/node-value console-node :request-response-body)]
-          {:code 200
-           :headers {"Content-Type" "text/plain;charset=UTF-8"
-                     "Content-Length" (str (count utf8-bytes))}
-           :body utf8-bytes})))))
+      (handle-request! request console-node))))
