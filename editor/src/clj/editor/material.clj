@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.material
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.code.shader :as code.shader]
             [editor.defold-project :as project]
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
@@ -73,33 +73,80 @@
       (update :vertex-constants hack-upgrade-constants)
       (update :fragment-constants hack-upgrade-constants)))
 
-(defn- build-material [resource dep-resources user-data]
-  (let [pb (reduce (fn [pb [label resource]] (assoc pb label resource))
-                   (:pb-msg user-data)
-                   (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes Material$MaterialDesc pb)}))
+(defn- build-material [resource build-resource->fused-build-resource user-data]
+  (let [build-resource->fused-build-resource-path (comp resource/proj-path build-resource->fused-build-resource)
+        material-desc-with-fused-build-resource-paths
+        (-> (:material-desc-with-build-resources user-data)
+            (update :vertex-program build-resource->fused-build-resource-path)
+            (update :fragment-program build-resource->fused-build-resource-path))]
+    {:resource resource
+     :content (protobuf/map->bytes Material$MaterialDesc material-desc-with-fused-build-resource-paths)}))
 
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets vertex-program fragment-program]
+(g/defnk produce-build-targets [_node-id resource pb-msg compile-spirv max-page-count vertex-program fragment-program vertex-shader-source-info fragment-shader-source-info]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-      (let [dep-build-targets (flatten dep-build-targets)
-            deps-by-source (into {}
-                                 (map #(let [res (:resource %)]
-                                         [(:resource res) res])
-                                      dep-build-targets))
-            dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)])
-                               [[:vertex-program vertex-program]
-                                [:fragment-program fragment-program]])]
+      (let [vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
+            fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
+            dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
+            material-desc-with-build-resources (assoc pb-msg
+                                                 :vertex-program (:resource vertex-shader-build-target)
+                                                 :fragment-program (:resource fragment-shader-build-target))]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-material
-            :user-data {:pb-msg pb-msg
-                        :dep-resources dep-resources}
+            :user-data {:material-desc-with-build-resources material-desc-with-build-resources}
             :deps dep-build-targets})])))
+
+(defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
+  ;; TODO paged-atlas: Move this to static function in Bob?
+  (let [shader-stage (code.shader/shader-stage-from-ext shader-ext)
+        shader-language (code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
+        is-debug true
+        variant-texture-array (ShaderUtil$ES2Variants/variantTextureArrayFallback shader-source max-page-count)
+        augmented-source (if (nil? variant-texture-array)
+                           shader-source
+                           (.source variant-texture-array))
+        result (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-language is-debug)
+        full-source (.-source result)
+        array-sampler-names-array (.-arraySamplers result)]
+    {:shader-source full-source
+     :array-sampler-names (vec array-sampler-names-array)}))
+
+(declare ^:private constant->val)
+
+(g/defnk produce-shader [_node-id vertex-shader-source-info vertex-program fragment-shader-source-info fragment-program vertex-constants fragment-constants samplers max-page-count]
+  (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
+      (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
+      (let [augmented-vertex-shader-info (transpile-shader-source "vp" (:shader-source vertex-shader-source-info) max-page-count)
+            augmented-fragment-shader-info (transpile-shader-source "fp" (:shader-source fragment-shader-source-info) max-page-count)
+            array-sampler-name->slice-sampler-names
+            (into {}
+                  (comp (distinct)
+                        (map (fn [array-sampler-name]
+                               (pair array-sampler-name
+                                     (mapv (fn [page-index]
+                                             (str array-sampler-name "_" page-index))
+                                           (range max-page-count))))))
+                  (concat
+                    (:array-sampler-names augmented-vertex-shader-info)
+                    (:array-sampler-names augmented-fragment-shader-info)))
+
+            uniforms (-> {}
+                         (into (map (fn [constant]
+                                      [(:name constant) (constant->val constant)]))
+                               (concat vertex-constants fragment-constants))
+                         (into (comp
+                                 (mapcat (fn [{sampler-name :name}]
+                                           (or (array-sampler-name->slice-sampler-names sampler-name)
+                                               [sampler-name])))
+                                 (map (fn [resolved-sampler-name]
+                                        (pair resolved-sampler-name nil))))
+                               samplers))]
+        (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names))))
 
 (def ^:private form-data
   (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
@@ -251,20 +298,6 @@
        (merge params default-tex-params)
        params))))
 
-(defn- transpile-shader-source [shader-ext shader-source max-page-count]
-  {:pre [(integer? max-page-count)]}
-  ;; TODO paged-atlas: move array-samplers-name from code.shader/produce-shader-source-info to here
-  (let [shader-stage (editor.code.shader/shader-stage-from-ext shader-ext)
-        shader-language (editor.code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
-        is-debug true
-        variant-texture-array (ShaderUtil$ES2Variants/variantTextureArrayFallback shader-source max-page-count)
-        array-sampler-names (set (some-> variant-texture-array .-arraySamplers))
-        augmented-source (if (nil? variant-texture-array)
-                           shader-source
-                           (.source variant-texture-array))
-        full-source (.source (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-language is-debug))]
-    full-source))
-
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
 
@@ -276,8 +309,7 @@
     (set (fn [evaluation-context self old-value new-value]
            (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :vertex-resource]
-                                    [:shader-source-info :vertex-shader-source-info]
-                                    [:build-targets :dep-build-targets]))))
+                                    [:shader-source-info :vertex-shader-source-info]))))
 
   (property fragment-program resource/Resource
     (dynamic visible (g/constantly false))
@@ -285,8 +317,7 @@
     (set (fn [evaluation-context self old-value new-value]
            (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :fragment-resource]
-                                    [:shader-source-info :fragment-shader-source-info]
-                                    [:build-targets :dep-build-targets]))))
+                                    [:shader-source-info :fragment-shader-source-info]))))
 
   (property max-page-count g/Int (default 1) (dynamic visible (g/constantly false)))
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
@@ -297,45 +328,20 @@
 
   (output form-data g/Any :cached produce-form-data)
 
-  (input dep-build-targets g/Any :array)
   (input vertex-resource resource/Resource)
   (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
   (input fragment-shader-source-info g/Any)
+  (input project-settings g/Any)
+
+  (output compile-spirv g/Bool (g/fnk [project-settings]
+                                 (get project-settings ["shader" "output_spirv"] false)))
 
   (output pb-msg g/Any produce-pb-msg)
 
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)
-  (output shader ShaderLifecycle :cached (g/fnk [_node-id vertex-shader-source-info vertex-program fragment-shader-source-info fragment-program vertex-constants fragment-constants samplers max-page-count]
-                                           (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
-                                               (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-                                               (let [vertex-source (transpile-shader-source "vp" (:shader-source vertex-shader-source-info) max-page-count)
-                                                     fragment-source (transpile-shader-source "fp" (:shader-source fragment-shader-source-info) max-page-count)
-                                                     array-sampler-name->slice-sampler-names
-                                                     (into {}
-                                                           (comp (distinct)
-                                                                 (map (fn [array-sampler-name]
-                                                                        (pair array-sampler-name
-                                                                              (mapv (fn [page-index]
-                                                                                      (str array-sampler-name "_" page-index))
-                                                                                    (range max-page-count))))))
-                                                           (concat
-                                                             (:array-sampler-names vertex-shader-source-info)
-                                                             (:array-sampler-names fragment-shader-source-info)))
-
-                                                     uniforms (-> {}
-                                                                  (into (map (fn [constant]
-                                                                               [(:name constant) (constant->val constant)]))
-                                                                        (concat vertex-constants fragment-constants))
-                                                                  (into (comp
-                                                                          (mapcat (fn [{sampler-name :name}]
-                                                                                    (or (array-sampler-name->slice-sampler-names sampler-name)
-                                                                                        [sampler-name])))
-                                                                          (map (fn [resolved-sampler-name]
-                                                                                 (pair resolved-sampler-name nil))))
-                                                                          samplers))]
-                                                 (shader/make-shader _node-id vertex-source fragment-source uniforms array-sampler-name->slice-sampler-names)))))
+  (output shader ShaderLifecycle :cached produce-shader)
   (output samplers [g/KeywordMap] (g/fnk [samplers] (vec samplers))))
 
 (defn- make-sampler [name]
@@ -343,6 +349,7 @@
 
 (defn load-material [project self resource pb]
   (concat
+    (g/connect project :settings self :project-settings)
     (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
     (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
     (g/set-property self :vertex-constants (hack-downgrade-constants (:vertex-constants pb)))

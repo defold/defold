@@ -135,14 +135,16 @@
    :set (.set shader-resource)
    :binding (.binding shader-resource)})
 
-(defn- make-glsl-shader-builders
+;; TODO paged-atlas: From here to THERE could be moved into Bob as a static function that produces a Graphics$ShaderDesc!
+;; Takes full-source (i.e. source with includes) and a list of shader languages (optionally including SPIR-V!) and returns a Graphics$ShaderDesc with all the array sampler and precision and transpiling malarkey.
+(defn- move-to-bob-make-glsl-shader-builders
   ^Graphics$ShaderDesc$Shader$Builder [^String glsl-source resource-ext ^String shader-language]
   (let [shader-stage (shader-stage-from-ext resource-ext)
         shader-language (shader-language-to-java shader-language)
         is-debug true]
     (ShaderProgramBuilder/buildGLSL glsl-source shader-stage shader-language is-debug)))
 
-(defn- make-spirv-shader [^String glsl-source resource-ext resource-path]
+(defn- move-to-bob-make-spirv-shader [^String glsl-source resource-ext resource-path]
   (let [shader-stage (shader-stage-from-ext resource-ext)
         spirv-compile-result (ShaderProgramBuilder/compileGLSLToSPIRV glsl-source shader-stage resource-path "" false true)
         compile-warnings (. spirv-compile-result compile-warnings)]
@@ -153,16 +155,16 @@
        :uniforms (mapv shader-resource->map (. spirv-compile-result resource-list))
        :attributes (mapv shader-resource->map (. spirv-compile-result attributes))})))
 
-(defn- build-shader [resource _dep-resources user-data]
+(defn- move-to-bob-build-shader [resource _dep-resources user-data]
   (let [{:keys [compile-spirv resource-ext lines]} user-data
         source (string/join "\n" lines)
         resource-path (resource/path resource)
         spirv-shader-or-errors-or-nil (when compile-spirv
-                                        (make-spirv-shader source resource-ext resource-path))]
+                                        (move-to-bob-make-spirv-shader source resource-ext resource-path))]
     (g/precluding-errors spirv-shader-or-errors-or-nil
       (let [shader-desc-builder (Graphics$ShaderDesc/newBuilder)]
         (doseq [shader-language [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100]
-                shader-builder (make-glsl-shader-builders source resource-ext shader-language)]
+                shader-builder (move-to-bob-make-glsl-shader-builders source resource-ext shader-language)]
           (.addShaders shader-desc-builder ^Graphics$ShaderDesc$Shader$Builder shader-builder))
         (when (some? spirv-shader-or-errors-or-nil)
           ;; TODO paged-atlas: Should make-spirv-shader share code with Bob as well?
@@ -170,21 +172,48 @@
             (.addShaders shader-desc-builder spirv-shader-pb)))
         {:resource resource
          :content (-> shader-desc-builder .build protobuf/pb->bytes)}))))
+;; TODO paged-altas: THERE is the end of the Bob stuff.
 
-;; TODO paged-atlas: remove/replace this
-"(g/defnk produce-build-targets [_node-id compile-spirv proj-path+full-lines resource]
-  [(bt/with-content-hash
-     {:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-shader
-      :user-data {:compile-spirv compile-spirv
-                  :lines (second proj-path+full-lines)
-                  :resource-ext (resource/type-ext resource)}})])"
+(defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-without-spirv
+  (into-array Graphics$ShaderDesc$Language
+              (map shader-language-to-java
+                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100])))
 
-(g/defnk produce-build-targets [_node-id proj-path+full-lines resource]
-  {:node-id _node-id
-   :resource resource
-   :lines (second proj-path+full-lines)})
+(defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-with-spirv
+  (into-array Graphics$ShaderDesc$Language
+              (map shader-language-to-java
+                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-spirv])))
+
+(defn- build-shader [build-resource _dep-resources user-data]
+  (let [{:keys [compile-spirv ^long max-page-count ^String shader-source]} user-data
+        java-shader-languages (if compile-spirv
+                                java-shader-languages-with-spirv
+                                java-shader-languages-without-spirv)
+        result nil ;(ShaderProgramBuilder/makeShaderDesc shader-source java-shader-languages max-page-count)
+        compile-warning-messages (.-compileWarnings result)
+        compile-error-values (mapv error-string->error-value compile-warning-messages)]
+    (g/precluding-errors compile-error-values
+      {:resource build-resource
+       :content (protobuf/pb->bytes (.-shaderDesc result))})))
+
+(defn make-shader-build-target [shader-source-info compile-spirv max-page-count]
+  {:pre [(map? shader-source-info)
+         (string? (:shader-source shader-source-info))
+         (boolean? compile-spirv)
+         (integer? max-page-count)]}
+  (let [shader-resource (:resource shader-source-info)
+        workspace (resource/workspace shader-resource)
+        shader-resource-type (resource/resource-type shader-resource)
+        user-data {:compile-spirv compile-spirv
+                   :shader-source (:shader-source shader-source-info)
+                   :max-page-count max-page-count
+                   :resource-ext (resource/type-ext shader-resource)}
+        memory-resource (resource/make-memory-resource workspace shader-resource-type user-data)]
+    (bt/with-content-hash
+      {:node-id (:node-id shader-source-info)
+       :resource (workspace/make-build-resource memory-resource)
+       :build-fn build-shader
+       :user-data user-data})))
 
 (def ^:private include-pattern #"^\s*\#include\s+(?:<([^\"<>]+)>|\"([^\"<>]+)\")\s*(?:\/\/.*)?$")
 
@@ -212,15 +241,10 @@
                          lines)]
     [proj-path full-lines]))
 
-;; Used for rendering in the editor
-(g/defnk produce-shader-source-info [resource proj-path+full-lines]
-  (let [[_ full-lines] proj-path+full-lines
-        source (string/join "\n" full-lines)
-        ;; TODO paged-atlas: move this to editor.material instead?
-        variant-texture-array (ShaderUtil$ES2Variants/variantTextureArrayFallback source ShaderUtil$Common/MAX_ARRAY_SAMPLERS)
-        array-sampler-names (set (some-> variant-texture-array .-arraySamplers))]
-    {:shader-source source
-     :array-sampler-names array-sampler-names}))
+(g/defnk produce-shader-source-info [_node-id resource proj-path+full-lines]
+  {:node-id _node-id
+   :resource resource
+   :shader-source (string/join "\n" (second proj-path+full-lines))})
 
 (g/deftype ^:private ProjPath+Lines [(s/one s/Str "proj-path") (s/one [String] "lines")])
 
@@ -250,11 +274,7 @@
                                 (:tx-data (project/connect-resource-node evaluation-context project included-resource self connections))))
                             new-value))))))
 
-  (input project-settings g/Any)
   (input included-proj-paths+full-lines ProjPath+Lines :array)
-
-  (output compile-spirv g/Bool (g/fnk [project-settings]
-                                 (get project-settings ["shader" "output_spirv"] false)))
 
   (output build-targets g/Any :cached produce-build-targets)
   (output proj-path->full-lines g/Any (g/fnk [included-proj-paths+full-lines]
@@ -262,13 +282,9 @@
   (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
   (output shader-source-info g/Any :cached produce-shader-source-info))
 
-(defn- additional-load-fn [project self _resource]
-  (g/connect project :settings self :project-settings))
-
 (defn register-resource-types [workspace]
   (for [def shader-defs
         :let [args (assoc def
                      :node-type ShaderNode
-                     :eager-loading? true
-                     :additional-load-fn additional-load-fn)]]
+                     :eager-loading? true)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))
