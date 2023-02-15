@@ -60,34 +60,6 @@ public class ShaderUtil {
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
         }
 
-        public static boolean hasUniformType(String source, ShaderDesc.ShaderDataType dataType) {
-            String strDataType = shaderTypeToString(dataType);
-            if (strDataType == null) {
-                return false;
-            }
-
-            String[] inputLines = Common.regexLineBreakPattern.split(source);
-
-            for(String line : inputLines) {
-                if(line.contains("uniform") && !line.contains("{")) {
-                    Matcher uniformMatcher = regexUniformKeywordPattern.matcher(line);
-                    if(uniformMatcher.find()) {
-                        String keyword = uniformMatcher.group("keyword");
-                        if (keyword != null)
-                        {
-                            String type = uniformMatcher.group("type");
-                            if (type.equals(strDataType))
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            return false;
-        }
-
         private static class ShaderDataTypeConversionEntry {
             public String                    asStr;
             public ShaderDesc.ShaderDataType asDataType;
@@ -132,7 +104,7 @@ public class ShaderUtil {
         }
     }
 
-    public static class ES2Variants {
+    public static class VariantTextureArrayFallback {
         private static void generateTextureArrayFn(ArrayList<String> buffer, String samplerName, int maxPages) {
             buffer.add(String.format("vec4 texture2DArray_%s(vec3 dm_texture_array_args) {", samplerName));
             buffer.add("    int page_index = int(dm_texture_array_args.z);");
@@ -150,11 +122,39 @@ public class ShaderUtil {
             buffer.add("}");
         }
 
-        public static String variantSamplerToSliceSampler(String samplerName, int slice) {
+        public static boolean tryBuildVariant(ShaderDesc.Language shaderLanguage) {
+
+            // REMOVE THIS!
+            return shaderLanguage != ShaderDesc.Language.LANGUAGE_SPIRV;
+
+            // USE THIS!
+            //return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
+        }
+
+        public static String samplerNameToSliceSamplerName(String samplerName, int slice) {
             return String.format("%s_%d", samplerName, slice);
         }
 
-        public static Common.GLSLCompileResult variantTextureArrayFallback(String shaderSource, int maxPageCount) {
+        public static String[] getArraySamplers(String shaderSource) {
+            ArrayList<String> arraySamplers = new ArrayList<String>();
+
+            Scanner scanner = new Scanner(shaderSource);
+
+            String line = null;
+            while (scanner.hasNextLine()) {
+                line = scanner.nextLine();
+                Matcher samplerMatcher = Common.arrayArraySamplerPattern.matcher(line);
+
+                if (samplerMatcher.find()) {
+                    String uniformName = samplerMatcher.group("uniform");
+                    arraySamplers.add(uniformName);
+                }
+            }
+
+            return arraySamplers.toArray(new String[0]);
+        }
+
+        public static Common.GLSLCompileResult transform(String shaderSource, int maxPageCount) {
             // For the texture array fallback variant, we need to convert texture2DArray functions
             // into separate texture samplers. Samplers in arrays (uniform sampler2D my_samplers[4]; does not work on all platforms unfortunately)
             Common.GLSLCompileResult result = new Common.GLSLCompileResult();

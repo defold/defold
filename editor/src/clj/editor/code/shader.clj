@@ -189,7 +189,7 @@
         java-shader-languages (if compile-spirv
                                 java-shader-languages-with-spirv
                                 java-shader-languages-without-spirv)
-        result nil ;(ShaderProgramBuilder/makeShaderDesc shader-source java-shader-languages max-page-count)
+        result nil ;(ShaderProgramBuilder/makeShaderDescWithVariants shader-source java-shader-languages max-page-count)
         compile-warning-messages (.-compileWarnings result)
         compile-error-values (mapv error-string->error-value compile-warning-messages)]
     (g/precluding-errors compile-error-values
