@@ -106,7 +106,9 @@ public class MaterialBuilder extends Builder<Void>  {
         // Taken from ShaderProgramBuilder.java
         boolean isDebug = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
         Common.GLSLCompileResult variantCompileResult = ShaderProgramBuilder.buildGLSLVariantTextureArray(shaderInputSource, shaderType, shaderLanguage, isDebug, maxPageCount);
-        if (variantCompileResult.arraySamplers == null) {
+
+        // No array samplers, we can use original source
+        if (variantCompileResult.arraySamplers.length == 0) {
             return new ShaderProgramPaths(shaderResourcePath);
         }
 
@@ -181,6 +183,7 @@ public class MaterialBuilder extends Builder<Void>  {
         BuilderUtil.checkResource(this.project, res, "fragment program", fragmentShaderPaths.buildPath);
         materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentShaderPaths.projectPath, ".fp", ".fpc"));
 
+        // Create an indirection table for sampler names -> uniform name hashes, based on the map populated during the getShaderProgramPath fn
         for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
 
             MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);

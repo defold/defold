@@ -44,7 +44,7 @@ public class ShaderUtil {
         public static class GLSLCompileResult
         {
             public String   source;
-            public String[] arraySamplers;
+            public String[] arraySamplers = new String[0];
         }
 
         public static String stripComments(String source)
@@ -133,25 +133,6 @@ public class ShaderUtil {
 
         public static String samplerNameToSliceSamplerName(String samplerName, int slice) {
             return String.format("%s_%d", samplerName, slice);
-        }
-
-        public static String[] getArraySamplers(String shaderSource) {
-            ArrayList<String> arraySamplers = new ArrayList<String>();
-
-            Scanner scanner = new Scanner(shaderSource);
-
-            String line = null;
-            while (scanner.hasNextLine()) {
-                line = scanner.nextLine();
-                Matcher samplerMatcher = Common.arrayArraySamplerPattern.matcher(line);
-
-                if (samplerMatcher.find()) {
-                    String uniformName = samplerMatcher.group("uniform");
-                    arraySamplers.add(uniformName);
-                }
-            }
-
-            return arraySamplers.toArray(new String[0]);
         }
 
         public static Common.GLSLCompileResult transform(String shaderSource, int maxPageCount) {

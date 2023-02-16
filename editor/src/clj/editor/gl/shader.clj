@@ -289,12 +289,10 @@ vec4 texture2DArray(vec2 uv, float page_index)
 (defn- create-shader
   "Returns a string in GLSL suitable for compilation. Takes a list of forms.
 These forms should be quoted, as if they came from a macro."
-  [params]
-  (apply str shader-version-str \newline (shader-walk params)))
+  [params] (apply str shader-version-str \newline (shader-walk params)))
 
 (defn- create-shader-no-version
-  [params]
-  (apply str (shader-walk params)))
+  [params] (apply str (shader-walk params)))
 
 (defn- make-sampler-uniforms [sampler-count sampler-name]
   (let [sampler-indices (into [] (repeat sampler-count 0))

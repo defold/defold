@@ -26,9 +26,10 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.murmur :as murmur])
   (:import [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2Variants]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
@@ -85,15 +86,26 @@
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
 
+(defn- samplers->samplers-with-indirection-hashes [samplers max-page-count]
+  (mapv (fn [sampler]
+          (assoc sampler
+            :name-indirections (mapv (fn [slice-index]
+                                       (murmur/hash64 (str (:name sampler) "_" slice-index)))
+                                     (range max-page-count))))
+        samplers))
+
 (g/defnk produce-build-targets [_node-id resource pb-msg compile-spirv max-page-count vertex-program fragment-program vertex-shader-source-info fragment-shader-source-info]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
       (let [vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
+            samplers-with-indirect-hashes (samplers->samplers-with-indirection-hashes (:samplers pb-msg) max-page-count)
             dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
             material-desc-with-build-resources (assoc pb-msg
                                                  :vertex-program (:resource vertex-shader-build-target)
-                                                 :fragment-program (:resource fragment-shader-build-target))]
+                                                 :fragment-program (:resource fragment-shader-build-target)
+                                                 :samplers samplers-with-indirect-hashes)]
+        (println 'produce-build-targets samplers-with-indirect-hashes)
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
@@ -102,17 +114,12 @@
             :deps dep-build-targets})])))
 
 (defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
-  ;; TODO paged-atlas: Move this to static function in Bob?
   (let [shader-stage (code.shader/shader-stage-from-ext shader-ext)
         shader-language (code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
         is-debug true
-        variant-texture-array (ShaderUtil$ES2Variants/variantTextureArrayFallback shader-source max-page-count)
-        augmented-source (if (nil? variant-texture-array)
-                           shader-source
-                           (.source variant-texture-array))
-        result (ShaderProgramBuilder/compileGLSL augmented-source shader-stage shader-language is-debug)
-        full-source (.-source result)
-        array-sampler-names-array (.-arraySamplers result)]
+        result (ShaderProgramBuilder/buildGLSLVariantTextureArray shader-source shader-stage shader-language is-debug max-page-count)
+        full-source (.source result)
+        array-sampler-names-array (.arraySamplers result)]
     {:shader-source full-source
      :array-sampler-names (vec array-sampler-names-array)}))
 

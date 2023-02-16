@@ -62,7 +62,7 @@ import com.google.protobuf.ByteString;
 
 public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
-    public static class ShaderBuildResult {
+    static public class ShaderBuildResult {
         public ShaderDesc.Shader.Builder shaderBuilder;
         public String[]                  buildWarnings;
 
@@ -75,11 +75,10 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         }
     }
 
-    private static class ShaderDescBuildResult {
-        ShaderDesc shaderDesc;
-        String[]   buildWarnings;
+    static public class ShaderDescBuildResult {
+        public ShaderDesc shaderDesc;
+        public String[]   buildWarnings;
     }
-
 
     @Override
     public Task<ShaderPreprocessor> create(IResource input) throws IOException, CompileExceptionError {
@@ -113,8 +112,8 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         boolean outputSpirv                   = this.project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
         String resourceOutputPath             = task.getOutputs().get(0).getPath();
 
-        ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(shaderPreprocessor,
-            shaderType, resourceOutputPath, this.project.getPlatformStrings()[0], isDebug, outputSpirv, false);
+        ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor,
+            shaderType, this.project.getPlatformStrings()[0], isDebug, outputSpirv, false);
 
         handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
 
@@ -218,27 +217,26 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return source;
     }
 
-    public static ShaderBuildResult makeShaderBuilderFromGLSLSource(String source, ShaderDesc.Language shaderLanguage) throws IOException{
+    static public ShaderBuildResult makeShaderBuilderFromGLSLSource(String source, ShaderDesc.Language shaderLanguage) throws IOException{
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(shaderLanguage);
         builder.setSource(ByteString.copyFrom(source, "UTF-8"));
         return new ShaderBuildResult(builder);
     }
 
-    // Maybe remove this
-    private static ShaderBuildResult buildGLSL(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug)  throws IOException, CompileExceptionError {
+    static private ShaderBuildResult buildGLSL(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug)  throws IOException, CompileExceptionError {
         String glslSource = compileGLSL(source, shaderType, shaderLanguage, isDebug);
         return makeShaderBuilderFromGLSLSource(glslSource, shaderLanguage);
     }
 
     // Called from editor and bob
-    public static Common.GLSLCompileResult buildGLSLVariantTextureArray(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
+    static public Common.GLSLCompileResult buildGLSLVariantTextureArray(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
         Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(source, maxPageCount);
 
         // If the variant transformation didn't do anything, we pass the original source but without array samplers
         if (variantCompileResult == null) {
             Common.GLSLCompileResult originalRes = new Common.GLSLCompileResult();
-            originalRes.source = source;
+            originalRes.source = compileGLSL(source, shaderType, shaderLanguage, isDebug);
             return originalRes;
         }
 
@@ -247,11 +245,11 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     // Generate a texture array variant builder if necessary, calling functions need to guard for this function returning null
-    private static ShaderBuildResult getGLSLVariantTextureArrayBuilder(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
+    static private ShaderBuildResult getGLSLVariantTextureArrayBuilder(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
         Common.GLSLCompileResult variantCompileResult = buildGLSLVariantTextureArray(source, shaderType, shaderLanguage, isDebug, maxPageCount);
 
         // make a builder if the array transformation has picked up any array samplers
-        if (variantCompileResult.arraySamplers != null) {
+        if (variantCompileResult.arraySamplers.length > 0) {
             return makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
         }
 
@@ -536,7 +534,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return new ShaderBuildResult(builder);
     }
 
-    private ShaderDesc.Language[] getShaderLanguagesList(Platform platformKey, boolean outputSpirvRequested) {
+    static private ShaderDesc.Language[] getShaderLanguagesList(Platform platformKey, boolean outputSpirvRequested) {
         ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
         boolean doOutputSpirv = false;
         switch(platformKey) {
@@ -594,7 +592,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     // Generate a shader desc struct that consists of either the built shader desc, or a list of compile warnings/errors
-    private static ArrayList<ShaderBuildResult> getBaseShaderBuildResults(String resourceOutputPath, String fullShaderSource,
+    static private ArrayList<ShaderBuildResult> getBaseShaderBuildResults(String resourceOutputPath, String fullShaderSource,
             ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language[] shaderLanguages,
             String spirvTargetProfile, boolean isDebug, boolean softFail) throws IOException, CompileExceptionError {
 
@@ -611,7 +609,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return shaderBuildResults;
     }
 
-    private static ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults) {
+    static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults) {
 
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
 
@@ -634,11 +632,11 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     // Called from editor for producing a ShaderDesc with a list of finalized shaders,
-    // fully transformed from source to context shaders based on languages
-    static public ShaderDescBuildResult makeShaderDescWithVariants(String shaderSource, ES2ToES3Converter.ShaderType shaderType,
+    // fully transformed from source to context shaders based on a list of languages
+    static public ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, ES2ToES3Converter.ShaderType shaderType,
             ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
 
-        ArrayList<ShaderBuildResult> shaderBuildResults = getBaseShaderBuildResults("", shaderSource, shaderType, shaderLanguages, "", false, true);
+        ArrayList<ShaderBuildResult> shaderBuildResults = getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages, "", false, true);
 
         for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
             if (VariantTextureArrayFallback.tryBuildVariant(shaderLanguage)) {
@@ -650,7 +648,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     // Called from bob
-    public ShaderDescBuildResult makeShaderDesc(ShaderPreprocessor shaderPreprocessor, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath,
+    public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ES2ToES3Converter.ShaderType shaderType,
             String platform, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
         Platform platformKey = Platform.get(platform);
         if(platformKey == null) {
@@ -690,8 +688,8 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
            Project project = new Project(new DefaultFileSystem());
            ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, args[0], source);
 
-           ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(shaderPreprocessor,
-                shaderType, args[1], cmd.getOptionValue("platform", ""),
+           ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(args[1], shaderPreprocessor,
+                shaderType, cmd.getOptionValue("platform", ""),
                 cmd.getOptionValue("variant", "").equals("debug") ? true : false, true, false);
 
            handleShaderDescBuildResult(shaderDescBuildResult, args[1]);

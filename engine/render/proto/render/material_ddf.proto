@@ -67,7 +67,7 @@ message MaterialDesc
         required FilterModeMin filter_min = 4;
         required FilterModeMag filter_mag = 5;
         optional float max_anisotropy     = 6 [default = 1.0];
-        repeated uint64 name_indirections = 7; // sampler name -> list of uniform names
+        repeated uint64 name_indirections = 7; // sampler name -> list of shader uniform hashes
     }
 
     required string name = 1;
