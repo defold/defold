@@ -746,7 +746,7 @@ namespace dmScript
      *    pprint(result) -- delay, time_remaining, repeating
      * end
      * 
-     * ``
+     * ```
      *
      */
     static int TimerGetInfo(lua_State* L)
