@@ -93,6 +93,9 @@ public class MaterialBuilder extends Builder<Void>  {
 
         ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderProgramBuilder.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
 
+        // JG: AAaah this should not be here, but we need to know of the parsed array samplers for building the indirection map..
+        variantBuildResult.shaderBuilder.setVariantTextureArray(true);
+
         if (variantBuildResult.buildWarnings != null) {
             for(String warningStr : variantBuildResult.buildWarnings) {
                 System.err.println(warningStr);

@@ -250,7 +250,10 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
         // make a builder if the array transformation has picked up any array samplers
         if (variantCompileResult.arraySamplers.length > 0) {
-            return makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
+            ShaderBuildResult buildResult = makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
+            assert(buildResult != null);
+            buildResult.shaderBuilder.setVariantTextureArray(true);
+            return buildResult;
         }
 
         return null;
