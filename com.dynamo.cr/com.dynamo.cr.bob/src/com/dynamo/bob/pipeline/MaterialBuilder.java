@@ -51,6 +51,7 @@ public class MaterialBuilder extends Builder<Void>  {
         public ShaderDesc                   desc;
 
         // Variant specific state
+        public boolean hasVertexArrayVariant;
         public String[] arraySamplers = new String[0];
     }
 
@@ -73,7 +74,7 @@ public class MaterialBuilder extends Builder<Void>  {
         return selected;
     }
 
-    private void applyVariantTextureArray(ShaderProgramBuildContext ctx, int maxPageCount, String inExt, String outExt) throws IOException, CompileExceptionError {
+    private void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext ctx, String inExt, String outExt) throws IOException, CompileExceptionError {
 
         ShaderDesc.Language shaderLanguage = findTextureArrayShaderLanguage(ctx.desc);
         if (shaderLanguage == null) {
@@ -81,6 +82,8 @@ public class MaterialBuilder extends Builder<Void>  {
         }
 
         String shaderInputSource = new String(ctx.resource.getContent());
+
+        int maxPageCount = materialBuilder.getMaxPageCount();
 
         // Taken from ShaderProgramBuilder.java
         boolean isDebug = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
@@ -111,12 +114,13 @@ public class MaterialBuilder extends Builder<Void>  {
         variantShaderDescBuilder.addShaders(variantBuildResult.shaderBuilder);
         variantResource.setContent(variantShaderDescBuilder.build().toByteArray());
 
-        ctx.buildPath     = variantResource.getPath();
-        ctx.projectPath   = BuilderUtil.replaceExt(ctx.projectPath, "." + inExt, String.format(TextureArrayFilenameVariantFormat, maxPageCount, inExt));
-        ctx.arraySamplers = variantCompileResult.arraySamplers;
+        ctx.buildPath             = variantResource.getPath();
+        ctx.projectPath           = BuilderUtil.replaceExt(ctx.projectPath, "." + inExt, String.format(TextureArrayFilenameVariantFormat, maxPageCount, inExt));
+        ctx.arraySamplers         = variantCompileResult.arraySamplers;
+        ctx.hasVertexArrayVariant = true;
     }
 
-    private ShaderProgramBuildContext makeShaderProgramBuildContext(String shaderResourcePath, int maxPageCount) throws CompileExceptionError, IOException {
+    private ShaderProgramBuildContext makeShaderProgramBuildContext(MaterialDesc.Builder materialBuilder, String shaderResourcePath) throws CompileExceptionError, IOException {
         IResource shaderResource = this.project.getResource(shaderResourcePath);
         String shaderFileInExt   = FilenameUtils.getExtension(shaderResourcePath);
         String shaderFileOutExt  = shaderFileInExt + "c";
@@ -141,9 +145,40 @@ public class MaterialBuilder extends Builder<Void>  {
         ctx.type        = shaderType;
         ctx.desc        = shaderDesc;
 
-        applyVariantTextureArray(ctx, maxPageCount, shaderFileInExt, shaderFileOutExt);
+        applyVariantTextureArray(materialBuilder, ctx, shaderFileInExt, shaderFileOutExt);
 
         return ctx;
+    }
+
+    private void applyShaderProgramBuildContexts(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) {
+        if (!vertexBuildContext.hasVertexArrayVariant || fragmentBuildContext.hasVertexArrayVariant) {
+            return;
+        }
+
+        // Generate indirection table for all material samplers based on the result of the shader build context
+        Set mergedArraySamplers = new HashSet();
+        mergedArraySamplers.addAll(Arrays.asList(vertexBuildContext.arraySamplers));
+        mergedArraySamplers.addAll(Arrays.asList(fragmentBuildContext.arraySamplers));
+
+        for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
+            MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
+
+            if (mergedArraySamplers.contains(materialSampler.getName())) {
+                MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
+
+                for (int j = 0; j < materialBuilder.getMaxPageCount(); j++) {
+                    samplerBuilder.addNameIndirections(MurmurHash.hash64(VariantTextureArrayFallback.samplerNameToSliceSamplerName(materialSampler.getName(), j)));
+                }
+
+                materialBuilder.setSamplers(i, samplerBuilder.build());
+            }
+        }
+
+        // This value is not needed in the engine specifically for validation in bob
+        // I.e we need to set this to zero to check if the combination of material and atlas is correct.
+        if (mergedArraySamplers.size() == 0) {
+            materialBuilder.setMaxPageCount(0);
+        }
     }
 
     @Override
@@ -171,40 +206,16 @@ public class MaterialBuilder extends Builder<Void>  {
         MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
         ProtoUtil.merge(task.input(0), materialBuilder);
 
-        int maxPageCount                               = materialBuilder.getMaxPageCount();
-        ShaderProgramBuildContext vertexBuildContext   = makeShaderProgramBuildContext(materialBuilder.getVertexProgram(), maxPageCount);
-        ShaderProgramBuildContext fragmentBuildContext = makeShaderProgramBuildContext(materialBuilder.getFragmentProgram(), maxPageCount);
+        ShaderProgramBuildContext vertexBuildContext   = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getVertexProgram());
+        ShaderProgramBuildContext fragmentBuildContext = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getFragmentProgram());
+
+        applyShaderProgramBuildContexts(materialBuilder, vertexBuildContext, fragmentBuildContext);
 
         BuilderUtil.checkResource(this.project, res, "vertex program", vertexBuildContext.buildPath);
         materialBuilder.setVertexProgram(BuilderUtil.replaceExt(vertexBuildContext.projectPath, ".vp", ".vpc"));
 
         BuilderUtil.checkResource(this.project, res, "fragment program", fragmentBuildContext.buildPath);
         materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentBuildContext.projectPath, ".fp", ".fpc"));
-
-        // Generate indirection table for all material samplers based on the result of the shader build context
-        Set mergedArraySamplers = new HashSet();
-        mergedArraySamplers.addAll(Arrays.asList(vertexBuildContext.arraySamplers));
-        mergedArraySamplers.addAll(Arrays.asList(fragmentBuildContext.arraySamplers));
-
-        for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
-            MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
-
-            if (mergedArraySamplers.contains(materialSampler.getName())) {
-                MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
-
-                for (int j = 0; j < maxPageCount; j++) {
-                    samplerBuilder.addNameIndirections(MurmurHash.hash64(VariantTextureArrayFallback.samplerNameToSliceSamplerName(materialSampler.getName(), j)));
-                }
-
-                materialBuilder.setSamplers(i, samplerBuilder.build());
-            }
-        }
-
-        // This value is not needed in the engine specifically btu for validation in bob
-        // I.e we need to set this to zero to check if the combination of material and atlas is correct.
-        if (mergedArraySamplers.size() == 0) {
-            materialBuilder.setMaxPageCount(0);
-        }
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());

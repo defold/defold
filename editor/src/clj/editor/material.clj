@@ -105,7 +105,6 @@
                                                  :vertex-program (:resource vertex-shader-build-target)
                                                  :fragment-program (:resource fragment-shader-build-target)
                                                  :samplers samplers-with-indirect-hashes)]
-        (println 'produce-build-targets samplers-with-indirect-hashes)
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)

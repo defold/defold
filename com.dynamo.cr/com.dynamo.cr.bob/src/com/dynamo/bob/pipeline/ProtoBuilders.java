@@ -127,10 +127,10 @@ public class ProtoBuilders {
             }
 
             if (textureIsPaged && !materialIsPaged) {
-                throw new CompileExceptionError(resource, 0, "The Material expects a paged Atlas, but the selected Image is not paged");
+                throw new CompileExceptionError(resource, 0, "The Material does not support paged Atlases, but the selected Image is paged");
             }
             else if (!textureIsPaged && materialIsPaged) {
-                throw new CompileExceptionError(resource, 0, "The Material does not support paged Atlases, but the selected Image is paged");
+                throw new CompileExceptionError(resource, 0, "The Material expects a paged Atlas, but the selected Image is not paged");
             }
             else if (textureSetPageCount > materialMaxPageCount) {
                 throw new CompileExceptionError(resource, 0, "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image");
