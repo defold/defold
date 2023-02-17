@@ -6,8 +6,7 @@
 
 ### Package managers
 
-<details>
-  <summary>Windows...</summary>
+<details><summary>Windows...</summary><p>
 
 * [Chocolatey](https://chocolatey.org/docs/installation) - Chocolatey is a package installer that will help install various helper tools such as python, ripgrep etc.
 
@@ -20,8 +19,7 @@ Once this is done, you can install new packages which are added to the PATH, by 
 ```sh
 choco install <package_name>
 ```
-
-</details>
+</p></details>
 
 ### Required Software - Java JDK 11
 
@@ -31,8 +29,7 @@ Download and install the latest JDK 11 (11.0.15 or later) release from either of
 * [Microsoft OpenJDK builds](https://docs.microsoft.com/en-us/java/openjdk/download#openjdk-11) - The Microsoft Build of OpenJDK is a no-cost distribution of OpenJDK that's open source and available for free for anyone to deploy anywhere
 
 
-<details>
-  <summary>Windows...</summary>
+<details><summary>Windows...</summary><p>
 
 Or install using Chocolatey:
 
@@ -41,19 +38,16 @@ choco install openjdk11
 ```
 
 *With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-11.0.13_8*
+</p></details>
 
-</details>
-
-<details>
-  <summary>Linux...</summary>
+<details><summary>Linux...</summary><p>
   
 Or install from apt-get:
 
 ```
 > sudo apt-get install openjdk-11-jdk
 ```
-
-</details>
+</p></details>
 
 When Java is installed you may also add need to add java to your PATH and export JAVA_HOME:
 
@@ -77,52 +71,42 @@ You need a 64 bit Python 3 version (x86_64) to build the engine and tools. The l
 
 * Install via `https://www.python.org/downloads/release/python-3105/`
 
-<details>
-  <summary>macOS...</summary>
+<details><summary>macOS...</summary><p>
   
 Once Python has been installed you also need install certificates (for https requests):
 
 ```sh
 > /Applications/Python\ 3.10/Install\ Certificates.command
 ```
+</p></details>
 
-</details>
-
-<details>
-  <summary>Windows...</summary>
+<details><summary>Windows...</summary><p>
 
 Or install using Chocolatey:
 
 ```sh
 choco install python
 ```
+</p></details>
 
-</details>
-  
-
-<details>
-  <summary>Linux...</summary>
+<details><summary>Linux...</summary><p>
   
 You also need `easy_install` to install additional packages.
-
-</details>
+</p></details>
 
 
 ### Required Software
 
-<details>
-  <summary>macOS...</summary>
+<details><summary>macOS...</summary><p>
 
 You need the `dos2unix` command line tool to convert line endings of certain source files when building files in `share/ext`. You can install `dos2unix` using [Brew](https://brew.sh/):
 
 ```sh
 > brew install dos2unix
 ```
+</p></details>
 
-</details>
-
-<details>
-  <summary>Windows...</summary>
+<details><summary>Windows...</summary><p>
 
 #### Visual C++ 2019 Community
 
@@ -194,11 +178,9 @@ Now you should be able to clone the defold repo from a command prompt:
 ```
 
 If this won't work, you can try cloning using Github Desktop.
+</p></details>
 
-</details>
-
-<details>
-  <summary>Linux...</summary>
+<details><summary>Linux...</summary><p>
 
 #### Additional tools
 
@@ -232,16 +214,15 @@ Download and install using `apt-get`:
 ```sh
 > sudo apt-get install -y --no-install-recommends libssl-dev openssl libtool autoconf automake build-essential uuid-dev libxi-dev libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev libncurses5
 ```
+</p></details>
 
-</details>
-
+---
 
 ## Optional Software
 
 It is recommended but not required that you install the following software:
 
-<details>
-  <summary>macOS...</summary>
+<details><summary>macOS...</summary><p>
 
 * **wget** + **curl** - for downloading packages
 * **7z** - for extracting packages (archives and binaries)
@@ -261,11 +242,9 @@ Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 ```sh
 > /usr/local/bin/ccache --max-size=5G
 ```
+</p></details>
 
-</details>
-
-<details>
-  <summary>Windows...</summary>
+<details><summary>Windows...</summary><p>
 
 * **wget** + **curl** - for downloading packages
 * **7z** - for extracting packages (archives and binaries)
@@ -290,11 +269,9 @@ Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 Open a Command (cmd.exe) as administrator and run:
 
 `choco install ripgrep`
-  
-</details>
+</p></details>
 
-<details>
-  <summary>Linux...</summary>
+<details><summary>Linux...</summary><p>
 
 * **wget** + **curl** - for downloading packages
 * **7z** - for extracting packages (archives and binaries)
@@ -327,8 +304,9 @@ Install ripgrep:
 ```sh
 > sudo snap install ripgrep --classic
 ```
+</p></details>
 
-</details>
+---
 
 ## Optional Setup
 
@@ -349,12 +327,11 @@ acolor() {
 }
 export PS1='\t \[\033[32m\]\w\[\033[$(acolor)m\] $(git_branch)\[\033[00m\] $ '
 ```
-
+---
 
 ## WSL (Windows Subsystem for Linux)
 
-<details>
-  <summary>Linux...</summary>
+<details><summary>Linux...</summary><p>
 
 It is possible to build Linux targets using WSL 1.
 
@@ -385,6 +362,4 @@ And restart your WSL session
 The script also sets the `DISPLAY=localhost:0.0` which allows you to connect to a local X server.
 
 A popular choice is [VCXSRV](https://sourceforge.net/projects/vcxsrv/)
-
-</details>
-
+</p></details>
