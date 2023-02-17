@@ -563,6 +563,27 @@ namespace dmScript
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
      *
      * @return [type:hash] handle identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @examples
+     *
+     * A simple one-shot timer
+     * ```lua
+     * timer.delay(1, false, function() print("print in one second") end)
+     * ```
+     *
+     * Repetitive timer which canceled after 10 calls
+     * ```lua
+     * local function call_every_second(self, handle, time_elapsed)
+     *   self.counter = self.counter + 1
+     *   print("Call #", self.counter)
+     *   if self.counter == 10 then
+     *     timer.cancel(handle) -- cancel timer after 100 calls
+     *   end
+     * end
+     * 
+     * self.counter = 0
+     * timer.delay(1, true, call_every_second)
+     * ```
+     *
      */
     static int TimerDelay(lua_State* L) {
         int top = lua_gettop(L);
@@ -605,6 +626,17 @@ namespace dmScript
      * @name timer.cancel
      * @param handle [type:hash] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @examples
+     * 
+     * ```lua
+     * self.handle = timer.delay(1, true, function() print("print every second") end)
+     * ...
+     * local result = timer.cancel(self.handle)
+     * if not result then
+     *    print("the timer is already cancelled")
+     * end
+     * ```
+     * 
      */
     static int TimerCancel(lua_State* L)
     {
@@ -631,6 +663,16 @@ namespace dmScript
      * @name timer.trigger
      * @param handle [type:hash] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @examples
+     * 
+     * ```lua
+     * self.handle = timer.delay(1, true, function() print("print every second or manually by timer.trigger") end)
+     * ...
+     * local result = timer.trigger(self.handle)
+     * if not result then
+     *    print("the timer is already cancelled or complete")
+     * end
+     * ``
      */
     static int TimerTrigger(lua_State* L)
     {
@@ -690,8 +732,21 @@ namespace dmScript
      * `delay`
      * : [type:number] Time interval.
      * 
-     * `repeat`
+     * `repeating`
      *: [type:boolean] true = repeat timer until cancel, false = one-shot timer.
+     * @examples
+     * 
+     * ```lua
+     * self.handle = timer.delay(1, true, function() print("print every second") end)
+     * ...
+     * local result = timer.get_info(self.handle)
+     * if not result then
+     *    print("the timer is already cancelled or complete")
+     * else
+     *    pprint(result) -- delay, time_remaining, repeating
+     * end
+     * 
+     * ``
      *
      */
     static int TimerGetInfo(lua_State* L)
