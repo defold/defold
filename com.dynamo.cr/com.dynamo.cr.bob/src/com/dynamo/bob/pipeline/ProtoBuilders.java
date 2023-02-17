@@ -16,8 +16,10 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -91,8 +93,17 @@ public class ProtoBuilders {
         return out;
     }
 
+    // TODO: Should we move this to a build resource?
+    static Set<String> materialAtlasCompatabilityCache = new HashSet<String>();
+
     private static void validateMaterialAtlasCompatability(Project project, IResource resource, String materialProjectPath, String textureSet) throws IOException, CompileExceptionError {
         if (textureSet.endsWith("atlas")) {
+
+            String cachedValidationKey = materialProjectPath + textureSet;
+            if (materialAtlasCompatabilityCache.contains(cachedValidationKey)) {
+                return;
+            }
+
             IResource materialResource      = project.getResource(materialProjectPath);
             IResource materialBuildResource = materialResource.changeExt(".materialc");
 
@@ -116,17 +127,16 @@ public class ProtoBuilders {
             }
 
             if (textureIsPaged && !materialIsPaged) {
-                // throw new CompileExceptionError(resource, 0, "The Material expects a paged Atlas, but the selected Image is not paged");
-                System.out.println("SHOULD THROW: The Material expects a paged Atlas, but the selected Image is not paged");
+                throw new CompileExceptionError(resource, 0, "The Material expects a paged Atlas, but the selected Image is not paged");
             }
             else if (!textureIsPaged && materialIsPaged) {
-                // throw new CompileExceptionError(resource, 0, "The Material does not support paged Atlases, but the selected Image is paged");
-                System.out.println("SHOULD THROW: The Material does not support paged Atlases, but the selected Image is paged");
+                throw new CompileExceptionError(resource, 0, "The Material does not support paged Atlases, but the selected Image is paged");
             }
             else if (textureSetPageCount > materialMaxPageCount) {
-                // throw new CompileExceptionError(resource, 0, "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image");
-                System.out.println("SHOULD THROW: The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image");
+                throw new CompileExceptionError(resource, 0, "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image");
             }
+
+            materialAtlasCompatabilityCache.add(cachedValidationKey);
         }
     }
 
