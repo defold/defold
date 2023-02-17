@@ -31,3 +31,50 @@
    (mapv (fn [[_ src-label tgt-id tgt-label]]
            [src-label [tgt-id tgt-label]])
          (g/explicit-outputs basis node-id))))
+
+(defn- parse-load-properties-source-expression [source-expression]
+  (cond
+    (keyword? source-expression)
+    (let [map-key source-expression]
+      {:map-key map-key})
+
+    (list? source-expression)
+    (case (count source-expression)
+      2 (let [[map-value->property-value sub-source-expression] source-expression]
+          (assert (symbol? map-value->property-value))
+          (assoc (parse-load-properties-source-expression sub-source-expression)
+            :map-value->property-value map-value->property-value))
+      3 (let [[map-key or-keyword default-expression] source-expression]
+          (assert (keyword? map-key))
+          (assert (= :or or-keyword))
+          {:map-key map-key
+           :default-expression default-expression}))
+
+    :else
+    (assert false)))
+
+(defmacro set-properties-from-map [node-id property-map & mappings]
+  (assert (symbol? node-id))
+  (assert (symbol? property-map))
+  (assert (seq mappings))
+  (assert (even? (count mappings)))
+  (cons `concat
+        (map (fn [[property-symbol source-expression]]
+               (assert (symbol? property-symbol))
+               (let [property-label (keyword property-symbol)
+                     {:keys [default-expression map-key map-value->property-value]} (parse-load-properties-source-expression source-expression)]
+                 (cond
+                   (and default-expression map-value->property-value)
+                   `(g/set-property ~node-id ~property-label (~map-value->property-value (or (~map-key ~property-map) ~default-expression)))
+
+                   default-expression
+                   `(g/set-property ~node-id ~property-label (or (~map-key ~property-map) ~default-expression))
+
+                   map-value->property-value
+                   `(when-some [map-value# (~map-key ~property-map)]
+                      (g/set-property ~node-id ~property-label (~map-value->property-value map-value#)))
+
+                   :else
+                   `(when-some [map-value# (~map-key ~property-map)]
+                      (g/set-property ~node-id ~property-label map-value#)))))
+             (partition 2 mappings))))

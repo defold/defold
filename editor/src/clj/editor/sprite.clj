@@ -381,15 +381,17 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-sprite [project self resource sprite]
-  (concat
-    (g/connect project :default-tex-params self :default-tex-params)
-    (some->> (:default-animation sprite) (g/set-property self :default-animation))
-    (->> (or (:material sprite) (protobuf/default Sprite$SpriteDesc :material)) (workspace/resolve-resource resource) (g/set-property self :material))
-    (some->> (:blend-mode sprite) (g/set-property self :blend-mode))
-    (some->> (:size-mode sprite) (g/set-property self :size-mode))
-    (some->> (:size sprite) (v4->v3) (g/set-property self :manual-size))
-    (some->> (:slice9 sprite) (g/set-property self :slice9))
-    (some->> (:tile-set sprite) (workspace/resolve-resource resource) (g/set-property self :image))))
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
+    (concat
+      (g/connect project :default-tex-params self :default-tex-params)
+      (gu/set-properties-from-map self sprite
+        default-animation :default-animation
+        material (resolve-resource (:material :or (protobuf/default Sprite$SpriteDesc :material)))
+        blend-mode :blend-mode
+        size-mode :size-mode
+        manual-size (v4->v3 :size)
+        slice9 :slice9
+        image (resolve-resource :tile-set)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns dev
-  (:require [clojure.string :as string]
+  (:require [clojure.pprint :as pprint]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
@@ -401,3 +402,72 @@
   (ordered-occurrences
     (map (comp second key)
          (is/system-cache @g/*the-system*))))
+
+(defn- simplify-namespace-name [ns-aliases namespace-name]
+  (if (or (nil? namespace-name)
+          (= "clojure.core" namespace-name))
+    nil ; Strip the namespace.
+    (let [namespace-symbol (symbol namespace-name)
+          alias-name (some (fn [[alias-symbol referenced-ns]]
+                             (when (= namespace-symbol (ns-name referenced-ns))
+                               (name alias-symbol)))
+                           ns-aliases)]
+      (or alias-name
+          namespace-name))))
+
+(defn- simplify-symbol-name [symbol-name]
+  (string/replace symbol-name
+                  #"__(\d+)__auto__$"
+                  "#"))
+
+(defn- simplify-symbol [ns-aliases expression]
+  (symbol (simplify-namespace-name ns-aliases (namespace expression))
+          (simplify-symbol-name (name expression))))
+
+(defn- simplify-keyword [ns-aliases expression]
+  (keyword (simplify-namespace-name ns-aliases (namespace expression))
+           (name expression)))
+
+(defn- simplify-namespaces [ns-aliases expression]
+  (cond
+    (map? expression)
+    (into (empty expression)
+          (map (fn [[key value]]
+                 [key (simplify-namespaces ns-aliases value)])))
+
+    (or (vector? expression)
+        (set? expression))
+    (into (empty expression)
+          (map #(simplify-namespaces ns-aliases %))
+          expression)
+
+    (seq? expression) ; Cons or list.
+    (into (empty expression)
+          (map #(simplify-namespaces ns-aliases %))
+          (reverse expression))
+
+    (symbol? expression)
+    (simplify-symbol ns-aliases expression)
+
+    (keyword? expression)
+    (simplify-keyword ns-aliases expression)
+
+    :else
+    expression))
+
+(defn- pprint-code-impl [ns-aliases expression]
+  (binding [pprint/*print-suppress-namespaces* false
+            pprint/*print-right-margin* 100
+            pprint/*print-miser-width* 60]
+    (pprint/with-pprint-dispatch
+      pprint/code-dispatch
+      (pprint/pprint
+        (simplify-namespaces ns-aliases expression)))))
+
+(defmacro pprint-code
+  "Pretty-print the supplied code expression while attempting to retain readable
+  formatting. The aliases in the invoking namespace Useful when developing macros."
+  ([expression]
+   `(#'pprint-code-impl (ns-aliases *ns*) ~expression))
+  ([ns expression]
+   `(#'pprint-code-impl (ns-aliases ns) ~expression)))
