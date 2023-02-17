@@ -115,15 +115,6 @@ public class ProtoBuilders {
                 return;
             }
 
-            /* REMOVE THIS
-            System.out.println("------------");
-            System.out.println(resource.getPath());
-            System.out.println("Material " + materialBuildResource.getPath());
-            System.out.println("Texture " + textureSetBuildResource.getPath());
-            System.out.println(String.format("texture page count     : %d", textureSetPageCount));
-            System.out.println(String.format("material max page count: %d", materialMaxPageCount));
-            */
-
             if (textureIsPaged && !materialIsPaged) {
                 // throw new CompileExceptionError(resource, 0, "The Material expects a paged Atlas, but the selected Image is not paged");
                 System.out.println("SHOULD THROW: The Material expects a paged Atlas, but the selected Image is not paged");

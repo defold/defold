@@ -244,7 +244,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return variantCompileResult;
     }
 
-    // Generate a texture array variant builder if necessary, calling functions need to guard for this function returning null
+    // Generate a texture array variant builder, but only if necessary
     static private ShaderBuildResult getGLSLVariantTextureArrayBuilder(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
         Common.GLSLCompileResult variantCompileResult = buildGLSLVariantTextureArray(source, shaderType, shaderLanguage, isDebug, maxPageCount);
 

@@ -15,16 +15,12 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
-import java.util.List;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderPreprocessor;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 @BuilderParams(name = "FragmentProgram", inExts = ".fp", outExt = ".fpc")
 public class FragmentProgramBuilder extends ShaderProgramBuilder {

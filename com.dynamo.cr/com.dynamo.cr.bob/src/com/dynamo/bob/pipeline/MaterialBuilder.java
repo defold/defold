@@ -14,10 +14,9 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.IOException;
-import java.io.ByteArrayInputStream;
-import java.io.InputStreamReader;
+import org.apache.commons.io.FilenameUtils;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,9 +24,7 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 
 import com.dynamo.bob.pipeline.ShaderPreprocessor;
@@ -38,15 +35,27 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.bob.util.MurmurHash;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.TextFormat;
-
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
 public class MaterialBuilder extends Builder<Void>  {
 
     private static final String TextureArrayFilenameVariantFormat = "_max_pages_%d.%s";
 
-    private ShaderDesc getShaderDesc(ShaderProgramBuilder builder, IResource resource, ES2ToES3Converter.ShaderType shaderType) throws IOException, CompileExceptionError {
+    private class ShaderProgramPaths {
+        public String buildPath;
+        public String projectPath;
+
+        public ShaderProgramPaths(String buildAndProjectPath) {
+            this.buildPath   = buildAndProjectPath;
+            this.projectPath = buildAndProjectPath;
+        }
+
+        public ShaderProgramPaths(String buildPath, String projectPath) {
+            this.buildPath   = buildPath;
+            this.projectPath = projectPath;
+        }
+    }
+
+    private ShaderDesc getShaderDesc(IResource resource, ShaderProgramBuilder builder, ES2ToES3Converter.ShaderType shaderType) throws IOException, CompileExceptionError {
         builder.setProject(this.project);
         Task<ShaderPreprocessor> task = builder.create(resource);
         return builder.getCompiledShaderDesc(task, shaderType);
@@ -65,36 +74,23 @@ public class MaterialBuilder extends Builder<Void>  {
         return selected;
     }
 
-    private class ShaderProgramPaths {
-        public String buildPath;
-        public String projectPath;
+    private ShaderProgramPaths getShaderProgramPath(String shaderResourcePath, int maxPageCount, HashMap<String, long[]> samplerNameToIndirectHashes) throws CompileExceptionError, IOException {
+        IResource shaderResource                = this.project.getResource(shaderResourcePath);
+        String shaderFileInExt                  = FilenameUtils.getExtension(shaderResourcePath);
+        String shaderFileOutExt                 = shaderFileInExt + "c";
 
-        public ShaderProgramPaths(String buildAndProjectPath) {
-            this.buildPath   = buildAndProjectPath;
-            this.projectPath = buildAndProjectPath;
-        }
+        ES2ToES3Converter.ShaderType shaderType;
+        ShaderProgramBuilder shaderBuilder;
 
-        public ShaderProgramPaths(String buildPath, String projectPath) {
-            this.buildPath   = buildPath;
-            this.projectPath = projectPath;
-        }
-    }
-
-    private ShaderProgramPaths getShaderProgramPath(String shaderResourcePath, ES2ToES3Converter.ShaderType shaderType, int maxPageCount, HashMap<String, long[]> samplerNameToIndirectHashes) throws CompileExceptionError, IOException {
-        IResource shaderResource = this.project.getResource(shaderResourcePath);
-        ShaderDesc shaderDesc = null;
-        String shaderFileOutExt = null;
-        String shaderFileInExt = null;
-
-        if (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER) {
-            shaderDesc       = getShaderDesc(new VertexProgramBuilder(), shaderResource, shaderType);
-            shaderFileOutExt = "vpc";
-            shaderFileInExt  = "vp";
+        if (shaderFileInExt.equals("vp")) {
+            shaderType    = ES2ToES3Converter.ShaderType.VERTEX_SHADER;
+            shaderBuilder = new VertexProgramBuilder();
         } else {
-            shaderDesc       = getShaderDesc(new FragmentProgramBuilder(), shaderResource, shaderType);
-            shaderFileOutExt = "fpc";
-            shaderFileInExt  = "fp";
+            shaderType    = ES2ToES3Converter.ShaderType.FRAGMENT_SHADER;
+            shaderBuilder = new FragmentProgramBuilder();
         }
+
+        ShaderDesc shaderDesc = getShaderDesc(shaderResource, shaderBuilder, shaderType);
 
         ShaderDesc.Language shaderLanguage = findTextureArrayShaderLanguage(shaderDesc);
         if (shaderLanguage == null) {
@@ -161,8 +157,8 @@ public class MaterialBuilder extends Builder<Void>  {
         // GENERATE OUTPUTS IN CREATE
         HashMap<String, long[]> samplerIndirectionMap = new HashMap<String, long[]>();
 
-        ShaderProgramPaths vertexShaderPaths   = getShaderProgramPath(materialBuilder.getVertexProgram(), ES2ToES3Converter.ShaderType.VERTEX_SHADER, materialBuilder.getMaxPageCount(), samplerIndirectionMap);
-        ShaderProgramPaths fragmentShaderPaths = getShaderProgramPath(materialBuilder.getFragmentProgram(), ES2ToES3Converter.ShaderType.FRAGMENT_SHADER, materialBuilder.getMaxPageCount(), samplerIndirectionMap);
+        ShaderProgramPaths vertexShaderPaths   = getShaderProgramPath(materialBuilder.getVertexProgram(),materialBuilder.getMaxPageCount(), samplerIndirectionMap);
+        ShaderProgramPaths fragmentShaderPaths = getShaderProgramPath(materialBuilder.getFragmentProgram(), materialBuilder.getMaxPageCount(), samplerIndirectionMap);
 
         BuilderUtil.checkResource(this.project, res, "vertex program", vertexShaderPaths.buildPath);
         materialBuilder.setVertexProgram(BuilderUtil.replaceExt(vertexShaderPaths.projectPath, ".vp", ".vpc"));
