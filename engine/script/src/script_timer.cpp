@@ -562,7 +562,7 @@ namespace dmScript
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
      *
-     * @return [type:hash] handle identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @return handle [type:hash] identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
      * @examples
      *
      * A simple one-shot timer
