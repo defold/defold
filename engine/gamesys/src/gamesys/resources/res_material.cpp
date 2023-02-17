@@ -58,7 +58,7 @@ namespace dmGameSystem
         return filter_lut[mag_filter];
     }
 
-    bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
+    static bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
     {
         if (strlen(material_desc->m_Name) == 0)
             return false;

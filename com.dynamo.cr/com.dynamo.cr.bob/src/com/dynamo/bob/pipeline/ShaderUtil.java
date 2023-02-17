@@ -122,13 +122,8 @@ public class ShaderUtil {
             buffer.add("}");
         }
 
-        public static boolean tryBuildVariant(ShaderDesc.Language shaderLanguage) {
-
-            // REMOVE THIS!
-            return shaderLanguage != ShaderDesc.Language.LANGUAGE_SPIRV;
-
-            // USE THIS!
-            //return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
+        public static boolean isRequired(ShaderDesc.Language shaderLanguage) {
+            return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
         }
 
         public static String samplerNameToSliceSamplerName(String samplerName, int slice) {

@@ -64,7 +64,7 @@ public class MaterialBuilder extends Builder<Void>  {
         ShaderDesc.Language selected = null;
         for (int i=0; i < shaderDesc.getShadersCount(); i++) {
             ShaderDesc.Shader shader = shaderDesc.getShaders(i);
-            if (VariantTextureArrayFallback.tryBuildVariant(shader.getLanguage())) {
+            if (VariantTextureArrayFallback.isRequired(shader.getLanguage())) {
                 assert(selected == null);
                 selected = shader.getLanguage();
             }

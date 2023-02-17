@@ -642,7 +642,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         ArrayList<ShaderBuildResult> shaderBuildResults = getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages, "", false, true);
 
         for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-            if (VariantTextureArrayFallback.tryBuildVariant(shaderLanguage)) {
+            if (VariantTextureArrayFallback.isRequired(shaderLanguage)) {
                 shaderBuildResults.add(getGLSLVariantTextureArrayBuilder(shaderSource, shaderType, shaderLanguage, true, maxPageCount));
             }
         }
