@@ -148,30 +148,17 @@ public class MaterialBuilder extends Builder<Void>  {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
-            .setName(params.name())
-            .addInput(input);
-
-        ByteArrayInputStream is              = new ByteArrayInputStream(input.getContent());
-        InputStreamReader reader             = new InputStreamReader(is);
-        MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
-        TextFormat.merge(reader, materialBuilder);
-
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
-
-        return taskBuilder.build();
+        return defaultTask(input);
     }
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
 
         IResource res                        = task.input(0);
-        ByteArrayInputStream is              = new ByteArrayInputStream(res.getContent());
-        InputStreamReader reader             = new InputStreamReader(is);
         MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
-        TextFormat.merge(reader, materialBuilder);
+        ProtoUtil.merge(task.input(0), materialBuilder);
 
+        // GENERATE OUTPUTS IN CREATE
         HashMap<String, long[]> samplerIndirectionMap = new HashMap<String, long[]>();
 
         ShaderProgramPaths vertexShaderPaths   = getShaderProgramPath(materialBuilder.getVertexProgram(), ES2ToES3Converter.ShaderType.VERTEX_SHADER, materialBuilder.getMaxPageCount(), samplerIndirectionMap);

@@ -447,6 +447,7 @@ public class TextureSetGenerator {
             BufferedImage imgOut = composite(layoutImages, layout.getWidth(), layout.getHeight(), layoutRects);
             result.images.add(imgOut);
             /*
+            // For debugging page generation
             try {
                 File outputfile = new File(String.format("image%d.png", debugImageCount));
                 ++debugImageCount;

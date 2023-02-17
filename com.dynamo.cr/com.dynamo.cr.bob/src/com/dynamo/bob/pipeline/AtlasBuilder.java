@@ -30,24 +30,31 @@ import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
-import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.AtlasProto.Atlas;
 import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
+import com.dynamo.proto.DdfMath.Point3;
 import com.google.protobuf.ByteString;
 
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
-public class AtlasBuilder extends Builder<Void>  {
+public class AtlasBuilder extends Builder<TextureImage.Type>  {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task<TextureImage.Type> create(IResource input) throws IOException, CompileExceptionError {
         Atlas.Builder builder = Atlas.newBuilder();
         ProtoUtil.merge(input, builder);
         Atlas atlas = builder.build();
 
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        // We can't just look at result of texture generation to decide the image type,
+        // a texture specified with max page size can still generate one page but used with a material that has array samplers
+        // so we need to know this beforehand for both validation and runtime
+        Point3 maxPageSizeP3                    = atlas.getMaxPageSize();
+        TextureImage.Type atlasBackingImageType = maxPageSizeP3.getX() > 0 && maxPageSizeP3.getY() > 0 ? TextureImage.Type.TYPE_2D_ARRAY : TextureImage.Type.TYPE_2D;
+
+        TaskBuilder<TextureImage.Type> taskBuilder = Task.<TextureImage.Type>newBuilder(this)
                 .setName(params.name())
+                .setData(atlasBackingImageType)
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(".texturec"));
@@ -67,19 +74,27 @@ public class AtlasBuilder extends Builder<Void>  {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        TextureSetResult result = AtlasUtil.generateTextureSet(this.project, task.input(0));
+    public void build(Task<TextureImage.Type> task) throws CompileExceptionError, IOException {
+        TextureSetResult result       = AtlasUtil.generateTextureSet(this.project, task.input(0));
+        TextureImage.Type textureType = task.getData();
+        int numImages                 = result.images.size();
+        int numPages                  = numImages;
+
+        // Even though technically a 2D texture image has one page,
+        // it differs conceptually how we treat the image in the engine
+        if (textureType == TextureImage.Type.TYPE_2D) {
+            numPages = 0;
+        }
+
         int buildDirLen         = project.getBuildDirectory().length();
         String texturePath      = task.output(1).getPath().substring(buildDirLen);
-        TextureSet textureSet   = result.builder.setTexture(texturePath).build();
+        TextureSet textureSet   = result.builder.setPageCount(numPages).setTexture(texturePath).build();
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
         Bob.verbose("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+        TextureImage textureImages[] = new TextureImage[numImages];
 
-        int numTextures              = result.images.size();
-        TextureImage textureImages[] = new TextureImage[numTextures];
-
-        for (int i = 0; i < numTextures; i++)
+        for (int i = 0; i < numImages; i++)
         {
             TextureImage texture;
             try {
@@ -91,9 +106,8 @@ public class AtlasBuilder extends Builder<Void>  {
             textureImages[i] = texture;
         }
 
-        TextureImage texture = TextureUtil.createCombinedTextureImage(textureImages, numTextures > 1 ? Type.TYPE_2D_ARRAY : Type.TYPE_2D);
+        TextureImage texture = TextureUtil.createCombinedTextureImage(textureImages, textureType);
         task.output(0).setContent(textureSet.toByteArray());
         task.output(1).setContent(texture.toByteArray());
     }
-
 }

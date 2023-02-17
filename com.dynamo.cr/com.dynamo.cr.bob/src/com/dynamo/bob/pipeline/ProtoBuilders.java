@@ -51,6 +51,7 @@ import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
 import com.dynamo.gamesys.proto.AtlasProto.Atlas;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
@@ -64,6 +65,15 @@ public class ProtoBuilders {
 
     private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap"};
     private static String[][] textureSetSrcExts = {{".atlas", ".a.texturesetc"}, {".tileset", ".t.texturesetc"}, {".tilesource", ".t.texturesetc"}};
+
+    public static String getTextureSetExt(String str) {
+        for (String[] extReplacement : textureSetSrcExts) {
+            if (str.endsWith(extReplacement[0])) {
+                return extReplacement[1];
+            }
+        }
+        return null;
+    }
 
     public static String replaceTextureName(String str) {
         String out = str;
@@ -81,56 +91,51 @@ public class ProtoBuilders {
         return out;
     }
 
-    private static void validateMaterialAtlasCompatability(Project project, IResource resource, String material, String textureSet) throws IOException, CompileExceptionError {
-        if (material == null || textureSet == null) {
-            return;
-        }
-
-        // Note: For the texture array feature, we need to determine if the shaders of a material has any array samplers.
-        //       This could be slow since it needs to be run on _every_ sprite & pfx in the project.
+    private static void validateMaterialAtlasCompatability(Project project, IResource resource, String materialProjectPath, String textureSet) throws IOException, CompileExceptionError {
         if (textureSet.endsWith("atlas")) {
-            IResource atlasResource    = project.getResource(textureSet);
-            IResource materialResource = project.getResource(material);
+            IResource materialResource      = project.getResource(materialProjectPath);
+            IResource materialBuildResource = materialResource.changeExt(".materialc");
 
-            if (atlasResource.getContent() == null || materialResource.getContent() == null) {
+            MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
+            materialBuilder.mergeFrom(materialBuildResource.getContent());
+
+            IResource textureSetResource      = project.getResource(textureSet);
+            IResource textureSetBuildResource = textureSetResource.changeExt(".a.texturesetc");
+
+            TextureSet.Builder textureSetBuilder = TextureSet.newBuilder();
+            textureSetBuilder.mergeFrom(textureSetBuildResource.getContent());
+
+            int textureSetPageCount  = textureSetBuilder.getPageCount();
+            int materialMaxPageCount = materialBuilder.getMaxPageCount();
+
+            boolean textureIsPaged = textureSetPageCount != 0;
+            boolean materialIsPaged = materialMaxPageCount != 0;
+
+            if (!textureIsPaged && !materialIsPaged) {
                 return;
             }
 
-            Atlas.Builder atlasBuilder = Atlas.newBuilder();
-            ProtoUtil.merge(atlasResource, atlasBuilder);
-
-            Point3 atlasMaxPageSize           = atlasBuilder.getMaxPageSize();
-            boolean textureSetHasArrayTexture = atlasMaxPageSize.getX() > 0 && atlasMaxPageSize.getY() > 0;
-
-            MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
-            ProtoUtil.merge(materialResource, materialBuilder);
-
-            IResource vsResource = project.getResource(materialBuilder.getVertexProgram());
-            IResource fsResource = project.getResource(materialBuilder.getFragmentProgram());
-
-            /*
-            if (textureSetHasArrayTexture)
-            {
-                boolean fsHasArraySampler = Common.hasUniformType(new String(fsResource.getContent()), ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
-                boolean vsHasArraySampler = Common.hasUniformType(new String(vsResource.getContent()), ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
-
-                if (!(fsHasArraySampler || vsHasArraySampler))
-                {
-                    throw new CompileExceptionError(resource, 0,
-                        String.format("Texture %s is not compatible with material %s, texture is array but none of the shader has any 'sampler2DArray' samplers.", textureSet, material));
-                }
-            }
-            else
-            {
-                boolean fsHas2DSampler = Common.hasUniformType(new String(fsResource.getContent()), ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
-                boolean vsHas2DSampler = Common.hasUniformType(new String(vsResource.getContent()), ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
-                if (!(fsHas2DSampler || vsHas2DSampler))
-                {
-                    throw new CompileExceptionError(resource, 0,
-                        String.format("Texture %s is not compatible with material %s, material has no 'sampler2D' samplers.", textureSet, material));
-                }
-            }
+            /* REMOVE THIS
+            System.out.println("------------");
+            System.out.println(resource.getPath());
+            System.out.println("Material " + materialBuildResource.getPath());
+            System.out.println("Texture " + textureSetBuildResource.getPath());
+            System.out.println(String.format("texture page count     : %d", textureSetPageCount));
+            System.out.println(String.format("material max page count: %d", materialMaxPageCount));
             */
+
+            if (textureIsPaged && !materialIsPaged) {
+                // throw new CompileExceptionError(resource, 0, "The Material expects a paged Atlas, but the selected Image is not paged");
+                System.out.println("SHOULD THROW: The Material expects a paged Atlas, but the selected Image is not paged");
+            }
+            else if (!textureIsPaged && materialIsPaged) {
+                // throw new CompileExceptionError(resource, 0, "The Material does not support paged Atlases, but the selected Image is paged");
+                System.out.println("SHOULD THROW: The Material does not support paged Atlases, but the selected Image is paged");
+            }
+            else if (textureSetPageCount > materialMaxPageCount) {
+                // throw new CompileExceptionError(resource, 0, "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image");
+                System.out.println("SHOULD THROW: The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image");
+            }
         }
     }
 
@@ -272,6 +277,28 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
     public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> {
+
+        @Override
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+
+            Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+            SpriteDesc.Builder spriteBuilder = SpriteDesc.newBuilder();
+            ProtoUtil.merge(input, spriteBuilder);
+
+            String tileSet           = spriteBuilder.getTileSet();
+            IResource tileSetOuput   = project.getResource(tileSet).changeExt(getTextureSetExt(tileSet));
+            IResource materialOutput = project.getResource(spriteBuilder.getMaterial()).changeExt(".materialc");
+
+            task.addInput(tileSetOuput);
+            task.addInput(materialOutput);
+
+            return task.build();
+        }
+
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
@@ -319,6 +346,30 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = ParticleFX.class, messageClass = ParticleFX.class)
     @BuilderParams(name="ParticleFX", inExts=".particlefx", outExt=".particlefxc")
     public static class ParticleFXBuilder extends ProtoBuilder<ParticleFX.Builder> {
+        @Override
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+
+            Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+            ParticleFX.Builder particleFxBuilder = ParticleFX.newBuilder();
+            ProtoUtil.merge(input, particleFxBuilder);
+
+            for (int i = 0; i < particleFxBuilder.getEmittersCount(); ++i) {
+                Emitter emitter            = particleFxBuilder.getEmitters(i);
+                String tileSource          = emitter.getTileSource();
+                IResource tileSourceOutput = project.getResource(tileSource).changeExt(getTextureSetExt(tileSource));
+                IResource materialOutput   = project.getResource(emitter.getMaterial()).changeExt(".materialc");
+
+                task.addInput(tileSourceOutput);
+                task.addInput(materialOutput);
+            }
+
+            return task.build();
+        }
+
         @Override
         protected ParticleFX.Builder transform(Task<Void> task, IResource resource, ParticleFX.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
