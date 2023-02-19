@@ -879,13 +879,6 @@ public class AndroidBundler implements IBundler {
         }
     }
 
-    // must have two or more segments
-    // each segment must start with a letter
-    // all characters must be alphanumeric or an underscore
-    public boolean isValidPackageName(String packageName) {
-        return packageName.matches("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$");
-    }
-
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         String packageName = project.getProjectProperties().getStringValue("android", "package");
@@ -893,7 +886,7 @@ public class AndroidBundler implements IBundler {
             throw new CompileExceptionError("No value for 'android.package' set in game.project");
         }
 
-        if (!isValidPackageName(packageName)) {
+        if (!BundleHelper.isValidAndroidPackageName(packageName)) {
             throw new CompileExceptionError("Android package name '" + packageName + "' is not valid.");
         }
 
