@@ -855,7 +855,7 @@ public class AndroidBundler implements IBundler {
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
 
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
@@ -867,7 +867,7 @@ public class AndroidBundler implements IBundler {
             properties.put("orientation-support", "fullUser");
         }
 
-        // Since we started to always fill in the default values to the propject properties
+        // Since we started to always fill in the default values to the project properties
         // it is harder to distinguish what is a user defined value.
         // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
         if (projectProperties.isDefault("android", "debuggable")) {
@@ -879,9 +879,26 @@ public class AndroidBundler implements IBundler {
         }
     }
 
+    // must have two or more segments
+    // each segment must start with a letter
+    // all characters must be alphanumeric or an underscore
+    public boolean isValidPackageName(String packageName) {
+        return packageName.matches("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$");
+    }
+
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         TimeProfiler.start("Init Android");
+
+        String packageName = project.getProjectProperties().getStringValue("android", "package");
+        if (packageName == null) {
+            throw new CompileExceptionError("No value for 'android.package' set in game.project");
+        }
+
+        if (!isValidPackageName(packageName)) {
+            throw new CompileExceptionError("Android package name '" + packageName + "' is not valid.");
+        }
+
         Bob.initAndroid(); // extract 
         TimeProfiler.stop();
 
