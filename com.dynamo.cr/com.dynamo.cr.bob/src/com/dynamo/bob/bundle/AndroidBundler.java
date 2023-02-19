@@ -888,8 +888,6 @@ public class AndroidBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        TimeProfiler.start("Init Android");
-
         String packageName = project.getProjectProperties().getStringValue("android", "package");
         if (packageName == null) {
             throw new CompileExceptionError("No value for 'android.package' set in game.project");
@@ -899,6 +897,7 @@ public class AndroidBundler implements IBundler {
             throw new CompileExceptionError("Android package name '" + packageName + "' is not valid.");
         }
 
+        TimeProfiler.start("Init Android");
         Bob.initAndroid(); // extract 
         TimeProfiler.stop();
 
