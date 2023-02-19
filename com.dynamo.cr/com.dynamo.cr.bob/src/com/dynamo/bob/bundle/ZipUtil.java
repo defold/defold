@@ -46,55 +46,45 @@ public class ZipUtil {
 		return strippedPath;
 	}
 
+	private static CRC32 calculateCrc32(File file) throws IOException {
+		CRC32 crc = new CRC32();
+		InputStream fis = new FileInputStream(file);
+		byte[] bytes = new byte[16 * 1024];
+		int length;
+		while((length = fis.read(bytes)) > 0) {
+			crc.update(bytes, 0, length);
+		}
+		fis.close();
+		return crc;
+	}
+
 	private static void zipFile(ZipOutputStream zipOut, File baseDir, File file) throws IOException {
 		final String filePath = stripBaseDir(baseDir, file).replace('\\', '/');
 		final long fileSize = file.length();
 
 		ZipEntry ze = new ZipEntry(filePath);
 		ze.setSize(fileSize);
-		byte[] entryData = null;
-		CRC32 crc = null;
 
 		// Some files need to be STORED instead of DEFLATED to
 		// get "correct" memory mapping at runtime.
-		int zipMethod = ZipEntry.DEFLATED;
 		boolean isAsset = filePath.startsWith("assets");
 		if (isAsset) {
 			// Set up an uncompressed file, unfortunately need to calculate crc32 and other data for this to work.
 			// https://www.infoworld.com/article/2071337/creating-zip-and-jar-files.html
-			crc = new CRC32();
-			zipMethod = ZipEntry.STORED;
+			CRC32 crc = calculateCrc32(file);
+			ze.setCrc(crc.getValue());
 			ze.setCompressedSize(fileSize);
 		}
-
-		ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-		try {
-			if (fileSize > 0) {
-				int count;
-				entryData = new byte[(int) fileSize];
-				InputStream stream = new FileInputStream(file);
-				while((count = stream.read(entryData, 0, (int)fileSize)) != -1) {
-					byteOut.write(entryData, 0, count);
-					if (zipMethod == ZipEntry.STORED) {
-						crc.update(entryData, 0, count);
-					}
-				}
-				stream.close();
-			}
-		} finally {
-			if(null != byteOut) {
-				byteOut.close();
-				entryData = byteOut.toByteArray();
-			}
-		}
-
-		if (zipMethod == ZipEntry.STORED) {
-			ze.setCrc(crc.getValue());
-			ze.setMethod(zipMethod);
-		}
+		ze.setMethod(isAsset ? ZipEntry.STORED : ZipEntry.DEFLATED);
 
 		zipOut.putNextEntry(ze);
-		zipOut.write(entryData);
+		byte[] bytes = new byte[16 * 1024];
+		int length;
+		InputStream fis = new FileInputStream(file);
+		while((length = fis.read(bytes)) > 0) {
+			zipOut.write(bytes, 0, length);
+		}
+		fis.close();
 		zipOut.closeEntry();
 	}
 
