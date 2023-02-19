@@ -231,9 +231,25 @@ public class IOSBundler implements IBundler {
         FileUtils.write(manifestFile, manifest);
     }
 
+    // must have two or more segments
+    // each segment must start with a letter
+    // all characters must be alphanumeric, an underscore or a hyphen
+    public boolean isValidBundleIdentifier(String bundleIdentifier) {
+        return bundleIdentifier.matches("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+$");
+    }
+
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
+
+        String bundleIdentifier = project.getProjectProperties().getStringValue("ios", "bundle_identifier");
+        if (bundleIdentifier == null) {
+            throw new CompileExceptionError("No value for 'ios.bundle_identifier' set in game.project");
+        }
+
+        if (!isValidBundleIdentifier(bundleIdentifier)) {
+            throw new CompileExceptionError("iOS bundle identifier '" + bundleIdentifier + "' is not valid.");
+        }
 
         BundleHelper.throwIfCanceled(canceled);
 
