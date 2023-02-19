@@ -763,13 +763,14 @@ public class AndroidBundler implements IBundler {
         String keystoreAlias = getKeystoreAlias(project);
         String keyPasswordFile = getKeyPasswordFile(project);
 
+        File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
+
+        String aabPath = aab.getAbsolutePath();
+        String name = FilenameUtils.getBaseName(aabPath);
+        String apksPath = outDir.getAbsolutePath() + File.separator + name + ".apks";
+
+        Result res = null;
         try {
-            File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
-
-            String aabPath = aab.getAbsolutePath();
-            String name = FilenameUtils.getBaseName(aabPath);
-            String apksPath = outDir.getAbsolutePath() + File.separator + name + ".apks";
-
             List<String> args = new ArrayList<String>();
             args.add(getJavaBinFile("java")); args.add("-jar");
             args.add(bundletool.getAbsolutePath());
@@ -782,15 +783,20 @@ public class AndroidBundler implements IBundler {
             args.add("--ks-key-alias"); args.add(keystoreAlias);
             args.add("--key-pass"); args.add("file:" + keyPasswordFile);
 
-            Result res = exec(args);
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-                throw new IOException(msg);
-            }
-            BundleHelper.throwIfCanceled(canceled);
-            return new File(apksPath);
+            res = exec(args);
         } catch (Exception e) {
             throw new CompileExceptionError("Failed creating universal APK", e);
+        }
+        BundleHelper.throwIfCanceled(canceled);
+        if (res.ret == 0) {
+            return new File(apksPath);
+        }
+        String msg = new String(res.stdOutErr);
+        if (msg.contains("java.lang.ArithmeticException: integer overflow")) {
+            throw new CompileExceptionError("Failed creating universal APK. APK is too large. " + msg);
+        }
+        else {
+            throw new CompileExceptionError("Failed creating universal APK. " + msg);
         }
     }
 
