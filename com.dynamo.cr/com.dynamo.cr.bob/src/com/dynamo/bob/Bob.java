@@ -915,18 +915,6 @@ public class Bob {
         return value;
     }
 
-    public static void logError(String message, Object... args) {
-        logger.severe(String.format(message, args));
-    }
-
-    public static void logWarning(String message, Object... args) {
-        logger.warning(String.format(message, args));
-    }
-
-    public static void logInfo(String message, Object... args) {
-        logger.info(String.format(message, args));
-    }
-
     public static void verbose(String message, Object... args) {
         logger.info(String.format(message, args));
     }
