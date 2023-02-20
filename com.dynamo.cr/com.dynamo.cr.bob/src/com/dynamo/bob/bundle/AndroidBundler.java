@@ -594,7 +594,9 @@ public class AndroidBundler implements IBundler {
                 baseZip.delete();
             }
             baseZip.createNewFile();
+            TimeProfiler.start("Create base zip");
             ZipUtil.zipDirRecursive(baseDir, baseZip, canceled);
+            TimeProfiler.stop();
             BundleHelper.throwIfCanceled(canceled);
             return baseZip;
         } catch (Exception e) {

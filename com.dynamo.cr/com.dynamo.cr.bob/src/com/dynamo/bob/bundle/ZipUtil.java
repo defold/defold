@@ -29,6 +29,8 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+import com.dynamo.bob.util.FileUtil;
+
 
 public class ZipUtil {
 
@@ -48,13 +50,7 @@ public class ZipUtil {
 
 	private static CRC32 calculateCrc32(File file) throws IOException {
 		CRC32 crc = new CRC32();
-		InputStream fis = new FileInputStream(file);
-		byte[] bytes = new byte[16 * 1024];
-		int length;
-		while((length = fis.read(bytes)) > 0) {
-			crc.update(bytes, 0, length);
-		}
-		fis.close();
+		FileUtil.updateChecksum(file, crc);
 		return crc;
 	}
 
@@ -71,20 +67,14 @@ public class ZipUtil {
 		if (isAsset) {
 			// Set up an uncompressed file, unfortunately need to calculate crc32 and other data for this to work.
 			// https://www.infoworld.com/article/2071337/creating-zip-and-jar-files.html
-			CRC32 crc = calculateCrc32(file);
+			CRC32 crc = FileUtil.calculateCrc32(file);
 			ze.setCrc(crc.getValue());
 			ze.setCompressedSize(fileSize);
 		}
 		ze.setMethod(isAsset ? ZipEntry.STORED : ZipEntry.DEFLATED);
 
 		zipOut.putNextEntry(ze);
-		byte[] bytes = new byte[16 * 1024];
-		int length;
-		InputStream fis = new FileInputStream(file);
-		while((length = fis.read(bytes)) > 0) {
-			zipOut.write(bytes, 0, length);
-		}
-		fis.close();
+		FileUtil.writeToStream(file, zipOut);
 		zipOut.closeEntry();
 	}
 
