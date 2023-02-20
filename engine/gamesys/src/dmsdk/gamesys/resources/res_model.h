@@ -43,18 +43,23 @@ namespace dmGameSystem
         dmRigDDF::Mesh*         m_Mesh;
     };
 
+    // pod type, for easier hashing in comp_model.cpp: ReHash
+    struct MaterialInfo
+    {
+        const char*             m_Name;
+        dmRender::HMaterial     m_Material;
+        dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+    };
+
     struct ModelResource
     {
-        dmModelDDF::Model*              m_Model;
-        uint32_t                        m_ModelsCount;
-        RigSceneResource*               m_RigScene;
+        dmModelDDF::Model*       m_Model;
+        uint32_t                 m_ModelsCount;
+        RigSceneResource*        m_RigScene;
 
-        dmArray<MeshInfo>               m_Meshes;
-
-        dmArray<dmRender::HMaterial>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
-
-        dmGraphics::HTexture            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                        m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmArray<MeshInfo>        m_Meshes;
+        dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
     };
 }
 

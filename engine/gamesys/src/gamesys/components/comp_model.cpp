@@ -270,12 +270,12 @@ namespace dmGameSystem
     static inline dmRender::HMaterial GetMaterial(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
         if (component->m_Material)
             return component->m_Material; // TODO: Add support for setting material on different indices
-        return resource->m_Materials[index];
+        return resource->m_Materials[index].m_Material;
     }
 
-    static inline dmGraphics::HTexture GetTexture(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
+    static inline dmGraphics::HTexture GetMaterialTexture(const ModelComponent* component, const ModelResource* resource, uint32_t material_index, uint32_t index) {
         assert(index < MAX_TEXTURE_COUNT);
-        return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
+        return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Materials[material_index].m_Textures[index];
     }
 
     static void ReHash(ModelComponent* component)
@@ -285,20 +285,14 @@ namespace dmGameSystem
         bool reverse = false;
         ModelResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
-// TODO: We need to create a hash for each mesh entry!
-// TODO: Each skinned instance has its own state (pose is determined by animation, play rate, blending, time)
-//  If they _do_ have the same state, we might use that fact so that they can batch together,
-//  and we can later use instancing?
-        for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
-        {
-            dmRender::HMaterial material = GetMaterial(component, resource, i);
-            dmHashUpdateBuffer32(&state, &material, sizeof(material));
-        }
-        // We have to hash individually since we don't know which textures are set as properties
-        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
-            dmGraphics::HTexture texture = GetTexture(component, resource, i);
-            dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
-        }
+
+        // The state of the static model
+        // Could be optimized by doing the state init/calc in the resource
+        dmHashUpdateBuffer32(&state, resource->m_Materials.Begin(), resource->m_Materials.Size()*sizeof(dmGameSystem::MaterialInfo));
+
+        if (component->m_Material)
+            dmHashUpdateBuffer32(&state, &component->m_Material, sizeof(component->m_Material));
+
         if (component->m_RenderConstants) {
             dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
         }
@@ -572,7 +566,7 @@ namespace dmGameSystem
 
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {
-                ro.m_Textures[i] = GetTexture(component, component->m_Resource, i);
+                ro.m_Textures[i] = GetMaterialTexture(component, component->m_Resource, material_index, i);
             }
 
             if (component->m_RenderConstants) {
@@ -653,7 +647,7 @@ namespace dmGameSystem
 
         for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
-            ro.m_Textures[i] = GetTexture(component, component->m_Resource, i);
+            ro.m_Textures[i] = GetMaterialTexture(component, component->m_Resource, material_index, i);
         }
 
         if (component->m_RenderConstants) {
@@ -1067,7 +1061,7 @@ namespace dmGameSystem
         {
             if (params.m_PropertyId == PROP_TEXTURE[i])
             {
-                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTexture(component, component->m_Resource, i), out_value);
+                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialTexture(component, component->m_Resource, 0, i), out_value);
             }
         }
         return GetMaterialConstant(GetMaterial(component, component->m_Resource, 0), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompModelGetConstantCallback, component);

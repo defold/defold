@@ -173,17 +173,24 @@ def compile_model(task):
         msg_out = model_ddf_pb2.Model()
         msg_out.rig_scene = "/" + os.path.relpath(task.outputs[1].bldpath(), task.generator.content_root)
 
-        for i,n in enumerate(msg.textures):
-            msg_out.textures.append(transform_texture_name(task, msg.textures[i]))
         if msg.material:
-            print("MAWE waf_gamesys", msg.material)
             material = model_ddf_pb2.Material()
             material.name = "unknown"
             material.material = msg.material.replace(".material", ".materialc")
+
+            for i,n in enumerate(msg.textures):
+                texture = model_ddf_pb2.Texture()
+                texture.sampler = ""
+                texture.texture = transform_texture_name(task, msg.textures[i])
+                material.textures.append(texture)
+
             msg_out.materials.append(material)
+
         for i,n in enumerate(msg.materials):
             material = msg.materials[i]
             material.material = material.material.replace(".material", ".materialc")
+            for i,texture in enumerate(material.textures):
+                texture.texture = transform_texture_name(task, texture.texture)
             msg_out.materials.append(material)
 
         with open(task.outputs[0].abspath(), 'wb') as out_f:
