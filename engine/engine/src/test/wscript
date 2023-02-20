@@ -35,6 +35,11 @@ def run_bob(task):
             else:
                 env['DYLD_LIBRARY_PATH'] = java_lib_path
 
+    # The tests needs the compiled builtins folder locally for this test to work
+    builtins_src = "build/content/builtins"
+    builtins_dst = "src/test/build/default/builtins"
+    shutil.copytree(builtins_src, builtins_dst, dirs_exist_ok=True)
+
     args = task.generator.run_args
     output = run.env_command(env, args.split())
 
@@ -75,9 +80,6 @@ def build(bld):
     if 'win32' in bld.env.PLATFORM:
         obj.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
-    builtins_src = "build/content/builtins"
-    builtins_dst = "src/test/build/default/builtins"
-
     platform = bld.env.PLATFORM
     if platform == 'win32':
         platform = 'x86-win32'
@@ -90,18 +92,9 @@ def build(bld):
 
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
-    bob_command = 'java -jar ./build/content/bob-engine.jar -root ./src/test -k %(cmd)s %(args)s'
+    bob_command = 'java -jar ./build/content/bob-engine.jar -root ./src/test -k clean build %s' % bob_flags
 
     bld(rule = run_bob,
-        run_args = bob_command % { "cmd": "clean", "args": bob_flags },
-        source = 'wscript',
-        always = True)
-
-    bld.add_group()
-
-    shutil.copytree(builtins_src, builtins_dst, dirs_exist_ok=True)
-
-    bld(rule = run_bob,
-        run_args = bob_command % { "cmd": "build", "args": bob_flags },
+        run_args = bob_command,
         source = 'wscript',
         always = True)
