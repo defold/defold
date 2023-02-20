@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -106,7 +107,7 @@ public class ProtoBuilders {
     public static class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Builder> {
 
         private void ValidateShapeTypes(List<Shape> shapeList, IResource resource) throws IOException, CompileExceptionError {
-            String physicsTypeStr = this.project.getProjectProperties().getStringValue("physics", "type", "2D").toUpperCase();
+            String physicsTypeStr = this.project.getProjectProperties().getStringValue("physics", "type", "2D").toUpperCase(Locale.ROOT);
             for(Shape shape : shapeList) {
                 if(shape.getShapeType() == Type.TYPE_CAPSULE) {
                     if(physicsTypeStr.contains("2D")) {
