@@ -48,12 +48,6 @@ public class ZipUtil {
 		return strippedPath;
 	}
 
-	private static CRC32 calculateCrc32(File file) throws IOException {
-		CRC32 crc = new CRC32();
-		FileUtil.updateChecksum(file, crc);
-		return crc;
-	}
-
 	private static void zipFile(ZipOutputStream zipOut, File baseDir, File file) throws IOException {
 		final String filePath = stripBaseDir(baseDir, file).replace('\\', '/');
 		final long fileSize = file.length();
