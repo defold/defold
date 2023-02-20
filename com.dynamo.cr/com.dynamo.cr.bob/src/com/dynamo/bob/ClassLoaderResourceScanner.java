@@ -67,6 +67,8 @@ public class ClassLoaderResourceScanner implements IResourceScanner {
 
     private static void scanJar(URL resource, String filter, Set<String> results) throws IOException {
         String resPath = resource.getPath();
+
+        // resPath is URL-encoded, e.g. space characters represented as %20, so decode before deriving file paths from it
         String jarPath = URLDecoder.decode(resPath.replaceFirst("[.]jar[!].*", ".jar"), "UTF-8").replaceFirst("file:", "");
         try (JarFile jarFile = new JarFile(jarPath)){
             Enumeration<JarEntry> entries = jarFile.entries();
