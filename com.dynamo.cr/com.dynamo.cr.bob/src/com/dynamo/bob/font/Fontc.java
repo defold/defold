@@ -987,6 +987,7 @@ public class Fontc {
         return previewImage;
     }
 
+    // run with java -cp bob.jar com.dynamo.bob.font.Fontc foobar.font foobar.fontc
     public static void main(String[] args) throws FontFormatException, TextureGeneratorException {
         try {
             System.setProperty("java.awt.headless", "true");
@@ -1030,7 +1031,7 @@ public class Fontc {
             Fontc fontc = new Fontc();
             String fontInputFile = basedir + File.separator + fontDesc.getFont();
             BufferedInputStream fontInputStream = new BufferedInputStream(new FileInputStream(fontInputFile));
-            fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+            BufferedImage previewImage = fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
 
                 @Override
                 public InputStream getResource(String resourceName) throws FileNotFoundException {
@@ -1041,6 +1042,10 @@ public class Fontc {
                 }
             });
             fontInputStream.close();
+
+            if (previewImage != null) {
+                ImageIO.write(previewImage, "png", new File(outfile + "_preview.png"));
+            }
 
             // Write fontmap file
             FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
