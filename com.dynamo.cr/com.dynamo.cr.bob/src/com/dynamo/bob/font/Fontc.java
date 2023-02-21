@@ -577,8 +577,9 @@ public class Fontc {
 
                 int py = 0;
                 // Get raster data from rendered glyph and store in glyph data bank
-                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
+                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x) {
                     paddedGlyphImage.setRGB(x, py, clearData);
+                }
                 py++;
                 for (int y = 0; y < glyphImage.getHeight(); y++, py++) {
                     int px = 0;
@@ -601,8 +602,9 @@ public class Fontc {
                     }
                     paddedGlyphImage.setRGB(px++, py, clearData);
                 }
-                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x)
-                    paddedGlyphImage.setRGB(x, 0, clearData);
+                for (int x = 0; x < paddedGlyphImage.getWidth(); ++x) {
+                    paddedGlyphImage.setRGB(x, py, clearData);
+                }
 
                 Pointer compressedTexture = null;
                 try {
