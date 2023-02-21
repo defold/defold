@@ -615,29 +615,37 @@ public class Fontc {
 
                     compressedTexture = TexcLibrary.TEXC_CompressBuffer(paddedBuffer, paddedBuffer.limit());
                     int texcBufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
-                    ByteBuffer buffer = ByteBuffer.allocateDirect(texcBufferSize);
-                    TexcLibrary.TEXC_GetBufferData(compressedTexture, buffer, texcBufferSize);
+                    ByteBuffer compressedBuffer = ByteBuffer.allocateDirect(texcBufferSize);
+                    TexcLibrary.TEXC_GetBufferData(compressedTexture, compressedBuffer, texcBufferSize);
 
-                    byte[] uncompressedBuffer = new byte[paddedBuffer.limit()];
-                    paddedBuffer.get(uncompressedBuffer);
+                    byte[] uncompressedBytes = new byte[paddedBuffer.limit()];
+                    paddedBuffer.get(uncompressedBytes);
 
-                    byte[] compressedBuffer = new byte[buffer.limit()];
-                    buffer.get(compressedBuffer);
+                    byte[] compressedBytes = new byte[compressedBuffer.limit()];
+                    compressedBuffer.get(compressedBytes);
 
-                    int size = uncompressedBuffer.length;
-                    int bufferSize = compressedBuffer.length;
-
-                    if (size < bufferSize)
-                    {
-                        bufferSize = size;
-                        compressedBuffer = uncompressedBuffer;
+                    // If the uncompressed size is smaller we write uncompressed
+                    // bytes instead
+                    // Note that when writing the uncompressed bytes we need to
+                    // also write the initial byte/flag telling the consumer if
+                    // the glyph is compressed or not.
+                    // - In the case of an uncompressed glyph we write a 0.
+                    // - In the case of a compressed glyph this information is
+                    // included in the compressedBytes array so we don't need to
+                    // bother with specifically writing the compressed flag.
+                    if (uncompressedBytes.length <= compressedBytes.length) {
+                        glyph.cache_entry_offset = dataOffset;
+                        glyph.cache_entry_size = 1 + uncompressedBytes.length;
+                        dataOffset += glyph.cache_entry_size;
+                        glyphDataBank.write(0); // uncompressed
+                        glyphDataBank.write(uncompressedBytes);
                     }
-
-                    glyph.cache_entry_offset = dataOffset;
-                    glyph.cache_entry_size = compressedBuffer.length;
-                    dataOffset += glyph.cache_entry_size;
-
-                    glyphDataBank.write(compressedBuffer);
+                    else {
+                        glyph.cache_entry_offset = dataOffset;
+                        glyph.cache_entry_size = compressedBytes.length;
+                        dataOffset += glyph.cache_entry_size;
+                        glyphDataBank.write(compressedBytes);
+                    }
 
                 } catch(IOException e) {
                     throw new TextureGeneratorException(String.format("Failed to generate font texture: %s", e.getMessage()));
