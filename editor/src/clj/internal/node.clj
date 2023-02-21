@@ -999,6 +999,7 @@
   (update-fn-maps tree #(update % :fn maybe-wrap-constant-fn)))
 
 (defn- into-set [x v] (into (or x #{}) v))
+(defn- into-map [x v] (into (or x {}) v))
 
 (defn- extract-fn-arguments [tree]
   (update-fn-maps tree
@@ -1007,10 +1008,17 @@
                           default-label (:default-fn-label fn-map)
                           args (if (= fnf ::default-fn)
                                  #{default-label}
-                                 (util/inputs-needed fnf))]
+                                 (util/inputs-needed fnf))
+                          annotations (if (= fnf ::default-fn)
+                                        {default-label nil}
+                                        (util/input-annotations fnf))]
                       (-> fn-map
-                          (update :arguments #(into-set % args))
-                          (update :dependencies #(into-set % args)))))))
+                          (update :arguments into-set args)
+                          (update :annotations into-map annotations)
+                          (update :dependencies into-set args))))))
+
+(defn- remove-annotations [description]
+  (update-fn-maps description #(dissoc % :annotations)))
 
 (defn- prop+args [[pname pdef]]
   (into #{pname} (:arguments pdef)))
@@ -1085,6 +1093,7 @@
       attach-declared-properties-behavior
       attach-cascade-deletes
       attach-declared-property
+      remove-annotations
       verify-inputs-for-dynamics
       verify-inputs-for-outputs
       verify-labels))
@@ -1227,24 +1236,43 @@
         (util/apply-if-fn substitute-fn input-array)))
     input-array))
 
-(defn argument-error-aggregate [node-id label input-value]
-  (when-some [input-errors (not-empty (filter #(instance? ErrorValue %) (vals input-value)))]
-    (ie/error-aggregate input-errors :_node-id node-id :_label label)))
+(defn collect-argument-errors [node-id label arguments]
+  (ie/error-aggregate
+    (into [] (filter #(instance? ErrorValue %)) (vals arguments))
+    :_node-id node-id
+    :_label label))
+
+(defn- argument-error-aggregate-form [checked-arguments node-id-sym label-sym arguments-sym forms]
+  (if (empty? checked-arguments)
+    forms
+    `(or (and (or ~@(for [arg checked-arguments]
+                      `(instance? ErrorValue (get ~arguments-sym ~arg))))
+              (collect-argument-errors ~node-id-sym ~label-sym ~arguments-sym))
+         ~forms)))
+
+(defn- annotations->checked-arguments [annotations]
+  (into #{}
+        (comp (remove #(-> % val :try))
+              (map key))
+        annotations))
 
 (defn- call-with-error-checked-fnky-arguments-form
-  [description label node-sym node-id-sym evaluation-context-sym arguments runtime-fnk-expr & [supplied-arguments]]
+  [description label node-sym node-id-sym evaluation-context-sym arguments annotations runtime-fnk-expr]
   (let [base-args {:_node-id `(gt/node-id ~node-sym)}
-        arglist (without arguments (keys supplied-arguments))
-        argument-forms (zipmap arglist (map #(get base-args % (if (= label %)
-                                                                `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
-                                                                (fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym)))
-                                            arglist))
-        argument-forms (merge argument-forms supplied-arguments)]
+        argument-forms (into {}
+                             (map
+                               (juxt identity
+                                     #(or (base-args %)
+                                          (if (= label %)
+                                            `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
+                                            (fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym)))))
+                             arguments)
+        checked-arguments (annotations->checked-arguments annotations)
+        arguments-sym 'arguments]
     (if (empty? argument-forms)
       `(~runtime-fnk-expr {})
-      `(let [arguments# ~argument-forms]
-         (or (argument-error-aggregate ~node-id-sym ~label arguments#)
-             (~runtime-fnk-expr arguments#))))))
+      `(let [~arguments-sym ~argument-forms]
+         ~(argument-error-aggregate-form checked-arguments node-id-sym label arguments-sym `(~runtime-fnk-expr ~arguments-sym))))))
 
 (defn- collect-property-value-form
   [description property-label node-sym node-id-sym evaluation-context-sym]
@@ -1257,11 +1285,16 @@
       (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :property
         (call-with-error-checked-fnky-arguments-form description property-label node-sym node-id-sym evaluation-context-sym
                                                      (get-in property-definition [:value :arguments])
+                                                     (get-in property-definition [:value :annotations])
                                                      (check-dry-run-form evaluation-context-sym
                                                                          (if (var? output-fn)
                                                                            output-fn
                                                                            `(var ~(dollar-name (:name description) [:property property-label :value])))
                                                                          `(constantly nil)))))))
+
+(defn- desc-try-argument? [description output argument]
+  {:pre [(keyword? output) (keyword? argument)]}
+  (boolean (-> description :output output :annotations argument :try)))
 
 (defn- fnk-argument-form
   [description output argument node-sym node-id-sym evaluation-context-sym]
@@ -1286,13 +1319,17 @@
     (desc-has-multivalued-input? description argument)
     (let [sub (desc-input-substitute description argument ::no-sub)] ; nil is a valid substitute literal
       (if (= ::no-sub sub)
-        `(error-checked-array-input-value ~node-id-sym ~argument ~(input-value-form node-sym argument evaluation-context-sym))
+        (if (desc-try-argument? description output argument)
+          (input-value-form node-sym argument evaluation-context-sym)
+          `(error-checked-array-input-value ~node-id-sym ~argument ~(input-value-form node-sym argument evaluation-context-sym)))
         `(error-substituted-array-input-value ~(input-value-form node-sym argument evaluation-context-sym) ~sub)))
 
     (desc-has-singlevalued-input? description argument)
     (let [sub (desc-input-substitute description argument ::no-sub)] ; nil is a valid substitute literal
       (if (= ::no-sub sub)
-        `(error-checked-input-value ~node-id-sym ~argument ~(first-input-value-form node-sym argument evaluation-context-sym))
+        (if (desc-try-argument? description output argument)
+          (first-input-value-form node-sym argument evaluation-context-sym)
+          `(error-checked-input-value ~node-id-sym ~argument ~(first-input-value-form node-sym argument evaluation-context-sym)))
         `(error-substituted-input-value ~(first-input-value-form node-sym argument evaluation-context-sym) ~sub)))
 
     (desc-has-output? description argument)
@@ -1404,8 +1441,12 @@
 (defn- argument-error-check-form [description label node-id-sym label-sym evaluation-context-sym arguments-sym forms]
   (if (= :_properties label)
     forms
-    `(or (argument-error-aggregate ~node-id-sym ~label-sym ~arguments-sym)
-         ~forms)))
+    (argument-error-aggregate-form
+      (annotations->checked-arguments (get-in description [:output label :annotations]))
+      node-id-sym
+      label-sym
+      arguments-sym
+      forms)))
 
 (defn- call-production-function-form [description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym forms]
   (let [output-fn (get-in description [:output label :fn])]
@@ -1504,13 +1545,14 @@
 (defn- property-dynamics
   [description property-name node-sym node-id-sym evaluation-context-sym property-type]
   (apply merge
-         (for [[dynamic-label {:keys [arguments] :as dynamic}] (get property-type :dynamics)]
+         (for [[dynamic-label {:keys [arguments annotations] :as dynamic}] (get property-type :dynamics)]
            (let [dynamic-fn (get-in description [:property property-name :dynamics dynamic-label :fn])]
              {dynamic-label
               (with-tracer-calls-form node-id-sym [property-name dynamic-label] evaluation-context-sym :dynamic
                 ;; TODO passing dynamic-label here looks broken; what if dynamic-label == some output label?
                 (call-with-error-checked-fnky-arguments-form description dynamic-label node-sym node-id-sym evaluation-context-sym
                                                              arguments
+                                                             annotations
                                                              (check-dry-run-form evaluation-context-sym
                                                                                  (if (var? dynamic-fn)
                                                                                    dynamic-fn
