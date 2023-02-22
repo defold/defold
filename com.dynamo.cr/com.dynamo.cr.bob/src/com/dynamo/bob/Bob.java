@@ -638,6 +638,18 @@ public class Bob {
     private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
+        try {
+            // Set default locale to root. This is done to avoid issues when
+            // calling String.toUpperCase when using a locale such as Turkish
+            // where a lowercase 'i' converts to 'İ'
+            // See: https://github.com/defold/defold/issues/7327
+            Locale.setDefault(Locale.ROOT);
+        }
+        catch(Exception e) {
+            System.err.println("Unable to set default locale to root");
+            e.printStackTrace();
+        }
+        
         String cwd = new File(".").getAbsolutePath();
 
         CommandLine cmd = parse(args);

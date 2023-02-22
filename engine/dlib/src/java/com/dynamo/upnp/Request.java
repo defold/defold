@@ -17,7 +17,6 @@ package com.dynamo.upnp;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Locale;
 import java.util.StringTokenizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -65,7 +64,7 @@ public final class Request {
             } else {
                 int index = token.indexOf(":");
                 if (index != -1) {
-                    String key = token.substring(0, index).toUpperCase(Locale.ROOT);
+                    String key = token.substring(0, index).toUpperCase();
                     String value = token.substring(index+1).trim();
                     headers.put(key, value);
                 }
