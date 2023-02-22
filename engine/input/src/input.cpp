@@ -127,7 +127,7 @@ namespace dmInput
     {
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
         const char* device_name = 0x0;
-        dmHID::GetGamepadDeviceName(gamepad, &device_name);
+        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, &device_name);
         if (device_name == 0x0)
         {
             /*
@@ -678,7 +678,7 @@ namespace dmInput
                     if (connected)
                     {
                         const char* device_name;
-                        dmHID::GetGamepadDeviceName(gamepad, &device_name);
+                        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, &device_name);
                         gamepad_binding->m_DeviceId = dmHashString32(device_name);
                         gamepad_binding->m_Connected = 1;
                         gamepad_binding->m_NoMapWarning = 0;
@@ -751,7 +751,7 @@ namespace dmInput
                                     if (action->m_GamepadConnected)
                                     {
                                         const char* device_name;
-                                        dmHID::GetGamepadDeviceName(gamepad, &device_name);
+                                        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, &device_name);
                                         action->m_TextCount = dmStrlCpy(action->m_Text, device_name, sizeof(action->m_Text));
                                     }
                                 }

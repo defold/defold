@@ -1756,7 +1756,11 @@ def detect(conf):
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-win32','win32'):
-        conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib']
+
+        # TODO dinput-support: Conditionally link based on input drivers?
+        DINPUT = ['dinput8.lib', 'dxguid.lib', 'ole32.lib', 'oleaut32.lib']
+
+        conf.env['LINKFLAGS_PLATFORM'] = ['user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'xinput9_1_0.lib'] + DINPUT
 
 def configure(conf):
     detect(conf)

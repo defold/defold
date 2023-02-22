@@ -12,8 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "hid.h"
-
 #include <assert.h>
 #include <string.h>
 
@@ -21,90 +19,196 @@
 #include <dlib/utf8.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
-#include <dlib/static_assert.h>
 
 #include <dmsdk/graphics/glfw/glfw.h>
 
+#include "hid.h"
 #include "hid_private.h"
+#include "hid_native_private.h"
 
 namespace dmHID
 {
     extern const char* KEY_NAMES[MAX_KEY_COUNT];
     extern const char* MOUSE_BUTTON_NAMES[MAX_MOUSE_BUTTON_COUNT];
 
-    int GLFW_JOYSTICKS[MAX_GAMEPAD_COUNT] =
+    /*
+    Gamepad* AcquireGamepad(HContext context)
     {
-            GLFW_JOYSTICK_1,
-            GLFW_JOYSTICK_2,
-            GLFW_JOYSTICK_3,
-            GLFW_JOYSTICK_4,
-            GLFW_JOYSTICK_5,
-            GLFW_JOYSTICK_6,
-            GLFW_JOYSTICK_7,
-            GLFW_JOYSTICK_8,
-            GLFW_JOYSTICK_9,
-            GLFW_JOYSTICK_10,
-            GLFW_JOYSTICK_11,
-            GLFW_JOYSTICK_12,
-            GLFW_JOYSTICK_13,
-            GLFW_JOYSTICK_14,
-            GLFW_JOYSTICK_15,
-            GLFW_JOYSTICK_16
+        for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
+        {
+            if (context->m_Gamepads[i].m_Acquired == 0)
+            {
+                context->m_Gamepads[i].m_Acquired = 1;
+                return &context->m_Gamepads[i];
+            }
+        }
+        return 0;
+    }
+    */
+
+    static const uint8_t DRIVER_HANDLE_FREE = 0xff;
+
+    struct NativeContextUserData
+    {
+        dmArray<GamepadDriver*> m_GamepadDrivers;
     };
 
-
-    /*
-     * TODO: Unfortunately a global variable as glfw has no notion of user-data context
-     */
-    HContext g_Context = 0;
-    static void CharacterCallback(int chr,int)
+    static uint8_t DriverToHandle(NativeContextUserData* user_data, GamepadDriver* driver)
     {
-        AddKeyboardChar(g_Context, chr);
-    }
-
-    static void MarkedTextCallback(char* text)
-    {
-        SetMarkedText(g_Context, text);
-    }
-
-    static void GamepadCallback(int gamepad_id, int connected)
-    {
-        if (g_Context->m_GamepadConnectivityCallback) {
-            g_Context->m_GamepadConnectivityCallback(gamepad_id, connected, g_Context->m_GamepadConnectivityUserdata);
+        for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+        {
+            if (user_data->m_GamepadDrivers[i] == driver)
+            {
+                return i;
+            }
         }
-        SetGamepadConnectivity(g_Context, gamepad_id, connected);
+
+        return DRIVER_HANDLE_FREE;
+    }
+
+    static uint8_t GamepadToIndex(HContext context, Gamepad* gamepad)
+    {
+        for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
+        {
+            if (&context->m_Gamepads[i] == gamepad)
+            {
+                return i;
+            }
+        }
+        assert(0);
+        return -1;
+    }
+
+    void SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status)
+    {
+        uint8_t gamepad_index = GamepadToIndex(context, gamepad);
+
+        if (context->m_GamepadConnectivityCallback)
+        {
+            context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata);
+        }
+
+        SetGamepadConnectivity(context, gamepad_index, connection_status);
+    }
+
+    Gamepad* CreateGamepad(HContext context, GamepadDriver* driver)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+
+        for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
+        {
+            if (context->m_Gamepads[i].m_Driver == DRIVER_HANDLE_FREE)
+            {
+                context->m_Gamepads[i].m_Driver = DriverToHandle(user_data, driver);
+                assert(context->m_Gamepads[i].m_Driver != DRIVER_HANDLE_FREE);
+                return &context->m_Gamepads[i];
+            }
+        }
+        return 0;
+    }
+
+    void ReleaseGamepad(HContext context, Gamepad* gamepad)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+        uint8_t gamepad_index = GamepadToIndex(context, gamepad);
+        assert(context->m_Gamepads[gamepad_index].m_Driver != DRIVER_HANDLE_FREE);
+        context->m_Gamepads[gamepad_index].m_Driver = DRIVER_HANDLE_FREE;
+    }
+
+    static HContext g_HidContext = 0;
+
+    static void GLFWCharacterCallback(int chr,int)
+    {
+        AddKeyboardChar(g_HidContext, chr);
+    }
+
+    static void GLFWMarkedTextCallback(char* text)
+    {
+        SetMarkedText(g_HidContext, text);
+    }
+
+    static void InstallGamepadDriver(GamepadDriver* driver, const char* driver_name)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+
+        if (!driver->m_Initialize(g_HidContext, driver))
+        {
+            dmLogError("Unable to initialize gamepad driver '%s'", driver_name);
+            return;
+        }
+
+        if (user_data->m_GamepadDrivers.Full())
+        {
+            user_data->m_GamepadDrivers.OffsetCapacity(1);
+        }
+
+        user_data->m_GamepadDrivers.Push(driver);
+
+        dmLogInfo("Installed gamepad driver '%s'", driver_name);
+
+        driver->m_DetectDevices(g_HidContext, driver);
+    }
+
+    static void InitializeGamepads(HContext context)
+    {
+        memset(context->m_Gamepads, 0, sizeof(Gamepad) * MAX_GAMEPAD_COUNT);
+
+        for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
+        {
+            context->m_Gamepads[i].m_Driver = DRIVER_HANDLE_FREE;
+        }
+
+        InstallGamepadDriver(CreateGamepadDriverGLFW(context), "GLFW");
+
+    #ifdef DM_HID_DINPUT
+        InstallGamepadDriver(CreateGamepadDriverDInput(context), "Direct Input");
+    #endif
     }
 
     bool Init(HContext context)
     {
         if (context != 0x0)
         {
+            assert(g_HidContext == 0);
+
             if (glfwInit() == GL_FALSE)
             {
                 dmLogFatal("glfw could not be initialized.");
                 return false;
             }
-            assert(g_Context == 0);
-            g_Context = context;
-            if (glfwSetCharCallback(CharacterCallback) == 0) {
+            if (glfwSetCharCallback(GLFWCharacterCallback) == 0) {
                 dmLogFatal("could not set glfw char callback.");
             }
-            if (glfwSetMarkedTextCallback(MarkedTextCallback) == 0) {
+            if (glfwSetMarkedTextCallback(GLFWMarkedTextCallback) == 0) {
                 dmLogFatal("could not set glfw marked text callback.");
             }
-            if (glfwSetGamepadCallback(GamepadCallback) == 0) {
-                dmLogFatal("could not set glfw gamepad callback.");
-            }
+
+            assert(context->m_NativeContextUserData == 0);
+            context->m_NativeContextUserData = new NativeContextUserData();
+            g_HidContext = context;
+
+            InitializeGamepads(context);
+
+            return true;
+
+            /*
+            memset(context->m_Gamepads, 0, sizeof(Gamepad) * MAX_GAMEPAD_COUNT);
+
             for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
             {
-                Gamepad& gamepad = context->m_Gamepads[i];
-                gamepad.m_Index = i;
-                gamepad.m_Connected = 0;
-                gamepad.m_AxisCount = 0;
-                gamepad.m_ButtonCount = 0;
-                gamepad.m_HatCount = 0;
-                memset(&gamepad.m_Packet, 0, sizeof(GamepadPacket));
+                context->m_Gamepads[i].m_Index = i;
             }
+
+            InputDriver* glfw_driver = CreateGamepadDriverGLFW(context);
+            InstallGamepadDriver(context, glfw_driver, "GLFW");
+
+        #ifdef DM_HID_DINPUT
+            InputDriver* dinput_driver = CreateGamepadDriverDInput(context);
+            InstallGamepadDriver(context, dinput_driver, "Direct Input");
+        #endif
+
+            return context->m_InputDrivers.Size() != 0;
+            */
             return true;
         }
         return false;
@@ -112,7 +216,13 @@ namespace dmHID
 
     void Final(HContext context)
     {
-        g_Context = 0;
+        delete context->m_NativeContextUserData;
+        /*
+        for (int i = 0; i < context->m_InputDrivers.Size(); ++i)
+        {
+            context->m_InputDrivers[i]->m_Destroy(context);
+        }
+        */
     }
 
     void Update(HContext context)
@@ -174,43 +284,25 @@ namespace dmHID
             }
         }
 
-        // Update gamepads
         if (!context->m_IgnoreGamepads)
         {
-            for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
+            NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+
+            for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
             {
-                Gamepad* pad = &context->m_Gamepads[i];
-                int glfw_joystick = GLFW_JOYSTICKS[i];
-                bool prev_connected = pad->m_Connected;
-                pad->m_Connected = glfwGetJoystickParam(glfw_joystick, GLFW_PRESENT) == GL_TRUE;
-                if (pad->m_Connected)
+                // user_data->m_GamepadDrivers[i]->m_DetectDevices(g_HidContext, user_data->m_GamepadDrivers[i]);
+            }
+
+            for (uint32_t t = 0; t < MAX_GAMEPAD_COUNT; ++t)
+            {
+                Gamepad* gamepad = &context->m_Gamepads[t];
+                if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
                 {
-                    GamepadPacket& packet = pad->m_Packet;
-
-                    // Workaround to get connectivity packet even if callback
-                    // wasn't been set before the gamepad was connected.
-                    if (!prev_connected)
-                    {
-                        packet.m_GamepadConnected = true;
-                    }
-
-                    pad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
-                    glfwGetJoystickPos(glfw_joystick, packet.m_Axis, pad->m_AxisCount);
-
-                    pad->m_HatCount = dmMath::Min(MAX_GAMEPAD_HAT_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_HATS));
-                    glfwGetJoystickHats(glfw_joystick, packet.m_Hat, pad->m_HatCount);
-
-                    pad->m_ButtonCount = dmMath::Min(MAX_GAMEPAD_BUTTON_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS));
-                    unsigned char buttons[MAX_GAMEPAD_BUTTON_COUNT];
-                    glfwGetJoystickButtons(glfw_joystick, buttons, pad->m_ButtonCount);
-                    for (uint32_t j = 0; j < pad->m_ButtonCount; ++j)
-                    {
-                        if (buttons[j] == GLFW_PRESS)
-                            packet.m_Buttons[j / 32] |= 1 << (j % 32);
-                        else
-                            packet.m_Buttons[j / 32] &= ~(1 << (j % 32));
-                    }
+                    continue;
                 }
+
+                GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
+                driver->m_Update(context, driver, gamepad);
             }
         }
 
@@ -252,9 +344,14 @@ namespace dmHID
         }
     }
 
-    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name)
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, const char** out_device_name)
     {
-        glfwGetJoystickDeviceId(gamepad->m_Index, (char**)out_device_name);
+        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+        assert(gamepad->m_Driver != DRIVER_HANDLE_FREE);
+        assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
+
+        GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
+        driver->m_GetGamepadDeviceName(context, driver, gamepad, out_device_name);
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
@@ -289,7 +386,7 @@ namespace dmHID
         glfwResetKeyboard();
     }
 
-    void EnableAccelerometer()
+    void EnableAccelerometer(HContext context)
     {
         glfwAccelerometerEnable();
     }

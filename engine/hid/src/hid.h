@@ -150,13 +150,15 @@ namespace dmHID
      */
     uint32_t GetGamepadAxisCount(HGamepad gamepad);
 
+    uint32_t GetGamepadHatCount(HGamepad gamepad);
+
     /**
      * Retrieves the platform-specific device name of a given gamepad.
      *
      * @param gamepad gamepad handle
      * @param a pointer to the device name, or 0x0 if not specified
      */
-    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name);
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, const char** out_device_name);
 
     /**
      * Check if a keyboard is connected.
@@ -348,7 +350,7 @@ namespace dmHID
     /**
      * Enables the accelerometer (if available)
      */
-    void EnableAccelerometer();
+    void EnableAccelerometer(HContext context);
 }
 
 #endif // DM_HID_H

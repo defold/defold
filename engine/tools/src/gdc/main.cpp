@@ -89,12 +89,9 @@ int main(int argc, char *argv[])
 
     FILE* out = 0x0;
 
-
     const char* filename = "default.gamepads";
     if (argc > 1)
         filename = argv[1];
-
-    dmGraphics::Initialize();
 
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;

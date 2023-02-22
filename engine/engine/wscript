@@ -100,7 +100,11 @@ namespace dmEngineVersion
         if waflib.Options.options.with_vulkan:
             conf.env.append_value('LIB_X', ['vulkan', 'X11-xcb'])
     elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
+
+        # TODO dinput-support: conditionally link?
+        DINPUT = ['dinput8.lib', 'dxguid.lib', 'ole32.lib', 'oleaut32.lib']
+
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'] + DINPUT)
         # For Vulkan
         if waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['vulkan-1.lib'])
