@@ -321,9 +321,13 @@ namespace dmHID
 
     void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
     {
+        assert(buffer_length != 0);
+        assert(buffer != 0);
+    
         NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
         if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
         {
+            buffer[0] = 0;
             return;
         }
 

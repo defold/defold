@@ -447,7 +447,7 @@ namespace dmHID
         // We need to let the engine know that this gamepad has been connected
         if (!gp->m_Connected)
         {
-            // NOTE: we add 4 extra buttons for the hats here, since that's what the xinup driver apparently reports
+            // NOTE: we add 4 extra buttons for the hats here to conform with the GLFW gamepad driver!
             gp->m_AxisCount   = dinput_device->m_AxisCount;
             gp->m_ButtonCount = dinput_device->m_ButtonCount + dinput_device->m_POVCount * 4;
             gp->m_HatCount    = dinput_device->m_POVCount;

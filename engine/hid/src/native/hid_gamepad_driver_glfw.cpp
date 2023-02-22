@@ -146,14 +146,10 @@ namespace dmHID
         bool prev_connected   = gamepad->m_Connected;
         GamepadPacket& packet = gamepad->m_Packet;
 
-        /*
-        // Workaround to get connectivity packet even if callback
-        // wasn't been set before the gamepad was connected.
-        if (!prev_connected)
+        if (!gamepad->m_Connected)
         {
-            packet.m_GamepadConnected = true;
+            SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gamepad, true);
         }
-        */
 
         gamepad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
         glfwGetJoystickPos(glfw_joystick, packet.m_Axis, gamepad->m_AxisCount);
@@ -180,7 +176,7 @@ namespace dmHID
             if (glfwGetJoystickParam(i, GLFW_PRESENT) == GL_TRUE)
             {
                 Gamepad* gamepad = GLFWAllocateGamepad((GLFWGamepadDriver*) driver, i);
-                SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gamepad, true);
+                // SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gamepad, true);
             }
         }
     }
@@ -188,7 +184,6 @@ namespace dmHID
     static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char* buffer, uint32_t buffer_length)
     {
         char* device_name;
-
         uint32_t gamepad_index = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
         glfwGetJoystickDeviceId(gamepad_index, &device_name);
 

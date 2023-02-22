@@ -9,5 +9,5 @@ def build(bld):
         if not waflib.Options.options.with_vulkan:
             bld.recurse('gdc')
 
-        bld.recurse('launcher')
-        bld.recurse('texconvert')
+        #bld.recurse('launcher')
+        #bld.recurse('texconvert')

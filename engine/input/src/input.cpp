@@ -128,7 +128,7 @@ namespace dmInput
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
         char device_name[128];
         dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
-        if (device_name == 0x0)
+        if (strlen(device_name) == 0)
         {
             /*
              * NOTE: We used to log a warning here but the warning is removed for the following reasons:
