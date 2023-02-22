@@ -21,13 +21,6 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#ifdef _WIN32
-#include <io.h>
-#include <stdio.h>
-#else
-#include <unistd.h>
-#endif
-
 #include "../ddf/ddf.h"
 #include <dlib/memory.h>
 #include <dlib/dstrings.h>
@@ -35,10 +28,10 @@
 
 /*
  * TODO:
- * Tester
- * - Fält
- *   - Extra fält
- *   - Fält som fattas
+ * Tests
+ * - Fields
+ *   - Extra fields
+ *   - Fields that are missing
  */
 
 #ifndef DDF_EXPOSE_DESCRIPTORS
