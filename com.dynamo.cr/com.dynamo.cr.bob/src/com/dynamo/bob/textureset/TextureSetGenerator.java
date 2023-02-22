@@ -29,6 +29,7 @@ import com.dynamo.gamesys.proto.Tile.Playback;
 import com.google.protobuf.ByteString;
 
 import javax.vecmath.Point2d;
+import javax.vecmath.Point4i;
 import javax.vecmath.Vector2d;
 
 import java.awt.Color;
@@ -43,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.stream.Collectors;
 
 // For debugging image output
@@ -294,7 +294,7 @@ public class TextureSetGenerator {
      * 3. Shrink inner rects by previous extrusion
      * 4. Create vertex data for each frame (image) in each animation
      */
-    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int use_geometries,
+    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, List<SpriteGeometry> imageHullsWithOffset, int use_geometries,
                                                 AnimIterator iterator,
                                                int margin, int innerPadding, int extrudeBorders,
                                                boolean rotate, boolean useTileGrid, Grid gridSize) {
@@ -328,8 +328,18 @@ public class TextureSetGenerator {
 
         if (imageHulls != null) {
             for (Rect rect : layout.getRectangles()) {
-                SpriteGeometry geometry = imageHulls.get(rect.index);
-                vertexData.left.addGeometries(createPolygonUVs(geometry, rect, layout.getWidth(), layout.getHeight(), extrudeBorders));
+                SpriteGeometry imageHull = imageHulls.get(rect.index);
+                // Calculate UVs using vertices without offset.
+                SpriteGeometry.Builder imageHullWithUV = createPolygonUVs(imageHull, rect, layout.getWidth(), layout.getHeight(), extrudeBorders);
+                if (imageHullsWithOffset != null) {
+                    SpriteGeometry imageHullWithOffset = imageHullsWithOffset.get(rect.index);
+                    imageHullWithUV.clearVertices();
+                    // Copy over the vertices with the offset. Now we have offset vertices with correct UVs.
+                    imageHullWithUV.addAllVertices(imageHullWithOffset.getVerticesList());
+                    imageHullWithUV.setWidth(imageHullWithOffset.getWidth());
+                    imageHullWithUV.setHeight(imageHullWithOffset.getHeight());
+                }
+                vertexData.left.addGeometries(imageHullWithUV);
             }
         }
 
@@ -365,6 +375,35 @@ public class TextureSetGenerator {
     // static int debugImageCount = 0;
 
     /**
+     * Builds a new sprite geometry with offset vertices if such offset is requested for trimmed images.
+     *
+     * @param original original sprite geometry to take vertices from
+     * @param positionX trimmed sprite offset position x
+     * @param positionY trimmed sprite offset position y
+     * @param width source image width
+     * @param height source image height
+     * @return new sprite geometry or null if no offset is requested
+     */
+    public static SpriteGeometry buildSpriteGeometryWithOffset(SpriteGeometry original, int positionX, int positionY, int width, int height) {
+        if ((positionX != 0 || positionY != 0) && width > 0 && height > 0) {
+            SpriteGeometry.Builder imageHullWithOffset = SpriteGeometry.newBuilder().mergeFrom(original);
+            imageHullWithOffset.setWidth(width);
+            imageHullWithOffset.setHeight(height);
+            // Cancel the original centering and apply new centering with offset.
+            float offsetX = 0.5f + (positionX - 0.5f * width) / original.getWidth();
+            float offsetY = -(0.5f + (positionY - 0.5f * height) / original.getHeight());
+            List<Float> vertices = original.getVerticesList();
+            imageHullWithOffset.clearVertices();
+            for (int j = 0; j < vertices.size(); j += 2) {
+                imageHullWithOffset.addVertices(vertices.get(j) + offsetX);
+                imageHullWithOffset.addVertices(vertices.get(j + 1) + offsetY);
+            }
+            return imageHullWithOffset.build();
+        } else {
+            return null;
+        }
+    }
+    /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
      *
      * 1. Extrude image borders
@@ -374,28 +413,54 @@ public class TextureSetGenerator {
      * 5. Create vertex data for each frame (image) in each animation
      *
      * @param images list of images
-     * @param imagePaths corresponding image-id to previous list
-     * @param animations list of animations
-     * @param margin internal atlas margin
-     * @return {@link AtlasMap}
+     * @param imageHullSizes image trimming vertex count list
+     * @param imageSourceRects source image information list (offset x, offset y, original width, original height)
+     * @param paths corresponding image-id to previous lists
+     * @param iterator iterator of the list of animations
+     * @param margin internal atlas margin size
+     * @param innerPadding atlas padding size
+     * @param extrudeBorders atlas extrude borders size
+     * @param rotate are images allowed to be rotated
+     * @param useTileGrid when using with tile grids
+     * @param gridSize grid size of the tile grid
+     * @return {@link TextureSetResult}
      */
-    public static TextureSetResult generate(List<BufferedImage> images, List<Integer> imageHullSizes, List<String> paths, AnimIterator iterator,
-            int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize) {
+    public static TextureSetResult generate(List<BufferedImage> images, List<Integer> imageHullSizes, List<Point4i> imageSourceRects, List<String> paths, AnimIterator iterator,
+                                            int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize) {
 
         List<Rect> imageRects = rectanglesFromImages(images, paths);
 
         // if all sizes are 0, we still need to generate hull (or rect) data
         // since it will still be part of the new code path if there is another atlas with trimming enabled
         List<SpriteGeometry> imageHulls = new ArrayList<SpriteGeometry>();
+        // A copy of the imageHulls with all vertices shifted with an offset position for each image.
+        List<SpriteGeometry> imageHullsWithOffset = new ArrayList<SpriteGeometry>();
         int use_geometries = 0;
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
             use_geometries |= imageHullSizes.get(i) > 0 ? 1 : 0;
-            imageHulls.add(buildConvexHull(image, imageHullSizes.get(i)));
+            SpriteGeometry imageHull = buildConvexHull(image, imageHullSizes.get(i));
+            imageHulls.add(imageHull);
+
+            boolean hasImageHullWithOffset = false;
+            if (imageSourceRects != null) {
+                Point4i sourceRect = imageSourceRects.get(i);
+                SpriteGeometry imageHullWithOffset = buildSpriteGeometryWithOffset(imageHull, sourceRect.x, sourceRect.y, sourceRect.z, sourceRect.w);
+                if (imageHullWithOffset != null) {
+                    // Offset position requires using vertices.
+                    use_geometries = 1;
+                    imageHullsWithOffset.add(imageHullWithOffset);
+                    hasImageHullWithOffset = true;
+                }
+            }
+            // If no offset is needed, just use the same image hull.
+            if (!hasImageHullWithOffset) {
+                imageHullsWithOffset.add(imageHull);
+            }
         }
 
         // The layout step will expand the rect, and possibly rotate them
-        TextureSetResult result = calculateLayout(imageRects, imageHulls, use_geometries, iterator,
+        TextureSetResult result = calculateLayout(imageRects, imageHulls, imageHullsWithOffset, use_geometries, iterator,
                                                         margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize);
 
         for (int i = 0; i < images.size(); ++i) {
