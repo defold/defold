@@ -17,14 +17,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifndef _WIN32
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#endif
-
-#include <sys/stat.h>
-
 #include "resource.h"
 #include "resource_archive_private.h"
 #include <dlib/crypt.h>
