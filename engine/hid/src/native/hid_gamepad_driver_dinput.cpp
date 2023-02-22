@@ -20,12 +20,16 @@
 
 namespace dmHID
 {
+    // Note: The order differs slightly here between this and GLFW3,
+    //       since we need to fake the hats as buttons, so we need them first
+    //       in the list. PS4 and PS5 controllers have different amount of buttons,
+    //       which means we can't use the same mapping for them.
     enum DInputDeviceObjectType
     {
         OBJECT_TYPE_SLIDER = 0,
-        OBJECT_TYPE_AXIS   = 1,
+        OBJECT_TYPE_POV    = 1,
+        OBJECT_TYPE_AXIS   = 2,
         OBJECT_TYPE_BUTTON = 3,
-        OBJECT_TYPE_POV    = 4,
     };
 
     struct DInputDeviceObject
@@ -344,23 +348,8 @@ namespace dmHID
         }
     #undef RELEASE_AND_FREE_DEVICE
 
+        // Sort the objects based on offset and type so we can have more control in what order we process the objects
         qsort(new_device.m_Objects, new_device.m_ObjectCount, sizeof(DInputDeviceObject), compareJoystickObjects);
-
-        /*
-        for (int i = 0; i < new_device.m_ObjectCount; ++i)
-        {
-            const char* type_str;
-
-            switch(new_device.m_Objects[i].m_Type)
-            {
-                case OBJECT_TYPE_AXIS: type_str = "OBJECT_TYPE_AXIS"; break;
-                case OBJECT_TYPE_BUTTON: type_str = "OBJECT_TYPE_BUTTON"; break;
-                case OBJECT_TYPE_POV: type_str = "OBJECT_TYPE_POV"; break;
-            }
-
-            dmLogInfo("Obj: %s - %d", type_str, new_device.m_Objects[i].m_Offset);
-        }
-        */
 
         // This will 'acquire' the internal gamepad pointer but not tell the engine
         // we have connected it yet, since the connection callback might have not been
@@ -376,6 +365,7 @@ namespace dmHID
         return DIENUM_CONTINUE;
     }
 
+    // TODO: Add RegisterDeviceNotification somewhere in GLFW so we don't have to do this call every frame!!
     static void DInputDetectDevices(HContext context, GamepadDriver* driver)
     {
         DInputGamepadDriver* dinput_driver = (DInputGamepadDriver*) driver;
@@ -385,8 +375,6 @@ namespace dmHID
             return;
         }
     }
-
-    // TODO: Add RegisterDeviceNotification somewhere in GLFW
 
     // NOTE: this requires us to call glfwPollEvents() before updating gamepads,
     //       which is done in hid_native.cpp
@@ -452,13 +440,13 @@ namespace dmHID
             gp->m_ButtonCount = dinput_device->m_ButtonCount + dinput_device->m_POVCount * 4;
             gp->m_HatCount    = dinput_device->m_POVCount;
             SetGamepadConnectionStatus(context, gp, true);
-
-            packet.m_GamepadConnected = true;
         }
 
         int button_index = 0;
         int axis_index   = 0;
         int hat_index    = 0;
+
+        const float CENTER_EPSILON = 0.05f;
 
         #define SET_BUTTON(ix, value) \
             if (value == GLFW_PRESS) \
@@ -480,8 +468,8 @@ namespace dmHID
                     const float value         = (*((LONG*) data) + 0.5f) / 32767.5f;
                     packet.m_Axis[axis_index] = value;
 
-                    // JG: For testing! There's no dead zone for dinupt devices afaik
-                    if (fabs(value) < 0.1)
+                    // JG: There's no dead zone for dinupt devices afaik
+                    if (fabs(value) < CENTER_EPSILON)
                     {
                         packet.m_Axis[axis_index] = 0.0f;
                     }
