@@ -121,12 +121,16 @@ namespace dmHID
     {
         uint8_t gamepad_index = GamepadToIndex(context, gamepad);
 
-        if (context->m_GamepadConnectivityCallback)
+        if (gamepad->m_Connected != connection_status)
         {
-            context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata);
-        }
+            if (context->m_GamepadConnectivityCallback)
+            {
+                context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata);
+            }
 
-        SetGamepadConnectivity(context, gamepad_index, connection_status);
+            SetGamepadConnectivity(context, gamepad_index, connection_status);
+            gamepad->m_Connected = connection_status;
+        }
     }
 
     // Called from gamepad drivers
@@ -318,9 +322,12 @@ namespace dmHID
     void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
     {
         NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
-        assert(gamepad->m_Driver != DRIVER_HANDLE_FREE);
-        assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
+        if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
+        {
+            return;
+        }
 
+        assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
         driver->m_GetGamepadDeviceName(context, driver, gamepad, buffer, buffer_length);
     }
@@ -357,7 +364,7 @@ namespace dmHID
         glfwResetKeyboard();
     }
 
-    void EnableAccelerometer(HContext context)
+    void EnableAccelerometer()
     {
         glfwAccelerometerEnable();
     }

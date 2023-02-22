@@ -18,6 +18,8 @@
 
 #include <dlib/hashtable.h>
 
+#include <dlib/dstrings.h>
+
 #include "hid_private.h"
 
 namespace dmHID
@@ -83,9 +85,9 @@ namespace dmHID
         context->m_Gamepads[0].m_AxisCount = MAX_GAMEPAD_AXIS_COUNT;
     }
 
-    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name)
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
     {
-        *out_device_name = "null_device";
+        dmStrlCpy(buffer, "null_device", buffer_length);
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)

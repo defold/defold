@@ -1,15 +1,18 @@
-#include "hid_private.h"
-#include "hid_native_private.h"
-
-#include <dmsdk/graphics/graphics_native.h>
-#include <dmsdk/graphics/glfw/glfw.h>
-
-#include <dlib/log.h>
-
 #include <stdio.h>
+#include <algorithm> // std::sort
+
+#include <stdlib.h>
 
 #define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
+
+#include <dlib/log.h>
+#include <dlib/dstrings.h>
+
+#include <dmsdk/graphics/graphics_native.h>
+
+#include "hid_private.h"
+#include "hid_native_private.h"
 
 #ifndef SAFE_RELEASE
     #define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = 0; } }
@@ -19,8 +22,8 @@ namespace dmHID
 {
     enum DInputDeviceObjectType
     {
-        OBJECT_TYPE_SLIDER = 1,
-        OBJECT_TYPE_AXIS   = 2,
+        OBJECT_TYPE_SLIDER = 0,
+        OBJECT_TYPE_AXIS   = 1,
         OBJECT_TYPE_BUTTON = 3,
         OBJECT_TYPE_POV    = 4,
     };
@@ -34,6 +37,7 @@ namespace dmHID
     struct DInputDevice
     {
         char                 m_Name[128];
+        char                 m_ProductName[128];
         Gamepad*             m_Gamepad;
         GUID                 m_GUID;
         LPDIRECTINPUTDEVICE8 m_DeviceHandle;
@@ -56,7 +60,7 @@ namespace dmHID
 
     static void PrintDebugDeviceStatistics(DInputDevice* device)
     {
-        dmLogInfo("Device");
+        dmLogInfo("Device (%s, %s)", device->m_Name, device->m_ProductName);
         dmLogInfo("  Obj count    : %d", device->m_ObjectCount);
         dmLogInfo("  Slider count : %d", device->m_SliderCount);
         dmLogInfo("  Axis count   : %d", device->m_AxisCount);
@@ -148,26 +152,32 @@ namespace dmHID
             else if (memcmp(&pdidoi->guidType, &GUID_XAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_X;
+                //dmLogInfo("GUID_XAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_YAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_Y;
+                //dmLogInfo("GUID_ZAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_ZAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_Z;
+                //dmLogInfo("GUID_ZAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_RxAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_RX;
+                //dmLogInfo("GUID_RxAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_RyAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_RY;
+                //dmLogInfo("GUID_RyAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_RzAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_RZ;
+                //dmLogInfo("GUID_RzAxis %d", object->m_Offset);
             }
             else
             {
@@ -224,6 +234,27 @@ namespace dmHID
         free(device->m_Objects);
     }
 
+    inline bool SortDeviceObjects(const DInputDeviceObject& a, const DInputDeviceObject& b)
+    {
+        if (a.m_Type != b.m_Type)
+        {
+            return a.m_Type - b.m_Type;
+        }
+
+        return a.m_Offset - b.m_Offset;
+    }
+
+    static int compareJoystickObjects(const void* first, const void* second)
+    {
+        const DInputDeviceObject* fo = (DInputDeviceObject*) first;
+        const DInputDeviceObject* so = (DInputDeviceObject*) second;
+
+        if (fo->m_Type != so->m_Type)
+            return fo->m_Type - so->m_Type;
+
+        return fo->m_Offset - so->m_Offset;
+    }
+
     static BOOL CALLBACK DInputEnumerateDevices(const DIDEVICEINSTANCE* instance, void* di_enum_ctx_ptr)
     {
         DInputGamepadDriver* driver = (DInputGamepadDriver*) di_enum_ctx_ptr;
@@ -234,8 +265,8 @@ namespace dmHID
         for (int i = 0; i < driver->m_Devices.Size(); ++i)
         {
             DInputDevice& device = driver->m_Devices[i];
-            Gamepad* gp          = device.m_Gamepad;
-            if (gp->m_Connected && memcmp(&device.m_GUID, &instance->guidInstance, sizeof(GUID)) == 0)
+            // Gamepad* gp          = device.m_Gamepad;
+            if (memcmp(&device.m_GUID, &instance->guidInstance, sizeof(GUID)) == 0)
             {
                 return DIENUM_CONTINUE;
             }
@@ -271,16 +302,6 @@ namespace dmHID
             return DIENUM_CONTINUE;
         }
 
-        HWND hwnd = dmGraphics::GetNativeWindowsHWND();
-        // Set the cooperative level to let DInput know how this device should
-        // interact with the system and with other DInput applications.
-        if (hwnd && FAILED(new_device.m_DeviceHandle->SetCooperativeLevel(hwnd, DISCL_EXCLUSIVE | DISCL_FOREGROUND)))
-        {
-            dmLogError("Failed to set cooperation level");
-            RELEASE_AND_FREE_DEVICE(new_device);
-            return DIENUM_CONTINUE;
-        }
-
         DIDEVCAPS device_caps = {};
         device_caps.dwSize    = sizeof(device_caps);
 
@@ -290,7 +311,8 @@ namespace dmHID
             return DIENUM_CONTINUE;
         }
 
-        new_device.m_Objects = (DInputDeviceObject*) malloc((device_caps.dwAxes + device_caps.dwButtons + device_caps.dwPOVs) * sizeof(DInputDeviceObject));
+        uint32_t object_count = device_caps.dwAxes + device_caps.dwButtons + device_caps.dwPOVs;
+        new_device.m_Objects  = (DInputDeviceObject*) malloc(object_count * sizeof(DInputDeviceObject));
 
         if (FAILED(new_device.m_DeviceHandle->EnumObjects(EnumObjectsCallback, (VOID*) &new_device, DIDFT_AXIS | DIDFT_BUTTON | DIDFT_POV)))
         {
@@ -306,6 +328,11 @@ namespace dmHID
             return DIENUM_CONTINUE;
         }
 
+        if (!WideCharToMultiByte(CP_UTF8, 0, instance->tszProductName, -1, new_device.m_ProductName, sizeof(new_device.m_ProductName), NULL, NULL))
+        {
+            dmStrlCpy(new_device.m_ProductName, "Unknown Product Name", sizeof(new_device.m_ProductName));
+        }
+
         // Maybe just return the index?
         Gamepad* gp = CreateGamepad(hid_context, driver);
 
@@ -317,18 +344,32 @@ namespace dmHID
         }
     #undef RELEASE_AND_FREE_DEVICE
 
+        qsort(new_device.m_Objects, new_device.m_ObjectCount, sizeof(DInputDeviceObject), compareJoystickObjects);
+
+        /*
+        for (int i = 0; i < new_device.m_ObjectCount; ++i)
+        {
+            const char* type_str;
+
+            switch(new_device.m_Objects[i].m_Type)
+            {
+                case OBJECT_TYPE_AXIS: type_str = "OBJECT_TYPE_AXIS"; break;
+                case OBJECT_TYPE_BUTTON: type_str = "OBJECT_TYPE_BUTTON"; break;
+                case OBJECT_TYPE_POV: type_str = "OBJECT_TYPE_POV"; break;
+            }
+
+            dmLogInfo("Obj: %s - %d", type_str, new_device.m_Objects[i].m_Offset);
+        }
+        */
+
+        // This will 'acquire' the internal gamepad pointer but not tell the engine
+        // we have connected it yet, since the connection callback might have not been
+        // properly setup yet..
         new_device.m_GUID    = instance->guidInstance;
         new_device.m_Gamepad = gp;
 
         driver->m_Devices.OffsetCapacity(1);
         driver->m_Devices.Push(new_device);
-
-        gp->m_AxisCount   = new_device.m_AxisCount;
-        gp->m_ButtonCount = new_device.m_ButtonCount;
-        gp->m_HatCount    = new_device.m_POVCount;
-        gp->m_Connected   = 1;
-
-        SetGamepadConnectionStatus(hid_context, gp, true);
 
         PrintDebugDeviceStatistics(&new_device);
 
@@ -403,9 +444,27 @@ namespace dmHID
         Gamepad* gp           = dinput_device->m_Gamepad;
         GamepadPacket& packet = gp->m_Packet;
 
+        // We need to let the engine know that this gamepad has been connected
+        if (!gp->m_Connected)
+        {
+            // NOTE: we add 4 extra buttons for the hats here, since that's what the xinup driver apparently reports
+            gp->m_AxisCount   = dinput_device->m_AxisCount;
+            gp->m_ButtonCount = dinput_device->m_ButtonCount + dinput_device->m_POVCount * 4;
+            gp->m_HatCount    = dinput_device->m_POVCount;
+            SetGamepadConnectionStatus(context, gp, true);
+
+            packet.m_GamepadConnected = true;
+        }
+
         int button_index = 0;
         int axis_index   = 0;
         int hat_index    = 0;
+
+        #define SET_BUTTON(ix, value) \
+            if (value == GLFW_PRESS) \
+                packet.m_Buttons[ix / 32] |= 1 << (ix % 32); \
+            else \
+                packet.m_Buttons[ix / 32] &= ~(1 << (ix % 32));
 
         for (int j = 0; j < dinput_device->m_ObjectCount; j++)
         {
@@ -417,23 +476,22 @@ namespace dmHID
                     break;
                 case OBJECT_TYPE_AXIS:
                 {
+                    // Convert axis to [-1, +1]
                     const float value         = (*((LONG*) data) + 0.5f) / 32767.5f;
                     packet.m_Axis[axis_index] = value;
+
+                    // JG: For testing! There's no dead zone for dinupt devices afaik
+                    if (fabs(value) < 0.1)
+                    {
+                        packet.m_Axis[axis_index] = 0.0f;
+                    }
+
                     axis_index++;
                 }  break;
                 case OBJECT_TYPE_BUTTON:
                 {
                     const char value = (*((BYTE*) data) & 0x80) != 0;
-
-                    if (value == GLFW_PRESS)
-                    {
-                        packet.m_Buttons[button_index / 32] |= 1 << (button_index % 32);
-                    }
-                    else
-                    {
-                        packet.m_Buttons[button_index / 32] &= ~(1 << (button_index % 32));
-                    }
-
+                    SET_BUTTON(button_index, value);
                     button_index++;
                 } break;
                 case OBJECT_TYPE_POV:
@@ -443,11 +501,31 @@ namespace dmHID
                     {
                         stateIndex = 8;
                     }
-                    packet.m_Hat[hat_index] = hat_states[stateIndex];
+
+                    int hat_state           = hat_states[stateIndex];
+                    packet.m_Hat[hat_index] = hat_state;
                     hat_index++;
+
+                    // North pad
+                    SET_BUTTON(button_index, (hat_state & GLFW_HAT_UP) == GLFW_HAT_UP);
+                    button_index++;
+
+                    // South pad
+                    SET_BUTTON(button_index, (hat_state & GLFW_HAT_DOWN) == GLFW_HAT_DOWN);
+                    button_index++;
+
+                    // West pad
+                    SET_BUTTON(button_index, (hat_state & GLFW_HAT_LEFT) == GLFW_HAT_LEFT);
+                    button_index++;
+
+                    // East pad
+                    SET_BUTTON(button_index, (hat_state & GLFW_HAT_RIGHT) == GLFW_HAT_RIGHT);
+                    button_index++;
                 } break;
             }
         }
+
+        #undef SET_BUTTON
     }
 
     static bool DInputInitialize(HContext context, GamepadDriver* driver)
@@ -490,7 +568,7 @@ namespace dmHID
         {
             if (dinput_driver->m_Devices[i].m_Gamepad == gamepad)
             {
-                strcpy_s(buffer, buffer_length, dinput_driver->m_Devices[i].m_Name);
+                dmStrlCpy(buffer, dinput_driver->m_Devices[i].m_Name, buffer_length);
                 return;
             }
         }

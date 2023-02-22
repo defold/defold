@@ -51,68 +51,148 @@ namespace dmHID
             GLFW_JOYSTICK_16
     };
 
-    // static HContext* g_HidContext = 0;
+    struct GLFWGamepadDevice
+    {
+        int      m_Id;
+        Gamepad* m_Gamepad;
+    };
+
+    struct GLFWGamepadDriver : GamepadDriver
+    {
+        HContext                   m_HidContext;
+        dmArray<GLFWGamepadDevice> m_Devices;
+    };
+
+    static GLFWGamepadDriver* g_GLFWGamepadDriver = 0;
+
+    static Gamepad* GLFWGetGamepad(GLFWGamepadDriver* driver, int gamepad_id)
+    {
+        for (int i = 0; i < driver->m_Devices.Size(); ++i)
+        {
+            if (driver->m_Devices[i].m_Id == gamepad_id)
+            {
+                return driver->m_Devices[i].m_Gamepad;
+            }
+        }
+
+        return 0;
+    }
+
+    static int GLFWGetGamepadId(GLFWGamepadDriver* driver, Gamepad* gamepad)
+    {
+        for (int i = 0; i < driver->m_Devices.Size(); ++i)
+        {
+            if (driver->m_Devices[i].m_Gamepad == gamepad)
+            {
+                return driver->m_Devices[i].m_Id;
+            }
+        }
+
+        return -1;
+    }
+
+    static Gamepad* GLFWAllocateGamepad(GLFWGamepadDriver* driver, int gamepad_id)
+    {
+        Gamepad* gp = GLFWGetGamepad(driver, gamepad_id);
+        if (gp != 0)
+        {
+            return gp;
+        }
+
+        gp = CreateGamepad(driver->m_HidContext, driver);
+        if (gp == 0)
+        {
+            dmLogError("No free gamepads available");
+            return 0;
+        }
+
+        GLFWGamepadDevice new_device = {};
+        new_device.m_Id              = gamepad_id;
+        new_device.m_Gamepad         = gp;
+
+        if (driver->m_Devices.Full())
+        {
+            driver->m_Devices.OffsetCapacity(1);
+        }
+
+        driver->m_Devices.Push(new_device);
+
+        return gp;
+    }
+
+    static void GLFWRemoveGamepad()
+    {
+
+    }
 
     static void GLFWGamepadCallback(int gamepad_id, int connected)
     {
+        dmLogInfo("Connection status %d is %s", gamepad_id, connected == 0 ? "disconnected" : "connected");
         /*
-        if (g_HidContext->m_GamepadConnectivityCallback) {
-            g_HidContext->m_GamepadConnectivityCallback(gamepad_id, connected, g_HidContext->m_GamepadConnectivityUserdata);
+        Gamepad* gamepad = GLFWGetGamepad(g_GLFWGamepadDriver, gamepad_id);
+        if (gamepad != 0)
+        {
+            return;
         }
-        SetGamepadConnectivity(g_HidContext, gamepad_id, connected);
+
+        SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gamepad, connected);
         */
     }
 
     static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
     {
+        int id                = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
+        int glfw_joystick     = GLFW_JOYSTICKS[id];
+        bool prev_connected   = gamepad->m_Connected;
+        GamepadPacket& packet = gamepad->m_Packet;
+
         /*
-        for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
+        // Workaround to get connectivity packet even if callback
+        // wasn't been set before the gamepad was connected.
+        if (!prev_connected)
         {
-            Gamepad* pad = &context->m_Gamepads[i];
-            int glfw_joystick = GLFW_JOYSTICKS[i];
-            bool prev_connected = pad->m_Connected;
-            pad->m_Connected = glfwGetJoystickParam(glfw_joystick, GLFW_PRESENT) == GL_TRUE;
-            if (pad->m_Connected)
-            {
-                GamepadPacket& packet = pad->m_Packet;
-
-                // Workaround to get connectivity packet even if callback
-                // wasn't been set before the gamepad was connected.
-                if (!prev_connected)
-                {
-                    packet.m_GamepadConnected = true;
-                }
-
-                pad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
-                glfwGetJoystickPos(glfw_joystick, packet.m_Axis, pad->m_AxisCount);
-
-                pad->m_HatCount = dmMath::Min(MAX_GAMEPAD_HAT_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_HATS));
-                glfwGetJoystickHats(glfw_joystick, packet.m_Hat, pad->m_HatCount);
-
-                pad->m_ButtonCount = dmMath::Min(MAX_GAMEPAD_BUTTON_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS));
-                unsigned char buttons[MAX_GAMEPAD_BUTTON_COUNT];
-                glfwGetJoystickButtons(glfw_joystick, buttons, pad->m_ButtonCount);
-                for (uint32_t j = 0; j < pad->m_ButtonCount; ++j)
-                {
-                    if (buttons[j] == GLFW_PRESS)
-                        packet.m_Buttons[j / 32] |= 1 << (j % 32);
-                    else
-                        packet.m_Buttons[j / 32] &= ~(1 << (j % 32));
-                }
-            }
+            packet.m_GamepadConnected = true;
         }
         */
+
+        gamepad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
+        glfwGetJoystickPos(glfw_joystick, packet.m_Axis, gamepad->m_AxisCount);
+
+        gamepad->m_HatCount = dmMath::Min(MAX_GAMEPAD_HAT_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_HATS));
+        glfwGetJoystickHats(glfw_joystick, packet.m_Hat, gamepad->m_HatCount);
+
+        gamepad->m_ButtonCount = dmMath::Min(MAX_GAMEPAD_BUTTON_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS));
+        unsigned char buttons[MAX_GAMEPAD_BUTTON_COUNT];
+        glfwGetJoystickButtons(glfw_joystick, buttons, gamepad->m_ButtonCount);
+        for (uint32_t j = 0; j < gamepad->m_ButtonCount; ++j)
+        {
+            if (buttons[j] == GLFW_PRESS)
+                packet.m_Buttons[j / 32] |= 1 << (j % 32);
+            else
+                packet.m_Buttons[j / 32] &= ~(1 << (j % 32));
+        }
     }
 
     static void GLFWGamepadDriverDetectDevices(HContext context, GamepadDriver* driver)
     {
-        // NOP
+        for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
+        {
+            if (glfwGetJoystickParam(i, GLFW_PRESENT) == GL_TRUE)
+            {
+                Gamepad* gamepad = GLFWAllocateGamepad((GLFWGamepadDriver*) driver, i);
+                SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gamepad, true);
+            }
+        }
     }
 
     static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char* buffer, uint32_t buffer_length)
     {
-        // need gamepad to glfw index!
-        // glfwGetJoystickDeviceId(gamepad->m_Index, (char**) out_device_name);
+        char* device_name;
+
+        uint32_t gamepad_index = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
+        glfwGetJoystickDeviceId(gamepad_index, &device_name);
+
+        dmStrlCpy(buffer, device_name, buffer_length);
     }
 
     static bool GLFWGamepadDriverInitialize(HContext context, GamepadDriver* driver)
@@ -122,6 +202,7 @@ namespace dmHID
             dmLogFatal("could not set glfw gamepad callback.");
             return false;
         }
+
         return true;
     }
 
@@ -132,13 +213,17 @@ namespace dmHID
 
     GamepadDriver* CreateGamepadDriverGLFW(HContext context)
     {
-        GamepadDriver* driver = new GamepadDriver();
+        GLFWGamepadDriver* driver = new GLFWGamepadDriver();
 
         driver->m_Initialize           = GLFWGamepadDriverInitialize;
         driver->m_Destroy              = GLFWGamepadDriverDestroy;
         driver->m_Update               = GLFWGamepadDriverUpdate;
         driver->m_DetectDevices        = GLFWGamepadDriverDetectDevices;
         driver->m_GetGamepadDeviceName = GLFWGamepadDriverGetGamepadDeviceName;
+
+        assert(g_GLFWGamepadDriver == 0);
+        g_GLFWGamepadDriver               = driver;
+        g_GLFWGamepadDriver->m_HidContext = context;
 
         return driver;
     }

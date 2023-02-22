@@ -172,7 +172,7 @@ static void* EngineCreate(int argc, char** argv)
     }
 
     if (use_accelerometer) {
-        dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
+        dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
     }
 
     return engine;
