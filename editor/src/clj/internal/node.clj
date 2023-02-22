@@ -1236,37 +1236,44 @@
         (util/apply-if-fn substitute-fn input-array)))
     input-array))
 
-(defn collect-argument-errors [node-id label arguments]
-  (ie/error-aggregate
-    (into [] (filter #(instance? ErrorValue %)) (vals arguments))
-    :_node-id node-id
-    :_label label))
+(defn check-argument-errors [node-id label arguments checked-arguments]
+  (let [n (count checked-arguments)
+        has-errors (loop [i 0]
+                     (cond
+                       (= n i) false
+                       (instance? ErrorValue (arguments (checked-arguments i))) true
+                       :else (recur (inc i))))]
+    (when has-errors
+      (ie/error-aggregate
+        (into [] (filter #(instance? ErrorValue %)) (vals arguments))
+        :_node-id node-id
+        :_label label))))
 
 (defn- argument-error-aggregate-form [checked-arguments node-id-sym label-sym arguments-sym forms]
   (if (empty? checked-arguments)
     forms
-    `(or (and (or ~@(for [arg checked-arguments]
-                      `(instance? ErrorValue (get ~arguments-sym ~arg))))
-              (collect-argument-errors ~node-id-sym ~label-sym ~arguments-sym))
+    `(or (check-argument-errors ~node-id-sym ~label-sym ~arguments-sym ~checked-arguments)
          ~forms)))
 
 (defn- annotations->checked-arguments [annotations]
-  (into #{}
+  (into []
         (comp (remove #(-> % val :try))
               (map key))
         annotations))
 
 (defn- call-with-error-checked-fnky-arguments-form
   [description label node-sym node-id-sym evaluation-context-sym arguments annotations runtime-fnk-expr]
-  (let [base-args {:_node-id `(gt/node-id ~node-sym)}
-        argument-forms (into {}
-                             (map
-                               (juxt identity
-                                     #(or (base-args %)
-                                          (if (= label %)
-                                            `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
-                                            (fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym)))))
-                             arguments)
+  (let [argument-forms
+        (into {}
+              (map
+                (fn [argument]
+                  (pair
+                    argument
+                    (condp = argument
+                      :_node-id `(gt/node-id ~node-sym)
+                      label `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
+                      (fnk-argument-form description label argument node-sym node-id-sym evaluation-context-sym)))))
+              arguments)
         checked-arguments (annotations->checked-arguments annotations)
         arguments-sym 'arguments]
     (if (empty? argument-forms)
