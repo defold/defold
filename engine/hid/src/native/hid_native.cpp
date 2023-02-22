@@ -31,21 +31,6 @@ namespace dmHID
     extern const char* KEY_NAMES[MAX_KEY_COUNT];
     extern const char* MOUSE_BUTTON_NAMES[MAX_MOUSE_BUTTON_COUNT];
 
-    /*
-    Gamepad* AcquireGamepad(HContext context)
-    {
-        for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
-        {
-            if (context->m_Gamepads[i].m_Acquired == 0)
-            {
-                context->m_Gamepads[i].m_Acquired = 1;
-                return &context->m_Gamepads[i];
-            }
-        }
-        return 0;
-    }
-    */
-
     static const uint8_t DRIVER_HANDLE_FREE = 0xff;
 
     struct NativeContextUserData
@@ -79,45 +64,11 @@ namespace dmHID
         return -1;
     }
 
-    void SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status)
-    {
-        uint8_t gamepad_index = GamepadToIndex(context, gamepad);
-
-        if (context->m_GamepadConnectivityCallback)
-        {
-            context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata);
-        }
-
-        SetGamepadConnectivity(context, gamepad_index, connection_status);
-    }
-
-    Gamepad* CreateGamepad(HContext context, GamepadDriver* driver)
-    {
-        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
-
-        for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
-        {
-            if (context->m_Gamepads[i].m_Driver == DRIVER_HANDLE_FREE)
-            {
-                context->m_Gamepads[i].m_Driver = DriverToHandle(user_data, driver);
-                assert(context->m_Gamepads[i].m_Driver != DRIVER_HANDLE_FREE);
-                return &context->m_Gamepads[i];
-            }
-        }
-        return 0;
-    }
-
-    void ReleaseGamepad(HContext context, Gamepad* gamepad)
-    {
-        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
-        uint8_t gamepad_index = GamepadToIndex(context, gamepad);
-        assert(context->m_Gamepads[gamepad_index].m_Driver != DRIVER_HANDLE_FREE);
-        context->m_Gamepads[gamepad_index].m_Driver = DRIVER_HANDLE_FREE;
-    }
-
+    // This is unfortunately needed for GLFW since we need the context in the callbacks,
+    // and there's no userdata pointers available for us to pass it in..
     static HContext g_HidContext = 0;
 
-    static void GLFWCharacterCallback(int chr,int)
+    static void GLFWCharacterCallback(int chr, int _)
     {
         AddKeyboardChar(g_HidContext, chr);
     }
@@ -165,6 +116,45 @@ namespace dmHID
     #endif
     }
 
+    // Called from gamepad drivers
+    void SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status)
+    {
+        uint8_t gamepad_index = GamepadToIndex(context, gamepad);
+
+        if (context->m_GamepadConnectivityCallback)
+        {
+            context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata);
+        }
+
+        SetGamepadConnectivity(context, gamepad_index, connection_status);
+    }
+
+    // Called from gamepad drivers
+    Gamepad* CreateGamepad(HContext context, GamepadDriver* driver)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+
+        for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
+        {
+            if (context->m_Gamepads[i].m_Driver == DRIVER_HANDLE_FREE)
+            {
+                context->m_Gamepads[i].m_Driver = DriverToHandle(user_data, driver);
+                assert(context->m_Gamepads[i].m_Driver != DRIVER_HANDLE_FREE);
+                return &context->m_Gamepads[i];
+            }
+        }
+        return 0;
+    }
+
+    // Called from gamepad drivers
+    void ReleaseGamepad(HContext context, Gamepad* gamepad)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+        uint8_t gamepad_index = GamepadToIndex(context, gamepad);
+        assert(context->m_Gamepads[gamepad_index].m_Driver != DRIVER_HANDLE_FREE);
+        context->m_Gamepads[gamepad_index].m_Driver = DRIVER_HANDLE_FREE;
+    }
+
     bool Init(HContext context)
     {
         if (context != 0x0)
@@ -190,39 +180,20 @@ namespace dmHID
             InitializeGamepads(context);
 
             return true;
-
-            /*
-            memset(context->m_Gamepads, 0, sizeof(Gamepad) * MAX_GAMEPAD_COUNT);
-
-            for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
-            {
-                context->m_Gamepads[i].m_Index = i;
-            }
-
-            InputDriver* glfw_driver = CreateGamepadDriverGLFW(context);
-            InstallGamepadDriver(context, glfw_driver, "GLFW");
-
-        #ifdef DM_HID_DINPUT
-            InputDriver* dinput_driver = CreateGamepadDriverDInput(context);
-            InstallGamepadDriver(context, dinput_driver, "Direct Input");
-        #endif
-
-            return context->m_InputDrivers.Size() != 0;
-            */
-            return true;
         }
         return false;
     }
 
     void Final(HContext context)
     {
-        delete context->m_NativeContextUserData;
-        /*
-        for (int i = 0; i < context->m_InputDrivers.Size(); ++i)
+        NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
+
+        for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
         {
-            context->m_InputDrivers[i]->m_Destroy(context);
+            user_data->m_GamepadDrivers[i]->m_Destroy(context, user_data->m_GamepadDrivers[i]);
         }
-        */
+
+        delete user_data;
     }
 
     void Update(HContext context)
@@ -290,7 +261,7 @@ namespace dmHID
 
             for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
             {
-                // user_data->m_GamepadDrivers[i]->m_DetectDevices(g_HidContext, user_data->m_GamepadDrivers[i]);
+                user_data->m_GamepadDrivers[i]->m_DetectDevices(g_HidContext, user_data->m_GamepadDrivers[i]);
             }
 
             for (uint32_t t = 0; t < MAX_GAMEPAD_COUNT; ++t)
@@ -344,14 +315,14 @@ namespace dmHID
         }
     }
 
-    void GetGamepadDeviceName(HContext context, HGamepad gamepad, const char** out_device_name)
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
     {
         NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
         assert(gamepad->m_Driver != DRIVER_HANDLE_FREE);
         assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
 
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
-        driver->m_GetGamepadDeviceName(context, driver, gamepad, out_device_name);
+        driver->m_GetGamepadDeviceName(context, driver, gamepad, buffer, buffer_length);
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)

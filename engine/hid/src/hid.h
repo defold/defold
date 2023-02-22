@@ -155,10 +155,12 @@ namespace dmHID
     /**
      * Retrieves the platform-specific device name of a given gamepad.
      *
+     * @param context the hid context
      * @param gamepad gamepad handle
-     * @param a pointer to the device name, or 0x0 if not specified
+     * @param buffer a pointer to memory where the name should be stored
+     * @param buffer_length the size of the buffer parameter
      */
-    void GetGamepadDeviceName(HContext context, HGamepad gamepad, const char** out_device_name);
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length);
 
     /**
      * Check if a keyboard is connected.

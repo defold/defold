@@ -109,7 +109,7 @@ namespace dmHID
         // NOP
     }
 
-    static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, const char** out_device_name)
+    static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char* buffer, uint32_t buffer_length)
     {
         // need gamepad to glfw index!
         // glfwGetJoystickDeviceId(gamepad->m_Index, (char**) out_device_name);

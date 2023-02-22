@@ -9,13 +9,7 @@
 #include <stdio.h>
 
 #define DIRECTINPUT_VERSION 0x0800
-#include <wchar.h>
 #include <dinput.h>
-#include <dinputd.h>
-#include <Windows.h>
-#include <wbemidl.h>
-#include <oleauto.h>
-#include <wrl/client.h>
 
 #ifndef SAFE_RELEASE
     #define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = 0; } }
@@ -49,7 +43,6 @@ namespace dmHID
         uint8_t              m_AxisCount;
         uint8_t              m_ButtonCount;
         uint8_t              m_POVCount;
-        // uint8_t              m_GamepadIndex;
     };
 
     struct DInputGamepadDriver : GamepadDriver
@@ -57,14 +50,13 @@ namespace dmHID
         HContext              m_HidContext;
         dmArray<DInputDevice> m_Devices;
         LPDIRECTINPUT8        m_DirectInputHandle;
+        RAWINPUTDEVICELIST*   m_RawDeviceList;
+        uint32_t              m_RawDeviceListCount;
     };
-
-    static DInputGamepadDriver* g_DInputDriver = 0;
 
     static void PrintDebugDeviceStatistics(DInputDevice* device)
     {
         dmLogInfo("Device");
-        // dmLogInfo("  GP index     : %d", device->m_GamepadIndex);
         dmLogInfo("  Obj count    : %d", device->m_ObjectCount);
         dmLogInfo("  Slider count : %d", device->m_SliderCount);
         dmLogInfo("  Axis count   : %d", device->m_AxisCount);
@@ -72,7 +64,7 @@ namespace dmHID
         dmLogInfo("  POV count    : %d", device->m_POVCount);
     }
 
-    static bool IsXInputDevice(const GUID* guid)
+    static bool IsXInputDevice(DInputGamepadDriver* driver, const GUID* guid)
     {
         uint32_t raw_device_count = 0;
         if (GetRawInputDeviceList(NULL, &raw_device_count, sizeof(RAWINPUTDEVICELIST)) != 0)
@@ -80,11 +72,19 @@ namespace dmHID
             return false;
         }
 
-        RAWINPUTDEVICELIST* raw_device_list = (RAWINPUTDEVICELIST*) malloc(sizeof(RAWINPUTDEVICELIST));
-
-        if (GetRawInputDeviceList(raw_device_list, &raw_device_count, sizeof(RAWINPUTDEVICELIST)) == (UINT) -1)
+        if (raw_device_count == 0)
         {
-            free(raw_device_list);
+            return false;
+        }
+
+        if (driver->m_RawDeviceListCount != raw_device_count)
+        {
+            driver->m_RawDeviceList      = (RAWINPUTDEVICELIST*) malloc(sizeof(RAWINPUTDEVICELIST) * raw_device_count);
+            driver->m_RawDeviceListCount = raw_device_count;
+        }
+
+        if (GetRawInputDeviceList(driver->m_RawDeviceList, &raw_device_count, sizeof(RAWINPUTDEVICELIST)) == (UINT) -1)
+        {
             return false;
         }
 
@@ -95,7 +95,7 @@ namespace dmHID
             char name[256];
             UINT size;
 
-            if (raw_device_list[i].dwType != RIM_TYPEHID)
+            if (driver->m_RawDeviceList[i].dwType != RIM_TYPEHID)
             {
                 continue;
             }
@@ -103,7 +103,7 @@ namespace dmHID
             rdi.cbSize = sizeof(rdi);
             size       = sizeof(rdi);
 
-            if ((INT) GetRawInputDeviceInfoA(raw_device_list[i].hDevice, RIDI_DEVICEINFO, &rdi, &size) == -1)
+            if ((INT) GetRawInputDeviceInfoA(driver->m_RawDeviceList[i].hDevice, RIDI_DEVICEINFO, &rdi, &size) == -1)
             {
                 continue;
             }
@@ -116,7 +116,7 @@ namespace dmHID
             memset(name, 0, sizeof(name));
             size = sizeof(name);
 
-            if ((INT) GetRawInputDeviceInfoA(raw_device_list[i].hDevice, RIDI_DEVICENAME, name, &size) == -1)
+            if ((INT) GetRawInputDeviceInfoA(driver->m_RawDeviceList[i].hDevice, RIDI_DEVICENAME, name, &size) == -1)
             {
                 break;
             }
@@ -129,16 +129,9 @@ namespace dmHID
             }
         }
 
-        free(raw_device_list);
         return result;
     }
 
-    //-----------------------------------------------------------------------------
-    // Name: EnumObjectsCallback()
-    // Desc: Callback function for enumerating objects (axes, buttons, POVs) on a
-    //       joystick. This function enables user interface elements for objects
-    //       that are found to exist, and scales axes min/max values.
-    //-----------------------------------------------------------------------------
     static BOOL CALLBACK EnumObjectsCallback(const DIDEVICEOBJECTINSTANCE* pdidoi, VOID* pContext) noexcept
     {
         DInputDevice* device       = (DInputDevice*) pContext;
@@ -223,8 +216,8 @@ namespace dmHID
 
     static void DInputReleaseDevice(HContext context, DInputDevice* device)
     {
-        // SetGamepadConnectionStatus(context, device->m_Gamepad, false);
-        // ReleaseGamepad(context, device->m_Gamepad);
+        SetGamepadConnectionStatus(context, device->m_Gamepad, false);
+        ReleaseGamepad(context, device->m_Gamepad);
 
         device->m_DeviceHandle->Unacquire();
         SAFE_RELEASE(device->m_DeviceHandle);
@@ -233,8 +226,7 @@ namespace dmHID
 
     static BOOL CALLBACK DInputEnumerateDevices(const DIDEVICEINSTANCE* instance, void* di_enum_ctx_ptr)
     {
-        DInputGamepadDriver* driver = g_DInputDriver;
-        // DInputGamepadDriver* driver = *(DInputGamepadDriver**) di_enum_ctx_ptr;
+        DInputGamepadDriver* driver = (DInputGamepadDriver*) di_enum_ctx_ptr;
         HContext hid_context        = driver->m_HidContext;
         DInputDevice new_device     = {};
 
@@ -249,7 +241,7 @@ namespace dmHID
             }
         }
 
-        if (IsXInputDevice(&instance->guidProduct))
+        if (IsXInputDevice(driver, &instance->guidProduct))
         {
             return DIENUM_CONTINUE;
         }
@@ -262,6 +254,11 @@ namespace dmHID
             return DIENUM_CONTINUE;
         }
 
+    #define RELEASE_AND_FREE_DEVICE(dinput_device) \
+        SAFE_RELEASE(dinput_device.m_DeviceHandle); \
+        if (dinput_device.m_Objects) \
+            free(dinput_device.m_Objects);
+
         // Set the data format to "simple joystick" - a predefined data format
         //
         // A data format specifies which controls on a device we are interested in,
@@ -270,7 +267,7 @@ namespace dmHID
         if (FAILED(new_device.m_DeviceHandle->SetDataFormat(&c_dfDIJoystick2)))
         {
             dmLogError("Failed to set data format");
-            SAFE_RELEASE(new_device.m_DeviceHandle);
+            RELEASE_AND_FREE_DEVICE(new_device);
             return DIENUM_CONTINUE;
         }
 
@@ -280,7 +277,7 @@ namespace dmHID
         if (hwnd && FAILED(new_device.m_DeviceHandle->SetCooperativeLevel(hwnd, DISCL_EXCLUSIVE | DISCL_FOREGROUND)))
         {
             dmLogError("Failed to set cooperation level");
-            SAFE_RELEASE(new_device.m_DeviceHandle);
+            RELEASE_AND_FREE_DEVICE(new_device);
             return DIENUM_CONTINUE;
         }
 
@@ -289,27 +286,23 @@ namespace dmHID
 
         if (FAILED(IDirectInputDevice8_GetCapabilities(new_device.m_DeviceHandle, &device_caps)))
         {
-            SAFE_RELEASE(new_device.m_DeviceHandle);
+            RELEASE_AND_FREE_DEVICE(new_device);
             return DIENUM_CONTINUE;
         }
 
         new_device.m_Objects = (DInputDeviceObject*) malloc((device_caps.dwAxes + device_caps.dwButtons + device_caps.dwPOVs) * sizeof(DInputDeviceObject));
 
-    #define RELEASE_AND_FREE(dinput_device) \
-        SAFE_RELEASE(dinput_device.m_DeviceHandle); \
-        free(dinput_device.m_Objects);
-
         if (FAILED(new_device.m_DeviceHandle->EnumObjects(EnumObjectsCallback, (VOID*) &new_device, DIDFT_AXIS | DIDFT_BUTTON | DIDFT_POV)))
         {
             dmLogError("Failed to enumerate objects for gamepad");
-            RELEASE_AND_FREE(new_device);
+            RELEASE_AND_FREE_DEVICE(new_device);
             return DIENUM_CONTINUE;
         }
 
         if (!WideCharToMultiByte(CP_UTF8, 0, instance->tszInstanceName, -1, new_device.m_Name, sizeof(new_device.m_Name), NULL, NULL))
         {
             dmLogError("Failed to convert gamepad name to UTF-8");
-            RELEASE_AND_FREE(new_device);
+            RELEASE_AND_FREE_DEVICE(new_device);
             return DIENUM_CONTINUE;
         }
 
@@ -319,26 +312,10 @@ namespace dmHID
         if (gp == 0)
         {
             dmLogError("No free gamepads available");
-            RELEASE_AND_FREE(new_device);
+            RELEASE_AND_FREE_DEVICE(new_device);
             return DIENUM_STOP;
         }
-    #undef RELEASE_AND_FREE
-
-        // if (memcmp(&instance->guidProduct.Data4[2], "PIDVID", 6) == 0)
-        // {
-        //     sprintf(new_device.m_GUID, "03000000%02x%02x0000%02x%02x000000000000",
-        //             (uint8_t) instance->guidProduct.Data1,
-        //             (uint8_t) (instance->guidProduct.Data1 >> 8),
-        //             (uint8_t) (instance->guidProduct.Data1 >> 16),
-        //             (uint8_t) (instance->guidProduct.Data1 >> 24));
-        // }
-        // else
-        // {
-        //     sprintf(new_device.m_GUID, "05000000%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x00",
-        //             new_device.m_Name[0], new_device.m_Name[1], new_device.m_Name[2], new_device.m_Name[3],
-        //             new_device.m_Name[4], new_device.m_Name[5], new_device.m_Name[6], new_device.m_Name[7],
-        //             new_device.m_Name[8], new_device.m_Name[9], new_device.m_Name[10]);
-        // }
+    #undef RELEASE_AND_FREE_DEVICE
 
         new_device.m_GUID    = instance->guidInstance;
         new_device.m_Gamepad = gp;
@@ -361,7 +338,7 @@ namespace dmHID
     static void DInputDetectDevices(HContext context, GamepadDriver* driver)
     {
         DInputGamepadDriver* dinput_driver = (DInputGamepadDriver*) driver;
-        if (FAILED(dinput_driver->m_DirectInputHandle->EnumDevices(DI8DEVCLASS_GAMECTRL, DInputEnumerateDevices, NULL, DIEDFL_ALLDEVICES)))
+        if (FAILED(dinput_driver->m_DirectInputHandle->EnumDevices(DI8DEVCLASS_GAMECTRL, DInputEnumerateDevices, (void*) driver, DIEDFL_ALLDEVICES)))
         {
             dmLogError("Failed to enumerate input devices");
             return;
@@ -370,6 +347,8 @@ namespace dmHID
 
     // TODO: Add RegisterDeviceNotification somewhere in GLFW
 
+    // NOTE: this requires us to call glfwPollEvents() before updating gamepads,
+    //       which is done in hid_native.cpp
     static void DInputUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
     {
         const int hat_states[] =
@@ -401,10 +380,11 @@ namespace dmHID
 
         assert(dinput_device != 0);
 
-        HRESULT hr = dinput_device->m_DeviceHandle->Poll();
+        // Poll the device for changes and try to re-acquire if the device was lost
+        dinput_device->m_DeviceHandle->Poll();
 
         DIJOYSTATE2 state = {0};
-        hr = dinput_device->m_DeviceHandle->GetDeviceState(sizeof(state), &state);
+        HRESULT hr = dinput_device->m_DeviceHandle->GetDeviceState(sizeof(state), &state);
 
         if (hr == DIERR_NOTACQUIRED || hr == DIERR_INPUTLOST)
         {
@@ -480,14 +460,12 @@ namespace dmHID
             return false;
         }
 
-        // DInputDetectDevices(context, driver);
-
         return true;
     }
 
     static void DInputDestroy(HContext ctx, GamepadDriver* driver)
     {
-        /*
+        DInputGamepadDriver* dinput_driver = (DInputGamepadDriver*) driver;
         for (int i = 0; i < dinput_driver->m_Devices.Size(); ++i)
         {
             if (dinput_driver->m_Devices[i].m_DeviceHandle)
@@ -498,15 +476,13 @@ namespace dmHID
             SAFE_RELEASE(dinput_driver->m_Devices[i].m_DeviceHandle);
         }
 
-        SAFE_RELEASE(dinput_driver->m_DirectInput);
+        SAFE_RELEASE(dinput_driver->m_DirectInputHandle);
 
         delete dinput_driver;
         dinput_driver = 0;
-        */
     }
 
-    // TODO: This should take a char buffer since the device can potentially dissapear with the name ptr...
-    static void DInputGetGamepadName(HContext context, GamepadDriver* driver, Gamepad* gamepad, const char** out_device_name)
+    static void DInputGetGamepadName(HContext context, GamepadDriver* driver, Gamepad* gamepad, char* buffer, uint32_t buffer_length)
     {
         DInputGamepadDriver* dinput_driver = (DInputGamepadDriver*) driver;
 
@@ -514,12 +490,10 @@ namespace dmHID
         {
             if (dinput_driver->m_Devices[i].m_Gamepad == gamepad)
             {
-                *out_device_name = dinput_driver->m_Devices[i].m_Name;
+                strcpy_s(buffer, buffer_length, dinput_driver->m_Devices[i].m_Name);
                 return;
             }
         }
-
-        *out_device_name = "";
     }
 
     GamepadDriver* CreateGamepadDriverDInput(HContext context)
@@ -531,8 +505,6 @@ namespace dmHID
         driver->m_GetGamepadDeviceName = DInputGetGamepadName;
         driver->m_DetectDevices        = DInputDetectDevices;
         driver->m_HidContext           = context;
-
-        g_DInputDriver = driver;
 
         return driver;
     }
