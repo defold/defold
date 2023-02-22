@@ -156,32 +156,26 @@ namespace dmHID
             else if (memcmp(&pdidoi->guidType, &GUID_XAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_X;
-                //dmLogInfo("GUID_XAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_YAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_Y;
-                //dmLogInfo("GUID_ZAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_ZAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_Z;
-                //dmLogInfo("GUID_ZAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_RxAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_RX;
-                //dmLogInfo("GUID_RxAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_RyAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_RY;
-                //dmLogInfo("GUID_RyAxis %d", object->m_Offset);
             }
             else if (memcmp(&pdidoi->guidType, &GUID_RzAxis, sizeof(GUID)) == 0)
             {
                 object->m_Offset = DIJOFS_RZ;
-                //dmLogInfo("GUID_RzAxis %d", object->m_Offset);
             }
             else
             {
@@ -254,7 +248,9 @@ namespace dmHID
         const DInputDeviceObject* so = (DInputDeviceObject*) second;
 
         if (fo->m_Type != so->m_Type)
+        {
             return fo->m_Type - so->m_Type;
+        }
 
         return fo->m_Offset - so->m_Offset;
     }
@@ -269,7 +265,6 @@ namespace dmHID
         for (int i = 0; i < driver->m_Devices.Size(); ++i)
         {
             DInputDevice& device = driver->m_Devices[i];
-            // Gamepad* gp          = device.m_Gamepad;
             if (memcmp(&device.m_GUID, &instance->guidInstance, sizeof(GUID)) == 0)
             {
                 return DIENUM_CONTINUE;
@@ -294,11 +289,6 @@ namespace dmHID
         if (dinput_device.m_Objects) \
             free(dinput_device.m_Objects);
 
-        // Set the data format to "simple joystick" - a predefined data format
-        //
-        // A data format specifies which controls on a device we are interested in,
-        // and how they should be reported. This tells DInput that we will be
-        // passing a DIJOYSTATE2 structure to IDirectInputDevice::GetDeviceState().
         if (FAILED(new_device.m_DeviceHandle->SetDataFormat(&c_dfDIJoystick2)))
         {
             dmLogError("Failed to set data format");
@@ -337,7 +327,7 @@ namespace dmHID
             dmStrlCpy(new_device.m_ProductName, "Unknown Product Name", sizeof(new_device.m_ProductName));
         }
 
-        // Maybe just return the index?
+        // JG: Maybe just return the index?
         Gamepad* gp = CreateGamepad(hid_context, driver);
 
         if (gp == 0)

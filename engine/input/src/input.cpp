@@ -1164,8 +1164,14 @@ namespace dmInput
         MOUSE_BUTTON_MAP[dmInputDDF::MOUSE_BUTTON_8] = dmHID::MOUSE_BUTTON_8;
     }
 
-    void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
+    bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
     {
+        // Can't consume this callback yet
+        if (userdata == 0x0)
+        {
+            return false;
+        }
+
         Binding* binding = (Binding*)userdata;
 
         // If a new gamepad was connected we need to setup/reset the gamepad binding for it.
@@ -1195,5 +1201,7 @@ namespace dmInput
                 }
             }
         }
+
+        return true;
     }
 }

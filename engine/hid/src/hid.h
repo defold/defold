@@ -65,7 +65,7 @@ namespace dmHID
         float m_X, m_Y, m_Z;
     };
 
-    typedef void (* DMHIDGamepadFunc)(uint32_t, bool, void*);
+    typedef bool (* DMHIDGamepadFunc)(uint32_t, bool, void*);
 
     /// parameters to be passed to NewContext
     struct NewContextParams

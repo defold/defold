@@ -103,7 +103,7 @@ static int RunLoop(const RunLoopParams* params)
 }
 
 
-static void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata);
+static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata);
 
 
 static void AppCreate(void* _ctx)
@@ -178,11 +178,6 @@ static void* EngineCreate(int argc, char** argv)
     return engine;
 }
 
-static const char* HatToStr(int hat)
-{
-    // nope
-}
-
 static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
@@ -253,7 +248,7 @@ static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int*
     (void)engine;
 }
 
-static void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
+static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
 {
     dmHID::HGamepad pad = dmHID::GetGamepad(g_EngineCtx.m_HidContext, gamepad_index);
 
@@ -267,6 +262,8 @@ static void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
     {
         printf("Gamepad %d disconnected\n", gamepad_index);
     }
+
+    return true;
 }
 
 int main(int argc, char **argv)

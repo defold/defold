@@ -42,18 +42,6 @@ namespace dmHID
         if (context != 0x0)
         {
             memset(context->m_Gamepads, 0, sizeof(Gamepad) * MAX_GAMEPAD_COUNT);
-
-            /*
-            for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
-            {
-                Gamepad& gamepad = context->m_Gamepads[i];
-                gamepad.m_Connected = 0;
-                gamepad.m_AxisCount = 0;
-                gamepad.m_ButtonCount = 0;
-                memset(&gamepad.m_Packet, 0, sizeof(GamepadPacket));
-            }
-            */
-
             g_DummyData->Put((uintptr_t)context, new char);
             return true;
         }

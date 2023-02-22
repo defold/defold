@@ -236,7 +236,6 @@ int _glfwPlatformGetJoystickHats( int joy, unsigned char *hats, int numhats )
 
     result = XInputGetState(joy, &state);
 
-    // We only support 1 hat?
     if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP)
         hats[0] |= GLFW_HAT_UP;
     if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)

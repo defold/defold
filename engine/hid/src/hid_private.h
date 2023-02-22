@@ -27,7 +27,6 @@ namespace dmHID
     {
         GamepadPacket  m_Packet;
         HGamepadDriver m_Driver;
-        // uint8_t        m_Index;
         uint8_t        m_AxisCount;
         uint8_t        m_ButtonCount;
         uint8_t        m_HatCount    : 7;
@@ -59,18 +58,17 @@ namespace dmHID
     {
         Context();
 
-        Gamepad               m_Gamepads[MAX_GAMEPAD_COUNT];
-        Keyboard              m_Keyboards[MAX_KEYBOARD_COUNT];
-        Mouse                 m_Mice[MAX_MOUSE_COUNT];
-        TouchDevice           m_TouchDevices[MAX_TOUCH_DEVICE_COUNT];
-
-        TextPacket            m_TextPacket;
-        MarkedTextPacket      m_MarkedTextPacket;
-        AccelerationPacket    m_AccelerationPacket;
-        DMHIDGamepadFunc      m_GamepadConnectivityCallback;
-        void*                 m_GamepadConnectivityUserdata;
-        void*                 m_NativeContext;
-        void*                 m_NativeContextUserData;
+        Gamepad            m_Gamepads[MAX_GAMEPAD_COUNT];
+        Keyboard           m_Keyboards[MAX_KEYBOARD_COUNT];
+        Mouse              m_Mice[MAX_MOUSE_COUNT];
+        TouchDevice        m_TouchDevices[MAX_TOUCH_DEVICE_COUNT];
+        TextPacket         m_TextPacket;
+        MarkedTextPacket   m_MarkedTextPacket;
+        AccelerationPacket m_AccelerationPacket;
+        DMHIDGamepadFunc   m_GamepadConnectivityCallback;
+        void*              m_GamepadConnectivityUserdata;
+        void*              m_NativeContext;
+        void*              m_NativeContextUserData;
 
         uint32_t m_AccelerometerConnected : 1;
         uint32_t m_IgnoreMouse : 1;

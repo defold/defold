@@ -19,8 +19,8 @@
 
 namespace dmHID
 {
-	struct GamepadDriver;
-	typedef bool (*GamepadDriverInitializeCb)(HContext context, GamepadDriver* driver);
+    struct GamepadDriver;
+    typedef bool (*GamepadDriverInitializeCb)(HContext context, GamepadDriver* driver);
     typedef void (*GamepadDriverDestroyCb)(HContext context, GamepadDriver* driver);
     typedef void (*GamepadDriverUpdateCb)(HContext context, GamepadDriver* driver, Gamepad* gamepad);
     typedef void (*GamepadDriverDetectDevicesCb)(HContext context, GamepadDriver* driver);
@@ -35,11 +35,11 @@ namespace dmHID
         GamepadDriverGetGamepadDeviceNameCb m_GetGamepadDeviceName;
     };
 
-	Gamepad*       CreateGamepad(HContext context, GamepadDriver* driver);
-	void           ReleaseGamepad(HContext context, Gamepad* gamepad);
-	GamepadDriver* CreateGamepadDriverDInput(HContext context);
-	GamepadDriver* CreateGamepadDriverGLFW(HContext context);
-	void 		   SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status);
+    Gamepad*       CreateGamepad(HContext context, GamepadDriver* driver);
+    void           ReleaseGamepad(HContext context, Gamepad* gamepad);
+    GamepadDriver* CreateGamepadDriverDInput(HContext context);
+    GamepadDriver* CreateGamepadDriverGLFW(HContext context);
+    void           SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status);
 }
 
 #endif // HID_NATIVE_PRIVATE_H

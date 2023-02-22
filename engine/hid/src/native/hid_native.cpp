@@ -125,7 +125,11 @@ namespace dmHID
         {
             if (context->m_GamepadConnectivityCallback)
             {
-                context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata);
+                // The callback isn't ready to consume the event yet, we will have to try later
+                if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
+                {
+                    return;
+                }
             }
 
             SetGamepadConnectivity(context, gamepad_index, connection_status);
