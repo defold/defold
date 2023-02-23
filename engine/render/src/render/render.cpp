@@ -828,14 +828,6 @@ namespace dmRender
 
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
-
-            // JG: Note for binding of textures
-            //     If we bind less textures than samplers, OpenGL binds the same texture to consecutive slots,
-            //     but that will crash when verifying graphics calls if sampler I and sampler I+1 have different
-            //     sampler types. E.g if you have 2 texture samplers A and B, where A is a 2D texture sampler
-            //     and B is a cubemap array sampler and bind a texture to sampler A, OpenGL will raise errors when
-            //     drawing since it will automatically bind the 2D texture to the array sampler as well since it
-            //     was never specified. For release builds it's not going to crash, it will just return a sampler with 0,0,0,0 values
             uint8_t next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
@@ -849,7 +841,7 @@ namespace dmRender
                 {
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
                     {
-                        // TODO paged-atlas: We can remove the HSampler concept now I think, unless we do validation?
+                        // TODO paged-atlas: We can remove the HSampler concept now I think, unless we want to do validation in a debug runtime?
                         HSampler sampler = GetMaterialSampler(material, next_texture_unit);
 
                         dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
