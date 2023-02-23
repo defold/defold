@@ -2133,6 +2133,35 @@ namespace dmGameObject
         return 0;
     }
 
+
+    /*# check if the specified game object exists
+     *
+     * @name go.exists
+     * @param url [type:string|hash|url] url of the game object to check
+     * @return exists [type:bool] true if the game object exists
+     *
+     * @examples
+     * Check if game object "my_game_object" exists
+     *
+     * ```lua
+     * go.exists("/my_game_object")
+     * ```
+     */
+    int Script_Exists(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        ScriptInstance* i = ScriptInstance_Check(L);
+        Instance* instance = i->m_Instance;
+        dmMessage::URL sender;
+        dmScript::GetURL(L, &sender);
+        dmMessage::URL target;
+        dmScript::ResolveURL(L, 1, &target, &sender);
+
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
+        lua_pushboolean(L, target_instance != 0);
+        return 1;
+    }
+
     static const luaL_reg GO_methods[] =
     {
         {"get",                     Script_Get},
@@ -2159,6 +2188,7 @@ namespace dmGameObject
         {"delete_all",              Script_DeleteAll},
         {"screen_ray",              Script_ScreenRay},
         {"property",                Script_Property},
+        {"exists",                  Script_Exists},
         {0, 0}
     };
 
