@@ -454,6 +454,12 @@
         (when (and (delete selection) next)
           (select-resource! asset-browser next))))))
 
+(defn- create-template-file [new-file template]
+  (let [split-filename (re-matches #"(.*)\.(.+)" (.getName new-file))
+        name (get split-filename 1)
+        new-file-contents (string/replace template #"__NAME__" name)]
+    (spit new-file new-file-contents)))
+
 (handler/defhandler :new-file :global
   (label [user-data] (if-not user-data
                        "New..."
@@ -475,7 +481,7 @@
              rt (:resource-type user-data)]
          (when-let [desired-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
            (when-let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
-             (spit new-file (workspace/template workspace rt))
+             (create-template-file new-file (workspace/template workspace rt))
              (workspace/resource-sync! workspace)
              (let [resource-map (g/node-value workspace :resource-map)
                    new-resource-path (resource/file->proj-path project-path new-file)
