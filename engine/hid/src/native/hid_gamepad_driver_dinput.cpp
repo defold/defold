@@ -1,7 +1,20 @@
-#include <stdio.h>
-#include <algorithm> // std::sort
+// Copyright 2020-2023 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
-#include <stdlib.h>
+#include <stdio.h>
+#include <stdlib.h> // qsort
+#include <cmath> // fabs
 
 #define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
@@ -18,15 +31,18 @@
     #define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = 0; } }
 #endif
 
+// NOTE: This implementation is inspired by both the GLFW3 and SDL sources,
+//       with a heavier emphasis on the GLFW3 setup since we already use GLFW
+//       for our other platform functionality.
 namespace dmHID
 {
-    // Note: The order differs slightly here between this and GLFW3,
-    //       since we need to fake the hats as buttons, so we need them first
-    //       in the list. PS4 and PS5 controllers have different amount of buttons,
-    //       which means we can't use the same mapping for them.
+    // The order of these types differs slightly between our implementation and GLFW3.
+    // We need to fake the hats as buttons, so we need to store their objects first
+    // in the list of device data objects. PS4 and PS5 controllers have different amount of buttons,
+    // which means we can't use the same mapping for them unless we store the hat buttons first.
     enum DInputDeviceObjectType
     {
-        OBJECT_TYPE_SLIDER = 0,
+        OBJECT_TYPE_SLIDER = 0, // This is currently not supported
         OBJECT_TYPE_POV    = 1,
         OBJECT_TYPE_AXIS   = 2,
         OBJECT_TYPE_BUTTON = 3,
@@ -61,16 +77,6 @@ namespace dmHID
         RAWINPUTDEVICELIST*   m_RawDeviceList;
         uint32_t              m_RawDeviceListCount;
     };
-
-    static void PrintDebugDeviceStatistics(DInputDevice* device)
-    {
-        dmLogInfo("Device (%s, %s)", device->m_Name, device->m_ProductName);
-        dmLogInfo("  Obj count    : %d", device->m_ObjectCount);
-        dmLogInfo("  Slider count : %d", device->m_SliderCount);
-        dmLogInfo("  Axis count   : %d", device->m_AxisCount);
-        dmLogInfo("  Button count : %d", device->m_ButtonCount);
-        dmLogInfo("  POV count    : %d", device->m_POVCount);
-    }
 
     static bool IsXInputDevice(DInputGamepadDriver* driver, const GUID* guid)
     {
@@ -350,12 +356,12 @@ namespace dmHID
         driver->m_Devices.OffsetCapacity(1);
         driver->m_Devices.Push(new_device);
 
-        PrintDebugDeviceStatistics(&new_device);
-
         return DIENUM_CONTINUE;
     }
 
-    // TODO: Add RegisterDeviceNotification somewhere in GLFW so we don't have to do this call every frame!!
+    // TODO: Right now we try to detect inputs every frame, but it would be more efficient to
+    //       add a RegisterDeviceNotification somewhere in GLFW and call this function based on
+    //       the event that is passed when a device has been added or removed from the OS level.
     static void DInputDetectDevices(HContext context, GamepadDriver* driver)
     {
         DInputGamepadDriver* dinput_driver = (DInputGamepadDriver*) driver;
@@ -366,8 +372,7 @@ namespace dmHID
         }
     }
 
-    // NOTE: this requires us to call glfwPollEvents() before updating gamepads,
-    //       which is done in hid_native.cpp
+    // This fn requires us to call glfwPollEvents() before updating gamepads, which is done in hid_native.cpp
     static void DInputUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
     {
         const int hat_states[] =
@@ -399,7 +404,8 @@ namespace dmHID
 
         assert(dinput_device != 0);
 
-        // Poll the device for changes and try to re-acquire if the device was lost
+        // Poll the device for changes and try to re-acquire if the device was lost,
+        // if that fails we have to release the device and try again later..
         dinput_device->m_DeviceHandle->Poll();
 
         DIJOYSTATE2 state = {0};
@@ -458,7 +464,8 @@ namespace dmHID
                     const float value         = (*((LONG*) data) + 0.5f) / 32767.5f;
                     packet.m_Axis[axis_index] = value;
 
-                    // JG: There's no dead zone for dinupt devices afaik
+                    // JG: There's no dead zone configuration in windows for dinupt devices afaik,
+                    //     so to make the input a bit more stable we clamp the input here.
                     if (fabs(value) < CENTER_EPSILON)
                     {
                         packet.m_Axis[axis_index] = 0.0f;
@@ -483,6 +490,8 @@ namespace dmHID
                     int hat_state           = hat_states[stateIndex];
                     packet.m_Hat[hat_index] = hat_state;
                     hat_index++;
+
+                    assert(button_index == 0);
 
                     // North pad
                     SET_BUTTON(button_index, (hat_state & GLFW_HAT_UP) == GLFW_HAT_UP);

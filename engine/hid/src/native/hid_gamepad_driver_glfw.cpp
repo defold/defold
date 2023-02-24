@@ -57,6 +57,9 @@ namespace dmHID
         Gamepad* m_Gamepad;
     };
 
+
+    // The GLFW driver stores an indirect table to map a GLFW index to our internal representation,
+    // this is needed because multiple gamepad drivers can exist at the same time.
     struct GLFWGamepadDriver : GamepadDriver
     {
         HContext                   m_HidContext;
@@ -91,8 +94,7 @@ namespace dmHID
         return -1;
     }
 
-    // TODO: Rename this fn
-    static Gamepad* GLFWAllocateGamepad(GLFWGamepadDriver* driver, int gamepad_id)
+    static Gamepad* GLFWEnsureAllocatedGamepad(GLFWGamepadDriver* driver, int gamepad_id)
     {
         Gamepad* gp = GLFWGetGamepad(driver, gamepad_id);
         if (gp != 0)
@@ -103,7 +105,6 @@ namespace dmHID
         gp = CreateGamepad(driver->m_HidContext, driver);
         if (gp == 0)
         {
-            dmLogError("No free gamepads available");
             return 0;
         }
 
@@ -139,7 +140,7 @@ namespace dmHID
 
     static void GLFWGamepadCallback(int gamepad_id, int connected)
     {
-        GLFWAllocateGamepad(g_GLFWGamepadDriver, gamepad_id);
+        GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
     }
 
     static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
@@ -161,9 +162,13 @@ namespace dmHID
         for (uint32_t j = 0; j < gamepad->m_ButtonCount; ++j)
         {
             if (buttons[j] == GLFW_PRESS)
+            {
                 packet.m_Buttons[j / 32] |= 1 << (j % 32);
+            }
             else
+            {
                 packet.m_Buttons[j / 32] &= ~(1 << (j % 32));
+            }
         }
     }
 
@@ -175,7 +180,7 @@ namespace dmHID
         {
             if (glfwGetJoystickParam(i, GLFW_PRESENT) == GL_TRUE)
             {
-                GLFWAllocateGamepad(glfw_driver, i);
+                GLFWEnsureAllocatedGamepad(glfw_driver, i);
             }
             else
             {

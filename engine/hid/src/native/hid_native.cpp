@@ -95,7 +95,7 @@ namespace dmHID
 
         user_data->m_GamepadDrivers.Push(driver);
 
-        dmLogInfo("Installed gamepad driver '%s'", driver_name);
+        dmLogDebug("Installed gamepad driver '%s'", driver_name);
 
         driver->m_DetectDevices(g_HidContext, driver);
     }
@@ -151,6 +151,8 @@ namespace dmHID
                 return &context->m_Gamepads[i];
             }
         }
+
+        dmLogError("Unable to allocate a slot for a new gamepad, max capacity reached (%d).", MAX_GAMEPAD_COUNT);
         return 0;
     }
 
