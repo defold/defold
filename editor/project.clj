@@ -211,7 +211,7 @@
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :reveal {:source-paths ["src/reveal"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.273"]]}
+                               :dependencies [[vlaaad/reveal "1.3.280"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :dev     {:dependencies      [[com.clojure-goes-fast/clj-async-profiler "0.5.1"]

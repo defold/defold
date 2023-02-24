@@ -18,9 +18,6 @@ import com.dynamo.bob.textureset.TextureSetLayout.Grid;
 import com.dynamo.bob.textureset.TextureSetLayout.Layout;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 
-// The code below must remain identical to the implementation in the editor!
-// ./editor/src/java/com/defold/editor/pipeline/TextureSetGenerator.java
-
 import com.dynamo.bob.tile.ConvexHull2D;
 import com.dynamo.bob.tile.TileSetUtil;
 import com.dynamo.bob.util.TextureUtil;

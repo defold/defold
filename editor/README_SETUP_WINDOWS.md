@@ -31,7 +31,7 @@ and then set the project SDK setting (file->project structure/Project) to the ne
 
 ### Required Software - Leiningen
 
-Start by following the Windows instructions in [Defold Readme](../README_SETUP_WINDOWS.md).
+Start by following the Windows instructions in [Defold Readme](../README_SETUP.md).
 
 * Start `msys.bat` as described
 * Download the [lein.sh script](https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein) from [Leiningen.org](http://leiningen.org) Put it somewhere in your (msys) path - if you're lazy, put it in `C:\MinGW\msys\1.0\bin`. You might need to `chmod a+x lein.sh`.

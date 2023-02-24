@@ -62,9 +62,6 @@
                                          (when (and editable (resource/exists? resource))
                                            (resource-io/with-error-translation resource _node-id :source-value
                                              (read-fn resource))))))
-  (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
-                                              (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
-                                                (dependencies-fn save-value))))
   
   (output save-value g/Any (g/constantly nil))
 
