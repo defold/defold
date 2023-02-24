@@ -38,6 +38,20 @@ namespace dmHID
         dmArray<GamepadDriver*> m_GamepadDrivers;
     };
 
+    // This is unfortunately needed for GLFW since we need the context in the callbacks,
+    // and there's no userdata pointers available for us to pass it in..
+    static HContext g_HidContext = 0;
+
+    static void GLFWCharacterCallback(int chr, int _)
+    {
+        AddKeyboardChar(g_HidContext, chr);
+    }
+
+    static void GLFWMarkedTextCallback(char* text)
+    {
+        SetMarkedText(g_HidContext, text);
+    }
+
     static uint8_t DriverToHandle(NativeContextUserData* user_data, GamepadDriver* driver)
     {
         for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
@@ -62,20 +76,6 @@ namespace dmHID
         }
         assert(0);
         return -1;
-    }
-
-    // This is unfortunately needed for GLFW since we need the context in the callbacks,
-    // and there's no userdata pointers available for us to pass it in..
-    static HContext g_HidContext = 0;
-
-    static void GLFWCharacterCallback(int chr, int _)
-    {
-        AddKeyboardChar(g_HidContext, chr);
-    }
-
-    static void GLFWMarkedTextCallback(char* text)
-    {
-        SetMarkedText(g_HidContext, text);
     }
 
     static void InstallGamepadDriver(GamepadDriver* driver, const char* driver_name)
@@ -327,7 +327,7 @@ namespace dmHID
     {
         assert(buffer_length != 0);
         assert(buffer != 0);
-    
+
         NativeContextUserData* user_data = (NativeContextUserData*) g_HidContext->m_NativeContextUserData;
         if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
         {
