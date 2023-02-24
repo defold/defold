@@ -97,8 +97,12 @@ public class ProtoBuilders {
     static Set<String> materialAtlasCompatabilityCache = new HashSet<String>();
 
     private static void validateMaterialAtlasCompatability(Project project, IResource resource, String materialProjectPath, String textureSet) throws IOException, CompileExceptionError {
-        if (textureSet.endsWith("atlas")) {
+        if (materialProjectPath.isEmpty())
+        {
+            return;
+        }
 
+        if (textureSet.endsWith("atlas")) {
             String cachedValidationKey = materialProjectPath + textureSet;
             if (materialAtlasCompatabilityCache.contains(cachedValidationKey)) {
                 return;
@@ -291,11 +295,16 @@ public class ProtoBuilders {
             ProtoUtil.merge(input, spriteBuilder);
 
             String tileSet           = spriteBuilder.getTileSet();
+            String material          = spriteBuilder.getMaterial();
             IResource tileSetOuput   = project.getResource(tileSet).changeExt(getTextureSetExt(tileSet));
-            IResource materialOutput = project.getResource(spriteBuilder.getMaterial()).changeExt(".materialc");
-
             task.addInput(tileSetOuput);
-            task.addInput(materialOutput);
+
+            // Material input is optional in ddf
+            if (!material.isEmpty())
+            {
+                IResource materialOutput = project.getResource(material).changeExt(".materialc");
+                task.addInput(materialOutput);
+            }
 
             return task.build();
         }
