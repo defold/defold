@@ -65,7 +65,7 @@
         load-fn (:load-fn resource-type)]
     (concat
       (if read-fn
-        (load-fn project node-id resource (read-fn resource))
+        (load-fn project node-id resource (read-fn resource)) ; TODO: We also read for the dependencies-fn. Merge reads.
         (load-fn project node-id resource))
       (when (and (resource/file-resource? resource)
                  (resource/editable? resource)
@@ -86,9 +86,10 @@
           (try
             (when *load-cache*
               (swap! *load-cache* conj node-id))
-            (if (nil? (:load-fn resource-type))
-              (placeholder-resource/load-node project node-id resource)
-              (load-registered-resource-node resource-type project node-id resource))
+            (doall
+              (if (nil? (:load-fn resource-type))
+                (placeholder-resource/load-node project node-id resource)
+                (load-registered-resource-node resource-type project node-id resource)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
               (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource)))))))

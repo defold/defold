@@ -56,11 +56,11 @@
 
   (output undecorated-save-data g/Any produce-undecorated-save-data)
   (output save-data g/Any :cached produce-save-data)
-  (output source-value g/Any :cached (g/fnk [_node-id resource editable]
-                                       (when-some [read-fn (:read-fn (resource/resource-type resource))]
-                                         (when (and editable (resource/exists? resource))
-                                           (resource-io/with-error-translation resource _node-id :source-value
-                                             (read-fn resource))))))
+  (output source-value g/Any :cached :unjammable (g/fnk [_node-id resource editable]
+                                                   (when-some [read-fn (:read-fn (resource/resource-type resource))]
+                                                     (when (and editable (resource/exists? resource))
+                                                       (resource-io/with-error-translation resource _node-id :source-value
+                                                         (read-fn resource))))))
   (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
                                               (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
                                                 (dependencies-fn save-value))))
@@ -107,7 +107,7 @@
             (default false)
             (dynamic visible (g/constantly false)))
 
-  (output source-value g/Any (g/constantly nil))
+  (output source-value g/Any :unjammable (g/constantly nil))
   (output save-value g/Any (g/constantly nil))
   (output cleaned-save-value g/Any (g/constantly nil))
   (output dirty? g/Bool (g/constantly false))

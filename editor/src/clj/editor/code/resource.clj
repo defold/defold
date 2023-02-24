@@ -146,13 +146,13 @@
   ;; Instead we use its hash to determine if we've been dirtied.
   ;; This output must still be named source-value since it is
   ;; invalidated when saving.
-  (output source-value g/Any :cached (g/fnk [_node-id editable resource]
-                                       (when editable
-                                         (let [lines (resource-io/with-error-translation resource _node-id :source-value
-                                                       (read-fn resource))]
-                                           (if (g/error? lines)
-                                             lines
-                                             (hash lines))))))
+  (output source-value g/Any :cached :unjammable (g/fnk [_node-id editable resource]
+                                                   (when editable
+                                                     (let [lines (resource-io/with-error-translation resource _node-id :source-value
+                                                                   (read-fn resource))]
+                                                       (if (g/error? lines)
+                                                         lines
+                                                         (hash lines))))))
 
   ;; We're dirty if the hash of our non-nil save-value differs from the source.
   (output dirty? g/Bool (g/fnk [_node-id editable resource save-value source-value]

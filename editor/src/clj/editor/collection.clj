@@ -27,6 +27,7 @@
             [editor.handler :as handler]
             [editor.outline :as outline]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
@@ -34,8 +35,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.cache :as c]
-            [internal.util :as util]
-            [editor.protobuf :as protobuf])
+            [internal.util :as util])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [internal.graph.types Arc]))
 
@@ -733,11 +733,17 @@
                                (make-ref-go self source-resource (:id game-object) (:position game-object)
                                             (:rotation game-object) (:scale3 game-object) nil (:component-properties game-object) nil))
                              (for [embedded (:embedded-instances collection)]
-                               (make-embedded-go self project (:data embedded) (:id embedded)
-                                                 (:position embedded)
-                                                 (:rotation embedded)
-                                                 (:scale3 embedded)
-                                                 nil nil))))
+                               (do
+                                 ;; Note: We only need to check that the
+                                 ;; EmbeddedInstanceDesc has been string-decoded
+                                 ;; here. Any EmbeddedComponentDescs inside will
+                                 ;; be validated by the game-object :load-fn.
+                                 (collection-string-data/ensure-string-decoded-embedded-instance-desc embedded resource)
+                                 (make-embedded-go self project (:data embedded) (:id embedded)
+                                                   (:position embedded)
+                                                   (:rotation embedded)
+                                                   (:scale3 embedded)
+                                                   nil nil)))))
           new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
           id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
           child->parent (into {} (map #(do [% nil]) (keys id->nid)))

@@ -15,6 +15,7 @@
 (ns editor.game-object-non-editable
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
@@ -169,7 +170,7 @@
     (map (partial workspace/resolve-workspace-resource workspace))
     (prototype-desc->referenced-component-proj-paths prototype-desc)))
 
-(defn embedded-component-desc->embedded-component-resource-data [embedded-component-desc]
+(defn- embedded-component-desc->embedded-component-resource-data [embedded-component-desc]
   {:pre [(map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
          (string? (:type embedded-component-desc)) ; File extension.
          (map? (:data embedded-component-desc))]}
@@ -368,7 +369,13 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-maps)))
 
-(defn- load-non-editable-game-object [_project self _resource prototype-desc]
+(defn- load-non-editable-game-object [_project self resource prototype-desc]
+  ;; Validate the prototype-desc.
+  ;; We want to throw an exception if we encounter corrupt data to ensure our
+  ;; node gets marked defective at load-time.
+  (doseq [embedded-component-desc (:embedded-components prototype-desc)]
+    (collection-string-data/ensure-string-decoded-embedded-component-desc embedded-component-desc resource))
+
   (g/set-property self :prototype-desc prototype-desc))
 
 (defn register-resource-types [workspace]

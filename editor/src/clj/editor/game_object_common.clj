@@ -142,14 +142,17 @@
     (g/->error node-id :build-targets :fatal nil (format "The following ids are not unique: %s" (string/join ", " duplicate-ids)))))
 
 (defn- embedded-component-desc->dependencies [{:keys [id type data] :as _embedded-component-desc} ext->embedded-component-resource-type]
-  {:pre [(map? data)]}
-  (when-some [component-resource-type (ext->embedded-component-resource-type type)]
-    (let [component-dependencies-fn (:dependencies-fn component-resource-type)]
-      (try
-        (component-dependencies-fn data)
-        (catch Exception error
-          (log/warn :msg (format "Couldn't determine dependencies for embedded component %s." id) :exception error)
-          nil)))))
+  ;; If sanitation failed (due to a corrupt file), the embedded data might still
+  ;; be a string. In that case we report no dependencies. The load-fn will
+  ;; eventually mark our resource node as defective, so it doesn't matter.
+  (when (map? data)
+    (when-some [component-resource-type (ext->embedded-component-resource-type type)]
+      (let [component-dependencies-fn (:dependencies-fn component-resource-type)]
+        (try
+          (component-dependencies-fn data)
+          (catch Exception error
+            (log/warn :msg (format "Couldn't determine dependencies for embedded component '%s'." id) :exception error)
+            nil))))))
 
 (defn make-game-object-dependencies-fn [make-ext->embedded-component-resource-type-fn]
   {:pre [(ifn? make-ext->embedded-component-resource-type-fn)]}
