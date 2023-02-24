@@ -181,7 +181,6 @@
                                     :view-opts nil
                                     :node-type ScriptApiNode
                                     :load-fn load-script-api
-                                    :read-fn r/read-fn
                                     :write-fn r/write-fn
                                     :textual? true
                                     :auto-connect-save-data? false))

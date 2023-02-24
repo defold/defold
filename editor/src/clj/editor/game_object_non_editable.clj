@@ -15,6 +15,7 @@
 (ns editor.game-object-non-editable
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
@@ -43,17 +44,14 @@
    [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-component-scenes]])
 
-(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data ext->embedded-component-resource-type project]
+(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data project]
   (let [embedded-resource-ext (:type embedded-component-resource-data)
-        embedded-resource-type (ext->embedded-component-resource-type embedded-resource-ext)
-        embedded-resource-write-fn (:write-fn embedded-resource-type)
         embedded-resource-pb-map (:data embedded-component-resource-data)
-        embedded-resource-pb-string (embedded-resource-write-fn embedded-resource-pb-map)
-        embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-string)
+        embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-map)
         embedded-resource-node-type (project/resource-node-type embedded-resource)
         graph (g/node-id->graph-id host-node-id)]
     (g/make-nodes graph [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
-      (project/load-node project embedded-resource-node-id embedded-resource-node-type embedded-resource)
+      (project/load-embedded-resource-node project embedded-resource-node-id embedded-resource embedded-resource-pb-map)
       (project/connect-if-output embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
 (g/defnk produce-embedded-component-build-targets [embedded-component-build-targets]
@@ -174,7 +172,7 @@
     (map (partial workspace/resolve-workspace-resource workspace))
     (prototype-desc->referenced-component-proj-paths prototype-desc)))
 
-(defn embedded-component-desc->embedded-component-resource-data [embedded-component-desc]
+(defn- embedded-component-desc->embedded-component-resource-data [embedded-component-desc]
   {:pre [(map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
          (string? (:type embedded-component-desc)) ; File extension.
          (map? (:data embedded-component-desc))]}
@@ -373,7 +371,13 @@
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-maps)))
 
-(defn- load-non-editable-game-object [_project self _resource prototype-desc]
+(defn- load-non-editable-game-object [_project self resource prototype-desc]
+  ;; Validate the prototype-desc.
+  ;; We want to throw an exception if we encounter corrupt data to ensure our
+  ;; node gets marked defective at load-time.
+  (doseq [embedded-component-desc (:embedded-components prototype-desc)]
+    (collection-string-data/ensure-string-decoded-embedded-component-desc embedded-component-desc resource))
+
   (g/set-property self :prototype-desc prototype-desc))
 
 (defn register-resource-types [workspace]

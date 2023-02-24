@@ -389,24 +389,22 @@
    :renderable {:passes [pass/selection]}
    :children child-scenes})
 
-(defn- produce-embedded-collision-shape
-  [shapes]
-  (when (seq shapes)
-    (loop [idx 0
-           [shape & rest] shapes
-           ret {:shapes [] :data []}]
-      (if-not shape
-        ret
-        (let [data (:data shape)
-              data-len (count data)
-              shape-msg (-> shape
-                            (assoc :index idx :count data-len)
-                            (dissoc :data))]
-          (recur (+ idx data-len)
-                 rest
-                 (-> ret
-                     (update :shapes conj shape-msg)
-                     (update :data into data))))))))
+(defn- make-embedded-collision-shape [shapes]
+  (loop [idx 0
+         [shape & rest] shapes
+         ret {:shapes [] :data []}]
+    (if-not shape
+      ret
+      (let [data (:data shape)
+            data-len (count data)
+            shape-msg (-> shape
+                          (assoc :index idx :count data-len)
+                          (dissoc :data))]
+        (recur (+ idx data-len)
+               rest
+               (-> ret
+                   (update :shapes conj shape-msg)
+                   (update :data into data)))))))
 
 (defn- strip-empty-embedded-collision-shape [collision-object-desc]
   ;; Physics$CollisionObjectDesc in map format.

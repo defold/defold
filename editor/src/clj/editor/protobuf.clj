@@ -801,3 +801,23 @@ Macros currently mean no foreseeable performance gain, however."
 (defn read-map-without-defaults [^Class cls input]
   (pb->map-without-defaults
     (read-pb cls input)))
+
+(defn sanitize-repeated
+  ([pb-map field-kw]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)]}
+   (if (contains? pb-map field-kw)
+     (if (empty? (get pb-map field-kw))
+       (dissoc pb-map field-kw)
+       pb-map)
+    pb-map))
+  ([pb-map field-kw sanitize-item-fn]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)
+          (ifn? sanitize-item-fn)]}
+  (if (contains? pb-map field-kw)
+    (let [items (get pb-map field-kw)]
+      (if (seq items)
+        (assoc pb-map field-kw (mapv sanitize-item-fn items))
+        (dissoc pb-map field-kw)))
+    pb-map)))

@@ -467,11 +467,20 @@
                                                         (update :properties into p)
                                                         (update :display-order into (map first p)))))))
 
-(defn load-mesh [_project self resource pb]
+(defn- sanitize-mesh [pb]
+  (cond-> pb
+
+          (str/blank? (:position-stream pb))
+          (dissoc :position-stream)
+
+          (str/blank? (:normal-stream pb))
+          (dissoc :normal-stream)))
+
+(defn- load-mesh [_project self resource pb]
   (concat
     (g/set-property self :primitive-type (:primitive-type pb))
-    (g/set-property self :position-stream (:position-stream pb))
-    (g/set-property self :normal-stream (:normal-stream pb))
+    (g/set-property self :position-stream (or (:position-stream pb) ""))
+    (g/set-property self :normal-stream (or (:normal-stream pb) ""))
     (for [res [:material :vertices [:textures]]]
       (if (vector? res)
         (let [res (first res)]
@@ -486,6 +495,7 @@
     :label "Mesh"
     :node-type MeshNode
     :ddf-type MeshProto$MeshDesc
+    :sanitize-fn sanitize-mesh
     :load-fn load-mesh
     :icon mesh-icon
     :view-types [:scene :text]

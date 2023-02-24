@@ -41,6 +41,12 @@
 
 (def ^:private default-scale-value (:scale identity-transform-properties))
 
+(defn template-pb-map [workspace resource-type]
+  (let [template (workspace/template workspace resource-type)
+        read-fn (:read-fn resource-type)]
+    (with-open [reader (StringReader. template)]
+      (read-fn reader))))
+
 (defn strip-default-scale-from-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
   (let [scale (:scale component-desc)]
@@ -57,16 +63,14 @@
 
 (defn- sanitize-component-property-desc [component-property-desc]
   ;; GameObject$ComponentPropertyDesc or GameObject$ComponentDesc in map format.
-  (let [property-descs (get component-property-desc :properties)]
-    (cond-> (dissoc component-property-desc :property-decls) ; Only used in built data by the runtime.
-            (seq property-descs) (assoc :properties (mapv properties/sanitize-property-desc property-descs)))))
+  (-> component-property-desc
+      (dissoc :property-decls) ; Only used in built data by the runtime.
+      (protobuf/sanitize-repeated :properties properties/sanitize-property-desc)))
 
 (defn sanitize-component-property-descs-at-key [any-desc component-property-descs-key]
   ;; GameObject$ComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
   ;; The specified key should address a seq of GameObject$ComponentPropertyDescs in map format.
-  (if-some [component-property-descs (not-empty (get any-desc component-property-descs-key))]
-    (assoc any-desc component-property-descs-key (mapv sanitize-component-property-desc component-property-descs))
-    any-desc))
+  (protobuf/sanitize-repeated any-desc component-property-descs-key sanitize-component-property-desc))
 
 (defn- sanitize-component-desc [component-desc]
   ;; GameObject$ComponentDesc in map format.
@@ -119,8 +123,9 @@
          (case embed-data-handling (:embed-data-as-maps :embed-data-as-strings) true false)]}
   ;; GameObject$PrototypeDesc in map format.
   (-> prototype-desc
-      (update :components (partial mapv sanitize-component-desc))
-      (update :embedded-components (partial mapv #(sanitize-embedded-component-desc % ext->embedded-component-resource-type embed-data-handling)))))
+      (dissoc :property-resources)
+      (protobuf/sanitize-repeated :components sanitize-component-desc)
+      (protobuf/sanitize-repeated :embedded-components #(sanitize-embedded-component-desc % ext->embedded-component-resource-type embed-data-handling))))
 
 (defn any-descs->duplicate-ids [any-instance-descs]
   ;; GameObject$ComponentDesc, GameObject$EmbeddedComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
@@ -137,16 +142,17 @@
     (g/->error node-id :build-targets :fatal nil (format "The following ids are not unique: %s" (string/join ", " duplicate-ids)))))
 
 (defn- embedded-component-desc->dependencies [{:keys [id type data] :as _embedded-component-desc} ext->embedded-component-resource-type]
-  (when-some [component-resource-type (ext->embedded-component-resource-type type)]
-    (let [component-read-fn (:read-fn component-resource-type)
-          component-dependencies-fn (:dependencies-fn component-resource-type)]
-      (try
-        (component-dependencies-fn
-          (with-open [reader (StringReader. data)]
-            (component-read-fn reader)))
-        (catch Exception error
-          (log/warn :msg (format "Couldn't determine dependencies for embedded component %s." id) :exception error)
-          nil)))))
+  ;; If sanitation failed (due to a corrupt file), the embedded data might still
+  ;; be a string. In that case we report no dependencies. The load-fn will
+  ;; eventually mark our resource node as defective, so it doesn't matter.
+  (when (map? data)
+    (when-some [component-resource-type (ext->embedded-component-resource-type type)]
+      (let [component-dependencies-fn (:dependencies-fn component-resource-type)]
+        (try
+          (component-dependencies-fn data)
+          (catch Exception error
+            (log/warn :msg (format "Couldn't determine dependencies for embedded component '%s'." id) :exception error)
+            nil))))))
 
 (defn make-game-object-dependencies-fn [make-ext->embedded-component-resource-type-fn]
   {:pre [(ifn? make-ext->embedded-component-resource-type-fn)]}

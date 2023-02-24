@@ -21,7 +21,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [support.test-support :refer [with-clean-system]]))
 
 (def ^:private load-counter (atom 0))
 
@@ -29,7 +29,7 @@
   (inherits resource-node/ResourceNode)
   (property value-piece g/Str)
   (property value g/Str
-            (set (fn [evaluation-context self old-value new-value]
+            (set (fn [evaluation-context self _old-value _new-value]
                    (let [input (g/node-value self :value-input evaluation-context)]
                      (g/set-property self :value-piece (str (first input)))))))
   (property source-resource resource/Resource
@@ -48,16 +48,15 @@
 (defn- dependencies-a [source-value]
   (keep source-value [:b]))
 
-(defn- load-a [project self resource]
+(defn- load-a [_project self resource source-value]
   (swap! load-counter inc)
-  (let [data (read-string (slurp resource))
-        source-resource (workspace/resolve-resource resource (:b data))]
+  (let [source-resource (workspace/resolve-resource resource (:b source-value))]
     (concat
      (g/set-property self :value-piece "set incorrectly")
      (g/set-property self :source-resource source-resource)
      (g/set-property self :value "bogus value"))))
 
-(defn- load-b [project self resource]
+(defn- load-b [_project self resource]
   (swap! load-counter inc)
   (let [data (read-string (slurp resource))]
     (g/set-property self :value (:value data))))

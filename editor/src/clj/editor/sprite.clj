@@ -380,7 +380,21 @@
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-sprite [project self resource sprite]
+(def ^:private default-pb-read-v4 [(float 0.0) (float 0.0) (float 0.0) (float 0.0)])
+
+(defn- sanitize-sprite [sprite]
+  (cond-> sprite
+
+          (= :size-mode-auto (:size-mode sprite))
+          (dissoc :size-mode :size)
+
+          (= default-pb-read-v4 (:size sprite))
+          (dissoc :size)
+
+          (= default-pb-read-v4 (:slice9 sprite))
+          (dissoc :slice9)))
+
+(defn- load-sprite [project self resource sprite]
   (let [resolve-resource #(workspace/resolve-resource resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
@@ -399,6 +413,7 @@
     :node-type SpriteNode
     :ddf-type Sprite$SpriteDesc
     :read-defaults false
+    :sanitize-fn sanitize-sprite
     :load-fn load-sprite
     :icon sprite-icon
     :view-types [:scene :text]

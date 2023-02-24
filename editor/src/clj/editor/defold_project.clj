@@ -60,13 +60,17 @@
 (defn graph [project]
   (g/node-id->graph-id project))
 
-(defn- load-registered-resource-node [load-fn project node-id resource]
-  (concat
-    (load-fn project node-id resource)
-    (when (and (resource/file-resource? resource)
-               (resource/editable? resource)
-               (:auto-connect-save-data? (resource/resource-type resource)))
-      (g/connect node-id :save-data project :save-data))))
+(defn- load-registered-resource-node [resource-type project node-id resource]
+  (let [read-fn (:read-fn resource-type)
+        load-fn (:load-fn resource-type)]
+    (concat
+      (if read-fn
+        (load-fn project node-id resource (read-fn resource)) ; TODO: We also read for the dependencies-fn. Merge reads.
+        (load-fn project node-id resource))
+      (when (and (resource/file-resource? resource)
+                 (resource/editable? resource)
+                 (:auto-connect-save-data? resource-type))
+        (g/connect node-id :save-data project :save-data)))))
 
 (defn load-node [project node-id node-type resource]
   ;; Note that node-id here may be temporary (a make-node not
@@ -74,18 +78,18 @@
   ;; to inspect it. That's why we pass in node-type, resource.
   (try
     (let [resource-type (some-> resource resource/resource-type)
-          loaded? (and *load-cache* (contains? @*load-cache* node-id))
-          load-fn (:load-fn resource-type)]
-      (when-not loaded?
+          is-loaded (and *load-cache* (contains? @*load-cache* node-id))]
+      (when-not is-loaded
         (if (or (= :folder (resource/source-type resource))
                 (not (resource/exists? resource)))
           (g/mark-defective node-id node-type (resource-io/file-not-found-error node-id nil :fatal resource))
           (try
             (when *load-cache*
               (swap! *load-cache* conj node-id))
-            (if (nil? load-fn)
-              (placeholder-resource/load-node project node-id resource)
-              (load-registered-resource-node load-fn project node-id resource))
+            (doall
+              (if (nil? (:load-fn resource-type))
+                (placeholder-resource/load-node project node-id resource)
+                (load-registered-resource-node resource-type project node-id resource)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
               (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource)))))))
@@ -94,6 +98,11 @@
                       {:node-type node-type
                        :resource-path (resource/resource->proj-path resource)}
                       t)))))
+
+(defn load-embedded-resource-node [project embedded-resource-node-id embedded-resource source-value]
+  (let [embedded-resource-type (resource/resource-type embedded-resource)
+        load-fn (:load-fn embedded-resource-type)]
+    (load-fn project embedded-resource-node-id embedded-resource source-value)))
 
 (defn- node-load-dependencies
   "Returns node-ids for the immediate dependencies of node-id.
