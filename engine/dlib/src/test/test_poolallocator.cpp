@@ -14,8 +14,6 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <string>
 #include <map>
 #define JC_TEST_IMPLEMENTATION
