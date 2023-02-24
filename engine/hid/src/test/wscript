@@ -41,12 +41,9 @@ def build(bld):
 
     web_libs = ['library_glfw.js', 'library_sys.js']
 
-    # TODO: Platform or feature specific libs here
-    platform_input_driver_libs = ['dinput8.lib', 'dxguid.lib', 'ole32.lib', 'oleaut32.lib']
-
     bld.program(features = 'cxx test skip_test',
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-        use = 'TESTMAIN TESTAPP DLIB PROFILE_NULL PLATFORM PLATFORM_SOCKET PLATFORM_HID LUA SCRIPT hid'.split() + graphics_lib + platform_input_driver_libs,
+        use = 'TESTMAIN TESTAPP DLIB DINPUT PROFILE_NULL PLATFORM PLATFORM_SOCKET PLATFORM_HID LUA SCRIPT hid'.split() + graphics_lib,
         web_libs = web_libs,
         exported_symbols = exported_symbols,
         target = 'test_app_hid',
