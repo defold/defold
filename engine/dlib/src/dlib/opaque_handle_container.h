@@ -1,109 +1,128 @@
+// Copyright 2020-2023 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #ifndef DM_OPAQUE_HANDLE_CONTAINER_H
 #define DM_OPAQUE_HANDLE_CONTAINER_H
 
 typedef uint32_t HOpaqueHandle;
 
+/// Identifier for an invalid handle
 static const HOpaqueHandle INVALID_OPAQUE_HANDLE = 0xFFFFFFFF;
 
+/*# Templated handle container
+ *
+ * The handle container is a helper structure for associating dynamically allocated objects with a generic numeric handle.
+ * A handle is constructed by two parts: a index and a version. The index part of the handle is an index into the list of objects
+ * stored by the container. The version of a handle is a serial number that will be increased for every item put into the list,
+ * which is used to determine the validity of the handles in case a lingering handle is used to fetch objects in the container.
+ *
+ * Note: The list of objects can only grow upwards by calling the Allocate function, there is currently no way of shrinking the list of objects.
+ *
+ * @class
+ * @name dmOpaqueHandleContainer
+ * @tparam T [type:typename T] Contained type
+ */
 template <typename T>
-class OpaqueHandleContainer
+class dmOpaqueHandleContainer
 {
 public:
-    OpaqueHandleContainer()
-    : m_Objects(0)
-    , m_Capacity(0)
-    , m_Version(0)
-    {}
+    /*# constructor without object container allocations
+     *
+     * @name dmOpaqueHandleContainer
+     */
+    dmOpaqueHandleContainer();
 
-    OpaqueHandleContainer(uint32_t inital_capacity)
-    : OpaqueHandleContainer()
-    {
-        Allocate(inital_capacity);
-    }
+    /*# constructor, auto-allocates storage
+     *
+     * Allocates a predefined number of slots for objects when this function is called,
+     * that contains 'initial_capacity' amount of empty objects.
+     *
+     * @name dmOpaqueHandleContainer
+     * @param inital_capacity [type:uint32_t] Initial capacity
+     */
+    dmOpaqueHandleContainer(uint32_t inital_capacity);
 
-    bool Allocate(uint32_t count)
-    {
-        if (m_Objects == 0x0)
-        {
-            m_Objects        = (T**) malloc(count * sizeof(sizeof(T*)));
-            m_ObjectVersions = (uint16_t*) malloc(count * sizeof(uint16_t));
-        }
-        else
-        {
-            uint32_t new_capacity = m_Capacity + count;
-            m_Objects             = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
-            m_ObjectVersions      = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
-        }
+    /*# array destructor
+     *
+     * Frees up the dynamically container memory, but will not
+     * free the objects themselves.
+     *
+     * @name ~dmOpaqueHandleContainer
+     */
+    ~dmOpaqueHandleContainer();
 
-        memset(m_Objects + m_Capacity, 0, count * sizeof(T*));
-        memset(m_ObjectVersions + m_Capacity, 0, count * sizeof(uint16_t));
+    /*# container allocate
+     *
+     * Increases the size of the container.
+     *
+     * @name Allocate
+     * @param count [type:uint32_t] Number of items to increase the container with
+     */
+    bool Allocate(uint32_t count);
 
-        m_Capacity += count;
+    /*# container get
+     *
+     * Get the pointer to the object associated with a handle. The handle will be checked for validity,
+     * i.e the handle version must match the object version and the index of the handle must be in a valid
+     * range of the object list. If the handle is invalid, a NULL pointer will be returned.
+     *
+     * @name Get
+     * @param handle [type:HOpaqueHandle] The object handle
+     * @return pointer [type:T*] Return the object associated with the handle If it is valid, NULL otherwise
+     */
+    T* Get(HOpaqueHandle handle);
 
-        return m_Objects != 0x0 && m_ObjectVersions != 0x0;
-    }
+    /*# container put
+     *
+     * Adds a reference to an object to the list and returns an opaque handle to that object. If the container
+     * is full, an INVALID_OPAQUE_HANDLE will be returned.
+     *
+     * Note: This function DOES NOT check if the object exists before adding it to the list. You will have
+     *       to maintain this manually by checking that with Get(handle) first.
+     *
+     * @name Put
+     * @param obj [type:T*] The object
+     * @return [type:HOpaqueHandle] Return a handle to the object if successfull, otherwise returns an INVALID_OPAQUE_HANDLE.
+     */
+    HOpaqueHandle Put(T* obj);
 
-    T* Get(HOpaqueHandle handle)
-    {
-        if (handle == 0)
-        {
-            return 0;
-        }
+    /*# container release
+     *
+     * Removes the references to an object based on a handle, if the handle is valid (i.e points to a valid object in the container).
+     *
+     * @name Release
+     * @param handle [type:HOpaqueHandle] The handle to release
+     */
+    void Release(HOpaqueHandle handle);
 
-        uint32_t version = handle >> 16;
-        uint32_t index   = handle & 0xFFFF;
-        T* entry         = GetByIndex(index);
+    /*# container capacity
+     *
+     * Queries the max objects this container can hold.
+     *
+     * @name Capacity
+     * @return [type:uint32_t] Returns the max object references this container can hold.
+     */
+    uint32_t Capacity();
 
-        if (entry == 0 || m_ObjectVersions[index] != version)
-        {
-            return 0;
-        }
-
-        return entry;
-    }
-
-    HOpaqueHandle Put(T* obj)
-    {
-        uint32_t index = GetFirstEmptyIndex();
-        if (index == INVALID_OPAQUE_HANDLE)
-        {
-            return INVALID_OPAQUE_HANDLE;
-        }
-
-        m_Version++;
-        if (m_Version == 0)
-        {
-            // Set to 1 to avoid potentially producing a 0 handle
-            m_Version = 1;
-        }
-
-        m_ObjectVersions[index] = m_Version;
-        m_Objects[index]        = obj;
-
-        return m_Version << 16 | index;
-    }
-
-    void Release(HOpaqueHandle handle)
-    {
-        uint32_t index = handle & 0xFFFF;
-        if (!Get(handle))
-        {
-            return;
-        }
-        m_Objects[index]        = 0;
-        m_ObjectVersions[index] = 0;
-    }
-
-    inline uint32_t Capacity()
-    {
-        return m_Capacity;
-    }
-
-    bool Full()
-    {
-        return GetFirstEmptyIndex() != INVALID_OPAQUE_HANDLE;
-    }
+    /*# container full
+     *
+     * Queries if the container is full. The container is full if every slots in the list is taken by some object.
+     *
+     * @name Full
+     * @return [type:bool] Returns true if all object slots are used, and false if there are available slots.
+     */
+    bool Full();
 
 private:
     T**       m_Objects;
@@ -111,6 +130,7 @@ private:
     uint32_t  m_Capacity;
     uint16_t  m_Version;
 
+    // Internal helper functions
     inline T* GetByIndex(uint32_t i)
     {
         assert(i < m_Capacity);
@@ -129,9 +149,127 @@ private:
         return INVALID_OPAQUE_HANDLE;
     }
 
-    OpaqueHandleContainer(const OpaqueHandleContainer<T>&) {}
-    void operator =(const OpaqueHandleContainer<T>&) {}
-    void operator ==(const OpaqueHandleContainer<T>&) {}
+    dmOpaqueHandleContainer(const dmOpaqueHandleContainer<T>&) {}
+    void operator =(const dmOpaqueHandleContainer<T>&) {}
+    void operator ==(const dmOpaqueHandleContainer<T>&) {}
 };
+
+
+//////////////////////////////////////////////////////////////
+// Public API implementation
+//////////////////////////////////////////////////////////////
+
+template <typename T>
+dmOpaqueHandleContainer<T>::dmOpaqueHandleContainer()
+: m_Objects(0)
+, m_Capacity(0)
+, m_Version(0)
+{}
+
+template <typename T>
+dmOpaqueHandleContainer<T>::dmOpaqueHandleContainer(uint32_t inital_capacity)
+: dmOpaqueHandleContainer()
+{
+    Allocate(inital_capacity);
+}
+
+template <typename T>
+dmOpaqueHandleContainer<T>::~dmOpaqueHandleContainer()
+{
+    if (m_Objects != 0)
+    {
+        free(m_Objects);
+        free(m_ObjectVersions);
+    }
+}
+
+template <typename T>
+bool dmOpaqueHandleContainer<T>::Allocate(uint32_t count)
+{
+    if (m_Objects == 0x0)
+    {
+        m_Objects        = (T**) malloc(count * sizeof(sizeof(T*)));
+        m_ObjectVersions = (uint16_t*) malloc(count * sizeof(uint16_t));
+    }
+    else
+    {
+        uint32_t new_capacity = m_Capacity + count;
+        m_Objects             = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
+        m_ObjectVersions      = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
+    }
+
+    memset(m_Objects + m_Capacity, 0, count * sizeof(T*));
+    memset(m_ObjectVersions + m_Capacity, 0, count * sizeof(uint16_t));
+
+    m_Capacity += count;
+
+    return m_Objects != 0x0 && m_ObjectVersions != 0x0;
+}
+
+template <typename T>
+T* dmOpaqueHandleContainer<T>::Get(HOpaqueHandle handle)
+{
+    if (handle == 0 || handle == INVALID_OPAQUE_HANDLE)
+    {
+        return 0;
+    }
+
+    uint32_t version = handle >> 16;
+    uint32_t index   = handle & 0xFFFF;
+    T* entry         = GetByIndex(index);
+
+    if (entry == 0 || m_ObjectVersions[index] != version)
+    {
+        return 0;
+    }
+
+    return entry;
+}
+
+template <typename T>
+HOpaqueHandle dmOpaqueHandleContainer<T>::Put(T* obj)
+{
+    uint32_t index = GetFirstEmptyIndex();
+    if (index == INVALID_OPAQUE_HANDLE)
+    {
+        return INVALID_OPAQUE_HANDLE;
+    }
+
+    m_Version++;
+    if (m_Version == 0)
+    {
+        // Set to 1 to avoid potentially producing a 0 handle
+        m_Version = 1;
+    }
+
+    m_ObjectVersions[index] = m_Version;
+    m_Objects[index]        = obj;
+
+    return m_Version << 16 | index;
+}
+
+template <typename T>
+void dmOpaqueHandleContainer<T>::Release(HOpaqueHandle handle)
+{
+    if (handle == 0 || handle == INVALID_OPAQUE_HANDLE || !Get(handle))
+    {
+        return;
+    }
+    uint32_t index          = handle & 0xFFFF;
+    m_Objects[index]        = 0;
+    m_ObjectVersions[index] = 0;
+}
+
+template <typename T>
+uint32_t dmOpaqueHandleContainer<T>::Capacity()
+{
+    return m_Capacity;
+}
+
+template <typename T>
+bool dmOpaqueHandleContainer<T>::Full()
+{
+    return GetFirstEmptyIndex() != INVALID_OPAQUE_HANDLE;
+}
 
 #endif // DM_OPAQUE_HANDLE_CONTAINER_H

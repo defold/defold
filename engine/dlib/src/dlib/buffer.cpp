@@ -72,7 +72,7 @@ namespace dmBuffer
         uint8_t  m_NumStreams;
     };
 
-    typedef OpaqueHandleContainer<Buffer> BufferContext;
+    typedef dmOpaqueHandleContainer<Buffer> BufferContext;
 
     static BufferContext* g_BufferContext = 0;
 
