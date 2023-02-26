@@ -15,6 +15,11 @@
 #ifndef DM_OPAQUE_HANDLE_CONTAINER_H
 #define DM_OPAQUE_HANDLE_CONTAINER_H
 
+#include <assert.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
 typedef uint32_t HOpaqueHandle;
 
 /// Identifier for an invalid handle
@@ -269,7 +274,7 @@ uint32_t dmOpaqueHandleContainer<T>::Capacity()
 template <typename T>
 bool dmOpaqueHandleContainer<T>::Full()
 {
-    return GetFirstEmptyIndex() != INVALID_OPAQUE_HANDLE;
+    return GetFirstEmptyIndex() == INVALID_OPAQUE_HANDLE;
 }
 
 #endif // DM_OPAQUE_HANDLE_CONTAINER_H
