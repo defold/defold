@@ -136,7 +136,6 @@ public class ShaderUtil {
             Common.GLSLCompileResult result = new Common.GLSLCompileResult();
 
             ArrayList<String> arraySamplers = new ArrayList<String>();
-            ArrayList<String> shaderHeader = new ArrayList<>();
             ArrayList<String> shaderBody = new ArrayList<>();
 
             String arrayReplaceTextureRegex  = "texture2DArray\\s*\\((([^,]+)),\\s*";
@@ -153,11 +152,11 @@ public class ShaderUtil {
 
                     for (int i=0; i < maxPageCount; i++) {
                         String pageUniform = String.format(uniformArrayFormat, qualifier, uniformName, i);
-                        shaderHeader.add(pageUniform);
+                        shaderBody.add(pageUniform);
                     }
 
-                    shaderHeader.add("");
-                    generateTextureArrayFn(shaderHeader, uniformName, maxPageCount);
+                    shaderBody.add("");
+                    generateTextureArrayFn(shaderBody, uniformName, maxPageCount);
                     arraySamplers.add(uniformName);
 
                 } else {
@@ -171,7 +170,7 @@ public class ShaderUtil {
 
             String shaderBodyStr = String.join("\n", shaderBody);
             shaderBodyStr        = shaderBodyStr.replaceAll(arrayReplaceTextureRegex, "texture2DArray_$1(");
-            result.source        = String.join("\n", shaderHeader) + "\n" + shaderBodyStr + "\n";
+            result.source        = shaderBodyStr + "\n";
             result.arraySamplers = arraySamplers.toArray(new String[0]);
 
             return result;

@@ -36,6 +36,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
+           [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]
@@ -157,17 +158,21 @@
     (setq var_texcoord0 texcoord0)
     (setq var_page_index page_index)))
 
-(shader/defshader-with-array-samplers sprite-id-fragment-shader "texture_sampler"
+(shader/defshader sprite-id-fragment-shader
   (varying vec2 var_texcoord0)
   (varying float var_page_index)
   (uniform vec4 id)
+  (uniform sampler2DArray texture_sampler)
   (defn void main []
-  (setq vec4 color (texture2DArray var_texcoord0 var_page_index))
+  (setq vec4 color (texture2DArray texture_sampler (vec3 var_texcoord0 var_page_index)))
   (if (> color.a 0.05)
     (setq gl_FragColor id)
     (discard))))
 
-(def id-shader (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader sprite-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+
+(def id-shader
+  (let [augmented-fragment-shader-source (.source (ShaderUtil$VariantTextureArrayFallback/transform sprite-id-fragment-shader ShaderUtil$Common/MAX_ARRAY_SAMPLERS))]
+    (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader augmented-fragment-shader-source {"view_proj" :view-proj "id" :id})))
 
 (defn- quad-count [size-mode slice9]
   (let [[^double x0 ^double y0 ^double x1 ^double y1] slice9

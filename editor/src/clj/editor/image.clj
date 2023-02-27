@@ -65,7 +65,7 @@
         images ((:f content-generator) (:args content-generator))]
     (g/precluding-errors
       [images]
-      (let [texture-images (map #(tex-gen/make-texture-image % texture-profile compress?) images)
+      (let [texture-images (mapv #(tex-gen/make-texture-image % texture-profile compress?) images)
             combined-texture-image (tex-gen/assemble-texture-images texture-images)]
         {:resource resource
          :content  (protobuf/pb->bytes combined-texture-image)}))))

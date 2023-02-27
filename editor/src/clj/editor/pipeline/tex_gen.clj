@@ -89,11 +89,8 @@
 
 (defn assemble-texture-images
   ^Graphics$TextureImage [texture-images]
-  (let [texture-images (into-array Graphics$TextureImage texture-images)
-        type (if (< 1 (count texture-images))
-               Graphics$TextureImage$Type/TYPE_2D_ARRAY
-               Graphics$TextureImage$Type/TYPE_2D)]
-    (TextureUtil/createCombinedTextureImage texture-images type)))
+  (let [texture-images (into-array Graphics$TextureImage texture-images)]
+    (TextureUtil/createCombinedTextureImage texture-images Graphics$TextureImage$Type/TYPE_2D_ARRAY)))
 
 (defn assemble-cubemap-texture-images
   ^Graphics$TextureImage [side->texture-image]

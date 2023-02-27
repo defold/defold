@@ -94,10 +94,11 @@
                                      (range max-page-count))))
         samplers))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg compile-spirv max-page-count vertex-program fragment-program vertex-shader-source-info fragment-shader-source-info]
+(g/defnk produce-build-targets [_node-id resource pb-msg project-settings max-page-count vertex-program fragment-program vertex-shader-source-info fragment-shader-source-info]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
       (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
-      (let [vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
+      (let [compile-spirv (get project-settings ["shader" "output_spirv"] false)
+            vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
             samplers-with-indirect-hashes (samplers->samplers-with-indirection-hashes (:samplers pb-msg) max-page-count)
             dep-build-targets [vertex-shader-build-target fragment-shader-build-target]
@@ -122,7 +123,24 @@
     {:shader-source full-source
      :array-sampler-names (vec array-sampler-names-array)}))
 
-(declare ^:private constant->val)
+(defn- constant->val [constant]
+  (case (:type constant)
+    :constant-type-user (let [[x y z w] (:value constant)]
+                          (Vector4d. x y z w))
+    :constant-type-user-matrix4 (let [[x y z w] (:value constant)]
+                                  (doto (Matrix4d.)
+                                    (.setElement 0 0 x)
+                                    (.setElement 1 0 y)
+                                    (.setElement 2 0 z)
+                                    (.setElement 3 0 w)))
+    :constant-type-viewproj :view-proj
+    :constant-type-world :world
+    :constant-type-texture :texture
+    :constant-type-view :view
+    :constant-type-projection :projection
+    :constant-type-normal :normal
+    :constant-type-worldview :world-view
+    :constant-type-worldviewproj :world-view-proj))
 
 (g/defnk produce-shader [_node-id vertex-shader-source-info vertex-program fragment-shader-source-info fragment-program vertex-constants fragment-constants samplers max-page-count]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
@@ -143,7 +161,7 @@
 
             uniforms (-> {}
                          (into (map (fn [constant]
-                                      [(:name constant) (constant->val constant)]))
+                                      (pair (:name constant) (constant->val constant))))
                                (concat vertex-constants fragment-constants))
                          (into (comp
                                  (mapcat (fn [{sampler-name :name}]
@@ -250,25 +268,6 @@
                           :set set-form-op
                           :clear clear-form-op}))))
 
-(defn- constant->val [constant]
-  (case (:type constant)
-    :constant-type-user (let [[x y z w] (:value constant)]
-                          (Vector4d. x y z w))
-    :constant-type-user-matrix4 (let [[x y z w] (:value constant)]
-                                  (doto (Matrix4d.)
-                                    (.setElement 0 0 x)
-                                    (.setElement 1 0 y)
-                                    (.setElement 2 0 z)
-                                    (.setElement 3 0 w)))
-    :constant-type-viewproj :view-proj
-    :constant-type-world :world
-    :constant-type-texture :texture
-    :constant-type-view :view
-    :constant-type-projection :projection
-    :constant-type-normal :normal
-    :constant-type-worldview :world-view
-    :constant-type-worldviewproj :world-view-proj))
-
 (def ^:private wrap-mode->gl {:wrap-mode-repeat GL2/GL_REPEAT
                               :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
                               :wrap-mode-clamp-to-edge GL2/GL_CLAMP_TO_EDGE})
@@ -339,9 +338,6 @@
   (input fragment-resource resource/Resource)
   (input fragment-shader-source-info g/Any)
   (input project-settings g/Any)
-
-  (output compile-spirv g/Bool (g/fnk [project-settings]
-                                 (get project-settings ["shader" "output_spirv"] false)))
 
   (output pb-msg g/Any produce-pb-msg)
 

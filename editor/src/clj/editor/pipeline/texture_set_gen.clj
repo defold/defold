@@ -58,7 +58,7 @@
 (defn- get-all-rects [layouts]
   (let [rect-list (map (fn [^TextureSetLayout$Layout layout] (.getRectangles layout)) layouts)
         rect-list-array (mapcat identity rect-list)]
-    (into [] (map Rect->map) rect-list-array)))
+    (mapv Rect->map rect-list-array)))
 
 (defn- TextureSetResult->result
   [^TextureSetGenerator$TextureSetResult tex-set-result]
@@ -68,7 +68,7 @@
     {:texture-set (protobuf/pb->map (.build (.builder tex-set-result)))
      :uv-transforms (vec (.uvTransforms tex-set-result))
      :layout (.layoutResult tex-set-result)
-     :size [(.. layout-first getWidth) (.. layout-first getHeight)]
+     :size [(.getWidth layout-first) (.getHeight layout-first)]
      :rects all-rects}))
 
 (defn layout-atlas-pages

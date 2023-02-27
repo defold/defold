@@ -52,7 +52,7 @@
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
            [com.dynamo.gamesys.proto Tile$Playback Tile$SpriteTrimmingMode]
-           [com.dynamo.bob.pipeline ShaderUtil$Common]
+           [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.jogamp.opengl GL GL2]
            [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
@@ -83,11 +83,12 @@
     (setq var_texcoord0 texcoord0)
     (setq var_page_index page_index)))
 
-(shader/defshader-with-array-samplers pos-uv-frag "texture_sampler"
-    (varying vec2 var_texcoord0)
-    (varying float var_page_index)
-    (defn void main []
-    (setq gl_FragColor (texture2DArray var_texcoord0.xy var_page_index))))
+(shader/defshader pos-uv-frag
+  (varying vec2 var_texcoord0)
+  (varying float var_page_index)
+  (uniform sampler2DArray texture_sampler)
+  (defn void main []
+    (setq gl_FragColor (texture2DArray texture_sampler (vec3 var_texcoord0.xy var_page_index)))))
 
 (defn- get-rect-page-offset [layout-width page-index]
   (let [page-margin 32]
@@ -99,11 +100,18 @@
       (.setIdentity)
       (.setTranslation (Vector3d. page-offset 0.0 0.0)))))
 
-(def ^:private array-sampler-name->uniform-names
-  {"texture_sampler" (mapv #(str "texture_sampler" %) (range ShaderUtil$Common/MAX_ARRAY_SAMPLERS))})
+(defn- array-sampler-name->uniform-names [array-sampler-uniform-name page-count]
+  (mapv #(str array-sampler-uniform-name "_" %) (range page-count)))
 
 ; TODO - macro of this
-(def atlas-shader (shader/make-shader ::atlas-shader pos-uv-vert pos-uv-frag {} array-sampler-name->uniform-names))
+(def atlas-shader
+  (let [transformed-shader-result (ShaderUtil$VariantTextureArrayFallback/transform pos-uv-frag ShaderUtil$Common/MAX_ARRAY_SAMPLERS)
+        augmented-fragment-source (.source transformed-shader-result)
+        array-sampler-names (vec (.arraySamplers transformed-shader-result))
+        array-sampler-uniform-names (into {}
+                                          (map (fn [item] [item (array-sampler-name->uniform-names item ShaderUtil$Common/MAX_ARRAY_SAMPLERS)])
+                                               array-sampler-names))]
+    (shader/make-shader ::atlas-shader pos-uv-vert augmented-fragment-source {} array-sampler-uniform-names)))
 
 (defn- render-rect
   [^GL2 gl rect color offset-x]
@@ -469,12 +477,14 @@
                           (not-empty))]
     (g/error-aggregate errors)))
 
-(g/defnk produce-build-targets [_node-id resource texture-set packed-page-images-generator texture-profile build-settings build-errors]
+(g/defnk produce-build-targets [_node-id resource texture-set texture-page-count packed-page-images-generator texture-profile build-settings build-errors]
   (g/precluding-errors build-errors
     (let [project           (project/get-project _node-id)
           workspace         (project/workspace project)
           compress?         (:compress-textures? build-settings false)
-          texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile compress?)
+          texture-target    (if (pos? texture-page-count)
+                              (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile compress?)
+                              (image/make-texture-build-target workspace _node-id packed-page-images-generator texture-profile compress?))
           pb-msg            texture-set
           dep-build-targets [texture-target]]
       [(pipeline/make-protobuf-build-target resource dep-build-targets

@@ -335,7 +335,7 @@
 
 (defn gen-tiles-vbuf
   [tile-source-attributes uv-transforms scale]
-  (let [page-index 0 ; TODO!
+  (let [page-index 0 ; Tile-sources does not support pages.
         uvs uv-transforms
         rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)]
