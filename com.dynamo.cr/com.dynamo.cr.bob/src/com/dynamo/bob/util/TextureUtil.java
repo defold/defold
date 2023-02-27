@@ -212,8 +212,10 @@ public class TextureUtil {
         if (numTextures == 0) {
             return null;
         }
-        else if (numTextures == 1) {
-            return textures[0];
+
+        if (type == TextureImage.Type.TYPE_2D)
+        {
+            numTextures = 1;
         }
 
         TextureImage.Builder textureImageBuilder = TextureImage.newBuilder(textures[0]);

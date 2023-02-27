@@ -251,7 +251,7 @@
          {:path [:max-page-count]
           :label "Max Atlas Pages"
           :type :integer
-          :default 1}]}]}))
+          :default 0}]}]}))
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property! node-id property value))

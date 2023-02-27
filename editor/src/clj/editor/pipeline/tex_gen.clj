@@ -88,9 +88,12 @@
                    images)))
 
 (defn assemble-texture-images
-  ^Graphics$TextureImage [texture-images]
-  (let [texture-images (into-array Graphics$TextureImage texture-images)]
-    (TextureUtil/createCombinedTextureImage texture-images Graphics$TextureImage$Type/TYPE_2D_ARRAY)))
+  ^Graphics$TextureImage [texture-images max-page-count]
+  (let [texture-images (into-array Graphics$TextureImage texture-images)
+        texture-type (if (pos? max-page-count)
+                       Graphics$TextureImage$Type/TYPE_2D_ARRAY
+                       Graphics$TextureImage$Type/TYPE_2D)]
+    (TextureUtil/createCombinedTextureImage texture-images texture-type)))
 
 (defn assemble-cubemap-texture-images
   ^Graphics$TextureImage [side->texture-image]

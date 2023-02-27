@@ -479,9 +479,7 @@
     (let [project           (project/get-project _node-id)
           workspace         (project/workspace project)
           compress?         (:compress-textures? build-settings false)
-          texture-target    (if (pos? texture-page-count)
-                              (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile compress?)
-                              (image/make-texture-build-target workspace _node-id packed-page-images-generator texture-profile compress?))
+          texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile texture-page-count compress?)
           pb-msg            texture-set
           dep-build-targets [texture-target]]
       [(pipeline/make-protobuf-build-target resource dep-build-targets
