@@ -4,10 +4,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -50,6 +50,35 @@ void* ReadFile(const char* path, uint32_t* file_size)
         *file_size = size;
 
     return mem;
+}
+
+void* ReadFileToBuffer(const char* path, uint32_t buffer_size, void* buffer)
+{
+    FILE* f = fopen(path, "rb");
+    if (!f)
+        return 0;
+
+    fseek(f, 0, SEEK_END);
+    size_t size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (size != buffer_size)
+    {
+        printf("File '%s' has size %u, but buffer size is %u\n", path, (uint32_t)size, (uint32_t)buffer_size);
+        fclose(f);
+        return 0;
+    }
+
+    size_t n_read = fread(buffer, 1, size, f);
+    fclose(f);
+
+    if (n_read != size)
+    {
+        printf("Failed to read %u bytes from '%s', only read %u\n", (uint32_t)size, path, (uint32_t)n_read);
+        return 0;
+    }
+
+    return buffer;
 }
 
 static void OutputIndent(int indent)

@@ -4,10 +4,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -152,9 +152,16 @@ namespace dmModelImporter
 
     #pragma pack(pop)
 
-    extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t file_size);
+    // Used to resolve external buffers
+    typedef int (*FFileResolve)(void* resolvectx, const char* uri, void* buffer, size_t size);
 
-    extern "C" DM_DLLEXPORT Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size);
+    extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t file_size,
+                                            FFileResolve resolve_callback,
+                                            void* resolve_context);
+
+    extern "C" DM_DLLEXPORT Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size,
+                                            FFileResolve resolve_callback,
+                                            void* resolve_context);
 
     extern "C" DM_DLLEXPORT Scene* LoadFromPath(Options* options, const char* path);
 
@@ -172,6 +179,7 @@ namespace dmModelImporter
 
     // For tests. User needs to call free() on the returned memory
     void* ReadFile(const char* path, uint32_t* file_size);
+    void* ReadFileToBuffer(const char* path, uint32_t buffer_size, void* buffer);
 }
 
 

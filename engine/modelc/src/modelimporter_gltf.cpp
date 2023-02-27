@@ -4,10 +4,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -856,8 +856,102 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+// Based on cgltf.h: cgltf_load_buffers(...)
+static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* data, const char* gltf_path,
+                                    FFileResolve resolve_callback, void* resolve_context)
+{
+	if (options == NULL)
+	{
+		return cgltf_result_invalid_options;
+	}
 
-Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_size)
+	if (data->buffers_count && data->buffers[0].data == NULL && data->buffers[0].uri == NULL && data->bin)
+	{
+		if (data->bin_size < data->buffers[0].size)
+		{
+			return cgltf_result_data_too_short;
+		}
+
+		data->buffers[0].data = (void*)data->bin;
+		data->buffers[0].data_free_method = cgltf_data_free_method_none;
+	}
+
+	for (cgltf_size i = 0; i < data->buffers_count; ++i)
+	{
+		if (data->buffers[i].data)
+		{
+			continue;
+		}
+
+		const char* uri = data->buffers[i].uri;
+
+		if (uri == NULL)
+		{
+			continue;
+		}
+
+		if (strncmp(uri, "data:", 5) == 0)
+		{
+			const char* comma = strchr(uri, ',');
+
+			if (comma && comma - uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
+			{
+				cgltf_result res = cgltf_load_buffer_base64(options, data->buffers[i].size, comma + 1, &data->buffers[i].data);
+				data->buffers[i].data_free_method = cgltf_data_free_method_memory_free;
+
+				if (res != cgltf_result_success)
+				{
+					return res;
+				}
+			}
+			else
+			{
+				return cgltf_result_unknown_format;
+			}
+		}
+		else if (strstr(uri, "://") == NULL && gltf_path)
+		{
+			cgltf_result res = cgltf_load_buffer_file(options, data->buffers[i].size, uri, gltf_path, &data->buffers[i].data);
+			data->buffers[i].data_free_method = cgltf_data_free_method_file_release;
+
+			if (res != cgltf_result_success)
+			{
+				return res;
+			}
+		}
+        // DEFOLD
+        else if (!gltf_path && resolve_callback)
+        {
+            void* (*memory_alloc)(void*, cgltf_size) = options->memory.alloc_func ? options->memory.alloc_func : &cgltf_default_alloc;
+            void (*memory_free)(void*, void*) = options->memory.free_func ? options->memory.free_func : &cgltf_default_free;
+            size_t urilen = strlen(uri);
+	        char* path = (char*)memory_alloc(options->memory.user_data, urilen + 1);
+            memcpy(path, uri, urilen);
+            path[urilen] = 0;
+            cgltf_decode_uri(path);
+
+            data->buffers[i].data = memory_alloc(options->memory.user_data, data->buffers[i].size);
+            data->buffers[i].data_free_method = cgltf_data_free_method_memory_free;
+
+            // Get the raw bytes from that file
+            int result = resolve_callback(resolve_context, uri, data->buffers[i].data, data->buffers[i].size);
+            if (result == 0)
+                return cgltf_result_unknown_format;
+        }
+        // END DEFOLD
+		else
+		{
+			return cgltf_result_unknown_format;
+		}
+	}
+
+	return cgltf_result_success;
+}
+
+
+Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_size,
+                                            FFileResolve resolve_callback,
+                                            void* resolve_context)
 {
     cgltf_options options;
     memset(&options, 0, sizeof(cgltf_options));
@@ -866,7 +960,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     cgltf_result result = cgltf_parse(&options, (uint8_t*)mem, file_size, &data);
 
     if (result == cgltf_result_success)
-        result = cgltf_load_buffers(&options, data, 0);
+        result = ResolveBuffers(&options, data, 0, resolve_callback, resolve_context);
 
     if (result == cgltf_result_success)
         result = cgltf_validate(data);

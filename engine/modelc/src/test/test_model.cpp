@@ -4,22 +4,36 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <string.h>
 
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+static int BufferResolveUri(void* context, const char* uri, void* buffer, size_t buffer_size)
+{
+    const char* dirname = (const char*)context;
+
+    char path[512];
+    dmStrlCpy(path, dirname, sizeof(path));
+    dmStrlCat(path, "/", sizeof(path));
+    dmStrlCat(path, uri, sizeof(path));
+
+    void* mem = dmModelImporter::ReadFileToBuffer(path, buffer_size, buffer);
+    return mem != 0 ? 1 : 0;
+}
 
 static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Options& options)
 {
@@ -29,7 +43,16 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
         return 0;
 
     const char* suffix = strrchr(path, '.') + 1;
-    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+
+    char dirname[512];
+    dmStrlCpy(dirname, path, sizeof(dirname));
+    char* c = strrchr(dirname, '/');
+    if (!c)
+        c = strrchr(dirname, '\\');
+    if (c)
+        *c = 0;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size,
+                                                                BufferResolveUri, dirname);
 
     free(mem);
 
@@ -45,7 +68,7 @@ TEST(ModelGLTF, Load)
     const char* suffix = strrchr(path, '.') + 1;
 
     dmModelImporter::Options options;
-    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size, 0, 0);
 
     ASSERT_NE((void*)0, scene);
 
@@ -65,7 +88,7 @@ TEST(ModelGLTF, LoadSkeleton)
     const char* suffix = strrchr(path, '.') + 1;
 
     dmModelImporter::Options options;
-    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size, 0, 0);
 
     ASSERT_NE((void*)0, scene);
     ASSERT_EQ(1, scene->m_SkinsCount);
@@ -103,7 +126,7 @@ TEST(ModelGLTF, VertexColor3Float)
     uint32_t file_size = 0;
     void* mem = dmModelImporter::ReadFile(path, &file_size);
     dmModelImporter::Options options;
-    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, strrchr(path, '.')+1, mem, file_size);
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, strrchr(path, '.')+1, mem, file_size, 0, 0);
 
     dmModelImporter::Mesh* mesh = &scene->m_Models[0].m_Meshes[0];
     uint32_t vcount = mesh->m_VertexCount;
@@ -121,6 +144,9 @@ static int TestStandalone(const char* path)
 
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = LoadScene(path, options);
+
+    if (!scene)
+        return 1;
 
     uint64_t tend = dmTime::GetTime();
     printf("Model %s loaded in %.3f seconds.\n", path, float(tend-tstart)/1000000.0f);
@@ -142,4 +168,3 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
-

@@ -4,10 +4,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -154,7 +154,9 @@ void DestroyScene(Scene* scene)
     delete scene;
 }
 
-Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size)
+Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size,
+                                            FFileResolve resolve_callback,
+                                            void* resolve_context)
 {
     if (suffix == 0)
     {
@@ -163,7 +165,7 @@ Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t
     }
 
     if (dmStrCaseCmp(suffix, "gltf") == 0 || dmStrCaseCmp(suffix, "glb") == 0)
-        return LoadGltfFromBuffer(options, data, file_size);
+        return LoadGltfFromBuffer(options, data, file_size, resolve_callback, resolve_context);
 
     printf("ModelImporter: File type not supported: %s\n", suffix);
     return 0;
@@ -181,7 +183,7 @@ Scene* LoadFromPath(Options* options, const char* path)
         return 0;
     }
 
-    Scene* scene = LoadFromBuffer(options, suffix, data, file_size);
+    Scene* scene = LoadFromBuffer(options, suffix, data, file_size, 0, 0);
 
     free(data);
 
