@@ -35,6 +35,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.logging.LogManager;
+import java.util.logging.Handler;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -58,6 +62,7 @@ import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.cache.ResourceCacheKey;
 
 public class Bob {
+    private static Logger logger = Logger.getLogger(Bob.class.getName());
 
     public static final String VARIANT_DEBUG = "debug";
     public static final String VARIANT_RELEASE = "release";
@@ -646,6 +651,13 @@ public class Bob {
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
         verbose = cmd.hasOption('v');
 
+        // setup logger based on presence of verbose option or not
+        Logger rootLogger = LogManager.getLogManager().getLogger("");
+        rootLogger.setLevel(verbose ? Level.ALL : Level.WARNING);
+        for (Handler h : rootLogger.getHandlers()) {
+            h.setLevel(verbose ? Level.ALL : Level.WARNING);
+        }
+
         if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
             String path = cmd.getOptionValue("build-report");
             TimeProfiler.ReportFormat format = TimeProfiler.ReportFormat.JSON;
@@ -879,9 +891,7 @@ public class Bob {
         if (e.getCause() != null) {
             System.err.println("Cause: " + e.getCause());
         }
-        if (verbose) {
-            e.printStackTrace();
-        }
+        logger.log(Level.INFO, e.getMessage(), e);
         System.exit(1);
     }
 
@@ -906,9 +916,7 @@ public class Bob {
     }
 
     public static void verbose(String message, Object... args) {
-        if (verbose) {
-            System.out.println("Bob: " + String.format(message, args));
-        }
+        logger.info(String.format(message, args));
     }
 
 }
