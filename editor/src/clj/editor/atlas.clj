@@ -435,9 +435,6 @@
                                                  child-build-errors
                                                  own-build-errors))))
 
-(defn- v2->v3 [v]
-  (conj v 0.0))
-
 (defn- v3->v2 [v3]
   (subvec v3 0 2))
 
@@ -449,7 +446,7 @@
            :animations anim-ddf}
 
           (not= [0.0 0.0] max-page-size)
-          (assoc :max-page-size (v2->v3 max-page-size))))
+          (assoc :max-page-width (get max-page-size 0) :max-page-height (get max-page-size 1))))
 
 (defn- validate-margin [node-id margin]
   (validation/prop-error :fatal node-id :margin validation/prop-negative? margin "Margin"))
@@ -847,7 +844,7 @@
       (g/set-property self :margin (:margin atlas))
       (g/set-property self :inner-padding (:inner-padding atlas))
       (g/set-property self :extrude-borders (:extrude-borders atlas))
-      (g/set-property self :max-page-size (v3->v2 (:max-page-size atlas)))
+      (g/set-property self :max-page-size [(:max-page-width atlas) (:max-page-height atlas)])
       (make-image-nodes-in-atlas self image-msgs)
       (map (comp (partial make-atlas-animation self)
                  (partial update-int->bool [:flip-horizontal :flip-vertical]))

@@ -49,8 +49,7 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
         // We can't just look at result of texture generation to decide the image type,
         // a texture specified with max page size can still generate one page but used with a material that has array samplers
         // so we need to know this beforehand for both validation and runtime
-        Point3 maxPageSizeP3                    = atlas.getMaxPageSize();
-        TextureImage.Type atlasBackingImageType = maxPageSizeP3.getX() > 0 && maxPageSizeP3.getY() > 0 ? TextureImage.Type.TYPE_2D_ARRAY : TextureImage.Type.TYPE_2D;
+        TextureImage.Type atlasBackingImageType = atlas.getMaxPageWidth() > 0 && atlas.getMaxPageHeight() > 0 ? TextureImage.Type.TYPE_2D_ARRAY : TextureImage.Type.TYPE_2D;
 
         TaskBuilder<TextureImage.Type> taskBuilder = Task.<TextureImage.Type>newBuilder(this)
                 .setName(params.name())

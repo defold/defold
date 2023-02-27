@@ -227,15 +227,13 @@ public class AtlasUtil {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
 
-        Point3 maxPageSizeP3 = atlas.getMaxPageSize();
-
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),
                 true, false, null,
-                maxPageSizeP3.getX(), maxPageSizeP3.getY());
+                atlas.getMaxPageWidth(), atlas.getMaxPageHeight());
 
         TimeProfiler.stop();
         return result;

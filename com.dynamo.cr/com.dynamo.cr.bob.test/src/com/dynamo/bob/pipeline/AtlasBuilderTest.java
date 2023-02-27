@@ -57,11 +57,8 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         src.append("  image: \"/test2.png\"");
         src.append("}");
 
-        src.append("max_page_size: {");
-        src.append("  x: 16.0");
-        src.append("  y: 16.0");
-        src.append("  z: 0.0");
-        src.append("}");
+        src.append("max_page_width: 16");
+        src.append("max_page_height: 16");
 
         List<Message> outputs = build("/test.atlas", src.toString());
         TextureSet textureSet = (TextureSet)outputs.get(0);

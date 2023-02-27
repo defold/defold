@@ -32,5 +32,6 @@ message Atlas
     optional uint32 margin               = 3 [default = 0];
     optional uint32 extrude_borders      = 4 [default = 0];
     optional uint32 inner_padding        = 5 [default = 0];
-    optional dmMath.Point3 max_page_size = 6;
+    optional uint32 max_page_width       = 6;
+    optional uint32 max_page_height      = 7;
 }

@@ -281,8 +281,8 @@ public class ProtoBuilders {
 
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
-    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> {
-
+    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> 
+{
         @Override
         public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
 
@@ -294,12 +294,18 @@ public class ProtoBuilders {
             SpriteDesc.Builder spriteBuilder = SpriteDesc.newBuilder();
             ProtoUtil.merge(input, spriteBuilder);
 
-            String tileSet           = spriteBuilder.getTileSet();
-            String material          = spriteBuilder.getMaterial();
-            IResource tileSetOuput   = project.getResource(tileSet).changeExt(getTextureSetExt(tileSet));
+            // The tileset must be specified
+            String tileSet = spriteBuilder.getTileSet();
+            if (tileSet.isEmpty())
+            {
+                throw new CompileExceptionError(input, 0, "A tileset must be assigned.");
+            }
+
+            IResource tileSetOuput = project.getResource(tileSet).changeExt(getTextureSetExt(tileSet));
             task.addInput(tileSetOuput);
 
-            // Material input is optional in ddf
+            // Material input is optional in the protobuf description
+            String material = spriteBuilder.getMaterial();
             if (!material.isEmpty())
             {
                 IResource materialOutput = project.getResource(material).changeExt(".materialc");
