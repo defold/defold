@@ -122,6 +122,9 @@ public class LuaScanner extends LuaParserBaseListener {
         public int line;
         /// Always set
         public Status status;
+        /// Set if property is a resource, need to distinguish between
+        /// regular hashes and properties for validation
+        public boolean isResource;
 
         public Property(int line) {
             this.line = line;
@@ -408,6 +411,7 @@ public class LuaScanner extends LuaParserBaseListener {
                     } else if (matchedPattern == resourcePattern) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
                         property.value = matcher.group(3) == null ? "" :  matcher.group(3).trim();
+                        property.isResource = true;
                     }
                     result = true;
                 } catch (NumberFormatException e) {

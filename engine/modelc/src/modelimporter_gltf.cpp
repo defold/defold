@@ -149,15 +149,30 @@ static const char* GetInterpolationTypeStr(cgltf_interpolation_type type)
 }
 
 
-static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components)
+static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components, float default_value)
 {
     uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
 
     if (desired_num_components == 0)
         desired_num_components = num_components;
 
-    float* out = new float[accessor->count * num_components];
+    uint32_t size = accessor->count * num_components;
+    if (desired_num_components > num_components)
+        size = accessor->count * desired_num_components;
+
+    float* out = new float[size]; // Now the buffer will fit the max num components
     float* writeptr = out;
+
+    if (desired_num_components > num_components)
+    {
+        for (uint32_t i = 0; i < accessor->count; ++i)
+        {
+            for (uint32_t j = 0; j < desired_num_components; ++j)
+                *writeptr++ = default_value;
+        }
+    }
+
+    writeptr = out;
 
     for (uint32_t i = 0; i < accessor->count; ++i)
     {
@@ -412,16 +427,23 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
         {
             cgltf_attribute* attribute = &prim->attributes[a];
             cgltf_accessor* accessor = attribute->data;
-            //printf("  attributes: %s   index: %u   type: %s  count: %u\n", attribute->name, attribute->index, GetAttributeTypeStr(attribute->type), (uint32_t)accessor->count);
 
             mesh->m_VertexCount = accessor->count;
 
             uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
             uint32_t desired_num_components = num_components;
 
+            //printf("  attributes: %s   index: %u   type: %s  count: %u desired_num_components: %u\n", attribute->name, attribute->index, GetAttributeTypeStr(attribute->type), (uint32_t)accessor->count, desired_num_components);
+
+            float default_value_f = 0.0f;
             if (attribute->type == cgltf_attribute_type_tangent)
             {
                 desired_num_components = 3; // for some reason it give 4 elements
+            }
+            else if (attribute->type == cgltf_attribute_type_color)
+            {
+                desired_num_components = 4; // We currently always store vec4
+                default_value_f = 1.0f; // for the alpha channel
             }
 
             float* fdata = 0;
@@ -433,7 +455,7 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
             }
             else
             {
-                fdata = ReadAccessorFloat(accessor, desired_num_components);
+                fdata = ReadAccessorFloat(accessor, desired_num_components, default_value_f);
             }
 
             if (fdata || udata)

@@ -237,6 +237,7 @@ public:
 struct CollectionFactoryTestParams
 {
     const char* m_GOPath;
+    const char* m_PrototypePath; // If set, then it uses "Dynamic Prototype"
     bool m_IsDynamic;
     bool m_IsPreloaded;
 };
@@ -465,6 +466,7 @@ void GamesysTest<T>::SetUp()
     m_FactoryContext.m_ScriptContext = m_ScriptContext;
     m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
     m_CollectionFactoryContext.m_ScriptContext = m_ScriptContext;
+    m_CollectionFactoryContext.m_Factory = m_Factory;
 
     m_LabelContext.m_RenderContext = m_RenderContext;
     m_LabelContext.m_MaxLabelCount = 32;

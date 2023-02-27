@@ -46,7 +46,7 @@ ordinary paths."
 
 ;; Class loader used when loading editor extensions from libraries.
 ;; It's important to use the same class loader, so the type signatures match.
-(def ^:private ^DynamicClassLoader class-loader (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
+(def ^DynamicClassLoader class-loader (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
 
 (defn load-class! [class-name]
   (Class/forName class-name true class-loader))
@@ -361,11 +361,13 @@ ordinary paths."
 
 (defn resolve-resource [base-resource path]
   (when-not (empty? path)
-    (let [path (if (absolute-path path)
-                 path
-                 (to-absolute-path (str (.getParent (File. (resource/proj-path base-resource)))) path))]
-      (when-let [workspace (:workspace base-resource)]
-        (resolve-workspace-resource workspace path)))))
+    (let [workspace (:workspace base-resource)
+          path  (if (absolute-path path)
+                  path
+                  (resource/file->proj-path (project-path workspace)
+                                            (.getCanonicalFile (io/file (.getParentFile (io/file base-resource))
+                                                                        path))))]
+      (resolve-workspace-resource workspace path))))
 
 (defn- template-path [resource-type]
   (or (:template resource-type)

@@ -581,7 +581,7 @@ namespace dmGraphics
         for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
         {
             VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
-            dmHashUpdateBuffer32(state, stream.m_Name,       strlen(stream.m_Name));
+            dmHashUpdateBuffer32(state, &stream.m_NameHash,  sizeof(dmhash_t));
             dmHashUpdateBuffer32(state, &stream.m_Stream,    sizeof(stream.m_Stream));
             dmHashUpdateBuffer32(state, &stream.m_Size,      sizeof(stream.m_Size));
             dmHashUpdateBuffer32(state, &stream.m_Type,      sizeof(stream.m_Type));
@@ -593,33 +593,13 @@ namespace dmGraphics
     {
         const void* index_buffer = ((IndexBuffer*) ib)->m_Buffer;
 
-        if (type == dmGraphics::TYPE_BYTE)
+        if (type == dmGraphics::TYPE_UNSIGNED_SHORT)
         {
-            return ((char*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_UNSIGNED_BYTE)
-        {
-            return ((unsigned char*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_SHORT)
-        {
-            return ((short*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_UNSIGNED_SHORT)
-        {
-            return ((unsigned short*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_INT)
-        {
-            return ((int*)index_buffer)[index];
+            return ((unsigned short*)index_buffer)[index/2];
         }
         else if (type == dmGraphics::TYPE_UNSIGNED_INT)
         {
-            return ((unsigned int*)index_buffer)[index];
-        }
-        else if (type == dmGraphics::TYPE_FLOAT)
-        {
-            return (uint32_t)((float*)index_buffer)[index];
+            return ((unsigned int*)index_buffer)[index/4];
         }
 
         assert(0);

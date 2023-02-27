@@ -676,10 +676,69 @@ namespace dmScript
         return 1;
     }
 
+    /*# get information about timer
+     *
+     * Get information about timer.
+     *
+     * @name  timer.get_info
+     * @param handle [type:hash] the timer handle returned by timer.delay()
+     * @return data [type:table] or nil if timer is cancelled/completed. table with data in the following fields:
+     * 
+     * `time_remaining`
+     * : [type:number] Time remaining until the next time a timer.delay() fires.
+     *
+     * `delay`
+     * : [type:number] Time interval.
+     * 
+     * `repeat`
+     *: [type:boolean] true = repeat timer until cancel, false = one-shot timer.
+     *
+     */
+    static int TimerGetInfo(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const int timer_handle = luaL_checkint(L, 1);
+        
+        dmScript::HTimerWorld timer_world = GetTimerWorld(L);
+        if (timer_world == 0x0)
+        {
+            dmLogError("Unable to get remaining time, the lua context does not have a timer world");
+            lua_pushnil(L);
+            return 1;
+        }
+
+        uint16_t lookup_index = GetLookupIndex(timer_handle);
+        if (lookup_index >= timer_world->m_IndexLookup.Size())
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+
+        uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
+        if (timer_index >= timer_world->m_Timers.Size())
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+
+        Timer& timer = timer_world->m_Timers[timer_index];
+        
+        lua_newtable(L);
+        lua_pushnumber(L,timer.m_Remaining);
+        lua_setfield(L, -2, "time_remaining");
+        lua_pushnumber(L,timer.m_Delay);
+        lua_setfield(L, -2, "delay");
+        lua_pushboolean(L,timer.m_Repeat==1);
+        lua_setfield(L, -2, "repeating");
+        return 1;
+    }
+
     static const luaL_reg TIMER_COMP_FUNCTIONS[] = {
         { "delay", TimerDelay },
         { "cancel", TimerCancel },
         { "trigger", TimerTrigger},
+        { "get_info", TimerGetInfo},
         { 0, 0 }
     };
 

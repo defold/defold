@@ -461,7 +461,7 @@ union SaveLoadBuffer
      * Get user config value
      *
      * ```lua
-     * local speed = sys.get_config_float("my_game.speed", 20.0)
+     * local speed = sys.get_config_number("my_game.speed", 20.0)
      * ```
      */
     static int Sys_GetConfigNumber(lua_State* L)

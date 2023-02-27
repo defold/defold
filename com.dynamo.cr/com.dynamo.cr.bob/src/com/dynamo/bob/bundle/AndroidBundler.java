@@ -859,12 +859,12 @@ public class AndroidBundler implements IBundler {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
-                properties.put("orientation-support", "landscape");
+                properties.put("orientation-support", "userLandscape");
             } else {
-                properties.put("orientation-support", "portrait");
+                properties.put("orientation-support", "userPortrait");
             }
         } else {
-            properties.put("orientation-support", "sensor");
+            properties.put("orientation-support", "fullUser");
         }
 
         // Since we started to always fill in the default values to the propject properties
