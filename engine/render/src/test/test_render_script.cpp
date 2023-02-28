@@ -195,6 +195,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
     dmRender::AddRenderScriptInstanceMaterial(render_script_instance, "test_material", material);

@@ -100,7 +100,7 @@ public class TileSetGeneratorTest {
 
         TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image);
         TextureSet textureSet = result.builder.setTexture("").build();
-        BufferedImage texture = result.image;
+        BufferedImage texture = result.images.get(0);
 
         assertEquals(512, texture.getWidth());
         assertEquals(512, texture.getHeight());
@@ -138,7 +138,7 @@ public class TileSetGeneratorTest {
 
         TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image);
         TextureSet textureSet = result.builder.setTexture("").build();
-        BufferedImage texture = result.image;
+        BufferedImage texture = result.images.get(0);
 
         assertEquals(1, texture.getWidth());
         assertEquals(16, texture.getHeight());
@@ -160,7 +160,7 @@ public class TileSetGeneratorTest {
 
         TextureSetResult result = TileSetGenerator.generate(tileSet.build(), image, image);
         TextureSet textureSet = result.builder.setTexture("").build();
-        BufferedImage texture = result.image;
+        BufferedImage texture = result.images.get(0);
 
         assertEquals(4, texture.getWidth());
         assertEquals(32, texture.getHeight());

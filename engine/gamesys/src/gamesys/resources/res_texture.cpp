@@ -118,9 +118,11 @@ namespace dmGameSystem
 
             dmGraphics::TextureParams params;
             dmGraphics::GetDefaultTextureFilters(context, params.m_MinFilter, params.m_MagFilter);
+
             params.m_Format    = output_format;
             params.m_Width     = image->m_Width;
             params.m_Height    = image->m_Height;
+            params.m_Depth     = image_desc->m_DDFImage->m_Count;
             params.m_X         = upload_params.m_X;
             params.m_Y         = upload_params.m_Y;
             params.m_SubUpdate = upload_params.m_SubUpdate;
@@ -131,18 +133,23 @@ namespace dmGameSystem
             if (!texture)
             {
                 dmGraphics::TextureCreationParams creation_params;
-                if (image_desc->m_DDFImage->m_Type == dmGraphics::TextureImage::TYPE_2D)
+                switch(image_desc->m_DDFImage->m_Type)
                 {
-                    creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D;
-                } else if (image_desc->m_DDFImage->m_Type == dmGraphics::TextureImage::TYPE_CUBEMAP)
-                {
-                    creation_params.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
-                } else {
-                    assert(0);
+                    case dmGraphics::TextureImage::TYPE_2D:
+                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_2D;
+                        break;
+                    case dmGraphics::TextureImage::TYPE_2D_ARRAY:
+                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+                        break;
+                    case dmGraphics::TextureImage::TYPE_CUBEMAP:
+                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+                        break;
+                    default: assert(0);
                 }
 
                 creation_params.m_Width          = image->m_Width;
                 creation_params.m_Height         = image->m_Height;
+                creation_params.m_Depth          = image_desc->m_DDFImage->m_Count;
                 creation_params.m_OriginalWidth  = image->m_OriginalWidth;
                 creation_params.m_OriginalHeight = image->m_OriginalHeight;
                 creation_params.m_MipMapCount    = image->m_MipMapOffset.m_Count;

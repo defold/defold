@@ -1140,9 +1140,9 @@ namespace dmGameSystem
         // Another way would be to use the vertex declaration, but that currently doesn't have an api
         // and the buffer is well suited for this.
         dmBuffer::StreamDeclaration boxvertex_stream_decl[] = {
-            {dmHashString64("position"), dmBuffer::VALUE_TYPE_FLOAT32, 3},
+            {dmHashString64("position"),  dmBuffer::VALUE_TYPE_FLOAT32, 3},
             {dmHashString64("texcoord0"), dmBuffer::VALUE_TYPE_FLOAT32, 2},
-            {dmHashString64("color"), dmBuffer::VALUE_TYPE_FLOAT32, 4}
+            {dmHashString64("color"),     dmBuffer::VALUE_TYPE_FLOAT32, 4},
         };
 
         uint32_t struct_size = 0;
@@ -1341,7 +1341,9 @@ namespace dmGameSystem
             bool flip_u = false;
             bool flip_v = false;
             if (!manually_set_texture)
+            {
                 GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
+            }
 
             // render using geometries without 9-slicing
             if (!use_slice_nine && use_geometries)
@@ -1467,6 +1469,7 @@ namespace dmGameSystem
             v10.SetColor(pm_color);
             v01.SetColor(pm_color);
             v11.SetColor(pm_color);
+
             for (int y=0;y<3;y++)
             {
                 for (int x=0;x<3;x++)
@@ -1621,6 +1624,7 @@ namespace dmGameSystem
             float u0,su,v0,sv;
             bool uv_rotated;
             const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+
             if(tc)
             {
                 bool flip_u, flip_v;

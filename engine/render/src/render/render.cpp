@@ -828,17 +828,28 @@ namespace dmRender
 
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
+            uint8_t next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
                 if (render_context->m_Textures[i])
-                    texture = render_context->m_Textures[i];
-                if (texture)
                 {
-                    dmGraphics::EnableTexture(context, i, texture);
-                    ApplyMaterialSampler(render_context, material, i, texture);
+                    texture = render_context->m_Textures[i];
                 }
 
+                if (texture)
+                {
+                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    {
+                        // TODO paged-atlas: We can remove the HSampler concept now I think, unless we want to do validation in a debug runtime?
+                        HSampler sampler = GetMaterialSampler(material, next_texture_unit);
+
+                        dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
+                        ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
+
+                        next_texture_unit++;
+                    }
+                }
             }
 
             dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
@@ -850,13 +861,20 @@ namespace dmRender
 
             dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
 
+            next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
                 if (render_context->m_Textures[i])
                     texture = render_context->m_Textures[i];
                 if (texture)
-                    dmGraphics::DisableTexture(context, i, texture);
+                {
+                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    {
+                        dmGraphics::DisableTexture(context, next_texture_unit, texture);
+                        next_texture_unit++;
+                    }
+                }
             }
         }
 
