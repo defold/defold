@@ -185,11 +185,15 @@
           :sprite-trim-mode-8))
 
 (s/defrecord Image
-  [path     :- s/Any
-   contents :- (s/maybe BufferedImage)
-   width    :- Int32
-   height   :- Int32
-   sprite-trim-mode :- sprite-trim-modes]
+  [path              :- s/Any
+   contents          :- (s/maybe BufferedImage)
+   width             :- Int32
+   height            :- Int32
+   sprite-trim-mode  :- sprite-trim-modes
+   source-position-x :- Int32
+   source-position-y :- Int32
+   source-width      :- Int32
+   source-height     :- Int32]
   ImageHolder
   (contents [this] contents))
 

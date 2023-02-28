@@ -19,12 +19,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
 import javax.imageio.ImageIO;
+import javax.vecmath.Point4i;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -101,19 +101,21 @@ public class AtlasUtil {
     private static final class AtlasImageSortKey {
         public final String path;
         public final SpriteTrimmingMode mode;
-        public AtlasImageSortKey(String path, SpriteTrimmingMode mode) {
+        public final Point4i rect;
+        public AtlasImageSortKey(String path, SpriteTrimmingMode mode, int x, int y, int width, int height) {
             this.path = path;
             this.mode = mode;
+            this.rect = new Point4i(x, y, width, height);
         }
         @Override
         public int hashCode() {
-            return path.hashCode() + 31 * this.mode.hashCode();
+            return path.hashCode() + 31 * this.mode.hashCode() + 59 * this.rect.hashCode();
         }
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             AtlasImageSortKey b = (AtlasImageSortKey)o;
-            return this.mode == b.mode && this.path.equals(b.path);
+            return this.mode == b.mode && this.path.equals(b.path) && this.rect.equals(b.rect);
         }
     }
 
@@ -121,7 +123,7 @@ public class AtlasUtil {
         Map<AtlasImageSortKey, AtlasImage> uniqueImages = new HashMap<AtlasImageSortKey, AtlasImage>();
         List<AtlasImage> images = new ArrayList<AtlasImage>();
         for (AtlasImage image : atlas.getImagesList()) {
-            AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode());
+            AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode(), image.getSourcePositionX(), image.getSourcePositionY(), image.getSourceWidth(), image.getSourceHeight());
             if (!uniqueImages.containsKey(key)) {
                 uniqueImages.put(key, image);
                 images.add(image);
@@ -130,7 +132,7 @@ public class AtlasUtil {
 
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
             for (AtlasImage image : anim.getImagesList() ) {
-                AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode());
+                AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode(), image.getSourcePositionX(), image.getSourcePositionY(), image.getSourceWidth(), image.getSourceHeight());
                 if (!uniqueImages.containsKey(key)) {
                     uniqueImages.put(key, image);
                     images.add(image);
@@ -209,9 +211,15 @@ public class AtlasUtil {
         List<AtlasImage> atlasImages = collectImages(atlas);
         List<String> imagePaths = new ArrayList<String>();
         List<Integer> imageHullSizes = new ArrayList<Integer>();
+        List<Point4i> imageSourceRects = new ArrayList<Point4i>();
         for (AtlasImage image : atlasImages) {
             imagePaths.add(image.getImage());
             imageHullSizes.add(spriteTrimModeToInt(image.getSpriteTrimMode()));
+            imageSourceRects.add(new Point4i(
+                    image.getSourcePositionX(),
+                    image.getSourcePositionY(),
+                    image.getSourceWidth(),
+                    image.getSourceHeight()));
         }
         List<IResource> imageResources = toResources(atlasResource, imagePaths);
         List<BufferedImage> images = AtlasUtil.loadImages(imageResources);
@@ -227,7 +235,7 @@ public class AtlasUtil {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
-        TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
+        TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imageSourceRects, imagePaths, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()), true, false, null);

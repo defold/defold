@@ -13,6 +13,10 @@ message AtlasImage
 {
     required string image                           = 1 [(resource) = true];
     optional SpriteTrimmingMode sprite_trim_mode    = 2 [default = SPRITE_TRIM_MODE_OFF];
+    optional int32 source_position_x                = 3 [default = 0];
+    optional int32 source_position_y                = 4 [default = 0];
+    optional uint32 source_width                    = 5 [default = 0];
+    optional uint32 source_height                   = 6 [default = 0];
 }
 
 message AtlasAnimation

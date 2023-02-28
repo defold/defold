@@ -170,6 +170,13 @@
 
 (defn- validate-image-resource [node-id image-resource]
   (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource "Image"))
+(defn- validate-image-source-width [node-id source-width]
+  (validation/prop-error :fatal node-id :source-width validation/prop-negative? source-width "Source Width"))
+(defn- validate-image-source-height [node-id source-height]
+  (validation/prop-error :fatal node-id :source-height validation/prop-negative? source-height "Source Height"))
+
+(defn nil-if-zero [value]
+  (if (zero? value) nil value))
 
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
@@ -199,6 +206,13 @@
                                  {:type resource/Resource
                                   :ext image/exts})))
 
+  (property source-position-x g/Int (default 0))
+  (property source-position-y g/Int (default 0))
+  (property source-width g/Int (default 0)
+            (dynamic error (g/fnk [_node-id source-width] (validate-image-source-width _node-id source-width))))
+  (property source-height g/Int (default 0)
+            (dynamic error (g/fnk [_node-id source-height] (validate-image-source-height _node-id source-height))))
+
   (input id-counts NameCounts)
   (input maybe-image-resource resource/Resource)
   (output image-resource resource/Resource (g/fnk [_node-id maybe-image-resource maybe-image-size]
@@ -216,9 +230,17 @@
 
   (input animation-updatable g/Any)
 
-  (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size sprite-trim-mode]
+  (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size sprite-trim-mode
+                                    source-position-x source-position-y source-width source-height]
                               (with-meta
-                                (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)
+                                (Image. image-resource nil
+                                        (:width maybe-image-size)
+                                        (:height maybe-image-size)
+                                        sprite-trim-mode
+                                        source-position-x
+                                        source-position-y
+                                        source-width
+                                        source-height)
                                 {:error-node-id _node-id})))
   (output atlas-images [Image] (g/fnk [atlas-image] [atlas-image]))
   (output animation Animation (g/fnk [atlas-image id]
@@ -234,8 +256,13 @@
 
                                                                (resource/openable-resource? maybe-image-resource)
                                                                (assoc :link maybe-image-resource :outline-show-link? true)))))
-  (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode]
-                              {:image (resource/resource->proj-path maybe-image-resource) :order order :sprite-trim-mode sprite-trim-mode}))
+  (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode source-position-x source-position-y source-width source-height]
+                              {:image (resource/resource->proj-path maybe-image-resource)
+                               :order order :sprite-trim-mode sprite-trim-mode
+                               :source-position-x (nil-if-zero source-position-x)
+                               :source-position-y (nil-if-zero source-position-y)
+                               :source-width (nil-if-zero source-width)
+                               :source-height (nil-if-zero source-height)}))
   (output scene g/Any produce-image-scene)
   (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource]
                                (g/package-errors _node-id
@@ -689,10 +716,15 @@
 (defn- make-image-nodes
   [attach-fn parent image-msgs]
   (let [graph-id (g/node-id->graph-id parent)]
-    (for [{:keys [image sprite-trim-mode]} image-msgs]
+    (for [{:keys [image sprite-trim-mode source-position-x source-position-y source-width source-height]} image-msgs]
       (g/make-nodes
         graph-id
-        [atlas-image [AtlasImage {:image image :sprite-trim-mode sprite-trim-mode}]]
+        [atlas-image [AtlasImage {:image image
+                                  :sprite-trim-mode sprite-trim-mode
+                                  :source-position-x source-position-x
+                                  :source-position-y source-position-y
+                                  :source-width source-width
+                                  :source-height source-height}]]
         (attach-fn parent atlas-image)))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))

@@ -113,11 +113,22 @@
           (let [hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
             (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))))))
 
+(defn- make-image-sprite-geometry-with-offset
+  ^TextureSetProto$SpriteGeometry [^Image image ^TextureSetProto$SpriteGeometry sprite-geometry]
+  (let [sprite-geometry-with-offset (TextureSetGenerator/buildSpriteGeometryWithOffset
+                                      sprite-geometry
+                                      (.source-position-x image)
+                                      (.source-position-y image)
+                                      (.source-width image)
+                                      (.source-height image))]
+    (if (nil? sprite-geometry-with-offset) sprite-geometry sprite-geometry-with-offset)))
+
 (defn atlas->texture-set-data
   [animations images margin inner-padding extrude-borders]
   (let [sprite-geometries (mapv make-image-sprite-geometry images)]
     (g/precluding-errors sprite-geometries
-      (let [img-to-index (into {}
+      (let [sprite-geometries-with-offset (mapv make-image-sprite-geometry-with-offset images sprite-geometries)
+            img-to-index (into {}
                                (map-indexed #(pair %2 (Integer/valueOf ^int %1)))
                                images)
             anims-atom (atom animations)
@@ -136,9 +147,13 @@
                               (reset! anims-atom animations)
                               (reset! anim-imgs-atom [])))
             rects (mapv texture-set-layout-rect images)
-            use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 0 1)
+            use-geometries (if (every? #(and (= :sprite-trim-mode-off (:sprite-trim-mode %))
+                                            (and (= (:source-position-x %) 0)
+                                                 (and (= (:source-position-y %) 0)
+                                                      (and (= (:source-width %) 0)
+                                                           (and (= (:source-height %) 0)))))) images) 0 1)
             result (TextureSetGenerator/calculateLayout
-                     rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
+                     rects sprite-geometries sprite-geometries-with-offset use-geometries anim-iterator margin inner-padding extrude-borders
                      true false nil)]
         (doto (.builder result)
           (.setTexture "unknown"))
@@ -252,6 +267,7 @@
         result (TextureSetGenerator/calculateLayout
                  image-rects
                  sprite-geometries
+                 nil
                  use-geometries
                  anim-iterator
                  (:margin tile-source-attributes)
