@@ -186,7 +186,7 @@
         (map #(.getName ^ScriptDoc$Element %))
         (get (load-sdoc (sdoc-path "base")) "")))
 
-(def defined-globals
+(defn extract-globals-from-completions [completions]
   (into #{}
         (comp
           (remove #(#{:message :property} (:type %)))
@@ -194,7 +194,10 @@
           (remove #(or (= "" %)
                        (string/includes? % ":")
                        (contains? base-globals %))))
-        (get defold-docs "")))
+        (get completions "")))
+
+(def defined-globals
+  (extract-globals-from-completions defold-docs))
 
 (defn lua-base-documentation []
   (s/validate documentation-schema

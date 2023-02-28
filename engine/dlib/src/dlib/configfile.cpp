@@ -18,7 +18,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
-#include <sys/stat.h>
 #include "hash.h"
 #include "log.h"
 #include "http_client.h"
@@ -633,8 +632,7 @@ namespace dmConfigFile
                 // any drive letter is ok
                 if (strlen(uri_parts.m_Scheme) == 1)
                 {
-                    struct stat stat_buf;
-                    if (stat(url, &stat_buf) == 0)
+                    if (dmSys::Exists(url))
                     {
                         // In order to support windows paths with drive letter we
                         // first test if the url is a valid file
@@ -646,8 +644,7 @@ namespace dmConfigFile
             }
         }
 
-        struct stat stat_buf;
-        if (stat(url, &stat_buf) == 0)
+        if (dmSys::Exists(url))
         {
             // In order to support windows paths with drive letter we
             // first test if the url is a valid file

@@ -21,24 +21,18 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#ifdef _WIN32
-#include <io.h>
-#include <stdio.h>
-#else
-#include <unistd.h>
-#endif
-
 #include "../ddf/ddf.h"
 #include <dlib/memory.h>
 #include <dlib/dstrings.h>
+#include <dlib/sys.h>
 #include <dlib/testutil.h>
 
 /*
  * TODO:
- * Tester
- * - Fält
- *   - Extra fält
- *   - Fält som fattas
+ * Tests
+ * - Fields
+ *   - Extra fields
+ *   - Fields that are missing
  */
 
 #ifndef DDF_EXPOSE_DESCRIPTORS
@@ -161,11 +155,7 @@ TEST(Simple, LoadFromFile)
         dmDDF::Result e = dmDDF::LoadMessageFromFile(file_name, &DUMMY::TestDDF_Simple_DESCRIPTOR, &message);
         ASSERT_EQ(dmDDF::RESULT_OK, e);
 
-        #ifdef _WIN32
-        _unlink(file_name);
-        #else
-        unlink(file_name);
-        #endif
+        dmSys::Unlink(file_name);
 
         DUMMY::TestDDF::Simple* msg = (DUMMY::TestDDF::Simple*) message;
         ASSERT_EQ(simple.a(), msg->m_A);

@@ -45,6 +45,7 @@
             [editor.scene-picking :as scene-picking]
             [editor.slice9 :as slice9]
             [editor.types :as types]
+            [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -2250,6 +2251,50 @@
                       :dep-resources dep-resources}
           :deps dep-build-targets})])))
 
+(defn- validate-template-build-targets [template-build-targets]
+  (let [gui-resource-type+name->value->resource-proj-paths
+        (persistent!
+          (reduce
+            (fn [acc [gui-resource-type gui-resource-name gui-resource-value template-resource]]
+              (let [k (pair gui-resource-type gui-resource-name)
+                    proj-path (resource/proj-path template-resource)]
+                (assoc! acc k (-> (acc k)
+                                  (or {})
+                                  (update gui-resource-value (fnil conj []) proj-path)))))
+            (transient {})
+            (for [template-build-target (flatten template-build-targets)
+                  :let [resource (-> template-build-target :resource :resource)
+                        pb (-> template-build-target :user-data :pb)]
+                  [gui-resource-pb-key gui-value-key] [[:textures :texture]
+                                                       [:fonts :font]
+                                                       [:particlefxs :particlefx]
+                                                       [:resources :path]]
+                  gui-resource (get pb gui-resource-pb-key)]
+              [gui-resource-pb-key (:name gui-resource) (get gui-resource gui-value-key) resource])))
+        errors (into []
+                     (comp
+                       (filter #(< 1 (-> % val count)))
+                       (map (fn [[[gui-resource-type gui-resource-name] value->proj-paths]]
+                              (format "%s \"%s\" has conflicting values in templates: %s"
+                                      (case gui-resource-type
+                                        :textures "Texture"
+                                        :fonts "Font"
+                                        :particlefxs "Particle FX"
+                                        :resources "Custom resource")
+                                      gui-resource-name
+                                      (->> (for [[value proj-paths] value->proj-paths
+                                                 proj-path proj-paths]
+                                             (format "%s (%s)" proj-path value))
+                                           (sort eutil/natural-order)
+                                           (eutil/join-words ", " " and "))))))
+                     (sort-by key
+                              (eutil/comparator-chain
+                                (eutil/comparator-on key)
+                                (eutil/comparator-on eutil/natural-order val))
+                              gui-resource-type+name->value->resource-proj-paths))]
+    (when (pos? (count errors))
+      (str/join "\n" errors))))
+
 (defn- validate-max-nodes [_node-id max-nodes node-ids]
     (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 8192]) max-nodes "Max Nodes")
         (validation/prop-error :fatal _node-id :max-nodes (fn [v] (let [c (count node-ids)]
@@ -2264,10 +2309,11 @@
   (or (prop-resource-error _node-id :material material "Material")
       (validation/prop-error :fatal _node-id :material paged-material-not-supported-error-message (shader/is-using-array-samplers? material-shader))))
 
-(g/defnk produce-own-build-errors [_node-id material material-shader max-nodes node-ids script]
+(g/defnk produce-own-build-errors [_node-id material material-shader max-nodes node-ids script ^:try template-build-targets]
   (g/package-errors _node-id
                     (when script (prop-resource-error _node-id :script script "Script"))
                     (validate-material-resource _node-id material material-shader)
+                    (validation/prop-error :fatal _node-id nil validate-template-build-targets (gu/array-subst-remove-errors template-build-targets))
                     (validate-max-nodes _node-id max-nodes node-ids)))
 
 (g/defnk produce-build-errors [_node-id build-errors own-build-errors]
