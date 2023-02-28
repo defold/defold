@@ -71,7 +71,7 @@ def shutdown(sht):
 
     start = time.time()
     while True:
-        if time.time() - start > 5:
+        if time.time() - start > 10:
             error('HTTP server failed to start within 5 seconds')
             sys.exit(1)
         try:

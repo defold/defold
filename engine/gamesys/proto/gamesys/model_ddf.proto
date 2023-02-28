@@ -9,6 +9,20 @@ option java_outer_classname = "ModelProto";
 
 // TODO: Add documentation for messages, see https://github.com/defold/extension-spine/blob/main/defold-spine/commonsrc/spine_ddf.proto
 
+message Texture
+{
+    required string sampler     = 1; // the name of the sampler
+    required string texture     = 2 [(resource)=true];
+}
+
+message Material
+{
+    required string name        = 1; // the name of the material in the model file
+    required string material    = 2 [(resource)=true];
+    repeated Texture textures   = 3;
+}
+
+// The source format (.model)
 message ModelDesc
 {
     required string mesh        = 2 [(resource)=true];
@@ -19,14 +33,15 @@ message ModelDesc
     optional string default_animation  = 7;
 
     optional string name        = 10; // Deprecated
+    repeated Material materials = 11;
 }
 
+// The engine format (.modelc)
 message Model
 {
     required string rig_scene   = 1 [(resource)=true];
-    required string material    = 2 [(resource)=true];
-    repeated string textures    = 3 [(resource)=true];
-    optional string default_animation  = 4;
+    optional string default_animation  = 3;
+    repeated Material materials = 4;
 }
 
 message ResetConstant

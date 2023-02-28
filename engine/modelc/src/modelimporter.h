@@ -27,15 +27,22 @@ namespace dmModelImporter
 
     static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
 
+    struct Aabb
+    {
+        float m_Min[3];
+        float m_Max[3];
+    };
+
     struct Material
     {
         const char* m_Name;
+        uint32_t    m_Index;        // The index into the scene.materials array
     };
 
     struct Mesh
     {
         const char* m_Name;
-        const char* m_Material;
+        Material*   m_Material;
         // loop using m_VertexCount * stride
         float*      m_Positions;    // 3 floats per vertex
         float*      m_Normals;      // 3 floats per vertex
@@ -47,6 +54,8 @@ namespace dmModelImporter
         float*      m_TexCoord0;              // m_TexCoord0NumComponents floats per vertex
         uint32_t    m_TexCoord1NumComponents; // e.g 2 or 3
         float*      m_TexCoord1;              // m_TexCoord1NumComponents floats per vertex
+
+        Aabb        m_Aabb; // The min/max of the positions data
 
         uint32_t*   m_Indices;
         uint32_t    m_VertexCount;
@@ -140,6 +149,9 @@ namespace dmModelImporter
 
         Animation*  m_Animations;
         uint32_t    m_AnimationsCount;
+
+        Material*   m_Materials;
+        uint32_t    m_MaterialsCount;
     };
 
     struct Options

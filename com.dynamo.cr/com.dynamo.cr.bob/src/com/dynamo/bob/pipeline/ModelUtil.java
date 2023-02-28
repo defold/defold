@@ -66,7 +66,9 @@ import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Matrix4;
 import com.dynamo.proto.DdfMath.Transform;
 
+import com.dynamo.bob.pipeline.ModelImporter.Aabb;
 import com.dynamo.bob.pipeline.ModelImporter.Bone;
+import com.dynamo.bob.pipeline.ModelImporter.Material;
 import com.dynamo.bob.pipeline.ModelImporter.Mesh;
 import com.dynamo.bob.pipeline.ModelImporter.Model;
 import com.dynamo.bob.pipeline.ModelImporter.Node;
@@ -98,6 +100,10 @@ public class ModelUtil {
     }
 
     public static void unloadScene(Scene scene) {
+    }
+
+    private static Vector3 toDDFVector3(ModelImporter.Vec4 v) {
+        return MathUtil.vecmathToDDF(new Vector3d(v.x, v.y, v.z));
     }
 
     private static Transform toDDFTransform(ModelImporter.Transform transform) {
@@ -358,14 +364,11 @@ public class ModelUtil {
     }
 
     public static ArrayList<String> loadMaterialNames(Scene scene) {
-        HashSet<String> materials = new HashSet<>();
-
-        for (Model model : scene.models) {
-            for (Mesh mesh : model.meshes) {
-                materials.add(mesh.material);
-            }
+        ArrayList<String> materials = new ArrayList<>();
+        for (Material material : scene.materials) {
+            materials.add(material.name);
         }
-        return new ArrayList<String>(materials);
+        return materials;
     }
 
     public static ByteBuffer create16BitIndices(int[] indices) {
@@ -447,6 +450,7 @@ public class ModelUtil {
                 newMesh = new Mesh();
                 newMesh.material = inMesh.material;
                 newMesh.name = String.format("%s_%d", inMesh.name, outMeshes.size());
+                newMesh.aabb = new Aabb(inMesh.aabb);
 
                 newMesh.texCoords0NumComponents = inMesh.texCoords0NumComponents;
                 newMesh.texCoords1NumComponents = inMesh.texCoords1NumComponents;
@@ -566,7 +570,7 @@ public class ModelUtil {
         return Arrays.asList(ArrayUtils.toObject(array));
     }
 
-    public static Rig.Mesh loadMesh(Mesh mesh, ArrayList<String> materials) {
+    public static Rig.Mesh loadMesh(Mesh mesh) {
 
         String name = mesh.name;
 
@@ -576,6 +580,9 @@ public class ModelUtil {
         float[] normals = mesh.normals;
         float[] texCoords0 = mesh.getTexCoords(0);
         float[] texCoords1 = mesh.getTexCoords(1);
+
+        meshBuilder.setAabbMin(toDDFVector3(mesh.aabb.min));
+        meshBuilder.setAabbMax(toDDFVector3(mesh.aabb.max));
 
         if (mesh.positions != null)
             meshBuilder.addAllPositions(toList(mesh.positions));
@@ -619,25 +626,17 @@ public class ModelUtil {
             meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
         }
 
-        int material_index = 0;
-        for (int i = 0; i < materials.size(); ++i) {
-            String material = materials.get(i);
-            if (material.equals(mesh.material)) {
-                material_index = i;
-                break;
-            }
-        }
-        meshBuilder.setMaterialIndex(material_index);
+        meshBuilder.setMaterialIndex(mesh.material.index);
 
         return meshBuilder.build();
     }
 
-    private static Rig.Model loadModel(Node node, Model model, ArrayList<ModelImporter.Bone> skeleton, ArrayList<String> materials) {
+    private static Rig.Model loadModel(Node node, Model model, ArrayList<ModelImporter.Bone> skeleton) {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
         for (Mesh mesh : model.meshes) {
-            modelBuilder.addMeshes(loadMesh(mesh, materials));
+            modelBuilder.addMeshes(loadMesh(mesh));
         }
 
         modelBuilder.setId(MurmurHash.hash64(model.name));
@@ -646,16 +645,15 @@ public class ModelUtil {
         return modelBuilder.build();
     }
 
-    private static void loadModelInstances(Node node, ArrayList<ModelImporter.Bone> skeleton, ArrayList<String> materials,
-                                            ArrayList<Rig.Model> models) {
+    private static void loadModelInstances(Node node, ArrayList<ModelImporter.Bone> skeleton, ArrayList<Rig.Model> models) {
 
         if (node.model != null)
         {
-            models.add(loadModel(node, node.model, skeleton, materials));
+            models.add(loadModel(node, node.model, skeleton));
         }
 
         for (Node child : node.children) {
-            loadModelInstances(child, skeleton, materials, models);
+            loadModelInstances(child, skeleton, models);
         }
     }
 
@@ -717,8 +715,7 @@ public class ModelUtil {
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
         ArrayList<ModelImporter.Bone> skeleton = loadSkeleton(scene);
 
-        ArrayList<String> materials = loadMaterialNames(scene);
-        meshSetBuilder.addAllMaterials(materials);
+        meshSetBuilder.addAllMaterials(loadMaterialNames(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
@@ -727,7 +724,7 @@ public class ModelUtil {
                 continue;
             }
 
-            loadModelInstances(modelNode, skeleton, materials, models);
+            loadModelInstances(modelNode, skeleton, models);
             break; // TODO: Support more than one root node
         }
         meshSetBuilder.addAllModels(models);
@@ -888,9 +885,8 @@ public class ModelUtil {
         System.out.printf("--------------------------------------------\n");
 
         System.out.printf("Materials:\n");
-        ArrayList<String> materials = loadMaterialNames(scene);
-        for (String material : materials) {
-            System.out.printf("  Material: %s\n", material);
+        for (Material material : scene.materials) {
+            System.out.printf("  Material: %s\n", material.name, material.index);
         }
         System.out.printf("--------------------------------------------\n");
 

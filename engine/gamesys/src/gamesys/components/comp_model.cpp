@@ -26,6 +26,7 @@
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/intersection.h>
 #include <graphics/graphics.h>
 #include <rig/rig.h>
 #include <render/render.h>
@@ -57,10 +58,12 @@ namespace dmGameSystem
     struct MeshRenderItem
     {
         dmVMath::Matrix4            m_World;
+        dmVMath::Vector3            m_AabbMin;
+        dmVMath::Vector3            m_AabbMax;
         struct ModelComponent*      m_Component;
         ModelResourceBuffers*       m_Buffers;
-        dmRigDDF::Model*            m_Model;
-        dmRigDDF::Mesh*             m_Mesh;
+        dmRigDDF::Model*            m_Model;    // Used for world space materials
+        dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
         uint32_t                    m_MaterialIndex : 4; // current max 16 materials per model
         uint32_t                    m_Enabled : 1;
         uint32_t                    : 27;
@@ -78,7 +81,7 @@ namespace dmGameSystem
         int                         m_FunctionRef;
         HComponentRenderConstants   m_RenderConstants;
         dmGraphics::HTexture        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmRender::HMaterial         m_Material;
+        dmRender::HMaterial         m_Material; // Override material
 
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
@@ -267,12 +270,12 @@ namespace dmGameSystem
     static inline dmRender::HMaterial GetMaterial(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
         if (component->m_Material)
             return component->m_Material; // TODO: Add support for setting material on different indices
-        return resource->m_Materials[index];
+        return resource->m_Materials[index].m_Material;
     }
 
-    static inline dmGraphics::HTexture GetTexture(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
+    static inline dmGraphics::HTexture GetMaterialTexture(const ModelComponent* component, const ModelResource* resource, uint32_t material_index, uint32_t index) {
         assert(index < MAX_TEXTURE_COUNT);
-        return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
+        return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Materials[material_index].m_Textures[index];
     }
 
     static void ReHash(ModelComponent* component)
@@ -282,20 +285,14 @@ namespace dmGameSystem
         bool reverse = false;
         ModelResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
-// TODO: We need to create a hash for each mesh entry!
-// TODO: Each skinned instance has its own state (pose is determined by animation, play rate, blending, time)
-//  If they _do_ have the same state, we might use that fact so that they can batch together,
-//  and we can later use instancing?
-        for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
-        {
-            dmRender::HMaterial material = GetMaterial(component, resource, i);
-            dmHashUpdateBuffer32(&state, &material, sizeof(material));
-        }
-        // We have to hash individually since we don't know which textures are set as properties
-        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
-            dmGraphics::HTexture texture = GetTexture(component, resource, i);
-            dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
-        }
+
+        // The state of the static model
+        // Could be optimized by doing the state init/calc in the resource
+        dmHashUpdateBuffer32(&state, resource->m_Materials.Begin(), resource->m_Materials.Size()*sizeof(dmGameSystem::MaterialInfo));
+
+        if (component->m_Material)
+            dmHashUpdateBuffer32(&state, &component->m_Material, sizeof(component->m_Material));
+
         if (component->m_RenderConstants) {
             dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
         }
@@ -403,8 +400,13 @@ namespace dmGameSystem
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
+            item.m_AabbMin = item.m_Mesh->m_AabbMin;
+            item.m_AabbMax = item.m_Mesh->m_AabbMax;
             item.m_Enabled = 1;
             component->m_RenderItems.Push(item);
+
+            // printf("AABB: (%f, %f, %f)  (%f, %f, %f)\n", item.m_AabbMin.getX(), item.m_AabbMin.getY(), item.m_AabbMin.getZ(),
+            //         item.m_AabbMax.getX(), item.m_AabbMax.getY(), item.m_AabbMax.getZ());
         }
     }
 
@@ -564,7 +566,7 @@ namespace dmGameSystem
 
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {
-                ro.m_Textures[i] = GetTexture(component, component->m_Resource, i);
+                ro.m_Textures[i] = GetMaterialTexture(component, component->m_Resource, material_index, i);
             }
 
             if (component->m_RenderConstants) {
@@ -645,7 +647,7 @@ namespace dmGameSystem
 
         for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
-            ro.m_Textures[i] = GetTexture(component, component->m_Resource, i);
+            ro.m_Textures[i] = GetMaterialTexture(component, component->m_Resource, material_index, i);
         }
 
         if (component->m_RenderConstants) {
@@ -769,6 +771,24 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
+    {
+        DM_PROFILE("Model");
+
+        //ModelWorld* world = (ModelWorld*)params.m_UserData;
+
+        const dmIntersection::Frustum frustum = *params.m_Frustum;
+        uint32_t num_entries = params.m_NumEntries;
+        for (uint32_t i = 0; i < num_entries; ++i)
+        {
+            dmRender::RenderListEntry* entry = &params.m_Entries[i];
+            MeshRenderItem* render_item = (MeshRenderItem*)entry->m_UserData;
+
+            bool intersect = dmIntersection::TestFrustumOBB(frustum, render_item->m_World, render_item->m_AabbMin, render_item->m_AabbMax, true);
+            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+        }
+    }
+
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         ModelWorld *world = (ModelWorld *) params.m_UserData;
@@ -838,7 +858,7 @@ namespace dmGameSystem
 
         // Prepare list submit
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, mesh_count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         const uint32_t max_elements_vertices = world->m_MaxElementsVertices;
@@ -1041,7 +1061,7 @@ namespace dmGameSystem
         {
             if (params.m_PropertyId == PROP_TEXTURE[i])
             {
-                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTexture(component, component->m_Resource, i), out_value);
+                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterialTexture(component, component->m_Resource, 0, i), out_value);
             }
         }
         return GetMaterialConstant(GetMaterial(component, component->m_Resource, 0), params.m_PropertyId, params.m_Options.m_Index, out_value, true, CompModelGetConstantCallback, component);

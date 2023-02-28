@@ -122,7 +122,7 @@ TEST(ModelGLTF, LoadSkeleton)
 TEST(ModelGLTF, VertexColor3Float)
 {
     // Model courtesy of Artsion Trubchyk (https://github.com/aglitchman), public domain
-    const char* path = "./src/test/assets/primitive_vertex_color/vertexcolor_rgb3.gltf";
+    const char* path = "./src/test/assets/primitive_vertex_color/vertexcolor_rgb3.glb";
     uint32_t file_size = 0;
     void* mem = dmModelImporter::ReadFile(path, &file_size);
     dmModelImporter::Options options;

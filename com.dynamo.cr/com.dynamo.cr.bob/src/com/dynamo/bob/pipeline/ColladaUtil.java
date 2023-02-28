@@ -573,7 +573,7 @@ public class ColladaUtil {
         loadMesh(collada, meshSetBuilder, optimize, splitMeshes);
     }
 
-    private static XMLNode getFirstNodeWithGeoemtry(Collection<XMLVisualScene> scenes) {
+    private static XMLNode getFirstNodeWithGeometry(Collection<XMLVisualScene> scenes) {
         for (XMLVisualScene scene : scenes) {
             for (XMLNode node : scene.nodes.values()) {
                 if (node.instanceGeometries.size() > 0) {
@@ -597,19 +597,30 @@ public class ColladaUtil {
         return a.stream().mapToInt(x -> x).toArray();
     }
 
+    private static ModelImporter.Aabb calcAabb(float[] positions) {
+        ModelImporter.Aabb aabb = new ModelImporter.Aabb();
+        for (int i = 0; i < positions.length; i += 3) {
+            aabb.expand(positions[i+0], positions[i+1], positions[i+2]);
+        }
+        return aabb;
+    }
+
     private static ModelImporter.Mesh createModelImporterMesh(List<Float> position_list,
                                                               List<Float> normal_list,
                                                               List<Float> texcoord_list,
                                                               List<Float> bone_weights_list,
                                                               List<Integer> bone_indices_list,
-                                                              List<Integer> mesh_index_list) {
+                                                              List<Integer> mesh_index_list,
+                                                              ModelImporter.Material material) {
         ModelImporter.Mesh mesh = new ModelImporter.Mesh();
         mesh.name = "";
-        mesh.material = "";
+        mesh.material = material;
 
         mesh.positions = toFloatArray(position_list);
         if (normal_list.size() > 0)
             mesh.normals = toFloatArray(normal_list);
+
+        mesh.aabb = calcAabb(mesh.positions);
 
         mesh.tangents = null;
         mesh.colors = null;
@@ -649,7 +660,7 @@ public class ColladaUtil {
         XMLNode sceneNode = null;
         Matrix4d sceneNodeMatrix = null;
         if (collada.libraryVisualScenes.size() > 0) {
-            sceneNode = getFirstNodeWithGeoemtry(collada.libraryVisualScenes.get(0).scenes.values());
+            sceneNode = getFirstNodeWithGeometry(collada.libraryVisualScenes.get(0).scenes.values());
             if (sceneNode != null) {
                 XMLInstanceGeometry instanceGeo = sceneNode.instanceGeometries.get(0);
                 String geometryId = instanceGeo.url;
@@ -895,13 +906,16 @@ public class ColladaUtil {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
+        ModelImporter.Material material = new ModelImporter.Material();
+
         List<ModelImporter.Mesh> allMeshes = new ArrayList<>();
         ModelImporter.Mesh miMesh = createModelImporterMesh(new ArrayList<>(Arrays.asList(baked_position_list)),
                                                             new ArrayList<>(Arrays.asList(baked_normal_list)),
                                                             new ArrayList<>(Arrays.asList(baked_texcoord_list)),
                                                             new ArrayList<>(Arrays.asList(baked_bone_weights_list)),
                                                             new ArrayList<>(Arrays.asList(baked_bone_indices_list)),
-                                                            mesh_index_list);
+                                                            mesh_index_list,
+                                                            material);
 
         if (splitMeshes && vertex_count >= 65536) {
             ModelUtil.splitMesh(miMesh, allMeshes);
@@ -910,8 +924,7 @@ public class ColladaUtil {
         }
 
         for (ModelImporter.Mesh newMesh : allMeshes) {
-            ArrayList<String> materials = new ArrayList<String>();
-            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh, materials));
+            modelBuilder.addMeshes(ModelUtil.loadMesh(newMesh));
         }
 
         String name = sceneNode != null ? sceneNode.name : null;
