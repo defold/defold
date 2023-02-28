@@ -359,16 +359,24 @@
     (for [field [:name :samplers :tags :vertex-space :max-page-count]]
       (g/set-property self field (field pb)))))
 
-(defn- convert-textures-to-samplers
+(defn- sanitize-sampler [sampler]
+  ;; Material$MaterialDesc$Sampler in map format.
+  (dissoc sampler :name-indirections)) ; Only used in built data by the runtime.
+
+(defn- sanitize-material
   "The old format specified :textures as string names. Convert these into
   :samplers if we encounter them. Ignores :textures that already have
   :samplers with the same name. Also ensures that there are no duplicate
   entries in the :samplers list, based on :name."
-  [pb]
-  (let [existing-samplers (:samplers pb)
-        samplers-created-from-textures (map make-sampler (:textures pb))
-        samplers (into [] (util/distinct-by :name) (concat existing-samplers samplers-created-from-textures))]
-    (-> pb
+  [material-desc]
+  ;; Material$MaterialDesc in map format.
+  (let [existing-samplers (map sanitize-sampler (:samplers material-desc))
+        samplers-created-from-textures (map make-sampler (:textures material-desc))
+        samplers (into []
+                       (util/distinct-by :name)
+                       (concat existing-samplers
+                               samplers-created-from-textures))]
+    (-> material-desc
         (assoc :samplers samplers)
         (dissoc :textures))))
 
@@ -379,6 +387,6 @@
     :node-type MaterialNode
     :ddf-type Material$MaterialDesc
     :load-fn load-material
-    :sanitize-fn convert-textures-to-samplers
+    :sanitize-fn sanitize-material
     :icon "icons/32/Icons_31-Material.png"
     :view-types [:cljfx-form-view :text]))
