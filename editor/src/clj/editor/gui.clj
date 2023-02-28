@@ -524,7 +524,7 @@
 
 ;; Base nodes
 
-(def base-display-order [:id :generated-id scene/SceneNode :manual-size])
+(def base-display-order [:id :generated-id scene/SceneNode])
 
 (defn- validate-layer [emit-warnings? node-id layer-names layer]
   (when-not (empty? layer)
