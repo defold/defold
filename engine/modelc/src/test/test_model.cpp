@@ -22,17 +22,14 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-static int BufferResolveUri(void* context, const char* uri, void* buffer, size_t buffer_size)
+static void* BufferResolveUri(const char* dirname, const char* uri, uint32_t* file_size)
 {
-    const char* dirname = (const char*)context;
-
     char path[512];
     dmStrlCpy(path, dirname, sizeof(path));
     dmStrlCat(path, "/", sizeof(path));
     dmStrlCat(path, uri, sizeof(path));
 
-    void* mem = dmModelImporter::ReadFileToBuffer(path, buffer_size, buffer);
-    return mem != 0 ? 1 : 0;
+    return dmModelImporter::ReadFile(path, file_size);
 }
 
 static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Options& options)
@@ -51,8 +48,28 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
         c = strrchr(dirname, '\\');
     if (c)
         *c = 0;
-    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size,
-                                                                BufferResolveUri, dirname);
+
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+
+    if (dmModelImporter::NeedsResolve(scene))
+    {
+        for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+        {
+            if (scene->m_Buffers[i].m_Buffer)
+                continue;
+
+            uint32_t buffermem_size = 0;
+            void* buffermem = BufferResolveUri(dirname, scene->m_Buffers[i].m_Uri, &buffermem_size);
+            dmModelImporter::ResolveBuffer(scene, scene->m_Buffers[i].m_Uri, buffermem, buffermem_size);
+            free(buffermem);
+        }
+
+        assert(!dmModelImporter::NeedsResolve(scene));
+    }
+
+    bool result = dmModelImporter::LoadFinalize(scene);
+    if (result)
+        result = dmModelImporter::Validate(scene);
 
     free(mem);
 
@@ -68,7 +85,11 @@ TEST(ModelGLTF, Load)
     const char* suffix = strrchr(path, '.') + 1;
 
     dmModelImporter::Options options;
-    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size, 0, 0);
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
+    bool result = dmModelImporter::LoadFinalize(scene);
+    ASSERT_TRUE(result);
+    result = dmModelImporter::Validate(scene);
+    ASSERT_TRUE(result);
 
     ASSERT_NE((void*)0, scene);
 
@@ -88,7 +109,7 @@ TEST(ModelGLTF, LoadSkeleton)
     const char* suffix = strrchr(path, '.') + 1;
 
     dmModelImporter::Options options;
-    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size, 0, 0);
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
 
     ASSERT_NE((void*)0, scene);
     ASSERT_EQ(1, scene->m_SkinsCount);
@@ -126,7 +147,7 @@ TEST(ModelGLTF, VertexColor3Float)
     uint32_t file_size = 0;
     void* mem = dmModelImporter::ReadFile(path, &file_size);
     dmModelImporter::Options options;
-    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, strrchr(path, '.')+1, mem, file_size, 0, 0);
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, strrchr(path, '.')+1, mem, file_size);
 
     dmModelImporter::Mesh* mesh = &scene->m_Models[0].m_Meshes[0];
     uint32_t vcount = mesh->m_VertexCount;

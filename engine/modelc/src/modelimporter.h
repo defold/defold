@@ -129,10 +129,19 @@ namespace dmModelImporter
         float           m_Duration;
     };
 
+    struct Buffer // GLTF format
+    {
+        const char*     m_Uri;
+        void*           m_Buffer;
+        uint32_t        m_BufferSize;
+    };
+
     struct Scene
     {
         void*       m_OpaqueSceneData;
-        void        (*m_DestroyFn)(void* opaque_scene_data);
+        bool        (*m_LoadFinalizeFn)(Scene*);
+        bool        (*m_ValidateFn)(Scene*);
+        void        (*m_DestroyFn)(Scene*);
 
         // There may be more than one root node
         Node*       m_Nodes;
@@ -152,6 +161,9 @@ namespace dmModelImporter
 
         Material*   m_Materials;
         uint32_t    m_MaterialsCount;
+
+        Buffer*     m_Buffers;
+        uint32_t    m_BuffersCount;
     };
 
     struct Options
@@ -167,13 +179,25 @@ namespace dmModelImporter
     // Used to resolve external buffers
     typedef int (*FFileResolve)(void* resolvectx, const char* uri, void* buffer, size_t size);
 
-    extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t file_size,
-                                            FFileResolve resolve_callback,
-                                            void* resolve_context);
+    extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t data_size);
 
-    extern "C" DM_DLLEXPORT Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size,
-                                            FFileResolve resolve_callback,
-                                            void* resolve_context);
+    // GLTF: Returns true if there are unresolved data buffers
+    extern "C" DM_DLLEXPORT bool NeedsResolve(Scene* scene);
+
+    // GLTF: Loop over the buffers, and for each missing one, supply this one here
+    extern "C" DM_DLLEXPORT void ResolveBuffer(Scene* scene, const char* uri, void* data, uint32_t data_size);
+
+    // GLTF: Validate after all buffers are resolved
+    extern "C" DM_DLLEXPORT bool Validate(Scene* scene);
+
+    // GLTF: Finalize the load and create the actual scene structure
+    extern "C" DM_DLLEXPORT bool LoadFinalize(Scene* scene);
+
+    // extern "C" DM_DLLEXPORT bool HasUnresolvedBuffers(Scene* scene);
+
+    // extern "C" DM_DLLEXPORT bool ResolveBuffers(Scene* scene, FFileResolve cbk, void* cbl_ctx);
+
+    extern "C" DM_DLLEXPORT Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size);
 
     extern "C" DM_DLLEXPORT Scene* LoadFromPath(Options* options, const char* path);
 

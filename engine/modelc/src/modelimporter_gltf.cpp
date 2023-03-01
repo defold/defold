@@ -37,6 +37,10 @@
 
 namespace dmModelImporter
 {
+struct GltfData
+{
+    cgltf_data* m_Data;
+};
 
 static void OutputTransform(const dmTransform::Transform& transform)
 {
@@ -234,11 +238,6 @@ static float* ReadAccessorMatrix4(cgltf_accessor* accessor, uint32_t index, floa
     return out;
 }
 
-
-
-static void DestroyGltf(void* opaque_scene_data);
-
-
 static uint32_t FindNodeIndex(cgltf_node* node, uint32_t nodes_count, cgltf_node* nodes)
 {
     for (uint32_t i = 0; i < nodes_count; ++i)
@@ -300,7 +299,7 @@ static char* CreateObjectName(T* object, const char* prefix, uint32_t index)
 }
 
 template <>
-static char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t index)
+char* CreateObjectName<>(cgltf_primitive* object, const char* prefix, uint32_t index)
 {
     (void)object;
     return CreateNameFromHash("mesh", index);
@@ -932,8 +931,7 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
 }
 
 // Based on cgltf.h: cgltf_load_buffers(...)
-static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* data, const char* gltf_path,
-                                    FFileResolve resolve_callback, void* resolve_context)
+static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* data, const char* gltf_path)
 {
 	if (options == NULL)
 	{
@@ -995,23 +993,24 @@ static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* dat
 			}
 		}
         // DEFOLD
-        else if (!gltf_path && resolve_callback)
+        else if (!gltf_path)
         {
-            void* (*memory_alloc)(void*, cgltf_size) = options->memory.alloc_func ? options->memory.alloc_func : &cgltf_default_alloc;
-            void (*memory_free)(void*, void*) = options->memory.free_func ? options->memory.free_func : &cgltf_default_free;
-            size_t urilen = strlen(uri);
-	        char* path = (char*)memory_alloc(options->memory.user_data, urilen + 1);
-            memcpy(path, uri, urilen);
-            path[urilen] = 0;
-            cgltf_decode_uri(path);
+            // void* (*memory_alloc)(void*, cgltf_size) = options->memory.alloc_func ? options->memory.alloc_func : &cgltf_default_alloc;
+            // void (*memory_free)(void*, void*) = options->memory.free_func ? options->memory.free_func : &cgltf_default_free;
+            // size_t urilen = strlen(uri);
+	        // char* path = (char*)memory_alloc(options->memory.user_data, urilen + 1);
+            // memcpy(path, uri, urilen);
+            // path[urilen] = 0;
+            // cgltf_decode_uri(path);
 
-            data->buffers[i].data = memory_alloc(options->memory.user_data, data->buffers[i].size);
-            data->buffers[i].data_free_method = cgltf_data_free_method_memory_free;
+            // data->buffers[i].data = memory_alloc(options->memory.user_data, data->buffers[i].size);
+            // data->buffers[i].data_free_method = cgltf_data_free_method_memory_free;
 
-            // Get the raw bytes from that file
-            int result = resolve_callback(resolve_context, uri, data->buffers[i].data, data->buffers[i].size);
-            if (result == 0)
-                return cgltf_result_unknown_format;
+            // // Get the raw bytes from that file
+            // int result = resolve_callback(resolve_context, uri, data->buffers[i].data, data->buffers[i].size);
+            // if (result == 0)
+            //     return cgltf_result_unknown_format;
+            continue; // we allow the code to supply the buffers later
         }
         // END DEFOLD
 		else
@@ -1023,34 +1022,23 @@ static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* dat
 	return cgltf_result_success;
 }
 
-
-Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_size,
-                                            FFileResolve resolve_callback,
-                                            void* resolve_context)
+static bool HasUnresolvedBuffersInternal(cgltf_data* data)
 {
-    cgltf_options options;
-    memset(&options, 0, sizeof(cgltf_options));
-
-    cgltf_data* data = NULL;
-    cgltf_result result = cgltf_parse(&options, (uint8_t*)mem, file_size, &data);
-
-    if (result == cgltf_result_success)
-        result = ResolveBuffers(&options, data, 0, resolve_callback, resolve_context);
-
-    if (result == cgltf_result_success)
-        result = cgltf_validate(data);
-
-    if (result != cgltf_result_success)
-    {
-        printf("Failed to load gltf file: %s (%d)\n", GetResultStr(result), result);
-        return 0;
+	for (cgltf_size i = 0; i < data->buffers_count; ++i)
+	{
+		if (!data->buffers[i].data)
+            return true;
     }
+    return false;
+}
 
-    Scene* scene = new Scene;
-    memset(scene, 0, sizeof(Scene));
-    scene->m_OpaqueSceneData = (void*)data;
-    scene->m_DestroyFn = DestroyGltf;
+bool HasUnresolvedBuffers(Scene* scene)
+{
+    return HasUnresolvedBuffersInternal((cgltf_data*)scene->m_OpaqueSceneData);
+}
 
+static void LoadScene(Scene* scene, cgltf_data* data)
+{
     LoadSkins(scene, data);
     LoadNodes(scene, data);
     LoadMaterials(scene, data);
@@ -1063,13 +1051,107 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     // Make sure the skins have only one root node
     GenerateRootBone(scene);
+}
+
+static bool LoadFinalizeGltf(Scene* scene)
+{
+        //result = ResolveBuffers(&options, data, 0, resolve_callback, resolve_context);
+
+    GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    LoadScene(scene, data->m_Data);
+    return true;
+}
+
+static bool ValidateGltf(Scene* scene)
+{
+    GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    cgltf_result result = cgltf_validate(data->m_Data);
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to validate gltf file: %s (%d)\n", GetResultStr(result), result);
+    }
+    return result == cgltf_result_success;
+}
+
+static void DestroyGltf(Scene* scene)
+{
+    GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    cgltf_free(data->m_Data);
+    delete data;
+}
+
+Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_size)
+{
+    cgltf_options options;
+    memset(&options, 0, sizeof(cgltf_options));
+
+    cgltf_data* data = NULL;
+    cgltf_result result = cgltf_parse(&options, (uint8_t*)mem, file_size, &data);
+
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to load gltf file: %s (%d)\n", GetResultStr(result), result);
+        return 0;
+    }
+
+    // resolve as many buffers as possible
+    //result = cgltf_load_buffers(&options, data, 0);
+    result = ResolveBuffers(&options, data, 0);
+    if (result != cgltf_result_success)
+    {
+        printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
+        return 0;
+    }
+
+    Scene* scene = new Scene;
+    memset(scene, 0, sizeof(Scene));
+    GltfData* scenedata = new GltfData;
+    scenedata->m_Data = data;
+
+    scene->m_OpaqueSceneData = scenedata;
+    scene->m_LoadFinalizeFn = LoadFinalizeGltf;
+    scene->m_ValidateFn = ValidateGltf;
+    scene->m_DestroyFn = DestroyGltf;
+
+    scene->m_BuffersCount = data->buffers_count;
+    scene->m_Buffers = new Buffer[scene->m_BuffersCount];
+
+	for (cgltf_size i = 0; i < data->buffers_count; ++i)
+	{
+        scene->m_Buffers[i].m_Uri = data->buffers[i].uri;
+        scene->m_Buffers[i].m_Buffer = data->buffers[i].data;
+        scene->m_Buffers[i].m_BufferSize = data->buffers[i].size;
+    }
 
     return scene;
 }
 
-static void DestroyGltf(void* opaque_scene_data)
+void ResolveBuffer(Scene* scene, const char* uri, void* bufferdata, uint32_t bufferdata_size)
 {
-    cgltf_free((cgltf_data*)opaque_scene_data);
+    GltfData* scenedata = (GltfData*)scene->m_OpaqueSceneData;
+    cgltf_data* data = scenedata->m_Data;
+
+    cgltf_options _options;
+    cgltf_options* options = &_options;
+    memset(options, 0, sizeof(cgltf_options));
+
+    for (cgltf_size i = 0; i < scene->m_BuffersCount; ++i)
+	{
+        Buffer* scenebuffer = &scene->m_Buffers[i];
+        if (strcmp(scenebuffer->m_Uri, uri) == 0)
+        {
+            void* (*memory_alloc)(void*, cgltf_size) = options->memory.alloc_func ? options->memory.alloc_func : &cgltf_default_alloc;
+            void (*memory_free)(void*, void*) = options->memory.free_func ? options->memory.free_func : &cgltf_default_free;
+            cgltf_buffer* buffer = &data->buffers[i];
+
+            buffer->data = memory_alloc(options->memory.user_data, buffer->size);
+            buffer->data_free_method = cgltf_data_free_method_memory_free;
+
+            memcpy(buffer->data, bufferdata, bufferdata_size);
+            scenebuffer->m_Buffer = buffer->data;
+            return;
+        }
+    }
 }
 
 }

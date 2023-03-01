@@ -116,6 +116,20 @@ static void DestroyMaterial(Material* material)
     (void)material;
 }
 
+bool Validate(Scene* scene)
+{
+    if (scene->m_ValidateFn)
+        return scene->m_ValidateFn(scene);
+    return true;
+}
+
+bool LoadFinalize(Scene* scene)
+{
+    if (scene->m_LoadFinalizeFn)
+        return scene->m_LoadFinalizeFn(scene);
+    return true;
+}
+
 void DestroyScene(Scene* scene)
 {
     if (!scene)
@@ -129,7 +143,7 @@ void DestroyScene(Scene* scene)
         return;
     }
 
-    scene->m_DestroyFn(scene->m_OpaqueSceneData);
+    scene->m_DestroyFn(scene);
     scene->m_OpaqueSceneData = 0;
 
     for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
@@ -160,12 +174,13 @@ void DestroyScene(Scene* scene)
     scene->m_MaterialsCount = 0;
     delete[] scene->m_Materials;
 
+    scene->m_BuffersCount = 0;
+    delete[] scene->m_Buffers;
+
     delete scene;
 }
 
-Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size,
-                                            FFileResolve resolve_callback,
-                                            void* resolve_context)
+Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size)
 {
     if (suffix == 0)
     {
@@ -174,10 +189,20 @@ Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t
     }
 
     if (dmStrCaseCmp(suffix, "gltf") == 0 || dmStrCaseCmp(suffix, "glb") == 0)
-        return LoadGltfFromBuffer(options, data, file_size, resolve_callback, resolve_context);
+        return LoadGltfFromBuffer(options, data, file_size);
 
     printf("ModelImporter: File type not supported: %s\n", suffix);
     return 0;
+}
+
+static void* BufferResolveUri(const char* dirname, const char* uri, uint32_t* file_size)
+{
+    char path[512];
+    dmStrlCpy(path, dirname, sizeof(path));
+    dmStrlCat(path, "/", sizeof(path));
+    dmStrlCat(path, uri, sizeof(path));
+
+    return dmModelImporter::ReadFile(path, file_size);
 }
 
 Scene* LoadFromPath(Options* options, const char* path)
@@ -192,11 +217,50 @@ Scene* LoadFromPath(Options* options, const char* path)
         return 0;
     }
 
-    Scene* scene = LoadFromBuffer(options, suffix, data, file_size, 0, 0);
+    Scene* scene = LoadFromBuffer(options, suffix, data, file_size);
+
+
+    char dirname[512];
+    dmStrlCpy(dirname, path, sizeof(dirname));
+    char* c = strrchr(dirname, '/');
+    if (!c)
+        c = strrchr(dirname, '\\');
+    if (c)
+        *c = 0;
+
+    if (dmModelImporter::NeedsResolve(scene))
+    {
+        for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+        {
+            if (scene->m_Buffers[i].m_Buffer)
+                continue;
+
+            uint32_t mem_size = 0;
+            void* mem = BufferResolveUri(dirname, scene->m_Buffers[i].m_Uri, &mem_size);
+            dmModelImporter::ResolveBuffer(scene, scene->m_Buffers[i].m_Uri, mem, mem_size);
+        }
+    }
+
+    if (!dmModelImporter::LoadFinalize(scene))
+    {
+        DestroyScene(scene);
+        printf("Failed to load '%s'\n", path);
+        return 0;
+    }
 
     free(data);
 
     return scene;
+}
+
+bool NeedsResolve(Scene* scene)
+{
+	for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+	{
+        if (!scene->m_Buffers[i].m_Buffer)
+            return true;;
+    }
+    return false;
 }
 
 void EnableDebugLogging(bool enable)
