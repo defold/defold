@@ -4,10 +4,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -59,12 +59,12 @@ static void OutputIndent(int indent)
     }
 }
 
-static void OutputTransform(const dmTransform::Transform& transform)
-{
-    printf("t: %f, %f, %f  ", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
-    printf("r: %f, %f, %f, %f  ", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
-    printf("s: %f, %f, %f  ", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
-}
+// static void OutputTransform(const dmTransform::Transform& transform)
+// {
+//     printf("t: %f, %f, %f  ", transform.GetTranslation().getX(), transform.GetTranslation().getY(), transform.GetTranslation().getZ());
+//     printf("r: %f, %f, %f, %f  ", transform.GetRotation().getX(), transform.GetRotation().getY(), transform.GetRotation().getZ(), transform.GetRotation().getW());
+//     printf("s: %f, %f, %f  ", transform.GetScale().getX(), transform.GetScale().getY(), transform.GetScale().getZ());
+// }
 
 static void OutputVector4(const dmVMath::Vector4& v)
 {
@@ -215,6 +215,14 @@ void DebugScene(Scene* scene)
     }
 
     printf("Output model importer scene:\n");
+
+    printf("------------------------------\n");
+    printf("Buffers\n");
+    for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+    {
+        OutputIndent(1);
+        printf("Buffer '%.48s' sz: %u  %p\n", scene->m_Buffers[i].m_Uri, scene->m_Buffers[i].m_BufferSize, scene->m_Buffers[i].m_Buffer);
+    }
 
     printf("------------------------------\n");
     for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
