@@ -51,7 +51,6 @@ TEST(dmMaterialTest, TestTags)
     dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, &shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, &shader);
-
     dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
 
     dmhash_t tags[] = {dmHashString64("tag1"), dmHashString64("tag2")};

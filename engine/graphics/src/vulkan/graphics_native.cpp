@@ -199,7 +199,9 @@ namespace dmGraphics
 
             DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
             DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
-            DestroyTexture(vk_device, &context->m_DefaultTexture->m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
+            DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
 
             vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
 
@@ -253,7 +255,7 @@ namespace dmGraphics
                 free(context->m_DynamicOffsetBuffer);
             }
 
-            delete context->m_SwapChain->m_ResolveTexture;
+            DestroyTexture(vk_device, &context->m_SwapChain->m_ResolveTexture->m_Handle);
             delete context->m_SwapChain;
         }
     }

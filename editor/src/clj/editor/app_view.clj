@@ -2204,8 +2204,8 @@ If you do not specifically require different script states, consider changing th
             allow))))
     (display-output! [_ type string]
       (let [[console-type prefix] (case type
-                                    :err [:extension-err "ERROR:EXT: "]
-                                    :out [:extension-out ""])]
+                                    :err [:extension-error "ERROR:EXT: "]
+                                    :out [:extension-output ""])]
         (doseq [line (string/split-lines string)]
           (console/append-console-entry! console-type (str prefix line)))))
     (on-transact-thread [_ f]

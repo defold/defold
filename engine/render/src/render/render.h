@@ -34,6 +34,7 @@ namespace dmRender
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
+    typedef uint64_t                        HSampler;
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
@@ -198,8 +199,9 @@ namespace dmRender
     // Material
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
+    HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
-    void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, uint32_t unit, dmGraphics::HTexture texture);
+    void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
 
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
     dmGraphics::HVertexProgram      GetMaterialVertexProgram(HMaterial material);
@@ -222,7 +224,7 @@ namespace dmRender
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
-    void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
