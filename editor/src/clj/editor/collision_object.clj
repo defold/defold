@@ -417,7 +417,7 @@
   [collision-shape-resource type mass friction restitution
    group mask angular-damping linear-damping locked-rotation bullet
    shapes]
-  (let [embedded-collision-shape (produce-embedded-collision-shape shapes)
+  (let [embedded-collision-shape (make-embedded-collision-shape shapes)
         mask (cond-> []
                      (some? mask)
                      (into (comp (map string/trim)

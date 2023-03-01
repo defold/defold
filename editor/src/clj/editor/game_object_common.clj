@@ -39,7 +39,9 @@
    :rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
    :scale [(float 1.0) (float 1.0) (float 1.0)]})
 
-(def ^:private default-scale-value (:scale identity-transform-properties))
+(def component-transform-property-keys (set (keys identity-transform-properties)))
+
+(def default-scale-value (:scale identity-transform-properties))
 
 (defn template-pb-map [workspace resource-type]
   (let [template (workspace/template workspace resource-type)
@@ -64,7 +66,6 @@
 (defn- sanitize-component-property-desc [component-property-desc]
   ;; GameObject$ComponentPropertyDesc or GameObject$ComponentDesc in map format.
   (-> component-property-desc
-      (dissoc :property-decls) ; Only used in built data by the runtime.
       (protobuf/sanitize-repeated :properties properties/sanitize-property-desc)))
 
 (defn sanitize-component-property-descs-at-key [any-desc component-property-descs-key]

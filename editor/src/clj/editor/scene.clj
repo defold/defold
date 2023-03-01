@@ -1515,7 +1515,7 @@
 (def produce-unscalable-transform-properties (g/constantly #{:position :rotation}))
 
 ;; Arbitrarily small value to avoid 0-determinants
-(def ^:private ^:const scale-min 0.000001)
+(def ^:private ^:const ^double scale-min 0.000001)
 
 (defn- non-zeroify-scale [^double v]
   (if (< (Math/abs v) scale-min) (Math/copySign scale-min v) v))

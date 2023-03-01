@@ -45,17 +45,26 @@
     [scale scale scale]
     scale3))
 
-(defn- uniform->non-uniform-scale [any-instance-desc]
+(defn strip-default-scale-from-any-instance-desc [any-instance-desc]
+  ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
+  (let [scale (:scale3 any-instance-desc)]
+    (if (or (= game-object-common/default-scale-value scale)
+            (protobuf/default-read-scale-value? scale))
+      (dissoc any-instance-desc :scale3)
+      any-instance-desc)))
+
+(defn- sanitize-any-instance-desc-scale [any-instance-desc]
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
   (-> any-instance-desc
       (assoc :scale3 (read-scale3-or-scale any-instance-desc))
-      (dissoc :scale)))
+      (dissoc :scale)
+      (strip-default-scale-from-any-instance-desc)))
 
 (defn- sanitize-any-instance-desc [any-instance-desc component-property-descs-key]
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
   ;; The specified key should address a seq of GameObject$ComponentPropertyDescs in map format.
   (-> any-instance-desc
-      (uniform->non-uniform-scale)
+      (sanitize-any-instance-desc-scale)
       (protobuf/sanitize-repeated :children)
       (game-object-common/sanitize-component-property-descs-at-key component-property-descs-key)))
 
@@ -86,7 +95,7 @@
 (defn- sanitize-collection-instance-desc [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.
   (-> collection-instance-desc
-      (uniform->non-uniform-scale)
+      (sanitize-any-instance-desc-scale)
       (protobuf/sanitize-repeated :instance-properties #(game-object-common/sanitize-component-property-descs-at-key % :properties))))
 
 (defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type embed-data-handling]

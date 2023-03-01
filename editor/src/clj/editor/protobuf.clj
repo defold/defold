@@ -569,34 +569,37 @@ Macros currently mean no foreseeable performance gain, however."
 (defn val->pb-enum [^Class enum-class val]
   (Enum/valueOf enum-class (keyword->enum-name val)))
 
+(def ^:private ^:const f0 (float 0.0))
+(def ^:private ^:const f1 (float 1.0))
+
 (extend-protocol PbConverter
   DdfMath$Point3
-  (msg->vecmath [_pb v] (Point3d. (:x v) (:y v) (:z v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v)])
+  (msg->vecmath [_pb v] (Point3d. (:x v f0) (:y v f0) (:z v f0)))
+  (msg->clj [_pb v] [(:x v f0) (:y v f0) (:z v f0)])
 
   DdfMath$Vector3
-  (msg->vecmath [_pb v] (Vector3d. (:x v) (:y v) (:z v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v)])
+  (msg->vecmath [_pb v] (Vector3d. (:x v f0) (:y v f0) (:z v f0)))
+  (msg->clj [_pb v] [(:x v f0) (:y v f0) (:z v f0)])
 
   DdfMath$Vector4
-  (msg->vecmath [_pb v] (Vector4d. (:x v) (:y v) (:z v) (:w v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v) (:w v)])
+  (msg->vecmath [_pb v] (Vector4d. (:x v f0) (:y v f0) (:z v f0) (:w v f0)))
+  (msg->clj [_pb v] [(:x v f0) (:y v f0) (:z v f0) (:w v f0)])
 
   DdfMath$Quat
-  (msg->vecmath [_pb v] (Quat4d. (:x v) (:y v) (:z v) (:w v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v) (:w v)])
+  (msg->vecmath [_pb v] (Quat4d. (:x v f0) (:y v f0) (:z v f0) (:w v f1)))
+  (msg->clj [_pb v] [(:x v f0) (:y v f0) (:z v f0) (:w v f1)])
 
   DdfMath$Matrix4
   (msg->vecmath [_pb v]
-    (Matrix4d. (:m00 v) (:m01 v) (:m02 v) (:m03 v)
-               (:m10 v) (:m11 v) (:m12 v) (:m13 v)
-               (:m20 v) (:m21 v) (:m22 v) (:m23 v)
-               (:m30 v) (:m31 v) (:m32 v) (:m33 v)))
+    (Matrix4d. (:m00 v f1) (:m01 v f0) (:m02 v f0) (:m03 v f0)
+               (:m10 v f0) (:m11 v f1) (:m12 v f0) (:m13 v f0)
+               (:m20 v f0) (:m21 v f0) (:m22 v f1) (:m23 v f0)
+               (:m30 v f0) (:m31 v f0) (:m32 v f0) (:m33 v f1)))
   (msg->clj [_pb v]
-    [(:m00 v) (:m01 v) (:m02 v) (:m03 v)
-     (:m10 v) (:m11 v) (:m12 v) (:m13 v)
-     (:m20 v) (:m21 v) (:m22 v) (:m23 v)
-     (:m30 v) (:m31 v) (:m32 v) (:m33 v)])
+    [(:m00 v f1) (:m01 v f0) (:m02 v f0) (:m03 v f0)
+     (:m10 v f0) (:m11 v f1) (:m12 v f0) (:m13 v f0)
+     (:m20 v f0) (:m21 v f0) (:m22 v f1) (:m23 v f0)
+     (:m30 v f0) (:m31 v f0) (:m32 v f0) (:m33 v f1)])
 
   Message
   (msg->vecmath [_pb v] v)
@@ -810,14 +813,14 @@ Macros currently mean no foreseeable performance gain, however."
      (if (empty? (get pb-map field-kw))
        (dissoc pb-map field-kw)
        pb-map)
-    pb-map))
+     pb-map))
   ([pb-map field-kw sanitize-item-fn]
    {:pre [(map? pb-map)
           (keyword? field-kw)
           (ifn? sanitize-item-fn)]}
-  (if (contains? pb-map field-kw)
-    (let [items (get pb-map field-kw)]
-      (if (seq items)
-        (assoc pb-map field-kw (mapv sanitize-item-fn items))
-        (dissoc pb-map field-kw)))
-    pb-map)))
+   (if (contains? pb-map field-kw)
+     (let [items (get pb-map field-kw)]
+       (if (seq items)
+         (assoc pb-map field-kw (mapv sanitize-item-fn items))
+         (dissoc pb-map field-kw)))
+     pb-map)))
