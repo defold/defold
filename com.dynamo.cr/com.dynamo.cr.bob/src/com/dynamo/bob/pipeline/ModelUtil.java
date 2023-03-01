@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,8 +37,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Vector;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Vector;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -85,10 +86,40 @@ public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
 
-    public static Scene loadScene(byte[] content, String path, Options options) {
+    public static byte[] ReadFile(File file) throws IOException
+    {
+        InputStream inputStream = new FileInputStream(file);
+        byte[] bytes = new byte[inputStream.available()];
+        inputStream.read(bytes);
+        return bytes;
+    }
+
+    public static Scene loadScene(byte[] content, String path, Options options) throws IOException {
         if (options == null)
             options = new Options();
-        Scene scene = ModelImporter.LoadFromBuffer(options, path, content);
+
+        // **********************************
+        Scene scene = ModelImporter.LoadFromBuffer(options, path, content, null);
+
+        File parentPath = new File(path);
+        parentPath = parentPath.getParentFile();
+
+        Map<String, byte[]> buffers = new HashMap<>();
+        for (ModelImporter.Buffer buffer : scene.buffers) {
+            if (buffer.buffer == null)
+            {
+                File bufferFile = new File(parentPath, buffer.uri);
+                buffers.put(buffer.uri, ReadFile(bufferFile));
+            }
+        }
+
+        if (buffers.size() > 0)
+        {
+            System.out.printf("Unresolved buffers found. Loading again with additional data\n");
+            scene = ModelImporter.LoadFromBuffer(new Options(), path, content, buffers);
+        }
+        // **********************************
+
         if (scene != null)
             return loadInternal(scene, options);
         return scene;
@@ -249,7 +280,7 @@ public class ModelUtil {
         }
     }
 
-    public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) {
+    public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException {
         Scene scene = loadScene(content, suffix, options);
         loadAnimations(scene, bones, animationSetBuilder, parentAnimationId, animationIds);
     }
@@ -756,7 +787,7 @@ public class ModelUtil {
         return skeleton;
     }
 
-    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content, String suffix, Options options) {
+    public static ArrayList<ModelImporter.Bone> loadSkeleton(byte[] content, String suffix, Options options) throws IOException {
         Scene scene = loadScene(content, suffix, options);
         return loadSkeleton(scene);
     }
