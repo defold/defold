@@ -107,12 +107,10 @@
 
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
   (let [basis (:basis evaluation-context)
-        project (project/get-project basis self)
-        workspace (project/workspace project)
-        ext->resource-type (workspace/get-resource-type-map workspace :non-editable)]
+        project (project/get-project basis self)]
     (into (delete-connected-nodes-tx-data basis self old-sources-input-label)
           (mapcat (fn [[data]]
-                    (add-resource-node-fn self data ext->resource-type project)))
+                    (add-resource-node-fn self data project)))
           (sort-by val new-value))))
 
 (defn referenced-resources-setter [evaluation-context self new-value old-sources-input-label resource-connections]
@@ -218,17 +216,14 @@
         transform-matrix (any-component-desc->transform-matrix component-desc)
         proj-path->source-resource (comp :resource :resource proj-path->build-target)
         go-props-with-source-resources (mapv #(properties/property-desc->go-prop % proj-path->source-resource) (:properties component-desc))
-        component-desc (-> component-desc
-                           (assoc :properties go-props-with-source-resources)
-                           (game-object-common/add-default-scale-to-component-desc))]
+        component-desc (assoc component-desc :properties go-props-with-source-resources)]
     (game-object-common/referenced-component-instance-data build-resource component-desc transform-matrix proj-path->build-target)))
 
 (defn- embedded-component-desc->component-instance-data [embedded-component-desc embedded-component-desc->build-resource]
   {:pre [(map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
          (map? (:data embedded-component-desc))]} ; We must be in our unaltered sanitized state for the build resource lookup to work.
   (let [build-resource (embedded-component-desc->build-resource embedded-component-desc)
-        transform-matrix (any-component-desc->transform-matrix embedded-component-desc)
-        embedded-component-desc (game-object-common/add-default-scale-to-component-desc embedded-component-desc)]
+        transform-matrix (any-component-desc->transform-matrix embedded-component-desc)]
     (game-object-common/embedded-component-instance-data build-resource embedded-component-desc transform-matrix)))
 
 (defn prototype-desc->component-instance-datas [prototype-desc embedded-component-desc->build-resource proj-path->build-target]

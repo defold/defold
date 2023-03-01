@@ -186,7 +186,7 @@
 (def ^:private default-scale-value-v3 [(float 1.0) (float 1.0) (float 1.0)])
 
 (g/defnk produce-pb-msg [text size color outline shadow leading tracking pivot blend-mode line-break font material]
-  (protobuf/make-map-with-defaults Label$LabelDesc
+  (protobuf/make-map-without-defaults Label$LabelDesc
     :text text
     :size (v3->v4 size)
     :color color
@@ -342,7 +342,7 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
                                       (texture/set-params gpu-texture tex-params))))
 
-(defn load-label [project self resource label]
+(defn load-label [_project self resource label]
   (let [size-v3 (v4->v3 (:size label))
         legacy-scale-v3 (some-> label :scale v4->v3) ; Stripped when saving.
         font (workspace/resolve-resource resource (:font label))
@@ -433,6 +433,7 @@
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
+    :read-defaults false
     :load-fn load-label
     :sanitize-fn sanitize-label
     :icon label-icon

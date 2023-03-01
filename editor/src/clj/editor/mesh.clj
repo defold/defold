@@ -72,7 +72,7 @@
 (def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id "world_view_proj" :world-view-proj}))
 
 (g/defnk produce-pb-msg [primitive-type position-stream normal-stream material vertices textures]
-  (protobuf/make-map-with-defaults MeshProto$MeshDesc
+  (protobuf/make-map-without-defaults MeshProto$MeshDesc
     :material (resource/resource->proj-path material)
     :vertices (resource/resource->proj-path vertices)
     :textures (mapv resource/resource->proj-path textures)
@@ -467,27 +467,16 @@
                                                         (update :properties into p)
                                                         (update :display-order into (map first p)))))))
 
-(defn- sanitize-mesh [pb]
-  (cond-> pb
-
-          (str/blank? (:position-stream pb))
-          (dissoc :position-stream)
-
-          (str/blank? (:normal-stream pb))
-          (dissoc :normal-stream)))
-
 (defn- load-mesh [_project self resource pb]
-  (concat
-    (g/set-property self :primitive-type (:primitive-type pb))
-    (g/set-property self :position-stream (or (:position-stream pb) ""))
-    (g/set-property self :normal-stream (or (:normal-stream pb) ""))
-    (for [res [:material :vertices [:textures]]]
-      (if (vector? res)
-        (let [res (first res)]
-          (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))
-        (->> (get pb res)
-          (workspace/resolve-resource resource)
-          (g/set-property self res))))))
+  (let [resolve-resource #(workspace/resolve-resource resource %)
+        resolve-resources #(mapv resolve-resource %)]
+    (gu/set-properties-from-map self pb
+      primitive-type :primitive-type
+      position-stream :position-stream
+      normal-stream :normal-stream
+      material (resolve-resource :material)
+      vertices (resolve-resource :vertices)
+      textures (resolve-resources :textures))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -495,7 +484,7 @@
     :label "Mesh"
     :node-type MeshNode
     :ddf-type MeshProto$MeshDesc
-    :sanitize-fn sanitize-mesh
+    :read-defaults false
     :load-fn load-mesh
     :icon mesh-icon
     :view-types [:scene :text]

@@ -168,16 +168,16 @@
 (defn embedded-component-instance-data [build-resource embedded-component-desc ^Matrix4d transform-matrix]
   {:pre [(workspace/build-resource? build-resource)
          (map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
-         (contains? embedded-component-desc :scale)
          (instance? Matrix4d transform-matrix)]}
   {:resource build-resource
    :transform transform-matrix
-   :instance-msg (dissoc embedded-component-desc :type :data)})
+   :instance-msg (-> embedded-component-desc
+                     (dissoc :type :data)
+                     (add-default-scale-to-component-desc))})
 
 (defn referenced-component-instance-data [build-resource component-desc ^Matrix4d transform-matrix proj-path->resource-property-build-target]
   {:pre [(workspace/build-resource? build-resource)
          (map? component-desc) ; GameObject$ComponentDesc in map format, but PropertyDescs must have a :clj-value.
-         (contains? component-desc :scale)
          (instance? Matrix4d transform-matrix)
          (ifn? proj-path->resource-property-build-target)]}
   (let [go-props-with-source-resources (:properties component-desc) ; Every PropertyDesc must have a :clj-value with actual Resource, etc.
@@ -185,7 +185,7 @@
     {:resource build-resource
      :transform transform-matrix
      :property-deps go-prop-dep-build-targets
-     :instance-msg (cond-> component-desc
+     :instance-msg (cond-> (add-default-scale-to-component-desc component-desc)
 
                            (seq go-props)
                            (assoc :properties go-props))}))
