@@ -1123,6 +1123,12 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
         scene->m_Buffers[i].m_BufferSize = data->buffers[i].size;
     }
 
+    if (!NeedsResolve(scene))
+    {
+        LoadFinalizeGltf(scene);
+        ValidateGltf(scene);
+    }
+
     return scene;
 }
 

@@ -87,6 +87,7 @@ struct SceneJNI
     jfieldID    rootNodes;
     jfieldID    animations;
     jfieldID    materials;
+    jfieldID    buffers;
 } g_SceneJNI;
 
 struct MaterialJNI
@@ -210,11 +211,24 @@ struct AnimationJNI
     jfieldID    duration;
 } g_AnimationJNI;
 
+struct BufferJNI // GLTF format
+{
+    jclass      cls;
+    jfieldID    uri;
+    jfieldID    buffer;
+} g_BufferJNI;
+
 static void InitializeJNITypes(JNIEnv* env)
 {
 #define SETUP_CLASS(TYPE, TYPE_NAME) \
     TYPE * obj = &g_ ## TYPE ; \
-    obj->cls = GetClass(env, TYPE_NAME);
+    obj->cls = GetClass(env, TYPE_NAME); \
+    if (!obj->cls) { \
+        char fullname[128]; \
+        dmSnPrintf(fullname, sizeof(fullname), CLASS_NAME_FORMAT, TYPE_NAME); \
+        printf("ERROR: Failed to get class %s\n", fullname); \
+    } \
+    assert(obj->cls);
 
 #define GET_FLD_TYPESTR(NAME, FULL_TYPE_STR) \
     obj-> NAME = env->GetFieldID(obj->cls, # NAME, FULL_TYPE_STR);
@@ -245,6 +259,11 @@ static void InitializeJNITypes(JNIEnv* env)
         GET_FLD(max, "Vec4");
     }
     {
+        SETUP_CLASS(BufferJNI, "Buffer");
+        GET_FLD_TYPESTR(uri, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(buffer, "[B");
+    }
+    {
         SETUP_CLASS(SceneJNI, "Scene");
         GET_FLD_ARRAY(nodes, "Node");
         GET_FLD_ARRAY(models, "Model");
@@ -252,6 +271,7 @@ static void InitializeJNITypes(JNIEnv* env)
         GET_FLD_ARRAY(rootNodes, "Node");
         GET_FLD_ARRAY(animations, "Animation");
         GET_FLD_ARRAY(materials, "Material");
+        GET_FLD_ARRAY(buffers, "Buffer");
     }
     {
         SETUP_CLASS(MaterialJNI, "Material");
@@ -438,6 +458,13 @@ static jintArray CreateIntArray(JNIEnv* env, uint32_t count, const int* values)
     return arr;
 }
 
+static jbyteArray CreateByteArray(JNIEnv* env, uint32_t count, const uint8_t* values)
+{
+    jbyteArray arr = env->NewByteArray(count);
+    env->SetByteArrayRegion(arr, 0, count, (const jbyte*)values);
+    return arr;
+}
+
 // For debugging the set values
 static void GetVec4(JNIEnv* env, jobject object, float* vec4)
 {
@@ -493,6 +520,34 @@ static jobjectArray CreateMaterialsArray(JNIEnv* env, uint32_t count, const dmMo
         jobject obj = CreateMaterial(env, material);
         nodes[material->m_Index] = obj;
 
+        env->SetObjectArrayElement(arr, i, obj);
+    }
+    return arr;
+}
+
+// **************************************************
+// Buffer
+
+static jobject CreateBuffer(JNIEnv* env, const dmModelImporter::Buffer* buffer)
+{
+    jobject obj = env->AllocObject(g_BufferJNI.cls);
+    SetFieldString(env, obj, g_BufferJNI.uri, buffer->m_Uri);
+
+    if (buffer->m_Buffer)
+    {
+        jbyteArray arr = CreateByteArray(env, buffer->m_BufferSize, (uint8_t*)buffer->m_Buffer);
+        env->SetObjectField(obj, g_BufferJNI.buffer, arr);
+        env->DeleteLocalRef(arr);
+    }
+    return obj;
+}
+
+static jobjectArray CreateBuffersArray(JNIEnv* env, uint32_t count, const dmModelImporter::Buffer* buffers)
+{
+    jobjectArray arr = env->NewObjectArray(count, g_BufferJNI.cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        jobject obj = CreateBuffer(env, &buffers[i]);
         env->SetObjectArrayElement(arr, i, obj);
     }
     return arr;
@@ -844,6 +899,11 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
         env->SetObjectField(obj, g_SceneJNI.materials, arr);
         env->DeleteLocalRef(arr);
     }
+    {
+        jobjectArray arr = CreateBuffersArray(env, scene->m_BuffersCount, scene->m_Buffers);
+        env->SetObjectField(obj, g_SceneJNI.buffers, arr);
+        env->DeleteLocalRef(arr);
+    }
 
     // Creates all nodes, and leaves out setting skins/models
     CreateNodes(env, scene, nodes);
@@ -904,7 +964,7 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 
 } // namespace
 
-JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array)
+JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject buffer_map)
 {
     ScopedString j_path(env, _path);
     const char* path = j_path.m_String;
@@ -924,10 +984,55 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
 
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, (uint8_t*)file_data, file_size);
+
+    env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+
     if (!scene)
     {
         dmLogError("Failed to load %s", path);
         return 0;
+    }
+
+    if (buffer_map != 0 && dmModelImporter::NeedsResolve(scene))
+    {
+        jclass c_Map = env->FindClass("java/util/Map");
+        jmethodID m_get = env->GetMethodID(c_Map, "get", "(Ljava/lang/Object;)Ljava/lang/Object;");
+
+        for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+        {
+            if (scene->m_Buffers[i].m_Buffer)
+                continue;
+
+            const char* uri = scene->m_Buffers[i].m_Uri;
+            jstring juri = env->NewStringUTF(uri);
+
+            jbyteArray bytes = (jbyteArray)env->CallObjectMethod(buffer_map, m_get, juri, (jobject)0);
+            if (bytes)
+            {
+                dmLogDebug("Found buffer for %s!\n", uri);
+
+                jsize buffer_size = env->GetArrayLength(bytes);
+                jbyte* buffer_data = env->GetByteArrayElements(bytes, 0);
+                dmModelImporter::ResolveBuffer(scene, scene->m_Buffers[i].m_Uri, buffer_data, buffer_size);
+
+                env->ReleaseByteArrayElements(bytes, buffer_data, JNI_ABORT);
+            }
+            else {
+                dmLogDebug("Found no buffer for %s\n", uri);
+            }
+            env->DeleteLocalRef(juri);
+        }
+
+        if(dmModelImporter::NeedsResolve(scene))
+        {
+            dmLogWarning("The model is still missing buffers!");
+        }
+    }
+
+    if (!dmModelImporter::NeedsResolve(scene))
+    {
+        dmModelImporter::LoadFinalize(scene);
+        dmModelImporter::Validate(scene);
     }
 
     if (dmLogGetLevel() == LOG_SEVERITY_DEBUG) // verbose mode
@@ -965,7 +1070,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     // Register your class' native methods.
     static const JNINativeMethod methods[] = {
-        {"LoadFromBufferInternal", "(Ljava/lang/String;[B)L" CLASS_SCENE ";", reinterpret_cast<void*>(Java_ModelImporter_LoadFromBufferInternal)},
+        {"LoadFromBufferInternal", "(Ljava/lang/String;[BLjava/util/Map;)L" CLASS_SCENE ";", reinterpret_cast<void*>(Java_ModelImporter_LoadFromBufferInternal)},
         {"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporter_AddressOf)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));

@@ -158,6 +158,23 @@ TEST(ModelGLTF, VertexColor3Float)
     free(mem);
 }
 
+TEST(ModelGLTF, ExternalBuffer)
+{
+    // https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/DamagedHelmet/glTF
+    const char* path = "./src/test/assets/DamagedHelmet/DamagedHelmet.gltf";
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = LoadScene(path, options);
+
+    ASSERT_EQ(1, scene->m_NodesCount);
+    ASSERT_EQ(1, scene->m_ModelsCount);
+
+    dmModelImporter::Mesh* mesh = &scene->m_Models[0].m_Meshes[0];
+    uint32_t vcount = mesh->m_VertexCount;
+    ASSERT_EQ(14556, vcount);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 
 static int TestStandalone(const char* path)
 {

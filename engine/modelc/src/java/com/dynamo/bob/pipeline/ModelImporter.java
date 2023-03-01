@@ -18,6 +18,8 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.List;
 
 public class ModelImporter {
@@ -68,7 +70,7 @@ public class ModelImporter {
     }
 
     // The suffix of the path dictates which loader it will use
-    public static native Scene LoadFromBufferInternal(String path, byte[] buffer);
+    public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Map<String, byte[]> buffers);
     public static native int AddressOf(Object o);
 
     public static class ModelException extends Exception {
@@ -239,29 +241,37 @@ public class ModelImporter {
         public float            duration;
     }
 
+    public static class Buffer {
+        public String           uri;
+        public byte[]           buffer;
+    }
     public static class Scene {
-
         public Node[]         nodes;
         public Model[]        models;
         public Skin[]         skins;
         public Node[]         rootNodes;
         public Animation[]    animations;
         public Material[]     materials;
+        public Buffer[]       buffers;
     }
 
-    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes)
+    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes, Map<String, byte[]> buffers)
     {
-        Scene scene = ModelImporter.LoadFromBufferInternal(path, bytes);
+        Scene scene = ModelImporter.LoadFromBufferInternal(path, bytes, buffers);
         return scene;
     }
 
-    public static Scene LoadFromPath(Options options, String path) throws FileNotFoundException, IOException
+    public static byte[] ReadFile(File file) throws FileNotFoundException, IOException
     {
-        InputStream inputStream = new FileInputStream(new File(path));
+        InputStream inputStream = new FileInputStream(file);
         byte[] bytes = new byte[inputStream.available()];
         inputStream.read(bytes);
+        return bytes;
+    }
 
-        return LoadFromBuffer(options, path, bytes);
+    public static byte[] ReadFile(String path) throws FileNotFoundException, IOException
+    {
+        return ReadFile(new File(path));
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
@@ -449,18 +459,39 @@ public class ModelImporter {
             return;
         }
 
-        String path = args[0];       // .glb
-
-        System.out.printf("Testing\n");
-
+        String path = args[0];       // name.glb/.gltf
         long timeStart = System.currentTimeMillis();
 
-        Scene scene = LoadFromPath(new Options(), path);
+        Map<String, byte[]> buffers = new HashMap<>();
+        Scene scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffers);
+
+        File parentPath = new File(path);
+        parentPath = parentPath.getParentFile();
+
+        for (Buffer buffer : scene.buffers) {
+            if (buffer.buffer == null)
+            {
+                File bufferFile = new File(parentPath, buffer.uri);
+                buffers.put(buffer.uri, ReadFile(bufferFile));
+            }
+        }
+
+        if (buffers.size() > 0)
+        {
+            System.out.printf("Unresolved buffers found. Loading again with additional data\n");
+            scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffers);
+        }
 
         long timeEnd = System.currentTimeMillis();
 
         System.out.printf("Loaded %s %s\n", path, scene!=null ? "ok":"failed");
         System.out.printf("Loading took %d ms\n", (timeEnd - timeStart));
+
+        System.out.printf("--------------------------------\n");
+
+        for (Buffer buffer : scene.buffers) {
+            System.out.printf("Buffer: uri: %s  data: %s\n", buffer.uri, buffer.buffer);
+        }
 
         System.out.printf("--------------------------------\n");
 
