@@ -71,7 +71,7 @@ public class ModelImporter {
     }
 
     // The suffix of the path dictates which loader it will use
-    public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Map<String, byte[]> buffers);
+    public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
     public static native int AddressOf(Object o);
 
     public static class ModelException extends Exception {
@@ -214,9 +214,13 @@ public class ModelImporter {
         public Buffer[]       buffers;
     }
 
-    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes, Map<String, byte[]> buffers)
+    public interface DataResolver {
+        public byte[] getData(String path, String uri);
+    }
+
+    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes, DataResolver data_resolver)
     {
-        return ModelImporter.LoadFromBufferInternal(path, bytes, buffers);
+        return ModelImporter.LoadFromBufferInternal(path, bytes, data_resolver);
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
@@ -398,6 +402,21 @@ public class ModelImporter {
         return ReadFile(new File(path));
     }
 
+    public static class FileDataResolver implements DataResolver
+    {
+        public byte[] getData(String path, String uri) {
+            File file = new File(path);
+            File bufferFile = new File(file.getParentFile(), uri);
+            try {
+                System.out.printf("Reading buffer '%s'\n", uri);
+                return ReadFile(bufferFile);
+            } catch (Exception e) {
+                System.out.printf("Failed to read file '%s': %s\n", uri, e);
+                return null;
+            }
+        }
+    };
+
     // Used for testing the importer. Usage:
     //   ./src/com/dynamo/bob/pipeline/test_model_importer.sh <model path>
     public static void main(String[] args) throws IOException {
@@ -411,25 +430,8 @@ public class ModelImporter {
         String path = args[0];       // name.glb/.gltf
         long timeStart = System.currentTimeMillis();
 
-        Map<String, byte[]> buffers = new HashMap<>();
-        Scene scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffers);
-
-        File parentPath = new File(path);
-        parentPath = parentPath.getParentFile();
-
-        for (Buffer buffer : scene.buffers) {
-            if (buffer.buffer == null)
-            {
-                File bufferFile = new File(parentPath, buffer.uri);
-                buffers.put(buffer.uri, ReadFile(bufferFile));
-            }
-        }
-
-        if (buffers.size() > 0)
-        {
-            System.out.printf("Unresolved buffers found. Loading again with additional data\n");
-            scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffers);
-        }
+        FileDataResolver buffer_resolver = new FileDataResolver();
+        Scene scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffer_resolver);
 
         long timeEnd = System.currentTimeMillis();
 

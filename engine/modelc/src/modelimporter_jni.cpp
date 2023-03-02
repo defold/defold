@@ -890,7 +890,7 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
 
 } // namespace
 
-JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject buffer_map)
+JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
 {
     ScopedString j_path(env, _path);
     const char* path = j_path.m_String;
@@ -919,10 +919,10 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
         return 0;
     }
 
-    if (buffer_map != 0 && dmModelImporter::NeedsResolve(scene))
+    if (data_resolver != 0 && dmModelImporter::NeedsResolve(scene))
     {
-        jclass c_Map = env->FindClass("java/util/Map");
-        jmethodID m_get = env->GetMethodID(c_Map, "get", "(Ljava/lang/Object;)Ljava/lang/Object;");
+        jclass cls_resolver = env->GetObjectClass(data_resolver);
+        jmethodID get_data = env->GetMethodID(cls_resolver, "getData", "(Ljava/lang/String;Ljava/lang/String;)[B");
 
         for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
         {
@@ -930,9 +930,9 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
                 continue;
 
             const char* uri = scene->m_Buffers[i].m_Uri;
-            jstring juri = env->NewStringUTF(uri);
+            jstring j_uri = env->NewStringUTF(uri);
 
-            jbyteArray bytes = (jbyteArray)env->CallObjectMethod(buffer_map, m_get, juri, (jobject)0);
+            jbyteArray bytes = (jbyteArray)env->CallObjectMethod(data_resolver, get_data, _path, j_uri);
             if (bytes)
             {
                 dmLogDebug("Found buffer for %s!\n", uri);
@@ -944,9 +944,9 @@ JNIEXPORT jobject JNICALL Java_ModelImporter_LoadFromBufferInternal(JNIEnv* env,
                 env->ReleaseByteArrayElements(bytes, buffer_data, JNI_ABORT);
             }
             else {
-                dmLogDebug("Found no buffer for %s\n", uri);
+                dmLogDebug("Found no buffer for uri '%s'\n", uri);
             }
-            env->DeleteLocalRef(juri);
+            env->DeleteLocalRef(j_uri);
         }
 
         if(dmModelImporter::NeedsResolve(scene))
@@ -996,7 +996,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
 
     // Register your class' native methods.
     static const JNINativeMethod methods[] = {
-        {"LoadFromBufferInternal", "(Ljava/lang/String;[BLjava/util/Map;)L" CLASS_SCENE ";", reinterpret_cast<void*>(Java_ModelImporter_LoadFromBufferInternal)},
+        {"LoadFromBufferInternal", "(Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_SCENE ";", reinterpret_cast<void*>(Java_ModelImporter_LoadFromBufferInternal)},
         {"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporter_AddressOf)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
