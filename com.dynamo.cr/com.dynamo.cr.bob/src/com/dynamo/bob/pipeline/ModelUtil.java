@@ -84,14 +84,6 @@ public class ModelUtil {
 
     private static final int MAX_SPLIT_VCOUNT = 65535;
 
-    public static byte[] ReadFile(File file) throws IOException
-    {
-        InputStream inputStream = new FileInputStream(file);
-        byte[] bytes = new byte[inputStream.available()];
-        inputStream.read(bytes);
-        return bytes;
-    }
-
     public static Scene loadScene(byte[] content, String path, Options options, ModelImporter.DataResolver dataResolver) throws IOException {
         if (options == null)
             options = new Options();

@@ -164,15 +164,12 @@ namespace dmModelImporter
 
     #pragma pack(pop)
 
-    // Used to resolve external buffers
-    typedef int (*FFileResolve)(void* resolvectx, const char* uri, void* buffer, size_t size);
-
     extern "C" DM_DLLEXPORT Scene* LoadGltfFromBuffer(Options* options, void* data, uint32_t data_size);
 
     // GLTF: Returns true if there are unresolved data buffers
     extern "C" DM_DLLEXPORT bool NeedsResolve(Scene* scene);
 
-    // GLTF: Loop over the buffers, and for each missing one, supply this one here
+    // GLTF: Loop over the buffers, and for each missing one, supply the data here
     extern "C" DM_DLLEXPORT void ResolveBuffer(Scene* scene, const char* uri, void* data, uint32_t data_size);
 
     extern "C" DM_DLLEXPORT Scene* LoadFromBuffer(Options* options, const char* suffix, void* data, uint32_t file_size);

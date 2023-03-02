@@ -247,8 +247,8 @@ Scene* LoadFromPath(Options* options, const char* path)
 
 bool NeedsResolve(Scene* scene)
 {
-	for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
-	{
+    for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+    {
         if (!scene->m_Buffers[i].m_Buffer)
             return true;;
     }
