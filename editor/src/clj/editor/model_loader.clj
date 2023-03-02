@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.workspace :as workspace]
             [service.log :as log])
   (:import [com.dynamo.bob.pipeline ColladaUtil]
            [com.dynamo.bob.pipeline ModelUtil]
@@ -44,11 +45,14 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn- load-model-scene [^InputStream stream ^String path]
-  (let [mesh-set-builder (Rig$MeshSet/newBuilder)
+(defn- load-model-scene [resource ^InputStream stream ^String path]
+  (let [workspace (resource/workspace resource)
+        project-path (workspace/project-path workspace)
+        mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         options nil
-        scene (ModelUtil/loadScene stream path options)
+        data-resolver (ModelUtil/createFileDataResolver project-path)
+        scene (ModelUtil/loadScene stream path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
         animation-ids (ArrayList.)]
@@ -60,6 +64,7 @@
       {:mesh-set mesh-set
        :skeleton skeleton
        :bones bones
+       :buffers (.buffers scene)
        :animation-ids animation-ids
        :material-ids material-ids})))
 
@@ -68,7 +73,7 @@
     (let [ext (string/lower-case (resource/ext resource))]
       (if (= "dae" ext)
         (load-collada-scene stream)
-        (load-model-scene stream (resource/path resource))))))
+        (load-model-scene resource stream (resource/path resource))))))
 
 (defn load-scene [node-id resource]
   (try

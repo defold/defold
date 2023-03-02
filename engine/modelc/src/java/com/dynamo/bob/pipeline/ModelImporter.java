@@ -404,11 +404,21 @@ public class ModelImporter {
 
     public static class FileDataResolver implements DataResolver
     {
+        File cwd = null;
+
+        FileDataResolver() {}
+        FileDataResolver(File _cwd) {
+            cwd = _cwd;
+        }
+
         public byte[] getData(String path, String uri) {
-            File file = new File(path);
+            File file;
+            if (cwd != null)
+                file = new File(cwd, path);
+            else
+                file = new File(path);
             File bufferFile = new File(file.getParentFile(), uri);
             try {
-                System.out.printf("Reading buffer '%s'\n", uri);
                 return ReadFile(bufferFile);
             } catch (Exception e) {
                 System.out.printf("Failed to read file '%s': %s\n", uri, e);

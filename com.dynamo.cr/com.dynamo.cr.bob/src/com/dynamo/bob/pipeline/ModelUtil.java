@@ -834,6 +834,12 @@ public class ModelUtil {
         skeletonBuilder.addAllBones(ddfBones);
     }
 
+    // For editor in a migration period
+    public static ModelImporter.DataResolver createFileDataResolver(File cwd) {
+        return new ModelImporter.FileDataResolver(cwd);
+    }
+
+
 // $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
