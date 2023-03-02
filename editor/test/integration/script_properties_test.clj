@@ -203,8 +203,8 @@
                                             "vec4" [1.0 2.0 3.0 4.0]}]
               (is (= prop-value (prop script-component prop-name))))))))))
 
-(defn- save-value [pb-class node-id]
-  (protobuf/str->map-with-defaults pb-class (:content (g/node-value node-id :save-data))))
+(defn- save-value [node-id]
+  (g/node-value node-id :save-value))
 
 (defn- properties [node-id]
   (:properties (g/node-value node-id :_properties)))
@@ -449,7 +449,7 @@
           (is (not (g/override? props-game-object)))
 
           (testing "Before overrides"
-            (let [saved-props-game-object (save-value GameObject$PrototypeDesc props-game-object)
+            (let [saved-props-game-object (save-value props-game-object)
                   saved-props-script-component (find-corresponding (:components saved-props-game-object) props-script-component)]
               (is (empty? (:properties saved-props-script-component))))
 
@@ -515,7 +515,7 @@
                 (is (resource-property? ext (get (properties props-script-component) prop-kw) resource))
                 (is (contains? (tu/node-built-build-resources props-game-object) build-resource))
 
-                (let [saved-props-game-object (save-value GameObject$PrototypeDesc props-game-object)
+                (let [saved-props-game-object (save-value props-game-object)
                       saved-props-script-component (find-corresponding (:components saved-props-game-object) props-script-component)]
                   (is (= {} (tu/unpack-property-declarations (:property-decls saved-props-script-component))))
                   (is (= (:properties saved-props-script-component)
@@ -538,7 +538,7 @@
                 (is (resource-property? ext (get (properties props-script-component) prop-kw) (original-property-values prop-kw)))
                 (is (not (contains? (tu/node-built-build-resources props-game-object) build-resource)))
 
-                (let [saved-props-game-object (save-value GameObject$PrototypeDesc props-game-object)
+                (let [saved-props-game-object (save-value props-game-object)
                       saved-props-script-component (find-corresponding (:components saved-props-game-object) props-script-component)]
                   (is (empty? (:properties saved-props-script-component))))
 
@@ -639,7 +639,7 @@
           (is (atlas-resource-property? (get (properties props-script-component) :__atlas) (resource "/renamed-from-props-game-object.atlas")))
           (is (contains? (tu/node-built-build-resources props-game-object) (build-resource "/renamed-from-props-game-object.atlas")))
 
-          (let [saved-props-game-object (save-value GameObject$PrototypeDesc props-game-object)
+          (let [saved-props-game-object (save-value props-game-object)
                 saved-props-script-component (find-corresponding (:components saved-props-game-object) props-script-component)]
             (is (= {} (tu/unpack-property-declarations (:property-decls saved-props-script-component))))
             (is (= (:properties saved-props-script-component)
@@ -706,7 +706,7 @@
           (is (g/override? ov-props-game-object))
 
           (testing "Before overrides"
-            (let [saved-props-collection (save-value GameObject$CollectionDesc props-collection)
+            (let [saved-props-collection (save-value props-collection)
                   saved-props-game-object-instance (find-corresponding (:instances saved-props-collection) props-game-object-instance)]
               (is (empty? (:component-properties saved-props-game-object-instance))))
 
@@ -777,7 +777,7 @@
                 (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) resource))
                 (is (contains? (tu/node-built-build-resources props-collection) build-resource))
 
-                (let [saved-props-collection (save-value GameObject$CollectionDesc props-collection)
+                (let [saved-props-collection (save-value props-collection)
                       saved-props-game-object-instance (find-corresponding (:instances saved-props-collection) props-game-object-instance)
                       saved-props-script-component (find-corresponding (:component-properties saved-props-game-object-instance) ov-props-script-component)]
                   (is (= {} (tu/unpack-property-declarations (:property-decls saved-props-script-component))))
@@ -802,7 +802,7 @@
                 (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw)))
                 (is (not (contains? (tu/node-built-build-resources props-collection) build-resource)))
 
-                (let [saved-props-collection (save-value GameObject$CollectionDesc props-collection)
+                (let [saved-props-collection (save-value props-collection)
                       saved-props-game-object-instance (find-corresponding (:instances saved-props-collection) props-game-object-instance)]
                   (is (empty? (:component-properties saved-props-game-object-instance))))
 
@@ -907,7 +907,7 @@
           (is (atlas-resource-property? (get (properties ov-props-script-component) :__atlas) (resource "/renamed-from-props-collection.atlas")))
           (is (contains? (tu/node-built-build-resources props-collection) (build-resource "/renamed-from-props-collection.atlas")))
 
-          (let [saved-props-collection (save-value GameObject$CollectionDesc props-collection)
+          (let [saved-props-collection (save-value props-collection)
                 saved-props-game-object-instance (find-corresponding (:instances saved-props-collection) props-game-object-instance)
                 saved-props-script-component (find-corresponding (:component-properties saved-props-game-object-instance) ov-props-script-component)]
             (is (= {} (tu/unpack-property-declarations (:property-decls saved-props-script-component))))
@@ -988,7 +988,7 @@
           (is (g/override? ov-props-collection))
 
           (testing "Before overrides"
-            (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+            (let [saved-sub-props-collection (save-value sub-props-collection)
                   saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
               (is (empty? (:instance-properties saved-props-collection-instance))))
 
@@ -1061,7 +1061,7 @@
                 (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) resource))
                 (is (contains? (tu/node-built-build-resources sub-props-collection) build-resource))
 
-                (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+                (let [saved-sub-props-collection (save-value sub-props-collection)
                       saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)
                       saved-props-game-object-instance (find-corresponding (:instance-properties saved-props-collection-instance) ov-props-game-object-instance)
                       saved-props-script-component (find-corresponding (:properties saved-props-game-object-instance) ov-props-script-component)]
@@ -1089,7 +1089,7 @@
                 (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw)))
                 (is (not (contains? (tu/node-built-build-resources sub-props-collection) build-resource)))
 
-                (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+                (let [saved-sub-props-collection (save-value sub-props-collection)
                       saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
                   (is (empty? (:instance-properties saved-props-collection-instance))))
 
@@ -1232,7 +1232,7 @@
           (is (g/override? ov-props-collection))
 
           (testing "Before overrides"
-            (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+            (let [saved-sub-props-collection (save-value sub-props-collection)
                   saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
               (is (empty? (:instance-properties saved-props-collection-instance))))
 
@@ -1305,7 +1305,7 @@
                 (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) resource))
                 (is (contains? (tu/node-built-build-resources sub-props-collection) build-resource))
 
-                (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+                (let [saved-sub-props-collection (save-value sub-props-collection)
                       saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)
                       saved-embedded-game-object-instance (find-corresponding (:instance-properties saved-props-collection-instance) ov-embedded-game-object-instance)
                       saved-props-script-component (find-corresponding (:properties saved-embedded-game-object-instance) ov-props-script-component)]
@@ -1333,7 +1333,7 @@
                 (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw)))
                 (is (not (contains? (tu/node-built-build-resources sub-props-collection) build-resource)))
 
-                (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+                (let [saved-sub-props-collection (save-value sub-props-collection)
                       saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
                   (is (empty? (:instance-properties saved-props-collection-instance))))
 
@@ -1442,7 +1442,7 @@
           (is (atlas-resource-property? (get (properties ov-props-script-component) :__atlas) (resource "/renamed-from-sub-props-collection.atlas")))
           (is (contains? (tu/node-built-build-resources sub-props-collection) (build-resource "/renamed-from-sub-props-collection.atlas")))
 
-          (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+          (let [saved-sub-props-collection (save-value sub-props-collection)
                 saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)
                 saved-props-game-object-instance (find-corresponding (:instance-properties saved-props-collection-instance) ov-props-game-object-instance)
                 saved-props-script-component (find-corresponding (:properties saved-props-game-object-instance) ov-props-script-component)]

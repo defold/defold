@@ -690,6 +690,11 @@ Macros currently mean no foreseeable performance gain, however."
     (with-open [reader (StringReader. str)]
       (read-pb cls reader))))
 
+(defn str->map-without-defaults [^Class cls ^String str]
+  (pb->map-without-defaults
+    (with-open [reader (StringReader. str)]
+      (read-pb cls reader))))
+
 (defonce single-byte-array-args [j/byte-array-class])
 
 (defn- parser-fn-raw [^Class cls]

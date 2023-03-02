@@ -50,11 +50,11 @@
 (defn- any-instance-desc->transform-matrix
   ^Matrix4d [{:keys [position rotation scale3] :as any-instance-desc}]
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  (let [corrected-scale (if (or (nil? scale3)
-                                (protobuf/default-read-scale-value? scale3))
-                          (or (:scale any-instance-desc) 1.0) ; Legacy file format - use uniform scale.
-                          scale3)]
-    (math/clj->mat4 position rotation corrected-scale)))
+  (let [scale (if (or (nil? scale3)
+                      (protobuf/default-read-scale-value? scale3))
+                (:scale any-instance-desc) ; Legacy file format - use uniform scale.
+                scale3)]
+    (math/clj->mat4 position rotation scale)))
 
 (defn- component-property-desc-with-go-props [component-property-desc proj-path->source-resource]
   ;; GameObject$ComponentPropertyDesc in map format.

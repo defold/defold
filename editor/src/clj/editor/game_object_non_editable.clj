@@ -157,7 +157,7 @@
 (defn- any-component-desc->transform-matrix
   ^Matrix4d [{:keys [position rotation scale]}]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
-  (math/clj->mat4 position rotation (or scale 1.0)))
+  (math/clj->mat4 position rotation scale))
 
 (defn prototype-desc->referenced-component-proj-paths [prototype-desc]
   (eduction

@@ -28,6 +28,11 @@
 (def recip-180 (/ 1.0 180.0))
 (def recip-pi (/ 1.0 Math/PI))
 
+(def ^Vector3d zero-v3 (Vector3d. 0.0 0.0 0.0))
+(def ^Vector3d one-v3 (Vector3d. 1.0 1.0 1.0))
+(def ^Quat4d identity-quat (Quat4d. 0.0 0.0 0.0 1.0))
+(def ^Matrix4d identity-mat4 (doto (Matrix4d.) (.setIdentity)))
+
 (defn deg->rad [deg]
   (* deg Math/PI recip-180))
 
@@ -401,12 +406,26 @@
 
 (defn clj->mat4
   ^Matrix4d [position rotation scale]
-  (let [position-v3 (doto (Vector3d.) (clj->vecmath position))
-        rotation-q4 (doto (Quat4d.) (clj->vecmath rotation))]
-    (if (number? scale)
-      (->mat4-uniform position-v3 rotation-q4 (double scale))
-      (let [scale-v3 (doto (Vector3d.) (clj->vecmath scale))]
-        (->mat4-non-uniform position-v3 rotation-q4 scale-v3)))))
+  (if (and (nil? position)
+           (nil? rotation)
+           (nil? scale))
+    identity-mat4
+    (let [position-v3 (if (nil? position)
+                        zero-v3
+                        (doto (Vector3d.) (clj->vecmath position)))
+          rotation-q4 (if (nil? rotation)
+                        identity-quat
+                        (doto (Quat4d.) (clj->vecmath rotation)))]
+      (cond
+        (nil? scale)
+        (->mat4-uniform position-v3 rotation-q4 1.0)
+
+        (number? scale)
+        (->mat4-uniform position-v3 rotation-q4 (double scale))
+
+        :else
+        (let [scale-v3 (doto (Vector3d.) (clj->vecmath scale))]
+          (->mat4-non-uniform position-v3 rotation-q4 scale-v3))))))
 
 (defn hermite [y0 y1 t0 t1 t]
   (let [t2 (* t t)

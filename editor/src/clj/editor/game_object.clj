@@ -462,10 +462,11 @@
   (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
-      [comp-node [ReferencedComponent :id id :path path]]
+      [comp-node [ReferencedComponent :id id]]
       (some->> position (g/set-property comp-node :position))
       (some->> rotation (g/set-property comp-node :rotation))
       (some->> scale (g/set-property comp-node :scale))
+      (g/set-property comp-node :path path) ; Set last so the :alter-referenced-component-fn can alter component properties.
       (attach-ref-component self comp-node)
       (when select-fn
         (select-fn [comp-node])))))

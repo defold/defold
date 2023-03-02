@@ -535,3 +535,5 @@ repeated_message {
 }
 repeated_int: 0
 repeated_int: 0"))))
+
+;; TODO(save-value): Add test cases for a required message field.

@@ -593,10 +593,11 @@
   (let [path {:resource source-resource
               :overrides overrides}]
     (g/make-nodes (g/node-id->graph-id self)
-      [go-node [ReferencedGOInstanceNode :id id :path path]]
+      [go-node [ReferencedGOInstanceNode :id id]]
       (some->> position (g/set-property go-node :position))
       (some->> rotation (g/set-property go-node :rotation))
       (some->> scale (g/set-property go-node :scale))
+      (g/set-property go-node :path path) ; Set last so the :alter-referenced-component-fn can alter component properties.
       (attach-coll-ref-go self go-node)
       (when parent
         (if (= self parent)
@@ -679,15 +680,18 @@
          (add-embedded-game-object! workspace project collection collection (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn- make-collection-instance [self source-resource id position rotation scale overrides select-fn]
-  (g/make-nodes (g/node-id->graph-id self)
-    [coll-node [CollectionInstanceNode :id id :path {:resource source-resource :overrides overrides}]]
-    (some->> position (g/set-property coll-node :position))
-    (some->> rotation (g/set-property coll-node :rotation))
-    (some->> scale (g/set-property coll-node :scale))
-    (attach-coll-coll self coll-node)
-    (child-coll-any self coll-node)
-    (when select-fn
-      (select-fn [coll-node]))))
+  (let [path {:resource source-resource
+              :overrides overrides}]
+    (g/make-nodes (g/node-id->graph-id self)
+      [coll-node [CollectionInstanceNode :id id]]
+      (some->> position (g/set-property coll-node :position))
+      (some->> rotation (g/set-property coll-node :rotation))
+      (some->> scale (g/set-property coll-node :scale))
+      (g/set-property coll-node :path path) ; Set last so the :alter-referenced-component-fn can alter component properties.
+      (attach-coll-coll self coll-node)
+      (child-coll-any self coll-node)
+      (when select-fn
+        (select-fn [coll-node])))))
 
 (defn add-referenced-collection! [self source-resource id position rotation scale overrides select-fn]
   (g/transact

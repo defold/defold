@@ -985,7 +985,7 @@
              {:tag pb-class}))
 
 (defn unpack-property-declarations [property-declarations]
-  {:pre [(map? property-declarations)]}
+  {:pre [(or (nil? property-declarations) (map? property-declarations))]}
   (into {}
         (mapcat (fn [[entries-key values-key]]
                   (let [entries (get property-declarations entries-key)
