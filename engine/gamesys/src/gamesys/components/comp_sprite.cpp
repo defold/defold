@@ -655,8 +655,8 @@ namespace dmGameSystem
                     int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
                     CreateVertexDataSlice9(vertices, indices, sprite_world->m_Is16BitIndex,
                         w, component->m_Size, component->m_Resource->m_DDF->m_Slice9, vertex_offset, tc,
-                        dmGraphics::GetTextureWidth(texture_set->m_Texture),
-                        dmGraphics::GetTextureHeight(texture_set->m_Texture),
+                        dmGraphics::GetTextureWidth(texture_set->m_Texture->m_Texture),
+                        dmGraphics::GetTextureHeight(texture_set->m_Texture->m_Texture),
                         page_index, flipx, flipy);
 
                     indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
@@ -760,7 +760,7 @@ namespace dmGameSystem
         ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
         ro.m_IndexBuffer = sprite_world->m_IndexBuffer;
         ro.m_Material = GetMaterial(first, resource);
-        ro.m_Textures[0] = texture_set->m_Texture;
+        ro.m_Textures[0] = texture_set->m_Texture->m_Texture;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_IndexType = sprite_world->m_Is16BitIndex ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
 

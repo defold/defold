@@ -21,6 +21,7 @@
 #include <gui/gui.h>
 #include <gamesys/gui_ddf.h>
 #include "res_textureset.h"
+#include "res_texture.h"
 
 #include <dmsdk/script/script.h>
 
@@ -28,8 +29,8 @@ namespace dmGameSystem
 {
     struct GuiSceneTextureSetResource
     {
-        TextureSetResource*  m_TextureSet;
-        dmGraphics::HTexture m_Texture;
+        TextureSetResource* m_TextureSet;
+        TextureResource*    m_Texture;
     };
 
     struct GuiSceneResource
