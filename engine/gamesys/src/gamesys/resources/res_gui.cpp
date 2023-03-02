@@ -103,21 +103,27 @@ namespace dmGameSystem
             TextureSetResource* texture_set_resource;
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Textures[i].m_Texture, (void**) &texture_set_resource);
             if (r != dmResource::RESULT_OK)
+            {
                 return r;
+            }
+
             dmResource::ResourceType resource_type;
             r = dmResource::GetType(factory, texture_set_resource, &resource_type);
             if (r != dmResource::RESULT_OK)
+            {
                 return r;
+            }
+
             GuiSceneTextureSetResource tsr;
             if(resource_type != resource_type_textureset)
             {
                 tsr.m_TextureSet = 0;
-                tsr.m_Texture = (dmGraphics::HTexture) texture_set_resource;
+                tsr.m_Texture = (TextureResource*) texture_set_resource;
             }
             else
             {
                 tsr.m_TextureSet = texture_set_resource;
-                tsr.m_Texture = texture_set_resource->m_Texture;
+                tsr.m_Texture    = texture_set_resource->m_Texture;
             }
             resource->m_GuiTextureSets.Push(tsr);
         }
