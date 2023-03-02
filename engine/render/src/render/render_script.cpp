@@ -1064,7 +1064,7 @@ namespace dmRender
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
 
-        lua_pushlightuserdata(L, (void*)render_target);
+        lua_pushinteger(L, render_target);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1090,9 +1090,9 @@ namespace dmRender
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 1))
+        if (lua_isnumber(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target = (dmGraphics::HRenderTarget) lua_tointeger(L, 1);
         }
         if (render_target == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
@@ -1152,9 +1152,9 @@ namespace dmRender
 
         if (lua_gettop(L) > 0)
         {
-            if(lua_islightuserdata(L, 1))
+            if(lua_isnumber(L, 1))
             {
-                render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+                render_target = (dmGraphics::HRenderTarget) lua_tointeger(L, 1);
             }
             else
             {
@@ -1220,9 +1220,9 @@ namespace dmRender
         dmGraphics::HRenderTarget render_target = 0x0;
         DM_LUA_STACK_CHECK(L, 0);
 
-        if (lua_islightuserdata(L, 1))
+        if (lua_isnumber(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target = (dmGraphics::HRenderTarget) lua_tointeger(L, 1);
         }
         if (render_target == 0x0)
             return luaL_error(L, "Invalid render target (nil) supplied to %s.enable_render_target.", RENDER_SCRIPT_LIB_NAME);
@@ -1296,9 +1296,9 @@ namespace dmRender
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 1))
+        if (lua_isnumber(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target = (dmGraphics::HRenderTarget) lua_tointeger(L, 1);
             uint32_t width = luaL_checknumber(L, 2);
             uint32_t height = luaL_checknumber(L, 3);
             dmGraphics::SetRenderTargetSize(render_target, width, height);
@@ -1359,9 +1359,9 @@ namespace dmRender
         dmGraphics::HRenderTarget render_target = 0x0;
 
         uint32_t unit = luaL_checknumber(L, 1);
-        if (lua_islightuserdata(L, 2))
+        if (lua_isnumber(L, 2))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 2);
+            render_target = (dmGraphics::HRenderTarget) lua_tointeger(L, 2);
             int buffer_type_value = (int)luaL_checknumber(L, 3);
             dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) buffer_type_value;
 
@@ -1440,9 +1440,9 @@ namespace dmRender
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 1))
+        if (lua_isnumber(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target = (dmGraphics::HRenderTarget) lua_tointeger(L, 1);
         }
         else
         {
@@ -1491,9 +1491,9 @@ namespace dmRender
         (void)i;
         dmGraphics::HRenderTarget render_target = 0x0;
 
-        if (lua_islightuserdata(L, 1))
+        if (lua_isnumber(L, 1))
         {
-            render_target = (dmGraphics::HRenderTarget)lua_touserdata(L, 1);
+            render_target = (dmGraphics::HRenderTarget) lua_tointeger(L, 1);
         }
         else
         {

@@ -907,6 +907,7 @@ namespace dmGraphics
             BUFFER_TYPE_STENCIL_BIT,
         };
 
+        /*
         for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
         {
             assert(GetBufferTypeIndex(buffer_types[i]) == i);
@@ -934,12 +935,15 @@ namespace dmGraphics
                 }
             }
         }
+        */
 
-        return rt;
+        // return rt;
+        return 0;
     }
 
     static void NullDeleteRenderTarget(HRenderTarget rt)
     {
+        /*
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (rt->m_ColorBufferTexture[i])
@@ -950,13 +954,14 @@ namespace dmGraphics
         delete [] (char*)rt->m_FrameBuffer.m_DepthBuffer;
         delete [] (char*)rt->m_FrameBuffer.m_StencilBuffer;
         delete rt;
+        */
     }
 
     static void NullSetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
     {
         (void) transient_buffer_types;
         assert(context);
-        context->m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
+        //context->m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
     }
 
     static HTexture NullGetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)
@@ -968,7 +973,8 @@ namespace dmGraphics
         {
             return 0;
         }
-        return rendertarget->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
+        return 0;
+        //return rendertarget->m_ColorBufferTexture[GetBufferTypeIndex(buffer_type)];
     }
 
     static void NullGetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
@@ -976,12 +982,13 @@ namespace dmGraphics
         assert(render_target);
         uint32_t i = GetBufferTypeIndex(buffer_type);
         assert(i < MAX_BUFFER_TYPE_COUNT);
-        width = render_target->m_BufferTextureParams[i].m_Width;
-        height = render_target->m_BufferTextureParams[i].m_Height;
+        // width = render_target->m_BufferTextureParams[i].m_Width;
+        // height = render_target->m_BufferTextureParams[i].m_Height;
     }
 
     static void NullSetRenderTargetSize(HRenderTarget rt, uint32_t width, uint32_t height)
     {
+        /*
         uint32_t buffer_size = sizeof(uint32_t) * width * height;
         void** buffers[MAX_BUFFER_TYPE_COUNT] = {
             &rt->m_FrameBuffer.m_ColorBuffer[0],
@@ -1024,6 +1031,7 @@ namespace dmGraphics
                 }
             }
         }
+        */
     }
 
     static bool NullIsTextureFormatSupported(HContext context, TextureFormat format)
@@ -1038,6 +1046,8 @@ namespace dmGraphics
 
     static HTexture NullNewTexture(HContext context, const TextureCreationParams& params)
     {
+        return 0;
+        /*
         Texture* tex = new Texture();
 
         tex->m_Type = params.m_Type;
@@ -1055,25 +1065,28 @@ namespace dmGraphics
         }
 
         return tex;
+        */
     }
 
     static void NullDeleteTexture(HTexture t)
     {
         assert(t);
-        if (t->m_Data != 0x0)
-            delete [] (char*)t->m_Data;
-        delete t;
+        // if (t->m_Data != 0x0)
+        //     delete [] (char*)t->m_Data;
+        // delete t;
     }
 
     static HandleResult NullGetTextureHandle(HTexture texture, void** out_handle)
     {
         *out_handle = 0x0;
 
+        /*
         if (!texture) {
             return HANDLE_RESULT_ERROR;
         }
 
         *out_handle = texture->m_Data;
+        */
 
         return HANDLE_RESULT_OK;
     }
@@ -1085,10 +1098,11 @@ namespace dmGraphics
 
     static void NullSetTexture(HTexture texture, const TextureParams& params)
     {
-        assert(texture);
-        assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= texture->m_Width));
-        assert(!params.m_SubUpdate || (params.m_Y + params.m_Height <= texture->m_Height));
+        // assert(texture);
+        // assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= texture->m_Width));
+        // assert(!params.m_SubUpdate || (params.m_Y + params.m_Height <= texture->m_Height));
 
+        /*
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
         texture->m_Format = params.m_Format;
@@ -1104,10 +1118,13 @@ namespace dmGraphics
             texture->m_Width  = params.m_Width;
             texture->m_Height = params.m_Height;
         }
+        */
     }
 
     static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
+        return 0;
+        /*
         uint32_t size_total = 0;
         uint32_t size = texture->m_Width * texture->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(texture->m_Format)/8);
         for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
@@ -1120,26 +1137,31 @@ namespace dmGraphics
             size_total *= 6;
         }
         return size_total + sizeof(Texture);
+        */
     }
 
     static uint16_t NullGetTextureWidth(HTexture texture)
     {
-        return texture->m_Width;
+        return 0;
+        // return texture->m_Width;
     }
 
     static uint16_t NullGetTextureHeight(HTexture texture)
     {
-        return texture->m_Height;
+        return 0;
+        // return texture->m_Height;
     }
 
     static uint16_t NullGetOriginalTextureWidth(HTexture texture)
     {
-        return texture->m_OriginalWidth;
+        return 0;
+        // return texture->m_OriginalWidth;
     }
 
     static uint16_t NullGetOriginalTextureHeight(HTexture texture)
     {
-        return texture->m_OriginalHeight;
+        return 0;
+        // return texture->m_OriginalHeight;
     }
 
     static void NullEnableTexture(HContext context, uint32_t unit, uint8_t value_index, HTexture texture)
@@ -1147,8 +1169,8 @@ namespace dmGraphics
         assert(context);
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
-        assert(texture->m_Data);
-        context->m_Textures[unit] = texture;
+        // assert(texture->m_Data);
+        // context->m_Textures[unit] = texture;
     }
 
     static void NullDisableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -1321,7 +1343,8 @@ namespace dmGraphics
 
     static TextureType NullGetTextureType(HTexture texture)
     {
-        return texture->m_Type;
+        return (TextureType) -1;
+        //return texture->m_Type;
     }
 
     static uint32_t NullGetNumSupportedExtensions(HContext context)

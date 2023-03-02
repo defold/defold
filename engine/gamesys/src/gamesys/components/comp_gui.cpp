@@ -548,7 +548,7 @@ namespace dmGameSystem
             else
             {
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE;
-                texture_source      = (void*)texture;
+                texture_source      = (void*) (size_t) texture;
             }
 
             dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name), texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
@@ -906,7 +906,7 @@ namespace dmGameSystem
             return texture_set_res->m_Texture->m_Texture;
         }
 
-        return (dmGraphics::HTexture) result;
+        return (dmGraphics::HTexture) (size_t) result;
     }
 
     static void RenderTextNodes(dmGui::HScene scene,
@@ -1018,7 +1018,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_Material = gui_context->m_Material;
-        ro.m_Textures[0] = (dmGraphics::HTexture)first_emitter_render_data->m_Texture;
+        ro.m_Textures[0] = (dmGraphics::HTexture) (size_t) first_emitter_render_data->m_Texture;
 
         // Offset capacity to fit vertices for all emitters we are about to render
         uint32_t vertex_count = 0;
@@ -1922,12 +1922,12 @@ namespace dmGameSystem
 
         dmGraphics::HTexture t =  dmGraphics::NewTexture(gcontext, tcparams);
         dmGraphics::SetTexture(t, tparams);
-        return (void*) t;
+        return (void*) (size_t) t;
     }
 
     static void DeleteTexture(dmGui::HScene scene, void* texture, void* context)
     {
-        dmGraphics::DeleteTexture((dmGraphics::HTexture) texture);
+        dmGraphics::DeleteTexture((dmGraphics::HTexture) (size_t) texture);
     }
 
     static void SetTextureData(dmGui::HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
@@ -1940,7 +1940,7 @@ namespace dmGameSystem
         tparams.m_Data = buffer;
         tparams.m_DataSize = dmImage::BytesPerPixel(type) * width * height;
         tparams.m_Format = ToGraphicsFormat(type);
-        dmGraphics::SetTexture((dmGraphics::HTexture) texture, tparams);
+        dmGraphics::SetTexture((dmGraphics::HTexture) (size_t) texture, tparams);
     }
 
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)

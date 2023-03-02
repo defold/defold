@@ -41,9 +41,14 @@ namespace dmGraphics
      * @typedef
      * @name HTexture
      */
-    typedef struct Texture* HTexture;
+    typedef uint32_t HTexture;
 
-    typedef struct RenderTarget* HRenderTarget; // Where is this currently used?
+    /*#
+     * Rendertarget handle
+     * @typedef
+     * @name HRenderTarget
+     */
+    typedef uint32_t HRenderTarget; // Where is this currently used?
 
     /*#
      * Vertex program handle

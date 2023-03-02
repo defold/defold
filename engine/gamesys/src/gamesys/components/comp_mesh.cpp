@@ -1077,11 +1077,13 @@ namespace dmGameSystem
                 {
                     TextureResource* texture_res = GetTextureResource(component, component->m_Resource, i);
                     dmGraphics::HTexture texture = GetTexture(texture_res);
+                    /*
                     if (texture == params.m_Resource->m_Resource)
                     {
                         component->m_ReHash = 1;
                         break;
                     }
+                    */
                 }
             }
         }
