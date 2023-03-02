@@ -207,7 +207,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
             try {
                 return resource.getContent();
             } catch (IOException e) {
-                return null; // Actual errors are reported by ModeulUtil.loadScene
+                return null; // Actual errors are reported by ModelUtil.loadScene
             }
         }
     };
