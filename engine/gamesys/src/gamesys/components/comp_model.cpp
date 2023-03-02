@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,6 +26,7 @@
 #include <dlib/object_pool.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/intersection.h>
 #include <graphics/graphics.h>
 #include <rig/rig.h>
 #include <render/render.h>
@@ -57,10 +58,12 @@ namespace dmGameSystem
     struct MeshRenderItem
     {
         dmVMath::Matrix4            m_World;
+        dmVMath::Vector3            m_AabbMin;
+        dmVMath::Vector3            m_AabbMax;
         struct ModelComponent*      m_Component;
         ModelResourceBuffers*       m_Buffers;
-        dmRigDDF::Model*            m_Model;
-        dmRigDDF::Mesh*             m_Mesh;
+        dmRigDDF::Model*            m_Model;    // Used for world space materials
+        dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
         uint32_t                    m_MaterialIndex : 4; // current max 16 materials per model
         uint32_t                    m_Enabled : 1;
         uint32_t                    : 27;
@@ -403,6 +406,8 @@ namespace dmGameSystem
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
+            item.m_AabbMin = item.m_Mesh->m_AabbMin;
+            item.m_AabbMax = item.m_Mesh->m_AabbMax;
             item.m_Enabled = 1;
             component->m_RenderItems.Push(item);
         }
@@ -769,6 +774,24 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
+    {
+        DM_PROFILE("Model");
+
+        ModelWorld* world = (ModelWorld*)params.m_UserData;
+
+        const dmIntersection::Frustum frustum = *params.m_Frustum;
+        uint32_t num_entries = params.m_NumEntries;
+        for (uint32_t i = 0; i < num_entries; ++i)
+        {
+            dmRender::RenderListEntry* entry = &params.m_Entries[i];
+            MeshRenderItem* render_item = (MeshRenderItem*)entry->m_UserData;
+
+            bool intersect = dmIntersection::TestFrustumOBB(frustum, render_item->m_World, render_item->m_AabbMin, render_item->m_AabbMax, true);
+            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+        }
+    }
+
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         ModelWorld *world = (ModelWorld *) params.m_UserData;
@@ -838,7 +861,7 @@ namespace dmGameSystem
 
         // Prepare list submit
         dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, mesh_count);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
+        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
         const uint32_t max_elements_vertices = world->m_MaxElementsVertices;

@@ -4,10 +4,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -127,8 +127,10 @@ static void OutputNodeTree(Node* node, int indent)
 static void OutputMesh(Mesh* mesh, int indent)
 {
     OutputIndent(indent);
-    printf("mesh  %s  vertices: %u  indices: %u mat: %s  weights: %s  colors: %s\n",
-            mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material, mesh->m_Weights?"yes":"no", mesh->m_Color?"yes":"no");
+    printf("mesh  %s  vertices: %u  indices: %u mat: %s  weights: %s  colors: %s aabb: (%f, %f, %f) (%f, %f, %f)\n",
+            mesh->m_Name, mesh->m_VertexCount, mesh->m_IndexCount, mesh->m_Material, mesh->m_Weights?"yes":"no", mesh->m_Color?"yes":"no",
+            mesh->m_Aabb.m_Min[0], mesh->m_Aabb.m_Min[1], mesh->m_Aabb.m_Min[2],
+            mesh->m_Aabb.m_Max[0], mesh->m_Aabb.m_Max[1], mesh->m_Aabb.m_Max[2]);
 
     // if (mesh->m_Weights)
     // {
