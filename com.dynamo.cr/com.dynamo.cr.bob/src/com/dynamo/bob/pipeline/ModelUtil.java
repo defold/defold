@@ -69,6 +69,7 @@ import com.dynamo.proto.DdfMath.Transform;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ModelImporter.Bone;
 import com.dynamo.bob.pipeline.ModelImporter.Mesh;
+import com.dynamo.bob.pipeline.ModelImporter.Aabb;
 import com.dynamo.bob.pipeline.ModelImporter.Model;
 import com.dynamo.bob.pipeline.ModelImporter.Node;
 import com.dynamo.bob.pipeline.ModelImporter.Options;
@@ -108,6 +109,10 @@ public class ModelUtil {
     }
 
     public static void unloadScene(Scene scene) {
+    }
+
+    private static Vector3 toDDFVector3(ModelImporter.Vec4 v) {
+        return MathUtil.vecmathToDDF(new Vector3d(v.x, v.y, v.z));
     }
 
     private static Transform toDDFTransform(ModelImporter.Transform transform) {
@@ -458,6 +463,7 @@ public class ModelUtil {
                 newMesh = new Mesh();
                 newMesh.material = inMesh.material;
                 newMesh.name = String.format("%s_%d", inMesh.name, outMeshes.size());
+                newMesh.aabb = new Aabb(inMesh.aabb);
 
                 newMesh.texCoords0NumComponents = inMesh.texCoords0NumComponents;
                 newMesh.texCoords1NumComponents = inMesh.texCoords1NumComponents;
@@ -587,6 +593,9 @@ public class ModelUtil {
         float[] normals = mesh.normals;
         float[] texCoords0 = mesh.getTexCoords(0);
         float[] texCoords1 = mesh.getTexCoords(1);
+
+        meshBuilder.setAabbMin(toDDFVector3(mesh.aabb.min));
+        meshBuilder.setAabbMax(toDDFVector3(mesh.aabb.max));
 
         if (mesh.positions != null)
             meshBuilder.addAllPositions(toList(mesh.positions));

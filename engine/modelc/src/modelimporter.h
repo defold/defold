@@ -32,6 +32,11 @@ namespace dmModelImporter
         const char* m_Name;
     };
 
+    struct Aabb
+    {
+        float m_Min[3];
+        float m_Max[3];
+    };
     struct Mesh
     {
         const char* m_Name;
@@ -47,6 +52,8 @@ namespace dmModelImporter
         float*      m_TexCoord0;              // m_TexCoord0NumComponents floats per vertex
         uint32_t    m_TexCoord1NumComponents; // e.g 2 or 3
         float*      m_TexCoord1;              // m_TexCoord1NumComponents floats per vertex
+
+        Aabb        m_Aabb; // The min/max of the positions data
 
         uint32_t*   m_Indices;
         uint32_t    m_VertexCount;

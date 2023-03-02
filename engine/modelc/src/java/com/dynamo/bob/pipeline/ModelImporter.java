@@ -94,6 +94,13 @@ public class ModelImporter {
         public float x, y, z, w;
 
         public Vec4() {}
+        public Vec4(Vec4 other)
+        {
+            this.x = other.x;
+            this.y = other.y;
+            this.z = other.z;
+            this.w = other.w;
+        }
         public Vec4(float x, float y, float z, float w) {
             this.x = x;
             this.y = y;
@@ -119,9 +126,34 @@ public class ModelImporter {
         }
     }
 
+    public static class Aabb {
+        public Vec4 min;
+        public Vec4 max;
+
+        public Aabb() {
+            this.min = new Vec4(1000000.0f,1000000.0f,1000000.0f,1.0f);
+            this.max = new Vec4(-1000000.0f,-1000000.0f,-1000000.0f,1.0f);
+        }
+
+        public Aabb(Aabb other) {
+            this.min = new Vec4(other.min);
+            this.max = new Vec4(other.max);
+        }
+
+        public void expand(float x, float y, float z) {
+            if (x < min.x) min.x = x;
+            if (y < min.y) min.y = y;
+            if (z < min.z) min.z = z;
+            if (x > max.x) max.x = x;
+            if (y > max.y) max.y = y;
+            if (z > max.z) max.z = z;
+        }
+    }
+
     public static class Mesh {
         public String      name;
         public String      material;
+        public Aabb        aabb;
 
         public float[]     positions; // float3
         public float[]     normals; // float3
@@ -311,6 +343,8 @@ public class ModelImporter {
         System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
         PrintIndent(indent+1);
         System.out.printf("Material: %s\n", mesh.material);
+        PrintIndent(indent+1);
+        System.out.printf("Aabb: (%f, %f, %f), (%f, %f, %f)\n", mesh.aabb.min.x,mesh.aabb.min.y,mesh.aabb.min.z, mesh.aabb.max.x,mesh.aabb.max.y,mesh.aabb.max.z);
 
         // Print out the first ten of each array
         int max_count = 10;
