@@ -2844,17 +2844,13 @@
         (sanitize-node-rotation)
         (sanitize-node-specifics))))
 
-(def ^:private sanitize-nodes #(mapv sanitize-node %))
-
 (defn- sanitize-layout [layout]
-  (update layout :nodes sanitize-nodes))
-
-(def ^:private sanitize-layouts #(mapv sanitize-layout %))
+  (protobuf/sanitize-repeated layout :nodes sanitize-node))
 
 (defn- sanitize-scene [scene]
   (-> scene
-      (update :nodes sanitize-nodes)
-      (update :layouts sanitize-layouts)))
+      (protobuf/sanitize-repeated :nodes sanitize-node)
+      (protobuf/sanitize-repeated :layouts sanitize-layout)))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

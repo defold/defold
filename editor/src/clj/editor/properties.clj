@@ -617,7 +617,13 @@
       go-prop-value)))
 
 (defn property-desc->go-prop [property-desc proj-path->resource]
+  ;; GameObject$PropertyDesc in map format.
   (assoc property-desc :clj-value (property-desc->clj-value property-desc proj-path->resource)))
+
+(defn go-prop->property-desc [go-prop]
+  ;; GameObject$PropertyDesc in map format with additional internal keys.
+  ;; We strip these out to get a "clean" GameObject$PropertyDesc in map format.
+  (dissoc go-prop :clj-value :error))
 
 (defmulti sanitize-go-prop-value (fn [go-prop-type _go-prop-value] go-prop-type))
 (defmethod sanitize-go-prop-value :default [_go-prop-type go-prop-value]

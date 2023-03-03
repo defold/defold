@@ -55,15 +55,13 @@
   "HACK/FIXME: See above for the detailed background. We must convert the legacy
   `optional` value to a `repeated` value when writing the runtime binary format."
   [downgraded-constant-value]
-  (if (some? downgraded-constant-value)
-    [downgraded-constant-value]
-    []))
+  [downgraded-constant-value])
 
 (defn- hack-downgrade-constant [constant]
-  (update constant :value hack-downgrade-constant-value))
+  (protobuf/sanitize constant :value hack-downgrade-constant-value))
 
 (defn- hack-upgrade-constant [constant]
-  (update constant :value hack-upgrade-constant-value))
+  (protobuf/sanitize constant :value hack-upgrade-constant-value))
 
 (def ^:private hack-downgrade-constants (partial mapv hack-downgrade-constant))
 
@@ -326,9 +324,10 @@
   (let [existing-samplers (:samplers pb)
         samplers-created-from-textures (map make-sampler (:textures pb))
         samplers (into [] (util/distinct-by :name) (concat existing-samplers samplers-created-from-textures))]
-    (-> pb
-        (assoc :samplers samplers)
-        (dissoc :textures))))
+    (cond-> (dissoc pb :textures)
+
+            (seq samplers)
+            (assoc :samplers samplers))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

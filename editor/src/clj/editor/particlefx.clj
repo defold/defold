@@ -44,16 +44,14 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.particle.proto Particle$Emitter$ParticleProperty Particle$Emitter$Property Particle$Modifier Particle$Modifier$Property Particle$ParticleFX Particle$Emitter Particle$PlayMode Particle$EmitterType
-                                      Particle$EmitterKey Particle$ParticleKey Particle$ModifierKey
-                                      Particle$EmissionSpace Particle$BlendMode Particle$ParticleOrientation Particle$ModifierType Particle$SizeMode Particle$SplinePoint]
+  (:import [com.dynamo.particle.proto Particle$BlendMode Particle$EmissionSpace Particle$Emitter Particle$Emitter$ParticleProperty Particle$Emitter$Property Particle$EmitterKey Particle$EmitterType Particle$Modifier Particle$Modifier$Property Particle$ParticleFX Particle$ParticleKey Particle$ParticleOrientation Particle$PlayMode Particle$SizeMode Particle$SplinePoint]
            [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [editor.properties CurveSpread Curve]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.properties Curve CurveSpread]
+           [editor.types AABB]
            [java.nio ByteBuffer]
-           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector4f Vector3d Vector4d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -584,33 +582,38 @@
 
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs]
-  (let [properties (:properties _declared-properties)]
-    (into (protobuf/make-map-with-defaults Particle$Emitter
-            :position position
-            :rotation rotation
-            :modifiers modifier-msgs)
-          (concat
-            (mapcat (fn [kw] (get-property properties kw))
-                    [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
-                     :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset :pivot])
-            [[:properties (into []
-                                (comp (map first)
-                                      (keep (fn [kw]
-                                              (let [v (get-in properties [kw :value])]
-                                                (when-let [points (get-curve-points v)]
-                                                  (protobuf/make-map-with-defaults Particle$Emitter$Property
+  (let [properties (:properties _declared-properties)
+        emitter-properties (into []
+                                 (comp (map first)
+                                       (keep (fn [kw]
+                                               (let [v (get-in properties [kw :value])]
+                                                 (when-let [points (get-curve-points v)]
+                                                   (protobuf/make-map-with-defaults Particle$Emitter$Property
+                                                     :key kw
+                                                     :points points
+                                                     :spread (:spread v)))))))
+                                 (butlast (protobuf/enum-values Particle$EmitterKey)))
+        particle-properties (into []
+                                  (comp (map first)
+                                        (keep (fn [kw]
+                                                (when-let [points (get-curve-points (get-in properties [kw :value]))]
+                                                  (protobuf/make-map-with-defaults Particle$Emitter$ParticleProperty
                                                     :key kw
-                                                    :points points
-                                                    :spread (:spread v)))))))
-                                (butlast (protobuf/enum-values Particle$EmitterKey)))]
-             [:particle-properties (into []
-                                         (comp (map first)
-                                               (keep (fn [kw]
-                                                       (when-let [points (get-curve-points (get-in properties [kw :value]))]
-                                                         (protobuf/make-map-with-defaults Particle$Emitter$ParticleProperty
-                                                           :key kw
-                                                           :points points)))))
-                                         (butlast (protobuf/enum-values Particle$ParticleKey)))]]))))
+                                                    :points points)))))
+                                  (butlast (protobuf/enum-values Particle$ParticleKey)))]
+    (cond-> (into (protobuf/make-map-with-defaults Particle$Emitter
+                    :position position
+                    :rotation rotation
+                    :modifiers modifier-msgs)
+                  (mapcat #(get-property properties %))
+                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
+                   :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset :pivot])
+
+            (seq emitter-properties)
+            (assoc :properties emitter-properties)
+
+            (seq particle-properties)
+            (assoc :particle-properties particle-properties))))
 
 (defn- attach-modifier [self-id parent-id modifier-id resolve-node-outline-key?]
   (concat
@@ -1054,7 +1057,7 @@
   (update mod-pb :properties #(or (not-empty %) (get-in mod-types [(:type mod-pb) :template :properties]))))
 
 (defn- add-default-properties-to-modifiers [pb]
-  (update pb :modifiers (partial mapv add-default-properties-to-modifier)))
+  (protobuf/sanitize-repeated pb :modifiers add-default-properties-to-modifier))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

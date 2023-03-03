@@ -375,11 +375,34 @@
     :embedded-instances embed-inst-ddf
     :collection-instances ref-coll-ddf))
 
-(g/defnk produce-save-value [proto-msg]
-  (protobuf/sanitize-repeated
-    proto-msg :embedded-instances
-    (fn [embedded-instance-desc]
-      (update embedded-instance-desc :data game-object/prototype-desc-save-value))))
+(defn instance-property-desc-save-value [instance-property-desc]
+  ;; GameObject$InstancePropertyDesc in map format.
+  (-> instance-property-desc
+      (protobuf/sanitize-repeated :properties game-object/component-property-desc-save-value)))
+
+(defn instance-desc-save-value [instance-desc]
+  ;; GameObject$InstanceDesc in map format.
+  (-> instance-desc
+      (protobuf/sanitize-repeated :component-properties game-object/component-property-desc-save-value)))
+
+(defn embedded-instance-desc-save-value [embedded-instance-desc]
+  ;; GameObject$EmbeddedInstanceDesc in map format.
+  (-> embedded-instance-desc
+      (protobuf/sanitize :data game-object/prototype-desc-save-value)
+      (protobuf/sanitize-repeated :component-properties game-object/component-property-desc-save-value)))
+
+(defn collection-instance-desc-save-value [collection-instance-desc]
+  ;; GameObject$CollectionInstanceDesc in map format.
+  (-> collection-instance-desc
+      (protobuf/sanitize-repeated :instance-properties instance-property-desc-save-value)))
+
+(defn collection-desc-save-value [collection-desc]
+  ;; GameObject$CollectionDesc in map format.
+  (-> collection-desc
+      (update :scale-along-z #(or % 0)) ; Keep this field around even though it is optional - we may want to change its default.
+      (protobuf/sanitize-repeated :instances instance-desc-save-value)
+      (protobuf/sanitize-repeated :embedded-instances embedded-instance-desc-save-value)
+      (protobuf/sanitize-repeated :collection-instances collection-instance-desc-save-value)))
 
 (g/defnk produce-build-targets [_node-id name resource sub-build-targets dep-build-targets id-counts scale-along-z]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
@@ -440,7 +463,7 @@
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output base-url g/Str (gu/passthrough base-url))
   (output proto-msg g/Any produce-proto-msg)
-  (output save-value g/Any :cached produce-save-value)
+  (output save-value g/Any :cached (g/fnk [proto-msg] (collection-desc-save-value proto-msg)))
   (output build-targets g/Any :cached produce-build-targets)
   (output node-outline outline/OutlineData :cached produce-coll-outline)
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]

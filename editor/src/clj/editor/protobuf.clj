@@ -810,22 +810,51 @@ Macros currently mean no foreseeable performance gain, however."
   (pb->map-without-defaults
     (read-pb cls input)))
 
+(defn sanitize
+  ([pb-map field-kw]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)]}
+   (let [value (get pb-map field-kw ::not-found)]
+     (if (nil? value)
+       (dissoc pb-map field-kw)
+       pb-map)))
+  ([pb-map field-kw sanitize-value-fn]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)
+          (ifn? sanitize-value-fn)]}
+   (let [value (get pb-map field-kw ::not-found)]
+     (cond
+       (= ::not-found value)
+       pb-map
+
+       (nil? value)
+       (dissoc pb-map field-kw)
+
+       :else
+       (if-some [sanitized-value (sanitize-value-fn value)]
+         (assoc pb-map field-kw sanitized-value)
+         (dissoc pb-map field-kw))))))
+
 (defn sanitize-repeated
   ([pb-map field-kw]
    {:pre [(map? pb-map)
           (keyword? field-kw)]}
-   (if (contains? pb-map field-kw)
-     (if (empty? (get pb-map field-kw))
-       (dissoc pb-map field-kw)
-       pb-map)
-     pb-map))
+   (let [items (get pb-map field-kw ::not-found)]
+     (if (or (= ::not-found items)
+             (seq items))
+       pb-map
+       (dissoc pb-map field-kw))))
   ([pb-map field-kw sanitize-item-fn]
    {:pre [(map? pb-map)
           (keyword? field-kw)
           (ifn? sanitize-item-fn)]}
-   (if (contains? pb-map field-kw)
-     (let [items (get pb-map field-kw)]
-       (if (seq items)
-         (assoc pb-map field-kw (mapv sanitize-item-fn items))
-         (dissoc pb-map field-kw)))
-     pb-map)))
+   (let [items (get pb-map field-kw ::not-found)]
+     (cond
+       (= ::not-found items)
+       pb-map
+
+       (seq items)
+       (assoc pb-map field-kw (mapv sanitize-item-fn items))
+
+       :else
+       (dissoc pb-map field-kw)))))

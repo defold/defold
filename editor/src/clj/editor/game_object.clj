@@ -343,14 +343,20 @@
     :components ref-ddf
     :embedded-components embed-ddf))
 
+(defn component-property-desc-save-value [component-property-desc]
+  ;; GameObject$ComponentPropertyDesc or GameObject$ComponentDesc in map format.
+  (-> component-property-desc
+      (protobuf/sanitize-repeated :properties properties/go-prop->property-desc)))
+
+(defn- component-desc-save-value [component-desc]
+  ;; GameObject$ComponentDesc in map format.
+  (-> component-desc
+      (component-property-desc-save-value)))
+
 (defn prototype-desc-save-value [prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
   (-> prototype-desc
-      (protobuf/sanitize-repeated :components game-object-common/strip-default-scale-from-component-desc)
-      (protobuf/sanitize-repeated :embedded-components game-object-common/strip-default-scale-from-component-desc)))
-
-(g/defnk produce-save-value [proto-msg]
-  (prototype-desc-save-value proto-msg))
+      (protobuf/sanitize-repeated :components component-desc-save-value)))
 
 (g/defnk produce-build-targets [_node-id resource dep-build-targets id-counts]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
@@ -432,7 +438,7 @@
   (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output proto-msg g/Any produce-proto-msg)
-  (output save-value g/Any produce-save-value)
+  (output save-value g/Any :cached (g/fnk [proto-msg] (prototype-desc-save-value proto-msg)))
   (output build-targets g/Any :cached produce-build-targets)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output scene g/Any :cached produce-scene)
