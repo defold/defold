@@ -285,8 +285,8 @@ namespace dmGameSystem
 
         dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
-        ro.m_Material = (dmRender::HMaterial)first->m_Material;
-        ro.m_Textures[0] = 0; // (dmGraphics::HTexture)first->m_Texture;
+        ro.m_Material = (dmRender::HMaterial) first->m_Material;
+        ro.m_Textures[0] = (dmGraphics::HTexture) (size_t) first->m_Texture;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = ro_vertex_count;
         ro.m_VertexBuffer = pfx_world->m_VertexBuffer;
@@ -591,7 +591,7 @@ namespace dmGameSystem
             TextureResource* texture_res = texture_set_res->m_Texture;
             dmGraphics::HTexture texture = texture_res ? texture_res->m_Texture : 0;
 
-            out_data->m_Texture = 0; // texture;
+            out_data->m_Texture = (void*) (size_t) texture;
             out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_TexDims = (float*) texture_set_res->m_TextureSet->m_TexDims.m_Data;
             out_data->m_PageIndices = texture_set_res->m_TextureSet->m_PageIndices.m_Data;
