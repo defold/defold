@@ -45,11 +45,12 @@
        :animation-ids animation-ids
        :material-ids material-ids})))
 
-(defn- load-model-scene [resource ^InputStream stream ^String path]
+(defn- load-model-scene [resource ^InputStream stream]
   (let [workspace (resource/workspace resource)
         project-path (workspace/project-path workspace)
         mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
+        path (resource/path resource)
         options nil
         data-resolver (ModelUtil/createFileDataResolver project-path)
         scene (ModelUtil/loadScene stream path options data-resolver)
@@ -73,7 +74,7 @@
     (let [ext (string/lower-case (resource/ext resource))]
       (if (= "dae" ext)
         (load-collada-scene stream)
-        (load-model-scene resource stream (resource/path resource))))))
+        (load-model-scene resource stream)))))
 
 (defn load-scene [node-id resource]
   (try

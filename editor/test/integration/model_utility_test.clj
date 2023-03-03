@@ -81,5 +81,4 @@
     (let [{:keys [buffers]} (load-scene workspace project "/mesh/triangle/gltf/Triangle.gltf")]
       (is (= 1 (count buffers)))
       (is (= "simpleTriangle.bin" (.uri (first buffers))))
-      (is (= 44 (count (.buffer (first buffers)))))
-    )))
+      (is (= 44 (count (.buffer (first buffers))))))))

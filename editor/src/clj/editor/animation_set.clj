@@ -26,7 +26,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.murmur :as murmur])
-  (:import [com.dynamo.bob.pipeline ModelUtil AnimationSetBuilder LoaderException]
+  (:import [com.dynamo.bob.pipeline AnimationSetBuilder LoaderException ModelUtil]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$AnimationSetDesc]
            [java.util ArrayList]))
 
