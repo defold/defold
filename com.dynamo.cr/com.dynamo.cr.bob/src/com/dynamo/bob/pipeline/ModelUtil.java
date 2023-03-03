@@ -70,6 +70,7 @@ import com.dynamo.bob.pipeline.ModelImporter.Aabb;
 import com.dynamo.bob.pipeline.ModelImporter.Bone;
 import com.dynamo.bob.pipeline.ModelImporter.Material;
 import com.dynamo.bob.pipeline.ModelImporter.Mesh;
+import com.dynamo.bob.pipeline.ModelImporter.Aabb;
 import com.dynamo.bob.pipeline.ModelImporter.Model;
 import com.dynamo.bob.pipeline.ModelImporter.Node;
 import com.dynamo.bob.pipeline.ModelImporter.Options;

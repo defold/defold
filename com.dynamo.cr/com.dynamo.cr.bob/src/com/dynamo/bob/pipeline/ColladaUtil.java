@@ -765,7 +765,7 @@ public class ColladaUtil {
         normalMatrix.invert();
         normalMatrix.transpose();
 
-        List<Float> normal_list = null;
+        List<Float> normal_list = new ArrayList<Float>();
         if(normals != null) {
             normal_list = new ArrayList<Float>(normals.floatArray.count);
             for (int i = 0; i < normals.floatArray.count / 3; ++i) {

@@ -485,10 +485,12 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testEmbeddedInstanceEmbeddedComponent() throws Exception {
         addFile("/test.atlas", "");
+        addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
         StringBuilder spriteSrc = new StringBuilder();
         spriteSrc.append("tile_set: \"/test.atlas\"\n");
         spriteSrc.append("default_animation: \"\"\n");
+        spriteSrc.append("material: \"\"\n");
 
         StringBuilder goSrc = new StringBuilder();
         goSrc.append("embedded_components {\n");
@@ -525,10 +527,12 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testEmbeddedInstanceComponentCounter() throws Exception {
         addFile("/test.atlas", "");
+        addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
         StringBuilder spriteSrc = new StringBuilder();
         spriteSrc.append("tile_set: \"/test.atlas\"\n");
         spriteSrc.append("default_animation: \"\"\n");
+        spriteSrc.append("material: \"\"\n");
 
         StringBuilder goSrc = new StringBuilder();
         goSrc.append("embedded_components {\n");
@@ -571,10 +575,12 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testInstanceComponentCounterInCollectionFactory() throws Exception {
         addFile("/test.atlas", "");
+        addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
         StringBuilder spriteSrc = new StringBuilder();
         spriteSrc.append("tile_set: \"/test.atlas\"\n");
         spriteSrc.append("default_animation: \"\"\n");
+        spriteSrc.append("material: \"\"\n");
 
         StringBuilder goTestSrc = new StringBuilder();
         goTestSrc.append("embedded_components {\n");
@@ -638,10 +644,12 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testInstanceComponentCounterInFactory() throws Exception {
         addFile("/test.atlas", "");
+        addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
         StringBuilder spriteSrc = new StringBuilder();
         spriteSrc.append("tile_set: \"/test.atlas\"\n");
         spriteSrc.append("default_animation: \"\"\n");
+        spriteSrc.append("material: \"\"\n");
 
         StringBuilder goTestSrc = new StringBuilder();
         goTestSrc.append("embedded_components {\n");
@@ -697,10 +705,12 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testInstanceComponentCounterForDynamicFactory() throws Exception {
         addFile("/test.atlas", "");
+        addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
         StringBuilder spriteSrc = new StringBuilder();
         spriteSrc.append("tile_set: \"/test.atlas\"\n");
         spriteSrc.append("default_animation: \"\"\n");
+        spriteSrc.append("material: \"\"\n");
 
         StringBuilder goTestSrc = new StringBuilder();
         goTestSrc.append("embedded_components {\n");
@@ -752,10 +762,12 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testInstanceComponentCounterInSubCollectionFromFactory() throws Exception {
         addFile("/test.atlas", "");
+        addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
         StringBuilder spriteSrc = new StringBuilder();
         spriteSrc.append("tile_set: \"/test.atlas\"\n");
         spriteSrc.append("default_animation: \"\"\n");
+        spriteSrc.append("material: \"\"\n");
 
         StringBuilder goTestSrc = new StringBuilder();
         goTestSrc.append("embedded_components {\n");

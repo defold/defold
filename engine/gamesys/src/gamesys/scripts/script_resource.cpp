@@ -522,13 +522,12 @@ static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageForma
 
 static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(int texturetype)
 {
-    if (texturetype == dmGraphics::TEXTURE_TYPE_2D)
+    switch(texturetype)
     {
-        return dmGraphics::TextureImage::TYPE_2D;
-    }
-    else if (texturetype == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
-    {
-        return dmGraphics::TextureImage::TYPE_CUBEMAP;
+        case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
+        case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
+        case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
+        default: assert(0);
     }
     dmLogError("Unsupported texture type (%d)", texturetype);
     return (dmGraphics::TextureImage::Type) -1;

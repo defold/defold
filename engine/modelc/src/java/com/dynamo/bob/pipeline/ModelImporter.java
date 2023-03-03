@@ -146,7 +146,6 @@ public class ModelImporter {
             if (z > max.z) max.z = z;
         }
     }
-
     public static class Material {
         public String           name;
         public int              index;
@@ -160,6 +159,7 @@ public class ModelImporter {
     public static class Mesh {
         public String      name;
         public Material    material;
+
         public Aabb        aabb;
 
         public float[]     positions; // float3

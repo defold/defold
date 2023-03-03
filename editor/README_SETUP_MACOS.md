@@ -29,6 +29,8 @@ Verify that Java is installed and working:
 If you are using IntelliJ for lein tasks, you will need to first add the new SDK (file->project structure/SDKs)
 and then set the project SDK setting (file->project structure/Project) to the new version.
 
+Newer versions of Java will not work, you need exactly Java 11.
+
 
 ## Required Software - Installing Leiningen
 

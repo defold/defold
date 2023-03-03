@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
@@ -66,7 +67,9 @@ public class ClassLoaderResourceScanner implements IResourceScanner {
 
     private static void scanJar(URL resource, String filter, Set<String> results) throws IOException {
         String resPath = resource.getPath();
-        String jarPath = resPath.replaceFirst("[.]jar[!].*", ".jar").replaceFirst("file:", "");
+
+        // resPath is URL-encoded, e.g. space characters represented as %20, so decode before deriving file paths from it
+        String jarPath = URLDecoder.decode(resPath.replaceFirst("[.]jar[!].*", ".jar"), "UTF-8").replaceFirst("file:", "");
         try (JarFile jarFile = new JarFile(jarPath)){
             Enumeration<JarEntry> entries = jarFile.entries();
             while(entries.hasMoreElements()) {

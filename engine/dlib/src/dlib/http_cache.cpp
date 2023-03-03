@@ -16,8 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include "dstrings.h"
 #include "http_cache.h"
 #include "log.h"
@@ -190,11 +188,9 @@ namespace dmHttpCache
     Result Open(NewParams* params, HCache* cache)
     {
         const char* path = params->m_Path;
-        struct stat stat_data;
-        int ret = stat(path, &stat_data);
-        if (ret == 0)
+        if (dmSys::Exists(path))
         {
-            if ((stat_data.st_mode & S_IFDIR) == 0)
+            if (dmSys::RESULT_OK != dmSys::IsDir(path))
             {
                 dmLogError("Unable to use '%s' as http cache directory. Path exists and is not a directory.", path);
                 return RESULT_INVALID_PATH;
@@ -578,8 +574,7 @@ namespace dmHttpCache
 
         char path[DMPATH_MAX_PATH];
         ContentFilePath(cache, identifier_hash, path, sizeof(path));
-        struct stat stat_data;
-        if (stat(path, &stat_data) == 0)
+        if (dmSys::Exists(path))
         {
             dmSys::Result r = dmSys::Unlink(path);
             if (r != dmSys::RESULT_OK)
@@ -592,14 +587,12 @@ namespace dmHttpCache
         }
         else
         {
-            struct stat stat_data;
             // Modify path and remove last part of hash temporarily
             // ie, .../5d/a7b8fa56d18877 to .../5d
             char* last_slash = strrchr(path, '/');
             char save = *last_slash;
             *last_slash = '\0';
-            int ret = stat(path, &stat_data);
-            if (ret != 0)
+            if (!dmSys::Exists(path))
             {
                 dmSys::Result r = dmSys::Mkdir(path, 0755);
                 if (r != dmSys::RESULT_OK)
@@ -618,8 +611,7 @@ namespace dmHttpCache
         entry->m_WriteLock = 0;
         entry->m_Info.m_Checksum = dmHashFinal64(&cache_creator->m_ChecksumState);
 
-        int ret = rename(cache_creator->m_Filename, path);
-        if (ret != 0)
+        if (dmSys::RESULT_OK != dmSys::RenameFile(path, cache_creator->m_Filename))
         {
             char errmsg[128] = {};
             dmStrError(errmsg, sizeof(errmsg), errno);

@@ -16,7 +16,6 @@
 #include "liveupdate_private.h"
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 
 #include <ddf/ddf.h>
 
@@ -343,9 +342,7 @@ namespace dmLiveUpdate
 
     Result StoreArchiveAsync(const char* path, void (*callback)(bool, void*), void* callback_data, bool verify_archive)
     {
-        struct stat file_stat;
-        bool exists = stat(path, &file_stat) == 0;
-        if (!exists) {
+        if (!dmSys::Exists(path)) {
             dmLogError("File does not exist: '%s'", path);
             return RESULT_INVALID_RESOURCE;
         }
@@ -388,11 +385,8 @@ namespace dmLiveUpdate
         char lu_index_path[DMPATH_MAX_PATH] = {};
         dmPath::Concat(app_support_path, arci, lu_index_path, DMPATH_MAX_PATH);
 
-        struct stat file_stat;
-        bool resource_exists = stat(lu_index_path, &file_stat) == 0;
-
         // If liveupdate.arci does not exists, create it and liveupdate.arcd
-        if (!resource_exists)
+        if (!dmSys::Exists(lu_index_path))
         {
             FILE* f_lu_index = fopen(lu_index_path, "wb");
             fclose(f_lu_index);
