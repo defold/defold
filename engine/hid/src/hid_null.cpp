@@ -18,6 +18,8 @@
 
 #include <dlib/hashtable.h>
 
+#include <dlib/dstrings.h>
+
 #include "hid_private.h"
 
 namespace dmHID
@@ -39,16 +41,7 @@ namespace dmHID
         }
         if (context != 0x0)
         {
-            for (uint32_t i = 0; i < MAX_GAMEPAD_COUNT; ++i)
-            {
-                Gamepad& gamepad = context->m_Gamepads[i];
-                gamepad.m_Index = i;
-                gamepad.m_Connected = 0;
-                gamepad.m_AxisCount = 0;
-                gamepad.m_ButtonCount = 0;
-                memset(&gamepad.m_Packet, 0, sizeof(GamepadPacket));
-            }
-
+            memset(context->m_Gamepads, 0, sizeof(Gamepad) * MAX_GAMEPAD_COUNT);
             g_DummyData->Put((uintptr_t)context, new char);
             return true;
         }
@@ -80,9 +73,9 @@ namespace dmHID
         context->m_Gamepads[0].m_AxisCount = MAX_GAMEPAD_AXIS_COUNT;
     }
 
-    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name)
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
     {
-        *out_device_name = "null_device";
+        dmStrlCpy(buffer, "null_device", buffer_length);
     }
 
     void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)

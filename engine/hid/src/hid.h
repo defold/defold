@@ -65,7 +65,7 @@ namespace dmHID
         float m_X, m_Y, m_Z;
     };
 
-    typedef void (* DMHIDGamepadFunc)(uint32_t, bool, void*);
+    typedef bool (* DMHIDGamepadFunc)(uint32_t, bool, void*);
 
     /// parameters to be passed to NewContext
     struct NewContextParams
@@ -150,13 +150,17 @@ namespace dmHID
      */
     uint32_t GetGamepadAxisCount(HGamepad gamepad);
 
+    uint32_t GetGamepadHatCount(HGamepad gamepad);
+
     /**
      * Retrieves the platform-specific device name of a given gamepad.
      *
+     * @param context the hid context
      * @param gamepad gamepad handle
-     * @param a pointer to the device name, or 0x0 if not specified
+     * @param buffer a pointer to memory where the name should be stored
+     * @param buffer_length the size of the buffer parameter
      */
-    void GetGamepadDeviceName(HGamepad gamepad, const char** out_device_name);
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length);
 
     /**
      * Check if a keyboard is connected.
