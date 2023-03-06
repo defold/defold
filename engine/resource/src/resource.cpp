@@ -18,9 +18,6 @@
 #include <time.h>
 #include <assert.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-
 #ifdef __linux__
 #include <limits.h>
 #elif defined (__MACH__)

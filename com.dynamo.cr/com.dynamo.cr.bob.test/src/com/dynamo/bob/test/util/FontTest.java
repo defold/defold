@@ -361,7 +361,7 @@ public class FontTest {
         assertEquals(previewImage.getWidth(), 1024);
         assertEquals(previewImage.getHeight(), 2048);
 
-        // For previews we don't inlcude all glyphs
+        // For previews we don't include all glyphs
         assertTrue(fontMap.getGlyphsCount() < 1519);
 
         // Check that all glyphs are inside cache space
@@ -459,4 +459,61 @@ public class FontTest {
         int expectedCharCount = 96; // Taken from bmfont.fnt
         assertEquals(expectedCharCount, fontMap.getGlyphsCount());
     }
+
+
+    // https://github.com/defold/defold/issues/7346
+    @Test
+    public void testUncompressedChars() throws Exception {
+
+        // create "font file"
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("monogram.ttf")
+            .setMaterial("font.material")
+            .setSize(16)
+            .setAllChars(false)
+            .build();
+
+        // temp output file
+        File outfile = File.createTempFile("font-output", ".fontc");
+        outfile.deleteOnExit();
+
+        // compile font
+        Fontc fontc = new Fontc();
+        InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
+        FileOutputStream fontOutputStream = new FileOutputStream(outfile);
+        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
+
+        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
+                @Override
+                public InputStream getResource(String resourceName)
+                        throws FileNotFoundException {
+                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
+                }
+            });
+        FontMap fontMap = fontc.getFontMap();
+        byte[] glyphData = fontMap.getGlyphData().toByteArray();
+        int glyphCount = fontMap.getGlyphsCount();
+        for (int i = 0; i < glyphCount; i++) {
+            Glyph g = fontMap.getGlyphs(i);
+            if ((char)g.getCharacter() == '.') {
+                byte[] expectedBytes = new byte[] {
+                    0x00, // uncompressed
+                    0x00, 0x00, 0x00, 0x00,
+                    0x00, (byte)0xff, 0x00, 0x00,
+                    0x00, (byte)0xff, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00
+                };
+                int glyphDataSize = (int)g.getGlyphDataSize();
+                int glyphDataOffset = (int)g.getGlyphDataOffset();
+                assertEquals(expectedBytes.length, glyphDataSize);
+                for (int gi = 0; gi < expectedBytes.length; gi++) {
+                    assertEquals(expectedBytes[gi], glyphData[glyphDataOffset + gi]);
+                }
+                return;
+            }
+        }
+        // we should not get here unless the '.' glyph wasn't found
+        assertTrue(false);
+    }
+
 }

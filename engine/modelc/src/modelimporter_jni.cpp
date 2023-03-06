@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -151,8 +151,16 @@ struct MeshJNI
     jfieldID    vertexCount;
     jfieldID    indexCount;
 
+    jfieldID    aabb;
+
 } g_MeshJNI;
 
+struct AabbJNI
+{
+    jclass      cls;
+    jfieldID    min;
+    jfieldID    max;
+} g_AabbJNI;
 
 struct Vec4JNI
 {
@@ -224,6 +232,11 @@ static void InitializeJNITypes(JNIEnv* env)
         GET_FLD(scale, "Vec4");
     }
     {
+        SETUP_CLASS(AabbJNI, "Aabb");
+        GET_FLD(min, "Vec4");
+        GET_FLD(max, "Vec4");
+    }
+    {
         SETUP_CLASS(SceneJNI, "Scene");
         GET_FLD_ARRAY(nodes, "Node");
         GET_FLD_ARRAY(models, "Model");
@@ -266,6 +279,7 @@ static void InitializeJNITypes(JNIEnv* env)
         SETUP_CLASS(MeshJNI, "Mesh");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(material, "Ljava/lang/String;");
+        GET_FLD(aabb, "Aabb");
 
         GET_FLD_TYPESTR(positions, "[F");
         GET_FLD_TYPESTR(normals, "[F");
@@ -375,6 +389,14 @@ static jobject CreateVec4(JNIEnv* env, const dmVMath::Vector4& value)
     env->SetFloatField(obj, g_Vec4JNI.y, value.getY());
     env->SetFloatField(obj, g_Vec4JNI.z, value.getZ());
     env->SetFloatField(obj, g_Vec4JNI.w, value.getW());
+    return obj;
+}
+
+static jobject CreateAabb(JNIEnv* env, const Aabb& value)
+{
+    jobject obj = env->AllocObject(g_AabbJNI.cls);
+    SetFieldObject(env, obj, g_AabbJNI.min, CreateVec4(env, dmVMath::Vector4(value.m_Min[0], value.m_Min[1], value.m_Min[2], 1.0f)));
+    SetFieldObject(env, obj, g_AabbJNI.max, CreateVec4(env, dmVMath::Vector4(value.m_Max[0], value.m_Max[1], value.m_Max[2], 1.0f)));
     return obj;
 }
 
@@ -543,6 +565,8 @@ static jobject CreateMesh(JNIEnv* env, const dmModelImporter::Mesh* mesh)
 
     SET_IARRAY(obj, bones, vcount * 4, mesh->m_Bones);
     SET_IARRAY(obj, indices, icount, mesh->m_Indices);
+
+    SetFieldObject(env, obj, g_MeshJNI.aabb, CreateAabb(env, mesh->m_Aabb));
 
 #undef SET_FARRAY
 #undef SET_UARRAY

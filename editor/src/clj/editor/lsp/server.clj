@@ -163,11 +163,29 @@
                          :else
                          (throw (ex-info "Invalid text document sync kind" {:value textDocumentSync})))})
 
-(def default-settings
-  {"Lua" {:diagnostics {:globals lua/defined-globals}}})
+(defn- configuration-handler [project]
+  (fn [{:keys [items]}]
+    (lsp.async/with-auto-evaluation-context evaluation-context
+      (mapv
+        (fn [{:keys [section]}]
+          (case section
+            "Lua"
+            (let [script-intelligence (g/node-value project :script-intelligence evaluation-context)
+                  completions (g/node-value script-intelligence :lua-completions evaluation-context)]
+              {:diagnostics {:globals (into lua/defined-globals
+                                            (lua/extract-globals-from-completions completions))}})
 
-(defn- configuration-handler [{:keys [items]}]
-  (mapv (comp default-settings :section) items))
+            "files.associations"
+            (let [workspace (g/node-value project :workspace evaluation-context)
+                  resource-types (g/node-value workspace :resource-types evaluation-context)]
+              (into {}
+                    (keep (fn [[ext {:keys [textual? language]}]]
+                            (when (and textual? (not= "plaintext" language))
+                              [(str "*." ext) language])))
+                    resource-types))
+
+            nil))
+        items))))
 
 (defn- initialize [jsonrpc project]
   (lsp.jsonrpc/request!
@@ -231,7 +249,7 @@
                   jsonrpc (lsp.jsonrpc/make
                             {"textDocument/publishDiagnostics" (diagnostics-handler project out on-publish-diagnostics)
                              "workspace/diagnostic/refresh" (constantly nil)
-                             "workspace/configuration" configuration-handler
+                             "workspace/configuration" (configuration-handler project)
                              "window/showMessageRequest" (constantly nil)
                              "window/workDoneProgress/create" (constantly nil)}
                             base-source

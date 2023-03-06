@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,7 +27,6 @@ import java.util.HashMap;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
@@ -41,6 +40,7 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasAnimation;
 import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.dynamo.gamesys.proto.Tile.Playback;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
+import com.dynamo.proto.DdfMath.Point3;
 
 public class AtlasUtil {
     public static class MappedAnimDesc extends AnimDesc {
@@ -226,12 +226,16 @@ public class AtlasUtil {
         for (int i = 0; i < imagePathCount; ++i) {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
+
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         try {
             TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
-                    Math.max(0, atlas.getMargin()),
-                    Math.max(0, atlas.getInnerPadding()),
-                    Math.max(0, atlas.getExtrudeBorders()), true, false, null);
+                Math.max(0, atlas.getMargin()),
+                Math.max(0, atlas.getInnerPadding()),
+                Math.max(0, atlas.getExtrudeBorders()),
+                true, false, null,
+                atlas.getMaxPageWidth(), atlas.getMaxPageHeight());
+
             TimeProfiler.stop();
             return result;
         }
