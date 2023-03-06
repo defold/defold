@@ -608,6 +608,7 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool de
         dmGraphics::TextureImage::Image& image = texture_image.m_Alternatives.m_Data[i];
         delete[] image.m_MipMapOffset.m_Data;
         delete[] image.m_MipMapSize.m_Data;
+        delete[] image.m_MipMapSizeCompressed.m_Data;
         if (destroy_image_data)
             delete[] image.m_Data.m_Data;
     }

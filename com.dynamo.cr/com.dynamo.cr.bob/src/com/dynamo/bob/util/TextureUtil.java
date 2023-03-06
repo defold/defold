@@ -219,7 +219,6 @@ public class TextureUtil {
         }
 
         TextureImage.Builder combinedImageBuilder = TextureImage.newBuilder(textures[0]);
-        System.out.println(combinedImageBuilder.getAlternativesCount());
 
         for (int i = 0; i < combinedImageBuilder.getAlternativesCount(); i++) {
             Image.Builder alternativeImageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
