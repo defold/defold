@@ -356,12 +356,15 @@ public class TextureGenerator {
             TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
                     .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
 
+            boolean texcBasisCompression = false;
+
             // If we're writing a .basis file, we don't actually store each mip map separately
             // In this case, we pretend that there's only one mip level
             if (texcCompressionType == CompressionType.CT_BASIS_UASTC ||
                 texcCompressionType == CompressionType.CT_BASIS_ETC1S )
             {
                 generateMipMaps = false;
+                texcBasisCompression = true;
             }
 
             int w = newWidth;
@@ -373,12 +376,24 @@ public class TextureGenerator {
                 h = Math.max(h, 1);
                 raw.addMipMapOffset(offset);
                 int size = TexcLibrary.TEXC_GetDataSizeUncompressed(texture, mipMap);
-                raw.addMipMapSize(size);
-                int size_compressed = TexcLibrary.TEXC_GetDataSizeCompressed(texture, mipMap);
-                if(size_compressed != 0) {
-                    size = size_compressed;
+
+                // For basis the GetDataSizeCompressed and GetDataSizeUncompressed will always return 0,
+                // so we use this hack / workaround to calculate offsets in the engine..
+                if (texcBasisCompression)
+                {
+                    size = bufferSize;
+                    raw.addMipMapSize(size);
+                    raw.addMipMapSizeCompressed(size);
                 }
-                raw.addMipMapSizeCompressed(size_compressed);
+                else
+                {
+                    raw.addMipMapSize(size);
+                    int size_compressed = TexcLibrary.TEXC_GetDataSizeCompressed(texture, mipMap);
+                    if(size_compressed != 0) {
+                        size = size_compressed;
+                    }
+                    raw.addMipMapSizeCompressed(size_compressed);
+                }
                 offset += size;
                 w >>= 1;
                 h >>= 1;

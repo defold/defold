@@ -538,9 +538,10 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
     dmGraphics::TextureImage::CompressionType compression_type, dmBuffer::HBuffer texture_buffer,
     dmGraphics::TextureImage* texture_image)
 {
-    uint32_t* mip_map_sizes   = new uint32_t[max_mipmaps];
-    uint32_t* mip_map_offsets = new uint32_t[max_mipmaps];
-    uint8_t layer_count       = type == dmGraphics::TextureImage::TYPE_CUBEMAP ? 6 : 1;
+    uint32_t* mip_map_sizes              = new uint32_t[max_mipmaps];
+    uint32_t* mip_map_offsets            = new uint32_t[max_mipmaps];
+    uint32_t* mip_map_offsets_compressed = new uint32_t[1];
+    uint8_t layer_count = type == dmGraphics::TextureImage::TYPE_CUBEMAP ? 6 : 1;
 
     uint32_t data_size = 0;
     uint16_t mm_width  = width;
@@ -572,10 +573,15 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
         image_data = new uint8_t[image_data_size];
     }
 
+    // Note: Right now we only support creating compressed 2D textures with 1 mipmap,
+    //       so we only need a pointer here for the data offset.
+    mip_map_offsets_compressed[0] = image_data_size;
+
     dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
     texture_image->m_Alternatives.m_Data   = image;
     texture_image->m_Alternatives.m_Count  = 1;
     texture_image->m_Type                  = type;
+    texture_image->m_Count                 = layer_count;
 
     image->m_Width                = width;
     image->m_Height               = height;
@@ -591,6 +597,8 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
     image->m_MipMapOffset.m_Count = max_mipmaps;
     image->m_MipMapSize.m_Data    = mip_map_sizes;
     image->m_MipMapSize.m_Count   = max_mipmaps;
+    image->m_MipMapSizeCompressed.m_Data  = mip_map_offsets_compressed;
+    image->m_MipMapSizeCompressed.m_Count = 1;
 }
 
 static void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data)
@@ -739,6 +747,14 @@ static int CreateTexture(lua_State* L)
     dmGraphics::TextureImage::Type tex_type            = GraphicsTextureTypeToImageType(type);
     dmGraphics::TextureImage::TextureFormat tex_format = GraphicsTextureFormatToImageFormat(format);
     dmGraphics::TextureImage texture_image             = {};
+
+    // TODO: To support this, we need to supply separate buffers for each side as an option, or offsets into the buffer where each side is located
+    if ((tex_type == dmGraphics::TextureImage::TYPE_CUBEMAP || tex_type == dmGraphics::TextureImage::TYPE_2D_ARRAY) && compression_type != dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT)
+    {
+        return luaL_error(L, "Compression type %d requested for texture %s with type '%s', but this is currently not supported.",
+            (int) compression_type, path_str, dmGraphics::GetTextureTypeLiteral((dmGraphics::TextureType) type));
+    }
+
     MakeTextureImage(width, height, max_mipmaps, tex_bpp, tex_type, tex_format, compression_type, buffer, &texture_image);
 
     dmArray<uint8_t> ddf_buffer;
@@ -941,6 +957,7 @@ static int SetTexture(lua_State* L)
     texture_image.m_Alternatives.m_Data    = &image;
     texture_image.m_Alternatives.m_Count   = 1;
     texture_image.m_Type                   = GraphicsTextureTypeToImageType(type);
+    texture_image.m_Count                  = 1;
 
     image.m_Width                = width;
     image.m_Height               = height;
@@ -952,12 +969,14 @@ static int SetTexture(lua_State* L)
     image.m_Data.m_Data          = data;
     image.m_Data.m_Count         = datasize;
 
-    uint32_t mip_map_offsets     = 0;
-    uint32_t mip_map_sizes       = datasize;
-    image.m_MipMapOffset.m_Data  = &mip_map_offsets;
-    image.m_MipMapOffset.m_Count = NUM_MIP_MAPS;
-    image.m_MipMapSize.m_Data    = &mip_map_sizes;
-    image.m_MipMapSize.m_Count   = NUM_MIP_MAPS;
+    uint32_t mip_map_offsets             = 0;
+    uint32_t mip_map_sizes               = datasize;
+    image.m_MipMapOffset.m_Data          = &mip_map_offsets;
+    image.m_MipMapOffset.m_Count         = NUM_MIP_MAPS;
+    image.m_MipMapSize.m_Data            = &mip_map_sizes;
+    image.m_MipMapSize.m_Count           = NUM_MIP_MAPS;
+    image.m_MipMapSizeCompressed.m_Data  = &mip_map_sizes;
+    image.m_MipMapSizeCompressed.m_Count = NUM_MIP_MAPS;
 
     ResTextureReCreateParams recreate_params;
     recreate_params.m_TextureImage = &texture_image;

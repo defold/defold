@@ -102,7 +102,7 @@ namespace dmGameSystem
             {
                 num_mips = MAX_MIPMAP_COUNT;
                 output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
-                bool result = dmGraphics::Transcode(path, image, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips);
+                bool result = dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips);
                 if (!result)
                 {
                     dmLogError("Failed to transcode %s", path);
@@ -152,7 +152,7 @@ namespace dmGameSystem
                 creation_params.m_Depth          = image_desc->m_DDFImage->m_Count;
                 creation_params.m_OriginalWidth  = image->m_OriginalWidth;
                 creation_params.m_OriginalHeight = image->m_OriginalHeight;
-                creation_params.m_MipMapCount    = image->m_MipMapOffset.m_Count;
+                creation_params.m_MipMapCount    = num_mips;
                 texture                          = dmGraphics::NewTexture(context, creation_params);
             }
             else
@@ -292,8 +292,11 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < MAX_MIPMAP_COUNT; ++i)
         {
             if(image_desc->m_DecompressedData[i])
+            {
                 delete[] image_desc->m_DecompressedData[i];
+            }
         }
+
         delete image_desc;
     }
 
