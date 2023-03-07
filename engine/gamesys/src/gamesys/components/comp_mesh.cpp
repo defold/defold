@@ -518,10 +518,6 @@ namespace dmGameSystem
             {
                 ro.m_Textures[i] = textures_resource[i]->m_Texture;
             }
-            else
-            {
-                ro.m_Textures[i] = 0;
-            }
         }
 
         if (constants)

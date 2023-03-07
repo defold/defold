@@ -14,6 +14,8 @@
 
 #include "res_texture.h"
 
+#include <dmsdk/gamesys/resources/res_texture.h>
+
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
