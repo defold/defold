@@ -881,85 +881,85 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
 // Based on cgltf.h: cgltf_load_buffers(...)
 static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* data, const char* gltf_path)
 {
-	if (options == NULL)
-	{
-		return cgltf_result_invalid_options;
-	}
+    if (options == NULL)
+    {
+        return cgltf_result_invalid_options;
+    }
 
-	if (data->buffers_count && data->buffers[0].data == NULL && data->buffers[0].uri == NULL && data->bin)
-	{
-		if (data->bin_size < data->buffers[0].size)
-		{
-			return cgltf_result_data_too_short;
-		}
+    if (data->buffers_count && data->buffers[0].data == NULL && data->buffers[0].uri == NULL && data->bin)
+    {
+        if (data->bin_size < data->buffers[0].size)
+        {
+            return cgltf_result_data_too_short;
+        }
 
-		data->buffers[0].data = (void*)data->bin;
-		data->buffers[0].data_free_method = cgltf_data_free_method_none;
-	}
+        data->buffers[0].data = (void*)data->bin;
+        data->buffers[0].data_free_method = cgltf_data_free_method_none;
+    }
 
-	for (cgltf_size i = 0; i < data->buffers_count; ++i)
-	{
-		if (data->buffers[i].data)
-		{
-			continue;
-		}
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
+        if (data->buffers[i].data)
+        {
+            continue;
+        }
 
-		const char* uri = data->buffers[i].uri;
+        const char* uri = data->buffers[i].uri;
 
-		if (uri == NULL)
-		{
-			continue;
-		}
+        if (uri == NULL)
+        {
+            continue;
+        }
 
-		if (strncmp(uri, "data:", 5) == 0)
-		{
-			const char* comma = strchr(uri, ',');
+        if (strncmp(uri, "data:", 5) == 0)
+        {
+            const char* comma = strchr(uri, ',');
 
-			if (comma && comma - uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
-			{
-				cgltf_result res = cgltf_load_buffer_base64(options, data->buffers[i].size, comma + 1, &data->buffers[i].data);
-				data->buffers[i].data_free_method = cgltf_data_free_method_memory_free;
+            if (comma && comma - uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
+            {
+                cgltf_result res = cgltf_load_buffer_base64(options, data->buffers[i].size, comma + 1, &data->buffers[i].data);
+                data->buffers[i].data_free_method = cgltf_data_free_method_memory_free;
 
-				if (res != cgltf_result_success)
-				{
-					return res;
-				}
-			}
-			else
-			{
-				return cgltf_result_unknown_format;
-			}
-		}
-		else if (strstr(uri, "://") == NULL && gltf_path)
-		{
-			cgltf_result res = cgltf_load_buffer_file(options, data->buffers[i].size, uri, gltf_path, &data->buffers[i].data);
-			data->buffers[i].data_free_method = cgltf_data_free_method_file_release;
+                if (res != cgltf_result_success)
+                {
+                    return res;
+                }
+            }
+            else
+            {
+                return cgltf_result_unknown_format;
+            }
+        }
+        else if (strstr(uri, "://") == NULL && gltf_path)
+        {
+            cgltf_result res = cgltf_load_buffer_file(options, data->buffers[i].size, uri, gltf_path, &data->buffers[i].data);
+            data->buffers[i].data_free_method = cgltf_data_free_method_file_release;
 
-			if (res != cgltf_result_success)
-			{
-				return res;
-			}
-		}
+            if (res != cgltf_result_success)
+            {
+                return res;
+            }
+        }
         // DEFOLD
         else if (!gltf_path)
         {
             continue; // we allow the code to supply the buffers later
         }
         // END DEFOLD
-		else
-		{
-			return cgltf_result_unknown_format;
-		}
-	}
+        else
+        {
+            return cgltf_result_unknown_format;
+        }
+    }
 
-	return cgltf_result_success;
+    return cgltf_result_success;
 }
 
 static bool HasUnresolvedBuffersInternal(cgltf_data* data)
 {
-	for (cgltf_size i = 0; i < data->buffers_count; ++i)
-	{
-		if (!data->buffers[i].data)
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
+        if (!data->buffers[i].data)
             return true;
     }
     return false;
@@ -1025,7 +1025,6 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     }
 
     // resolve as many buffers as possible
-    //result = cgltf_load_buffers(&options, data, 0);
     result = ResolveBuffers(&options, data, 0);
     if (result != cgltf_result_success)
     {
@@ -1046,8 +1045,8 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     scene->m_BuffersCount = data->buffers_count;
     scene->m_Buffers = new Buffer[scene->m_BuffersCount];
 
-	for (cgltf_size i = 0; i < data->buffers_count; ++i)
-	{
+    for (cgltf_size i = 0; i < data->buffers_count; ++i)
+    {
         scene->m_Buffers[i].m_Uri = data->buffers[i].uri;
         scene->m_Buffers[i].m_Buffer = data->buffers[i].data;
         scene->m_Buffers[i].m_BufferSize = data->buffers[i].size;
@@ -1072,7 +1071,7 @@ void ResolveBuffer(Scene* scene, const char* uri, void* bufferdata, uint32_t buf
     memset(options, 0, sizeof(cgltf_options));
 
     for (cgltf_size i = 0; i < scene->m_BuffersCount; ++i)
-	{
+    {
         Buffer* scenebuffer = &scene->m_Buffers[i];
         if (strcmp(scenebuffer->m_Uri, uri) == 0)
         {
