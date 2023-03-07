@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <float.h>  // FLT_MAX
+
 #include <dlib/buffer.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -522,13 +524,12 @@ static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageForma
 
 static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(int texturetype)
 {
-    if (texturetype == dmGraphics::TEXTURE_TYPE_2D)
+    switch(texturetype)
     {
-        return dmGraphics::TextureImage::TYPE_2D;
-    }
-    else if (texturetype == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
-    {
-        return dmGraphics::TextureImage::TYPE_CUBEMAP;
+        case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
+        case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
+        case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
+        default: assert(0);
     }
     dmLogError("Unsupported texture type (%d)", texturetype);
     return (dmGraphics::TextureImage::Type) -1;
@@ -1008,6 +1009,7 @@ static void DestroyTextureSet(dmGameSystemDDF::TextureSet& texture_set)
     delete[] texture_set.m_Animations.m_Data;
     delete[] texture_set.m_Geometries.m_Data;
     delete[] texture_set.m_FrameIndices.m_Data;
+    delete[] texture_set.m_TexCoords.m_Data;
 }
 
 // These lookup functions are needed because the values for the two enums are different,
@@ -1046,11 +1048,12 @@ static dmGameSystemDDF::Playback GameObjectPlaybackToDDFPlayback(dmGameObject::P
     return (dmGameSystemDDF::Playback) -1;
 }
 
-static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out)
+static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out, uint32_t* num_animation_frames_out)
 {
     int top = lua_gettop(L);
     uint32_t num_geometries = 0;
     uint32_t num_animations = 0;
+    uint32_t num_animation_frames = 0;
 
     lua_getfield(L, -1, "geometries");
 
@@ -1087,6 +1090,8 @@ static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries
             lua_pop(L, 1);
 
             num_geometries++;
+
+            num_animation_frames++;
         }
     }
     lua_pop(L, 1);
@@ -1143,13 +1148,16 @@ static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries
             lua_pop(L, 1);
 
             num_animations++;
+
+            num_animation_frames += frame_interval;
         }
     }
 
     lua_pop(L, 1);
 
-    *num_animations_out = num_animations;
-    *num_geometries_out = num_geometries;
+    *num_animations_out       = num_animations;
+    *num_geometries_out       = num_geometries;
+    *num_animation_frames_out = num_animation_frames;
 
     if (num_geometries == 0)
     {
@@ -1165,7 +1173,7 @@ static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries
 
 // Creates a texture set from the lua stack, it is expected that the argument
 // table is on top of the stack and that all fields have valid data
-static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, dmGameSystemDDF::TextureSet* texture_set_ddf)
+static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
 {
     int top = lua_gettop(L);
     texture_set_ddf->m_Texture     = 0;
@@ -1182,6 +1190,17 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Animations.m_Data  = new dmGameSystemDDF::TextureSetAnimation[num_animations];
     texture_set_ddf->m_Animations.m_Count = num_animations;
     memset(texture_set_ddf->m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
+
+    const uint32_t num_tex_coords_per_quad  = 8;
+    const uint32_t num_tex_coords_byte_size = num_animation_frames * num_tex_coords_per_quad * sizeof(float);
+    texture_set_ddf->m_TexCoords.m_Data     = new uint8_t[num_tex_coords_byte_size];
+    texture_set_ddf->m_TexCoords.m_Count    = num_tex_coords_byte_size;
+    memset(texture_set_ddf->m_TexCoords.m_Data, 0, num_tex_coords_byte_size);
+
+    // Fill in the UV bounding box of each geometry so we can copy that to the texcoord pointer later
+    float* geometry_scratch_ptr    = new float[num_geometries * num_tex_coords_per_quad];
+    float* geometry_scratch_cursor = geometry_scratch_ptr;
+    float* texcoord_ptr            = (float*) texture_set_ddf->m_TexCoords.m_Data;
 
     if (num_geometries > 0)
     {
@@ -1223,12 +1242,45 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
                 geometry.m_Vertices[j + 1] = 1.0 - (geometry.m_Vertices[j + 1] / geo_height) - 0.5;
             }
 
+
+            // For the UVs to work correctly if a component cannot use geometries,
+            // we need to caluclate the bounding box of the texture coordinates.
+            float min_uv_u = FLT_MAX;
+            float min_uv_v = FLT_MAX;
+            float max_uv_u = -FLT_MAX;
+            float max_uv_v = -FLT_MAX;
+
             for (int j = 0; j < geometry.m_Uvs.m_Count; j += 2)
             {
-                geometry.m_Uvs[j]     = geometry.m_Uvs[j] * inv_tex_width;
-                geometry.m_Uvs[j + 1] = 1.0 - geometry.m_Uvs[j + 1] * inv_tex_height;
+                float u = geometry.m_Uvs[j] * inv_tex_width;
+                float v = geometry.m_Uvs[j+1] * inv_tex_height;
+
+                min_uv_u = dmMath::Min(u, min_uv_u);
+                min_uv_v = dmMath::Min(v, min_uv_v);
+                max_uv_u = dmMath::Max(u, max_uv_u);
+                max_uv_v = dmMath::Max(v, max_uv_v);
+
+                geometry.m_Uvs[j]     = u;
+                geometry.m_Uvs[j + 1] = 1.0 - v;
             }
 
+            // From texture_set_ddf.proto:
+            // For unrotated quads, the order is: [(minU,maxV),(minU,minV),(maxU,minV),(maxU,maxV)]
+            // Note that we need to invert the V coordinates here to account for the texture coordinate space
+            // NOTE: We could perhaps do it in the loop above by swapping the V min and max coordinates
+            geometry_scratch_cursor[0] = min_uv_u;
+            geometry_scratch_cursor[1] = 1.0 - max_uv_v;
+
+            geometry_scratch_cursor[2] = min_uv_u;
+            geometry_scratch_cursor[3] = 1.0 - min_uv_v;
+
+            geometry_scratch_cursor[4] = max_uv_u;
+            geometry_scratch_cursor[5] = 1.0 - min_uv_v;
+
+            geometry_scratch_cursor[6] = max_uv_u;
+            geometry_scratch_cursor[7] = 1.0 - max_uv_v;
+
+            geometry_scratch_cursor += 8;
             frame_index_count++;
         }
         lua_pop(L, 1); // geometries
@@ -1312,6 +1364,10 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_FrameIndices.m_Count = frame_index_count;
     memset(texture_set_ddf->m_FrameIndices.m_Data, 0, sizeof(uint32_t) * frame_index_count);
 
+    // We can write all geometry UV bounds
+    memcpy(texcoord_ptr, geometry_scratch_ptr, num_geometries * sizeof(float) * 8);
+    texcoord_ptr += num_geometries * 8;
+
     uint32_t frame_index = 0;
     for (int i = 0; i < num_geometries; ++i)
     {
@@ -1329,9 +1385,16 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
         // the indirection works when getting animations in e.g comp_sprite
         for (int j = 0; j < frame_count; ++j)
         {
-            texture_set_ddf->m_FrameIndices[frame_index++] = frame_start + j - num_geometries;
+            uint32_t animation_frame_index = frame_start + j - num_geometries;
+            float* tc_read_ptr             = &geometry_scratch_ptr[animation_frame_index * 8];
+            memcpy(texcoord_ptr, tc_read_ptr, sizeof(float) * 8);
+
+            texcoord_ptr += 8;
+            texture_set_ddf->m_FrameIndices[frame_index++] = animation_frame_index;
         }
     }
+
+    delete geometry_scratch_ptr;
 
     assert(top == lua_gettop(L));
 }
@@ -1479,14 +1542,16 @@ static int CreateAtlas(lua_State* L)
         dmhash_t texture_path;
         CheckTextureResource(L, -1, texture_field_name, &texture_path, &texture);
 
-        uint32_t num_geometries = 0;
-        uint32_t num_animations = 0;
+        uint32_t num_geometries       = 0;
+        uint32_t num_animations       = 0;
+        uint32_t num_animation_frames = 0;
+
         // Note: We do a separate pass over the lua state to validate the data in the args table,
         //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
         //       since they longjmp away so we can't release the memory..
-        ValidateAtlasArgumentsFromLua(L, &num_geometries, &num_animations);
+        CheckAtlasArguments(L, &num_geometries, &num_animations, &num_animation_frames);
 
-        MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, &texture_set_ddf);
+        MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, num_animation_frames, &texture_set_ddf);
 
         lua_pop(L, 1); // args table
     }
@@ -1650,6 +1715,7 @@ static int SetAtlas(lua_State* L)
     dmGameSystemDDF::TextureSet texture_set_ddf = {};
     uint32_t num_geometries                     = 0;
     uint32_t num_animations                     = 0;
+    uint32_t num_animation_frames               = 0;
 
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_pushvalue(L, 2);
@@ -1661,9 +1727,9 @@ static int SetAtlas(lua_State* L)
     // Note: We do a separate pass over the lua state to validate the data in the args table,
     //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
     //       since they longjmp away so we can't release the memory..
-    ValidateAtlasArgumentsFromLua(L, &num_geometries, &num_animations);
+    CheckAtlasArguments(L, &num_geometries, &num_animations, &num_animation_frames);
 
-    MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, &texture_set_ddf);
+    MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, num_animation_frames, &texture_set_ddf);
     lua_pop(L, 1); // args table
 
     dmArray<uint8_t> ddf_buffer;

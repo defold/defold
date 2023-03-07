@@ -855,7 +855,7 @@ public class AndroidBundler implements IBundler {
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
 
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
@@ -867,7 +867,7 @@ public class AndroidBundler implements IBundler {
             properties.put("orientation-support", "fullUser");
         }
 
-        // Since we started to always fill in the default values to the propject properties
+        // Since we started to always fill in the default values to the project properties
         // it is harder to distinguish what is a user defined value.
         // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
         if (projectProperties.isDefault("android", "debuggable")) {
@@ -881,6 +881,15 @@ public class AndroidBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        String packageName = project.getProjectProperties().getStringValue("android", "package");
+        if (packageName == null) {
+            throw new CompileExceptionError("No value for 'android.package' set in game.project");
+        }
+
+        if (!BundleHelper.isValidAndroidPackageName(packageName)) {
+            throw new CompileExceptionError("Android package name '" + packageName + "' is not valid.");
+        }
+
         TimeProfiler.start("Init Android");
         Bob.initAndroid(); // extract 
         TimeProfiler.stop();

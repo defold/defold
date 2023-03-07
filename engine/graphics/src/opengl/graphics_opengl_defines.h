@@ -64,6 +64,13 @@
 #define DMGRAPHICS_TYPE_HALF_FLOAT                          (GL_HALF_FLOAT)
 #endif
 
+// Texture arrays
+#ifdef GL_SAMPLER_2D_ARRAY
+#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(GL_SAMPLER_2D_ARRAY)
+#else
+#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(0x8DC1)
+#endif
+
 // Render buffer storage formats
 #ifdef GL_DEPTH_STENCIL_OES
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL       (GL_DEPTH24_STENCIL8_OES)

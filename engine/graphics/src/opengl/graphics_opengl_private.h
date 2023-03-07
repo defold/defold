@@ -58,6 +58,7 @@ namespace dmGraphics
         uint32_t                m_FrameBufferInvalidateBits;
         float                   m_MaxAnisotropy;
         uint8_t                 m_AnisotropySupport                : 1;
+        uint8_t                 m_TextureArraySupport              : 1;
         uint8_t                 m_FrameBufferInvalidateAttachments : 1;
         uint8_t                 m_PackedDepthStencil               : 1;
         uint8_t                 m_WindowOpened                     : 1;
@@ -67,17 +68,12 @@ namespace dmGraphics
         uint8_t                 m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
     };
 
-    static inline void IncreaseModificationVersion(Context* context)
-    {
-        ++context->m_ModificationVersion;
-        context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
-    }
-
     struct Texture
     {
         TextureType m_Type;
-        GLuint      m_Texture;
+        GLuint*     m_TextureIds;
         uint32_t    m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
+        uint16_t    m_NumTextureIds;
         uint16_t    m_Width;
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
@@ -110,6 +106,11 @@ namespace dmGraphics
         uint32_t    m_ModificationVersion;
     };
 
+    struct OpenGLShader
+    {
+        GLuint m_Id;
+    };
+
     struct OpenglVertexAttribute
     {
         dmhash_t m_NameHash;
@@ -118,7 +119,7 @@ namespace dmGraphics
 
     struct OpenGLProgram
     {
-        GLuint                         m_Program;
+        GLuint                         m_Id;
         dmArray<OpenglVertexAttribute> m_Attributes;
     };
 

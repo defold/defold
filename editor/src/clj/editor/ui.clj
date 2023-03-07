@@ -77,6 +77,9 @@
 (defonce ^:private application-unfocused-threshold-ms 500)
 (defonce ^:private focus-state (atom nil))
 
+(defn node? [value]
+  (instance? Node value))
+
 (def focus-change-listener
   (reify ChangeListener
     (changed [_ _ _ focused?]
@@ -1141,8 +1144,7 @@
   ([^Scene scene all-selections?]
    (node-contexts (or (focus-owner scene) (.getRoot scene)) all-selections?)))
 
-(defn execute-command
-  [command-contexts command user-data]
+(defn resolve-handler-ctx [command-contexts command user-data]
   (let [handler-ctx (handler/active command command-contexts user-data)]
     (cond
       (nil? handler-ctx)
@@ -1152,9 +1154,19 @@
       ::not-enabled
 
       :else
-      (let [ret (handler/run handler-ctx)]
-        (user-data! (main-scene) ::refresh-requested? true)
-        ret))))
+      handler-ctx)))
+
+(defn execute-handler-ctx [handler+command-context]
+  (let [ret (handler/run handler+command-context)]
+    (user-data! (main-scene) ::refresh-requested? true)
+    ret))
+
+(defn execute-command
+  [command-contexts command user-data]
+  (let [handler-ctx (resolve-handler-ctx command-contexts command user-data)]
+    (case handler-ctx
+      (::not-active ::not-enabled) handler-ctx
+      (execute-handler-ctx handler-ctx))))
 
 (defn- select-items [items options command-contexts]
   (execute-command command-contexts :select-items {:items items :options options}))
