@@ -565,6 +565,21 @@ TEST_F(ScriptTest, TestInstanceContext)
     dmGameObject::PostUpdate(m_Collection);
 }
 
+
+TEST_F(ScriptTest, TestExists)
+{
+    dmGameObject::HInstance go_null = dmGameObject::New(m_Collection, "/null.goc");
+    ASSERT_NE((void*) 0, (void*) go_null);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_null, "a"));
+
+    dmGameObject::HInstance go_exists = dmGameObject::New(m_Collection, "/exists.goc");
+    ASSERT_NE((void*) 0, (void*) go_exists);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_exists, "b"));
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+}
+
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

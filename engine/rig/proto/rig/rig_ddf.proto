@@ -98,24 +98,28 @@ enum IndexBufferFormat
 
 message Mesh
 {
-    repeated float positions                = 1;
-    repeated float normals                  = 2;
-    repeated float tangents                 = 3;
-    repeated float colors                   = 4;
-    repeated float texcoord0                = 5;
-    optional uint32 num_texcoord0_components = 6; // max 3
-    repeated float texcoord1                = 7;
-    optional uint32 num_texcoord1_components = 8; // max 3
+    required dmMath.Vector3 aabb_min        = 1;
+    required dmMath.Vector3 aabb_max        = 2;
 
-    optional bytes  indices                 = 9; // indices for interleaved vertex buffer
-    optional IndexBufferFormat indices_format = 10; // format of values in indices
+    repeated float positions                = 3;
+    repeated float normals                  = 4;
+    repeated float tangents                 = 5;
+    repeated float colors                   = 6;
+    repeated float texcoord0                = 7;
+    optional uint32 num_texcoord0_components = 8; // max 3
+    repeated float texcoord1                = 9;
+    optional uint32 num_texcoord1_components = 10; // max 3
+
+    optional bytes  indices                 = 11; // indices for interleaved vertex buffer
+    optional IndexBufferFormat indices_format = 12; // format of values in indices
 
     // w00, w01, w02, w03, w10, … (only specified for skinned meshes)
-    repeated float weights = 11;
+    repeated float weights = 13;
     // i00, i01, i02, i03, i10, … (only specified for skinned meshes)
-    repeated uint32 bone_indices = 12;
+    repeated uint32 bone_indices = 14;
 
-    optional uint32 material_index = 13; // index into the mesh set material list
+    optional uint32 material_index = 15; // index into the mesh set material list
+
 }
 
 message Model // E.g. the Node in the Scene

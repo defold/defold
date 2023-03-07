@@ -126,9 +126,9 @@ namespace dmInput
     static GamepadBinding* NewGamepadBinding(HBinding binding, uint32_t gamepad_index)
     {
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
-        const char* device_name = 0x0;
-        dmHID::GetGamepadDeviceName(gamepad, &device_name);
-        if (device_name == 0x0)
+        char device_name[128];
+        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
+        if (strlen(device_name) == 0)
         {
             /*
              * NOTE: We used to log a warning here but the warning is removed for the following reasons:
@@ -677,8 +677,8 @@ namespace dmInput
                 {
                     if (connected)
                     {
-                        const char* device_name;
-                        dmHID::GetGamepadDeviceName(gamepad, &device_name);
+                        char device_name[128];
+                        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
                         gamepad_binding->m_DeviceId = dmHashString32(device_name);
                         gamepad_binding->m_Connected = 1;
                         gamepad_binding->m_NoMapWarning = 0;
@@ -750,8 +750,8 @@ namespace dmInput
 
                                     if (action->m_GamepadConnected)
                                     {
-                                        const char* device_name;
-                                        dmHID::GetGamepadDeviceName(gamepad, &device_name);
+                                        char device_name[128];
+                                        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
                                         action->m_TextCount = dmStrlCpy(action->m_Text, device_name, sizeof(action->m_Text));
                                     }
                                 }
@@ -1164,8 +1164,14 @@ namespace dmInput
         MOUSE_BUTTON_MAP[dmInputDDF::MOUSE_BUTTON_8] = dmHID::MOUSE_BUTTON_8;
     }
 
-    void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
+    bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* userdata)
     {
+        // Can't consume this callback yet
+        if (userdata == 0x0)
+        {
+            return false;
+        }
+
         Binding* binding = (Binding*)userdata;
 
         // If a new gamepad was connected we need to setup/reset the gamepad binding for it.
@@ -1195,5 +1201,7 @@ namespace dmInput
                 }
             }
         }
+
+        return true;
     }
 }
