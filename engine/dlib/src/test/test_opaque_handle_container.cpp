@@ -23,12 +23,9 @@ TEST(dmOpaqueHandleContainer, Basic)
 	ASSERT_EQ(simple.Capacity(), 0);
 	ASSERT_TRUE(simple.Full());
 
-	// Container has no storage
-	ASSERT_EQ(simple.Put(0), INVALID_OPAQUE_HANDLE);
-
 	const int cap = 4;
 	simple.Allocate(cap);
-	ASSERT_EQ(simple.Capacity(), cap);
+	ASSERT_EQ(cap, simple.Capacity());
 	ASSERT_FALSE(simple.Full());
 
 	int items[cap];
@@ -44,14 +41,14 @@ TEST(dmOpaqueHandleContainer, Basic)
 
 	for (int i = 0; i < cap; ++i)
 	{
-		ASSERT_NE(handles[i], INVALID_OPAQUE_HANDLE);
-		ASSERT_EQ(simple.Get(handles[i]), &items[i]);
+		ASSERT_NE(INVALID_OPAQUE_HANDLE, handles[i]);
+		ASSERT_EQ(&items[i], simple.Get(handles[i]));
 	}
 
 	// Test releasing a handle and using that handle to get an object
 	simple.Release(handles[0]);
 	ASSERT_FALSE(simple.Full());
-	ASSERT_EQ((void*) simple.Get(handles[0]), (void*) 0);
+	ASSERT_EQ((void*) 0, (void*) simple.Get(handles[0]));
 
 	// Test allocating more memory
 	simple.Allocate(1);
@@ -64,10 +61,10 @@ TEST(dmOpaqueHandleContainer, HandleValidity)
 
 	int value 		= 99;
 	HOpaqueHandle h = container.Put(&value);
-	ASSERT_EQ(*container.Get(h), value);
+	ASSERT_EQ(value, *container.Get(h));
 
 	container.Release(h);
-	ASSERT_EQ((void*) container.Get(h), (void*) 0);
+	ASSERT_EQ((void*) 0, (void*) container.Get(h));
 }
 
 int main(int argc, char **argv)

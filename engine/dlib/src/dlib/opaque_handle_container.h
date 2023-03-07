@@ -191,17 +191,11 @@ dmOpaqueHandleContainer<T>::~dmOpaqueHandleContainer()
 template <typename T>
 bool dmOpaqueHandleContainer<T>::Allocate(uint32_t count)
 {
-    if (m_Objects == 0x0)
-    {
-        m_Objects        = (T**) malloc(count * sizeof(sizeof(T*)));
-        m_ObjectVersions = (uint16_t*) malloc(count * sizeof(uint16_t));
-    }
-    else
-    {
-        uint32_t new_capacity = m_Capacity + count;
-        m_Objects             = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
-        m_ObjectVersions      = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
-    }
+    uint32_t new_capacity = m_Capacity + count;
+    assert(new_capacity <= 0xFFFF);
+
+    m_Objects             = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
+    m_ObjectVersions      = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
 
     memset(m_Objects + m_Capacity, 0, count * sizeof(T*));
     memset(m_ObjectVersions + m_Capacity, 0, count * sizeof(uint16_t));
@@ -234,23 +228,22 @@ T* dmOpaqueHandleContainer<T>::Get(HOpaqueHandle handle)
 template <typename T>
 HOpaqueHandle dmOpaqueHandleContainer<T>::Put(T* obj)
 {
+    assert(!Full());
     uint32_t index = GetFirstEmptyIndex();
-    if (index == INVALID_OPAQUE_HANDLE)
-    {
-        return INVALID_OPAQUE_HANDLE;
-    }
 
     m_Version++;
-    if (m_Version == 0)
+    if (m_Version == 0 || m_Version == 0xFFFF)
     {
-        // Set to 1 to avoid potentially producing a 0 handle
+        // Set to 1 to avoid potentially producing a 0 or a 0xFFFF handle
         m_Version = 1;
     }
 
-    m_ObjectVersions[index] = m_Version;
-    m_Objects[index]        = obj;
+    m_ObjectVersions[index]  = m_Version;
+    m_Objects[index]         = obj;
+    HOpaqueHandle new_handle = m_Version << 16 | index;
 
-    return m_Version << 16 | index;
+    assert(new_handle != INVALID_OPAQUE_HANDLE);
+    return new_handle;
 }
 
 template <typename T>
