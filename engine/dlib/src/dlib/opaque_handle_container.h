@@ -142,6 +142,7 @@ private:
         return m_Objects[i];
     }
 
+    // TODO: We can improve the performance of this function by adding as freelist (https://github.com/defold/defold/pull/7421)
     uint32_t GetFirstEmptyIndex()
     {
         for (int i = 0; i < m_Capacity; ++i)
@@ -167,6 +168,7 @@ private:
 template <typename T>
 dmOpaqueHandleContainer<T>::dmOpaqueHandleContainer()
 : m_Objects(0)
+, m_ObjectVersions(0)
 , m_Capacity(0)
 , m_Version(0)
 {}
@@ -194,8 +196,8 @@ bool dmOpaqueHandleContainer<T>::Allocate(uint32_t count)
     uint32_t new_capacity = m_Capacity + count;
     assert(new_capacity <= 0xFFFF);
 
-    m_Objects             = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
-    m_ObjectVersions      = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
+    m_Objects        = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
+    m_ObjectVersions = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
 
     memset(m_Objects + m_Capacity, 0, count * sizeof(T*));
     memset(m_ObjectVersions + m_Capacity, 0, count * sizeof(uint16_t));
