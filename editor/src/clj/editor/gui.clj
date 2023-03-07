@@ -375,6 +375,7 @@
    [:template-build-targets :template-build-targets]])
 
 (defn- attach-gui-node [node-tree parent gui-node type]
+  ;; TODO: Remove unused type argument (i.e. :type-box) & turn gen-gui-node-attach-fn into non-gen.
   (concat
     (g/connect gui-node :id node-tree :ids)
     (g/connect node-tree :id-counts gui-node :id-counts)

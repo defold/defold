@@ -289,7 +289,7 @@ Macros currently mean no foreseeable performance gain, however."
                      (resource-field? field-info)
                      (if (= :repeated (:field-rule field-info))
                        [ [[key]] ]
-                       (if-some [default-value (default class key)]
+                       (if-some [default-value (default class key nil)]
                          [ [{key default-value}] ]
                          [ [key] ]))
 
@@ -444,8 +444,16 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def ^:private default-map (memoize default-map-raw))
 
-(defn default [^Class cls field]
-  (get (default-map cls) field))
+(defn default
+  ([^Class cls field]
+   (or (get (default-map cls) field)
+       (throw (ex-info (format "Field '%s' does not have a default in protobuf class '%s'."
+                               field
+                               (.getName cls))
+                       {:pb-class cls
+                        :field field}))))
+  ([^Class cls field not-found]
+   (get (default-map cls) field not-found)))
 
 (def ^:private math-type-keys
   {"Point3" [:x :y :z]

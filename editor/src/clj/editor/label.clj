@@ -186,19 +186,20 @@
 (def ^:private default-scale-value-v3 [(float 1.0) (float 1.0) (float 1.0)])
 
 (g/defnk produce-pb-msg [text size color outline shadow leading tracking pivot blend-mode line-break font material]
-  (protobuf/make-map-without-defaults Label$LabelDesc
-    :text text
-    :size (v3->v4 size)
-    :color color
-    :outline outline
-    :shadow shadow
-    :leading leading
-    :tracking tracking
-    :pivot pivot
-    :blend-mode blend-mode
-    :line-break line-break
-    :font (resource/resource->proj-path font)
-    :material (resource/resource->proj-path material)))
+  (-> (protobuf/make-map-with-defaults Label$LabelDesc
+        :text text
+        :size (v3->v4 size)
+        :color color
+        :outline outline
+        :shadow shadow
+        :leading leading
+        :tracking tracking
+        :pivot pivot
+        :blend-mode blend-mode
+        :line-break line-break
+        :font (resource/resource->proj-path font)
+        :material (resource/resource->proj-path material))
+      (dissoc :scale))) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.
 
 (g/defnk produce-scene
   [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data]
@@ -344,7 +345,7 @@
 
 (defn load-label [_project self resource label]
   (let [size-v3 (v4->v3 (:size label))
-        legacy-scale-v3 (some-> label :scale v4->v3) ; Stripped when saving.
+        legacy-scale-v3 (some-> label :scale v4->v3) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.
         font (workspace/resolve-resource resource (:font label))
         material (workspace/resolve-resource resource (:material label))]
     (concat
@@ -433,7 +434,6 @@
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
-    :read-defaults false
     :load-fn load-label
     :sanitize-fn sanitize-label
     :icon label-icon

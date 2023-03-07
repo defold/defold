@@ -417,15 +417,17 @@
                            (g/connect project :nil-resource self :texture-resources)))))))
             (dynamic visible (g/constantly false)))
 
-  (property primitive-type g/Any (default :primitive-triangles)
+  (property primitive-type g/Any (default (protobuf/default MeshProto$MeshDesc :primitive-type))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox MeshProto$MeshDesc$PrimitiveType))))
 
   (property position-stream g/Str
+            (default (protobuf/default MeshProto$MeshDesc :position-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids position-stream]
                              (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
 
   (property normal-stream g/Str
+            (default (protobuf/default MeshProto$MeshDesc :normal-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids normal-stream]
                              (validate-stream-id _node-id :normal-stream normal-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
