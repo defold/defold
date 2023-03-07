@@ -1048,7 +1048,7 @@ static dmGameSystemDDF::Playback GameObjectPlaybackToDDFPlayback(dmGameObject::P
     return (dmGameSystemDDF::Playback) -1;
 }
 
-static void ValidateAtlasArgumentsFromLua(lua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out, uint32_t* num_animation_frames_out)
+static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint32_t* num_animations_out, uint32_t* num_animation_frames_out)
 {
     int top = lua_gettop(L);
     uint32_t num_geometries = 0;
@@ -1549,7 +1549,7 @@ static int CreateAtlas(lua_State* L)
         // Note: We do a separate pass over the lua state to validate the data in the args table,
         //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
         //       since they longjmp away so we can't release the memory..
-        ValidateAtlasArgumentsFromLua(L, &num_geometries, &num_animations, &num_animation_frames);
+        CheckAtlasArguments(L, &num_geometries, &num_animations, &num_animation_frames);
 
         MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, num_animation_frames, &texture_set_ddf);
 
@@ -1727,7 +1727,7 @@ static int SetAtlas(lua_State* L)
     // Note: We do a separate pass over the lua state to validate the data in the args table,
     //       this is because we need to allocate dynamic memory and can't use luaL_check** functions
     //       since they longjmp away so we can't release the memory..
-    ValidateAtlasArgumentsFromLua(L, &num_geometries, &num_animations, &num_animation_frames);
+    CheckAtlasArguments(L, &num_geometries, &num_animations, &num_animation_frames);
 
     MakeTextureSetFromLua(L, texture_path, texture, num_geometries, num_animations, num_animation_frames, &texture_set_ddf);
     lua_pop(L, 1); // args table
