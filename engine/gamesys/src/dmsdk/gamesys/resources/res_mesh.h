@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/gamesys/resources/res_buffer.h>
+#include <dmsdk/gamesys/resources/res_texture.h>
 #include <gamesys/buffer_ddf.h>
 #include <gamesys/mesh_ddf.h>
 
@@ -29,7 +30,7 @@ namespace dmGameSystem
         BufferResource*         m_BufferResource;
         dmRender::HMaterial     m_Material;
 
-        dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        TextureResource*        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
 
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;

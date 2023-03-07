@@ -611,10 +611,10 @@ static void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool de
 static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
 {
     lua_getfield(L, i, field_name);
-    dmhash_t path_hash = dmScript::CheckHashOrString(L, -1);
-    void* texture_res  = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
-    *texture_out       = (dmGraphics::HTexture) texture_res;
-    *texture_path_out  = path_hash;
+    dmhash_t path_hash           = dmScript::CheckHashOrString(L, -1);
+    TextureResource* texture_res = (TextureResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "texturec");
+    *texture_out                 = texture_res->m_Texture;
+    *texture_path_out            = path_hash;
     lua_pop(L, 1); // "texture"
 }
 
@@ -1774,8 +1774,8 @@ static int GetAtlas(lua_State* L)
     dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
     assert(texture_set);
 
-    float tex_width  = (float) dmGraphics::GetTextureWidth(texture_set_res->m_Texture);
-    float tex_height = (float) dmGraphics::GetTextureHeight(texture_set_res->m_Texture);
+    float tex_width  = (float) dmGraphics::GetTextureWidth(texture_set_res->m_Texture->m_Texture);
+    float tex_height = (float) dmGraphics::GetTextureHeight(texture_set_res->m_Texture->m_Texture);
 
     #define SET_LUA_TABLE_FIELD(set_fn, key, val) \
         set_fn(L, val); \
