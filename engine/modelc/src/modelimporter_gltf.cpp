@@ -4,10 +4,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -149,15 +149,30 @@ static const char* GetInterpolationTypeStr(cgltf_interpolation_type type)
 }
 
 
-static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components)
+static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components, float default_value)
 {
     uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
 
     if (desired_num_components == 0)
         desired_num_components = num_components;
 
-    float* out = new float[accessor->count * num_components];
+    uint32_t size = accessor->count * num_components;
+    if (desired_num_components > num_components)
+        size = accessor->count * desired_num_components;
+
+    float* out = new float[size]; // Now the buffer will fit the max num components
     float* writeptr = out;
+
+    if (desired_num_components > num_components)
+    {
+        for (uint32_t i = 0; i < accessor->count; ++i)
+        {
+            for (uint32_t j = 0; j < desired_num_components; ++j)
+                *writeptr++ = default_value;
+        }
+    }
+
+    writeptr = out;
 
     for (uint32_t i = 0; i < accessor->count; ++i)
     {
@@ -387,6 +402,20 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
+{
+    aabb->m_Min[0] = aabb->m_Min[1] = aabb->m_Min[2] = FLT_MAX;
+    aabb->m_Max[0] = aabb->m_Max[1] = aabb->m_Max[2] = -FLT_MAX;
+    for (uint32_t j = 0; j < count; j += 3, positions += 3)
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            aabb->m_Min[i] = dmMath::Min(aabb->m_Min[i], positions[i]);
+            aabb->m_Max[i] = dmMath::Max(aabb->m_Max[i], positions[i]);
+        }
+    }
+}
+
 static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
     model->m_MeshesCount = gltf_mesh->primitives_count;
@@ -412,16 +441,23 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
         {
             cgltf_attribute* attribute = &prim->attributes[a];
             cgltf_accessor* accessor = attribute->data;
-            //printf("  attributes: %s   index: %u   type: %s  count: %u\n", attribute->name, attribute->index, GetAttributeTypeStr(attribute->type), (uint32_t)accessor->count);
 
             mesh->m_VertexCount = accessor->count;
 
             uint32_t num_components = (uint32_t)cgltf_num_components(accessor->type);
             uint32_t desired_num_components = num_components;
 
+            //printf("  attributes: %s   index: %u   type: %s  count: %u desired_num_components: %u\n", attribute->name, attribute->index, GetAttributeTypeStr(attribute->type), (uint32_t)accessor->count, desired_num_components);
+
+            float default_value_f = 0.0f;
             if (attribute->type == cgltf_attribute_type_tangent)
             {
                 desired_num_components = 3; // for some reason it give 4 elements
+            }
+            else if (attribute->type == cgltf_attribute_type_color)
+            {
+                desired_num_components = 4; // We currently always store vec4
+                default_value_f = 1.0f; // for the alpha channel
             }
 
             float* fdata = 0;
@@ -433,20 +469,29 @@ static void LoadPrimitives(Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf
             }
             else
             {
-                fdata = ReadAccessorFloat(accessor, desired_num_components);
+                fdata = ReadAccessorFloat(accessor, desired_num_components, default_value_f);
             }
 
             if (fdata || udata)
             {
                 if (attribute->type == cgltf_attribute_type_position)
+                {
                     mesh->m_Positions = fdata;
-
-                else if (attribute->type == cgltf_attribute_type_normal)
+                    if (accessor->has_min && accessor->has_max) {
+                        memcpy(mesh->m_Aabb.m_Min, accessor->min, sizeof(float)*3);
+                        memcpy(mesh->m_Aabb.m_Max, accessor->max, sizeof(float)*3);
+                    }
+                    else
+                    {
+                        CalcAABB(mesh->m_VertexCount*3, fdata, &mesh->m_Aabb);
+                    }
+                }
+                else if (attribute->type == cgltf_attribute_type_normal) {
                     mesh->m_Normals = fdata;
-
-                else if (attribute->type == cgltf_attribute_type_tangent)
+                }
+                else if (attribute->type == cgltf_attribute_type_tangent) {
                     mesh->m_Tangents = fdata;
-
+                }
                 else if (attribute->type == cgltf_attribute_type_texcoord)
                 {
                     bool flip_v = true; // Possibly move to the option

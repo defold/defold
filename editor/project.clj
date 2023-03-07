@@ -199,7 +199,7 @@
                                 :aot          :all
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
-                      :local-repl {:injections [(future ((requiring-resolve 'editor/-main)))]
+                      :local-repl {:injections [(require 'dev) (future ((requiring-resolve 'editor/-main)))]
                                    :jvm-opts ["-Ddefold.nrepl=false"]}
                       :vscode {:plugins [[nrepl "0.6.0"]]}
                       :cider {:plugins [[cider/cider-nrepl "0.24.0"]
@@ -211,7 +211,7 @@
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :reveal {:source-paths ["src/reveal"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.273"]]}
+                               :dependencies [[vlaaad/reveal "1.3.280"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :dev     {:dependencies      [[com.clojure-goes-fast/clj-async-profiler "0.5.1"]

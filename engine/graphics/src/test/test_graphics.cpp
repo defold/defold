@@ -342,15 +342,15 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::HIndexBuffer ib = dmGraphics::NewIndexBuffer(m_Context, sizeof(i), i, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
-    dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3);
+    dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::DeleteIndexBuffer(ib);
@@ -405,6 +405,7 @@ TEST_F(dmGraphicsTest, TestProgram)
 
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
+
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
     ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
     ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
@@ -479,7 +480,7 @@ TEST_F(dmGraphicsTest, TestTexture)
     ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
-    dmGraphics::EnableTexture(m_Context, 0, texture);
+    dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
 }
@@ -548,7 +549,7 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
     ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
-    dmGraphics::EnableTexture(m_Context, 0, texture);
+    dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(texture);
 }

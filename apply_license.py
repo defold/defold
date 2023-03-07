@@ -58,11 +58,11 @@ ext_to_license = {
 }
 
 excluded_files = [
-    "apply_license.py"
+    "apply_license.py",
     "engine/ddf/src/ddfc.py",
     "engine/engine/contents/builtins/edn.lua",
     "engine/engine/contents/builtins/mobdebug.lua",
-    "editor/bundle_resources/_defold/debugger/start.lua",
+    "editor/bundle-resources/_defold/debugger/start.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_url.lua",
     "com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/pipeline/test_props_number.lua",
@@ -92,6 +92,7 @@ excluded_paths = [
     "./engine/dlib/src/mbedtls",
     "./engine/dlib/src/stb",
     "./engine/dlib/src/zlib",
+    "./engine/dlib/src/zip",
     "./engine/glfw/tests",
     "./engine/glfw/examples",
     "./engine/lua",

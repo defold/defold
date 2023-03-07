@@ -68,7 +68,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     }
 
     private void createGeneratedResources(Project project, CollectionDesc.Builder builder,
-        Map<Long, IResource> uniqueResources ) throws IOException, CompileExceptionError {
+        Map<Long, IResource> uniqueResources, Map<Long, IResource> allResources) throws IOException, CompileExceptionError {
 
         for (EmbeddedInstanceDesc desc : builder.getEmbeddedInstancesList()) {
             byte[] data = desc.getData().getBytes();
@@ -84,6 +84,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 genResource.setContent(data);
                 uniqueResources.put(hash, genResource);
             }
+            allResources.put(hash, genResource);
         }
 
         for (CollectionInstanceDesc c : builder.getCollectionInstancesList()) {
@@ -91,7 +92,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             CollectionDesc.Builder subCollectionBuilder = CollectionDesc.newBuilder();
             ProtoUtil.merge(collectionResource, subCollectionBuilder);
 
-            createGeneratedResources(project, subCollectionBuilder, uniqueResources);
+            createGeneratedResources(project, subCollectionBuilder, uniqueResources, allResources);
         }
     }
 
@@ -135,8 +136,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
 
         Map<Long, IResource> uniqueResources = new HashMap<>();
-        createGeneratedResources(this.project, builder, uniqueResources);
-        
+        Map<Long, IResource> allResources = new HashMap<>();
+        createGeneratedResources(this.project, builder, uniqueResources, allResources);
+
         List<Task<?>> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
@@ -148,6 +150,10 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                                                 String.format("Failed to create build task for component '%s'", genResource.getPath()));
             }
             embedTasks.add(embedTask);
+        }
+        
+        for (IResource genResource : allResources.values()) {
+            Task<?> embedTask = project.createTask(genResource);
             // if embeded objects have factories, they should be in input for our collection
             Set<IResource> counterInputs = ComponentsCounter.getCounterInputs(embedTask);
             for(IResource res : counterInputs) {
@@ -376,7 +382,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             ++embedIndex;
         }
         messageBuilder.clearEmbeddedInstances();
-        
+
         Collection<String> propertyResources = new HashSet<String>();
         for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
             InstanceDesc.Builder b = InstanceDesc.newBuilder().mergeFrom(messageBuilder.getInstances(i));

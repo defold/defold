@@ -15,20 +15,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <sys/stat.h>
 
-#if defined(__linux__) || defined(__MACH__)
-#  include <sys/errno.h>
-#elif defined(_WIN32)
-#  include <errno.h>
-#elif defined(__EMSCRIPTEN__)
-#  include <unistd.h>
-#endif
-
-#ifdef _WIN32
-#include <direct.h>
-#include <malloc.h>
-#endif
+#include <errno.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
@@ -461,7 +449,7 @@ union SaveLoadBuffer
      * Get user config value
      *
      * ```lua
-     * local speed = sys.get_config_float("my_game.speed", 20.0)
+     * local speed = sys.get_config_number("my_game.speed", 20.0)
      * ```
      */
     static int Sys_GetConfigNumber(lua_State* L)

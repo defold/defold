@@ -32,15 +32,6 @@
 #include <mbedtls/pk.h>
 #include <mbedtls/x509_crt.h>
 
-// For the select stuff. We could possibly use our own select from socket.h
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__NX__)
-#include <sys/select.h>
-#elif defined(_WIN32)
-#include <winsock2.h>
-#else
-#error "Unsupported platform"
-#endif
-
 #define MBED_DEBUG_LEVEL 1
 
 #if defined(MBEDTLS_DEBUG_C)

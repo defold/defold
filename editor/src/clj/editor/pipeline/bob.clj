@@ -27,13 +27,14 @@
     [editor.system :as system]
     [editor.ui :as ui]
     [editor.prefs :as prefs]
-    [editor.workspace :as workspace])
+    [editor.workspace :as workspace]
+    [util.http-util :as http-util])
   (:import
     [com.dynamo.bob Bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream PrintStream PrintWriter PipedInputStream PipedOutputStream]
-    [java.net URI]
+    [java.net URI URL]
     [java.nio.charset StandardCharsets]
     [org.apache.commons.io FilenameUtils]
     [org.apache.commons.io.output WriterOutputStream]))
@@ -53,7 +54,7 @@
   (catch Exception e
     (throw (ex-info "Failed to set verbose logging field in Bob." {} e))))
 
-(def skip-dirs #{".git" "build" ".internal" })
+(def skip-dirs #{".git" "build" ".internal"})
 (def html5-url-prefix "/html5")
 (def html5-mime-types {"js" "application/javascript",
                        "json" "application/json",
@@ -215,16 +216,15 @@
           {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
           (let [ws (project/workspace project evaluation-context)
                 proj-path (str (workspace/project-path ws evaluation-context))
-                bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
+                bob-project (Project. workspace/class-loader (DefaultFileSystem.) proj-path "build/default")]
             (doseq [[key val] bob-args]
               (.setOption bob-project key val))
             (when-not (string/blank? build-server-headers)
               (doseq [header (string/split-lines build-server-headers)]
                 (.addBuildServerHeader bob-project header)))
             (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
-            (let [scanner (^ClassLoaderScanner Project/createClassLoaderScanner)]
-              (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
-                (.scan bob-project scanner pkg)))
+            (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
+              (ClassLoaderScanner/scanClassLoader workspace/class-loader pkg))
             (let [deps (workspace/dependencies ws)]
               (when (seq deps)
                 (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
@@ -380,7 +380,7 @@
       {:code 302
        :headers {"Location" (str html5-url-prefix "/index.html")}}
 
-      (let [url-without-query-params  (.getPath (java.net.URL. (str "http://" url)))
+      (let [url-without-query-params  (.getPath (URL. (str "http://" url)))
             served-file   (try-resolve-html5-file project url-without-query-params)
             extra-headers {"Content-Type" (html5-mime-types
                                             (FilenameUtils/getExtension (clojure.string/lower-case url-without-query-params))
@@ -388,8 +388,7 @@
         (cond
           ;; The requested URL is a directory or located outside build-html5-output-path.
           (or (nil? served-file) (.isDirectory served-file))
-          {:code 403
-           :body "Forbidden"}
+          http-util/forbidden-response
 
           (.exists served-file)
           {:code 200
@@ -397,8 +396,7 @@
            :body served-file}
 
           :else
-          {:code 404
-           :body "Not found"})))))
+          http-util/not-found-response)))))
 
 (defn html5-handler [project req-headers]
   (handler project req-headers))

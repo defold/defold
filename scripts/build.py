@@ -343,16 +343,20 @@ class Configuration(object):
         sys.stdout.flush()
         sys.stderr.flush()
 
+    def _remove_tree(self, path):
+        if os.path.exists(path):
+            self._log('Removing %s' % path)
+            shutil.rmtree(path)
+
     def distclean(self):
-        if os.path.exists(self.dynamo_home):
-            self._log('Removing %s' % self.dynamo_home)
-            shutil.rmtree(self.dynamo_home)
+        self._remove_tree(self.dynamo_home)
 
         for lib in ENGINE_LIBS:
             builddir = join(self.defold_root, 'engine/%s/build' % lib)
-            if os.path.exists(builddir):
-                self._log('Removing %s' % builddir)
-                shutil.rmtree(builddir)
+            self._remove_tree(builddir)
+
+        # remove engine test dir specifically
+        self._remove_tree(join(self.defold_root, 'engine/engine/src/test/build'))
 
         # Recreate dirs
         self._create_common_dirs()

@@ -37,7 +37,6 @@ import com.dynamo.gamesys.proto.Gui;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
 import com.google.protobuf.Message;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.ProtoBuilder;
@@ -49,7 +48,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
 
     public GuiBuilderTest() throws IOException {
-        this.scanner = Project.createClassLoaderScanner();
+        this.scanner = new ClassLoaderScanner(this.getClass().getClassLoader());
         registerProtoBuilderNames();
     }
 

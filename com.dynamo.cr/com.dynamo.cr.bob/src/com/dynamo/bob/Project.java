@@ -130,6 +130,7 @@ public class Project {
 
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
+    private ClassLoader classLoader = null;
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -139,6 +140,17 @@ public class Project {
     }
 
     public Project(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+        this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
+        this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
+        this.fileSystem = fileSystem;
+        this.fileSystem.setRootDirectory(this.rootDirectory);
+        this.fileSystem.setBuildDirectory(this.buildDirectory);
+        clearProjectProperties();
+    }
+
+    // For the editor
+    public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+        classLoader = loader;
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
@@ -211,9 +223,15 @@ public class Project {
         return this.publisher;
     }
 
-    public static ClassLoaderScanner createClassLoaderScanner() throws IOException {
-        scanner = new ClassLoaderScanner();
+    private ClassLoaderScanner createClassLoaderScanner() throws IOException {
+        scanner = new ClassLoaderScanner(getClassLoader());
         return scanner;
+    }
+
+    public ClassLoader getClassLoader() {
+        if (classLoader == null)
+            classLoader = this.getClass().getClassLoader();
+        return classLoader;
     }
 
     public static IClassScanner getClassLoaderScanner() {

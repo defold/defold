@@ -24,7 +24,9 @@ from google.protobuf import text_format
 import google.protobuf.message
 
 import gamesys.texture_set_ddf_pb2
+import gamesys.model_ddf_pb2
 import rig.rig_ddf_pb2
+import gameobject.gameobject_ddf_pb2
 
 BUILDERS = {}
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
@@ -32,6 +34,9 @@ BUILDERS['.meshsetc']       = rig.rig_ddf_pb2.MeshSet
 BUILDERS['.animationsetc']  = rig.rig_ddf_pb2.AnimationSet
 BUILDERS['.rigscenec']      = rig.rig_ddf_pb2.RigScene
 BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
+BUILDERS['.goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
+BUILDERS['.collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
+BUILDERS['.modelc']         = gamesys.model_ddf_pb2.Model
 
 if __name__ == "__main__":
     path = sys.argv[1]

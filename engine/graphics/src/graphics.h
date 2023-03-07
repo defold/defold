@@ -108,7 +108,8 @@ namespace dmGraphics
     enum TextureType
     {
         TEXTURE_TYPE_2D       = 0,
-        TEXTURE_TYPE_CUBE_MAP = 1,
+        TEXTURE_TYPE_2D_ARRAY = 1,
+        TEXTURE_TYPE_CUBE_MAP = 2,
     };
 
     // Texture filter
@@ -132,18 +133,12 @@ namespace dmGraphics
         TEXTURE_WRAP_REPEAT          = 3,
     };
 
-
     // Face type
     enum FaceType
     {
         FACE_TYPE_FRONT          = 0,
         FACE_TYPE_BACK           = 1,
         FACE_TYPE_FRONT_AND_BACK = 2,
-    };
-
-    enum MemoryType
-    {
-        MEMORY_TYPE_MAIN = 0,
     };
 
     enum WindowState
@@ -189,6 +184,7 @@ namespace dmGraphics
             m_Type(TEXTURE_TYPE_2D),
             m_Width(0),
             m_Height(0),
+            m_Depth(1),
             m_OriginalWidth(0),
             m_OriginalHeight(0),
             m_MipMapCount(1)
@@ -197,6 +193,7 @@ namespace dmGraphics
         TextureType m_Type;
         uint16_t    m_Width;
         uint16_t    m_Height;
+        uint16_t    m_Depth;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint8_t     m_MipMapCount;
@@ -215,9 +212,11 @@ namespace dmGraphics
         , m_MipMap(0)
         , m_Width(0)
         , m_Height(0)
+        , m_Depth(0)
         , m_SubUpdate(false)
         , m_X(0)
         , m_Y(0)
+        , m_Z(0)
         {}
 
         TextureFormat m_Format;
@@ -230,11 +229,13 @@ namespace dmGraphics
         uint16_t m_MipMap;
         uint16_t m_Width;
         uint16_t m_Height;
+        uint16_t m_Depth; // For array texture, this is slice count
 
         // For sub texture updates
         bool m_SubUpdate;
         uint32_t m_X;
         uint32_t m_Y;
+        uint32_t m_Z; // For array texture, this is the slice to set
     };
 
     // Parameters structure for OpenWindow
@@ -275,6 +276,12 @@ namespace dmGraphics
 
         // Window background color, RGB 0x00BBGGRR
         uint32_t                m_BackgroundColor;
+    };
+
+    enum ContextFeature
+    {
+        CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
+        CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
     };
 
     // Parameters structure for NewContext
@@ -523,10 +530,10 @@ namespace dmGraphics
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
+    HVertexProgram   NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
     HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
-    void DeleteProgram(HContext context, HProgram program);
+    HProgram         NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
+    void             DeleteProgram(HContext context, HProgram program);
 
     bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
     bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
@@ -546,7 +553,6 @@ namespace dmGraphics
     void SetConstantV4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
     void SetConstantM4(HContext context, const Vectormath::Aos::Vector4* data, int count, int base_register);
     void SetSampler(HContext context, int32_t location, int32_t unit);
-
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void EnableState(HContext context, State state);
@@ -571,10 +577,10 @@ namespace dmGraphics
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
-    inline uint32_t GetBufferTypeIndex(BufferType buffer_type);
-    inline const char* GetBufferTypeLiteral(BufferType buffer_type);
-    bool IsMultiTargetRenderingSupported(HContext context);
+    uint32_t GetBufferTypeIndex(BufferType buffer_type);
+    const char* GetBufferTypeLiteral(BufferType buffer_type);
     PipelineState GetPipelineState(HContext context);
+    bool IsContextFeatureSupported(HContext context, ContextFeature feature);
 
     TextureFormat GetSupportedCompressionFormat(HContext context, TextureFormat format, uint32_t width, uint32_t height);
 
@@ -600,17 +606,20 @@ namespace dmGraphics
      */
     void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
 
-    void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
-    uint32_t GetTextureResourceSize(HTexture texture);
-    uint16_t GetTextureWidth(HTexture texture);
-    uint16_t GetTextureHeight(HTexture texture);
-    uint16_t GetOriginalTextureWidth(HTexture texture);
-    uint16_t GetOriginalTextureHeight(HTexture texture);
-    void EnableTexture(HContext context, uint32_t unit, HTexture texture);
-    void DisableTexture(HContext context, uint32_t unit, HTexture texture);
-    uint32_t GetMaxTextureSize(HContext context);
-    uint16_t GetMipmapSize(uint16_t size_0, uint8_t mipmap);
-    uint8_t GetMipmapCount(uint16_t size);
+    void        SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
+    uint32_t    GetTextureResourceSize(HTexture texture);
+    uint16_t    GetTextureWidth(HTexture texture);
+    uint16_t    GetTextureHeight(HTexture texture);
+    uint16_t    GetOriginalTextureWidth(HTexture texture);
+    uint16_t    GetOriginalTextureHeight(HTexture texture);
+    uint32_t    GetMaxTextureSize(HContext context);
+    uint8_t     GetNumTextureHandles(HTexture texture);
+    TextureType GetTextureType(HTexture texture);
+    const char* GetTextureTypeLiteral(TextureType texture_type);
+    void        EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture);
+    void        DisableTexture(HContext context, uint32_t unit, HTexture texture);
+    uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
+    uint8_t     GetMipmapCount(uint16_t size);
 
     /**
      * Get status of texture.
@@ -647,36 +656,6 @@ namespace dmGraphics
      * @param buffer_size buffer size
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
-
-    const char* GetBufferTypeLiteral(BufferType buffer_type)
-    {
-        switch(buffer_type)
-        {
-            case BUFFER_TYPE_COLOR0_BIT:  return "BUFFER_TYPE_COLOR_BIT";
-            case BUFFER_TYPE_COLOR1_BIT:  return "BUFFER_TYPE_COLOR1_BIT";
-            case BUFFER_TYPE_COLOR2_BIT:  return "BUFFER_TYPE_COLOR2_BIT";
-            case BUFFER_TYPE_COLOR3_BIT:  return "BUFFER_TYPE_COLOR3_BIT";
-            case BUFFER_TYPE_DEPTH_BIT:   return "BUFFER_TYPE_DEPTH_BIT";
-            case BUFFER_TYPE_STENCIL_BIT: return "BUFFER_TYPE_STENCIL_BIT";
-            default:break;
-        }
-        return "<unknown buffer type>";
-    }
-
-    uint32_t GetBufferTypeIndex(BufferType buffer_type)
-    {
-        switch(buffer_type)
-        {
-            case BUFFER_TYPE_COLOR0_BIT:  return 0;
-            case BUFFER_TYPE_COLOR1_BIT:  return 1;
-            case BUFFER_TYPE_COLOR2_BIT:  return 2;
-            case BUFFER_TYPE_COLOR3_BIT:  return 3;
-            case BUFFER_TYPE_DEPTH_BIT:   return 4;
-            case BUFFER_TYPE_STENCIL_BIT: return 5;
-            default: break;
-        }
-        return ~0u;
-    }
 }
 
 #endif // DM_GRAPHICS_H

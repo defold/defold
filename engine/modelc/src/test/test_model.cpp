@@ -93,6 +93,27 @@ TEST(ModelGLTF, LoadSkeleton)
     free(mem);
 }
 
+// See https://github.com/KhronosGroup/glTF-Asset-Generator for assets
+// https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/VertexColorTest/glTF-Embedded/VertexColorTest.gltf
+
+TEST(ModelGLTF, VertexColor3Float)
+{
+    // Model courtesy of Artsion Trubchyk (https://github.com/aglitchman), public domain
+    const char* path = "./src/test/assets/primitive_vertex_color/vertexcolor_rgb3.glb";
+    uint32_t file_size = 0;
+    void* mem = dmModelImporter::ReadFile(path, &file_size);
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, strrchr(path, '.')+1, mem, file_size);
+
+    dmModelImporter::Mesh* mesh = &scene->m_Models[0].m_Meshes[0];
+    uint32_t vcount = mesh->m_VertexCount;
+    ASSERT_EQ(4112, vcount);
+    ASSERT_EQ(1.0, mesh->m_Color[vcount*4-1]); // vN.a == 1.0f
+    ASSERT_EQ(1.0, mesh->m_Color[3]); // v0.a == 1.0f
+    dmModelImporter::DestroyScene(scene);
+    free(mem);
+}
+
 
 static int TestStandalone(const char* path)
 {
