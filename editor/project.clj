@@ -181,7 +181,9 @@
                       ;; used in lsp.clj (java.lang.String sun.nio.fs.Globs.toUnixRegexPattern)
                       "--add-opens=java.base/sun.nio.fs=ALL-UNNAMED"
                       ;; hide warnings about illegal reflective access by clojure
-                      "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"]
+                      "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
+                      ;; used in editor.scene$read_to_buffered_image
+                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
   :main ^:skip-aot   com.defold.editor.Main
 
   :uberjar-exclusions [#"^natives/"]
