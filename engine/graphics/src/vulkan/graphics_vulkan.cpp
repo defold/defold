@@ -3177,6 +3177,19 @@ bail:
         //        per mipmap instead of batching in one cmd
         if (useStageBuffer)
         {
+            uint32_t slice_size = texDataSize / layer_count;
+
+        #ifdef __MACH__
+            // Note: There is an annoying validation issue on osx for layered compressed data that causes a validation error
+            //       due to misalignment of the data when using a stage buffer. The offsets in the stage buffer needs to be
+            //       8 byte aligned but for compressed data that is not the case for the lowest mipmaps.
+            //       This might need some more investigation, but for now we don't want a crash at least...
+            if (slice_size < 8 && layer_count > 1)
+            {
+                return;
+            }
+        #endif
+
             // Create one-time commandbuffer to carry the copy command
             VkCommandBuffer vk_command_buffer;
             CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
@@ -3195,6 +3208,7 @@ bail:
             vk_submit_info.pCommandBuffers    = &vk_command_buffer;
 
             DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
             res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, vk_device, texDataSize,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
             CHECK_VK_ERROR(res);
@@ -3208,9 +3222,8 @@ bail:
                 params.m_MipMap, layer_count);
             CHECK_VK_ERROR(res);
 
-            uint32_t slice_size = texDataSize / layer_count;
-
-            VkBufferImageCopy vk_copy_regions[6];
+            // NOTE: We should check max layer count in the device properties!
+            VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
             for (int i = 0; i < layer_count; ++i)
             {
                 VkBufferImageCopy& vk_copy_region = vk_copy_regions[i];
@@ -3249,6 +3262,8 @@ bail:
             DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
 
             vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
+
+            delete[] vk_copy_regions;
         }
         else
         {
