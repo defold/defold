@@ -318,14 +318,8 @@
 (defn- v3->v4 [v3]
   (conj v3 1.0))
 
-(def ^:private prop-index->prop-key
-  (let [index->pb-field (protobuf/fields-by-indices Gui$NodeDesc)
-        renames {:xanchor :x-anchor
-                 :yanchor :y-anchor
-                 :size :manual-size}]
-    (into {} (map (fn [[k v]] [k (get renames v v)]) index->pb-field))))
-
-(def ^:private prop-key->prop-index (set/map-invert prop-index->prop-key))
+(defn- v4->v3 [v4]
+  (subvec v4 0 3))
 
 (def ^:private euler-v4->clj-quat (comp math/vecmath->clj math/euler->quat))
 
@@ -335,6 +329,55 @@
       math/quat->euler
       properties/round-vec
       (conj 1.0)))
+
+(def node-property-fns
+  {:position [:position v4->v3]
+   :rotation [:rotation euler-v4->clj-quat]
+   :scale [:scale v4->v3]
+   :size [:manual-size v4->v3]
+   :xanchor [:x-anchor identity]
+   :yanchor [:y-anchor identity]})
+
+(def ^:private pb-field-to-prop-key-renames
+  (into {}
+        (keep (fn [[pb-field [prop-key]]]
+                (when (not= pb-field prop-key)
+                  (pair pb-field prop-key))))
+        node-property-fns))
+
+(def ^:private prop-key-to-pb-field-renames
+  (set/map-invert pb-field-to-prop-key-renames))
+
+(defn- pb-field->prop-key [pb-field]
+  (get pb-field-to-prop-key-renames pb-field pb-field))
+
+(defn- prop-key->pb-field [prop-key]
+  (get prop-key-to-pb-field-renames prop-key prop-key))
+
+(def ^:private prop-index->prop-key
+  (let [index->pb-field (protobuf/fields-by-indices Gui$NodeDesc)]
+    (into {}
+          (map (fn [[index pb-field]]
+                 (let [prop-key (pb-field->prop-key pb-field)]
+                   (pair index prop-key))))
+          index->pb-field)))
+
+(def ^:private prop-key->prop-index (set/map-invert prop-index->prop-key))
+
+(def ^:private node-desc-pb-field-key-set (protobuf/field-key-set Gui$NodeDesc))
+
+(defn- node-type-deref->node-desc-fields-raw [node-type-deref]
+  (let [declared-properties (:declared-property node-type-deref)]
+    (assert (not-empty declared-properties))
+    (sort
+      (into [:child-index :overridden-fields :parent :template-node-child]
+            (comp (map prop-key->pb-field)
+                  (keep node-desc-pb-field-key-set))
+            declared-properties))))
+
+(def ^:private node-type->node-desc-fields
+  "Returns the sequence of Gui$NodeDesc fields applicable to the supplied NodeType."
+  (comp (memoize node-type-deref->node-desc-fields-raw) deref))
 
 (declare get-registered-node-type-info get-registered-node-type-infos)
 
@@ -550,22 +593,24 @@
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
   ;; fine since such an output will have explicit dependencies on all the
   ;; property values it requires.
-  (protobuf/make-map-with-defaults Gui$NodeDesc
-    :type type
-    :custom-type custom-type
-    :child-index child-index
-    :template-node-child false
-    :overridden-fields (overridden-fields _this)
-    :position (v3->v4 position)
-    :rotation (clj-quat->euler-v4 rotation)
-    :scale (v3->v4 scale)
-    :id (if (g/node-override? _this) generated-id id)
-    :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
-    :alpha alpha
-    :inherit-alpha inherit-alpha
-    :enabled enabled
-    :layer layer
-    :parent parent))
+  (let [overridden-fields (overridden-fields _this)]
+    (cond-> {:type type
+             :custom-type custom-type
+             :child-index child-index
+             :template-node-child false
+             :position (v3->v4 position)
+             :rotation (clj-quat->euler-v4 rotation)
+             :scale (v3->v4 scale)
+             :id (if (g/node-override? _this) generated-id id)
+             :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
+             :alpha alpha
+             :inherit-alpha inherit-alpha
+             :enabled enabled
+             :layer layer
+             :parent parent}
+
+            (seq overridden-fields)
+            (assoc :overridden-fields overridden-fields))))
 
 (g/defnode GuiNode
   (inherits core/Scope)
@@ -844,12 +889,12 @@
 (defn- strip-size-from-node-desc [node-desc]
   (-> node-desc
       (assoc :size [0.0 0.0 0.0 0.0])
-      (update :overridden-fields strip-size-from-overridden-fields)))
+      (protobuf/sanitize :overridden-fields strip-size-from-overridden-fields)))
 
 (defn- add-size-to-overridden-fields-in-node-desc [node-desc]
   (update node-desc :overridden-fields add-size-to-overridden-fields))
 
-(defn- strip-unwanted-shape-base-node-fields [node-desc]
+(defn- fixup-shape-base-node-size-fields [node-desc]
   (let [size-mode (:size-mode node-desc)
         overridden-fields (:overridden-fields node-desc)]
     (cond-> node-desc
@@ -879,7 +924,7 @@
              :clipping-mode clipping-mode
              :clipping-visible clipping-visible
              :clipping-inverted clipping-inverted)
-      (strip-unwanted-shape-base-node-fields)))
+      (fixup-shape-base-node-size-fields)))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -936,12 +981,13 @@
 
 ;; Box nodes
 
-(defn- steps->ranges [v]
-  (partition 2 1 v))
+(defn- strip-unwanted-box-node-fields [node-desc]
+  (select-keys node-desc (node-type->node-desc-fields BoxNode)))
 
 (g/defnk produce-box-node-msg [shape-base-node-msg slice9]
-  (assoc shape-base-node-msg
-    :slice9 slice9))
+  (-> shape-base-node-msg
+      (strip-unwanted-box-node-fields)
+      (assoc :slice9 slice9)))
 
 (g/defnode BoxNode
   (inherits ShapeNode)
@@ -977,12 +1023,17 @@
 (defn- validate-perimeter-vertices [node-id perimeter-vertices]
   (validation/prop-error :fatal node-id :perimeter-vertices validation/prop-outside-range? [perimeter-vertices-min perimeter-vertices-max] perimeter-vertices "Perimeter Vertices"))
 
+(defn- strip-unwanted-pie-node-fields [node-desc]
+  (select-keys node-desc (node-type->node-desc-fields PieNode)))
+
 (g/defnk produce-pie-node-msg [shape-base-node-msg outer-bounds inner-radius perimeter-vertices pie-fill-angle]
-  (assoc shape-base-node-msg
-    :outer-bounds outer-bounds
-    :inner-radius inner-radius
-    :perimeter-vertices perimeter-vertices
-    :pie-fill-angle pie-fill-angle))
+  (-> shape-base-node-msg
+      (strip-unwanted-pie-node-fields)
+      (assoc
+        :outer-bounds outer-bounds
+        :inner-radius inner-radius
+        :perimeter-vertices perimeter-vertices
+        :pie-fill-angle pie-fill-angle)))
 
 (g/defnode PieNode
   (inherits ShapeNode)
@@ -1067,7 +1118,7 @@
 (def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
 
 (defn- strip-unwanted-text-node-fields [node-desc]
-  (dissoc node-desc :clipping-inverted :clipping-mode :clipping-visible :size-mode))
+  (select-keys node-desc (node-type->node-desc-fields TextNode)))
 
 (g/defnk produce-text-node-msg [visual-base-node-msg manual-size text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
   (-> visual-base-node-msg
@@ -1150,15 +1201,15 @@
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                          [(:width text-layout) (:height text-layout) 0]))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size pivot]
-                                        (cond-> {:text-layout text-layout
-                                                 :font-data font-data
-                                                 :color (assoc color 3 alpha)
-                                                 :outline (assoc outline 3 outline-alpha)
-                                                 :shadow (assoc shadow 3 shadow-alpha)
-                                                 :align (pivot->h-align pivot)}
-                                          font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
-                                                                         h (second aabb-size)]
-                                                                     [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
+                                   (cond-> {:text-layout text-layout
+                                            :font-data font-data
+                                            :color (assoc color 3 alpha)
+                                            :outline (assoc outline 3 outline-alpha)
+                                            :shadow (assoc shadow 3 shadow-alpha)
+                                            :align (pivot->h-align pivot)}
+                                           font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
+                                                                          h (second aabb-size)]
+                                                                      [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-visual-node font font-names]
                                    (g/package-errors _node-id
                                                      build-errors-visual-node
@@ -1216,7 +1267,7 @@
   (and a b))
 
 (defn- strip-unwanted-template-node-fields [node-desc]
-  (dissoc node-desc :adjust-mode :blend-mode :clipping-inverted :clipping-mode :clipping-visible :pivot :size-mode :xanchor :yanchor))
+  (select-keys node-desc (node-type->node-desc-fields TemplateNode)))
 
 (g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
   (-> gui-base-node-msg
@@ -1246,7 +1297,7 @@
                                               (pair (subs k (inc (count id)))
                                                     v)))
                                        template-overrides)}))
-            (set (fn [evaluation-context self old-value new-value]
+            (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
                          project (project/get-project basis self)
                          current-scene (g/node-feeding-into basis self :template-resource)]
@@ -1383,13 +1434,14 @@
     (assoc-in [:renderable :topmost?] true)))
 
 (defn- strip-unwanted-particlefx-node-fields [node-desc]
-  (dissoc node-desc :blend-mode :pivot :size))
+  (select-keys node-desc (node-type->node-desc-fields ParticleFXNode)))
 
 (g/defnk produce-particlefx-node-msg [visual-base-node-msg particlefx]
   (-> visual-base-node-msg
       (strip-unwanted-particlefx-node-fields)
-      (assoc :particlefx particlefx
-             :size-mode :size-mode-auto)))
+      (assoc
+        :particlefx particlefx
+        :size-mode :size-mode-auto)))
 
 (g/defnode ParticleFXNode
   (inherits VisualNode)
@@ -2469,9 +2521,6 @@
        (g/connect resource-node :resource-path     resources-node :paths)
        (g/connect resources-node :name-counts resource-node :name-counts))))))
 
-(defn- v4->v3 [v4]
-  (subvec v4 0 3))
-
 (defn add-gui-node! [project scene parent node-type custom-type select-fn]
   (let [node-tree (g/node-value scene :node-tree)
         taken-ids (g/node-value node-tree :id-counts)
@@ -2550,14 +2599,6 @@
         (add-handler-options node-id)
         (when (:layout user-data)
           (add-layout-options node-id user-data))))))
-
-(def node-property-fns
-  {:position [:position v4->v3]
-   :rotation [:rotation euler-v4->clj-quat]
-   :scale [:scale v4->v3]
-   :size [:manual-size v4->v3]
-   :xanchor [:x-anchor identity]
-   :yanchor [:y-anchor identity]})
 
 (defn- convert-node-desc [node-desc]
   (into {}
@@ -2813,23 +2854,29 @@
 (defn- sanitize-node-specifics [node-desc]
   (case (:type node-desc)
 
-    (:type-box :type-pie)
+    :type-box
     (-> node-desc
-        (strip-unwanted-shape-base-node-fields))
+        (strip-unwanted-box-node-fields)
+        (fixup-shape-base-node-size-fields))
 
     :type-particlefx
     (-> node-desc
         (strip-unwanted-particlefx-node-fields))
+
+    :type-pie
+    (-> node-desc
+        (strip-unwanted-pie-node-fields)
+        (fixup-shape-base-node-size-fields))
+
+    :type-template
+    (-> node-desc
+        (strip-unwanted-template-node-fields))
 
     :type-text
     (-> node-desc
         (strip-unwanted-text-node-fields)
         (sanitize-node-color :outline :outline-alpha)
         (sanitize-node-color :shadow :shadow-alpha))
-
-    :type-template
-    (-> node-desc
-        (strip-unwanted-template-node-fields))
 
     node-desc))
 
@@ -2960,10 +3007,6 @@
    {:icon layout-icon
     :command :set-gui-layout
     :label "Test"}])
-
-;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-;; Auto generated from the gui_ddf.proto enum
 
 (def ^:private base-node-type-infos [{:node-type :type-box
                                       :node-cls BoxNode

@@ -232,6 +232,10 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def ^:private field-infos (memoize field-infos-raw))
 
+(def field-key-set
+  "Returns the set of field keywords applicable to the supplied protobuf Class."
+  (memoize (comp set keys field-infos)))
+
 (declare default resource-field-paths)
 
 (defn resource-field-paths-raw
