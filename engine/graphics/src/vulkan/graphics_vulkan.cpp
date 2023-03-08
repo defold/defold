@@ -3222,6 +3222,7 @@ bail:
                 params.m_MipMap, layer_count);
             CHECK_VK_ERROR(res);
 
+            // NOTE: We should check max layer count in the device properties!
             VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
             for (int i = 0; i < layer_count; ++i)
             {
