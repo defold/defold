@@ -27,27 +27,32 @@ namespace dmGameSystem
     {
         dmResource::Result r = dmResource::RESULT_OK;
 
+        TextureResource* texture_res;
+
         // Get by hash if texture is a dynamically created resource
         if (texture_set_ddf->m_TextureHash)
         {
-            r = dmResource::Get(factory, texture_set_ddf->m_TextureHash, (void**)&tile_set->m_Texture);
+            r = dmResource::Get(factory, texture_set_ddf->m_TextureHash, (void**) &texture_res);
         }
         else
         {
-            r = dmResource::Get(factory, texture_set_ddf->m_Texture, (void**)&tile_set->m_Texture);
+            r = dmResource::Get(factory, texture_set_ddf->m_Texture, (void**) &texture_res);
         }
+
+        tile_set->m_Texture = texture_res;
 
         if (r == dmResource::RESULT_OK)
         {
             // Get path for texture
-            r = dmResource::GetPath(factory, tile_set->m_Texture, &tile_set->m_TexturePath);
+            r = dmResource::GetPath(factory, texture_res, &tile_set->m_TexturePath);
             if (r != dmResource::RESULT_OK) {
                 return r;
             }
 
             tile_set->m_TextureSet = texture_set_ddf;
-            uint16_t width = dmGraphics::GetOriginalTextureWidth(tile_set->m_Texture);
-            uint16_t height = dmGraphics::GetOriginalTextureHeight(tile_set->m_Texture);
+            uint16_t width = dmGraphics::GetOriginalTextureWidth(texture_res->m_Texture);
+            uint16_t height = dmGraphics::GetOriginalTextureHeight(texture_res->m_Texture);
+
             // Check dimensions
             if (width < texture_set_ddf->m_TileWidth || height < texture_set_ddf->m_TileHeight)
             {
