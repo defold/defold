@@ -41,7 +41,7 @@ local function str(val, val_type, metatable)
         return string.format("%s %p", val, val)
       end
     end
-      return tostring(val)
+    return tostring(val)
   end)
   if success then
     return error_or_result
@@ -121,6 +121,13 @@ local type_to_primitive_encoder = {
   ["function"] = encode_function,
   ["thread"] = encode_thread
 }
+
+local has_data_in_registry = {
+  [GOScriptInstance] = true,
+  -- [GuiScriptInstance] = true, (it doesn't work for *.gui_script)
+  [RenderScriptInstance] = true,
+}
+
 local metatable_to_primitive_encoder = {
   [GOScriptInstance] = encode_script,
   -- [GuiScriptInstance] = encode_script, (it doesn't work for *.gui_script)
@@ -183,7 +190,7 @@ local function collect_refs(depth, val, refs, keys)
     end
   elseif val_type == "userdata" then
     local mt = debug.getmetatable(val)
-    if mt and metatable_to_primitive_encoder[mt.__metatable] then
+    if mt and has_data_in_registry[mt.__metatable] then
       local script_val = find_variables_in_registry(val)
       if script_val then
         if depth < 100 and not keys[val] then
