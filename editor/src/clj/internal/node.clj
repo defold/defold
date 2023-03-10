@@ -311,9 +311,11 @@
     nil))
 
 (defn- prop-info-default [prop-info]
-  (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {})))
+  ;; TODO(save-value): Figure out why we have so much wrapping from (default ...) declarations.
+  (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {}) util/var-get-recursive))
 
 (defn- defaults-raw [node-type-deref]
+  (assert (satisfies? NodeType node-type-deref))
   (let [declared-property-labels (:declared-property node-type-deref)]
     (into {}
           (keep (fn [[prop-kw prop-info]]
@@ -322,7 +324,7 @@
                           (prop-info-default prop-info)))))
           (:property node-type-deref))))
 
-(def ^:private defaults
+(def defaults
   "Return a map of default values for the node type."
   (comp (memoize defaults-raw) deref))
 

@@ -446,7 +446,7 @@ Macros currently mean no foreseeable performance gain, however."
       (default-instance)
       (pb->map-with-defaults)))
 
-(def ^:private default-map (memoize default-map-raw))
+(def default-map (memoize default-map-raw))
 
 (defn default
   ([^Class cls field]

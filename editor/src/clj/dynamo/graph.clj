@@ -935,6 +935,12 @@
    (swap! *the-system* is/invalidate-outputs outputs)
    nil))
 
+(defn node-defaults
+  "Returns a map of property labels to default values. Properties that do not
+  have a default will still be present with a nil value in the map."
+  [node-type]
+  (in/defaults node-type))
+
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
    supertypes."
