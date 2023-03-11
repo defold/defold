@@ -40,10 +40,7 @@ import java.awt.image.Raster;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 // For debugging image output
@@ -298,15 +295,27 @@ public class TextureSetGenerator {
                                                 AnimIterator iterator,
                                                int margin, int innerPadding, int extrudeBorders,
                                                boolean rotate, boolean useTileGrid, Grid gridSize) {
-
-        int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
+        ArrayList<String> uniqueImageIds = new ArrayList<>();
+        ArrayList<Rect> uniqueImages = new ArrayList<>();
+        // Image index -> original image index.
+        ArrayList<Integer> repeatingImagesMapping = new ArrayList<>();
 
         // Store rectangle order as the AnimIterator interface relies on stable frame indices.
         for(int i = 0; i < images.size(); i++) {
+            Rect image = images.get(i);
             images.get(i).index = i;
+            int index = i;
+            if (!uniqueImageIds.contains(image.id)) {
+                uniqueImageIds.add(image.id);
+                uniqueImages.add(image);
+            } else {
+                index = uniqueImageIds.indexOf(image.id);
+            }
+            repeatingImagesMapping.add(index);
         }
 
-        List<Rect> resizedImages = images.stream()
+        int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
+        List<Rect> resizedImages = uniqueImages.stream()
                 .map(i -> new Rect(i.id, i.index, i.width + totalSizeIncrease, i.height + totalSizeIncrease))
                 .collect(Collectors.toList());
 
@@ -322,17 +331,25 @@ public class TextureSetGenerator {
         // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
         List<Rect> rects = clipBorders(layout.getRectangles(), extrudeBorders);
 
-        Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layout.getWidth(), layout.getHeight(), rects, iterator);
+        // Add previously excluded repeated images.
+        ArrayList<Rect> allRects = new ArrayList<>();
+        for (Integer index : repeatingImagesMapping) {
+            allRects.add(rects.get(index));
+        }
+
+        Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layout.getWidth(), layout.getHeight(), allRects, iterator);
 
         vertexData.left.setUseGeometries(use_geometries);
 
         if (imageHulls != null) {
-            for (Rect rect : layout.getRectangles()) {
-                SpriteGeometry imageHull = imageHulls.get(rect.index);
+            for (int i = 0; i < repeatingImagesMapping.size(); i++) {
+                Integer rectIndex = repeatingImagesMapping.get(i);
+                Rect rect = layout.getRectangles().get(rectIndex);
+                SpriteGeometry imageHull = imageHulls.get(i);
                 // Calculate UVs using vertices without offset.
                 SpriteGeometry.Builder imageHullWithUV = createPolygonUVs(imageHull, rect, layout.getWidth(), layout.getHeight(), extrudeBorders);
                 if (imageHullsWithOffset != null) {
-                    SpriteGeometry imageHullWithOffset = imageHullsWithOffset.get(rect.index);
+                    SpriteGeometry imageHullWithOffset = imageHullsWithOffset.get(i);
                     imageHullWithUV.clearVertices();
                     // Copy over the vertices with the offset. Now we have offset vertices with correct UVs.
                     imageHullWithUV.addAllVertices(imageHullWithOffset.getVerticesList());
