@@ -666,9 +666,9 @@ public class Bob {
 
         // setup logger based on presence of verbose option or not
         Logger rootLogger = LogManager.getLogManager().getLogger("");
-        rootLogger.setLevel(verbose ? Level.ALL : Level.WARNING);
+        rootLogger.setLevel(verbose ? Level.CONFIG : Level.WARNING);
         for (Handler h : rootLogger.getHandlers()) {
-            h.setLevel(verbose ? Level.ALL : Level.WARNING);
+            h.setLevel(verbose ? Level.CONFIG : Level.WARNING);
         }
 
         if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
