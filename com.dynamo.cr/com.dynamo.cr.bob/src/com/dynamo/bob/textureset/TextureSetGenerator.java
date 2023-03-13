@@ -295,23 +295,25 @@ public class TextureSetGenerator {
                                                 AnimIterator iterator,
                                                int margin, int innerPadding, int extrudeBorders,
                                                boolean rotate, boolean useTileGrid, Grid gridSize) {
-        ArrayList<String> uniqueImageIds = new ArrayList<>();
-        ArrayList<Rect> uniqueImages = new ArrayList<>();
-        // Image index -> original image index.
-        ArrayList<Integer> repeatingImagesMapping = new ArrayList<>();
+        ArrayList<String> uniqueImageIds = new ArrayList<String>();
+        ArrayList<Rect> uniqueImages = new ArrayList<Rect>();
+        // Image index -> unique image index.
+        ArrayList<Integer> imagesMapping = new ArrayList<Integer>();
 
-        // Store rectangle order as the AnimIterator interface relies on stable frame indices.
         for(int i = 0; i < images.size(); i++) {
             Rect image = images.get(i);
-            images.get(i).index = i;
-            int index = i;
+            // Store rectangle order as the AnimIterator interface relies on stable frame indices.
+            image.index = i;
+
+            // Collect unique images based on their path and store the mapping.
+            int index = uniqueImages.size();
             if (!uniqueImageIds.contains(image.id)) {
                 uniqueImageIds.add(image.id);
                 uniqueImages.add(image);
             } else {
                 index = uniqueImageIds.indexOf(image.id);
             }
-            repeatingImagesMapping.add(index);
+            imagesMapping.add(index);
         }
 
         int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
@@ -333,8 +335,11 @@ public class TextureSetGenerator {
 
         // Add previously excluded repeated images.
         ArrayList<Rect> allRects = new ArrayList<>();
-        for (Integer index : repeatingImagesMapping) {
-            allRects.add(rects.get(index));
+        for (int i = 0; i < imagesMapping.size(); ++i) {
+            Integer index = imagesMapping.get(i);
+            Rect rect = new Rect(rects.get(index));
+            rect.index = i;
+            allRects.add(rect);
         }
 
         Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layout.getWidth(), layout.getHeight(), allRects, iterator);
@@ -342,9 +347,9 @@ public class TextureSetGenerator {
         vertexData.left.setUseGeometries(use_geometries);
 
         if (imageHulls != null) {
-            for (int i = 0; i < repeatingImagesMapping.size(); i++) {
-                Integer rectIndex = repeatingImagesMapping.get(i);
-                Rect rect = layout.getRectangles().get(rectIndex);
+            for (int i = 0; i < imagesMapping.size(); ++i) {
+                Integer index = imagesMapping.get(i);
+                Rect rect = layout.getRectangles().get(index);
                 SpriteGeometry imageHull = imageHulls.get(i);
                 // Calculate UVs using vertices without offset.
                 SpriteGeometry.Builder imageHullWithUV = createPolygonUVs(imageHull, rect, layout.getWidth(), layout.getHeight(), extrudeBorders);
@@ -480,9 +485,17 @@ public class TextureSetGenerator {
         TextureSetResult result = calculateLayout(imageRects, imageHulls, imageHullsWithOffset, use_geometries, iterator,
                                                         margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize);
 
-        for (int i = 0; i < images.size(); ++i) {
-            BufferedImage image = images.get(i);
-            Rect rect = result.layoutResult.layout.getRectangles().get(i);
+        List<Rect> layoutRectangles = result.layoutResult.layout.getRectangles();
+        for (int i = 0; i < layoutRectangles.size(); ++i) {
+            Rect rect = layoutRectangles.get(i);
+            BufferedImage image = null;
+            for (int j = 0; j < imageRects.size(); ++j) {
+                if (rect.id.equals(imageRects.get(j).id)) {
+                    image = images.get(j);
+                    break;
+                }
+            }
+            if (image == null) continue; // Failsafe.
 
             if (innerPadding > 0) {
                 image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);

@@ -44,31 +44,31 @@ import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
 
 public class AtlasUtil {
     public static class MappedAnimDesc extends AnimDesc {
-        List<String> ids;
+        List<AtlasImage> ids;
 
-        public MappedAnimDesc(String id, List<String> ids, Playback playback, int fps, boolean flipHorizontal,
+        public MappedAnimDesc(String id, List<AtlasImage> ids, Playback playback, int fps, boolean flipHorizontal,
                 boolean flipVertical) {
             super(id, playback, fps, flipHorizontal, flipVertical);
             this.ids = ids;
         }
 
-        public MappedAnimDesc(String id, List<String> ids) {
+        public MappedAnimDesc(String id, List<AtlasImage> ids) {
             super(id, Playback.PLAYBACK_NONE, 0, false, false);
             this.ids = ids;
         }
 
-        public List<String> getIds() {
-            return this.ids;
+        public List<AtlasImage> getIds() {
+            return ids;
         }
     }
 
     public static class MappedAnimIterator implements AnimIterator {
         final List<MappedAnimDesc> anims;
-        final List<String> imageIds;
+        final List<AtlasImage> imageIds;
         int nextAnimIndex;
         int nextFrameIndex;
 
-        public MappedAnimIterator(List<MappedAnimDesc> anims, List<String> imageIds) {
+        public MappedAnimIterator(List<MappedAnimDesc> anims, List<AtlasImage> imageIds) {
             this.anims = anims;
             this.imageIds = imageIds;
         }
@@ -109,13 +109,13 @@ public class AtlasUtil {
         }
         @Override
         public int hashCode() {
-            return path.hashCode() + 31 * this.mode.hashCode() + 59 * this.rect.hashCode();
+            return path.hashCode() + 31 * mode.hashCode() + 59 * rect.hashCode();
         }
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             AtlasImageSortKey b = (AtlasImageSortKey)o;
-            return this.mode == b.mode && this.path.equals(b.path) && this.rect.equals(b.rect);
+            return mode == b.mode && path.equals(b.path) && rect.equals(b.rect);
         }
     }
 
@@ -175,15 +175,11 @@ public class AtlasUtil {
         List<MappedAnimDesc> animDescs = new ArrayList<MappedAnimDesc>(atlas.getAnimationsCount()
                 + atlas.getImagesCount());
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
-            List<String> frameIds = new ArrayList<String>();
-            for (AtlasImage image : anim.getImagesList()) {
-                frameIds.add(transformer.transform(image.getImage()));
-            }
-            animDescs.add(new MappedAnimDesc(anim.getId(), frameIds, anim.getPlayback(), anim.getFps(), anim
+            animDescs.add(new MappedAnimDesc(anim.getId(), anim.getImagesList(), anim.getPlayback(), anim.getFps(), anim
                     .getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
         }
         for (AtlasImage image : atlas.getImagesList()) {
-            MappedAnimDesc animDesc = new MappedAnimDesc(pathToId(image.getImage()), Collections.singletonList(transformer.transform(image.getImage())));
+            MappedAnimDesc animDesc = new MappedAnimDesc(pathToId(image.getImage()), Collections.singletonList(image));
             animDescs.add(animDesc);
         }
 
@@ -234,7 +230,7 @@ public class AtlasUtil {
         for (int i = 0; i < imagePathCount; ++i) {
             imagePaths.set(i, transformer.transform(imagePaths.get(i)));
         }
-        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
+        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, atlasImages);
         TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imageSourceRects, imagePaths, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
