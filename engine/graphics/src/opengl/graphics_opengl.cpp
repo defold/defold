@@ -307,7 +307,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         default:
-            assert(0);
+            dmLogError("gl error 0x%08x: <unknown>", status);
             break;
     }
 }
@@ -641,7 +641,7 @@ static void LogFrameBufferError(GLenum status)
     {
         switch (feature)
         {
-            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return PFN_glDrawBuffers != 0x0;
+            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
         }
         return false;
@@ -1257,7 +1257,8 @@ static void LogFrameBufferError(GLenum status)
 
         if (context->m_IsGles3Version || OpenGLIsExtensionSupported(context, "GL_EXT_texture_array"))
         {
-            context->m_TextureArraySupport = 1;
+            context->m_TextureArraySupport         = 1;
+            context->m_MultiTargetRenderingSupport = 1;
         #ifdef ANDROID
             context->m_TextureArraySupport &= PFN_glTexSubImage3D           != 0;
             context->m_TextureArraySupport &= PFN_glTexImage3D              != 0;
@@ -2309,6 +2310,16 @@ static void LogFrameBufferError(GLenum status)
         };
 
         uint8_t max_color_attachments = PFN_glDrawBuffers != 0x0 ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
+
+        // Emscripten: WebGL 1 requires the "WEBGL_draw_buffers" extension to load the PFN_glDrawBuffers pointer,
+        //             but for WebGL 2 we have support natively and no way of loading the pointer via glfwGetprocAddress
+    #if __EMSCRIPTEN__
+        if (context->m_MultiTargetRenderingSupport)
+        {
+            max_color_attachments = MAX_BUFFER_COLOR_ATTACHMENTS;
+        }
+    #endif
+
         for (int i = 0; i < max_color_attachments; ++i)
         {
             if (buffer_type_flags & color_buffer_flags[i])
@@ -2430,7 +2441,13 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR;
 
-        if (render_target != NULL && PFN_glDrawBuffers != 0x0)
+    #if __EMSCRIPTEN__
+        #define DRAW_BUFFERS_FN glDrawBuffers
+    #else
+        #define DRAW_BUFFERS_FN PFN_glDrawBuffers
+    #endif
+
+        if (render_target != NULL && DRAW_BUFFERS_FN != 0x0)
         {
             uint32_t num_buffers = 0;
             GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
@@ -2450,9 +2467,11 @@ static void LogFrameBufferError(GLenum status)
 
             if (num_buffers > 1)
             {
-                PFN_glDrawBuffers(num_buffers, buffers);
+                DRAW_BUFFERS_FN(num_buffers, buffers);
             }
         }
+
+    #undef DRAW_BUFFERS_FN
 
         CHECK_GL_FRAMEBUFFER_ERROR;
     }
