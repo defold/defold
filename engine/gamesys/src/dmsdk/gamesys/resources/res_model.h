@@ -22,6 +22,7 @@
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/gamesys/resources/res_rig_scene.h>
+#include <dmsdk/gamesys/resources/res_texture.h>
 #include <gamesys/model_ddf.h>
 
 namespace dmGameSystem
@@ -48,12 +49,9 @@ namespace dmGameSystem
         dmModelDDF::Model*              m_Model;
         uint32_t                        m_ModelsCount;
         RigSceneResource*               m_RigScene;
-
         dmArray<MeshInfo>               m_Meshes;
-
         dmArray<dmRender::HMaterial>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
-
-        dmGraphics::HTexture            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        TextureResource*                m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t                        m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 }

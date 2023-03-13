@@ -273,7 +273,7 @@ def build(bld):
                                              bld.path.ant_glob("basis/transcoder/**/*.cpp"),
                                     target = 'basis_encoder',
                                     remove_flags = remove_flags,
-                                    defines = ['DM_BASIS_ENCODER'] + basis_flags)
+                                    defines = ['DM_BASIS_ENCODER','MINIZ_NO_STDIO'] + basis_flags)
         basis_encoder.env.append_unique('CXXFLAGS', extra_encoder_flags)
 
         if new_opt_level:
@@ -285,7 +285,7 @@ def build(bld):
                             target = 'basis_transcoder',
                             remove_flags = remove_flags,
                             source = bld.path.ant_glob("basis/transcoder/**/*.cpp"),
-                            defines = ['DM_BASIS_TRANSCODER_UASTC', 'BASISD_SUPPORT_KTX2=0'] + basis_flags,
+                            defines = ['DM_BASIS_TRANSCODER_UASTC', 'BASISD_SUPPORT_KTX2=0','MINIZ_NO_STDIO'] + basis_flags,
                             use = 'dlib')
 
     if new_opt_level:
@@ -350,6 +350,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/message.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/object_pool.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/opaque_handle_container.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/path.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/platform.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/poolallocator.h')

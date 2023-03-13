@@ -43,7 +43,6 @@ namespace dmHID
         context->m_IgnoreTouchDevice = params.m_IgnoreTouchDevice;
         context->m_IgnoreAcceleration = params.m_IgnoreAcceleration;
         context->m_FlipScrollDirection = params.m_FlipScrollDirection;
-
         context->m_GamepadConnectivityCallback = params.m_GamepadConnectivityCallback;
         return context;
     }

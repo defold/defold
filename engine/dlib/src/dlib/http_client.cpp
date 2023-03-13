@@ -18,8 +18,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include "math.h"
 #include "http_client.h"
 #include "log.h"

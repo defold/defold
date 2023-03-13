@@ -45,6 +45,7 @@
             [editor.scene-picking :as scene-picking]
             [editor.slice9 :as slice9]
             [editor.types :as types]
+            [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -1469,6 +1470,15 @@
           (map (fn [id] (if id (format "%s/%s" name id) name)))
           (keys anim-data))))
 
+(defn- paged-atlas-not-supported-error-message [texture-page-count]
+  (when (and (some? texture-page-count)
+             (pos? texture-page-count))
+    "Guis do not support paged Atlases, but the selected Texture is paged"))
+
+(defn- validate-texture-resource [_node-id texture texture-page-count]
+  (or (prop-resource-error _node-id :texture texture "Texture")
+      (validation/prop-error :fatal _node-id :texture paged-atlas-not-supported-error-message texture-page-count)))
+
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
 
@@ -1481,11 +1491,12 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :texture-resource]
                                             [:gpu-texture :gpu-texture]
+                                            [:texture-page-count :texture-page-count]
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:build-targets :dep-build-targets])))
-            (dynamic error (g/fnk [_node-id texture]
-                                  (prop-resource-error _node-id :texture texture "Texture")))
+            (dynamic error (g/fnk [_node-id texture texture-page-count]
+                             (validate-texture-resource _node-id texture texture-page-count)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]})))
@@ -1495,6 +1506,7 @@
   (input texture-resource resource/Resource)
   (input image BufferedImage :substitute (constantly nil))
   (input gpu-texture g/Any :substitute nil)
+  (input texture-page-count g/Int :substitute nil)
   (input anim-data g/Any :substitute (constantly nil))
   (input anim-ids g/Any :substitute (constantly []))
   (input samplers [g/KeywordMap] :substitute (constantly []))
@@ -1515,10 +1527,10 @@
   (output texture-anim-datas TextureAnimDatas :cached produce-texture-anim-datas)
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-names GuiResourceNames :cached produce-texture-names)
-  (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
+  (output build-errors g/Any (g/fnk [_node-id name name-counts texture texture-page-count]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (prop-resource-error _node-id :texture texture "Texture")))))
+                                                 (validate-texture-resource _node-id texture texture-page-count)))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
@@ -2239,16 +2251,69 @@
                       :dep-resources dep-resources}
           :deps dep-build-targets})])))
 
+(defn- validate-template-build-targets [template-build-targets]
+  (let [gui-resource-type+name->value->resource-proj-paths
+        (persistent!
+          (reduce
+            (fn [acc [gui-resource-type gui-resource-name gui-resource-value template-resource]]
+              (let [k (pair gui-resource-type gui-resource-name)
+                    proj-path (resource/proj-path template-resource)]
+                (assoc! acc k (-> (acc k)
+                                  (or {})
+                                  (update gui-resource-value (fnil conj []) proj-path)))))
+            (transient {})
+            (for [template-build-target (flatten template-build-targets)
+                  :let [resource (-> template-build-target :resource :resource)
+                        pb (-> template-build-target :user-data :pb)]
+                  [gui-resource-pb-key gui-value-key] [[:textures :texture]
+                                                       [:fonts :font]
+                                                       [:particlefxs :particlefx]
+                                                       [:resources :path]]
+                  gui-resource (get pb gui-resource-pb-key)]
+              [gui-resource-pb-key (:name gui-resource) (get gui-resource gui-value-key) resource])))
+        errors (into []
+                     (comp
+                       (filter #(< 1 (-> % val count)))
+                       (map (fn [[[gui-resource-type gui-resource-name] value->proj-paths]]
+                              (format "%s \"%s\" has conflicting values in templates: %s"
+                                      (case gui-resource-type
+                                        :textures "Texture"
+                                        :fonts "Font"
+                                        :particlefxs "Particle FX"
+                                        :resources "Custom resource")
+                                      gui-resource-name
+                                      (->> (for [[value proj-paths] value->proj-paths
+                                                 proj-path proj-paths]
+                                             (format "%s (%s)" proj-path value))
+                                           (sort eutil/natural-order)
+                                           (eutil/join-words ", " " and "))))))
+                     (sort-by key
+                              (eutil/comparator-chain
+                                (eutil/comparator-on key)
+                                (eutil/comparator-on eutil/natural-order val))
+                              gui-resource-type+name->value->resource-proj-paths))]
+    (when (pos? (count errors))
+      (str/join "\n" errors))))
+
 (defn- validate-max-nodes [_node-id max-nodes node-ids]
     (or (validation/prop-error :fatal _node-id :max-nodes (partial validation/prop-outside-range? [1 8192]) max-nodes "Max Nodes")
         (validation/prop-error :fatal _node-id :max-nodes (fn [v] (let [c (count node-ids)]
                                                                     (when (> c max-nodes)
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
 
-(g/defnk produce-own-build-errors [_node-id material max-nodes node-ids script]
+(defn- paged-material-not-supported-error-message [is-paged-material]
+  (when is-paged-material
+    "Guis do not support paged Materials, but the selected Material is paged"))
+
+(defn- validate-material-resource [_node-id material material-shader]
+  (or (prop-resource-error _node-id :material material "Material")
+      (validation/prop-error :fatal _node-id :material paged-material-not-supported-error-message (shader/is-using-array-samplers? material-shader))))
+
+(g/defnk produce-own-build-errors [_node-id material material-shader max-nodes node-ids script ^:try template-build-targets]
   (g/package-errors _node-id
                     (when script (prop-resource-error _node-id :script script "Script"))
-                    (prop-resource-error _node-id :material material "Material")
+                    (validate-material-resource _node-id material material-shader)
+                    (validation/prop-error :fatal _node-id nil validate-template-build-targets (gu/array-subst-remove-errors template-build-targets))
                     (validate-max-nodes _node-id max-nodes node-ids)))
 
 (g/defnk produce-build-errors [_node-id build-errors own-build-errors]
@@ -2280,7 +2345,6 @@
             (dynamic edit-type (g/fnk [] {:type resource/Resource
                                           :ext "gui_script"})))
 
-
   (property material resource/Resource
     (value (gu/passthrough material-resource))
     (set (fn [evaluation-context self old-value new-value]
@@ -2290,8 +2354,8 @@
              [:shader :material-shader]
              [:samplers :samplers]
              [:build-targets :dep-build-targets])))
-    (dynamic error (g/fnk [_node-id material]
-                          (prop-resource-error _node-id :material material "Material")))
+    (dynamic error (g/fnk [_node-id material material-shader]
+                     (validate-material-resource _node-id material material-shader)))
     (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))

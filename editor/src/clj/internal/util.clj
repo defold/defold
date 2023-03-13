@@ -81,7 +81,7 @@
                          (if (contains? seen key)
                            (recur (rest s) seen)
                            (cons f (step (rest s) (conj seen key)))))))
-                    xs seen)))]
+                   xs seen)))]
      (step coll #{}))))
 
 (defn group-into
@@ -293,6 +293,30 @@
     (quoted-var? x) (inputs-needed (var-get (resolve (second x))))
     (pfnk-form? x)  (parse-fnk-arguments x)
     :else           #{}))
+
+(defn input-annotations [x]
+  (cond
+    (pfnk? x)
+    (:annotations (meta x))
+
+    (symbol? x)
+    (recur (resolve x))
+
+    (var? x)
+    (recur (var-get x))
+
+    (quoted-var? x)
+    (recur (var-get (resolve (second x))))
+
+    (pfnk-form? x)
+    (into {}
+          (comp
+            (take-while (complement #{:as :-}))
+            (map (juxt keyword meta)))
+          (second (maybe-expand-macros x)))
+
+    :else
+    {}))
 
 (defn- wrap-protocol
   [tp tp-form]

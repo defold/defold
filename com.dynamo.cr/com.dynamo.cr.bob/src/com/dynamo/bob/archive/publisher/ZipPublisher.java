@@ -15,7 +15,6 @@
 package com.dynamo.bob.archive.publisher;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -32,6 +31,7 @@ import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.FileUtil;
 
 public class ZipPublisher extends Publisher {
 
@@ -55,16 +55,8 @@ public class ZipPublisher extends Publisher {
                     File fhandle = this.getEntries().get(hexDigest);
                     ZipEntry currentEntry = new ZipEntry(fhandle.getName());
                     zipOutputStream.putNextEntry(currentEntry);
-
-                    FileInputStream currentInputStream = new FileInputStream(fhandle);
-                    int currentLength = 0;
-                    byte[] currentBuffer = new byte[1024];
-                    while ((currentLength = currentInputStream.read(currentBuffer)) > 0) {
-                        zipOutputStream.write(currentBuffer, 0, currentLength);
-                    }
-
+                    FileUtil.writeToStream(fhandle, zipOutputStream);
                     zipOutputStream.closeEntry();
-                    IOUtils.closeQuietly(currentInputStream);
                 }
             } catch (FileNotFoundException exception) {
                 throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);
