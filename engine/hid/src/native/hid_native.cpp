@@ -179,8 +179,6 @@ namespace dmHID
     {
         if (context != 0x0)
         {
-            assert(g_HidContext == 0);
-
             if (glfwInit() == GL_FALSE)
             {
                 dmLogFatal("glfw could not be initialized.");
@@ -220,6 +218,7 @@ namespace dmHID
         }
 
         delete user_data;
+        g_HidContext->m_NativeContextUserData = 0;
     }
 
     void Update(HContext context)
