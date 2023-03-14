@@ -359,9 +359,6 @@ namespace dmHID
         return DIENUM_CONTINUE;
     }
 
-    // TODO: Right now we try to detect inputs every frame, but it would be more efficient to
-    //       add a RegisterDeviceNotification somewhere in GLFW and call this function based on
-    //       the event that is passed when a device has been added or removed from the OS level.
     static void DInputDetectDevices(HContext context, GamepadDriver* driver)
     {
         DInputGamepadDriver* dinput_driver = (DInputGamepadDriver*) driver;

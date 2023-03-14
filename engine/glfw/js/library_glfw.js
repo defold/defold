@@ -916,6 +916,10 @@ var LibraryGLFW = {
     return 1;
   },
 
+  glfwSetDeviceChangedCallback: function(cbfun) {
+    return 1;
+  },
+
   /* Joystick input */
 
   glfwGetJoystickParam: function(joy, param) {

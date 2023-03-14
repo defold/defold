@@ -363,6 +363,19 @@ GLFWAPI int GLFWAPIENTRY glfwSetGamepadCallback(GLFWkeyfun cbfun)
     return 1;
 }
 
+// DEFOLD change (for win32 only)
+GLFWAPI int  GLFWAPIENTRY glfwSetDeviceChangedCallback( GLFWdevicechangedfun cbfun )
+{
+#if defined(_WIN32)
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return 0;
+    }
+    _glfwWin.deviceChangeCallback = cbfun;
+#endif
+    return 1;
+}
+
 // DEFOLD change
 // Since the locking of the mouse is done internally in glfw,
 // we need to query the current state here

@@ -211,7 +211,10 @@ namespace dmHID
 
     static void GLFWGamepadDriverDestroy(HContext context, GamepadDriver* driver)
     {
-        delete driver;
+        GLFWGamepadDriver* glfw_driver = (GLFWGamepadDriver*) driver;
+        assert(g_GLFWGamepadDriver == glfw_driver);
+        delete glfw_driver;
+        g_GLFWGamepadDriver = 0;
     }
 
     GamepadDriver* CreateGamepadDriverGLFW(HContext context)
