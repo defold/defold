@@ -1547,6 +1547,11 @@ void _glfwPlatformCloseWindow( void )
 {
     destroyWindow();
 
+    if (_glfwWin.deviceNotificationHandle)
+    {
+        UnregisterDeviceNotification(_glfwWin.deviceNotificationHandle);
+    }
+
     if( _glfwWin.classAtom )
     {
         UnregisterClass( _GLFW_WNDCLASSNAME, _glfwLibrary.instance );
