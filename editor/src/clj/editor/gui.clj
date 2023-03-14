@@ -890,6 +890,17 @@
                    (g/set-property self :manual-size new-value)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
   (property size-mode g/Keyword (default :size-mode-auto)
+            (set (fn [evaluation-context self old-value new-value]
+                   ;; Use the texture size for the :manual-size when the user switches
+                   ;; from :size-mode-auto to :size-mode-manual.
+                   (when (and (= :size-mode-auto old-value)
+                              (= :size-mode-manual new-value)
+                              (properties/user-edit? self :size-mode evaluation-context))
+                     (when-some [texture (not-empty (g/node-value self :texture evaluation-context))]
+                       (when-some [texture-anim-datas (not-empty (g/node-value self :texture-anim-datas evaluation-context))]
+                         (when-some [anim-data (texture-anim-datas texture)]
+                           (let [texture-size [(double (:width anim-data)) (double (:height anim-data)) 0.0]]
+                             (g/set-property self :manual-size texture-size))))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property texture g/Str
             (default "")
