@@ -2280,6 +2280,66 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+#if __EMSCRIPTEN__
+    // Only used for webgl currently
+    static bool ValidateFramebufferAttachments(uint8_t max_color_attachments, uint32_t buffer_type_flags, BufferType* color_buffer_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT])
+    {
+        bool first_set       = false;
+        uint32_t last_width  = -1;
+        uint32_t last_height = -1;
+
+        for (int i = 0; i < max_color_attachments; ++i)
+        {
+            if (buffer_type_flags & color_buffer_flags[i])
+            {
+                uint32_t color_buffer_index = GetBufferTypeIndex(color_buffer_flags[i]);
+                TextureCreationParams params = creation_params[color_buffer_index];
+
+                if (!first_set)
+                {
+                    last_width = params.m_Width;
+                    last_height = params.m_Height;
+                }
+                else if (last_width != params.m_Width || last_height != params.m_Height)
+                {
+                    return false;
+                }
+            }
+        }
+
+        if(buffer_type_flags & (dmGraphics::BUFFER_TYPE_STENCIL_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT))
+        {
+            if(!(buffer_type_flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT))
+            {
+                uint32_t depth_param_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+
+                if (!first_set)
+                {
+                    return last_width == creation_params[depth_param_index].m_Width &&
+                           last_height == creation_params[depth_param_index].m_Height;
+                }
+            }
+            else
+            {
+                uint32_t depth_param_index = GetBufferTypeIndex(BUFFER_TYPE_DEPTH_BIT);
+                uint32_t stencil_param_index = GetBufferTypeIndex(BUFFER_TYPE_STENCIL_BIT);
+
+                if (!first_set)
+                {
+                    return creation_params[depth_param_index].m_Width == creation_params[stencil_param_index].m_Width &&
+                           creation_params[depth_param_index].m_Height == creation_params[stencil_param_index].m_Height;
+                }
+
+                return last_width == creation_params[depth_param_index].m_Width &&
+                       last_height == creation_params[depth_param_index].m_Height &&
+                       last_width == creation_params[stencil_param_index].m_Width &&
+                       last_height == creation_params[stencil_param_index].m_Height;
+            }
+        }
+
+        return true;
+    }
+#endif
 
     static HRenderTarget OpenGLNewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT])
     {
@@ -2310,6 +2370,7 @@ static void LogFrameBufferError(GLenum status)
         };
 
         uint8_t max_color_attachments = PFN_glDrawBuffers != 0x0 ? MAX_BUFFER_COLOR_ATTACHMENTS : 1;
+        bool check_attachments_same_size = false;
 
         // Emscripten: WebGL 1 requires the "WEBGL_draw_buffers" extension to load the PFN_glDrawBuffers pointer,
         //             but for WebGL 2 we have support natively and no way of loading the pointer via glfwGetprocAddress
@@ -2317,6 +2378,13 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_MultiTargetRenderingSupport)
         {
             max_color_attachments = MAX_BUFFER_COLOR_ATTACHMENTS;
+            check_attachments_same_size = true;
+
+            if (!ValidateFramebufferAttachments(max_color_attachments, buffer_type_flags, color_buffer_flags, creation_params))
+            {
+                dmLogError("All attachments must have the same size!");
+                return 0;
+            }
         }
     #endif
 
