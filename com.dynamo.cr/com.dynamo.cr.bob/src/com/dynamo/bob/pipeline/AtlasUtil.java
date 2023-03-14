@@ -171,7 +171,7 @@ public class AtlasUtil {
         String transform(String path);
     }
 
-    private static List<MappedAnimDesc> createAnimDescs(Atlas atlas, PathTransformer transformer) {
+    private static List<MappedAnimDesc> createAnimDescs(Atlas atlas) {
         List<MappedAnimDesc> animDescs = new ArrayList<MappedAnimDesc>(atlas.getAnimationsCount()
                 + atlas.getImagesCount());
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
@@ -219,16 +219,11 @@ public class AtlasUtil {
         }
         List<IResource> imageResources = toResources(atlasResource, imagePaths);
         List<BufferedImage> images = AtlasUtil.loadImages(imageResources);
-        PathTransformer transformer = new PathTransformer() {
-            @Override
-            public String transform(String path) {
-                return project.getResource(path).getPath();
-            }
-        };
-        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
+        List<MappedAnimDesc> animDescs = createAnimDescs(atlas);
         int imagePathCount = imagePaths.size();
         for (int i = 0; i < imagePathCount; ++i) {
-            imagePaths.set(i, transformer.transform(imagePaths.get(i)));
+            String path = project.getResource(imagePaths.get(i)).getPath();
+            imagePaths.set(i, path);
         }
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, atlasImages);
         TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imageSourceRects, imagePaths, iterator,
