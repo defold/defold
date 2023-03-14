@@ -33,6 +33,7 @@
 #include <windows.h>
 #include <assert.h>
 #include <Stringapiset.h>
+#include <dbt.h>
 
 
 //************************************************************************
@@ -45,6 +46,12 @@
 
 // Resource ID that holds the application icon.
 #define _GLFW_ICON_RES_ID 100
+
+// Taken from glfw3 source to avoid using extra headers
+static const GUID _glfw_GUID_DEVINTERFACE_HID =
+    {0x4d1e55b2,0xf16f,0x11cf,{0x88,0xcb,0x00,0x11,0x11,0x00,0x00,0x30}};
+
+#define GUID_DEVINTERFACE_HID _glfw_GUID_DEVINTERFACE_HID
 
 //========================================================================
 // Enable/disable minimize/restore animations
@@ -980,6 +987,22 @@ static LRESULT CALLBACK windowProc( HWND hWnd, UINT uMsg,
 
             break;
         }
+
+        case WM_DEVICECHANGE:
+        {
+            if (wParam == DBT_DEVICEARRIVAL || wParam == DBT_DEVICEREMOVECOMPLETE)
+            {
+                DEV_BROADCAST_HDR* dbh = (DEV_BROADCAST_HDR*) lParam;
+                if (dbh && dbh->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
+                {
+                    if (_glfwWin.deviceChangeCallback)
+                    {
+                        _glfwWin.deviceChangeCallback(wParam == DBT_DEVICEARRIVAL);
+                    }
+                }
+            }
+            break;
+        }
     }
 
     // Pass all unhandled messages to DefWindowProc
@@ -1494,6 +1517,20 @@ int _glfwPlatformOpenWindow( int width, int height,
     setForegroundWindow( _glfwWin.window );
     SetFocus( _glfwWin.window );
 
+    // Register for HID device notifications
+    {
+        DEV_BROADCAST_DEVICEINTERFACE_A dbi;
+        memset(&dbi, 0, sizeof(dbi));
+        dbi.dbcc_size       = sizeof(dbi);
+        dbi.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+        dbi.dbcc_classguid  = GUID_DEVINTERFACE_HID;
+
+        _glfwWin.deviceNotificationHandle =
+            RegisterDeviceNotificationA(_glfwWin.window,
+                                        (DEV_BROADCAST_HDR*) &dbi,
+                                        DEVICE_NOTIFY_WINDOW_HANDLE);
+    }
+
     return GL_TRUE;
 }
 
@@ -1505,6 +1542,11 @@ int _glfwPlatformOpenWindow( int width, int height,
 void _glfwPlatformCloseWindow( void )
 {
     destroyWindow();
+
+    if (_glfwWin.deviceNotificationHandle)
+    {
+        UnregisterDeviceNotification(_glfwWin.deviceNotificationHandle);
+    }
 
     if( _glfwWin.classAtom )
     {
