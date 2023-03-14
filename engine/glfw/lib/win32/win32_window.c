@@ -47,6 +47,7 @@
 // Resource ID that holds the application icon.
 #define _GLFW_ICON_RES_ID 100
 
+// Taken from glfw3 source to avoid using extra headers
 static const GUID _glfw_GUID_DEVINTERFACE_HID =
     {0x4d1e55b2,0xf16f,0x11cf,{0x88,0xcb,0x00,0x11,0x11,0x00,0x00,0x30}};
 
@@ -1528,11 +1529,6 @@ int _glfwPlatformOpenWindow( int width, int height,
             RegisterDeviceNotificationA(_glfwWin.window,
                                         (DEV_BROADCAST_HDR*) &dbi,
                                         DEVICE_NOTIFY_WINDOW_HANDLE);
-
-        if (_glfwWin.deviceNotificationHandle == 0)
-        {
-            printf("FAILED!\n");
-        }
     }
 
     return GL_TRUE;
