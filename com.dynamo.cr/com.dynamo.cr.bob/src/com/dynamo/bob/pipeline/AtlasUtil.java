@@ -228,14 +228,20 @@ public class AtlasUtil {
         }
 
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
-        TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
+        try {
+            TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, imagePaths, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),
                 true, false, null,
                 atlas.getMaxPageWidth(), atlas.getMaxPageHeight());
 
-        TimeProfiler.stop();
-        return result;
+            TimeProfiler.stop();
+            return result;
+        }
+        catch (java.lang.NegativeArraySizeException e) {
+            String message = String.format("The generated texture for resource '%s' is too large.", atlasResource.getPath());
+            throw new CompileExceptionError(message, e);
+        }
     }
 }

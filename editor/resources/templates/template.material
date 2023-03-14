@@ -1,4 +1,4 @@
-name: "unnamed"
+name: "{{NAME}}"
 vertex_program: ""
 fragment_program: ""
 vertex_space: VERTEX_SPACE_WORLD
