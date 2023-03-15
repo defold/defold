@@ -113,7 +113,7 @@ namespace dmLiveUpdate
 
     void AsyncUpdate()
     {
-        if(m_Active && (dmAtomicGet32(&m_ThreadJobComplete) || (!m_JobQueue.Empty())))
+        if(dmAtomicGet32(&m_Active) && (dmAtomicGet32(&m_ThreadJobComplete) || (!m_JobQueue.Empty())))
         {
             // Process any completed jobs, lock resource loadmutex as we will swap (update) archive containers archiveindex data
             dmMutex::ScopedLock lk(m_ConsumerThreadMutex);
@@ -144,7 +144,7 @@ namespace dmLiveUpdate
     bool AddAsyncResourceRequest(AsyncResourceRequest& request)
     {
         // Add single job to job queue that will be batch pushed to thread worker in AsyncUpdate
-        if(!m_Active)
+        if(!dmAtomicGet32(&m_Active))
             return false;
         if(m_JobQueue.Full())
         {
