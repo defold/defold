@@ -362,6 +362,15 @@
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
   (property size-mode g/Keyword (default :size-mode-auto)
+            (set (fn [evaluation-context self old-value new-value]
+                   ;; Use the texture size for the :manual-size when the user switches
+                   ;; from :size-mode-auto to :size-mode-manual.
+                   (when (and (= :size-mode-auto old-value)
+                              (= :size-mode-manual new-value)
+                              (properties/user-edit? self :size-mode evaluation-context))
+                     (when-some [animation (g/node-value self :animation evaluation-context)]
+                       (let [texture-size [(double (:width animation)) (double (:height animation)) 0.0]]
+                         (g/set-property self :manual-size texture-size))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
   (property manual-size types/Vec3 (default [0.0 0.0 0.0])
             (dynamic visible (g/constantly false)))
@@ -397,12 +406,13 @@
                                  default-tex-params)))
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
-  (output aabb AABB (g/fnk [animation] (if animation
-                                         (let [animation-width (* 0.5 (:width animation))
-                                               animation-height (* 0.5 (:height animation))]
-                                           (geom/make-aabb (Point3d. (- animation-width) (- animation-height) 0)
-                                                           (Point3d. animation-width animation-height 0)))
-                                         geom/empty-bounding-box)))
+  (output aabb AABB (g/fnk [size]
+                      (let [[^double width ^double height ^double depth] size
+                            half-width (* 0.5 width)
+                            half-height (* 0.5 height)
+                            half-depth (* 0.5 depth)]
+                        (geom/make-aabb (Point3d. (- half-width) (- half-height) (- half-depth))
+                                        (Point3d. half-width half-height half-depth)))))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
