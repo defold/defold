@@ -839,7 +839,8 @@
              :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified)))))
 
 (defn new-transaction-context
-  [basis node-id-generators override-id-generator metrics-collector]
+  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector]
+  {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
    :nodes-added []
@@ -854,7 +855,7 @@
    :override-id-generator override-id-generator
    :completed []
    :txid (new-txid)
-   :tx-data-context (atom {})
+   :tx-data-context (atom tx-data-context-map)
    :deferred-setters []
    :metrics metrics-collector})
 
