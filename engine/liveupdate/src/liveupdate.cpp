@@ -95,13 +95,45 @@ namespace dmLiveUpdate
         dmResource::Manifest*       m_LUManifest;         // the new manifest from StoreManifest
         dmResource::HFactory        m_ResourceFactory;    // Resource system factory
         int                         m_ArchiveType;        // 0: original format, 1: .ref archive, -1: no format used
+
+        dmJobThread::HJobThread     m_JobThread;
     };
 
     LiveUpdate g_LiveUpdate;
 
-    /** ***********************************************************************
-     ** LiveUpdate utility functions
-     ********************************************************************** **/
+    // ******************************************************************
+    // ** LiveUpdate life cycle functions
+    // ******************************************************************
+
+    void Initialize(const dmResource::HFactory factory)
+    {
+        g_LiveUpdate.m_LUManifest = 0;
+        g_LiveUpdate.m_ResourceFactory = factory;
+        dmLiveUpdate::AsyncInitialize(factory);
+        g_LiveUpdate.m_JobThread = dmJobThread::New("liveupdate_jobs");
+    }
+
+    void Finalize()
+    {
+        dmJobThread::Join(g_LiveUpdate.m_JobThread);
+        // if this is is not the base manifest
+        if (g_LiveUpdate.m_ResourceFactory && dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory) != g_LiveUpdate.m_LUManifest)
+            dmResource::DeleteManifest(g_LiveUpdate.m_LUManifest);
+        g_LiveUpdate.m_LUManifest = 0;
+        g_LiveUpdate.m_ResourceFactory = 0;
+        dmLiveUpdate::AsyncFinalize();
+    }
+
+    void Update()
+    {
+        DM_PROFILE("LiveUpdate");
+        AsyncUpdate();
+        dmJobThread::Update(g_LiveUpdate.m_JobThread);
+    }
+
+    // ******************************************************************
+    // ** LiveUpdate utility functions
+    // ******************************************************************
 
     struct GetResourceHashContext
     {
@@ -469,28 +501,6 @@ namespace dmLiveUpdate
         return g_LiveUpdate.m_LUManifest;
     }
 
-    void Initialize(const dmResource::HFactory factory)
-    {
-        g_LiveUpdate.m_LUManifest = 0;
-        g_LiveUpdate.m_ResourceFactory = factory;
-        dmLiveUpdate::AsyncInitialize(factory);
-    }
-
-    void Finalize()
-    {
-        // if this is is not the base manifest
-        if (g_LiveUpdate.m_ResourceFactory && dmResource::GetManifest(g_LiveUpdate.m_ResourceFactory) != g_LiveUpdate.m_LUManifest)
-            dmResource::DeleteManifest(g_LiveUpdate.m_LUManifest);
-        g_LiveUpdate.m_LUManifest = 0;
-        g_LiveUpdate.m_ResourceFactory = 0;
-        dmLiveUpdate::AsyncFinalize();
-    }
-
-    void Update()
-    {
-        DM_PROFILE("LiveUpdate");
-        AsyncUpdate();
-    }
 
     // .ref archives take precedence over .arci/.arcd
     // .tmp takes precedence over non .tmp
@@ -677,4 +687,13 @@ namespace dmLiveUpdate
         dmResourceArchive::RegisterArchiveLoader(loader);
     }
 
+
+    // ******************************************************************
+    // ** LiveUpdate async functions
+    // ******************************************************************
+
+    bool PushAsyncJob(dmJobThread::FJobItemProcess process, dmJobThread::FJobItemCallback callback, void* jobctx, void* jobdata)
+    {
+        return dmJobThread::PushJob(g_LiveUpdate.m_JobThread, process, callback, jobctx, jobdata);
+    }
 };

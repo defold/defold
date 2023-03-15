@@ -16,6 +16,7 @@
 #define DM_LIVEUPDATE_H
 
 #include <dlib/hash.h>
+#include "job_thread.h"
 
 namespace dmResource
 {
@@ -88,6 +89,8 @@ namespace dmLiveUpdate
 
     dmResource::Manifest* GetCurrentManifest();
 
+
+    bool PushAsyncJob(dmJobThread::FJobItemProcess process, dmJobThread::FJobItemCallback callback, void* jobctx, void* jobdata);
     // -1: not using liveupdate
     // 0: single files
     // 1: zip file

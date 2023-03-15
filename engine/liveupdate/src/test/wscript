@@ -31,6 +31,15 @@ def build(bld):
                     target   = 'test_liveupdate' + suffix,
                     source   = 'test_liveupdate.cpp')
 
+        if impl != 'null': # it's only testing private functions, to we don't expect it to work with the _null implementation
+            bld.program(features = 'cxx test'.split() + features,
+                        includes = '../../../src',
+                        use      = uselib + [local_lib],
+                        defines  = defines,
+                        web_libs = ['library_sys.js'],
+                        target   = 'test_liveupdate_job' + suffix,
+                        source   = 'test_liveupdate_job.cpp')
+
         bld.program(features = 'cxx test'.split() + features,
                     includes = '../../../src',
                     use      = uselib + [local_lib],
@@ -46,6 +55,7 @@ def build(bld):
                     web_libs = ['library_sys.js'],
                     target   = 'test_liveupdate_zip_archive' + suffix,
                     source   = 'test_liveupdate_zip_archive.cpp')
+
 
 def shutdown(ctx):
     pass

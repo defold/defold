@@ -54,7 +54,6 @@ namespace dmJobThread
         JobContext* ctx = new JobContext;
 
 #if defined(DM_HAS_THREADS)
-        dmLogWarning("MAWE start job thread");
         ctx->m_ThreadContext.m_Mutex = dmMutex::New();
         ctx->m_ThreadContext.m_WakeupCond = dmConditionVariable::New();
         ctx->m_ThreadContext.m_Run = 1;
@@ -171,8 +170,6 @@ namespace dmJobThread
 
                 item = ctx->m_Work.Back();
                 ctx->m_Work.Pop();
-
-                dmMutex::Unlock(ctx->m_Mutex);
             }
 
             item.m_Result = item.m_Process(item.m_Context, item.m_Data);
