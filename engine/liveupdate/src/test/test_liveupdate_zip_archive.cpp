@@ -41,9 +41,11 @@ public:
     }
 };
 
+#if !defined(DM_LU_NULL_IMPLEMENTATION)
+
 TEST(dmLiveUpdate, StoreZipArchiveDoesNotExist)
 {
-    char* path = "does_not_exist";
+    const char* path = "does_not_exist";
     bool verify_archive = true;
     dmLiveUpdate::Result result = dmLiveUpdate::StoreZipArchive(path, verify_archive);
     ASSERT_EQ(dmLiveUpdate::RESULT_INVALID_RESOURCE, result);
@@ -51,7 +53,7 @@ TEST(dmLiveUpdate, StoreZipArchiveDoesNotExist)
 
 TEST_F(LiveUpdate, StoreZipArchiveFailedVerification)
 {
-    char* path = "src/test/data/defold.resourcepack.zip";
+    const char* path = "src/test/data/defold.resourcepack.zip";
     bool verify_archive = true;
     dmLiveUpdate::Result result = dmLiveUpdate::StoreZipArchive(path, verify_archive);
     ASSERT_EQ(dmLiveUpdate::RESULT_INVALID_RESOURCE, result);
@@ -59,11 +61,12 @@ TEST_F(LiveUpdate, StoreZipArchiveFailedVerification)
 
 TEST_F(LiveUpdate, StoreZipArchiveSkipVerification)
 {
-    char* path = "src/test/data/defold.resourcepack.zip";
+    const char* path = "src/test/data/defold.resourcepack.zip";
     bool verify_archive = false;
     dmLiveUpdate::Result result = dmLiveUpdate::StoreZipArchive(path, verify_archive);
     ASSERT_EQ(dmLiveUpdate::RESULT_OK, result);
 }
+#endif
 
 int main(int argc, char **argv)
 {
