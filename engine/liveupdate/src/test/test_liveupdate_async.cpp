@@ -24,7 +24,6 @@
 
 
 static volatile bool g_TestAsyncCallbackComplete = false;
-static dmResource::HFactory g_ResourceFactory = 0x0;
 
 class LiveUpdate : public jc_test_base_class
 {
@@ -34,16 +33,19 @@ public:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        g_ResourceFactory = dmResource::NewFactory(&params, ".");
-        ASSERT_NE((void*) 0, g_ResourceFactory);
+        m_Factory = dmResource::NewFactory(&params, ".");
+        ASSERT_NE((void*) 0, m_Factory);
+
+        dmLiveUpdate::AsyncInitialize(m_Factory);
     }
     virtual void TearDown()
     {
-        if (g_ResourceFactory != NULL)
-        {
-            dmResource::DeleteFactory(g_ResourceFactory);
-        }
+        dmLiveUpdate::AsyncFinalize();
+        if (m_Factory)
+            dmResource::DeleteFactory(m_Factory);
     }
+
+    dmResource::HFactory m_Factory;
 };
 
 struct StoreResourceCallbackData
@@ -121,8 +123,6 @@ static void Callback_StoreResourceInvalidHeader(bool status, void* ctx)
 
 TEST_F(LiveUpdate, TestAsync)
 {
-    dmLiveUpdate::AsyncInitialize(g_ResourceFactory);
-
     uint8_t buf[sizeof(dmResourceArchive::LiveUpdateResourceHeader)+sizeof(uint32_t)];
     const size_t buf_len = sizeof(buf);
     *((uint32_t*)&buf[sizeof(dmResourceArchive::LiveUpdateResourceHeader)]) = 0xdeadbeef;
@@ -132,7 +132,7 @@ TEST_F(LiveUpdate, TestAsync)
     cb.m_Callback = (void*)(uintptr_t)1;
     cb.m_ResourceRef = 2;
     cb.m_HexDigestRef = 3;
-    cb.m_HexDigest = "DUMMY1";;
+    cb.m_HexDigest = "DUMMY1";
 
     dmResource::Manifest manifest;
     manifest.m_ArchiveIndex = (dmResourceArchive::HArchiveIndexContainer) 0x1234;
@@ -152,14 +152,10 @@ TEST_F(LiveUpdate, TestAsync)
 
         dmTime::Sleep(1000);
     }
-
-    dmLiveUpdate::AsyncFinalize();
 }
 
 TEST_F(LiveUpdate, TestAsyncInvalidResource)
 {
-    dmLiveUpdate::AsyncInitialize(g_ResourceFactory);
-
     uint8_t buf[sizeof(dmResourceArchive::LiveUpdateResourceHeader)+sizeof(uint32_t)];
     const size_t buf_len = sizeof(buf);
     *((uint32_t*)&buf[sizeof(dmResourceArchive::LiveUpdateResourceHeader)]) = 0xdeadbeef;
@@ -191,8 +187,6 @@ TEST_F(LiveUpdate, TestAsyncInvalidResource)
 
         dmTime::Sleep(1000);
     }
-
-    dmLiveUpdate::AsyncFinalize();
 }
 
 

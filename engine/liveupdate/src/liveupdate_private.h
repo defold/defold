@@ -49,10 +49,10 @@ namespace dmLiveUpdate
         uint32_t                    m_ExpectedResourceDigestLength;
         const char*                 m_ExpectedResourceDigest;
         const char*                 m_Path;
+        FAsyncResourceCallback      m_Callback;
         void*                       m_CallbackData;
         uint8_t                     m_IsArchive:1;
         uint8_t                     m_VerifyArchive:1;
-        void (*m_Callback)(bool,void*);
     };
 
     struct ResourceRequestCallbackData

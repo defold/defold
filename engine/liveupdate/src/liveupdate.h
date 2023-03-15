@@ -52,6 +52,9 @@ namespace dmLiveUpdate
     const int CURRENT_MANIFEST = 0x0ac83fcc;
     const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 
+
+    typedef void (*FAsyncResourceCallback)(bool status, void* callback_ctx);
+
     void Initialize(const dmResource::HFactory factory);
     void Finalize();
     void Update();
