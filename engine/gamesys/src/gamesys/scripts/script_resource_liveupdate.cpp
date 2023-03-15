@@ -36,14 +36,14 @@ namespace dmLiveUpdate
         const char*                 m_Path;
     };
 
-    int Resource_GetCurrentManifest(lua_State* L)
+    static int Resource_GetCurrentManifest(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         lua_pushnumber(L, dmLiveUpdate::CURRENT_MANIFEST);
         return 1;
     }
 
-    int Resource_IsUsingLiveUpdateData(lua_State* L)
+    static int Resource_IsUsingLiveUpdateData(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         int type = dmLiveUpdate::GetLiveupdateType();
@@ -80,7 +80,7 @@ namespace dmLiveUpdate
         delete callback_data;
     }
 
-    int Resource_StoreResource(lua_State* L)
+    static int Resource_StoreResource(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -158,7 +158,7 @@ namespace dmLiveUpdate
         dmScript::TeardownCallback(cbk);
     }
 
-    int Resource_StoreManifest(lua_State* L)
+    static int Resource_StoreManifest(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -235,7 +235,7 @@ namespace dmLiveUpdate
         delete callback_data;
     }
 
-    int Resource_StoreArchive(lua_State* L)
+    static int Resource_StoreArchive(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
