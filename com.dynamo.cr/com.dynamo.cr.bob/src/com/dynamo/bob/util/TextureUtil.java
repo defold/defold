@@ -218,31 +218,38 @@ public class TextureUtil {
             numTextures = 1;
         }
 
-        TextureImage.Builder textureImageBuilder = TextureImage.newBuilder(textures[0]);
-        for (int i = 0; i < textureImageBuilder.getAlternativesCount(); i++) {
-            Image.Builder imageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
+        TextureImage.Builder combinedImageBuilder = TextureImage.newBuilder(textures[0]);
+
+        for (int i = 0; i < combinedImageBuilder.getAlternativesCount(); i++) {
+            Image.Builder alternativeImageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
+
+            alternativeImageBuilder.clearMipMapSizeCompressed();
 
             ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
-            for (int j = 0; j < imageBuilder.getMipMapSizeCount(); j++) {
-                int mipSize = imageBuilder.getMipMapSize(j);
-                byte[] buf = new byte[mipSize];
+            for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
+
                 for (int k = 0; k < numTextures; k++) {
+                    int mipSize = textures[k].getAlternatives(i).getMipMapSize(j);
                     ByteString data = textures[k].getAlternatives(i).getData();
-                    int mipOffset = imageBuilder.getMipMapOffset(j);
+                    int mipOffset = alternativeImageBuilder.getMipMapOffset(j);
+                    alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
+
+                    // Sizes can change between textures (maybe resize only if needed)
+                    byte[] buf = new byte[mipSize];
                     data.copyTo(buf, mipOffset, 0, mipSize);
                     os.write(buf);
                 }
             }
             os.flush();
-            imageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
-            for (int j = 0; j < imageBuilder.getMipMapSizeCount(); j++) {
-                imageBuilder.setMipMapOffset(j, imageBuilder.getMipMapOffset(j) * numTextures);
+            alternativeImageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
+            for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
+                alternativeImageBuilder.setMipMapOffset(j, alternativeImageBuilder.getMipMapOffset(j) * numTextures);
             }
-            textureImageBuilder.setAlternatives(i, imageBuilder);
+            combinedImageBuilder.setAlternatives(i, alternativeImageBuilder);
         }
 
-        textureImageBuilder.setCount(numTextures);
-        textureImageBuilder.setType(type);
-        return textureImageBuilder.build();
+        combinedImageBuilder.setCount(numTextures);
+        combinedImageBuilder.setType(type);
+        return combinedImageBuilder.build();
     }
 }

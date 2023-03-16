@@ -3,10 +3,17 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
+<<<<<<< HEAD
 // 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
 // 
+=======
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+>>>>>>> dev
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,16 +34,30 @@ static const HOpaqueHandle INVALID_OPAQUE_HANDLE = 0xFFFFFFFF;
 
 /*# Templated handle container
  *
+<<<<<<< HEAD
  * The handle container is a helper structure for associating dynamically allocated objects with a generic numeric handle.
+=======
+ * The handle container is a helper structure for associating dynamically allocated object pointers with a generic numeric handle.
+>>>>>>> dev
  * A handle is constructed by two parts: a index and a version. The index part of the handle is an index into the list of objects
  * stored by the container. The version of a handle is a serial number that will be increased for every item put into the list,
  * which is used to determine the validity of the handles in case a lingering handle is used to fetch objects in the container.
  *
+<<<<<<< HEAD
  * Note: The list of objects can only grow upwards by calling the Allocate function, there is currently no way of shrinking the list of objects.
  *
  * @class
  * @name dmOpaqueHandleContainer
  * @tparam T [type:typename T] Contained type
+=======
+ * Notes:
+ *   - The maximum handles this container can store is 65535 (0xFFFF)
+ *   - The list of objects can only grow upwards by calling the Allocate function, there is currently no way of shrinking the list of objects.
+ *
+ * @class
+ * @name dmOpaqueHandleContainer
+ * @tparam T [type:typename T] Contained type pointer
+>>>>>>> dev
  */
 template <typename T>
 class dmOpaqueHandleContainer
@@ -91,14 +112,24 @@ public:
     /*# container put
      *
      * Adds a reference to an object to the list and returns an opaque handle to that object. If the container
+<<<<<<< HEAD
      * is full, an INVALID_OPAQUE_HANDLE will be returned.
+=======
+     * is full, an assert will be triggered. If you need to know if a handle can be stored, you need to call
+     * your_container.Full() before issuing a .Put() call.
+>>>>>>> dev
      *
      * Note: This function DOES NOT check if the object exists before adding it to the list. You will have
      *       to maintain this manually by checking that with Get(handle) first.
      *
      * @name Put
+<<<<<<< HEAD
      * @param obj [type:T*] The object
      * @return [type:HOpaqueHandle] Return a handle to the object if successfull, otherwise returns an INVALID_OPAQUE_HANDLE.
+=======
+     * @param obj [type:T*] The object pointer
+     * @return [type:HOpaqueHandle] Return an opaque handle to the object.
+>>>>>>> dev
      */
     HOpaqueHandle Put(T* obj);
 
@@ -142,6 +173,10 @@ private:
         return m_Objects[i];
     }
 
+<<<<<<< HEAD
+=======
+    // TODO: We can improve the performance of this function by adding as freelist (see comments in https://github.com/defold/defold/pull/7421)
+>>>>>>> dev
     uint32_t GetFirstEmptyIndex()
     {
         for (int i = 0; i < m_Capacity; ++i)
@@ -167,6 +202,10 @@ private:
 template <typename T>
 dmOpaqueHandleContainer<T>::dmOpaqueHandleContainer()
 : m_Objects(0)
+<<<<<<< HEAD
+=======
+, m_ObjectVersions(0)
+>>>>>>> dev
 , m_Capacity(0)
 , m_Version(0)
 {}
@@ -191,6 +230,7 @@ dmOpaqueHandleContainer<T>::~dmOpaqueHandleContainer()
 template <typename T>
 bool dmOpaqueHandleContainer<T>::Allocate(uint32_t count)
 {
+<<<<<<< HEAD
     if (m_Objects == 0x0)
     {
         m_Objects        = (T**) malloc(count * sizeof(sizeof(T*)));
@@ -202,6 +242,13 @@ bool dmOpaqueHandleContainer<T>::Allocate(uint32_t count)
         m_Objects             = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
         m_ObjectVersions      = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
     }
+=======
+    uint32_t new_capacity = m_Capacity + count;
+    assert(new_capacity <= 0xFFFF);
+
+    m_Objects             = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
+    m_ObjectVersions      = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
+>>>>>>> dev
 
     memset(m_Objects + m_Capacity, 0, count * sizeof(T*));
     memset(m_ObjectVersions + m_Capacity, 0, count * sizeof(uint16_t));
@@ -235,6 +282,7 @@ template <typename T>
 HOpaqueHandle dmOpaqueHandleContainer<T>::Put(T* obj)
 {
     uint32_t index = GetFirstEmptyIndex();
+<<<<<<< HEAD
     if (index == INVALID_OPAQUE_HANDLE)
     {
         return INVALID_OPAQUE_HANDLE;
@@ -251,6 +299,24 @@ HOpaqueHandle dmOpaqueHandleContainer<T>::Put(T* obj)
     m_Objects[index]        = obj;
 
     return m_Version << 16 | index;
+=======
+    // Same as asserting on Full(), but faster
+    assert(index != INVALID_OPAQUE_HANDLE);
+
+    m_Version++;
+    if (m_Version == 0 || m_Version == 0xFFFF)
+    {
+        // Set to 1 to avoid potentially producing a 0 or a 0xFFFF handle
+        m_Version = 1;
+    }
+
+    m_ObjectVersions[index]  = m_Version;
+    m_Objects[index]         = obj;
+    HOpaqueHandle new_handle = m_Version << 16 | index;
+
+    assert(new_handle != INVALID_OPAQUE_HANDLE);
+    return new_handle;
+>>>>>>> dev
 }
 
 template <typename T>

@@ -59,6 +59,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.FileUtil;
 
 public class ExtenderUtil {
 
@@ -757,24 +758,10 @@ public class ExtenderUtil {
         return false;
     }
 
-    public static byte[] createSha1(File file) throws Exception  {
-        MessageDigest digest = MessageDigest.getInstance("SHA1");
-        InputStream fis = new FileInputStream(file);
-        int n = 0;
-        byte[] buffer = new byte[8192];
-        while (n != -1) {
-            n = fis.read(buffer);
-            if (n > 0) {
-                digest.update(buffer, 0, n);
-            }
-        }
-        return digest.digest();
-    }
-
     private static boolean areFilesIdentical(IResource src, File tgt) {
         try {
             byte[] sha1_src = src.sha1();
-            byte[] sha1_tgt = createSha1(tgt);
+            byte[] sha1_tgt = FileUtil.calculateSha1(tgt);
             return Arrays.equals(sha1_src, sha1_tgt);
         } catch(Exception e) {
             return false;

@@ -88,6 +88,9 @@ public class CubemapBuilder extends Builder<Void> {
                 //
                 // So for cube map textures we don't flip on any axis, meaning the texture data begin at the
                 // upper left corner of the input image.
+
+
+                // NOTE: Setting the same input for more than one side will cause a NPE when generating!
                 TextureImage texture = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(FlipAxis.class));
                 textures[i] = texture;
             }

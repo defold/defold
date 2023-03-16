@@ -20,6 +20,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -215,7 +216,8 @@ public class ModelUtilTest {
 
    ModelImporter.Scene loadScene(String path) {
         try {
-            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new ModelImporter.Options());
+            File cwd = new File(".");
+            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new ModelImporter.Options(), new ModelImporter.FileDataResolver(cwd));
         } catch (IOException e) {
             e.printStackTrace();
             return null;

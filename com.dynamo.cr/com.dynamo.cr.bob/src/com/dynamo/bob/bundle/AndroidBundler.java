@@ -594,7 +594,9 @@ public class AndroidBundler implements IBundler {
                 baseZip.delete();
             }
             baseZip.createNewFile();
+            TimeProfiler.start("Create base zip");
             ZipUtil.zipDirRecursive(baseDir, baseZip, canceled);
+            TimeProfiler.stop();
             BundleHelper.throwIfCanceled(canceled);
             return baseZip;
         } catch (Exception e) {
@@ -763,13 +765,14 @@ public class AndroidBundler implements IBundler {
         String keystoreAlias = getKeystoreAlias(project);
         String keyPasswordFile = getKeyPasswordFile(project);
 
+        File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
+
+        String aabPath = aab.getAbsolutePath();
+        String name = FilenameUtils.getBaseName(aabPath);
+        String apksPath = outDir.getAbsolutePath() + File.separator + name + ".apks";
+
+        Result res = null;
         try {
-            File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
-
-            String aabPath = aab.getAbsolutePath();
-            String name = FilenameUtils.getBaseName(aabPath);
-            String apksPath = outDir.getAbsolutePath() + File.separator + name + ".apks";
-
             List<String> args = new ArrayList<String>();
             args.add(getJavaBinFile("java")); args.add("-jar");
             args.add(bundletool.getAbsolutePath());
@@ -782,15 +785,20 @@ public class AndroidBundler implements IBundler {
             args.add("--ks-key-alias"); args.add(keystoreAlias);
             args.add("--key-pass"); args.add("file:" + keyPasswordFile);
 
-            Result res = exec(args);
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-                throw new IOException(msg);
-            }
-            BundleHelper.throwIfCanceled(canceled);
-            return new File(apksPath);
+            res = exec(args);
         } catch (Exception e) {
             throw new CompileExceptionError("Failed creating universal APK", e);
+        }
+        BundleHelper.throwIfCanceled(canceled);
+        if (res.ret == 0) {
+            return new File(apksPath);
+        }
+        String msg = new String(res.stdOutErr);
+        if (msg.contains("java.lang.ArithmeticException: integer overflow")) {
+            throw new CompileExceptionError("Failed creating universal APK. APK is too large. " + msg);
+        }
+        else {
+            throw new CompileExceptionError("Failed creating universal APK. " + msg);
         }
     }
 
@@ -855,7 +863,7 @@ public class AndroidBundler implements IBundler {
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
 
-        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
+        if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
@@ -867,7 +875,7 @@ public class AndroidBundler implements IBundler {
             properties.put("orientation-support", "fullUser");
         }
 
-        // Since we started to always fill in the default values to the propject properties
+        // Since we started to always fill in the default values to the project properties
         // it is harder to distinguish what is a user defined value.
         // For certain properties, we'll update them automatically in the build step (unless they already exist in game.project)
         if (projectProperties.isDefault("android", "debuggable")) {
@@ -881,6 +889,15 @@ public class AndroidBundler implements IBundler {
 
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        String packageName = project.getProjectProperties().getStringValue("android", "package");
+        if (packageName == null) {
+            throw new CompileExceptionError("No value for 'android.package' set in game.project");
+        }
+
+        if (!BundleHelper.isValidAndroidPackageName(packageName)) {
+            throw new CompileExceptionError("Android package name '" + packageName + "' is not valid.");
+        }
+
         TimeProfiler.start("Init Android");
         Bob.initAndroid(); // extract 
         TimeProfiler.stop();

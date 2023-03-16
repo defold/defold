@@ -1206,7 +1206,7 @@ namespace dmEngine
                         free(tmp);
                         free(data);
                         dmLogWarning("Failed to load LuaModule message from: %s (%d)", filename, r);
-                        return dmResource::RESULT_FORMAT_ERROR;
+                        return false;
                     }
 
                     // Due to the fact that the same message can be loaded in two different ways, we have two separate call sites
