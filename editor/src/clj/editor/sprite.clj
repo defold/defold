@@ -223,12 +223,16 @@
   (cond-> {:tile-set (resource/resource->proj-path image)
            :default-animation default-animation
            :material (resource/resource->proj-path material)
-           :blend-mode blend-mode
-           :offset offset
-           :playback-rate playback-rate}
+           :blend-mode blend-mode}
 
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
+
+          (not= 0.0 offset)
+          (assoc :offset offset)
+
+          (not= 1.0 playback-rate)
+          (assoc :playback-rate playback-rate)
 
           (not= :size-mode-auto size-mode)
           (cond-> :always
