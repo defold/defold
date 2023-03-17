@@ -219,11 +219,13 @@
 
 ; Node defs
 
-(g/defnk produce-save-value [image default-animation material blend-mode size-mode manual-size slice9]
+(g/defnk produce-save-value [image default-animation material blend-mode size-mode manual-size slice9 offset playback-rate]
   (cond-> {:tile-set (resource/resource->proj-path image)
            :default-animation default-animation
            :material (resource/resource->proj-path material)
-           :blend-mode blend-mode}
+           :blend-mode blend-mode
+           :offset offset
+           :playback-rate playback-rate}
 
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
@@ -293,7 +295,7 @@
         (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")
         (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets offset playback-rate]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
                               (validate-material _node-id material material-max-page-count material-shader texture-page-count)
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
@@ -309,7 +311,9 @@
                                              :blend-mode        blend-mode
                                              :size-mode         size-mode
                                              :size              (v3->v4 manual-size)
-                                             :slice9            slice9}
+                                             :slice9            slice9
+                                             :offset            offset
+                                             :playback-rate     playback-rate}
                                             [:tile-set :material])]))
 
 (defn- sort-anim-ids
@@ -387,6 +391,12 @@
   (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
+  (property playback-rate g/Num (default 1.0))
+  (property offset g/Num (default 0.0)
+            (dynamic edit-type (g/constantly {:type :slider
+                                              :min 0.0
+                                              :max 1.0
+                                              :precision 0.01})))
 
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute nil)
@@ -428,7 +438,9 @@
       (g/set-property self :size-mode (:size-mode sprite))
       (g/set-property self :manual-size (v4->v3 (:size sprite)))
       (g/set-property self :slice9 (:slice9 sprite))
-      (g/set-property self :image image))))
+      (g/set-property self :image image)
+      (g/set-property self :offset (:offset sprite))
+      (g/set-property self :playback-rate (:playback-rate sprite)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
