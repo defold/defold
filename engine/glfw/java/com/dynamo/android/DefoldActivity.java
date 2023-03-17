@@ -524,7 +524,7 @@ public class DefoldActivity extends NativeActivity {
         return name;
     }
 
-	/**
+    /**
      * Method to get meta-data value by key from AndroidManifest.xml
      * @param key
      * @return String

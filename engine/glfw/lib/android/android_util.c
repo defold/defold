@@ -29,10 +29,10 @@ static bool is_alpha_transparency_enabled()
     {
         jobject native_activity = g_AndroidApp->activity->clazz;
         jmethodID is_alpha_transparency_enabled_method = JNIGetMethodID(env, native_activity, "isAlphaTransparencyEnabled", "()Z");
-		if (is_alpha_transparency_enabled_method) {
-			jboolean jresult = (*env)->CallBooleanMethod(env, native_activity, is_alpha_transparency_enabled_method);
-			result = (JNI_TRUE == jresult);
-		}
+        if (is_alpha_transparency_enabled_method) {
+            jboolean jresult = (*env)->CallBooleanMethod(env, native_activity, is_alpha_transparency_enabled_method);
+            result = (JNI_TRUE == jresult);
+        }
         JNIDetachCurrentThread();
     }
     return result;
