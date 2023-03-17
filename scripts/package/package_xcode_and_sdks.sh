@@ -34,60 +34,60 @@ XCODE="/Applications/Xcode.app/Contents/Developer/Toolchains"
 VERBOSE=
 
 if [ ! -d "$TARGET_DIR" ]; then
-	mkdir -p "$TARGET_DIR"
+    mkdir -p "$TARGET_DIR"
 fi
 
 # E.g. make_archive ./iPhoneOS.sdk ./iPhoneOS12.1.sdk -> ${TARGET_DIR}/iPhoneOS12.1.sdk.tar.gz
 function make_archive() {
-	local src=$1
-	local tgtname=$(basename $2)
-	local srcname=$(basename $1)
-	shift
-	shift
-	local archive=${TARGET_DIR}/${tgtname}.tar.gz
-	if [ ! -e "$archive" ]; then
-		echo Packaging ${src} to ${archive}
+    local src=$1
+    local tgtname=$(basename $2)
+    local srcname=$(basename $1)
+    shift
+    shift
+    local archive=${TARGET_DIR}/${tgtname}.tar.gz
+    if [ ! -e "$archive" ]; then
+        echo Packaging ${src} to ${archive}
 
-		local tarflags=-cz
-		if [ "${VERBOSE}" != "" ]; then
-			tarflags=${tarflags}v
-		fi
+        local tarflags=-cz
+        if [ "${VERBOSE}" != "" ]; then
+            tarflags=${tarflags}v
+        fi
 
-		echo EXTRA ARGS: $@
-		echo tar ${tarflags} $@ -f ${archive} ${src}
-		tar ${tarflags} $@ -f ${archive} ${src}
-	else
-		echo "Found existing $archive"
-	fi
+        echo EXTRA ARGS: $@
+        echo tar ${tarflags} $@ -f ${archive} ${src}
+        tar ${tarflags} $@ -f ${archive} ${src}
+    else
+        echo "Found existing $archive"
+    fi
 }
 
 function package_platform() {
-	local platform=$1
-	pushd $PLATFORMS/${platform}.platform/Developer/SDKs/
-	PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l | head -1)
-	PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
+    local platform=$1
+    pushd $PLATFORMS/${platform}.platform/Developer/SDKs/
+    PLATFORM_SYMLINK=$(find . -iname "${platform}*" -maxdepth 1 -type l | head -1)
+    PLATFORM_FOLDER=$(readlink ${PLATFORM_SYMLINK})
 
-	EXTRA_ARGS=""
+    EXTRA_ARGS=""
 
-	echo FOUND $PLATFORM_SYMLINK "->" $PLATFORM_FOLDER
-	make_archive $PLATFORM_FOLDER $PLATFORM_SYMLINK ${EXTRA_ARGS}
-	popd
+    echo FOUND $PLATFORM_SYMLINK "->" $PLATFORM_FOLDER
+    make_archive $PLATFORM_FOLDER $PLATFORM_SYMLINK ${EXTRA_ARGS}
+    popd
 }
 
 function package_xcode() {
     local host_platform=$2
-	local folder=$(find $XCODE -iname "Xcode*" -maxdepth 1 -type d)
-	# split XcodeDefault.xctoolchain -> (XcodeDefault, xctoolchain)
-	local _name=$(basename $folder)
-	local name=${_name%%.*}
-	local namesuffix=${_name#*.}
-	echo SPLIT  $name  " and " $namesuffix
-	local version=$(/usr/bin/xcodebuild -version | grep -e "Xcode" | awk '{print $2}')
-	local target=${name}${version}.${namesuffix}.${host_platform}
+    local folder=$(find $XCODE -iname "Xcode*" -maxdepth 1 -type d)
+    # split XcodeDefault.xctoolchain -> (XcodeDefault, xctoolchain)
+    local _name=$(basename $folder)
+    local name=${_name%%.*}
+    local namesuffix=${_name#*.}
+    echo SPLIT  $name  " and " $namesuffix
+    local version=$(/usr/bin/xcodebuild -version | grep -e "Xcode" | awk '{print $2}')
+    local target=${name}${version}.${namesuffix}.${host_platform}
 
-	echo FOUND ${XCODE}/${_name} "->" ${target}
+    echo FOUND ${XCODE}/${_name} "->" ${target}
 
-	pushd ${XCODE}
+    pushd ${XCODE}
 
     # No need to include executables on linux, where we run vanilla clang
     if [ $host_platform != "darwin" ]
@@ -118,12 +118,12 @@ function package_xcode() {
     EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/appletvos ${EXTRA_ARGS}"
     EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/appletvsimulator ${EXTRA_ARGS}"
 
-	EXTRA_ARGS="--exclude=${_name}/Developer/Platforms ${EXTRA_ARGS}"
-	EXTRA_ARGS="--exclude=${_name}/usr/lib/sourcekitd.framework ${EXTRA_ARGS}"
-	EXTRA_ARGS="--exclude=${_name}/usr/lib/sourcekitdlnProc.framework ${EXTRA_ARGS}"
-	EXTRA_ARGS="--exclude=${_name}/usr/metal ${EXTRA_ARGS}"
-	make_archive ${_name} ${target} ${EXTRA_ARGS}
-	popd
+    EXTRA_ARGS="--exclude=${_name}/Developer/Platforms ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/sourcekitd.framework ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/sourcekitdlnProc.framework ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/metal ${EXTRA_ARGS}"
+    make_archive ${_name} ${target} ${EXTRA_ARGS}
+    popd
 }
 
 package_platform "iPhoneOS"
