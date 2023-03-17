@@ -15,14 +15,13 @@
 
 # Note: I wasn't able to rename the top folder when packaging, since it messed up symlinks (also the packages became unnecessarily bloated)
 
-# Note 2: Due to the MacOS file resource links, packing using the built-in ´tar´command is not advised.
+# Note 2: Due to the MacOS file resource links, packing using the built-in ´tar´ command is not advised.
 # Instead, we recommend using ´gnu-tar`: https://formulae.brew.sh/formula/gnu-tar
 
 # You can unpack the tar files and prettify them in one go
 # $ mkdir iPhoneOS12.1.sdk && tar xf ../new_packages/iPhoneOS12.1.sdk.tar.gz -C iPhoneOS12.1.sdk --strip-components 1
 
 # Original command lines:
-# $ (cd /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs && tar zcf ~/work/defold/footest/iPhoneOS12.1.sdk.tar.gz iPhoneOS.sdk)
 # $ (cd /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs && tar zcf ~/work/defold/footest/iPhoneOS12.1.sdk.tar.gz iPhoneOS.sdk)
 
 set -e
@@ -110,8 +109,19 @@ function package_xcode() {
     EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/watchsimulator ${EXTRA_ARGS}"
     EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/appletvos ${EXTRA_ARGS}"
     EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/appletvsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.0/watchos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.0/watchsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.0/appletvos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.0/appletvsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/watchos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/watchsimulator ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/appletvos ${EXTRA_ARGS}"
+    EXTRA_ARGS="--exclude=${_name}/usr/lib/swift-5.5/appletvsimulator ${EXTRA_ARGS}"
 
-	EXTRA_ARGS="--exclude=${_name}/Developer/Platforms --exclude=${_name}/usr/lib/sourcekitd.framework --exclude=${_name}/usr/metal ${EXTRA_ARGS}"
+	EXTRA_ARGS="--exclude=${_name}/Developer/Platforms ${EXTRA_ARGS}"
+	EXTRA_ARGS="--exclude=${_name}/usr/lib/sourcekitd.framework ${EXTRA_ARGS}"
+	EXTRA_ARGS="--exclude=${_name}/usr/lib/sourcekitdlnProc.framework ${EXTRA_ARGS}"
+	EXTRA_ARGS="--exclude=${_name}/usr/metal ${EXTRA_ARGS}"
 	make_archive ${_name} ${target} ${EXTRA_ARGS}
 	popd
 }
