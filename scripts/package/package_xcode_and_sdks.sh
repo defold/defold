@@ -16,7 +16,7 @@
 # Note: I wasn't able to rename the top folder when packaging, since it messed up symlinks (also the packages became unnecessarily bloated)
 
 # Note 2: Due to the MacOS file resource links, packing using the built-in ´tar´ command is not advised.
-# Instead, we recommend using ´gnu-tar`: https://formulae.brew.sh/formula/gnu-tar
+# Instead, we recommend using ´gnu-tar`: https://formulae.brew.sh/formula/gnu-tar (use with TAR=gtar)
 
 # You can unpack the tar files and prettify them in one go
 # $ mkdir iPhoneOS12.1.sdk && tar xf ../new_packages/iPhoneOS12.1.sdk.tar.gz -C iPhoneOS12.1.sdk --strip-components 1
@@ -32,6 +32,12 @@ PLATFORMS="/Applications/Xcode.app/Contents/Developer/Platforms"
 XCODE="/Applications/Xcode.app/Contents/Developer/Toolchains"
 
 VERBOSE=
+
+if [ -z "$TAR" ]; then
+    TAR=$(which tar)
+fi
+
+echo "Using TAR=${TAR}"
 
 if [ ! -d "$TARGET_DIR" ]; then
     mkdir -p "$TARGET_DIR"
@@ -54,8 +60,8 @@ function make_archive() {
         fi
 
         echo EXTRA ARGS: $@
-        echo tar ${tarflags} $@ -f ${archive} ${src}
-        tar ${tarflags} $@ -f ${archive} ${src}
+        echo ${TAR} ${tarflags} $@ -f ${archive} ${src}
+        ${TAR} ${tarflags} $@ -f ${archive} ${src}
     else
         echo "Found existing $archive"
     fi
